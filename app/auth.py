@@ -79,9 +79,17 @@ def set_cookie(request, response, token):
 def end_session(c, token):
     if token: c.execute('DELETE FROM sessions WHERE token_hash = %s', (_h(token),))
 
+def session_token(request):
+    """The browser sends its login in the cookie; the iPhone app (mobile/) sends the same kind of login token as
+    `Authorization: Bearer <token>`, because its pages are not on the server's address and can't use the cookie."""
+    a = request.headers.get('authorization', '')
+    if a[:7].lower() == 'bearer ': return a[7:].strip()[:100] or None
+    return request.cookies.get(COOKIE)
+
+
 def current_user(request: Request):
     """FastAPI dependency: the logged-in person, or 401. Every data endpoint must use this."""
-    token = request.cookies.get(COOKIE)
+    token = session_token(request)
     if not token: raise HTTPException(401, 'Not logged in')
     with db.connect() as c:
         row = c.execute(f"""SELECT u.id, u.login::text AS login, u.name, u.is_admin, s.last_seen < now() - interval '1 hour' AS stale

@@ -424,6 +424,13 @@ MIGRATIONS = [
       invite_id bigint REFERENCES invites(id) ON DELETE SET NULL);
     CREATE UNIQUE INDEX beta_requests_email ON beta_requests (lower(email));
     """,
+    # 19 (2026-10-11): workouts sent by the Lankki iPhone app from Apple Health (api_health.py). source_id holds HealthKit's
+    #     own id for the workout, so one sent twice (a retry, a second phone) is stored once, even when both arrive at the
+    #     same moment. health_ai_ok: the person said yes to the AI coach reading their Apple Health workouts (off until then).
+    """
+    CREATE UNIQUE INDEX activities_healthkit ON activities (user_id, source_id) WHERE source = 'healthkit';
+    ALTER TABLE profile ADD COLUMN health_ai_ok boolean NOT NULL DEFAULT false;
+    """,
 ]
 
 

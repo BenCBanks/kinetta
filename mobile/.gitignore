@@ -1,0 +1,4 @@
+# made by npm install / npm run sync
+node_modules/
+www/
+build/

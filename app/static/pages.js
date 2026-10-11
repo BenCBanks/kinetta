@@ -672,6 +672,7 @@ route(/^\/me$/, 'me', async (el) => {
   el.innerHTML = `<div class="top"><h1>${esc(me.name)}</h1></div>
     <div class="card"><a class="row-link" href="/me/import"><span>Upload activities</span><span class="chev">${svg('chev')}</span></a>
       <button class="row-link" data-addact><span>Add an activity by hand</span><span class="chev">${svg('chev')}</span></button>
+      ${Native.on ? `<a class="row-link" href="/me/health"><span>Apple Health</span><span class="chev">${svg('chev')}</span></a>` : ''}
       <a class="row-link" href="/me/connections"><span>Watch connections</span><span class="chev">${svg('chev')}</span></a>
       <a class="row-link" href="/me/gear"><span>Shoes & bikes</span><span class="chev">${svg('chev')}</span></a>
       <a class="row-link" href="/plan"><span>Training plan</span><span class="chev">${svg('chev')}</span></a>
@@ -718,6 +719,7 @@ route(/^\/me$/, 'me', async (el) => {
     const n = Q.mine().length;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
     try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
+    await Native.forget();
     store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
     App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin();
   };
@@ -952,7 +954,7 @@ route(/^\/me\/connections$/, 'me', async (el) => {
     try {
       const r = await api('/api/connections/apple', json('POST', {}));
       $('#c-apple-out', el).innerHTML = `<div class="callout"><div><p class="small">Copy these into Health Auto Export now — the secret is shown only once.</p>
-        <p class="small"><b>URL</b><br><code>${esc(location.origin + r.url)}</code></p><p class="small"><b>Header</b> Authorization<br><b>Value</b> <code>Bearer ${esc(r.token)}</code></p></div></div>`;
+        <p class="small"><b>URL</b><br><code>${esc((Native.base || location.origin) + r.url)}</code></p><p class="small"><b>Header</b> Authorization<br><b>Value</b> <code>Bearer ${esc(r.token)}</code></p></div></div>`;
     } catch (x) { toast(x.message); }
   };
   $$('[data-off]', el).forEach((b) => b.onclick = async () => { if (!confirm('Disconnect? Activities already imported stay.')) return; try { await api(`/api/connections/${b.dataset.off}`, {method: 'DELETE'}); render(); } catch (x) { toast(x.message); } });

@@ -4,7 +4,8 @@
 
 - Automatic: a short note for each NEW activity (started in the last 3 days) right after import - never for bulk history.
 - On demand: "Get coach note" on any activity, max 30 per person per day.
-- Only the person's own numbers are sent. The model is told to be specific, honest about missing data and never invent.
+- Only the person's own numbers are sent. Workouts from Apple Health (the iPhone app) only once the person says yes
+  (Me > Apple Health): until then the coach stays off for anyone who has them. The model is told to be specific, honest about missing data and never invent.
 Cost: one short request (~2k tokens in, ~300 out) per note on claude-opus-5-5 at low effort - about a cent.
 """
 import datetime as dt
@@ -35,6 +36,16 @@ def provider():
 
 def enabled():
     return provider() is not None
+
+
+HEALTH_NO = 'The coach needs your OK to read workouts from Apple Health first: Me > Apple Health.'
+
+
+def health_ok(c, user_id):
+    """Apple's rules: health data goes to an AI service only with the person's explicit consent."""
+    r = c.execute("""SELECT coalesce((SELECT health_ai_ok FROM profile WHERE user_id = %s), false) AS ok,
+                       EXISTS (SELECT 1 FROM activities WHERE user_id = %s AND source = 'healthkit') AS has""", (user_id, user_id)).fetchone()
+    return r['ok'] or not r['has']
 
 
 def _gemini(ctx, system=None):
@@ -134,6 +145,7 @@ def week_review(user_id, week_start=None):
     if week_start is None:
         today = dt.date.today(); week_start = today - dt.timedelta(days=today.weekday())
     with db.connect() as c:
+        if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         ctx = _week_context(c, user_id, week_start)
     if not ctx['activities'] and not ctx['food_days']: raise ValueError('Nothing logged this week yet.')
     text = _gemini(ctx, WEEK_SYSTEM) if provider() == 'gemini' else _claude(ctx, WEEK_SYSTEM)
@@ -164,6 +176,7 @@ def note(user_id, aid, on_demand=False):
     """Writes activities.ai_note; returns the text (or raises ValueError with a friendly message)."""
     if not enabled(): raise ValueError('The coach is not switched on yet (needs an AI key on the server).')
     with db.connect() as c:
+        if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         if on_demand:
             n = c.execute("""SELECT count(*) AS n FROM activities WHERE user_id = %s AND ai_note_at > now() - interval '1 day'""", (user_id,)).fetchone()['n']
             if n >= DAILY_LIMIT: raise ValueError('Daily limit for coach notes reached - try again tomorrow.')
