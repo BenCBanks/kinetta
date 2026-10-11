@@ -455,10 +455,13 @@ def calendar_month(month: str, user=Depends(current_user)):
     """The month at a glance (2026-10-11): each day's workouts, food against that day's calorie goal and weigh-in,
     plus each week's totals. A day counts as on target within 10 % of its goal; a day logged at under half a usual
     day's calories is 'partial' (probably not fully logged), so it isn't judged."""
-    try: y, m = map(int, month.split('-')); first = dt.date(y, m, 1)
+    try:
+        y, m = map(int, month.split('-'))
+        if not 1900 <= y <= 2200: raise ValueError
+        first, nxt = dt.date(y, m, 1), dt.date(y + (m == 12), m % 12 + 1, 1)
     except ValueError: raise HTTPException(400, 'month must be YYYY-MM')
-    nxt = dt.date(y + (m == 12), m % 12 + 1, 1)
-    mon, sun = first - dt.timedelta(days=first.weekday()), nxt + dt.timedelta(days=(6 - nxt.weekday()) % 7)   # whole weeks
+    last = nxt - dt.timedelta(days=1)
+    mon, sun = first - dt.timedelta(days=first.weekday()), last + dt.timedelta(days=6 - last.weekday())   # whole weeks, Monday to Sunday
     with db.connect() as c:
         p = c.execute('SELECT tz, kcal_target, protein_target FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         tz = p.get('tz') or db.DEFAULT_TZ

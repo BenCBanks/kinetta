@@ -229,6 +229,10 @@ def friend_remove(login: str, user=Depends(current_user)):
         t = _person(c, login)
         c.execute("""DELETE FROM friendships WHERE (requester = %(me)s AND addressee = %(them)s)
                        OR (requester = %(them)s AND addressee = %(me)s AND status = 'accepted')""", {'me': user['id'], 'them': t['id']})
+        # dishes either of you shared with the other stop being shared (api_dishes also checks the friendship)
+        c.execute("""DELETE FROM dish_shares s USING dishes d WHERE s.dish_id = d.id
+                       AND ((d.user_id = %(me)s AND s.user_id = %(them)s) OR (d.user_id = %(them)s AND s.user_id = %(me)s))""",
+                  {'me': user['id'], 'them': t['id']})
     return {'ok': True}
 
 

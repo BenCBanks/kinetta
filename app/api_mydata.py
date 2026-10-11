@@ -55,6 +55,7 @@ TABLES = {
                    JOIN users u ON u.id = CASE WHEN f.requester = me.id THEN f.addressee ELSE f.requester END""",
     'cheers_given': "SELECT to_jsonb(t)" + DROP + " FROM cheers t WHERE user_id = %s ORDER BY created",
     'comments_written': "SELECT to_jsonb(t)" + DROP + " FROM comments t WHERE user_id = %s ORDER BY created",
+    'ai_food_requests': "SELECT to_jsonb(t)" + DROP + " FROM ai_requests t WHERE user_id = %s ORDER BY created",   # when you asked for AI food feedback
     # dishes shared with you by friends (cooking mode, 2026-10-11): which dish, from whom
     'dishes_shared_with_me': """SELECT jsonb_build_object('dish_id', s.dish_id, 'dish', d.name, 'from', u.login, 'created', s.created)
                    FROM dish_shares s JOIN dishes d ON d.id = s.dish_id JOIN users u ON u.id = d.user_id WHERE s.user_id = %s""",

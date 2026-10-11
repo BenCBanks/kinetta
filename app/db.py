@@ -542,6 +542,22 @@ MIGRATIONS = [
     """
     ALTER TABLE saved_meals ADD COLUMN ai_note text, ADD COLUMN ai_note_at timestamptz;
     """,
+    # 26 (2026-10-11): ai_requests - one row per AI food review asked for, so the daily limit counts requests (a review
+    #   that is asked for again overwrites its note, so notes alone can't be counted). dishes.recipe_updated: when the
+    #   recipe itself last changed (ingredients, typed totals, weight) - logging a portion doesn't make feedback stale.
+    """
+    CREATE TABLE ai_requests (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind    text NOT NULL,
+      created timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX ai_requests_user ON ai_requests (user_id, created);
+    ALTER TABLE ai_requests ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON ai_requests FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON ai_requests FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON ai_requests TO fit_readers;
+    ALTER TABLE dishes ADD COLUMN recipe_updated timestamptz NOT NULL DEFAULT now();
+    UPDATE dishes SET recipe_updated = updated;
+    """,
 ]
 
 

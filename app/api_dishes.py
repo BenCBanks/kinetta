@@ -59,7 +59,8 @@ def _qty(s):
     if re.fullmatch(r'\d{1,3},\d{3}', s): return float(s.replace(',', ''))        # 1,500 g
     if ' ' in s:
         whole, frac = s.split(None, 1)
-        return float(whole) + _qty(frac)
+        f = _qty(frac)
+        return float(whole) + f if f is not None else None        # "1 1/0": no amount
     if '/' in s:
         a, b = s.split('/')
         return float(a) / float(b) if float(b) else None
@@ -121,16 +122,18 @@ def _out(d):
             'cooked_g': cooked, 'eaten_g': round(d['eaten_g'], 1), 'left_g': left,
             'per_100g': {k: _r(v * 100 / cooked) if v is not None else None for k, v in totals.items()} if cooked else None,
             'status': status, 'created': d['created'], 'updated': d['updated'], 'done_at': d['done_at'],
-            'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['updated'] > d['ai_note_at']} if d.get('ai_note') else None}
+            'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['recipe_updated'] > d['ai_note_at']} if d.get('ai_note') else None}
 
 
-COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, eaten_g, created, updated, done_at, ai_note, ai_note_at'
+COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, eaten_g, created, updated, done_at, ai_note, ai_note_at, recipe_updated'
 
 
 def _seen(c, uid, did, lock=False):
-    """A dish this person may see: their own, or one a friend shared with them. Otherwise 404."""
+    """A dish this person may see: their own, or one a friend shared with them (while they're still friends). Otherwise 404."""
     d = c.execute(f"""SELECT {COLS} FROM dishes WHERE id = %(d)s AND (user_id = %(u)s
-                        OR EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s))"""
+                        OR (EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s)
+                        AND EXISTS (SELECT 1 FROM friendships f WHERE f.status = 'accepted'
+                          AND ((f.requester = dishes.user_id AND f.addressee = %(u)s) OR (f.addressee = dishes.user_id AND f.requester = %(u)s)))))"""
                   + (' FOR UPDATE' if lock else ''), {'d': did, 'u': uid}).fetchone()
     if not d: raise HTTPException(404, 'Not found')
     return d
@@ -155,7 +158,7 @@ def _get(c, uid, did, lock=False):
 
 
 def _save_items(c, uid, did, items):
-    c.execute('UPDATE dishes SET items = %s, updated = now() WHERE id = %s AND user_id = %s', (json.dumps(items), did, uid))
+    c.execute('UPDATE dishes SET items = %s, updated = now(), recipe_updated = now() WHERE id = %s AND user_id = %s', (json.dumps(items), did, uid))
     return _get(c, uid, did)
 
 
@@ -199,7 +202,9 @@ def dishes(user=Depends(current_user)):
     """Dishes still in use: still cooking, or with leftovers from the last few days. Newest first."""
     with db.connect() as c:
         rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE (user_id = %(u)s
-                                 OR EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s))
+                                 OR (EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s)
+                        AND EXISTS (SELECT 1 FROM friendships f WHERE f.status = 'accepted'
+                          AND ((f.requester = dishes.user_id AND f.addressee = %(u)s) OR (f.addressee = dishes.user_id AND f.requester = %(u)s)))))
                                AND (done_at IS NULL OR (cooked_g - eaten_g >= 1 AND created > now() - make_interval(days => %(days)s)))
                              ORDER BY created DESC, id DESC LIMIT 50""", {'u': user['id'], 'days': LEFTOVER_DAYS}).fetchall()
         return [_view(c, user['id'], d) for d in rows]
@@ -261,6 +266,7 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
             sets['cooked_g'] = _r(v['cooked_g'])
         for k in KNOWN:
             if f'known_{k}' in v: sets[f'known_{k}'] = _r(v[f'known_{k}'])
+        if set(sets) & {'cooked_g', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
         if v.get('done') is not None:
             sets['done_at'] = (d['done_at'] or dt.datetime.now(dt.timezone.utc)) if v['done'] else None
             if not v['done'] and d['eaten_g'] > 0: raise HTTPException(400, 'Portions are already logged from this dish')

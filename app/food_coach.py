@@ -36,8 +36,8 @@ logged, say so instead of guessing. Never shame, never suggest very low calorie 
 doctor or dietitian only for clear warning signs."""
 
 RECIPE_SYSTEM = """You are a friendly chef and sports-nutrition coach. You get one home-cooked dish as JSON: its
-ingredients with weights and nutrition, the whole dish's totals, its cooked weight, a typical portion if known, and the
-cook's daily targets. Answer with JSON only, no code fences:
+ingredients with weights and nutrition, the whole dish's totals, its cooked weight and a typical portion if known.
+Several people may read your answer, so don't refer to anyone's personal goals. Answer with JSON only, no code fences:
 {"summary": 1-2 sentences on the dish as a meal for someone who trains: calories and protein per typical portion (work it
    out from the numbers; say which portion size you used), and what it does well,
  "ideas": 2-4 specific tweaks, each {"change": what to do with real amounts (max 20 words), "effect": what it does to the
@@ -69,15 +69,16 @@ def _parse(text):
     return {k: v for k, v in out.items() if v}
 
 
-def _check(c, user_id, health=False):
+def _check(c, user_id, kind, health=False):
+    """Consent and the daily limit. Each request is written down (ai_requests) before the model is asked, under a lock
+    on the person's profile row, so parallel requests or asking again can't get past the limit."""
     if not coach.enabled(): raise HTTPException(400, 'The coach is not switched on yet (needs an AI key on the server).')
     if not coach.allowed(user_id): raise HTTPException(400, coach.OFF)
     if health and not coach.health_ok(c, user_id): raise HTTPException(400, coach.HEALTH_NO)
-    n = c.execute("""SELECT (SELECT count(*) FROM coach_notes WHERE user_id = %(u)s AND kind = 'diet' AND created > now() - interval '1 day')
-                          + (SELECT count(*) FROM dishes WHERE user_id = %(u)s AND ai_note_at > now() - interval '1 day')
-                          + (SELECT count(*) FROM saved_meals WHERE user_id = %(u)s AND ai_note_at > now() - interval '1 day') AS n""",
-                  {'u': user_id}).fetchone()['n']
+    c.execute('SELECT 1 FROM profile WHERE user_id = %s FOR UPDATE', (user_id,))
+    n = c.execute("SELECT count(*) AS n FROM ai_requests WHERE user_id = %s AND created > now() - interval '1 day'", (user_id,)).fetchone()['n']
     if n >= DAILY_LIMIT: raise HTTPException(429, 'Daily limit for food feedback reached - try again tomorrow.')
+    c.execute('INSERT INTO ai_requests (user_id, kind) VALUES (%s, %s)', (user_id, kind))
 
 
 # ---------- the last two weeks of eating ----------
@@ -121,13 +122,13 @@ def diet_review_get(user=Depends(current_user)):
 @router.post('/food/review')
 def diet_review(user=Depends(current_user)):
     with db.connect() as c:
-        _check(c, user['id'], health=True)
         ctx = _diet_context(c, user['id'])
         last = c.execute("SELECT created FROM coach_notes WHERE user_id = %s AND kind = 'diet' AND period_start = %s",
                          (user['id'], ctx['today'])).fetchone()
         if last and last['created'] > dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=AGAIN_AFTER):
             raise HTTPException(429, 'You just had a review - log some more and try again later.')
-    if sum(1 for d in ctx['days'] if not d['today']) < 3: raise HTTPException(400, 'Log food on at least 3 days first, then ask for a review.')
+        if sum(1 for d in ctx['days'] if not d['today']) < 3: raise HTTPException(400, 'Log food on at least 3 days first, then ask for a review.')
+        _check(c, user['id'], 'diet', health=True)
     try: out = _ask(ctx, DIET_SYSTEM)
     except ValueError as e: raise HTTPException(400, str(e))
     with db.connect() as c:
@@ -139,14 +140,14 @@ def diet_review(user=Depends(current_user)):
 
 # ---------- one recipe (a cooking-mode dish) ----------
 def _recipe_context(c, user_id, d):
-    p = c.execute('SELECT units, kcal_target, protein_target FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
+    """No personal targets here: the answer is kept on the dish and friends it's shared with can read it."""
+    p = c.execute('SELECT units FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
     portion = c.execute("""SELECT round(avg(amount)) AS g FROM food_entries WHERE user_id = %s AND source = 'dish'
-                           AND (ref->>'dish_id')::bigint = %s""", (user_id, d['id'])).fetchone()['g']
+                           AND ref->>'dish_id' = %s""", (user_id, str(d['id']))).fetchone()['g']
     items = [{k: i.get(k) for k in ('name', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')} for i in d['items']]
     known = {k: d[f'known_{k}'] for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g') if d[f'known_{k}'] is not None}
     return {'units': p.get('units', 'imperial'), 'dish': d['name'], 'ingredients': items, 'whole_dish': _totals(d),
             'typed_in_totals': known or None, 'cooked_weight_g': d['cooked_g'], 'typical_portion_g': portion,
-            'daily_targets': {k: v for k, v in p.items() if k.endswith('_target') and v},
             'notes': 'grams and kcal; whole_dish uses the typed-in totals when given; ingredient weights are raw'}
 
 
@@ -157,10 +158,10 @@ def recipe_review(did: int, user=Depends(current_user)):
         d = _seen(c, user['id'], did)
         if d['user_id'] != user['id']: raise HTTPException(404, 'Not found')
         if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, 'Add some ingredients first.')
-        _check(c, user['id'])
-        at = c.execute('SELECT ai_note_at FROM dishes WHERE id = %s', (did,)).fetchone()['ai_note_at']
-        if at and at > dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=AGAIN_AFTER) and d['updated'] <= at:
+        at = d['ai_note_at']
+        if at and at > dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=AGAIN_AFTER) and d['recipe_updated'] <= at:
             raise HTTPException(429, 'Change the recipe or wait a few minutes before asking again.')
+        _check(c, user['id'], 'recipe')
         ctx = _recipe_context(c, user['id'], d)
     try: out = _ask(ctx, RECIPE_SYSTEM)
     except ValueError as e: raise HTTPException(400, str(e))
@@ -190,7 +191,7 @@ def meal_review(mid: int, user=Depends(current_user)):
         if not m: raise HTTPException(404, 'Not found')
         if m['ai_note_at'] and m['ai_note_at'] > dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=AGAIN_AFTER):
             raise HTTPException(429, 'You just asked - try again in a few minutes.')
-        _check(c, user['id'])
+        _check(c, user['id'], 'meal')
         p = c.execute('SELECT units, kcal_target, protein_target FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         usual = c.execute("""SELECT meal FROM food_entries WHERE user_id = %s AND source = 'meal' AND name = ANY(%s)
                              GROUP BY meal ORDER BY count(*) DESC LIMIT 1""", (user['id'], [i.get('name') for i in m['items']])).fetchone()

@@ -291,6 +291,16 @@ class EntryIn(BaseModel):
     client_id: str | None = Field(None, pattern=r'^[A-Za-z0-9-]{8,64}$')   # set by a phone that logged offline: resends are ignored
 
 
+def _dish_grams(c, uid, entry, delta_g):
+    """A food entry logged from a cooking-mode dish (source 'dish'): deleting, editing or re-adding it moves its grams
+    back to or out of that dish's leftovers - if the dish still exists and is yours or shared with you."""
+    ref = entry.get('ref') or {}
+    if entry.get('source') != 'dish' or not delta_g or not str(ref.get('dish_id', '')).isdigit(): return
+    c.execute("""UPDATE dishes SET eaten_g = greatest(0, eaten_g + %(g)s) WHERE id = %(d)s AND (user_id = %(u)s
+                   OR EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s))""",
+              {'g': round(delta_g, 1), 'd': int(ref['dish_id']), 'u': uid})
+
+
 @router.post('/entries')
 def add_entries(items: list[EntryIn], user=Depends(current_user)):
     if not 1 <= len(items) <= 100: raise HTTPException(400, '1-100 items')
@@ -305,6 +315,7 @@ def add_entries(items: list[EntryIn], user=Depends(current_user)):
                            e.fiber_g, e.source, json.dumps(e.ref) if e.ref else None, pos, e.client_id)).fetchone()
             if r is None:   # already received (offline resend)
                 r = c.execute('SELECT id FROM food_entries WHERE user_id = %s AND client_id = %s', (user['id'], e.client_id)).fetchone()
+            else: _dish_grams(c, user['id'], {'source': e.source, 'ref': e.ref}, e.amount)    # e.g. Undo of a deleted portion
             ids.append(r['id'])
     return {'ids': ids}
 
@@ -327,9 +338,11 @@ def edit_entry(eid: int, body: EntryEdit, user=Depends(current_user)):
     vals = body.model_dump(exclude_unset=True)
     if not vals: return {'ok': True}
     with db.connect() as c:
-        if not c.execute(f"UPDATE food_entries SET {', '.join(f'{k} = %s' for k in vals)}, updated = now() WHERE id = %s AND user_id = %s RETURNING id",
-                         (*vals.values(), eid, user['id'])).fetchone():
-            raise HTTPException(404, 'Not found')
+        old = c.execute('SELECT amount, source, ref FROM food_entries WHERE id = %s AND user_id = %s FOR UPDATE', (eid, user['id'])).fetchone()
+        if not old: raise HTTPException(404, 'Not found')
+        c.execute(f"UPDATE food_entries SET {', '.join(f'{k} = %s' for k in vals)}, updated = now() WHERE id = %s AND user_id = %s",
+                  (*vals.values(), eid, user['id']))
+        if 'amount' in vals: _dish_grams(c, user['id'], old, vals['amount'] - (old['amount'] or 0))
     return {'ok': True}
 
 
@@ -338,6 +351,7 @@ def delete_entry(eid: int, user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute("""DELETE FROM food_entries WHERE id = %s AND user_id = %s
                          RETURNING day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref""", (eid, user['id'])).fetchone()
+        if r: _dish_grams(c, user['id'], r, -(r['amount'] or 0))
     if not r: raise HTTPException(404, 'Not found')
     return {'deleted': r}     # the phone keeps this for Undo
 
@@ -352,6 +366,9 @@ class CopyIn(BaseModel):
 @router.post('/copy')
 def copy(body: CopyIn, user=Depends(current_user)):
     with db.connect() as c:
+        for e in c.execute("""SELECT amount, source, ref FROM food_entries WHERE user_id = %s AND day = %s AND (%s::text IS NULL OR meal = %s)
+                              AND source = 'dish'""", (user['id'], body.from_day, body.meal, body.meal)).fetchall():
+            _dish_grams(c, user['id'], e, e['amount'] or 0)          # copying a dish portion eats more of the dish
         n = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position)
                          SELECT user_id, %s, coalesce(%s, meal), name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position + 1000
                          FROM food_entries WHERE user_id = %s AND day = %s AND (%s::text IS NULL OR meal = %s)""",

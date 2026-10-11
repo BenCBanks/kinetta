@@ -103,9 +103,9 @@ nav.links a:hover { color: var(--ink); }
 .hcard { display: grid; gap: 8px; align-content: start; padding: 22px; border-radius: 20px; background: var(--paper); border: 1px solid var(--line); text-decoration: none; transition: transform .15s, border-color .15s; }
 .hcard:hover { transform: translateY(-2px); border-color: var(--ink3); }
 .hcard h3 { font-size: 20px; } .hcard p { color: var(--ink2); font-size: 15.5px; }
-.hico { display: inline-flex; align-items: center; height: 26px; color: var(--berry); }
-.hico svg { width: 30px; height: 18px; }
-.hico.new { justify-self: start; padding: 0 10px; border-radius: 999px; background: var(--berry); color: #fff; font: 600 12px/26px var(--body); letter-spacing: .08em; text-transform: uppercase; }
+.hico { display: inline-grid; place-items: center; justify-self: start; width: 44px; height: 44px; border-radius: 13px; color: var(--berry);
+  background: color-mix(in srgb, var(--berry) 11%, transparent); }
+.hico svg { width: 24px; height: 24px; }
 @media (max-width: 900px) { .hl .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .hl .wrap { grid-template-columns: 1fr; gap: 12px; } .hcard { padding: 18px; } }
 .spot-h { font-size: clamp(32px, 4.4vw, 50px); margin-top: 14px; }
@@ -249,6 +249,12 @@ footer a { color: var(--ink2); }
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-people" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/></g></symbol>
+  <symbol id="i-pot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM2 10h2M20 10h2M9 6c0-1 1-1 1-2M14 6c0-1 1-1 1-2"/></g></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></g></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/></g></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></g></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-9z"/></g></symbol>
   <symbol id="oval" viewBox="0 0 44 26"><rect x="2.5" y="2.5" width="39" height="21" rx="10.5" fill="none" stroke="currentColor" stroke-width="3"/></symbol>
 </svg>
 
@@ -292,12 +298,12 @@ footer a { color: var(--ink2); }
 
   <section class="hl" aria-label="Highlights">
     <div class="wrap">
-      <a class="hcard" href="#friends"><span class="hico new">New</span><h3>Friends and a feed</h3><p>Your runs and your friends' in one feed. Cheers, comments, and the start and end of every map hidden.</p></a>
-      <a class="hcard" href="#cooking"><span class="hico new">New</span><h3>Cooking mode</h3><p>Add ingredients as you cook, weigh the pot, weigh your plate. Your share is logged.</p></a>
-      <a class="hcard" href="#both"><span class="hico"><svg aria-hidden="true"><use href="#oval"/></svg></span><h3>Your real deficit</h3><p>Every workout from your watch counts against what you ate, with no typing.</p></a>
-      <a class="hcard" href="#premium"><span class="hico"><svg aria-hidden="true"><use href="#oval"/></svg></span><h3>Training plans</h3><p>5K to marathon, with paces from how you're running now.</p></a>
-      <a class="hcard" href="#what"><span class="hico"><svg aria-hidden="true"><use href="#oval"/></svg></span><h3>Photo and barcode</h3><p>Snap a meal or scan a packet, and the calories are filled in.</p></a>
-      <a class="hcard" href="#premium"><span class="hico"><svg aria-hidden="true"><use href="#oval"/></svg></span><h3>Premium, free</h3><p>What Strava and MyFitnessPal charge $160 a year for, included.</p></a>
+      <a class="hcard" href="#friends"><span class="hico"><svg aria-hidden="true"><use href="#i-people"/></svg></span><h3>Friends and a feed</h3><p>Your runs and your friends' in one feed, with cheers and comments. Your front door stays off the map.</p></a>
+      <a class="hcard" href="#cooking"><span class="hico"><svg aria-hidden="true"><use href="#i-pot"/></svg></span><h3>Cooking mode</h3><p>Add ingredients as you cook, weigh the pot, weigh your plate. Your share is logged, and leftovers wait for tomorrow.</p></a>
+      <a class="hcard" href="#premium"><span class="hico"><svg aria-hidden="true"><use href="#i-spark"/></svg></span><h3>An AI coach</h3><p>Notes on every workout, a weekly review, and honest feedback on your eating and your recipes.</p></a>
+      <a class="hcard" href="#premium"><span class="hico"><svg aria-hidden="true"><use href="#i-target"/></svg></span><h3>Training plans</h3><p>5K to marathon, with paces from how you're running now. Runs tick off workouts on their own.</p></a>
+      <a class="hcard" href="#what"><span class="hico"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><h3>Photo and barcode</h3><p>Snap a meal or scan a packet, and the calories are filled in.</p></a>
+      <a class="hcard" href="#both"><span class="hico"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><h3>Your real deficit</h3><p>Every workout from your watch counts against what you ate, with no typing.</p></a>
     </div>
   </section>
 
@@ -322,7 +328,7 @@ footer a { color: var(--ink2); }
     <div class="wrap">
       <div class="spot">
         <div>
-          <span class="eyebrow">New · Your people</span>
+          <span class="eyebrow">Your people</span>
           <h2 id="fr-h" class="spot-h">Train together, even apart.</h2>
           <p>Find friends by name, and the Activity tab becomes a feed of your runs, rides and walks and theirs, newest first. Give a cheer, leave a comment, see who's out there today.</p>
           <ul>
@@ -343,7 +349,7 @@ footer a { color: var(--ink2); }
     <div class="wrap">
       <div class="spot rev">
         <div>
-          <span class="eyebrow">New · Cooking mode</span>
+          <span class="eyebrow">Cooking mode</span>
           <h2 id="ck-h" class="spot-h">Cook it. Weigh it. Done.</h2>
           <p>Logging a home-cooked meal shouldn't mean guessing. Add each ingredient as it goes in the pot, weigh the finished dish and your plate, and Kinetta logs exactly your share.</p>
           <div class="sum" role="img" aria-label="Example: a 2,400 calorie dish weighing 1,600 grams; a 380 gram plate is 570 calories">
