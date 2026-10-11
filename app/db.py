@@ -487,6 +487,38 @@ MIGRATIONS = [
         EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
       END LOOP; END $$;
     """,
+    # 22 (2026-10-11): cooking mode (api_dishes.py). A dish collects ingredients while it cooks (items: a jsonb list, each
+    #   with its own per-100 g values so its amount can change later). known_*: a dish total typed in from a recipe, used
+    #   instead of the ingredients' sum. cooked_g: the finished dish without the pan. Each portion logged from it is an
+    #   ordinary food_entries row (source 'dish') and adds to eaten_g, so the leftovers are cooked_g - eaten_g.
+    #   pans: the person's empty pans, so a dish can be weighed in its pan.
+    """
+    CREATE TABLE dishes (
+      id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id   bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name      text NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+      items     jsonb NOT NULL DEFAULT '[]',
+      known_kcal real, known_protein_g real, known_carbs_g real, known_fat_g real,
+      cooked_g  real CHECK (cooked_g > 0),
+      eaten_g   real NOT NULL DEFAULT 0 CHECK (eaten_g >= 0),
+      created   timestamptz NOT NULL DEFAULT now(),
+      updated   timestamptz NOT NULL DEFAULT now(),
+      done_at   timestamptz);
+    CREATE INDEX dishes_user ON dishes (user_id, created DESC);
+    CREATE TABLE pans (
+      id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id   bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name      text NOT NULL CHECK (length(name) BETWEEN 1 AND 40),
+      grams     real NOT NULL CHECK (grams > 0),
+      created   timestamptz NOT NULL DEFAULT now());
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['dishes', 'pans'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP; END $$;
+    """,
 ]
 
 
