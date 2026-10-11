@@ -9,3 +9,4 @@ __pycache__/
 HOUSE.md
 setup-domain.sh
 backup-db.sh
+offsite-backup.sh
