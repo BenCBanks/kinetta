@@ -40,17 +40,17 @@ function drawDish(el, d) {
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts"><button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button></div></div>
     <div class="eyebrow">${mine ? (d.status === 'cooking' ? 'Cooking' : d.status === 'leftovers' ? 'Leftovers' : 'Finished') : `From ${esc(d.owner.name)}`}</div>
     <h1 class="dish-name">${esc(d.name)}</h1>
-    <div class="card dish-hero"><div class="dh-top"><div><small>Whole dish</small><b class="num">${r0(t.kcal)}<i>kcal</i></b></div>
+    ${mine && !weighed ? cookSteps(d) : ''}
+    ${d.items.length || typed || weighed ? `<div class="card dish-hero"><div class="dh-top"><div><small>Whole dish</small><b class="num">${r0(t.kcal)}<i>kcal</i></b></div>
       ${weighed ? `<div class="dh-w"><small>Cooked weight</small><b class="num">${gfmt(d.cooked_g)}</b></div>` : ''}</div>
       <div class="dh-mac">${MACROS.map(([k, n]) => `<span><b class="num">${r0(t[k])}g</b><small>${n}</small></span>`).join('')}</div>
-      ${typed ? `<p class="small muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.${mine ? ' <button class="linkbtn" id="dk-known2">Change</button>' : ''}</p>` : ''}</div>
+      ${typed ? `<p class="small muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.${mine ? ' <button class="linkbtn" id="dk-known2">Change</button>' : ''}</p>` : ''}</div>` : ''}
 
     ${mine || d.items.length ? `<h2 class="sec-head">Ingredients${d.items.length ? ` <span class="count">${d.items.length}</span>` : ''}</h2>
     <div class="card">${mine ? `<form class="addline" id="dk-add"><input name="t" placeholder="e.g. 100 g chicken" aria-label="Add an ingredient, like 100 g chicken"
         autocomplete="off" autocapitalize="none" enterkeyhint="search" required><button class="primary sm">${svg('plus')}Add</button></form>
       <div id="dk-match"></div>` : ''}
       <div class="ing-list">${d.items.map((it) => (mine ? `<button class="fe" data-it="${esc(it.id)}">${ing(it)}</button>` : `<div class="fe">${ing(it)}</div>`)).join('')}</div>
-      ${mine && !d.items.length ? '<p class="small muted">Type what goes in as you cook, with its weight. Each one adds to the total.</p>' : ''}
       ${mine ? `<button class="linkbtn" id="dk-known">${typed ? 'Change the total you typed in' : 'I already know the total'}</button>` : ''}</div>` : ''}
 
     ${(mine && App.me.coach && (d.items.length || typed)) || d.review ? `<div class="card ai coach-card" id="dk-ai">${recipeReview(d, mine)}</div>` : ''}
@@ -119,6 +119,19 @@ function drawDish(el, d) {
       catch (x) { toast(x.message); btn.disabled = false; }
     };
   }
+}
+// What to do next, until the dish is weighed: three numbered steps, the current one highlighted
+function cookSteps(d) {
+  const added = d.items.length > 0 || d.known.kcal != null;
+  const steps = [
+    [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type each ingredient with its weight as you cook, like 200 g rice.'],
+    [false, 'Weigh the finished dish', 'The whole pot or tray. In its pan is fine: the pan comes off.'],
+    [false, 'Weigh your plate', 'Your share of the calories is logged for you.'],
+  ];
+  const now = steps.findIndex(([done]) => !done);
+  return `<ol class="card cook-steps" aria-label="How cooking works">${steps.map(([done, title, sub], i) =>
+    `<li class="${done ? 'done' : i === now ? 'now' : ''}"${i === now ? ' aria-current="step"' : ''}><span class="stepn">${done ? svg('check') : i + 1}</span>
+      <div><b>${title}</b><small>${esc(sub)}</small></div></li>`).join('')}</ol>`;
 }
 // AI feedback on the recipe (food_coach.py): kept on the dish, so friends it's shared with see it too
 function recipeReview(d, mine) {
