@@ -22,8 +22,10 @@ jobs:
         with:
           ref: ${{ github.head_ref || github.ref_name }}
       - name: Start a throwaway Kinetta
+        # a placeholder AI key only makes the app show its AI cards; nothing is ever sent (the demo's reviews are made up
+        # in coach.sql and no one presses the buttons)
         run: |
-          KINETTA_PORT=8798 TZ=America/New_York docker compose -p shots up -d --build
+          GEMINI_API_KEY=placeholder-for-screenshots KINETTA_PORT=8798 TZ=America/New_York docker compose -p shots up -d --build
           for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
       - name: Load the demo data
         env:
