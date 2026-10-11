@@ -52,7 +52,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
       tap a workout for what/why, Change / Restart from week 1 / End
 - [x] Gear: shoes and bikes with mileage, retire, replacement reminder
 - [x] Personal heatmap of everywhere you've been
-- [ ] Weekly AI review
+- [x] Weekly AI review (short; one-line summary on Today, full text in a sheet)
 
 ## Food
 - [x] Log by search (USDA + Open Food Facts), barcode, quick add (cal/P/C/F), custom foods, saved meals, recipes

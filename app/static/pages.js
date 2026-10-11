@@ -86,14 +86,22 @@ route(/^\/today$/, 'today', async (el) => {
       const isThis = thisWeek.length && new Date(thisWeek[0].week + 'T12:00') >= new Date(monday.toDateString());
       const t = isThis ? tot : {n: 0, d: 0, t: 0, e: 0};
       const days = s.week_days || [], maxT = Math.max(1, ...days.map((x) => x.moving_s || 0)), maxD = Math.max(1, ...days.map((x) => x.distance_m || 0));
-      $('#t-week', el).innerHTML = `<a class="card tap week-summary" href="/progress?view=totals"><h2>This week<span class="more">Totals ›</span></h2>
-        <div class="hero-num num">${esc(U.dist(t.d, 1))}<i>${esc(U.du())}</i></div>
-        <p class="hero-sub">${esc(dur(t.t, true))} · ${t.n} activit${t.n === 1 ? 'y' : 'ies'}${t.e ? ` · ${esc(U.elev(t.e))} ${esc(U.eu())} climb` : ''}</p>
-        ${days.length ? `<div class="wstrip" role="img" aria-label="Each day this week">${days.map((x) => {
-          const val = x.distance_m ? U.dist(x.distance_m, 1) : x.moving_s ? `${Math.round(x.moving_s / 60)}m` : '';
-          return `<div class="wd${x.today ? ' today' : ''}${val ? '' : ' none'}"><span class="wv num">${esc(val)}</span><div class="wbar">${val ? `<span class="sp-fill ${esc(x.sport || '')}" data-h="${Math.max(.08, x.distance_m ? x.distance_m / maxD : (x.moving_s || 0) / maxT * .5).toFixed(3)}"></span>` : '<span class="wdot"></span>'}</div><small>${'MTWTFSS'[(new Date(x.d + 'T12:00').getDay() + 6) % 7]}</small></div>`; }).join('')}</div>
-          <p class="small muted wcap">Each bar is one day: ${esc(U.du())} run, ridden or walked (minutes for workouts without distance).</p>` : ''}
-        ${s.week_streak > 1 ? `<div class="badges"><span class="badge">${svg('flame')} ${s.week_streak}-week streak</span></div>` : ''}</a>`;
+      // the bars speak for themselves (Ben 2026-10-11): no caption, no numbers; tap a bar to see that day
+      const dayName = (d) => new Date(d + 'T12:00').toLocaleDateString([], {weekday: 'long'});
+      $('#t-week', el).innerHTML = `<div class="card week-summary"><h2>This week<a class="more" href="/progress?view=totals">Totals ›</a></h2>
+        <a class="wk-link" href="/progress?view=totals"><div class="hero-num num">${esc(U.dist(t.d, 1))}<i>${esc(U.du())}</i></div>
+        <p class="hero-sub">${esc(dur(t.t, true))} · ${t.n} activit${t.n === 1 ? 'y' : 'ies'}${t.e ? ` · ${esc(U.elev(t.e))} ${esc(U.eu())} climb` : ''}</p></a>
+        ${days.length ? `<div class="wstrip" role="group" aria-label="Each day this week">${days.map((x) => {
+          const val = x.distance_m ? `${U.dist(x.distance_m, 1)} ${U.du()}` : x.moving_s ? `${Math.round(x.moving_s / 60)} min` : '';
+          const bar = `<span class="wv num" aria-hidden="true">${esc(val)}</span><div class="wbar">${val ? `<span class="sp-fill ${esc(x.sport || '')}" data-h="${Math.max(.08, x.distance_m ? x.distance_m / maxD : (x.moving_s || 0) / maxT * .5).toFixed(3)}"></span>` : '<span class="wdot"></span>'}</div><small>${'MTWTFSS'[(new Date(x.d + 'T12:00').getDay() + 6) % 7]}</small>`;
+          return val ? `<button type="button" class="wd${x.today ? ' today' : ''}" aria-pressed="false" aria-label="${esc(dayName(x.d))}: ${esc(val)}">${bar}</button>`
+            : `<div class="wd${x.today ? ' today' : ''} none">${bar}</div>`; }).join('')}</div>` : ''}
+        ${s.week_streak > 1 ? `<div class="badges"><span class="badge">${svg('flame')} ${s.week_streak}-week streak</span></div>` : ''}</div>`;
+      $$('#t-week button.wd', el).forEach((btn) => btn.onclick = () => {
+        const on = btn.getAttribute('aria-pressed') !== 'true';
+        $$('#t-week button.wd', el).forEach((o) => o.setAttribute('aria-pressed', 'false'));
+        btn.setAttribute('aria-pressed', String(on));
+      });
     }),
     load('/api/fitness?days=60', (f) => {
       const last = f.days[f.days.length - 1];
