@@ -694,3 +694,5 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .beta-req .who { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .beta-req .row { padding: 12px 0; }
 .beta-req .btnrow { margin-top: 8px; }
+/* delete my account (2026-10-11) */
+.primary.danger-btn { background: var(--alert); }

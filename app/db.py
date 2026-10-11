@@ -424,6 +424,13 @@ MIGRATIONS = [
       invite_id bigint REFERENCES invites(id) ON DELETE SET NULL);
     CREATE UNIQUE INDEX beta_requests_email ON beta_requests (lower(email));
     """,
+    # 19: AI consent per person - coach notes, weekly reviews and food photos send that person's data to the AI service,
+    #     so they only run once the person turns "AI features" on (NULL = never asked = off). Accounts that already
+    #     existed when this shipped keep the coach they had.
+    """
+    ALTER TABLE profile ADD COLUMN ai_ok boolean;
+    UPDATE profile SET ai_ok = true;
+    """,
 ]
 
 

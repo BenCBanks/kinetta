@@ -18,6 +18,7 @@ import urllib.request
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from . import coach
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
@@ -58,6 +59,7 @@ def _num(v, hi):
 
 @router.post('/photo')
 def photo(body: PhotoIn, user=Depends(current_user)):
+    if coach.enabled() and not coach.allowed(user['id']): raise HTTPException(403, coach.OFF)
     key = os.environ.get('GEMINI_API_KEY')
     if not key: raise HTTPException(503, 'Photo logging needs a Gemini key on the server')
     note = (body.note or '').strip()
