@@ -175,6 +175,7 @@ const IC = {
   row: '<path d="M3 17h18M6 17l9-10M14 6l3 1-1 3"/>', ski: '<path d="M4 20l16-6M9 4l2 9M7 9l6-2"/><circle cx="13" cy="4" r="1.6"/>',
   workout: '<path d="M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6M10 17h4"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>', down: '<path d="M7 10l5 5 5-5"/>',
   flame: '<path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-9z"/>', other: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
 };
 const svg = (k, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k] || IC.other}</svg>`;

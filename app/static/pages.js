@@ -74,7 +74,7 @@ route(/^\/today$/, 'today', async (el) => {
   }).catch(() => {});
   const [feed, st, fit, goals] = await Promise.all([
     load('/api/activities?limit=3', (d) => {
-      $('#t-last', el).innerHTML = d.length ? `<h2 class="muted small">LATEST</h2>${d.map(actCard).join('')}` :
+      $('#t-last', el).innerHTML = d.length ? `<h2 class="sec-head">Latest<a href="/activity">See all ›</a></h2>${d.map(actCard).join('')}` :
         `<div class="card empty"><b>No activities yet</b>Upload your Garmin or Strava files to get started.<br><br><a class="primary" href="/me/import">Upload activities</a></div>`;
       feedMaps($('#t-last', el));
     }),
@@ -106,10 +106,11 @@ route(/^\/today$/, 'today', async (el) => {
     load('/api/fitness?days=60', (f) => {
       const last = f.days[f.days.length - 1];
       if (!last) { $('#t-form', el).innerHTML = ''; return; }
-      const form = last.form, word = form > 5 ? 'Fresh — good day for a hard effort' : form < -15 ? 'Tired — an easy day helps you absorb training' : 'Training steadily';
+      // the status word leads (like Garmin's training status); the numbers sit under it, the definitions on the Fitness page
+      const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
       $('#t-form', el).innerHTML = `<a class="card tap" href="/progress?view=fitness"><h2>Fitness & freshness<span class="more">More ›</span></h2>
+        <p class="status-word ${k}"><b>${esc(word)}</b><span>${esc(tip)}</span></p>
         <div class="stats3">${stat('Fitness', Math.round(last.fitness))}${stat('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? stat('Run score', f.vdot_now) : ''}</div>
-        <p class="small"><b>${esc(word)}.</b> <span class="muted">Fitness = your training over the last 6 weeks. Freshness = fitness minus this week's tiredness (above 0 = rested).${f.vdot_now ? ' Run score = running fitness from your best recent run (VDOT).' : ''}</span></p>
         ${f.ramp_7d > 8 ? '<div class="callout warn">Your training load jumped quickly this week — watch for niggles.</div>' : ''}</a>`;
     }),
     load('/api/goals', (g) => {
@@ -230,6 +231,7 @@ function drawDetail(el, a) {
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   el.innerHTML = `<div class="top">${backBtn('Activity')}<div><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>
+    ${a.line ? `<div class="map big lead" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
     <div class="d-title card"><div class="hd act"><div class="hd">${sportMark(a.sport)}<div><h1>${esc(a.name)}</h1>
       <div class="sub">${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</div></div></div></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
@@ -238,7 +240,6 @@ function drawDetail(el, a) {
       ${a.private_note ? `<p class="small"><b>Private note:</b> ${esc(a.private_note)}</p>` : ''}</div>
     <div id="d-share"></div>
     <div class="cols"><div>
-      ${a.line ? `<div class="map big" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
       ${a.chart ? '<div class="card"><h2>Charts</h2><div id="d-charts"></div></div>' : ''}
       ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
       ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
@@ -500,13 +501,17 @@ function rangeBar(box, R, firstYear) {
     if (from) u.set('from', from); if (to) u.set('to', to);
     go(location.pathname + '?' + u.toString(), {replace: true});
   };
+  // one compact button (2026-10-11 polish): the presets and From/To years live in a sheet instead of two rows of controls
   const opt = (sel, y) => `<option value="${y}"${y === sel ? ' selected' : ''}>${y}</option>`;
-  box.innerHTML = `<div class="rangebar" role="group" aria-label="Date range"><div class="chips">${presets.map(([n, f, t]) => `<button class="chip" data-f="${f || ''}" data-t="${t || ''}" aria-pressed="${(f || null) === R.from && (t || null) === R.to}">${esc(n)}</button>`).join('')}</div>
-    <div class="ry"><label>From<select name="from" aria-label="From year"><option value="">Start</option>${[...years].reverse().map((y) => opt(R.from, y)).join('')}</select></label>
-      <label>to<select name="to" aria-label="To year"><option value="">Now</option>${years.map((y) => opt(R.to, y)).join('')}</select></label></div></div>`;
-  $$('.chip', box).forEach((b) => b.onclick = () => set(+b.dataset.f || null, +b.dataset.t || null));
-  const f = $('select[name=from]', box), t = $('select[name=to]', box);
-  f.onchange = t.onchange = () => set(+f.value || null, +t.value || null);
+  const name = !R.from && !R.to ? 'All time' : R.from === R.to ? String(R.from) : `${R.from || 'Start'}–${R.to || 'now'}`;
+  box.innerHTML = `<button type="button" class="range-btn" aria-label="Date range: ${esc(name)}. Change">${svg('calendar')}<span>${esc(name)}</span>${svg('down')}</button>`;
+  $('.range-btn', box).onclick = () => sheet('Date range', `<div class="pick-list">${presets.map(([n, f, t]) => `<button type="button" class="row-link" data-f="${f || ''}" data-t="${t || ''}" aria-pressed="${(f || null) === R.from && (t || null) === R.to}"><span>${esc(n)}</span>${(f || null) === R.from && (t || null) === R.to ? `<span class="tick">${svg('check')}</span>` : ''}</button>`).join('')}</div>
+    <h3 class="ghead">Or pick years</h3><div class="form"><div class="two"><label>From<select name="from"><option value="">Start</option>${[...years].reverse().map((y) => opt(R.from, y)).join('')}</select></label>
+      <label>To<select name="to"><option value="">Now</option>${years.map((y) => opt(R.to, y)).join('')}</select></label></div>
+      <button class="primary wide" type="button" id="rg-apply">Show these years</button></div>`, (sb, close) => {
+    $$('[data-f]', sb).forEach((b) => b.onclick = () => { close(); set(+b.dataset.f || null, +b.dataset.t || null); });
+    $('#rg-apply', sb).onclick = () => { const f = $('select[name=from]', sb), t = $('select[name=to]', sb); close(); set(+f.value || null, +t.value || null); };
+  });
 }
 
 // ---------- Progress: mileage by week / month / year, by sport (2026-10-09) ----------
@@ -530,8 +535,8 @@ async function pMileage(body, q) {
   const nav = (o) => { const u = new URLSearchParams(location.search); u.set('view', 'mileage'); u.set('sport', o.sport || sport); u.set('period', o.period || period); go('/progress?' + u.toString(), {replace: true}); };
   const R = getRange(q), scoped = !!(R.from || R.to);
   body.innerHTML = `<div class="filters"><div class="chips">${filterBar([['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['all', 'All']], sport, 's')}</div>
-    <div class="seg" role="group" aria-label="Period">${[['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']].map(([k, n]) => `<button data-p="${k}" aria-pressed="${k === period}">${n}</button>`).join('')}</div></div>
-    <div class="rng"></div><div id="m-body">${skel(2)}</div>`;
+    <div class="frow"><div class="seg" role="group" aria-label="Period">${[['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']].map(([k, n]) => `<button data-p="${k}" aria-pressed="${k === period}">${n}</button>`).join('')}</div><div class="rng"></div></div></div>
+    <div id="m-body">${skel(2)}</div>`;
   $$('.filters .chip', body).forEach((b) => b.onclick = () => nav({sport: b.dataset.s}));
   $$('.seg button', body).forEach((b) => b.onclick = () => nav({period: b.dataset.p}));
   await load(`/api/progress/volume?period=${period}`, (r) => {
@@ -679,7 +684,8 @@ async function pHeatmap(body, q) {
 // ---------- Me ----------
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
-  el.innerHTML = `<div class="top"><h1>${esc(me.name)}</h1></div>
+  // profile header (2026-10-11 polish): initial, name, username; the long settings form now opens in a sheet
+  el.innerHTML = `<div class="profile"><span class="avatar" aria-hidden="true">${esc((me.name.trim()[0] || '?').toUpperCase())}</span><div><h1>${esc(me.name)}</h1><div class="sub">${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
     <div class="card"><a class="row-link" href="/me/friends"><span>Friends</span><span class="val">${me.friend_requests ? `<span class="badge on">${me.friend_requests} waiting</span>` : ''}<span class="chev">${svg('chev')}</span></span></a>
       <a class="row-link" href="/me/sharing"><span>Sharing</span><span class="val">Who sees your activities<span class="chev">${svg('chev')}</span></span></a></div>
     <div class="card"><a class="row-link" href="/me/import"><span>Upload activities</span><span class="chev">${svg('chev')}</span></a>
@@ -694,17 +700,7 @@ route(/^\/me$/, 'me', async (el) => {
     <div class="card"><h2>Settings</h2>
       <div class="row"><span>Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
-      <form class="form" id="m-form">
-        <div class="two"><label>Max heart rate<input name="max_hr" inputmode="numeric" value="${esc(me.max_hr || '')}" placeholder="auto"></label>
-        <label>Resting heart rate<input name="rest_hr" inputmode="numeric" value="${esc(me.rest_hr || '')}" placeholder="60"></label></div>
-        <div class="two"><label>Sex (for effort score)<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
-        <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}"></label></div>
-        <div class="two"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" inputmode="decimal" value="${esc(U.weight(me.weight_kg))}"></label>
-        <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" value="${esc(me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '')}" placeholder="${imp() ? '5 10' : '178'}"></label></div>
-        <label>Time zone<select name="tz">${tzOptions(me.tz)}</select></label>
-        <label>Everyday activity (outside workouts)<select name="activity_factor">${[[1.2, 'Mostly sitting'], [1.3, 'Some walking & standing'], [1.45, 'On my feet a lot']].map(([f, n]) => `<option value="${f}"${Math.abs((me.activity_factor || 1.2) - f) < .01 ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-        <p class="small muted">Heart-rate zones and effort use these; sex, birth year, weight and height give your resting burn (BMR), and BMR × everyday activity = your daily calorie needs on Nutrition (workouts are added on the day). Leave max HR blank to use the highest your watch has recorded.</p>
-        <div class="actions"><button class="primary">Save settings</button></div></form></div>
+      <button class="row-link" id="m-body"><span>Body & heart rate</span><span class="val">${esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up')}<span class="chev">${svg('chev')}</span></span></button></div>
     <div class="card"><h2>Account</h2>
       <button class="row-link" id="m-name"><span>Name</span><span class="val">${esc(me.name)}<span class="chev">${svg('chev')}</span></span></button>
       <button class="row-link" id="m-login"><span>Username</span><span class="val">${esc(me.login)}<span class="chev">${svg('chev')}</span></span></button>
@@ -716,7 +712,7 @@ route(/^\/me$/, 'me', async (el) => {
       <a class="row-link" id="m-export" href="/api/account/export" download><span>Download my data</span><span class="val">Zip file<span class="chev">${svg('chev')}</span></span></a>
       <a class="row-link" href="https://lankki.com/privacy" target="_blank" rel="noopener"><span>Privacy policy</span><span class="val">lankki.com<span class="chev">${svg('chev')}</span></span></a>
       <button class="row-link" id="m-del"><span class="danger">Delete my account</span><span class="val"><span class="chev">${svg('chev')}</span></span></button></div>
-    <button class="ghost" id="logout">Log out</button>`;
+    <button class="ghost wide" id="logout">Log out</button>`;
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');
@@ -732,14 +728,7 @@ route(/^\/me$/, 'me', async (el) => {
     const prev = me.units; me.units = b.dataset.u; render();
     try { await api('/api/profile', json('PUT', {units: me.units})); } catch (x) { me.units = prev; render(); toast('Could not save: ' + x.message); }
   });
-  $('#m-form', el).onsubmit = async (e) => {
-    e.preventDefault(); const f = e.target, n = (v) => (v.trim() === '' ? null : Number(v));
-    const w = n(f.weight.value);
-    const hv = f.height.value.trim(), hn = hv.match(/\d+(\.\d+)?/g) || [];   // "5 10", "5'10", "70" (in) or "178" (cm)
-    const height_cm = !hn.length ? null : imp() ? (hn.length > 1 ? +hn[0] * 12 + +hn[1] : +hn[0] < 9 ? +hn[0] * 12 : +hn[0]) * 2.54 : +hn[0];
-    const body = {max_hr: n(f.max_hr.value), rest_hr: n(f.rest_hr.value), sex: f.sex.value || null, birth_year: n(f.birth_year.value), weight_kg: w == null ? null : imp() ? w / 2.20462 : w, height_cm, activity_factor: +f.activity_factor.value, tz: f.tz.value || undefined};
-    try { await api('/api/profile', json('PUT', body)); Object.assign(App.me, body); toast('Settings saved'); } catch (x) { toast(x.message); }
-  };
+  $('#m-body', el).onclick = () => bodySheet();
   $('#logout', el).onclick = async () => {
     const n = Q.mine().length;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
@@ -749,6 +738,31 @@ route(/^\/me$/, 'me', async (el) => {
     App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin();
   };
 });
+
+// heart rate, body and time zone (zones, effort, calorie needs) - a sheet, so the Me page stays a short list
+function bodySheet() {
+  const me = App.me;
+  sheet('Body, heart rate & time zone', `<form class="form" id="m-form">
+        <div class="two"><label>Max heart rate<input name="max_hr" inputmode="numeric" value="${esc(me.max_hr || '')}" placeholder="auto"></label>
+        <label>Resting heart rate<input name="rest_hr" inputmode="numeric" value="${esc(me.rest_hr || '')}" placeholder="60"></label></div>
+        <div class="two"><label>Sex (for effort score)<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
+        <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}"></label></div>
+        <div class="two"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" inputmode="decimal" value="${esc(U.weight(me.weight_kg))}"></label>
+        <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" value="${esc(me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '')}" placeholder="${imp() ? '5 10' : '178'}"></label></div>
+        <label>Time zone<select name="tz">${tzOptions(me.tz)}</select></label>
+        <label>Everyday activity (outside workouts)<select name="activity_factor">${[[1.2, 'Mostly sitting'], [1.3, 'Some walking & standing'], [1.45, 'On my feet a lot']].map(([f, n]) => `<option value="${f}"${Math.abs((me.activity_factor || 1.2) - f) < .01 ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        <p class="small muted">Heart-rate zones and effort use these; sex, birth year, weight and height give your resting burn (BMR), and BMR × everyday activity = your daily calorie needs on Nutrition (workouts are added on the day). Leave max HR blank to use the highest your watch has recorded.</p>
+        <div class="actions"><button class="primary wide">Save settings</button></div></form>`, (b, close) => {
+    $('#m-form', b).onsubmit = async (e) => {
+      e.preventDefault(); const f = e.target, n = (v) => (v.trim() === '' ? null : Number(v));
+      const w = n(f.weight.value);
+      const hv = f.height.value.trim(), hn = hv.match(/\d+(\.\d+)?/g) || [];   // "5 10", "5'10", "70" (in) or "178" (cm)
+      const height_cm = !hn.length ? null : imp() ? (hn.length > 1 ? +hn[0] * 12 + +hn[1] : +hn[0] < 9 ? +hn[0] * 12 : +hn[0]) * 2.54 : +hn[0];
+      const body = {max_hr: n(f.max_hr.value), rest_hr: n(f.rest_hr.value), sex: f.sex.value || null, birth_year: n(f.birth_year.value), weight_kg: w == null ? null : imp() ? w / 2.20462 : w, height_cm, activity_factor: +f.activity_factor.value, tz: f.tz.value || undefined};
+      try { await api('/api/profile', json('PUT', body)); Object.assign(App.me, body); close(); toast('Settings saved'); render(); } catch (x) { toast(x.message); }
+    };
+  });
+}
 
 // time zones the phone knows (days, weeks and "today" follow yours); the current one stays listed even if unknown
 function tzOptions(cur) {

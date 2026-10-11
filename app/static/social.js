@@ -12,6 +12,8 @@ const DETAIL_NAMES = {map: 'Map', heart_rate: 'Heart rate', pace: 'Pace and spee
 Object.assign(IC, {
   cheer: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
   comment: '<path d="M4 5h16v11H10l-5 4v-4H4z"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  people: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/>',
 });
 const trimName = (m) => (!m ? 'Off' : imp() ? {200: '⅛ mi', 400: '¼ mi', 800: '½ mi'}[m] : `${m} m`);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -121,18 +123,18 @@ function socialBlock(box, aid, s) {
   const names = s.cheers.map((c) => c.name);
   const who = names.length ? `<p class="small cheer-who"><b>${esc(plural(names.length, CHEER.one, CHEER.many))}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</p>` : '';
   box.innerHTML = `<div class="card social"><h2>${esc(CHEER.title)} and comments</h2>
-    ${s.mine ? (who || `<p class="small muted">No ${esc(CHEER.many)} yet.</p>`) : `<button class="ghost wide cheer" aria-pressed="${s.cheered}">${svg('cheer')}<span>${esc(s.cheered ? CHEER.done : CHEER.verb)}</span></button>${who}`}
+    ${s.mine ? (who || `<p class="small muted">No ${esc(CHEER.many)} yet.</p>`) : `<button class="ghost wide cheer${s.just ? ' just' : ''}" aria-pressed="${s.cheered}">${svg('cheer')}<span>${esc(s.cheered ? CHEER.done : CHEER.verb)}</span></button>${who}`}
     <div class="comments">${s.comments.map((c) => `<div class="comment"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small>
       ${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}</div><p>${esc(c.text)}</p></div>`).join('')}</div>
     <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
       <button class="primary wide">Post comment</button></form></div>`;
-  const after = (fresh) => { invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); socialBlock(box, aid, {...s, ...fresh}); };
+  const after = (fresh, just = false) => { invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); socialBlock(box, aid, {...s, ...fresh, just}); };
   const cb = $('.cheer', box);
   if (cb) cb.onclick = async () => {
     cb.disabled = true;
     try {
       if (s.cheered) { await api(`/api/activities/${aid}/cheer`, {method: 'DELETE'}); after({cheered: false, cheers: s.cheers.filter((c) => c.login !== App.me.login)}); }
-      else after(await api(`/api/activities/${aid}/cheer`, json('POST', {})));
+      else after(await api(`/api/activities/${aid}/cheer`, json('POST', {})), true);
     } catch (x) { toast(x.message); cb.disabled = false; }
   };
   $$('[data-del]', box).forEach((b) => b.onclick = async () => {
@@ -157,10 +159,11 @@ async function ownSocial(el, a) {
   try { s = await api(`/api/activities/${a.id}/social`); } catch (x) { return; }
   if (!share.isConnected) return;
   const on = Object.keys(DETAIL_NAMES).filter((k) => s.details[k] && (k !== 'splits' || s.details.pace)).map((k) => DETAIL_NAMES[k].toLowerCase());
-  share.innerHTML = `<div class="card"><h2>Sharing<button class="linkbtn" id="sh-edit">Change</button></h2>
-    <p><b>${esc(VIS[s.visibility])}</b>${s.visibility === 'me' ? ' — no one else sees this activity.' : ` ${s.visibility === 'friends' ? 'see' : 'sees'} what it was, distance and time${on.length ? ', ' + esc(on.join(', ')) : ''}.`}</p>
-    ${s.visibility !== 'me' && s.details.map && s.trim_m ? `<p class="small muted">The first and last ${esc(trimName(s.trim_m))} of the route are hidden.</p>` : ''}
-    ${s.visibility !== 'me' ? `<a class="small" href="/activity/friends/${a.id}">See what they see ›</a>` : ''}</div>`;
+  // one tappable line (2026-10-11 polish); the details and "See what they see" are in the sheet
+  share.innerHTML = `<button class="card tap share-row" id="sh-edit"><span class="ico">${svg(s.visibility === 'me' ? 'lock' : 'people')}</span>
+    <span class="grow"><b>${esc(s.visibility === 'me' ? 'Only you can see this' : `Shared with ${VIS[s.visibility].replace('Everyone', 'everyone').replace('Friends', 'friends')}`)}</b>
+    <small class="muted">${s.visibility === 'me' ? 'Tap to share it' : esc(['distance and time', ...on].join(', '))}${s.visibility !== 'me' && s.details.map && s.trim_m ? ' · map ends hidden' : ''}</small></span>
+    <span class="chev">${svg('chev')}</span></button>`;
   $('#sh-edit', share).onclick = () => shareSheet(a.id, s);
   if (s.visibility !== 'me' || s.cheers.length || s.comments.length) socialBlock(soc, a.id, s);
 }
@@ -183,6 +186,7 @@ function shareSheet(aid, s) {
     <h3 class="ghead">What they see</h3><div class="checks">${detailChecks(s.details)}</div>
     <p class="small muted">Splits and laps are shared only with pace. Private notes and coach notes are never shared.</p>
     ${s.custom ? '<button type="button" class="linkbtn" id="sh-usual">Use my usual details</button>' : ''}
+    ${s.visibility !== 'me' ? `<a class="small" href="/activity/friends/${aid}" data-close>See what they see ›</a>` : ''}
     <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`, (b, close) => {
     const f = $('#sh-form', b), note = $('.vis-note', b);
     const say = () => { note.textContent = vis === 'me' ? 'Only you. Nobody else can see it.' : vis === 'friends' ? 'Friends you have approved.' : 'Anyone with an account on this Lankki server.'; };

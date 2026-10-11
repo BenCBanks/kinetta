@@ -726,3 +726,43 @@ nav.tabs a { position: relative; }
 .card .comment p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 2px 0 0; color: var(--tx); }
 .c-form { margin-top: 10px; } .c-form textarea { min-height: 64px; }
 .checks input[type=checkbox] { accent-color: var(--accent); }
+/* ---------- polish (2026-10-11): press feedback, Me header, compact filters, map-first detail ---------- */
+.card.tap, .primary, .ghost, .chip, .row-link, .icon-btn { transition: transform .1s ease, background-color .15s ease; }
+.card.tap:active, .primary:active, .ghost:active, .chip:active { transform: scale(.98); }
+/* section heading over a list of cards, with a "See all" link */
+.shell .sec-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 17px; margin: 14px 2px 8px; }
+.sec-head a { font-size: 13px; font-weight: 600; }
+/* Today: training status as a word */
+.card .status-word { display: grid; gap: 1px; margin: 0 0 12px; }
+.status-word b { font-size: 20px; letter-spacing: -.01em; color: var(--tx); }
+.status-word.good b { color: var(--good); } .status-word.warn b { color: var(--warn); }
+.status-word span { font-size: 13px; color: var(--tx2); }
+/* Me: profile header */
+.profile { display: flex; align-items: center; gap: 12px; margin: 4px 2px 12px; min-height: 56px; }
+.profile .avatar { flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent2); color: var(--accent); font-size: 22px; font-weight: 700; }
+.profile > div { min-width: 0; } .profile h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile .sub { color: var(--tx3); font-size: 13px; margin-top: 2px; }
+#logout { margin-top: 4px; }
+/* Progress: period + date range on one row; the range opens a sheet */
+.frow { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+.frow .rng { min-width: 0; }
+.range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--card); color: var(--tx2); font-weight: 600; font-size: 13px; white-space: nowrap; }
+.range-btn svg { width: 16px; height: 16px; flex: none; } .range-btn span { overflow: hidden; text-overflow: ellipsis; }
+.pick-list .row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; font-size: 15px; }
+.pick-list .tick { color: var(--accent); } .pick-list .tick svg, .pick-list .row-link svg { width: 20px; height: 20px; }
+/* activity detail: the map leads */
+.map.lead { margin-bottom: 8px; }
+.card.share-row { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; text-align: left; font: inherit; color: inherit; }
+.share-row .ico { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--accent2); color: var(--accent); }
+.share-row .ico svg { width: 20px; height: 20px; }
+.share-row .grow { display: grid; gap: 2px; min-width: 0; } .share-row b { font-size: 15px; }
+.share-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-row .chev { color: var(--tx3); } .share-row .chev svg { width: 18px; height: 18px; }
+/* Nutrition: energy balance headline first, the sum folded */
+.balance details.bd { margin-top: 4px; } .balance details.bd > summary { font-size: 13px; }
+/* Cheer: a small pop when pressed */
+@keyframes pop { 50% { transform: scale(1.25); } }
+.social .cheer.just svg { animation: pop .25s ease; }
+.filters .chips { padding-left: 0; padding-right: 0; margin: 0; }
