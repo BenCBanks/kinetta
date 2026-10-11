@@ -98,8 +98,10 @@ def _context(c, user_id, aid):
 
 WEEK_SYSTEM = """You are a friendly, expert endurance and nutrition coach writing a weekly review for one athlete.
 You get their week as JSON (activities, totals vs the previous 4 weeks, fitness/fatigue, records, food totals and targets
-if they log food, weight trend). Write 5-8 sentences of plain text: how the week went, what improved, what to watch
-(load jumps, too little easy running, under- or over-eating vs targets), and 2-3 concrete suggestions for next week.
+if they log food, weight trend). Keep it SHORT: at most 4 sentences, about 70 words, plain text, no lists or headings.
+Sentence 1 is a one-line summary of the week (it is shown on its own as a headline). Then the one thing that matters most
+(an improvement, or something to watch such as a load jump, too little easy running, or eating far off target), and
+1-2 concrete suggestions for next week.
 Use their units. Only use the numbers given; say so briefly when data is missing. No medical diagnoses."""
 
 

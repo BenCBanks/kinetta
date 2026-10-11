@@ -40,7 +40,7 @@ route(/^\/today$/, 'today', async (el) => {
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
     if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
-    // long reviews: a few lines + Read more; Hide folds it to one line until the next week's review (remembered on this phone)
+    // Hide (inside the review) folds it to one line until the next week's review (remembered on this phone)
     const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
     let hidden = false; try { hidden = !!wk && localStorage.getItem('fit.review.hidden') === wk; } catch (e) { /* no storage */ }
     if (hidden) {
@@ -48,16 +48,29 @@ route(/^\/today$/, 'today', async (el) => {
       $('#t-show', box).onclick = () => { try { localStorage.removeItem('fit.review.hidden'); } catch (e) { /* none */ } render(); };
       return;
     }
-    box.innerHTML = `<div class="card ai"><h2>Weekly review${wk ? `<button class="linkbtn" id="t-hide" aria-label="Hide this week's review">Hide</button>` : ''}</h2>
-      ${wk ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text clamp" id="t-rtext">${esc(r.latest.text)}</p><button class="linkbtn" id="t-more" hidden>Read more</button>` : '<p class="small">Your coach writes a review every Sunday evening.</p>'}
-      ${r.enabled ? '<button class="linkbtn" id="t-rev">Review this week now</button>' : ''}</div>`;
-    const txt = $('#t-rtext', box), more = $('#t-more', box);
-    if (txt && more) requestAnimationFrame(() => { if (txt.scrollHeight > txt.clientHeight + 4) { more.hidden = false; more.onclick = () => { const open = txt.classList.toggle('clamp'); more.textContent = open ? 'Read more' : 'Show less'; }; } });
-    const hb = $('#t-hide', box); if (hb) hb.onclick = () => { try { localStorage.setItem('fit.review.hidden', wk); } catch (e) { /* none */ } render(); };
-    const b = $('#t-rev', box); if (b) b.onclick = async () => {
-      b.disabled = true; b.textContent = 'Thinking…';
-      try { await api('/api/coach/week', json('POST', {})); invalidate('/api/coach'); render(); } catch (x) { toast(x.message); b.disabled = false; b.textContent = 'Review this week now'; }
-    };
+    // compact (2026-10-11): the first sentence as a one-line headline; tap for the full review, "Review now" and Hide
+    async function reviewNow(btn, close) {
+      btn.disabled = true; btn.textContent = 'Thinking…';
+      try { await api('/api/coach/week', json('POST', {})); invalidate('/api/coach'); if (close) close(); render(); }
+      catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
+    }
+    if (!wk) {
+      box.innerHTML = `<div class="card ai review-card"><div class="review-head"><h2>Weekly review</h2></div>
+        <p class="small muted">Your coach writes a short review every Sunday evening.</p>
+        ${r.enabled ? '<button class="linkbtn" id="t-rev">Review this week now</button>' : ''}</div>`;
+      const b0 = $('#t-rev', box); if (b0) b0.onclick = () => reviewNow(b0);
+      return;
+    }
+    const first = (r.latest.text.trim().match(/^[\s\S]*?[.!?](?=\s|$)/) || [r.latest.text])[0].trim();
+    box.innerHTML = `<button class="card tap ai review-card" id="t-review-open">
+      <span class="review-head"><b>Weekly review</b><span class="muted small">Week of ${esc(when)}</span></span>
+      <span class="review-line">${esc(first)}</span><span class="linkbtn">Read</span></button>`;
+    $('#t-review-open', box).onclick = () => sheet('Weekly review', `<p class="small muted">Week of ${esc(when)}</p>
+        <p class="review-text">${esc(r.latest.text)}</p>
+        <div class="btnrow${r.enabled ? '' : ' one'}">${r.enabled ? '<button class="ghost" id="rv-now">Review this week now</button>' : ''}<button class="ghost" id="rv-hide">Hide until next week</button></div>`, (sb, close) => {
+      $('#rv-hide', sb).onclick = () => { try { localStorage.setItem('fit.review.hidden', wk); } catch (e) { /* none */ } close(); render(); };
+      const n = $('#rv-now', sb); if (n) n.onclick = () => reviewNow(n, close);
+    });
   }).catch(() => {});
   const [feed, st, fit, goals] = await Promise.all([
     load('/api/activities?limit=3', (d) => {
