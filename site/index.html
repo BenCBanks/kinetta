@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Kinetta</title>
-<meta name="description" content="Kinetta is your workouts and your food in one app: runs, rides, walks, training plans, calories and macros, and how they work together. Free and private. Join the beta.">
+<meta name="description" content="Kinetta is your workouts and your food in one app: runs, rides, walks, training plans, friends, calories and macros, a cooking mode that weighs your plate, and how it all works together. Free and private. Join the beta.">
 <meta property="og:title" content="Kinetta">
 <meta property="og:description" content="Your workouts and your food, in one app. Free and private. Join the beta.">
 <meta property="og:type" content="website">
@@ -96,6 +96,28 @@ nav.links a:hover { color: var(--ink); }
 .word .story { font-size: 20px; line-height: 1.55; max-width: 40ch; }
 .word .story p + p { margin-top: 16px; color: var(--ink2); font-size: 18px; }
 @media (max-width: 760px) { .word .wrap { grid-template-columns: 1fr; gap: 28px; } }
+
+/* highlights under the hero (2026-10-11) */
+.hl { padding-block: 8px 72px; }
+.hl .wrap { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.hcard { display: grid; gap: 8px; align-content: start; padding: 22px; border-radius: 20px; background: var(--paper); border: 1px solid var(--line); text-decoration: none; transition: transform .15s, border-color .15s; }
+.hcard:hover { transform: translateY(-2px); border-color: var(--ink3); }
+.hcard h3 { font-size: 20px; } .hcard p { color: var(--ink2); font-size: 15.5px; }
+.hico { display: inline-flex; align-items: center; height: 26px; color: var(--berry); }
+.hico svg { width: 30px; height: 18px; }
+.hico.new { justify-self: start; padding: 0 10px; border-radius: 999px; background: var(--berry); color: #fff; font: 600 12px/26px var(--body); letter-spacing: .08em; text-transform: uppercase; }
+@media (max-width: 900px) { .hl .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .hl .wrap { grid-template-columns: 1fr; gap: 12px; } .hcard { padding: 18px; } }
+.spot-h { font-size: clamp(32px, 4.4vw, 50px); margin-top: 14px; }
+.spot.rev { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); } .spot.rev > div:first-child { order: 2; }
+@media (max-width: 860px) { .spot.rev { grid-template-columns: 1fr; } .spot.rev > div:first-child { order: 0; } }
+#friends .spot, #cooking .spot { margin-bottom: 0; }
+.sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 22px; }
+.sum div { display: grid; padding: 10px 14px; border-radius: 14px; background: var(--paper); border: 1px solid var(--line); min-width: 0; }
+.sum div.hi { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.sum small { font-size: 12px; color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; } .sum div.hi small { color: var(--bg); opacity: .7; }
+.sum b { font: 600 24px/1.1 var(--display); } .sum span { font-size: 13px; color: var(--ink3); } .sum div.hi span { color: var(--bg); opacity: .7; }
+.sum i { font-style: normal; font-size: 22px; color: var(--ink3); }
 
 /* sections */
 section.band { padding-block: 80px; border-top: 1px solid var(--line); }
@@ -234,7 +256,7 @@ footer a { color: var(--ink2); }
   <div class="wrap">
     <a href="#" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Kinetta" width="149" height="24"></picture></a>
     <nav class="links" aria-label="Page">
-      <a href="#what">What it does</a><a href="#premium">Compare</a><a href="#install">Self-host</a><a class="nav-beta" href="https://login.kinetta.app/beta">Join the beta</a><a class="gh" href="https://github.com/BenCBanks/kinetta">GitHub</a>
+      <a href="#what">What it does</a><a href="#friends">Friends</a><a href="#cooking">Cooking</a><a href="#premium">Compare</a><a href="#install">Self-host</a><a class="nav-beta" href="https://login.kinetta.app/beta">Join the beta</a><a class="gh" href="https://github.com/BenCBanks/kinetta">GitHub</a>
     </nav>
   </div>
 </header>
@@ -267,20 +289,15 @@ footer a { color: var(--ink2); }
     </div>
   </section>
 
-  <section class="word" aria-labelledby="word-h">
+
+  <section class="hl" aria-label="Highlights">
     <div class="wrap">
-      <div class="entry" id="word-h">
-        <div class="hw">kinetta</div>
-        <div class="pron">/kɪˈnɛtə/ · kih-NET-uh · <span class="pos">noun</span></div>
-        <ol>
-          <li>from <b>kinetic</b>: energy that comes from moving</li>
-          <li>and <b>kin</b>: the people you move with</li>
-        </ol>
-      </div>
-      <div class="story">
-        <p>Kinetta is a made-up word with two halves: <i>kinetic</i>, for the energy of moving every day, and <i>kin</i>, for the family and friends who keep you going.</p>
-        <p>It started as one family's replacement for a running app and a food tracker: everything those did in one place, with each person's numbers private to them.</p>
-      </div>
+      <a class="hcard" href="#friends"><span class="hico new">New</span><h3>Friends and a feed</h3><p>Your runs and your friends' in one feed. Cheers, comments, and the start and end of every map hidden.</p></a>
+      <a class="hcard" href="#cooking"><span class="hico new">New</span><h3>Cooking mode</h3><p>Add ingredients as you cook, weigh the pot, weigh your plate. Your share is logged.</p></a>
+      <a class="hcard" href="#both"><span class="hico"><svg aria-hidden="true"><use href="#oval"/></svg></span><h3>Your real deficit</h3><p>Every workout from your watch counts against what you ate, with no typing.</p></a>
+      <a class="hcard" href="#premium"><span class="hico"><svg aria-hidden="true"><use href="#oval"/></svg></span><h3>Training plans</h3><p>5K to marathon, with paces from how you're running now.</p></a>
+      <a class="hcard" href="#what"><span class="hico"><svg aria-hidden="true"><use href="#oval"/></svg></span><h3>Photo and barcode</h3><p>Snap a meal or scan a packet, and the calories are filled in.</p></a>
+      <a class="hcard" href="#premium"><span class="hico"><svg aria-hidden="true"><use href="#oval"/></svg></span><h3>Premium, free</h3><p>What Strava and MyFitnessPal charge $160 a year for, included.</p></a>
     </div>
   </section>
 
@@ -290,13 +307,58 @@ footer a { color: var(--ink2); }
         <p>Most people keep their training in one app and their eating in another, and neither knows about the other. Kinetta keeps both, so each makes the other smarter.</p></div>
       <div class="combo">
         <div class="half"><span class="tag">Training</span><h3>Everything you do</h3><ul>
-          <li>Runs, rides, walks, hikes, swims and gym workouts</li><li>Maps, splits, pace, heart rate and effort</li><li>Matched routes and similar-run comparisons</li><li>Training plans from 5K to marathon</li><li>Records, race predictions, fitness and fatigue</li></ul></div>
+          <li>Runs, rides, walks, hikes, swims and gym workouts</li><li>Maps, splits, pace, heart rate and effort</li><li>Matched routes and similar-run comparisons</li><li>Training plans from 5K to marathon</li><li>Records, race predictions, fitness and fatigue</li><li>Friends, a shared feed, cheers and comments</li></ul></div>
         <div class="half"><span class="tag">Food and health</span><h3>Everything you eat</h3><ul>
-          <li>Barcode scanning and photo logging</li><li>Calories and macros against your own targets</li><li>Saved meals, recipes and your own foods</li><li>Weight trend and plain-language food insights</li><li>Logs offline, sends when you're back</li></ul></div>
+          <li>Barcode scanning and photo logging</li><li>Calories and macros against your own targets</li><li>Cooking mode: weigh the dish, weigh your plate</li><li>Saved meals, recipes and your own foods</li><li>Weight trend and plain-language food insights</li></ul></div>
         <div class="meet"><span class="tag">Where they meet</span><ul>
           <li><b>Workouts count on their own.</b> Every run, ride and walk from your watch adds to what you burned that day. No typing in exercise.</li>
           <li><b>Your real deficit.</b> What you ate against what you actually burned, day by day and week by week.</li>
           <li><b>One Today screen.</b> This week's miles, your next workout and what's left to eat, together.</li></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="friends" aria-labelledby="fr-h">
+    <div class="wrap">
+      <div class="spot">
+        <div>
+          <span class="eyebrow">New · Your people</span>
+          <h2 id="fr-h" class="spot-h">Train together, even apart.</h2>
+          <p>Find friends by name, and the Activity tab becomes a feed of your runs, rides and walks and theirs, newest first. Give a cheer, leave a comment, see who's out there today.</p>
+          <ul>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Private until you share</b>: every activity starts as only you. Share with friends you've approved, one activity or all of them.</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Your front door stays hidden</b>: shared maps leave out the first and last stretch of the route, cut on the server before anyone's phone sees it.</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>You pick the details</b>: distance and time always; pace, heart rate, splits, elevation and calories only if you say so.</span></li>
+          </ul>
+        </div>
+        <div class="pair">
+          <div class="frame"><picture><source srcset="assets/shots/dark-feed.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed.webp" alt="The Activity feed: a friend's morning run with its map, and your own run with a cheer and a comment" loading="lazy" width="720" height="1558"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="Friends: search by name, a request waiting for approval, and your friends list" loading="lazy" width="720" height="1558"></picture></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="cooking" aria-labelledby="ck-h">
+    <div class="wrap">
+      <div class="spot rev">
+        <div>
+          <span class="eyebrow">New · Cooking mode</span>
+          <h2 id="ck-h" class="spot-h">Cook it. Weigh it. Done.</h2>
+          <p>Logging a home-cooked meal shouldn't mean guessing. Add each ingredient as it goes in the pot, weigh the finished dish and your plate, and Kinetta logs exactly your share.</p>
+          <div class="sum" role="img" aria-label="Example: a 2,400 calorie dish weighing 1,600 grams; a 380 gram plate is 570 calories">
+            <div><small>Whole dish</small><b>2,400</b><span>kcal</span></div><i>÷</i><div><small>Cooked</small><b>1,600</b><span>g</span></div><i>×</i><div><small>Your plate</small><b>380</b><span>g</span></div><i>=</i><div class="hi"><small>You ate</small><b>570</b><span>kcal</span></div>
+          </div>
+          <ul>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Type it how you'd say it</b>: "100 g chicken", "250 grams of carrots", "2 tbsp olive oil". Pick the match and it's added.</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Weigh it in the pan</b>: Kinetta remembers your pans and takes their weight off.</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Leftovers sorted</b>: what's left stays ready for days, so tomorrow's lunch is just a new weight.</span></li>
+          </ul>
+        </div>
+        <div class="pair">
+          <div class="frame"><picture><source srcset="assets/shots/dark-cook.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-cook.webp" alt="Cooking a chicken and vegetable traybake: the whole dish's calories and macros, and each ingredient with its weight" loading="lazy" width="720" height="1558"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-serve.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-serve.webp" alt="Weigh and serve: the cooked weight, what's left, and a 380 gram portion worked out in calories and macros, ready to log" loading="lazy" width="720" height="1558"></picture></div>
+        </div>
       </div>
     </div>
   </section>
@@ -325,9 +387,9 @@ footer a { color: var(--ink2); }
 
       <div class="more">
         <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Activities</h3><ul>
-          <li>Upload FIT, GPX, TCX or a Strava export</li><li>Garmin sync via intervals.icu</li><li>Apple Watch sync via Health Auto Export</li><li>Matched routes, personal records, heatmap</li><li>Shoes and bikes with mileage</li></ul></div>
+          <li>Upload FIT, GPX, TCX or a Strava export</li><li>Garmin sync via intervals.icu</li><li>Apple Watch sync via Health Auto Export</li><li>Matched routes, personal records, heatmap</li><li>Friends feed with cheers and comments</li></ul></div>
         <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Food</h3><ul>
-          <li>USDA and Open Food Facts search</li><li>Barcode scanning</li><li>Saved meals, recipes and your own foods</li><li>Running calorie deficit</li><li>Works offline, sends when you're back</li></ul></div>
+          <li>USDA and Open Food Facts search</li><li>Barcode scanning</li><li>Cooking mode with leftovers and your pans</li><li>Running calorie deficit</li><li>Works offline, sends when you're back</li></ul></div>
         <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Extras</h3><ul>
           <li>Optional AI coach notes (your own key)</li><li>Read-only SQL access to your own data</li><li>Installs on any phone's home screen</li><li>Light and dark mode</li><li>Miles or kilometers, per person</li></ul></div>
       </div>
@@ -398,13 +460,14 @@ footer a { color: var(--ink2); }
         <div class="side">
           <div><h3>Also in Kinetta</h3><ul>
             <li>Training and food on one Today screen</li>
+            <li>Friends, cheers and comments, with the start and end of shared maps hidden</li>
+            <li>Cooking mode: log your share of a home-cooked dish by weight</li>
             <li>Heart-rate drift on every run (aerobic decoupling)</li>
             <li>Shoe and bike mileage with replacement reminders</li>
             <li>Your whole Strava history imported in one go</li>
             <li>Open source: run it on your own computer if you prefer</li></ul></div>
           <div><h3>Not in Kinetta yet</h3><ul>
             <li>Segments and leaderboards</li>
-            <li>Friends, kudos and a social feed (planned)</li>
             <li>Route planning and offline route maps</li>
             <li>Live location sharing</li>
             <li>Recording with your phone's GPS: it reads activities from your watch or phone app instead</li></ul></div>
@@ -446,14 +509,30 @@ docker compose up -d --build</pre></div>
   <section class="band" aria-labelledby="ppl-h">
     <div class="wrap people">
       <div>
-        <div class="head"><span class="eyebrow">Your people</span><h2 id="ppl-h">Bring everyone along with a link.</h2></div>
+        <div class="head"><span class="eyebrow">Your people</span><h2 id="ppl-h">Bring everyone along with a link.</h2><p>Then find each other under Friends, and every run shows up in your feeds.</p></div>
         <ol>
           <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>Create an invite</b>Me → People → Create invite link. Each link works once, for seven days.</span></li>
           <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>Send it</b>By text, email, or your family group chat.</span></li>
           <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>They pick a password</b>Their account starts in their own time zone and units, private to them.</span></li>
         </ol>
       </div>
-      <div class="phone"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A morning run in Kinetta with stats and a map" loading="lazy" width="720" height="1558"></picture></div>
+      <div class="phone"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A morning run in Kinetta with its map, distance, pace and time" loading="lazy" width="720" height="1558"></picture></div>
+    </div>
+  </section>
+  <section class="word band" aria-labelledby="word-h">
+    <div class="wrap">
+      <div class="entry" id="word-h">
+        <div class="hw">kinetta</div>
+        <div class="pron">/kɪˈnɛtə/ · kih-NET-uh · <span class="pos">noun</span></div>
+        <ol>
+          <li>from <b>kinetic</b>: energy that comes from moving</li>
+          <li>and <b>kin</b>: the people you move with</li>
+        </ol>
+      </div>
+      <div class="story">
+        <p>Kinetta is a made-up word with two halves: <i>kinetic</i>, for the energy of moving every day, and <i>kin</i>, for the family and friends who keep you going.</p>
+        <p>It started as one family's replacement for a running app and a food tracker: everything those did in one place, with each person's numbers private to them.</p>
+      </div>
     </div>
   </section>
   <section class="band final" aria-labelledby="final-h">

@@ -1,0 +1,56 @@
+# Retakes the homepage screenshots (site/assets/shots) from a throwaway copy of Kinetta with the made-up demo data, here
+# on GitHub where the map tiles load, and commits them to the branch. Runs when the screenshot scripts change in a pull
+# request, or by hand: Actions > Homepage screenshots > Run workflow (pick the branch).
+name: Homepage screenshots
+on:
+  pull_request:
+    paths: ["dev/screenshots/**", ".github/workflows/screenshots.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: shots-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  shots:
+    # a pull request from someone else's fork can't push here
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Start a throwaway Kinetta
+        run: |
+          KINETTA_PORT=8798 TZ=America/New_York docker compose -p shots up -d --build
+          for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
+      - name: Load the demo data
+        env:
+          KINETTA_URL: http://localhost:8798
+        run: |
+          python3 dev/demo/gen_gpx.py /tmp/gpx 120
+          python3 dev/demo/seed.py /tmp/gpx
+          python3 dev/screenshots/stage.py /tmp/gpx
+          docker compose -p shots exec -T db psql -U postgres -d fit < dev/screenshots/coach.sql
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Take the screenshots
+        run: |
+          mkdir -p /tmp/shots-tool /tmp/png && cd /tmp/shots-tool && npm init -y >/dev/null && npm install playwright@1.48.2
+          npx playwright install --with-deps chromium
+          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/screenshots/take.js" /tmp/png
+          pip install pillow==11.0.0
+          python3 "$GITHUB_WORKSPACE/dev/screenshots/to_webp.py" /tmp/png "$GITHUB_WORKSPACE/site/assets/shots"
+      - name: Commit them
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/assets/shots
+          git diff --cached --quiet && { echo "No changes"; exit 0; }
+          git commit -m "Homepage screenshots retaken (demo data)"
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
+      - name: Stop it
+        if: always()
+        run: docker compose -p shots down -v
