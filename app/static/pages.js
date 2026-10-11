@@ -729,9 +729,9 @@ function passwordSheet() {
   sheet('Change password', `<form class="form" id="pw">
     <input name="username" value="${esc(App.me.login)}" autocomplete="username" hidden>
     <label>Current password<input name="cur" type="password" autocomplete="current-password" required></label>
-    <label>New password<input name="n1" type="password" autocomplete="new-password" minlength="8" required></label>
-    <label>New password again<input name="n2" type="password" autocomplete="new-password" minlength="8" required></label>
-    <p class="small muted">At least 8 characters. Your other phones and browsers will be logged out.</p>
+    <label>New password<input name="n1" type="password" autocomplete="new-password" minlength="10" required></label>
+    <label>New password again<input name="n2" type="password" autocomplete="new-password" minlength="10" required></label>
+    <p class="small muted">At least 10 characters. Your other phones and browsers will be logged out.</p>
     <div class="actions"><button class="primary">Change password</button></div></form>`, (b, close) => {
     const f = $('#pw', b); f.cur.focus();
     f.onsubmit = async (e) => {
@@ -754,7 +754,7 @@ route(/^\/me\/people$/, 'me', async (el) => {
     <div class="card"><details><summary>Or add someone with a password</summary><form class="form" id="p-add">
       <div class="two"><label>Name<input name="name" maxlength="60" autocomplete="off" required></label>
       <label>Username<input name="login" maxlength="30" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" required></label></div>
-      <label>First password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label>First password<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
       <p class="small muted">Give them this password; they can change it under Me &gt; Account. Each person's activities and food are private to them in the app.</p>
       <div class="actions"><button class="primary">Add person</button></div></form></details></div>`;
   wireBack(el, '/me');
@@ -780,7 +780,7 @@ route(/^\/me\/people$/, 'me', async (el) => {
     e.preventDefault(); const btn = $('button.primary', fi); btn.disabled = true;
     try {
       const r = await api('/api/invites', json('POST', {note: fi.note.value}));
-      const url = location.origin + r.path, who = fi.note.value.trim();
+      const url = r.url || location.origin + r.path, who = fi.note.value.trim();
       $('#p-link', el).innerHTML = `<div class="callout invite"><div><p class="small">Send this link${who ? ' to ' + esc(who) : ''}. It works once, until ${esc(fdate(r.expires, {month: 'short', day: 'numeric'}))}.</p>
         <input class="linkbox" id="p-url" readonly value="${esc(url)}" aria-label="Invite link">
         <div class="btnrow${navigator.share ? '' : ' one'}"><button class="primary" id="p-copy">Copy link</button>${navigator.share ? '<button class="ghost" id="p-share">Share…</button>' : ''}</div></div></div>`;
@@ -809,7 +809,7 @@ route(/^\/me\/people$/, 'me', async (el) => {
 // admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
 function personSheet(p, after) {
   sheet(p.name, `<form class="form" id="ps-pw"><h3 class="ghead">Set a new password</h3>
-      <label>New password<input name="pw" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label>New password<input name="pw" type="password" autocomplete="new-password" minlength="10" required></label>
       <p class="small muted">For a forgotten password. They're logged out everywhere and use this one next time (they can change it under Me &gt; Account).</p>
       <div class="actions"><button class="primary">Set password</button></div></form>
     <form class="form danger-zone" id="ps-rm"><h3 class="ghead">Remove ${esc(p.name)}</h3>

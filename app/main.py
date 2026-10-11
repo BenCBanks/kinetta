@@ -41,11 +41,16 @@ async def guard(request: Request, call_next):
         ctype = request.headers.get('content-type', '')
         if 'application/json' not in ctype and not (request.url.path == '/api/import' and ctype.startswith('multipart/form-data')):
             return Response('{"detail":"JSON only"}', 415, media_type='application/json')
+    # Through Cloudflare, plain http is answered with a redirect to https, so passwords never travel unencrypted.
+    if request.headers.get('cf-connecting-ip') and request.headers.get('x-forwarded-proto', 'https') == 'http':
+        return Response(status_code=308, headers={'Location': str(request.url.replace(scheme='https'))})
     r = await call_next(request)
     r.headers['X-Content-Type-Options'] = 'nosniff'
     r.headers['Referrer-Policy'] = 'same-origin'
     r.headers['X-Frame-Options'] = 'DENY'
     r.headers['Content-Security-Policy'] = CSP
+    r.headers['Permissions-Policy'] = 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()'
+    r.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
     if request.url.scheme == 'https': r.headers['Strict-Transport-Security'] = 'max-age=31536000'
     if request.url.path.startswith('/api/'): r.headers['Cache-Control'] = 'no-store'
     return r
@@ -58,7 +63,7 @@ class Login(BaseModel):
 
 @app.post('/api/login')
 def login(body: Login, request: Request, response: Response):
-    ip = request.client.host if request.client else ''   # real phone address: uvicorn takes it from Caddy's header
+    ip = auth.client_ip(request)
     if auth.too_many(ip, body.login):
         raise HTTPException(429, 'Too many tries - wait 15 minutes')
     with db.connect() as c:

@@ -47,9 +47,13 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       FDC_API_KEY: ${FDC_API_KEY:-}
+      LANKKI_PUBLIC_URL: ${LANKKI_PUBLIC_URL:-}
     volumes:
       - data:/data
       - secrets:/run/lankki:ro
+    networks:
+      - default
+      - public
     depends_on:
       db:
         condition: service_healthy
@@ -57,15 +61,26 @@ services:
 
   # Optional: a public https address through Cloudflare, without opening your router (docs/connect.md).
   # Start with:  docker compose --profile tunnel up -d
+  # It sits on its own network with only the app, so it can't reach the database.
   tunnel:
-    image: cloudflare/cloudflared:2025.9.1
+    image: cloudflare/cloudflared:2026.9.2
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    networks:
+      - public
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       - app
     profiles: ["tunnel"]
     restart: unless-stopped
+
+networks:
+  default:
+  public:     # the app + the optional tunnel only
 
 volumes:
   db:

@@ -60,13 +60,14 @@ class PasswordIn(BaseModel):
 
 @router.post('/api/account/password')
 def set_password(body: PasswordIn, request: Request, user=Depends(current_user)):
-    ip = request.client.host if request.client else ''
+    ip = auth.client_ip(request)
     if auth.too_many(ip, user['login']): raise HTTPException(429, 'Too many tries - wait 15 minutes')
     with db.connect() as c:
         stored = c.execute('SELECT pw_hash FROM users WHERE id = %s', (user['id'],)).fetchone()['pw_hash']
         if not auth.check_pw(stored, body.current):
             auth.failed(ip, user['login'])
             raise HTTPException(400, 'Current password is wrong')
+        auth.check_new_password(body.new, user['login'])
         c.execute('UPDATE users SET pw_hash = %s WHERE id = %s', (auth.hash_pw(body.new), user['id']))
         # sign out everywhere else; this phone keeps its login
         c.execute('DELETE FROM sessions WHERE user_id = %s AND token_hash <> %s',
@@ -96,6 +97,7 @@ class PersonIn(BaseModel):
 def add_person(body: PersonIn, user=Depends(current_user)):
     _admin(user)
     login, name = _clean_login(body.login), _clean_name(body.name)
+    auth.check_new_password(body.password, login)
     try:
         with db.connect() as c:
             uid = c.execute('INSERT INTO users (login, name, pw_hash) VALUES (%s, %s, %s) RETURNING id',
@@ -129,6 +131,7 @@ def reset_password(login: str, body: ResetIn, user=Depends(current_user)):
     _admin(user)
     with db.connect() as c:
         t = _target(c, user, login)
+        auth.check_new_password(body.password, t['login'])
         c.execute('UPDATE users SET pw_hash = %s WHERE id = %s', (auth.hash_pw(body.password), t['id']))
         c.execute('DELETE FROM sessions WHERE user_id = %s', (t['id'],))
     return {'ok': True}
@@ -169,6 +172,7 @@ class NewAccountIn(BaseModel):
 def _create(c, body, is_admin=False):
     """Insert a person + their settings; returns the new id."""
     login, name = _clean_login(body.login), _clean_name(body.name)
+    auth.check_new_password(body.password, login)
     tz = db.valid_tz(body.tz) or db.DEFAULT_TZ
     try:
         with c.transaction():
@@ -213,7 +217,8 @@ def create_invite(body: InviteIn, user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute("INSERT INTO invites (token_hash, created_by, note, expires) VALUES (%s, %s, %s, now() + %s) RETURNING id, expires",
                       (_hash(token), user['id'], (body.note or '').strip()[:60] or None, dt.timedelta(days=INVITE_DAYS))).fetchone()
-    return {'id': r['id'], 'path': '/join/' + token, 'expires': r['expires']}
+    base = os.environ.get('LANKKI_PUBLIC_URL', '').rstrip('/')    # e.g. https://app.example.com - links work from anywhere
+    return {'id': r['id'], 'path': '/join/' + token, 'url': base + '/join/' + token if base else None, 'expires': r['expires']}
 
 
 @router.get('/api/invites')
@@ -254,7 +259,7 @@ class JoinIn(NewAccountIn):
 
 @router.post('/api/join')
 def join(body: JoinIn, request: Request, response: Response):
-    ip = request.client.host if request.client else ''
+    ip = auth.client_ip(request)
     if auth.too_many(ip, 'join'): raise HTTPException(429, 'Too many tries - wait 15 minutes')
     with db.connect() as c:
         try:

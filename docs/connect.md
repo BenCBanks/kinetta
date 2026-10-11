@@ -47,7 +47,11 @@ your router. You need a domain that uses Cloudflare (a free account is enough).
    docker compose --profile tunnel up -d
    ```
 
-Anyone can now see your login page, so use good passwords. Accounts can only be created through your invite links.
+5. Also set `LANKKI_PUBLIC_URL=https://lankki.yourname.com` in `.env`, so invite links use that address.
+
+Anyone can now see your login page (not your data). Lankki is built for that: accounts can only be created through
+your invite links, passwords need 10+ characters, repeated wrong passwords are blocked for 15 minutes, plain http is
+sent to https, and the tunnel can only reach the Lankki app, not your database or anything else on your network.
 
 ## C. Your own domain and Caddy
 

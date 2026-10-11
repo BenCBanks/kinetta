@@ -648,8 +648,8 @@ function showNewAccount({title, intro, button, send}) {
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
     <label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></label>
     <p class="small muted">What you'll type to log in: lowercase letters, numbers or _.</p>
-    <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" enterkeyhint="go" required></label>
-    <p class="small muted">At least 8 characters.</p>
+    <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
+    <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
@@ -662,7 +662,7 @@ function showNewAccount({title, intro, button, send}) {
     e.preventDefault();
     const b = $('button', f), err = $('.err', f);
     if (!f.name.value.trim() || !f.login.value.trim()) { err.textContent = 'Enter your name and a username.'; return; }
-    if (f.password.value.length < 8) { err.textContent = 'Use at least 8 characters for your password.'; f.password.focus(); return; }
+    if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; f.password.focus(); return; }
     b.disabled = true; err.textContent = '';
     try { await send({name: f.name.value, login: f.login.value.trim().toLowerCase(), password: f.password.value, ...phoneDefaults()}); history.replaceState(null, '', '/today'); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; }
