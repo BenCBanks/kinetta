@@ -44,6 +44,8 @@ function scaleFood(f, amount, unit) {
 }
 
 // ---------- day page ----------
+// the energy-balance breakdown stays open or closed the way you left it (on this phone)
+const bdOpen = () => { try { return localStorage.getItem('fit.bd') === '1'; } catch (e) { return false; } };
 route(/^\/food$/, 'food', async (el) => {
   const q = new URLSearchParams(location.search), day = q.get('d') || isoDay(new Date()), view = q.get('view') === 'trends' ? 'trends' : 'log';
   const head = `<div class="top"><h1>Nutrition</h1></div><div class="seg nview" role="group" aria-label="Nutrition view"><button data-nv="log" aria-pressed="${view === 'log'}">${svg('food')} Log</button><button data-nv="trends" aria-pressed="${view === 'trends'}">${svg('progress')} Trends</button></div>`;
@@ -86,20 +88,22 @@ function drawDay(el, D) {
         <button class="tc-goal" id="fd-goal" aria-label="Set the calorie goal for this day"><small>Goal ${svg('edit')}</small><b class="num">${goal == null ? 'Set' : r0(goal)}</b></button></div>
       <p class="small muted">${esc(goalNote)}</p></div>
     <div class="card balance"><h2>Energy balance<span class="muted small">estimate</span></h2>
+      ${B.deficit == null ? '<p class="small muted">Log food to see your deficit for this day.</p>'
+        : `<div class="brow big ${B.deficit >= 0 ? 'good' : 'bad'}"><span>${B.deficit >= 0 ? 'Deficit' : 'Surplus'}${sofar}</span><b class="num">${r0(Math.abs(B.deficit))}<i> kcal</i></b></div>`}
+      <details class="bd"${bdOpen() ? ' open' : ''}><summary>How it adds up</summary>
       ${row('Resting burn (BMR)', r0(B.bmr), '', B.bmr_exact ? 'your body at rest' : 'rough guess · <a href="/me">add height & age</a>')}
       ${row('Everyday activity', r0(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=trends">change</a>`)}
       ${B.items.length ? B.items.map((a) => row(`<a href="/activity/${a.id}"><span class="exi sp ${esc(a.sport)}">${svg(a.sport)}</span>${esc(a.name)}</a>`, r0(a.kcal) + (a.estimated ? '*' : ''), 'ex', a.distance_m ? `${U.dist(a.distance_m, 1)} ${U.du()}` : '')).join('')
                        : row('Exercise', '0', 'ex', 'no workouts this day')}
       <button class="linkbtn addwk" data-addact data-day="${esc(D.day)}">+ Add a workout</button>
       ${row(today ? 'Burned by end of day' : 'Total burned', r0(B.day_burn), 'sum', today ? 'estimate for the whole day' : '')}
-      ${row('Eaten' + sofar, '− ' + r0(eaten))}
-      ${B.deficit == null ? '<p class="small muted">Log food to see your deficit for this day.</p>'
-        : `<div class="brow big ${B.deficit >= 0 ? 'good' : 'bad'}"><span>${B.deficit >= 0 ? 'Deficit' : 'Surplus'}${sofar}</span><b class="num">${r0(Math.abs(B.deficit))}<i> kcal</i></b></div>`}
+      ${row('Eaten' + sofar, '− ' + r0(eaten))}</details>
       ${G.deficit != null ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
       <a class="small more-link" href="/food?view=trends">Running total & trends ›</a></div>
     <div class="card macros"><h2>Macros${!t.protein_target ? '<button class="linkbtn" id="fd-targets">Set targets</button>' : ''}</h2>
       ${MACROS.map(([k, n]) => { const tg = t[k.replace('_g', '_target')]; return `<div class="mrow"><span>${n}</span><div class="track"><div class="bar m-${k}" data-w="${tg ? Math.min(1, T[k] / tg).toFixed(3) : (T[k] ? 1 : 0)}"></div></div><b class="num">${r0(T[k])}${tg ? `<i>/${r0(tg)}g</i>` : 'g'}</b></div>`; }).join('')}</div>`;
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
+  const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
   $('#fd-goal', el).onclick = () => goalSheet(D);
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
