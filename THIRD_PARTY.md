@@ -8,3 +8,6 @@
 Map tiles are loaded from [OpenStreetMap](https://www.openstreetmap.org/copyright) (© OpenStreetMap contributors).
 Food data comes from [Open Food Facts](https://world.openfoodfacts.org) (ODbL) and [USDA FoodData Central](https://fdc.nal.usda.gov) (public domain).
 The Lankki wordmark is drawn from the [Sora](https://fonts.google.com/specimen/Sora) typeface (SIL Open Font License).
+
+Demo route shapes in `dev/demo/routes.json` come from OpenStreetMap routing (© OpenStreetMap contributors,
+[ODbL](https://www.openstreetmap.org/copyright)).
