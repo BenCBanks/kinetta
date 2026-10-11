@@ -6,3 +6,4 @@ backups
 __pycache__
 docs
 *.md
+site

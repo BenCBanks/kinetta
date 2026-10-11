@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lankki</title>
+<meta name="description" content="Lankki is free, private fitness and food tracking for you and your people: runs, rides, walks, training plans and a food log on a server you own.">
+<meta property="og:title" content="Lankki">
+<meta property="og:description" content="Private fitness and food tracking for you and your people.">
+<meta property="og:image" content="https://lankki.com/assets/shots/light-today.webp">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one long page that runs like a lap - hero with the track, the word, what it does (phones), privacy,
+   install, people - every section a straight, the track oval returns as the section marker. */
+:root {
+  --bg: #F4F1EC; --paper: #FBFAF7; --ink: #1E2522; --ink2: #4A524E; --ink3: #6D7571; --line: #DFDAD1;
+  --berry: #C0283D; --spruce: #2F6F5E; --code: #1E2522; --codetx: #EEF2F0;
+  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --body: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121716; --paper: #1A201E; --ink: #EEF2F0; --ink2: #BFC7C3; --ink3: #939D99; --line: #2C3533;
+  --berry: #EF5868; --spruce: #6CC3A8; --code: #0B0F0E; --codetx: #E3E9E6; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121716; --paper: #1A201E; --ink: #EEF2F0; --ink2: #BFC7C3; --ink3: #939D99; --line: #2C3533;
+  --berry: #EF5868; --spruce: #6CC3A8; --code: #0B0F0E; --codetx: #E3E9E6; color-scheme: dark; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 var(--body); }
+img { max-width: 100%; display: block; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--berry); outline-offset: 3px; border-radius: 4px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.12; margin: 0; text-wrap: balance; letter-spacing: -0.02em; }
+p { margin: 0; }
+.eyebrow { font: 500 13px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--berry); }
+
+/* header */
+header.top { padding-block: 22px; }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+header.top img { width: 132px; height: auto; }
+nav.links { display: flex; gap: 22px; font-weight: 500; font-size: 15px; }
+nav.links a { text-decoration: none; color: var(--ink2); }
+nav.links a:hover { color: var(--ink); }
+@media (max-width: 560px) { nav.links a:not(.gh) { display: none; } }
+
+/* hero */
+.hero { position: relative; overflow: hidden; padding-block: 40px 72px; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 48px; align-items: center; position: relative; }
+.hero h1 { font-size: clamp(40px, 6.4vw, 76px); font-weight: 500; letter-spacing: -0.035em; }
+.hero h1 em { font-style: normal; color: var(--berry); }
+.hero .lede { font-size: clamp(18px, 2vw, 21px); color: var(--ink2); max-width: 34ch; margin-top: 22px; }
+.ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 22px; border-radius: 999px;
+  font: 600 16px/1 var(--body); text-decoration: none; border: 1.5px solid var(--ink); }
+.btn.solid { background: var(--ink); color: var(--bg); }
+.btn.line { color: var(--ink); }
+.btn:hover { transform: translateY(-1px); } .btn { transition: transform .15s; }
+.hero .note { margin-top: 18px; font-size: 14px; color: var(--ink3); }
+.track { position: absolute; inset: auto; right: -12%; top: 50%; width: 78%; transform: translateY(-50%); color: var(--line); pointer-events: none; }
+.track .runner { fill: var(--berry); }
+.phone { width: min(300px, 78vw); margin-inline: auto; border-radius: 40px; padding: 10px; background: var(--ink);
+  box-shadow: 0 30px 60px -30px rgba(30, 37, 34, .45); position: relative; }
+.phone img { border-radius: 31px; width: 100%; height: auto; min-width: 0; aspect-ratio: 720 / 1558; object-fit: cover; object-position: top; }
+@media (max-width: 860px) {
+  .hero .wrap { grid-template-columns: 1fr; gap: 40px; }
+  .track { width: 150%; right: -60%; top: 72%; }
+}
+
+/* the word */
+.word { padding-block: 72px; border-top: 1px solid var(--line); }
+.word .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+.entry { font-family: var(--display); }
+.entry .hw { font-size: clamp(44px, 6vw, 64px); font-weight: 500; letter-spacing: -0.02em; }
+.entry .pron { font: 400 17px var(--mono); color: var(--ink3); margin-top: 6px; }
+.entry ol { margin: 22px 0 0; padding-left: 1.3em; font: 400 19px/1.5 var(--body); color: var(--ink2); }
+.entry ol li { padding-left: 4px; margin-bottom: 4px; }
+.entry .pos { font-style: italic; color: var(--ink3); font-family: var(--body); }
+.word .story { font-size: 20px; line-height: 1.55; max-width: 40ch; }
+.word .story p + p { margin-top: 16px; color: var(--ink2); font-size: 18px; }
+@media (max-width: 760px) { .word .wrap { grid-template-columns: 1fr; gap: 28px; } }
+
+/* sections */
+section.band { padding-block: 80px; border-top: 1px solid var(--line); }
+.head { display: grid; gap: 14px; max-width: 46ch; margin-bottom: 44px; }
+.head h2 { font-size: clamp(30px, 4vw, 44px); }
+.head p { color: var(--ink2); font-size: 19px; }
+
+/* features: phones + lists */
+.shots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; }
+.shot, .shot figure, .shot .frame { min-width: 0; }
+.shot figure { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.shot .frame { border-radius: 26px; padding: 7px; background: var(--ink); }
+.shot .frame img { border-radius: 20px; aspect-ratio: 720 / 1300; object-fit: cover; object-position: top; width: 100%; height: auto; }
+.shot h3 { font-size: 19px; }
+.shot figcaption p { color: var(--ink2); font-size: 15.5px; margin-top: 6px; }
+@media (max-width: 900px) {
+  .shots { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(260px, 72vw); overflow-x: auto;
+    scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; }
+  .shot { scroll-snap-align: start; }
+}
+.more { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 40px; margin-top: 56px; }
+.more h3 { font-size: 17px; display: flex; align-items: center; gap: 10px; }
+.more h3 svg { width: 26px; height: 16px; flex: none; }
+.more ul { margin: 10px 0 0; padding: 0; list-style: none; color: var(--ink2); font-size: 15.5px; }
+.more li { padding: 7px 0; border-top: 1px solid var(--line); }
+@media (max-width: 760px) { .more { grid-template-columns: 1fr; } }
+
+/* privacy */
+.privacy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 26px; }
+.card h3 { font-size: 20px; margin-bottom: 10px; }
+.card p { color: var(--ink2); font-size: 16px; }
+.honest { margin-top: 20px; font-size: 15.5px; color: var(--ink2); max-width: 70ch; }
+.honest b { color: var(--ink); }
+@media (max-width: 860px) { .privacy { grid-template-columns: 1fr; } }
+
+/* install */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; counter-reset: step; }
+.step { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.step .n { font: 500 15px var(--mono); color: var(--berry); }
+.step h3 { font-size: 21px; }
+.step p { color: var(--ink2); font-size: 16px; }
+pre { margin: 6px 0 0; background: var(--code); color: var(--codetx); border-radius: 14px; padding: 16px 18px; overflow-x: auto;
+  font: 400 14px/1.7 var(--mono); }
+pre .c { color: #8C9792; }
+.step a { color: var(--spruce); font-weight: 600; }
+@media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+
+/* people */
+.people { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: center; }
+.people ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 18px; }
+.people li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; align-items: start; font-size: 17px; color: var(--ink2); }
+.people li b { color: var(--ink); display: block; font-family: var(--display); font-weight: 600; font-size: 18px; }
+.people .dot { width: 44px; height: 26px; }
+.people .phone { width: min(280px, 72vw); }
+@media (max-width: 860px) { .people { grid-template-columns: 1fr; } }
+
+/* footer */
+footer { border-top: 1px solid var(--line); padding-block: 44px 56px; color: var(--ink3); font-size: 14.5px; }
+footer .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px 40px; align-items: start; }
+footer img { width: 110px; height: auto; }
+footer p + p { margin-top: 8px; }
+footer a { color: var(--ink2); }
+@media (max-width: 640px) { footer .wrap { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="oval" viewBox="0 0 44 26"><rect x="2.5" y="2.5" width="39" height="21" rx="10.5" fill="none" stroke="currentColor" stroke-width="3"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a href="#" aria-label="Lankki home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Lankki" width="132" height="24"></picture></a>
+    <nav class="links" aria-label="Page">
+      <a href="#what">What it does</a><a href="#install">Install</a><a class="gh" href="https://github.com/BenCBanks/lankki">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <svg class="track" viewBox="0 0 800 440" aria-hidden="true">
+      <path id="lap" d="M220 20 H580 A200 200 0 0 1 580 420 H220 A200 200 0 0 1 220 20 Z" fill="none" stroke="currentColor" stroke-width="22"/>
+      <path d="M220 52 H580 A168 168 0 0 1 580 388 H220 A168 168 0 0 1 220 52 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="10 12" opacity=".8"/>
+      <circle class="runner" r="17" cx="0" cy="0">
+        <animateMotion dur="38s" repeatCount="indefinite" rotate="auto"><mpath href="#lap"/></animateMotion>
+      </circle>
+    </svg>
+    <div class="wrap">
+      <div>
+        <h1>Move regularly.<br>Stay <em>connected.</em></h1>
+        <p class="lede">Lankki is a free, private fitness and food tracker that you run at home, for you and the people you move with.</p>
+        <div class="ctas">
+          <a class="btn solid" href="#install">Install Lankki</a>
+          <a class="btn line" href="https://github.com/BenCBanks/lankki">View on GitHub</a>
+        </div>
+        <p class="note">Open source (AGPL-3.0). No ads, no subscription, no one selling your data.</p>
+      </div>
+      <div class="phone">
+        <picture><source srcset="assets/shots/dark-today.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-today.webp" alt="Lankki's Today screen: this week's 29.4 miles as a bar per day, the next workout in a 10K plan, and calories eaten today" width="720" height="1558"></picture>
+      </div>
+    </div>
+  </section>
+
+  <section class="word" aria-labelledby="word-h">
+    <div class="wrap">
+      <div class="entry" id="word-h">
+        <div class="hw">lenkki</div>
+        <div class="pron">/ˈleŋkːi/ · Finnish · <span class="pos">noun</span></div>
+        <ol>
+          <li>a jog or a walk around the block</li>
+          <li>a loop</li>
+          <li>a link in a chain</li>
+        </ol>
+      </div>
+      <div class="story">
+        <p>Lankki takes inspiration from a Finnish word associated with running, loops and links. We adapted it into our own name — a nod to moving regularly and staying connected with your people.</p>
+        <p>It started as one family's replacement for a running app and a food tracker: everything those did, kept on a computer at home, with each person's numbers private to them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="what" aria-labelledby="what-h">
+    <div class="wrap">
+      <div class="head"><span class="eyebrow">What it does</span><h2 id="what-h">Every run, ride, walk and meal, in one place you own.</h2></div>
+      <div class="shots">
+        <div class="shot"><figure>
+          <div class="frame"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A 2.98 mile morning run: pace, grade-adjusted pace, heart rate, cadence and a map of the loop" loading="lazy" width="720" height="1558"></picture></div>
+          <figcaption><h3>Every activity</h3><p>Maps, splits, pace, heart rate and effort. From Garmin, Apple Watch, files or your whole Strava history.</p></figcaption>
+        </figure></div>
+        <div class="shot"><figure>
+          <div class="frame"><picture><source srcset="assets/shots/dark-progress.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-progress.webp" alt="Weekly running mileage over the last months as bars, with the weekly average" loading="lazy" width="720" height="1558"></picture></div>
+          <figcaption><h3>Progress over time</h3><p>Weekly totals, records, race predictions, fitness and fatigue, and your favorite loops tracked automatically.</p></figcaption>
+        </figure></div>
+        <div class="shot"><figure>
+          <div class="frame"><picture><source srcset="assets/shots/dark-plan.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-plan.webp" alt="A 10-week intermediate 10K training plan with the first workout and progress so far" loading="lazy" width="720" height="1558"></picture></div>
+          <figcaption><h3>Training plans</h3><p>5K to marathon, first-timer to advanced. Paces from your current shape; runs tick off workouts on their own.</p></figcaption>
+        </figure></div>
+        <div class="shot"><figure>
+          <div class="frame"><picture><source srcset="assets/shots/dark-food.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-food.webp" alt="Today's nutrition: 915 calories eaten, 885 left of 1,800, and the day's energy balance" loading="lazy" width="720" height="1558"></picture></div>
+          <figcaption><h3>Food, made quick</h3><p>Search, barcode, your usual meals, or a photo. Calories and macros against your targets, plus your weight trend.</p></figcaption>
+        </figure></div>
+      </div>
+
+      <div class="more">
+        <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Activities</h3><ul>
+          <li>Upload FIT, GPX, TCX or a Strava export</li><li>Garmin sync via intervals.icu</li><li>Apple Watch sync via Health Auto Export</li><li>Matched routes, personal records, heatmap</li><li>Shoes and bikes with mileage</li></ul></div>
+        <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Food</h3><ul>
+          <li>USDA and Open Food Facts search</li><li>Barcode scanning</li><li>Saved meals, recipes and your own foods</li><li>Running calorie deficit</li><li>Works offline, sends when you're back</li></ul></div>
+        <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Extras</h3><ul>
+          <li>Optional AI coach notes (your own key)</li><li>Read-only SQL access to your own data</li><li>Installs on any phone's home screen</li><li>Light and dark mode</li><li>Miles or kilometers, per person</li></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="priv-h">
+    <div class="wrap">
+      <div class="head"><span class="eyebrow">Private by design</span><h2 id="priv-h">Your numbers stay yours.</h2></div>
+      <div class="privacy">
+        <div class="card"><h3>On your own computer</h3><p>Lankki runs on a mini PC, NAS or Raspberry Pi at home. There's no Lankki company holding your data.</p></div>
+        <div class="card"><h3>Private per person</h3><p>Everyone has their own account. The app and the database both make sure each person sees only their own activities, food and weight.</p></div>
+        <div class="card"><h3>Nothing sent out unless you choose</h3><p>No ads, no tracking. Food search sends only the words you search; AI features stay off until you add your own key.</p></div>
+      </div>
+      <p class="honest"><b>An honest note:</b> whoever runs the server can technically read its database. Lankki is made for people who trust each other: a family, friends, a running club.</p>
+    </div>
+  </section>
+
+  <section class="band" id="install" aria-labelledby="inst-h">
+    <div class="wrap">
+      <div class="head"><span class="eyebrow">Install</span><h2 id="inst-h">Running in ten minutes.</h2><p>You need a computer that stays on, with <a href="https://docs.docker.com/get-docker/">Docker</a> installed.</p></div>
+      <div class="steps">
+        <div class="step"><span class="n">01</span><h3>Start it</h3><p>Lankki makes up its own passwords on the first start, so there's nothing to fill in.</p>
+<pre>git clone https://github.com/BenCBanks/lankki.git
+cd lankki
+docker compose up -d</pre></div>
+        <div class="step"><span class="n">02</span><h3>Create your account</h3><p>Open <b>http://your-computer:8790</b>. The first account becomes the admin.</p>
+<pre><span class="c"># later, to update:</span>
+git pull
+docker compose up -d --build</pre></div>
+        <div class="step"><span class="n">03</span><h3>Reach it from your phone</h3><p>Phones need a secure address for the camera and the home screen. The <a href="https://github.com/BenCBanks/lankki/blob/main/docs/connect.md">connection guide</a> covers Tailscale, a free Cloudflare Tunnel or your own domain.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="ppl-h">
+    <div class="wrap people">
+      <div>
+        <div class="head"><span class="eyebrow">Your people</span><h2 id="ppl-h">Bring everyone along with a link.</h2></div>
+        <ol>
+          <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>Create an invite</b>Me → People → Create invite link. Each link works once, for seven days.</span></li>
+          <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>Send it</b>By text, email, or your family group chat.</span></li>
+          <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>They pick a password</b>Their account starts in their own time zone and units, private to them.</span></li>
+        </ol>
+      </div>
+      <div class="phone"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A morning run in Lankki with stats and a map" loading="lazy" width="720" height="1558"></picture></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Lankki" width="110" height="20"></picture>
+    <div>
+      <p>Lankki is free software under the <a href="https://github.com/BenCBanks/lankki/blob/main/LICENSE">GNU AGPL-3.0</a>. Source, issues and guides on <a href="https://github.com/BenCBanks/lankki">GitHub</a>. Commercial licenses available on request.</p>
+      <p>© 2026 Ben Banks. The Lankki name and logo are not covered by the code license. Screenshots show made-up demo data.</p>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
