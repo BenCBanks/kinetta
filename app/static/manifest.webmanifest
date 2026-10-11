@@ -1,0 +1,15 @@
+{
+  "name": "Lankki",
+  "short_name": "Lankki",
+  "description": "Private fitness and food tracking for you and your people.",
+  "start_url": "/today",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F1EC",
+  "theme_color": "#2F6F5E",
+  "icons": [
+    {"src": "/static/icon-192.png?v=2", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/icon-512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icon-512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

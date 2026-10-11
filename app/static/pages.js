@@ -1,0 +1,999 @@
+// Lankki phone app — Part 2: pages. Each page renders a skeleton at once, then fills from cache/API.
+'use strict';
+
+// ---------- shared bits ----------
+const stat = (label, v, u = '') => `<div class="stat"><small>${esc(label)}</small><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b></div>`;
+function headline(a) {
+  const r = rate(a);
+  const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', dur(a.moving_s || a.elapsed_s));
+  const third = a.distance_m ? stat('Time', dur(a.moving_s || a.elapsed_s)) :
+    a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
+  return first + (a.distance_m ? stat(r.label, r.v, r.u) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
+}
+function actCard(a) {
+  const badges = [];
+  if (a.prs) badges.push(`<span class="badge pr">${svg('trophy')} ${a.prs} PR${a.prs > 1 ? 's' : ''}</span>`);
+  if (a.route_id) badges.push('<span class="badge">Matched route</span>');
+  if (a.commute) badges.push('<span class="badge">Commute</span>');
+  return `<a class="card tap act${a.line ? ' has-map' : ' no-route'}" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
+    <div><div class="hd">${sportMark(a.sport)}<div><b>${esc(a.name)}</b><small>${esc(when(a.start_time))}${a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? ' · ' + esc(a.sport_label) : ''}</small></div></div>
+    <div class="stats3">${headline(a)}</div>${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}</div>
+    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}</a>`;
+}
+const backBtn = (label = 'Back') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
+function wireBack(el, fallback) {
+  const b = $('[data-back]', el);
+  if (b) b.onclick = () => (history.length > 1 && App.navCount > 0 ? history.back() : go(fallback, {replace: true}));
+}
+App.navCount = 0;
+const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
+
+// ---------- Today ----------
+route(/^\/today$/, 'today', async (el) => {
+  const first = App.me.name.split(' ')[0];
+  const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', timeZone: tz()});
+  el.innerHTML = `<div class="top"><div><h1>Hi, ${esc(first)}</h1><div class="sub">${esc(day)}</div></div>
+    <div class="acts"><button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
+    <div id="t-week">${skel(1)}</div><div id="t-plan"></div><div id="t-food"></div><div id="t-goals"></div><div id="t-review"></div><div id="t-last"></div><div id="t-form"></div>`;
+  planCard($('#t-plan', el)).catch(() => {});
+  todayFoodCard($('#t-food', el)).catch(() => {});
+  load('/api/coach/week', (r) => {
+    const box = $('#t-review', el); if (!box) return;
+    if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
+    // long reviews: a few lines + Read more; Hide folds it to one line until the next week's review (remembered on this phone)
+    const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
+    let hidden = false; try { hidden = !!wk && localStorage.getItem('fit.review.hidden') === wk; } catch (e) { /* no storage */ }
+    if (hidden) {
+      box.innerHTML = `<button class="card tap review-min" id="t-show"><span>Weekly review <span class="muted small">week of ${esc(when)} · hidden</span></span><span class="linkbtn">Show</span></button>`;
+      $('#t-show', box).onclick = () => { try { localStorage.removeItem('fit.review.hidden'); } catch (e) { /* none */ } render(); };
+      return;
+    }
+    box.innerHTML = `<div class="card ai"><h2>Weekly review${wk ? `<button class="linkbtn" id="t-hide" aria-label="Hide this week's review">Hide</button>` : ''}</h2>
+      ${wk ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text clamp" id="t-rtext">${esc(r.latest.text)}</p><button class="linkbtn" id="t-more" hidden>Read more</button>` : '<p class="small">Your coach writes a review every Sunday evening.</p>'}
+      ${r.enabled ? '<button class="linkbtn" id="t-rev">Review this week now</button>' : ''}</div>`;
+    const txt = $('#t-rtext', box), more = $('#t-more', box);
+    if (txt && more) requestAnimationFrame(() => { if (txt.scrollHeight > txt.clientHeight + 4) { more.hidden = false; more.onclick = () => { const open = txt.classList.toggle('clamp'); more.textContent = open ? 'Read more' : 'Show less'; }; } });
+    const hb = $('#t-hide', box); if (hb) hb.onclick = () => { try { localStorage.setItem('fit.review.hidden', wk); } catch (e) { /* none */ } render(); };
+    const b = $('#t-rev', box); if (b) b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Thinking…';
+      try { await api('/api/coach/week', json('POST', {})); invalidate('/api/coach'); render(); } catch (x) { toast(x.message); b.disabled = false; b.textContent = 'Review this week now'; }
+    };
+  }).catch(() => {});
+  const [feed, st, fit, goals] = await Promise.all([
+    load('/api/activities?limit=3', (d) => {
+      $('#t-last', el).innerHTML = d.length ? `<h2 class="muted small">LATEST</h2>${d.map(actCard).join('')}` :
+        `<div class="card empty"><b>No activities yet</b>Upload your Garmin or Strava files to get started.<br><br><a class="primary" href="/me/import">Upload activities</a></div>`;
+      feedMaps($('#t-last', el));
+    }),
+    load('/api/stats', (s) => {
+      const wk = s.weeks.filter((w) => w.week === s.weeks.reduce((m, x) => (x.week > m ? x.week : m), ''));
+      const thisWeek = s.weeks.length ? wk : [];
+      const tot = thisWeek.reduce((a, w) => ({n: a.n + w.n, d: a.d + (w.distance_m || 0), t: a.t + (w.moving_s || 0), e: a.e + (w.ascent_m || 0)}), {n: 0, d: 0, t: 0, e: 0});
+      const monday = new Date(); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      const isThis = thisWeek.length && new Date(thisWeek[0].week + 'T12:00') >= new Date(monday.toDateString());
+      const t = isThis ? tot : {n: 0, d: 0, t: 0, e: 0};
+      const days = s.week_days || [], maxT = Math.max(1, ...days.map((x) => x.moving_s || 0)), maxD = Math.max(1, ...days.map((x) => x.distance_m || 0));
+      $('#t-week', el).innerHTML = `<a class="card tap week-summary" href="/progress?view=totals"><h2>This week<span class="more">Totals ›</span></h2>
+        <div class="hero-num num">${esc(U.dist(t.d, 1))}<i>${esc(U.du())}</i></div>
+        <p class="hero-sub">${esc(dur(t.t, true))} · ${t.n} activit${t.n === 1 ? 'y' : 'ies'}${t.e ? ` · ${esc(U.elev(t.e))} ${esc(U.eu())} climb` : ''}</p>
+        ${days.length ? `<div class="wstrip" role="img" aria-label="Each day this week">${days.map((x) => {
+          const val = x.distance_m ? U.dist(x.distance_m, 1) : x.moving_s ? `${Math.round(x.moving_s / 60)}m` : '';
+          return `<div class="wd${x.today ? ' today' : ''}${val ? '' : ' none'}"><span class="wv num">${esc(val)}</span><div class="wbar">${val ? `<span class="sp-fill ${esc(x.sport || '')}" data-h="${Math.max(.08, x.distance_m ? x.distance_m / maxD : (x.moving_s || 0) / maxT * .5).toFixed(3)}"></span>` : '<span class="wdot"></span>'}</div><small>${'MTWTFSS'[(new Date(x.d + 'T12:00').getDay() + 6) % 7]}</small></div>`; }).join('')}</div>
+          <p class="small muted wcap">Each bar is one day: ${esc(U.du())} run, ridden or walked (minutes for workouts without distance).</p>` : ''}
+        ${s.week_streak > 1 ? `<div class="badges"><span class="badge">${svg('flame')} ${s.week_streak}-week streak</span></div>` : ''}</a>`;
+    }),
+    load('/api/fitness?days=60', (f) => {
+      const last = f.days[f.days.length - 1];
+      if (!last) { $('#t-form', el).innerHTML = ''; return; }
+      const form = last.form, word = form > 5 ? 'Fresh — good day for a hard effort' : form < -15 ? 'Tired — an easy day helps you absorb training' : 'Training steadily';
+      $('#t-form', el).innerHTML = `<a class="card tap" href="/progress?view=fitness"><h2>Fitness & freshness<span class="more">More ›</span></h2>
+        <div class="stats3">${stat('Fitness', Math.round(last.fitness))}${stat('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? stat('Run score', f.vdot_now) : ''}</div>
+        <p class="small"><b>${esc(word)}.</b> <span class="muted">Fitness = your training over the last 6 weeks. Freshness = fitness minus this week's tiredness (above 0 = rested).${f.vdot_now ? ' Run score = running fitness from your best recent run (VDOT).' : ''}</span></p>
+        ${f.ramp_7d > 8 ? '<div class="callout warn">Your training load jumped quickly this week — watch for niggles.</div>' : ''}</a>`;
+    }),
+    load('/api/goals', (g) => {
+      $('#t-goals', el).innerHTML = g.length ? `<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>${g.map(goalRow).join('')}</div>` : '';
+    }),
+  ]);
+});
+function goalFmt(metric, v) {
+  return metric === 'distance' ? `${U.dist(v, 1)} ${U.du()}` : metric === 'time' ? dur(v, true) : metric === 'elevation' ? `${U.elev(v)} ${U.eu()}` : `${Math.round(v)}`;
+}
+function goalRow(g) {
+  const pct = Math.min(1, g.value / g.target);
+  const what = `${g.sport ? SPORT_NAMES[g.sport] : 'All'} · this ${g.period}`;
+  return `<div class="goal"><div class="top2"><b>${esc(what)}</b><span class="num">${esc(goalFmt(g.metric, g.value))} / ${esc(goalFmt(g.metric, g.target))}</span></div>
+    <div class="track"><div class="bar" data-w="${pct.toFixed(3)}"></div></div></div>`;
+}
+// apply data-w widths through CSS custom properties (no inline style attributes allowed)
+new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProperty('--w', b.dataset.w); b.removeAttribute('data-w'); }
+  for (const b of $$('[data-h]')) { b.style.setProperty('--h', b.dataset.h); b.removeAttribute('data-h'); } })
+  .observe(document.documentElement, {childList: true, subtree: true});
+
+// ---------- Activity feed ----------
+route(/^\/activity$/, 'activity', async (el) => {
+  const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
+  const sports = ['', 'run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
+  el.innerHTML = `<div class="top"><h1>Activity</h1><div class="acts"><button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>
+    <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
+    <form id="f-sform" class="${term ? '' : 'hidden'}" role="search"><input type="search" name="q" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form>
+    <div class="chips" role="group" aria-label="Sport">${sports.map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s === 'other' ? 'Other' : s ? SPORT_NAMES[s] + 's' : 'All'}</button>`).join('')}</div>
+    <div class="feed-list" id="f-list">${skel(4)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
+  const sf = $('#f-sform', el); if (!term) sf.hidden = true;
+  $('#f-search', el).onclick = () => { sf.hidden = !sf.hidden; if (!sf.hidden) $('input', sf).focus(); };
+  sf.onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(location.search); const v = $('input', sf).value.trim(); v ? p.set('q', v) : p.delete('q'); go('/activity' + (p.toString() ? '?' + p : ''), {replace: true}); };
+  $$('.chip', el).forEach((b) => b.onclick = () => { const p = new URLSearchParams(location.search); b.dataset.s ? p.set('sport', b.dataset.s) : p.delete('sport'); go('/activity' + (p.toString() ? '?' + p : ''), {replace: true}); });
+  const base = `/api/activities?limit=25${sport ? '&sport=' + sport : ''}${term ? '&q=' + encodeURIComponent(term) : ''}`;
+  const list = $('#f-list', el), more = $('#f-more', el);
+  let items = [];
+  const draw = (rows) => {
+    items = rows;
+    list.innerHTML = rows.length ? rows.map(actCard).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : 'Upload FIT, GPX or TCX files, or your whole Strava export.'}</div>`;
+    more.hidden = rows.length < 25 || rows.length % 25 !== 0;
+    feedMaps(list);
+  };
+  await load(base, draw);
+  more.onclick = async () => {
+    more.disabled = true; more.textContent = 'Loading…';
+    try {
+      const rows = await api(base + '&before=' + encodeURIComponent(items[items.length - 1].start_time));
+      items = items.concat(rows); App.cache.set(base, {data: items, at: Date.now()});
+      list.insertAdjacentHTML('beforeend', rows.map(actCard).join('')); more.hidden = rows.length < 25; feedMaps(list);
+    } catch (e) { toast(e.message); }
+    more.disabled = false; more.textContent = 'Show more';
+  };
+});
+
+// ---------- Activity detail ----------
+const ZN = ['Easy', 'Aerobic', 'Tempo', 'Threshold', 'Max'];
+function insights(a) {
+  const out = [];
+  if (a.efforts && a.efforts.some((e) => e.rank_then === 1)) {
+    const prs = a.efforts.filter((e) => e.rank_then === 1).map((e) => e.label);
+    out.push(['good', `New personal record${prs.length > 1 ? 's' : ''}`, prs.join(', ')]);
+  }
+  if (a.decoupling != null) {
+    const d = a.decoupling;
+    out.push([d < 5 ? 'good' : d < 10 ? '' : 'warn', `Heart-rate drift ${d.toFixed(1)}%`,
+      d < 5 ? 'Your heart rate held steady for the pace — a sign of good aerobic fitness for this effort.' :
+      d < 10 ? 'Some drift in the second half: normal for long or warm efforts.' : 'Big drift: heat, dehydration, fatigue or starting too fast.']);
+  }
+  if (a.zones) {
+    const tot = a.zones.reduce((x, y) => x + y, 0), easy = (a.zones[0] + a.zones[1]) / tot;
+    out.push(['', easy > .75 ? 'Mostly easy' : easy < .4 ? 'Hard session' : 'Mixed intensity',
+      `${Math.round(easy * 100)}% of the time in zones 1–2${a.effort ? ` · effort ${Math.round(a.effort)}` : ''}.`]);
+  }
+  if (a.vo2max) out.push(['', `VO₂max estimate ${a.vo2max}`, 'From pace (hills adjusted) versus heart rate. Trends matter more than one run.']);
+  if (a.route_count > 1) out.push(['', `You've done this route ${a.route_count} times`, 'See how you compare over time below.']);
+  return out;
+}
+function sportStats(a) {
+  const s = [];
+  const add = (l, v, u) => { if (v != null && v !== '–') s.push(stat(l, v, u)); };
+  if (a.sport === 'swim') {
+    add('Pace', a.distance_m && a.moving_s ? U.swim(a.moving_s / a.distance_m * 1000) : null, U.swu());
+    add('Lengths', a.lengths); add('SWOLF', a.swolf ? Math.round(a.swolf) : null); add('Strokes', a.strokes ? Math.round(a.strokes) : null);
+    add('Pool', a.pool_length_m ? `${Math.round(a.pool_length_m)} m` : null);
+  }
+  if (FOOT.includes(a.sport)) add('GAP', a.gap_s_per_km ? U.pace(a.gap_s_per_km) : null, U.pu());
+  if (['ride', 'ski', 'row'].includes(a.sport) || a.max_speed) add('Max speed', a.max_speed ? U.speed(a.max_speed) : null, U.su());
+  add('Elevation', a.ascent_m != null ? U.elev(a.ascent_m) : null, U.eu());
+  if (['hike', 'ride', 'ski'].includes(a.sport)) { add('Climb rate', a.vam ? U.elev(a.vam) : null, U.eu() + '/h'); add('Highest', a.max_alt != null ? U.elev(a.max_alt) : null, U.eu()); }
+  add('Avg HR', a.avg_hr ? Math.round(a.avg_hr) : null, 'bpm'); add('Max HR', a.max_hr ? Math.round(a.max_hr) : null, 'bpm');
+  add('Effort', a.effort ? Math.round(a.effort) : null);
+  if (a.avg_power) { add('Avg power', Math.round(a.avg_power), 'W'); add('Norm. power', a.norm_power ? Math.round(a.norm_power) : null, 'W'); }
+  if (a.avg_cad) add('Cadence', Math.round(a.avg_cad), a.sport === 'ride' ? 'rpm' : 'spm');
+  if (['walk', 'hike', 'run'].includes(a.sport)) add('Steps', a.steps ? Math.round(a.steps).toLocaleString() : null);
+  if (a.avg_stride) add('Stride', (a.avg_stride / 1000).toFixed(2), 'm');
+  if (a.avg_gct) add('Ground contact', Math.round(a.avg_gct), 'ms');
+  if (a.avg_vo) add('Vert. osc.', (a.avg_vo / 10).toFixed(1), 'cm');
+  add('Elapsed', a.elapsed_s && Math.abs(a.elapsed_s - (a.moving_s || 0)) > 30 ? dur(a.elapsed_s) : null);
+  add('Calories', a.calories ? Math.round(a.calories) : null); add('Temp', a.avg_temp != null ? U.temp(a.avg_temp) : null);
+  return s.join('');
+}
+
+route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
+  el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>${skel(2)}`;
+  wireBack(el, '/activity');
+  await load(`/api/activities/${id}`, (a) => drawDetail(el, a), {maxAge: 60000});
+});
+
+function drawDetail(el, a) {
+  const r = rate(a);
+  const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m ? stat(r.label, r.v, r.u) : '');
+  const ins = insights(a);
+  const splits = imp() ? a.splits_mi : a.splits_km;
+  el.innerHTML = `<div class="top">${backBtn('Activity')}<div><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>
+    <div class="d-title card"><div class="hd act"><div class="hd">${sportMark(a.sport)}<div><h1>${esc(a.name)}</h1>
+      <div class="sub">${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</div></div></div></div>
+      ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
+      <div class="hero">${hero}</div><div class="hero more">${sportStats(a)}</div>
+      ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}
+      ${a.private_note ? `<p class="small"><b>Private note:</b> ${esc(a.private_note)}</p>` : ''}</div>
+    <div class="cols"><div>
+      ${a.line ? `<div class="map big" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
+      ${a.chart ? '<div class="card"><h2>Charts</h2><div id="d-charts"></div></div>' : ''}
+      ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
+      ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
+    </div><div>
+      ${a.ai_note ? `<div class="card ai"><h2>Coach</h2><p>${esc(a.ai_note)}</p></div>`
+        : App.me.coach ? '<div class="card"><h2>Coach</h2><p class="small muted">A short note on this workout from your AI coach, using your own history.</p><button class="ghost" id="d-coach">Get coach note</button></div>' : ''}
+      ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
+      ${a.efforts && a.efforts.length ? `<div class="card"><h2>Best efforts</h2>${effortsTable(a)}</div>` : ''}
+      ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
+      ${a.power_curve && a.power_curve.length ? `<div class="card"><h2>Power curve</h2><table class="tbl">${a.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}
+      ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}
+      ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}
+    </div></div>`;
+  wireBack(el, '/activity');
+  $('#d-edit', el).onclick = () => editActivity(a);
+  const cb = $('#d-coach', el);
+  if (cb) cb.onclick = async () => {
+    cb.disabled = true; cb.textContent = 'Thinking…';
+    try { const r = await api(`/api/activities/${a.id}/coach`, json('POST', {})); a.ai_note = r.note; App.cache.delete(`/api/activities/${a.id}`); drawDetail(el, a); }
+    catch (x) { toast(x.message); cb.disabled = false; cb.textContent = 'Get coach note'; }
+  };
+  let marker = null, pts = null, mapObj = null;
+  if (a.line) lazy($('#d-map', el), async () => {
+    try { const m = await mapInto($('#d-map', el), [a.line], {sport: a.sport}); mapObj = m; pts = decode(a.line); }
+    catch (e) { console.error('map', e); $('#d-map', el).innerHTML = '<p class="empty">Map unavailable right now</p>'; }
+  });
+  if (a.line) {   // full screen: the same map fills the screen (chart dot keeps working); X or Esc closes it
+    const box = $('#d-map', el), btn = $('#d-full', el);
+    const refit = () => { if (mapObj) { mapObj.map.invalidateSize(); mapObj.map.fitBounds(mapObj.L.latLngBounds(decode(a.line)), {padding: [24, 24]}); } };
+    const close = () => {
+      if (!box.classList.contains('full')) return;
+      box.classList.remove('full'); document.body.classList.remove('map-open');
+      btn.innerHTML = svg('expand'); btn.setAttribute('aria-label', 'Full-screen map'); refit(); btn.focus();
+      removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      if (box.classList.contains('full')) { close(); return; }
+      box.classList.add('full'); document.body.classList.add('map-open');
+      btn.innerHTML = svg('close'); btn.setAttribute('aria-label', 'Close full-screen map'); refit();
+      addEventListener('keydown', onKey);
+    };
+  }
+  if (a.chart) {
+    const c = a.chart, x = c.d && c.d[c.d.length - 1] > 100 ? c.d : c.t, byDist = x === c.d;
+    const rows = [];
+    const sp = c.speed && FOOT.includes(a.sport) && a.sport !== 'swim';
+    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s1'), invert: true, clip: true}
+                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s1'), clip: true});
+    if (c.gap_speed && sp) rows.push({name: 'Grade-adjusted pace', short: 'GAP', vals: c.gap_speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s5'), invert: true, clip: true, avg: a.gap_s_per_km});
+    if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s2'), avg: a.avg_hr});
+    if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--hike')});
+    if (c.power) rows.push({name: 'Power', vals: c.power, fmt: (v) => Math.round(v), unit: 'W', color: col('--s4'), clip: true, avg: a.avg_power});
+    if (c.cad) rows.push({name: 'Cadence', short: 'Cad', vals: c.cad, fmt: (v) => Math.round(v), unit: a.sport === 'ride' ? 'rpm' : 'spm', color: col('--s3'), clip: true, avg: a.avg_cad});
+    const box = $('#d-charts', el);
+    const draw = () => chartStack(box, x, rows, {
+      xfmt: (v) => (byDist ? `${U.dist(v)} ${U.du()}` : dur(v)),
+      onIndex: (i) => {   // move a dot along the map with the crosshair
+        if (!mapObj || !pts || !pts.length || !c.d) return;
+        const frac = (c.d[i] - c.d[0]) / (c.d[c.d.length - 1] - c.d[0] || 1), p = pts[Math.min(pts.length - 1, Math.round(frac * (pts.length - 1)))];
+        if (!marker) marker = mapObj.L.circleMarker(p, {radius: 7, color: '#fff', weight: 2, fillColor: col('--s1'), fillOpacity: 1}).addTo(mapObj.map);
+        else marker.setLatLng(p);
+      }});
+    requestAnimationFrame(draw);
+    let w = box.clientWidth; new ResizeObserver(() => { if (Math.abs(box.clientWidth - w) > 20) { w = box.clientWidth; draw(); } }).observe(box);
+  }
+}
+function splitsTable(a, splits) {
+  const foot = FOOT.includes(a.sport);
+  const paces = splits.map((s) => s.pace_s_per_km).filter(Boolean), fastest = Math.min(...paces), slowest = Math.max(...paces);
+  return `<table class="tbl"><thead><tr><th>${U.du()}</th><th>${foot ? 'Pace' : 'Speed'}</th><th></th>${foot && splits.some((s) => s.gap_s_per_km) ? '<th class="r">GAP</th>' : ''}<th class="r">Elev</th><th class="r">HR</th></tr></thead><tbody>
+    ${splits.map((s) => {
+      const full = Math.abs(s.distance_m - (imp() ? MI : 1000)) < 5;
+      const w = s.pace_s_per_km ? (fastest / s.pace_s_per_km) : 0;
+      return `<tr class="${s.pace_s_per_km === fastest ? 'best' : ''}"><td>${full ? s.n : U.dist(s.distance_m)}</td>
+        <td class="num">${foot ? U.pace(s.pace_s_per_km) : U.speed(1000 / s.pace_s_per_km)}</td><td class="barcell"><div class="bar${s.pace_s_per_km === slowest ? ' slow' : ''}" data-w="${(0.25 + 0.75 * ((w - fastest / slowest) / (1 - fastest / slowest || 1))).toFixed(3)}"></div></td>
+        ${foot && splits.some((x) => x.gap_s_per_km) ? `<td class="r num">${U.pace(s.gap_s_per_km)}</td>` : ''}
+        <td class="r num">${s.elev_m != null ? (s.elev_m > 0 ? '+' : '') + U.elev(s.elev_m) : '–'}</td><td class="r num">${s.avg_hr || '–'}</td></tr>`;
+    }).join('')}</tbody></table>`;
+}
+function lapsTable(a) {
+  const foot = FOOT.includes(a.sport);
+  return `<table class="tbl"><thead><tr><th>Lap</th><th>Dist</th><th>Time</th><th class="r">${foot ? 'Pace' : 'Speed'}</th><th class="r">HR</th></tr></thead><tbody>
+    ${a.laps.map((l, i) => { const spk = l.distance_m ? (l.moving_s || l.elapsed_s) / l.distance_m * 1000 : null;
+      return `<tr><td>${i + 1}</td><td class="num">${U.dist(l.distance_m)}</td><td class="num">${dur(l.moving_s || l.elapsed_s)}</td>
+        <td class="r num">${spk ? (foot ? U.pace(spk) : U.speed(1000 / spk)) : '–'}</td><td class="r num">${l.avg_hr ? Math.round(l.avg_hr) : '–'}</td></tr>`; }).join('')}</tbody></table>`;
+}
+function effortsTable(a) {
+  return `<table class="tbl"><tbody>${a.efforts.map((e) => `<tr><td>${e.rank_then <= 3 ? `<span class="medal m${e.rank_then}" title="${['', 'Personal record', '2nd best', '3rd best'][e.rank_then]} at the time">${e.rank_then === 1 ? 'PR' : e.rank_then}</span>` : ''}${esc(e.label)}</td>
+    <td class="r num">${dur(e.elapsed_s)}</td><td class="r small muted">${e.rank_now === 1 ? 'Current PR' : `#${e.rank_now} all-time`}</td></tr>`).join('')}</tbody></table>
+    <p class="small muted">Medals show how it ranked when you ran it. <a href="/progress?view=records&sport=${esc(a.sport)}">All records ›</a></p>`;
+}
+function zonesHtml(z) {
+  const tot = z.reduce((a, b) => a + b, 0) || 1;
+  return `<div class="zones">${z.map((s, i) => `<div class="zone"><span>Z${i + 1}</span><div><div class="bar z${i + 1}" data-w="${(s / tot).toFixed(3)}"></div><small class="muted">${ZN[i]}</small></div><span class="num r">${dur(s, true)}</span></div>`).join('')}</div>`;
+}
+function similarHtml(a) {
+  const mine = a.moving_s && a.distance_m ? a.moving_s / a.distance_m * 1000 : null;
+  return a.similar.map((s) => {
+    const p = s.moving_s && s.distance_m ? s.moving_s / s.distance_m * 1000 : null;
+    const diff = mine && p ? p - mine : null;
+    const foot = FOOT.includes(a.sport);
+    const cmp = diff == null ? '' : Math.abs(diff) < 2 ? 'same pace' : `${diff > 0 ? 'you were' : 'it was'} ${foot ? Math.round(Math.abs(imp() ? diff * MI / 1000 : diff)) + ' s' + U.pu() : U.speed(Math.abs(1000 / mine - 1000 / p)) + ' ' + U.su()} faster`;
+    return `<a class="row-link" href="/activity/${s.id}" data-prefetch="/api/activities/${s.id}"><div><b>${esc(s.name)}</b><br><small class="muted">${esc(fdate(s.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))} · ${U.dist(s.distance_m)} ${U.du()}${s.same_route ? ' · same route' : ''}</small></div>
+      <div class="r"><b class="num">${p ? (foot ? U.pace(p) + U.pu() : U.speed(1000 / p) + ' ' + U.su()) : '–'}</b><br><small class="muted">${esc(cmp)}</small></div></a>`;
+  }).join('');
+}
+
+function editActivity(a) {
+  const sports = ['run', 'ride', 'walk', 'hike', 'swim', 'row', 'ski', 'workout', 'other'];
+  sheet('Edit activity', `<form class="form" id="e-form">
+    <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
+    <label>Sport<select name="sport">${sports.map((s) => `<option value="${s}"${s === a.sport ? ' selected' : ''}>${SPORT_NAMES[s]}</option>`).join('')}</select></label>
+    <label>Description<textarea name="description" maxlength="10000">${esc(a.description || '')}</textarea></label>
+    <label>Private note (only you)<textarea name="private_note" maxlength="10000">${esc(a.private_note || '')}</textarea></label>
+    <label>Gear<select name="gear"><option value="">None</option></select></label>
+    <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
+    <div class="actions"><button type="button" class="ghost danger" id="e-del">Delete</button><span class="spacer"></span>
+      <button type="button" class="ghost" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, async (body, close) => {
+    const f = $('#e-form', body);
+    api('/api/gear').then((gear) => { f.gear.insertAdjacentHTML('beforeend', gear.filter((g) => !g.retired || g.id === a.gear_id).map((g) => `<option value="${g.id}"${g.id === a.gear_id ? ' selected' : ''}>${esc(g.name)}</option>`).join('')); }).catch(() => {});
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const body2 = {name: f.name.value, sport: f.sport.value, description: f.description.value, private_note: f.private_note.value, commute: f.commute.checked};
+      if (f.gear.value) body2.gear_id = +f.gear.value; else body2.clear_gear = true;
+      const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await api(`/api/activities/${a.id}`, json('PATCH', body2));
+        invalidate('/api/activities'); invalidate('/api/stats'); close(); toast('Saved'); render();
+      } catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Save'; }
+    };
+    $('#e-del', body).onclick = async () => {
+      if (!confirm(`Delete "${a.name}"? This can't be undone.`)) return;
+      try { await api(`/api/activities/${a.id}`, {method: 'DELETE'}); invalidate('/api/'); close(); toast('Activity deleted'); go('/activity', {replace: true}); }
+      catch (x) { toast(x.message); }
+    };
+  });
+}
+
+// ---------- Matched route ----------
+route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
+  el.innerHTML = `<div class="top">${backBtn()}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
+  wireBack(el, '/progress?view=routes');
+  await load(`/api/routes/${id}`, (r) => {
+    const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
+    const pts = acts.filter((a) => a.moving_s && a.distance_m).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.moving_s / a.distance_m * 1000, id: a.id}));
+    const t = r.pace_trend, e = r.efficiency_trend;
+    const perMonth = t ? t.slope_per_day * 30 : null;
+    let headline = '';
+    if (t && Math.abs(perMonth) >= 1) headline = `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${foot ? Math.round(Math.abs(imp() ? perMonth * MI / 1000 : perMonth)) + ' s' + U.pu() : ''} per month on this route.`;
+    if (e && t) { const effUp = e.slope_per_day > 0; headline += effUp ? ' Your pace per heartbeat is improving — you\'re fitter at the same effort.' : ' Pace per heartbeat is slipping — could be heat, fatigue or easier days.'; }
+    const best = acts.find((a) => a.id === r.fastest_id);
+    el.innerHTML = `<div class="top">${backBtn()}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
+      <div class="card"><h1>${esc(r.name)}</h1><p class="muted">${acts.length} times · ${SPORT_NAMES[r.sport] || 'Activity'} · first ${esc(fdate(acts[0].start_time, {month: 'short', year: 'numeric'}))}</p>
+        <div class="hero">${stat('Best', dur(best && best.moving_s))}${stat('Average', dur(acts.reduce((s, a) => s + (a.moving_s || 0), 0) / acts.length))}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div></div>
+      ${r.line ? '<div class="map" id="r-map"></div>' : ''}
+      <div class="card"><h2>${foot ? 'Pace' : 'Speed'} over time</h2>${headline ? `<div class="callout">${esc(headline)}</div>` : ''}<div id="r-chart"></div>
+        <div class="badges"><span class="badge pr">● Fastest</span><span class="badge">- - Trend</span></div></div>
+      <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
+        <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
+        <div class="r"><b class="num">${dur(a.moving_s)}</b><br><small class="muted num">${foot ? U.pace(a.moving_s / a.distance_m * 1000) + U.pu() : U.speed(a.distance_m / a.moving_s) + ' ' + U.su()}</small></div></a>`).join('')}</div>`;
+    wireBack(el, '/progress?view=routes');
+    requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
+    if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).catch(() => {}));
+    $('#r-edit', el).onclick = () => sheet('Rename route', `<form class="form"><label>Name<input name="name" value="${esc(r.name)}" maxlength="120" enterkeyhint="done"></label>
+      <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`, (b, close) => {
+      $('form', b).onsubmit = async (ev) => { ev.preventDefault(); try { await api(`/api/routes/${id}`, json('PATCH', {name: $('input', b).value})); invalidate('/api/'); close(); render(); } catch (x) { toast(x.message); } };
+    });
+  });
+});
+
+// ---------- Progress ----------
+const VIEWS = [['mileage', 'Mileage'], ['plan', 'Plan'], ['trends', 'Trends'], ['fitness', 'Fitness'], ['records', 'Records'], ['routes', 'Routes'], ['calendar', 'Calendar'], ['heatmap', 'Heatmap']];
+route(/^\/progress$/, 'progress', async (el) => {
+  const q = new URLSearchParams(location.search), view = q.get('view') === 'totals' ? 'mileage' : q.get('view') || 'mileage';
+  el.innerHTML = `<div class="top"><h1>Progress</h1></div>
+    <div class="seg wide ptabs" role="group" aria-label="View">${VIEWS.map(([k, n]) => `<button data-v="${k}" aria-pressed="${k === view}">${n}</button>`).join('')}</div>
+    <div id="p-body">${skel(2)}</div>`;
+  $$('.seg button', el).forEach((b) => b.onclick = () => go('/progress?view=' + b.dataset.v, {replace: true}));
+  const on = $('.seg button[aria-pressed="true"]', el); if (on) on.scrollIntoView({block: 'nearest', inline: 'center'});
+  const body = $('#p-body', el);
+  await ({mileage: pMileage, plan: (box) => planInto(box), trends: pTrends, fitness: pFitness, records: pRecords, calendar: pCalendar, routes: pRoutes, heatmap: pHeatmap}[view] || pMileage)(body, q);
+});
+async function pFitness(body, q) {
+  const R = getRange(q), nowY = new Date().getFullYear();
+  const days = R.from ? Math.min(3650, Math.ceil((Date.now() - new Date(R.from, 0, 1)) / 864e5) + 1) : 3650;
+  body.innerHTML = `<div class="rng"></div><div id="fi-body">${skel(2)}</div>`;
+  await load(`/api/fitness?days=${days}`, (f0) => {
+    const box = $('#fi-body', body); if (!box) return;
+    const f = {...f0, days: f0.days.filter((d) => inRange(R, +d.d.slice(0, 4)))};
+    rangeBar($('.rng', body), R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
+    const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0}, b = f.basis;
+    box.innerHTML = `${f.predictions.length ? `<div class="card"><h2>Race predictions</h2><div class="pred">${f.predictions.map((p) => `<div><small class="muted">${esc(p.label)}</small><b class="num">${dur(p.seconds)}</b><small class="muted num">${U.pace(p.seconds / p.distance_m * 1000)}${U.pu()}</small></div>`).join('')}</div>
+        <p class="small muted">Based on your best effort of the last 90 days: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a> on ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}. Longer races assume you've trained for them (long runs). An all-out race usually beats a training effort.</p></div>`
+      : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>'}
+      <div class="card"><h2>Running fitness</h2>${f.vdot_months.length ? `<div class="bigstat">${stat('VDOT now', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
+        <p class="small muted">VDOT is Jack Daniels' race-fitness number: what your fastest stretch each month (a mile or longer) shows you can do. Higher is fitter; about 1 point ≈ 1.5% faster.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
+      <div class="card"><h2>Fitness, fatigue & form</h2>
+      <div class="bigstat">${stat('Fitness', Math.round(last.fitness))}${stat('Form', (last.form > 0 ? '+' : '') + Math.round(last.form))}</div>
+      <div id="p-load"></div><p class="small muted">Fitness = 6-week average training load, fatigue = last week. Form = fitness − fatigue: positive means fresh, very negative means overreaching.</p>
+      ${f.ramp_7d > 8 ? '<div class="callout warn">Fitness rose fast this week (ramp ' + f.ramp_7d + '). Build gradually to stay healthy.</div>' : ''}</div>`;
+    requestAnimationFrame(() => {
+      loadChart($('#p-load', box), f.days);
+      if (f.vdot_months.length) trendLine($('#p-vdot', box), monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
+        {fmt: (v) => v.toFixed(1), color: 'run', keep: (p) => inRange(R, p.d.getFullYear())});
+    });
+  });
+}
+async function pRecords(body, q) {
+  const sport = q.get('sport') || 'run';
+  body.innerHTML = `<div class="chips">${['run', 'ride', 'walk', 'hike'].map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${SPORT_NAMES[s]}</button>`).join('')}</div><div id="r-body">${skel(2)}</div>`;
+  $$('.chip', body).forEach((b) => b.onclick = () => go(`/progress?view=records&sport=${b.dataset.s}`, {replace: true}));
+  await load(`/api/records?sport=${sport}`, (r) => {
+    const yr = new Date().getFullYear();
+    $('#r-body', body).innerHTML = r.efforts.length ? `<div class="card"><table class="tbl"><thead><tr><th>Distance</th><th class="r">Best</th><th class="r">${yr}</th></tr></thead><tbody>
+      ${r.efforts.map((e) => `<tr><td><a href="/records/${sport}/${e.distance_m}">${esc(e.label)}</a><br><small class="muted">${e.count} efforts</small></td>
+        <td class="r"><a class="num" href="/activity/${e.top[0].activity_id}"><b>${dur(e.top[0].elapsed_s)}</b></a><br><small class="muted">${esc(fdate(e.top[0].start_time, {month: 'short', year: 'numeric'}))}</small></td>
+        <td class="r num">${e.year ? dur(e.year.elapsed_s) : '–'}</td></tr>`).join('')}</tbody></table>
+      <p class="small muted">Tap a distance for its PR history. Best efforts are found inside every ${SPORT_NAMES[sport].toLowerCase()}, not just races.</p></div>
+      ${r.power_curve.length ? `<div class="card"><h2>Best power</h2><table class="tbl">${r.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r num">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}`
+      : `<div class="card empty"><b>No ${SPORT_NAMES[sport].toLowerCase()} records yet</b>They appear as soon as you upload activities with GPS or distance data.</div>`;
+  });
+}
+route(/^\/records\/(\w+)\/([\d.]+)$/, 'progress', async (el, sport, dist) => {
+  el.innerHTML = `<div class="top">${backBtn('Records')}</div>${skel(2)}`;
+  wireBack(el, `/progress?view=records&sport=${sport}`);
+  await load(`/api/records/history?sport=${sport}&distance_m=${dist}`, (rows) => {
+    const prs = rows.filter((r) => r.pr);
+    const label = (rows[0] && rows[0].label) || '';
+    el.innerHTML = `<div class="top">${backBtn('Records')}</div><div class="card"><h1>${esc(U.dist(+dist) + ' ' + U.du())} · ${SPORT_NAMES[sport]}</h1>
+      <p class="muted">${rows.length} efforts · ${prs.length} times you set a new PR</p><div id="h-chart"></div></div>
+      <div class="card"><h2>PR progression</h2>${[...prs].reverse().map((r) => `<a class="row-link" href="/activity/${r.activity_id}"><div><b class="num">${dur(r.elapsed_s)}</b><br><small class="muted">${esc(r.name)}</small></div><small class="muted">${esc(fdate(r.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>`).join('')}</div>`;
+    wireBack(el, `/progress?view=records&sport=${sport}`);
+    const best = rows.reduce((b, r) => (!b || r.elapsed_s < b.elapsed_s ? r : b), null);
+    requestAnimationFrame(() => dotChart($('#h-chart', el), rows.map((r) => ({x: new Date(r.start_time) / 864e5, y: r.elapsed_s, id: r.activity_id})), {yfmt: (v) => dur(v), invert: true, best: best && best.activity_id}));
+  });
+});
+// ---------- date range for the Progress charts (2026-10-09): ?from=YYYY&to=YYYY, remembered on this phone ----------
+function getRange(q) {
+  if (q.has('from') || q.has('to')) return {from: +q.get('from') || null, to: +q.get('to') || null};
+  try { const r = JSON.parse(localStorage.getItem('fit.range') || 'null'); if (r) return {from: r.from || null, to: r.to || null}; } catch (e) { /* no storage */ }
+  return {from: null, to: null};
+}
+const inRange = (R, y) => (!R.from || y >= R.from) && (!R.to || y <= R.to);
+function rangeBar(box, R, firstYear) {
+  if (!box) return;
+  const now = new Date().getFullYear(), first = Math.min(firstYear || now, now), years = [];
+  for (let y = now; y >= first; y--) years.push(y);
+  const presets = [['All', null, null], ['This year', now, now], ['Last 2 years', now - 1, now], ['Last 5 years', now - 4, now]].filter((p) => !p[1] || p[1] >= first || p[0] === 'This year');
+  const set = (from, to) => {
+    if (from && to && from > to) [from, to] = [to, from];
+    try { localStorage.setItem('fit.range', JSON.stringify({from, to})); } catch (e) { /* no storage */ }
+    const u = new URLSearchParams(location.search); u.delete('from'); u.delete('to');
+    if (from) u.set('from', from); if (to) u.set('to', to);
+    go(location.pathname + '?' + u.toString(), {replace: true});
+  };
+  const opt = (sel, y) => `<option value="${y}"${y === sel ? ' selected' : ''}>${y}</option>`;
+  box.innerHTML = `<div class="rangebar" role="group" aria-label="Date range"><div class="chips">${presets.map(([n, f, t]) => `<button class="chip" data-f="${f || ''}" data-t="${t || ''}" aria-pressed="${(f || null) === R.from && (t || null) === R.to}">${esc(n)}</button>`).join('')}</div>
+    <div class="ry"><label>From<select name="from" aria-label="From year"><option value="">Start</option>${[...years].reverse().map((y) => opt(R.from, y)).join('')}</select></label>
+      <label>to<select name="to" aria-label="To year"><option value="">Now</option>${years.map((y) => opt(R.to, y)).join('')}</select></label></div></div>`;
+  $$('.chip', box).forEach((b) => b.onclick = () => set(+b.dataset.f || null, +b.dataset.t || null));
+  const f = $('select[name=from]', box), t = $('select[name=to]', box);
+  f.onchange = t.onchange = () => set(+f.value || null, +t.value || null);
+}
+
+// ---------- Progress: mileage by week / month / year, by sport (2026-10-09) ----------
+const VKEYS = [{k: 'run', name: 'Run'}, {k: 'ride', name: 'Ride'}, {k: 'walk', name: 'Walk & hike'}, {k: 'other', name: 'Other'}];
+const toU = (m) => (imp() ? m / MI : m / 1000);
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function monthSeries(firstYm, get) {   // every month from firstYm to this month: [{d, label, ...get(ym)}]
+  const out = [], now = new Date(); let [y, m] = firstYm.split('-').map(Number);
+  while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) {
+    const ym = `${y}-${String(m).padStart(2, '0')}`, d = new Date(y, m - 1, 1);
+    out.push({d, label: d.toLocaleDateString([], {month: 'long', year: 'numeric'}), ...get(ym)});
+    if (++m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+function filterBar(items, cur, attr) {
+  return items.map(([k, n]) => `<button class="chip" data-${attr}="${k}" aria-pressed="${k === cur}">${esc(n)}</button>`).join('');
+}
+async function pMileage(body, q) {
+  const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
+  const nav = (o) => { const u = new URLSearchParams(location.search); u.set('view', 'mileage'); u.set('sport', o.sport || sport); u.set('period', o.period || period); go('/progress?' + u.toString(), {replace: true}); };
+  const R = getRange(q), scoped = !!(R.from || R.to);
+  body.innerHTML = `<div class="filters"><div class="chips">${filterBar([['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['all', 'All']], sport, 's')}</div>
+    <div class="seg" role="group" aria-label="Period">${[['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']].map(([k, n]) => `<button data-p="${k}" aria-pressed="${k === period}">${n}</button>`).join('')}</div></div>
+    <div class="rng"></div><div id="m-body">${skel(2)}</div>`;
+  $$('.filters .chip', body).forEach((b) => b.onclick = () => nav({sport: b.dataset.s}));
+  $$('.seg button', body).forEach((b) => b.onclick = () => nav({period: b.dataset.p}));
+  await load(`/api/progress/volume?period=${period}`, (r) => {
+    const box = $('#m-body', body); if (!box) return;
+    const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
+    const by = {}; for (const x of r.rows) { const o = by[x.p] = by[x.p] || {}; o[x.s] = x; }
+    if (!r.rows.length) { box.innerHTML = '<div class="card empty"><b>No activities yet</b>Upload some and your mileage shows up here.</div>'; return; }
+    // every period from the first activity to today
+    const today = new Date(r.today + 'T12:00'), first = new Date(r.rows[0].p + 'T12:00'), all = [];
+    const start = (d) => { const x = new Date(d); if (period === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); else if (period === 'month') x.setDate(1); else { x.setMonth(0); x.setDate(1); } return x; };
+    for (let d = start(first); d <= today; ) { all.push(new Date(d)); if (period === 'week') d.setDate(d.getDate() + 7); else if (period === 'month') d.setMonth(d.getMonth() + 1); else d.setFullYear(d.getFullYear() + 1); }
+    const val = (d, f = 'd') => { const o = by[ymd(d)] || {}; return keys.reduce((s, k) => s + Number((o[k.k] || {})[f] || 0), 0); };
+    const label = (d) => period === 'week' ? 'Week of ' + d.toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}) : period === 'month' ? d.toLocaleDateString([], {month: 'long', year: 'numeric'}) : String(d.getFullYear());
+    rangeBar($('.rng', body), R, first.getFullYear());
+    const show = scoped ? all.filter((d) => inRange(R, d.getFullYear())) : period === 'week' ? all.slice(-26) : period === 'month' ? all.slice(-24) : all;
+    if (!show.length) { box.innerHTML = '<div class="card empty"><b>Nothing in this range</b>Pick other years above.</div>'; return; }
+    const cols = show.map((d, i) => {
+      const prev = show[i - 1], tick = period === 'year' ? (show.length > 8 ? "'" + String(d.getFullYear()).slice(2) : String(d.getFullYear()))
+        : period === 'month' ? (d.getMonth() % 3 === 0 ? d.toLocaleDateString([], {month: 'short'}) + (d.getMonth() === 0 ? " '" + String(d.getFullYear()).slice(2) : '') : '')
+        : (!prev || prev.getMonth() !== d.getMonth()) && (period !== 'week' || i < show.length - 1) ? d.toLocaleDateString([], {month: 'short'}) : '';
+      return {d, label: label(d), tick, partial: i === show.length - 1, segs: keys.map((k) => ({k: k.k, v: toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
+    });
+    const complete = all.slice(0, -1), recent = scoped ? show.filter((d) => d < all[all.length - 1]) : period === 'week' ? complete.slice(-52) : period === 'month' ? complete.slice(-12) : complete;
+    const avg = recent.length ? recent.reduce((s, d) => s + toU(val(d)), 0) / recent.length : null;
+    const pool = scoped ? show : all, best = pool.reduce((b, d) => (val(d) > val(b) ? d : b), pool[0]);
+    const rangeName = scoped ? (R.from === R.to ? String(R.from) : `${R.from || 'start'}–${R.to || 'now'}`) : '';
+    const word = {week: 'week', month: 'month', year: 'year'}[period], fmt = (v) => `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${U.du()}`;
+    const cur = all[all.length - 1], last = all[all.length - 2];
+    box.innerHTML = `<div class="card"><div class="stats3">
+        ${stat('This ' + word, toU(val(cur)).toFixed(1), U.du())}
+        ${stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du())}
+        ${stat('Best ' + word + (scoped ? ' (range)' : ''), toU(val(best)).toFixed(period === 'year' ? 0 : 1), U.du())}</div>
+        <p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>
+        <div id="m-chart"></div>
+</div>
+      <div class="card"><details><summary>Show as table</summary><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
+        ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
+          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></details></div>`;
+    requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: 190}));
+  });
+}
+
+// ---------- Progress: growth over the years (2026-10-09) ----------
+async function pTrends(body, q) {
+  const sport = q.get('sport') || 'run', foot = sport !== 'ride';
+  const R = getRange(q);
+  body.innerHTML = `<div class="filters"><div class="chips">${filterBar([['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks']], sport, 's')}</div></div><div class="rng"></div><div id="g-body">${skel(3)}</div>`;
+  $$('.filters .chip', body).forEach((b) => b.onclick = () => { const u = new URLSearchParams(location.search); u.set('sport', b.dataset.s); go('/progress?' + u.toString(), {replace: true}); });
+  await load(`/api/progress/trends?sport=${sport}`, (r) => {
+    const box = $('#g-body', body); if (!box) return;
+    const noun = {run: 'runs', ride: 'rides', walk: 'walks'}[sport], one = noun.slice(0, -1);
+    if (!r.months.length) { box.innerHTML = `<div class="card empty"><b>No ${noun} yet</b>Upload some and your trends show up here.</div>`; return; }
+    const today = new Date(r.today + 'T12:00'), M = {}; for (const m of r.months) M[m.m] = m;
+    const N = (v) => Number(v || 0);
+    const weeksIn = (y, m) => { const days = new Date(y, m, 0).getDate(); return (y === today.getFullYear() && m === today.getMonth() + 1 ? today.getDate() : days) / 7; };
+    // derived numbers for a set of month rows + the weeks they cover
+    const derive = (rows, weeks) => {
+      const s = (k) => rows.reduce((a, x) => a + N(x[k]), 0), n = s('n'), pd = s('pd'), pt = s('pt'), hrt = s('hr_t'), cadt = s('cad_t');
+      return {n, weeks, wk: weeks ? toU(s('d')) / weeks : null, perwk: weeks ? n / weeks : null, avgd: n ? toU(s('d')) / n : null,
+        pace: pd ? pt / pd * 1000 : null, speed: pt ? pd / pt : null, hr: hrt ? s('hr_w') / hrt : null, cad: cadt ? s('cad_w') / cadt : null,
+        longest: Math.max(0, ...rows.map((x) => N(x.longest))), climb: s('a'), pd, hrt};
+    };
+    const series = monthSeries(r.months[0].m, (ym) => { const [y, m] = ym.split('-').map(Number), row = M[ym]; return {ym, ...derive(row ? [row] : [], weeksIn(y, m))}; });
+    // by year
+    const years = {}; for (const p of series) { const y = p.d.getFullYear(); (years[y] = years[y] || []).push(p); }
+    rangeBar($('.rng', body), R, +r.months[0].m.slice(0, 4));
+    const yrows = Object.keys(years).filter((y) => inRange(R, +y)).sort().reverse().map((y) => ({y, ...derive(years[y].map((p) => M[p.ym]).filter(Boolean), years[y].reduce((a, p) => a + p.weeks, 0))}));
+    const pace = (v) => (v ? U.pace(v) : '–'), spd = (v) => (v ? U.speed(v) : '–');
+    const cy = yrows[0], ly = yrows[1];
+    const cmp = (m) => {   // change vs last year; colored only where better/worse is clear (pace, speed)
+      if (!cy || !ly || cy[m.k] == null || ly[m.k] == null) return '';
+      const diff = cy[m.k] - ly[m.k], txt = m.fmt(Math.abs(diff));
+      if (!/[1-9]/.test(txt.replace(/^0:00/, ''))) return '<span class="delta">same</span>';
+      const up = diff > 0, cls = m.better ? ((m.better === 'lower') !== up ? 'good' : 'bad') : '';
+      return `<span class="delta ${cls}">${up ? '▲' : '▼'} ${esc(txt)}</span>`;
+    };
+    const metrics = [
+      {k: 'wk', t: 'Weekly average distance', fmt: (v) => `${v.toFixed(1)} ${U.du()}`, color: 'run'},
+      foot ? {k: 'pace', t: 'Average pace', fmt: (v) => pace(v) + U.pu(), axis: pace, invert: true, w: 'pd', color: 's1', better: 'lower'} : {k: 'speed', t: 'Average speed', fmt: (v) => `${spd(v)} ${U.su()}`, axis: spd, w: 'pd', color: 's1', better: 'higher'},
+      {k: 'hr', t: 'Average heart rate', fmt: (v) => `${Math.round(v)} bpm`, w: 'hrt', color: 's2'},
+      {k: 'avgd', t: `Average ${one} distance`, fmt: (v) => `${v.toFixed(1)} ${U.du()}`, w: 'n', color: 's3'},
+      {k: 'perwk', t: `${noun[0].toUpperCase() + noun.slice(1)} per week`, fmt: (v) => v.toFixed(1), color: 's4'},
+      ...(sport === 'run' ? [{k: 'cad', t: 'Average cadence', fmt: (v) => `${Math.round(v)} spm`, w: 'n', color: 's5'}] : []),
+    ];
+    box.innerHTML = `<div class="card"><h2>By year</h2><div class="tblwrap"><table class="tbl yrs"><thead><tr><th>Year</th><th class="r">${U.du()}/wk</th><th class="r">${noun[0].toUpperCase() + noun.slice(1)}/wk</th><th class="r">${foot ? 'Pace' : 'Speed'}</th><th class="r">HR</th><th class="r">Avg ${U.du()}</th><th class="r">Longest</th></tr></thead><tbody>
+        ${yrows.map((y) => `<tr${+y.y === today.getFullYear() ? ' class="cur"' : ''}><td>${y.y}${+y.y === today.getFullYear() ? '<small class="muted"> so far</small>' : ''}</td><td class="r num"><b>${y.wk == null ? '–' : y.wk.toFixed(1)}</b></td><td class="r num">${y.perwk == null ? '–' : y.perwk.toFixed(1)}</td>
+          <td class="r num">${foot ? pace(y.pace) : spd(y.speed)}</td><td class="r num">${y.hr ? Math.round(y.hr) : '–'}</td><td class="r num">${y.avgd == null ? '–' : y.avgd.toFixed(1)}</td><td class="r num">${y.longest ? toU(y.longest).toFixed(1) : '–'}</td></tr>`).join('')}</tbody></table></div>
+        <p class="small muted">${foot ? 'Pace' : 'Speed'} = total moving time ÷ total distance. Heart rate is weighted by time, from ${noun} that recorded it.</p></div>
+      ${metrics.map((m) => `<div class="card"><h2>${esc(m.t)}</h2>
+        ${cy && cy[m.k] != null ? `<p class="small"><b class="num">${esc(m.fmt(cy[m.k]))}</b> in ${cy.y}${+cy.y === today.getFullYear() ? ' so far' : ''}${ly && ly[m.k] != null ? ` · ${esc(m.fmt(ly[m.k]))} in ${ly.y} ${cmp(m)}` : ''}</p>` : ''}
+        <div id="g-${m.k}"></div></div>`).join('')}`;
+    requestAnimationFrame(() => {
+      for (const m of metrics) trendLine($(`#g-${m.k}`, box), series.map((p) => ({d: p.d, label: p.label, y: m.k === 'wk' || m.k === 'perwk' ? p[m.k] : p.n ? p[m.k] : null, w: m.w ? p[m.w] : 1})), {fmt: m.fmt, yfmt: m.axis || ((v) => (Math.abs(v) >= 20 ? String(Math.round(v)) : v.toFixed(1))), color: m.color, invert: !!m.invert, keep: (p) => inRange(R, p.d.getFullYear())});
+    });
+  });
+}
+async function pCalendar(body, q) {
+  const now = new Date(), month = q.get('month') || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [y, m] = month.split('-').map(Number), first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
+  const shift = (k) => { const d = new Date(y, m - 1 + k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  await load(`/api/calendar?month=${month}`, (rows) => {
+    const by = {}; for (const r of rows) (by[r.d] = by[r.d] || []).push(r);
+    const max = Math.max(1, ...Object.values(by).map((l) => l.reduce((s, r) => s + (r.moving_s || 0), 0)));
+    const today = now.toLocaleDateString('en-CA');
+    let cells = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<div class="dow">${d}</div>`).join('');
+    for (let i = 0; i < (first.getDay() + 6) % 7; i++) cells += '<div class="day out"></div>';
+    for (let d = 1; d <= days; d++) {
+      const key = `${month}-${String(d).padStart(2, '0')}`, l = by[key];
+      const secs = l ? l.reduce((s, r) => s + (r.moving_s || 0), 0) : 0;
+      cells += l ? `<a class="day has${key === today ? ' today' : ''}" href="/activity/${l[0].id}" aria-label="${esc(key)}: ${l.map((r) => r.name).join(', ')}"><span class="blob sp ${esc(l[0].sport)}" data-s="${(0.45 + 0.55 * secs / max).toFixed(2)}"></span><span>${d}</span></a>`
+                 : `<div class="day${key === today ? ' today' : ''}"><span>${d}</span></div>`;
+    }
+    const tot = rows.reduce((a, r) => ({n: a.n + 1, d: a.d + (r.distance_m || 0), t: a.t + (r.moving_s || 0)}), {n: 0, d: 0, t: 0});
+    body.innerHTML = `<div class="card"><div class="top"><button class="icon-btn" id="c-prev" aria-label="Previous month">${svg('back')}</button>
+      <h2>${esc(first.toLocaleDateString([], {month: 'long', year: 'numeric'}))}</h2><button class="icon-btn" id="c-next" aria-label="Next month">${svg('chev')}</button></div>
+      <div class="cal">${cells}</div><div class="bigstat">${stat('Activities', tot.n)}${stat('Distance', U.dist(tot.d, 1), U.du())}</div></div>`;
+    for (const b of $$('.blob', body)) { b.style.setProperty('--s', b.dataset.s); b.style.setProperty('--c', `var(--${[...b.classList].find((c) => c in SPORT_NAMES) || 'accent'})`); }
+    $('#c-prev', body).onclick = () => go(`/progress?view=calendar&month=${shift(-1)}`, {replace: true});
+    $('#c-next', body).onclick = () => go(`/progress?view=calendar&month=${shift(1)}`, {replace: true});
+  });
+}
+async function pRoutes(body) {
+  await load('/api/routes', (rows) => {
+    body.innerHTML = rows.length ? `<div class="card">${rows.map((r) => `<a class="row-link" href="/route/${r.id}" data-prefetch="/api/routes/${r.id}">
+      <div class="hd act">${r.g ? miniRoute(polyFromGeo(r.g), r.sport === 'foot' ? 'walk' : r.sport) : ''}</div>
+      <div class="grow"><b>${esc(r.name)}</b><br><small class="muted">${r.count} times · best ${dur(r.best_s)} · last ${esc(fdate(r.last, {month: 'short', day: 'numeric'}))}</small></div><span class="chev">${svg('chev')}</span></a>`).join('')}</div>
+      <p class="small muted">Routes are matched automatically when you repeat the same start, finish, direction and distance.</p>`
+      : '<div class="card empty"><b>No matched routes yet</b>Do the same route twice and it appears here with your trend.</div>';
+  });
+}
+function polyFromGeo(g) {   // GeoJSON -> encoded polyline (re-use miniRoute)
+  try { const c = JSON.parse(g).coordinates; let s = '', pl = 0, po = 0;
+    const enc = (v) => { v = v < 0 ? ~(v << 1) : v << 1; let o = ''; while (v >= 0x20) { o += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; } return o + String.fromCharCode(v + 63); };
+    for (const [lo, la] of c) { const a = Math.round(la * 1e5), b = Math.round(lo * 1e5); s += enc(a - pl) + enc(b - po); pl = a; po = b; } return s; } catch (e) { return ''; }
+}
+async function pHeatmap(body, q) {
+  const sport = q.get('sport') || '';
+  body.innerHTML = `<div class="chips">${['', 'run', 'ride', 'walk', 'hike'].map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s ? SPORT_NAMES[s] : 'All'}</button>`).join('')}</div><div class="map tall" id="h-map"></div>`;
+  $$('.chip', body).forEach((b) => b.onclick = () => go(`/progress?view=heatmap${b.dataset.s ? '&sport=' + b.dataset.s : ''}`, {replace: true}));
+  const lines = await api(`/api/heatmap${sport ? '?sport=' + sport : ''}`);
+  if (!lines.length) { $('#h-map', body).outerHTML = '<div class="card empty"><b>Nothing to map yet</b>Activities with GPS show up here.</div>'; return; }
+  await mapInto($('#h-map', body), lines, {heat: true});
+}
+
+// ---------- Me ----------
+route(/^\/me$/, 'me', async (el) => {
+  const me = App.me;
+  el.innerHTML = `<div class="top"><h1>${esc(me.name)}</h1></div>
+    <div class="card"><a class="row-link" href="/me/import"><span>Upload activities</span><span class="chev">${svg('chev')}</span></a>
+      <button class="row-link" data-addact><span>Add an activity by hand</span><span class="chev">${svg('chev')}</span></button>
+      <a class="row-link" href="/me/connections"><span>Watch connections</span><span class="chev">${svg('chev')}</span></a>
+      <a class="row-link" href="/me/gear"><span>Shoes & bikes</span><span class="chev">${svg('chev')}</span></a>
+      <a class="row-link" href="/plan"><span>Training plan</span><span class="chev">${svg('chev')}</span></a>
+      <a class="row-link" href="/me/goals"><span>Goals</span><span class="chev">${svg('chev')}</span></a>
+      <button class="row-link" id="m-targets"><span>Nutrition targets</span><span class="chev">${svg('chev')}</span></button>
+      <a class="row-link" href="/food/weight"><span>Weight trend</span><span class="chev">${svg('chev')}</span></a></div>
+    <div class="card"><h2>Settings</h2>
+      <div class="row"><span>Units</span><div class="seg" role="group" aria-label="Units">
+        <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
+      <form class="form" id="m-form">
+        <div class="two"><label>Max heart rate<input name="max_hr" inputmode="numeric" value="${esc(me.max_hr || '')}" placeholder="auto"></label>
+        <label>Resting heart rate<input name="rest_hr" inputmode="numeric" value="${esc(me.rest_hr || '')}" placeholder="60"></label></div>
+        <div class="two"><label>Sex (for effort score)<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
+        <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}"></label></div>
+        <div class="two"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" inputmode="decimal" value="${esc(U.weight(me.weight_kg))}"></label>
+        <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" value="${esc(me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '')}" placeholder="${imp() ? '5 10' : '178'}"></label></div>
+        <label>Time zone<select name="tz">${tzOptions(me.tz)}</select></label>
+        <label>Everyday activity (outside workouts)<select name="activity_factor">${[[1.2, 'Mostly sitting'], [1.3, 'Some walking & standing'], [1.45, 'On my feet a lot']].map(([f, n]) => `<option value="${f}"${Math.abs((me.activity_factor || 1.2) - f) < .01 ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        <p class="small muted">Heart-rate zones and effort use these; sex, birth year, weight and height give your resting burn (BMR), and BMR × everyday activity = your daily calorie needs on Nutrition (workouts are added on the day). Leave max HR blank to use the highest your watch has recorded.</p>
+        <div class="actions"><button class="primary">Save settings</button></div></form></div>
+    <div class="card"><h2>Account</h2>
+      <button class="row-link" id="m-name"><span>Name</span><span class="val">${esc(me.name)}<span class="chev">${svg('chev')}</span></span></button>
+      <button class="row-link" id="m-login"><span>Username</span><span class="val">${esc(me.login)}<span class="chev">${svg('chev')}</span></span></button>
+      <button class="row-link" id="m-pw"><span>Password</span><span class="val">Change<span class="chev">${svg('chev')}</span></span></button>
+      ${me.is_admin ? `<a class="row-link" href="/me/people"><span>People</span><span class="val">Invite, reset, remove<span class="chev">${svg('chev')}</span></span></a>` : ''}</div>
+    <button class="ghost" id="logout">Log out</button>`;
+  $('#m-targets', el).onclick = () => targetsSheet();
+  $('#m-name', el).onclick = () => accountSheet('name');
+  $('#m-login', el).onclick = () => accountSheet('login');
+  $('#m-pw', el).onclick = () => passwordSheet();
+  $$('.seg button', el).forEach((b) => b.onclick = async () => {
+    const prev = me.units; me.units = b.dataset.u; render();
+    try { await api('/api/profile', json('PUT', {units: me.units})); } catch (x) { me.units = prev; render(); toast('Could not save: ' + x.message); }
+  });
+  $('#m-form', el).onsubmit = async (e) => {
+    e.preventDefault(); const f = e.target, n = (v) => (v.trim() === '' ? null : Number(v));
+    const w = n(f.weight.value);
+    const hv = f.height.value.trim(), hn = hv.match(/\d+(\.\d+)?/g) || [];   // "5 10", "5'10", "70" (in) or "178" (cm)
+    const height_cm = !hn.length ? null : imp() ? (hn.length > 1 ? +hn[0] * 12 + +hn[1] : +hn[0] < 9 ? +hn[0] * 12 : +hn[0]) * 2.54 : +hn[0];
+    const body = {max_hr: n(f.max_hr.value), rest_hr: n(f.rest_hr.value), sex: f.sex.value || null, birth_year: n(f.birth_year.value), weight_kg: w == null ? null : imp() ? w / 2.20462 : w, height_cm, activity_factor: +f.activity_factor.value, tz: f.tz.value || undefined};
+    try { await api('/api/profile', json('PUT', body)); Object.assign(App.me, body); toast('Settings saved'); } catch (x) { toast(x.message); }
+  };
+  $('#logout', el).onclick = async () => {
+    const n = Q.mine().length;
+    if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
+    try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
+    store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
+    App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin();
+  };
+});
+
+// time zones the phone knows (days, weeks and "today" follow yours); the current one stays listed even if unknown
+function tzOptions(cur) {
+  let list = []; try { list = Intl.supportedValuesOf('timeZone'); } catch (e) { /* older browser */ }
+  if (cur && !list.includes(cur)) list = [cur, ...list];
+  return list.map((z) => `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z.replace(/_/g, ' '))}</option>`).join('');
+}
+
+// ---------- account (name, username, password) + people (admin) ----------
+function accountSheet(field) {
+  const me = App.me, isName = field === 'name';
+  sheet(isName ? 'Your name' : 'Username', `<form class="form" id="ac">
+    <label>${isName ? 'Name' : 'Username'}<input name="v" value="${esc(isName ? me.name : me.login)}" maxlength="${isName ? 60 : 30}"
+      ${isName ? 'autocomplete="name"' : 'autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username"'} enterkeyhint="done" required></label>
+    <p class="small muted">${isName ? 'Shown at the top of your screens.' : 'What you type to log in. Lowercase letters, numbers or _.'}</p>
+    <div class="actions"><button class="primary">Save</button></div></form>`, (b, close) => {
+    const f = $('#ac', b); f.v.focus();
+    f.onsubmit = async (e) => {
+      e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
+      try { const r = await api('/api/account', json('PUT', {[field]: f.v.value})); me[field] = r[field]; close(); render(); toast(isName ? 'Name saved' : 'Username changed - use it next time you log in'); }
+      catch (x) { toast(x.message); btn.disabled = false; }
+    };
+  });
+}
+function passwordSheet() {
+  sheet('Change password', `<form class="form" id="pw">
+    <input name="username" value="${esc(App.me.login)}" autocomplete="username" hidden>
+    <label>Current password<input name="cur" type="password" autocomplete="current-password" required></label>
+    <label>New password<input name="n1" type="password" autocomplete="new-password" minlength="8" required></label>
+    <label>New password again<input name="n2" type="password" autocomplete="new-password" minlength="8" required></label>
+    <p class="small muted">At least 8 characters. Your other phones and browsers will be logged out.</p>
+    <div class="actions"><button class="primary">Change password</button></div></form>`, (b, close) => {
+    const f = $('#pw', b); f.cur.focus();
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      if (f.n1.value !== f.n2.value) { toast('The new passwords don\'t match'); f.n2.focus(); return; }
+      const btn = $('button.primary', f); btn.disabled = true;
+      try { await api('/api/account/password', json('POST', {current: f.cur.value, new: f.n1.value})); close(); toast('Password changed'); }
+      catch (x) { toast(x.message); btn.disabled = false; }
+    };
+  });
+}
+route(/^\/me\/people$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>People</h1>
+    <div class="card"><h2>Invite someone</h2><form class="form" id="p-inv">
+      <label>Who is it for? (optional)<input name="note" maxlength="60" autocomplete="off" placeholder="e.g. Sam"></label>
+      <p class="small muted">You get a link to send by text or email. They open it, pick their own username and password, and they're in. Each link works once, for 7 days.</p>
+      <div class="actions"><button class="primary">Create invite link</button></div></form>
+      <div id="p-link"></div><div id="p-open"></div></div>
+    <div id="p-list">${skel(1)}</div>
+    <div class="card"><details><summary>Or add someone with a password</summary><form class="form" id="p-add">
+      <div class="two"><label>Name<input name="name" maxlength="60" autocomplete="off" required></label>
+      <label>Username<input name="login" maxlength="30" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" required></label></div>
+      <label>First password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="small muted">Give them this password; they can change it under Me &gt; Account. Each person's activities and food are private to them in the app.</p>
+      <div class="actions"><button class="primary">Add person</button></div></form></details></div>`;
+  wireBack(el, '/me');
+  const draw = (rows) => {
+    const box = $('#p-list', el); if (!box) return;
+    const can = (p) => !p.is_admin && p.login !== App.me.login;
+    box.innerHTML = `<div class="card"><h2>On this Lankki</h2>${rows.map((p) => `<${can(p) ? `button class="row-link" data-person="${esc(p.login)}"` : 'div class="row"'}><span><b>${esc(p.name)}</b><br><small class="muted">${esc(p.login)}${p.is_admin ? ' · admin' : ''}</small></span>
+      <span class="val small muted">${p.has_password ? 'Since ' + esc(fdate(p.created, {month: 'short', year: 'numeric'})) : 'No password yet'}${can(p) ? `<span class="chev">${svg('chev')}</span>` : ''}</span></${can(p) ? 'button' : 'div'}>`).join('')}</div>`;
+    $$('[data-person]', box).forEach((b) => b.onclick = () => personSheet(rows.find((p) => p.login === b.dataset.person), async () => { App.cache.delete('/api/people'); draw(await api('/api/people')); }));
+  };
+  const drawOpen = (rows) => {
+    const box = $('#p-open', el); if (!box) return;
+    box.innerHTML = rows.length ? `<h3 class="ghead">Waiting to be used</h3>${rows.map((r) => `<div class="row"><span>${esc(r.note || 'Invite link')}<br><small class="muted">Until ${esc(fdate(r.expires, {month: 'short', day: 'numeric'}))}</small></span>
+      <button class="ghost" data-cancel="${r.id}">Cancel</button></div>`).join('')}` : '';
+    $$('[data-cancel]', box).forEach((b) => b.onclick = async () => {
+      b.disabled = true;
+      try { await api('/api/invites/' + b.dataset.cancel, {method: 'DELETE'}); toast('Invite cancelled - that link no longer works'); drawOpen(await api('/api/invites')); $('#p-link', el).innerHTML = ''; }
+      catch (x) { toast(x.message); b.disabled = false; }
+    });
+  };
+  const fi = $('#p-inv', el);
+  fi.onsubmit = async (e) => {
+    e.preventDefault(); const btn = $('button.primary', fi); btn.disabled = true;
+    try {
+      const r = await api('/api/invites', json('POST', {note: fi.note.value}));
+      const url = location.origin + r.path, who = fi.note.value.trim();
+      $('#p-link', el).innerHTML = `<div class="callout invite"><div><p class="small">Send this link${who ? ' to ' + esc(who) : ''}. It works once, until ${esc(fdate(r.expires, {month: 'short', day: 'numeric'}))}.</p>
+        <input class="linkbox" id="p-url" readonly value="${esc(url)}" aria-label="Invite link">
+        <div class="btnrow${navigator.share ? '' : ' one'}"><button class="primary" id="p-copy">Copy link</button>${navigator.share ? '<button class="ghost" id="p-share">Share…</button>' : ''}</div></div></div>`;
+      const box = $('#p-url', el);
+      $('#p-copy', el).onclick = async () => {
+        try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (x) { box.focus(); box.select(); toast('Select the link and copy it'); }
+      };
+      if (navigator.share) $('#p-share', el).onclick = () => navigator.share({title: 'Join me on Lankki', text: 'Here is your invite to Lankki:', url}).catch(() => {});
+      fi.reset(); drawOpen(await api('/api/invites'));
+    } catch (x) { toast(x.message); }
+    btn.disabled = false;
+  };
+  load('/api/invites', drawOpen, {maxAge: 0}).catch(() => {});
+  await load('/api/people', draw);
+  const f = $('#p-add', el);
+  f.onsubmit = async (e) => {
+    e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
+    try {
+      const r = await api('/api/people', json('POST', {name: f.name.value, login: f.login.value, password: f.password.value}));
+      toast(`Added ${r.login}`); f.reset(); App.cache.delete('/api/people'); draw(await api('/api/people'));
+    } catch (x) { toast(x.message); }
+    btn.disabled = false;
+  };
+});
+
+// admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
+function personSheet(p, after) {
+  sheet(p.name, `<form class="form" id="ps-pw"><h3 class="ghead">Set a new password</h3>
+      <label>New password<input name="pw" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="small muted">For a forgotten password. They're logged out everywhere and use this one next time (they can change it under Me &gt; Account).</p>
+      <div class="actions"><button class="primary">Set password</button></div></form>
+    <form class="form danger-zone" id="ps-rm"><h3 class="ghead">Remove ${esc(p.name)}</h3>
+      <p class="small">Deletes their account and <b>all</b> their activities, food log, weights and plans. This can't be undone in the app (only from the nightly server backup).</p>
+      <label>Type <b>${esc(p.login)}</b> to confirm<input name="confirm" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off"></label>
+      <div class="actions"><button class="ghost danger" disabled>Remove person</button></div></form>`, (b, close) => {
+    const f1 = $('#ps-pw', b), f2 = $('#ps-rm', b), rm = $('button', f2);
+    f1.onsubmit = async (e) => {
+      e.preventDefault(); const btn = $('button', f1); btn.disabled = true;
+      try { await api(`/api/people/${encodeURIComponent(p.login)}/password`, json('POST', {password: f1.pw.value})); close(); toast(`New password set for ${p.name}`); }
+      catch (x) { toast(x.message); btn.disabled = false; }
+    };
+    f2.confirm.oninput = () => { rm.disabled = f2.confirm.value.trim().toLowerCase() !== p.login.toLowerCase(); };
+    f2.onsubmit = async (e) => {
+      e.preventDefault(); if (rm.disabled) return; rm.disabled = true;
+      try { await api(`/api/people/${encodeURIComponent(p.login)}/remove`, json('POST', {confirm: f2.confirm.value})); close(); toast(`Removed ${p.name}`); after(); }
+      catch (x) { toast(x.message); rm.disabled = false; }
+    };
+  });
+}
+
+route(/^\/me\/import$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Upload activities</h1><p class="muted">FIT, GPX or TCX files (also .gz), or your whole Strava export .zip. Duplicates are skipped automatically.</p>
+    <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
+      <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
+      <div id="u-prog" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
+    <div class="card"><h2>How to get your Strava history</h2><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a very large archive (over a few GB) ask for it to be placed in the server inbox instead.</p></div>
+    <div class="card"><h2>Recent imports</h2><div id="u-jobs">${skel(1)}</div></div>`;
+  wireBack(el, '/me');
+  const input = $('#u-file', el), drop = $('#u-drop', el);
+  const send = (files) => {
+    if (!files.length) return;
+    const fd = new FormData(); for (const f of files) fd.append('files', f, f.name);
+    const xhr = new XMLHttpRequest(); xhr.open('POST', '/api/import');
+    $('#u-prog', el).hidden = false;
+    const total = [...files].reduce((s, f) => s + f.size, 0);
+    xhr.upload.onprogress = (e) => { const p = e.lengthComputable ? e.loaded / e.total : 0; $('#u-bar', el).style.setProperty('--w', p); $('#u-text', el).textContent = `Uploading ${(e.loaded / 1048576).toFixed(1)} of ${(total / 1048576).toFixed(1)} MB…`; };
+    xhr.onload = () => {
+      if (xhr.status === 200) { $('#u-text', el).textContent = 'Uploaded — processing below.'; invalidate('/api/'); poll(); }
+      else { let m = 'Upload failed'; try { m = JSON.parse(xhr.responseText).detail || m; } catch (e) { /* */ } $('#u-text', el).textContent = m; }
+    };
+    xhr.onerror = () => { $('#u-text', el).textContent = 'Upload failed — check your connection and try again.'; };
+    xhr.send(fd);
+  };
+  input.onchange = () => send(input.files);
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); send(e.dataTransfer.files); });
+  let timer;
+  const poll = async () => {
+    clearTimeout(timer);
+    if (!document.body.contains(el)) return;
+    try {
+      const jobs = await api('/api/imports');
+      $('#u-jobs', el).innerHTML = jobs.length ? jobs.map((j) => `<div class="job"><b>${esc(j.label)}</b>
+        <small>${j.status === 'running' || j.status === 'queued' ? `${j.status === 'queued' ? 'Waiting' : 'Processing'} ${j.done} of ${j.total || '?'}` : j.status === 'done' ? 'Finished' : 'Stopped'} · ${j.added} added · ${j.duplicates} duplicates${j.failed ? ` · ${j.failed} couldn't be read` : ''}</small>
+        ${j.total ? `<div class="prog"><div class="bar" data-w="${(j.done / j.total).toFixed(3)}"></div></div>` : ''}
+        ${j.messages.length ? `<details><summary class="small">Details</summary><ul class="small">${j.messages.slice(-20).map((m) => `<li>${esc(m)}</li>`).join('')}</ul></details>` : ''}</div>`).join('') : '<p class="muted">No imports yet.</p>';
+      if (jobs.some((j) => j.status === 'running' || j.status === 'queued')) { invalidate('/api/'); timer = setTimeout(poll, 2000); }
+    } catch (e) { /* keep last view */ }
+  };
+  poll();
+});
+
+route(/^\/me\/connections$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Watch connections</h1><p class="muted">Activities arrive on their own. Your Strava posts are not affected.</p><div id="c-body">${skel(2)}</div>`;
+  wireBack(el, '/me');
+  const C = await api('/api/connections');
+  const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
+  $('#c-body', el).innerHTML = `<div class="card"><h2>Garmin (through intervals.icu)</h2>
+      <p class="small">intervals.icu is a free site with an official Garmin link. Connect Garmin there once, then paste your athlete ID and API key (intervals.icu → Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
+      <form class="form" id="c-icu"><div class="two"><label>Athlete ID<input name="athlete_id" placeholder="i123456" autocapitalize="none" value="${esc(C.intervals ? C.intervals.athlete_id : '')}"></label>
+      <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved — paste to change' : ''}"></label></div>
+      <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="primary">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>
+    <div class="card"><h2>Apple Watch (Health Auto Export)</h2>
+      <p class="small">In the iPhone app <b>Health Auto Export</b> (Premium), add an automation: <b>REST API</b>, format <b>JSON</b>, data <b>Workouts</b> (and optionally <b>Body Mass</b>), with the address and header below.</p>${st('apple')}
+      <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="primary" id="c-apple">${C.apple ? 'Make a new secret' : 'Create my upload link'}</button></div></div>`;
+  $('#c-icu', el).onsubmit = async (e) => {
+    e.preventDefault(); const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your API key'); return; }
+    try { await api('/api/connections/intervals', json('POST', {athlete_id: f.athlete_id.value.trim(), api_key: f.api_key.value.trim()})); toast('Connected — first sync running'); render(); } catch (x) { toast(x.message); }
+  };
+  const sy = $('#c-icu-sync', el); if (sy) sy.onclick = async () => { try { await api('/api/connections/intervals/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
+  $('#c-apple', el).onclick = async () => {
+    if (C.apple && !confirm('Make a new secret? The old one stops working.')) return;
+    try {
+      const r = await api('/api/connections/apple', json('POST', {}));
+      $('#c-apple-out', el).innerHTML = `<div class="callout"><div><p class="small">Copy these into Health Auto Export now — the secret is shown only once.</p>
+        <p class="small"><b>URL</b><br><code>${esc(location.origin + r.url)}</code></p><p class="small"><b>Header</b> Authorization<br><b>Value</b> <code>Bearer ${esc(r.token)}</code></p></div></div>`;
+    } catch (x) { toast(x.message); }
+  };
+  $$('[data-off]', el).forEach((b) => b.onclick = async () => { if (!confirm('Disconnect? Activities already imported stay.')) return; try { await api(`/api/connections/${b.dataset.off}`, {method: 'DELETE'}); render(); } catch (x) { toast(x.message); } });
+});
+
+route(/^\/me\/gear$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost" id="g-add">Add</button></div><h1>Shoes & bikes</h1><div id="g-list">${skel(2)}</div>`;
+  wireBack(el, '/me');
+  const edit = (g) => sheet(g ? 'Edit gear' : 'Add gear', `<form class="form">
+      <div class="two"><label>Type<select name="kind">${['shoe', 'bike', 'other'].map((k) => `<option value="${k}"${g && g.kind === k ? ' selected' : ''}>${k === 'shoe' ? 'Shoes' : k === 'bike' ? 'Bike' : 'Other'}</option>`).join('')}</select></label>
+      <label>Name<input name="name" required maxlength="120" value="${esc(g ? g.name : '')}"></label></div>
+      <div class="two"><label>Brand<input name="brand" value="${esc(g && g.brand || '')}"></label><label>Model<input name="model" value="${esc(g && g.model || '')}"></label></div>
+      <div class="two"><label>Replace at (${U.du()})<input name="alert" inputmode="decimal" value="${g && g.alert_distance_m ? U.dist(g.alert_distance_m, 0) : ''}" placeholder="e.g. 400"></label>
+      <label>Already used (${U.du()})<input name="start" inputmode="decimal" value="${g && g.start_distance_m ? U.dist(g.start_distance_m, 0) : ''}"></label></div>
+      <label class="check"><input type="checkbox" name="is_default"${g && g.is_default ? ' checked' : ''}> Use for new activities of this type</label>
+      <label class="check"><input type="checkbox" name="retired"${g && g.retired ? ' checked' : ''}> Retired</label>
+      <div class="actions">${g ? '<button type="button" class="ghost danger" id="g-del">Delete</button><span class="spacer"></span>' : ''}<button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`, (b, close) => {
+    const f = $('form', b), toM = (v) => (v.trim() ? Number(v) * (imp() ? MI : 1000) : null);
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = {kind: f.kind.value, name: f.name.value.trim(), brand: f.brand.value.trim() || null, model: f.model.value.trim() || null,
+        alert_distance_m: toM(f.alert.value), start_distance_m: toM(f.start.value) || 0, is_default: f.is_default.checked, retired: f.retired.checked};
+      try { await api(g ? `/api/gear/${g.id}` : '/api/gear', json(g ? 'PUT' : 'POST', body)); invalidate('/api/gear'); close(); render(); } catch (x) { toast(x.message); }
+    };
+    if (g) $('#g-del', b).onclick = async () => { if (!confirm(`Delete ${g.name}? Activities keep their data.`)) return; try { await api(`/api/gear/${g.id}`, {method: 'DELETE'}); invalidate('/api/'); close(); render(); } catch (x) { toast(x.message); } };
+  });
+  $('#g-add', el).onclick = () => edit(null);
+  await load('/api/gear', (gear) => {
+    $('#g-list', el).innerHTML = gear.length ? `<div class="card">${gear.map((g) => {
+      const due = g.alert_distance_m && g.total_m >= g.alert_distance_m;
+      return `<button class="row-link" data-id="${g.id}"><div><b>${esc(g.name)}</b>${g.is_default ? ' <span class="badge">Default</span>' : ''}${g.retired ? ' <span class="badge">Retired</span>' : ''}<br>
+        <small class="muted">${g.uses} activities${g.last_used ? ' · last ' + esc(fdate(g.last_used, {month: 'short', day: 'numeric'})) : ''}</small></div>
+        <div class="r"><b class="num">${U.dist(g.total_m, 0)} ${U.du()}</b>${due ? '<br><small class="danger">Time to replace</small>' : g.alert_distance_m ? `<br><small class="muted">of ${U.dist(g.alert_distance_m, 0)}</small>` : ''}</div></button>`; }).join('')}</div>`
+      : '<div class="card empty"><b>No gear yet</b>Add shoes or a bike to track their mileage. Strava gear is imported with your export.</div>';
+    $$('[data-id]', el).forEach((b) => b.onclick = () => edit(gear.find((g) => g.id === +b.dataset.id)));
+  });
+});
+
+route(/^\/me\/goals$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost" id="o-add">Add</button></div><h1>Goals</h1><div id="o-list">${skel(1)}</div>`;
+  wireBack(el, '/me');
+  $('#o-add', el).onclick = () => sheet('New goal', `<form class="form">
+    <div class="two"><label>Sport<select name="sport"><option value="">All sports</option>${['run', 'ride', 'walk', 'hike', 'swim'].map((s) => `<option value="${s}">${SPORT_NAMES[s]}</option>`).join('')}</select></label>
+    <label>Every<select name="period"><option value="week">Week</option><option value="month">Month</option><option value="year">Year</option></select></label></div>
+    <div class="two"><label>Measure<select name="metric"><option value="distance">Distance (${U.du()})</option><option value="time">Time (hours)</option><option value="elevation">Climb (${U.eu()})</option><option value="count">Activities</option></select></label>
+    <label>Target<input name="target" inputmode="decimal" required></label></div>
+    <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Add goal</button></div></form>`, (b, close) => {
+    const f = $('form', b);
+    f.onsubmit = async (e) => {
+      e.preventDefault(); const v = Number(f.target.value); if (!(v > 0)) { toast('Enter a target above 0'); return; }
+      const target = f.metric.value === 'distance' ? v * (imp() ? MI : 1000) : f.metric.value === 'time' ? v * 3600 : f.metric.value === 'elevation' ? (imp() ? v / 3.28084 : v) : v;
+      try { await api('/api/goals', json('POST', {sport: f.sport.value || null, period: f.period.value, metric: f.metric.value, target})); invalidate('/api/goals'); close(); render(); } catch (x) { toast(x.message); }
+    };
+  });
+  await load('/api/goals', (g) => {
+    $('#o-list', el).innerHTML = g.length ? `<div class="card">${g.map((x) => `${goalRow(x)}<button class="ghost danger small" data-del="${x.id}">Remove</button>`).join('')}</div>` : '<div class="card empty"><b>No goals yet</b>Set a weekly, monthly or yearly target.</div>';
+    $$('[data-del]', el).forEach((b) => b.onclick = async () => {
+      const row = g.find((x) => x.id === +b.dataset.del);
+      try { await api(`/api/goals/${row.id}`, {method: 'DELETE'}); invalidate('/api/goals'); render();
+        toast('Goal removed', async () => { await api('/api/goals', json('POST', {sport: row.sport, period: row.period, metric: row.metric, target: row.target})); invalidate('/api/goals'); render(); });
+      } catch (x) { toast(x.message); }
+    });
+  });
+});
+
+
+
+// ---------- add an activity by hand (2026-10-09) ----------
+// Any element with data-addact opens it; data-day="YYYY-MM-DD" presets the date (e.g. from Nutrition).
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-addact]'); if (b) { e.preventDefault(); addActivitySheet(b.dataset.day); } });
+function addActivitySheet(day) {
+  const now = new Date(), d0 = day || isoDay(now), t0 = day && day !== isoDay(now) ? '08:00' : `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes() / 5) * 5).padStart(2, '0')}`;
+  const sports = ['run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
+  sheet('Add an activity', `<form class="form" id="ma">
+    <div class="chips sportpick" role="group" aria-label="Sport">${sports.map((sp, i) => `<button type="button" class="chip" data-sp="${sp}" aria-pressed="${i === 0}">${esc(SPORT_NAMES[sp])}</button>`).join('')}</div>
+    <label>Name <span class="muted">(optional)</span><input name="name" maxlength="200" placeholder="e.g. Spin class"></label>
+    <div class="two"><label>Date<input type="date" name="day" value="${esc(d0)}" max="${isoDay(now)}" required></label><label>Start time<input type="time" name="time" value="${t0}" required></label></div>
+    <div class="two"><label>Duration<input name="dur" inputmode="numeric" placeholder="45 or 1:05:00" required></label><label>Distance (${U.du()}) <span class="muted">optional</span><input name="dist" inputmode="decimal"></label></div>
+    <div class="two"><label>Calories <span class="muted">optional</span><input name="kcal" inputmode="numeric" placeholder="from your watch/machine"></label><label>Avg heart rate <span class="muted">optional</span><input name="hr" inputmode="numeric"></label></div>
+    <label>Notes <span class="muted">(optional)</span><textarea name="desc" rows="2"></textarea></label>
+    <p class="small muted">Duration: minutes (45) or h:mm:ss (1:05:00). Leave calories blank and they're estimated from distance or time and your weight.</p>
+    <div class="actions"><button class="primary">Save activity</button></div></form>`, (b, close) => {
+    const f = $('#ma', b); let sport = 'run';
+    $$('.sportpick .chip', b).forEach((c) => c.onclick = () => { sport = c.dataset.sp; $$('.sportpick .chip', b).forEach((x) => x.setAttribute('aria-pressed', x === c)); });
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const dv = f.dur.value.trim(), parts = dv.split(':').map(Number);
+      const secs = parts.some(isNaN) ? NaN : parts.length === 1 ? parts[0] * 60 : parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (!(secs > 0)) { toast('Enter a duration, e.g. 45 or 1:05:00'); f.dur.focus(); return; }
+      const n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value.replace(/,/g, '')));
+      const dist = n(f.dist);
+      const body = {sport, name: f.name.value.trim() || null, start: `${f.day.value}T${f.time.value}`, duration_s: secs,
+        distance_m: dist == null ? null : dist * (imp() ? MI : 1000), calories: n(f.kcal), avg_hr: n(f.hr), description: f.desc.value.trim() || null};
+      const btn = $('button.primary', f); btn.disabled = true;
+      try { const r = await api('/api/activities/manual', json('POST', body)); invalidate('/api/'); close(); toast('Activity saved'); go(`/activity/${r.id}`); }
+      catch (x) { toast(x.message); btn.disabled = false; }
+    };
+  });
+}

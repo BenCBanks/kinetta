@@ -1,0 +1,11 @@
+# personal data, passwords and backups never go to git
+data/
+backups/
+*.env
+.env
+fit.env
+__pycache__/
+# this household's own server notes and scripts (kept in the private homeserver snapshot instead)
+HOUSE.md
+setup-domain.sh
+backup-db.sh
