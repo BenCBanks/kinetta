@@ -423,7 +423,7 @@ function editActivity(a) {
 // ---------- Matched route ----------
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn()}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
-  wireBack(el, '/progress?view=routes');
+  wireBack(el, '/progress/routes');
   await load(`/api/routes/${id}`, (r) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
     const pts = acts.filter((a) => a.moving_s && a.distance_m).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.moving_s / a.distance_m * 1000, id: a.id}));
@@ -442,7 +442,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
       <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
         <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
         <div class="r"><b class="num">${dur(a.moving_s)}</b><br><small class="muted num">${foot ? U.pace(a.moving_s / a.distance_m * 1000) + U.pu() : U.speed(a.distance_m / a.moving_s) + ' ' + U.su()}</small></div></a>`).join('')}</div>`;
-    wireBack(el, '/progress?view=routes');
+    wireBack(el, '/progress/routes');
     requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
     if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).catch(() => {}));
     $('#r-edit', el).onclick = () => sheet('Rename route', `<form class="form"><label>Name<input name="name" value="${esc(r.name)}" maxlength="120" enterkeyhint="done"></label>
@@ -452,17 +452,54 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   });
 });
 
-// ---------- Progress ----------
-const VIEWS = [['mileage', 'Mileage'], ['plan', 'Plan'], ['trends', 'Trends'], ['fitness', 'Fitness'], ['records', 'Records'], ['routes', 'Routes'], ['calendar', 'Calendar'], ['heatmap', 'Heatmap']];
+// ---------- Progress (2026-10-11): three views, one sport choice, the deeper views in a list ----------
+// Ben: "way too many pills". The tab now has one segmented control (Totals | Fitness | Records) and one sport button
+// in the header that every view follows (remembered on this phone). Year over year, Calendar, Routes, Heatmap and the
+// training plan open from the "More" list as their own pages.
+const PVIEWS = [['totals', 'Totals'], ['fitness', 'Fitness'], ['records', 'Records']];
+const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
+const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
+  ['calendar', 'Calendar', 'Every day you trained', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
+  ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-berry'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
+function pSport(q) {
+  let s = q.get('sport'); if (!s) try { s = localStorage.getItem('fit.psport'); } catch (e) { /* no storage */ }
+  return PSPORTS.some((p) => p[0] === s) ? s : 'run';
+}
+const sportBtn = (cur) => `<button type="button" class="range-btn sport-btn" id="p-sport" aria-label="Sport: ${esc(PSPORTS.find((p) => p[0] === cur)[1])}. Change">
+  ${svg(cur === 'all' ? 'activity' : cur)}<span>${esc(PSPORTS.find((p) => p[0] === cur)[1])}</span>${svg('down')}</button>`;
+function wireSport(el, cur) {
+  const b = $('#p-sport', el); if (!b) return;
+  b.onclick = () => sheet('Sport', `<div class="pick-list">${PSPORTS.map(([k, n]) => `<button type="button" class="row-link" data-ps="${k}"><span class="ri c-grey">${svg(k === 'all' ? 'activity' : k)}</span><span class="grow">${esc(n)}</span>${k === cur ? `<span class="tick">${svg('check')}</span>` : ''}</button>`).join('')}</div>`, (sb, close) => {
+    $$('[data-ps]', sb).forEach((x) => x.onclick = () => {
+      try { localStorage.setItem('fit.psport', x.dataset.ps); } catch (e) { /* no storage */ }
+      const u = new URLSearchParams(location.search); u.set('sport', x.dataset.ps); close(); go(location.pathname + '?' + u.toString(), {replace: true});
+    });
+  });
+}
+// each view takes the sports it can show: the shared choice, mapped to the nearest one it has
+const forView = (sport, view) => ({totals: {hike: 'walk'}, records: {all: 'run'}, trends: {hike: 'walk', all: 'run'}, heatmap: {all: ''}}[view] || {})[sport] ?? sport;
 route(/^\/progress$/, 'progress', async (el) => {
-  const q = new URLSearchParams(location.search), view = q.get('view') === 'totals' ? 'mileage' : q.get('view') || 'mileage';
-  el.innerHTML = `<div class="top"><h1>Progress</h1></div>
-    <div class="seg wide ptabs" role="group" aria-label="View">${VIEWS.map(([k, n]) => `<button data-v="${k}" aria-pressed="${k === view}">${n}</button>`).join('')}</div>
-    <div id="p-body">${skel(2)}</div>`;
-  $$('.seg button', el).forEach((b) => b.onclick = () => go('/progress?view=' + b.dataset.v, {replace: true}));
-  const on = $('.seg button[aria-pressed="true"]', el); if (on) on.scrollIntoView({block: 'nearest', inline: 'center'});
-  const body = $('#p-body', el);
-  await ({mileage: pMileage, plan: (box) => planInto(box), trends: pTrends, fitness: pFitness, records: pRecords, calendar: pCalendar, routes: pRoutes, heatmap: pHeatmap}[view] || pMileage)(body, q);
+  const q = new URLSearchParams(location.search), v0 = q.get('view') || 'totals';
+  if (v0 === 'plan') return go('/plan', {replace: true});
+  if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
+  const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
+  el.innerHTML = `<div class="top"><h1>Progress</h1>${view === 'fitness' ? '' : `<div class="acts">${sportBtn(sport)}</div>`}</div>
+    <div class="seg wide three" role="group" aria-label="View">${PVIEWS.map(([k, n]) => `<button data-v="${k}" aria-pressed="${k === view}">${n}</button>`).join('')}</div>
+    <div id="p-body">${skel(2)}</div>
+    <h2 class="sec-head">More</h2><div class="card list">${PMORE.map(([k, n, d, ic, c]) => `<a class="row-link" href="${k === 'plan' ? '/plan' : '/progress/' + k}"><span class="ri ${c}">${svg(ic)}</span>
+      <span class="grow"><span>${esc(n)}</span><small class="muted">${esc(d)}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`;
+  $$('[data-v]', el).forEach((b) => b.onclick = () => { const u = new URLSearchParams(location.search); u.set('view', b.dataset.v); go('/progress?' + u.toString(), {replace: true}); });
+  wireSport(el, sport);
+  q.set('sport', forView(sport, view));
+  await ({totals: pMileage, fitness: pFitness, records: pRecords}[view])($('#p-body', el), q);
+});
+route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, view) => {
+  const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
+  const name = PMORE.find((m) => m[0] === view)[1];
+  el.innerHTML = `<div class="top">${backBtn('Progress')}${withSport ? `<div class="acts">${sportBtn(sport)}</div>` : ''}</div><h1>${esc(name)}</h1><div id="p-body">${skel(2)}</div>`;
+  wireBack(el, '/progress'); wireSport(el, sport);
+  q.set('sport', forView(sport, view));
+  await ({trends: pTrends, calendar: pCalendar, routes: pRoutes, heatmap: pHeatmap}[view])($('#p-body', el), q);
 });
 async function pFitness(body, q) {
   const R = getRange(q), nowY = new Date().getFullYear();
@@ -491,8 +528,7 @@ async function pFitness(body, q) {
 }
 async function pRecords(body, q) {
   const sport = q.get('sport') || 'run';
-  body.innerHTML = `<div class="chips">${['run', 'ride', 'walk', 'hike'].map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${SPORT_NAMES[s]}</button>`).join('')}</div><div id="r-body">${skel(2)}</div>`;
-  $$('.chip', body).forEach((b) => b.onclick = () => go(`/progress?view=records&sport=${b.dataset.s}`, {replace: true}));
+  body.innerHTML = `<div id="r-body">${skel(2)}</div>`;
   await load(`/api/records?sport=${sport}`, (r) => {
     const yr = new Date().getFullYear();
     $('#r-body', body).innerHTML = r.efforts.length ? `<div class="card"><table class="tbl"><thead><tr><th>Distance</th><th class="r">Best</th><th class="r">${yr}</th></tr></thead><tbody>
@@ -563,18 +599,13 @@ function monthSeries(firstYm, get) {   // every month from firstYm to this month
   }
   return out;
 }
-function filterBar(items, cur, attr) {
-  return items.map(([k, n]) => `<button class="chip" data-${attr}="${k}" aria-pressed="${k === cur}">${esc(n)}</button>`).join('');
-}
 async function pMileage(body, q) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
-  const nav = (o) => { const u = new URLSearchParams(location.search); u.set('view', 'mileage'); u.set('sport', o.sport || sport); u.set('period', o.period || period); go('/progress?' + u.toString(), {replace: true}); };
-  const R = getRange(q), scoped = !!(R.from || R.to);
-  body.innerHTML = `<div class="filters"><div class="chips">${filterBar([['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['all', 'All']], sport, 's')}</div>
-    <div class="frow"><div class="seg" role="group" aria-label="Period">${[['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']].map(([k, n]) => `<button data-p="${k}" aria-pressed="${k === period}">${n}</button>`).join('')}</div><div class="rng"></div></div></div>
+  const nav = (o) => { const u = new URLSearchParams(location.search); u.set('view', 'totals'); u.set('period', o.period || period); go('/progress?' + u.toString(), {replace: true}); };
+  const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
+  body.innerHTML = `<div class="seg wide three period" role="group" aria-label="Period">${[['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']].map(([k, n]) => `<button data-p="${k}" aria-pressed="${k === period}">${n}</button>`).join('')}</div>
     <div id="m-body">${skel(2)}</div>`;
-  $$('.filters .chip', body).forEach((b) => b.onclick = () => nav({sport: b.dataset.s}));
-  $$('.seg button', body).forEach((b) => b.onclick = () => nav({period: b.dataset.p}));
+  $$('[data-p]', body).forEach((b) => b.onclick = () => nav({period: b.dataset.p}));
   await load(`/api/progress/volume?period=${period}`, (r) => {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
@@ -586,7 +617,6 @@ async function pMileage(body, q) {
     for (let d = start(first); d <= today; ) { all.push(new Date(d)); if (period === 'week') d.setDate(d.getDate() + 7); else if (period === 'month') d.setMonth(d.getMonth() + 1); else d.setFullYear(d.getFullYear() + 1); }
     const val = (d, f = 'd') => { const o = by[ymd(d)] || {}; return keys.reduce((s, k) => s + Number((o[k.k] || {})[f] || 0), 0); };
     const label = (d) => period === 'week' ? 'Week of ' + d.toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}) : period === 'month' ? d.toLocaleDateString([], {month: 'long', year: 'numeric'}) : String(d.getFullYear());
-    rangeBar($('.rng', body), R, first.getFullYear());
     const show = scoped ? all.filter((d) => inRange(R, d.getFullYear())) : period === 'week' ? all.slice(-26) : period === 'month' ? all.slice(-24) : all;
     if (!show.length) { box.innerHTML = '<div class="card empty"><b>Nothing in this range</b>Pick other years above.</div>'; return; }
     const cols = show.map((d, i) => {
@@ -619,8 +649,7 @@ async function pMileage(body, q) {
 async function pTrends(body, q) {
   const sport = q.get('sport') || 'run', foot = sport !== 'ride';
   const R = getRange(q);
-  body.innerHTML = `<div class="filters"><div class="chips">${filterBar([['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks']], sport, 's')}</div></div><div class="rng"></div><div id="g-body">${skel(3)}</div>`;
-  $$('.filters .chip', body).forEach((b) => b.onclick = () => { const u = new URLSearchParams(location.search); u.set('sport', b.dataset.s); go('/progress?' + u.toString(), {replace: true}); });
+  body.innerHTML = `<div class="rng"></div><div id="g-body">${skel(3)}</div>`;
   await load(`/api/progress/trends?sport=${sport}`, (r) => {
     const box = $('#g-body', body); if (!box) return;
     const noun = {run: 'runs', ride: 'rides', walk: 'walks'}[sport], one = noun.slice(0, -1);
@@ -690,8 +719,8 @@ async function pCalendar(body, q) {
       <h2>${esc(first.toLocaleDateString([], {month: 'long', year: 'numeric'}))}</h2><button class="icon-btn" id="c-next" aria-label="Next month">${svg('chev')}</button></div>
       <div class="cal">${cells}</div><div class="bigstat">${stat('Activities', tot.n)}${stat('Distance', U.dist(tot.d, 1), U.du())}</div></div>`;
     for (const b of $$('.blob', body)) { b.style.setProperty('--s', b.dataset.s); b.style.setProperty('--c', `var(--${[...b.classList].find((c) => c in SPORT_NAMES) || 'accent'})`); }
-    $('#c-prev', body).onclick = () => go(`/progress?view=calendar&month=${shift(-1)}`, {replace: true});
-    $('#c-next', body).onclick = () => go(`/progress?view=calendar&month=${shift(1)}`, {replace: true});
+    $('#c-prev', body).onclick = () => go(`/progress/calendar?month=${shift(-1)}`, {replace: true});
+    $('#c-next', body).onclick = () => go(`/progress/calendar?month=${shift(1)}`, {replace: true});
   });
 }
 async function pRoutes(body) {
@@ -710,8 +739,7 @@ function polyFromGeo(g) {   // GeoJSON -> encoded polyline (re-use miniRoute)
 }
 async function pHeatmap(body, q) {
   const sport = q.get('sport') || '';
-  body.innerHTML = `<div class="chips">${['', 'run', 'ride', 'walk', 'hike'].map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s ? SPORT_NAMES[s] : 'All'}</button>`).join('')}</div><div class="map tall" id="h-map"></div>`;
-  $$('.chip', body).forEach((b) => b.onclick = () => go(`/progress?view=heatmap${b.dataset.s ? '&sport=' + b.dataset.s : ''}`, {replace: true}));
+  body.innerHTML = '<div class="map tall" id="h-map"></div>';
   const lines = await api(`/api/heatmap${sport ? '?sport=' + sport : ''}`);
   if (!lines.length) { $('#h-map', body).outerHTML = '<div class="card empty"><b>Nothing to map yet</b>Activities with GPS show up here.</div>'; return; }
   await mapInto($('#h-map', body), lines, {heat: true});

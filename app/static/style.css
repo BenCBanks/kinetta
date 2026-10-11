@@ -106,11 +106,13 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .sheet .seg.wide button { min-width: 0; min-height: 44px; padding: 6px 4px; font-size: 13px; }
 .seg.wide.actlvl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; margin-bottom: 8px; }
 .actlvl button { white-space: normal; font-size: 12px; min-height: 48px; padding: 4px 6px; }
-/* Progress views: a row of pills */
-.shell > .seg.wide.ptabs { display: flex; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 14px; padding: 2px 16px; background: none; gap: 6px; border-radius: 0; }
-.shell > .seg.wide.ptabs::-webkit-scrollbar { display: none; }
-.shell > .seg.wide.ptabs button { flex: none; padding: 8px 16px; background: var(--card); border-radius: 999px; white-space: nowrap; box-shadow: var(--shadow); }
-.shell > .seg.wide.ptabs button[aria-pressed="true"] { background: var(--ink); color: var(--onink); box-shadow: none; }
+/* Progress: three views, then the period inside Totals */
+.seg.wide.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; margin-bottom: 14px; }
+.seg.wide.three button { min-width: 0; }
+.sport-btn svg:first-child { color: var(--accent); }
+.seg.wide.three.period { display: inline-grid; width: auto; background: none; padding: 0; gap: 6px; margin: 0 0 12px; }
+.seg.three.period button { min-height: 32px; padding: 4px 14px; border-radius: 999px; font-size: 13px; background: var(--card); box-shadow: var(--shadow); }
+.seg.three.period button[aria-pressed="true"] { background: var(--ink); color: var(--onink); box-shadow: none; }
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 16px 12px; margin: 0 -16px; }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex: none; min-height: 38px; padding: 7px 15px; border-radius: 999px; border: 0; background: var(--card); box-shadow: var(--shadow);

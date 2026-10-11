@@ -79,7 +79,7 @@ function planCard(box) {
 route(/^\/plan$/, 'progress', async (el) => {
   const q = new URLSearchParams(location.search);
   el.innerHTML = `<div class="top">${backBtn('Back')}</div><h1>Training plan</h1><div id="pl">${skel(2)}</div>`;
-  wireBack(el, '/progress?view=plan');
+  wireBack(el, '/progress');
   await planInto($('#pl', el), q.get('new'));
 });
 async function planInto(box, fresh) {
