@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Lankki</title>
-<meta name="description" content="Lankki is free, private fitness and food tracking for you and your people: runs, rides, walks, training plans and a food log on a server you own.">
+<meta name="description" content="Lankki is your workouts and your food in one app: runs, rides, walks, training plans, calories and macros, and how they work together. Free and private. Join the beta.">
 <meta property="og:title" content="Lankki">
-<meta property="og:description" content="Private fitness and food tracking for you and your people.">
+<meta property="og:description" content="Your workouts and your food, in one app. Free and private. Join the beta.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Lankki">
 <meta property="og:url" content="https://lankki.com/">
@@ -14,7 +14,7 @@
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Lankki: Move regularly. Stay connected. Free, private fitness and food tracking for you and your people.">
+<meta property="og:image:alt" content="Lankki: Your workouts and your food. One app. Activity tracking plus food and health, together.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="canonical" href="https://lankki.com/">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -58,7 +58,7 @@ header.top img { width: 132px; height: auto; }
 nav.links { display: flex; gap: 22px; font-weight: 500; font-size: 15px; }
 nav.links a { text-decoration: none; color: var(--ink2); }
 nav.links a:hover { color: var(--ink); }
-@media (max-width: 560px) { nav.links a:not(.gh) { display: none; } }
+@media (max-width: 560px) { nav.links a:not(.nav-beta) { display: none; } }
 
 /* hero */
 .hero { position: relative; overflow: hidden; padding-block: 40px 72px; }
@@ -162,6 +162,28 @@ table.cmp { width: 100%; border-collapse: collapse; font-size: 15.5px; min-width
 .compare > *, .spot > * { min-width: 0; }
 @media (max-width: 900px) { .compare { grid-template-columns: 1fr; } }
 
+
+/* one app instead of two (2026-10-11) */
+.hero .eyebrow { display: block; margin-bottom: 18px; }
+.nav-beta { font-weight: 600; color: var(--berry) !important; }
+.combo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.combo > div { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 28px; min-width: 0; }
+.combo .tag { font: 500 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--spruce); }
+.combo h3 { font-size: 24px; margin-top: 12px; }
+.combo ul { margin: 14px 0 0; padding: 0; list-style: none; color: var(--ink2); }
+.combo .half li { padding: 9px 0; border-top: 1px solid var(--line); }
+.combo .meet { grid-column: 1 / -1; background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.combo .meet .tag { color: var(--bg); opacity: .75; }
+.combo .meet ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 18px; color: var(--bg); }
+.combo .meet b { display: block; font: 600 18px/1.3 var(--display); margin-bottom: 6px; }
+.combo .meet li { opacity: .92; }
+@media (max-width: 760px) { .combo { grid-template-columns: 1fr; } .combo .meet ul { grid-template-columns: 1fr; } }
+.final { text-align: center; }
+.final .wrap { display: grid; justify-items: center; gap: 16px; }
+.final h2 { font-size: clamp(32px, 4.6vw, 52px); } .final h2 em { font-style: normal; color: var(--berry); }
+.final p { color: var(--ink2); font-size: 19px; max-width: 46ch; }
+.final .ctas { justify-content: center; margin-top: 8px; }
+
 /* privacy */
 .privacy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 26px; }
@@ -211,7 +233,7 @@ footer a { color: var(--ink2); }
   <div class="wrap">
     <a href="#" aria-label="Lankki home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Lankki" width="132" height="24"></picture></a>
     <nav class="links" aria-label="Page">
-      <a href="#what">What it does</a><a href="#premium">Compare</a><a href="#install">Install</a><a class="gh" href="https://github.com/BenCBanks/lankki">GitHub</a>
+      <a href="#what">What it does</a><a href="#premium">Compare</a><a href="#install">Self-host</a><a class="nav-beta" href="https://app.lankki.com/beta">Join the beta</a><a class="gh" href="https://github.com/BenCBanks/lankki">GitHub</a>
     </nav>
   </div>
 </header>
@@ -227,13 +249,14 @@ footer a { color: var(--ink2); }
     </svg>
     <div class="wrap">
       <div>
-        <h1>Move regularly.<br>Stay <em>connected.</em></h1>
-        <p class="lede">Lankki is a free, private fitness and food tracker that you run at home, for you and the people you move with.</p>
+        <span class="eyebrow">Activity tracking + food and health</span>
+        <h1>Your workouts and your food. <em>One app.</em></h1>
+        <p class="lede">Lankki does what a running app and a calorie counter do, together: every run, ride and walk, every meal and macro, and how they work on each other. Free and private.</p>
         <div class="ctas">
-          <a class="btn solid" href="#install">Install Lankki</a>
-          <a class="btn line" href="https://github.com/BenCBanks/lankki">View on GitHub</a>
+          <a class="btn solid" href="https://app.lankki.com/beta">Join the beta</a>
+          <a class="btn line" href="#both">See how it works</a>
         </div>
-        <p class="note">Open source (AGPL-3.0). No ads, no subscription, no one selling your data.</p>
+        <p class="note">Free during the beta. Works in any phone's browser today; an iPhone app with Apple Health sync is on the way. No ads, and no one selling your data.</p>
       </div>
       <div class="phone">
         <picture><source srcset="assets/shots/dark-today.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-today.webp" alt="Lankki's Today screen: this week's 29.4 miles with a bar for each day, the next workout in a 10K plan, and calories eaten today" width="720" height="1558"></picture>
@@ -259,9 +282,26 @@ footer a { color: var(--ink2); }
     </div>
   </section>
 
+  <section class="band" id="both" aria-labelledby="both-h">
+    <div class="wrap">
+      <div class="head"><span class="eyebrow">One app instead of two</span><h2 id="both-h">Like Strava and MyFitnessPal, combined.</h2>
+        <p>Most people keep their training in one app and their eating in another, and neither knows about the other. Lankki keeps both, so each makes the other smarter.</p></div>
+      <div class="combo">
+        <div class="half"><span class="tag">Training</span><h3>Everything you do</h3><ul>
+          <li>Runs, rides, walks, hikes, swims and gym workouts</li><li>Maps, splits, pace, heart rate and effort</li><li>Matched routes and similar-run comparisons</li><li>Training plans from 5K to marathon</li><li>Records, race predictions, fitness and fatigue</li></ul></div>
+        <div class="half"><span class="tag">Food and health</span><h3>Everything you eat</h3><ul>
+          <li>Barcode scanning and photo logging</li><li>Calories and macros against your own targets</li><li>Saved meals, recipes and your own foods</li><li>Weight trend and plain-language food insights</li><li>Logs offline, sends when you're back</li></ul></div>
+        <div class="meet"><span class="tag">Where they meet</span><ul>
+          <li><b>Workouts count on their own.</b> Every run, ride and walk from your watch adds to what you burned that day. No typing in exercise.</li>
+          <li><b>Your real deficit.</b> What you ate against what you actually burned, day by day and week by week.</li>
+          <li><b>One Today screen.</b> This week's miles, your next workout and what's left to eat, together.</li></ul></div>
+      </div>
+    </div>
+  </section>
+
   <section class="band" id="what" aria-labelledby="what-h">
     <div class="wrap">
-      <div class="head"><span class="eyebrow">What it does</span><h2 id="what-h">Every run, ride, walk and meal, in one place you own.</h2></div>
+      <div class="head"><span class="eyebrow">What it does</span><h2 id="what-h">Every run, ride, walk and meal, in one place.</h2></div>
       <div class="shots">
         <div class="shot"><figure>
           <div class="frame"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A 2.98 mile morning run: pace, grade-adjusted pace, heart rate, cadence and a map of the loop" loading="lazy" width="720" height="1558"></picture></div>
@@ -295,7 +335,7 @@ footer a { color: var(--ink2); }
   <section class="band" id="premium" aria-labelledby="prem-h">
     <div class="wrap">
       <div class="head"><span class="eyebrow">Included, not upsold</span><h2 id="prem-h">The premium features, free.</h2>
-        <p>The analysis other apps keep behind a subscription comes standard in Lankki, for everyone on your server. Strava, for example, charges $79.99 a year for most of what's below, or $139.99 for a family.</p></div>
+        <p>What other apps keep behind a subscription comes standard in Lankki. Strava charges $79.99 a year for most of the training features below, and MyFitnessPal Premium another $79.99 for the food ones.</p></div>
 
       <div class="spot">
         <div>
@@ -330,40 +370,45 @@ footer a { color: var(--ink2); }
           <div class="tablewrap">
             <table class="cmp">
               <caption>What you'd pay for elsewhere</caption>
-              <thead><tr><th scope="col">Feature</th><th scope="col">Lankki</th><th scope="col">Strava</th></tr></thead>
+              <thead><tr><th scope="col">Feature</th><th scope="col">Lankki</th><th scope="col">Elsewhere</th></tr></thead>
               <tbody>
-                <tr><td>Progress on routes you repeat<small>Strava: Matched Activities</small></td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>AI insights on your workouts<small>Lankki: your own AI key · Strava: Athlete Intelligence</small></td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Running training plans</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Personal heatmap</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Fitness, fatigue and form<small>Strava: Fitness &amp; Freshness</small></td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Effort score for every workout<small>Strava: Relative Effort</small></td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Grade-adjusted pace</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Heart-rate zones from your own max and resting heart rate</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Best efforts and personal-record history</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Training log and monthly totals</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
-                <tr><td>Weekly and yearly goals</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Progress on routes you repeat<small>Strava: Matched Activities</small></td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>AI insights on your workouts<small>Lankki: your own AI key · Strava: Athlete Intelligence</small></td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Running training plans</td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Personal heatmap</td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Fitness, fatigue and form<small>Strava: Fitness &amp; Freshness</small></td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Effort score for every workout<small>Strava: Relative Effort</small></td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Grade-adjusted pace</td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Heart-rate zones from your own max and resting heart rate</td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Best efforts and personal-record history</td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Training log and monthly totals</td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Weekly and yearly goals</td><td class="yes">Included</td><td class="paid">Strava subscription</td></tr>
+                <tr><td>Barcode scanning</td><td class="yes">Included</td><td class="paid">MyFitnessPal Premium</td></tr>
+                <tr><td>Logging a meal from a photo<small>MyFitnessPal: Meal Scan</small></td><td class="yes">Included</td><td class="paid">MyFitnessPal Premium</td></tr>
+                <tr><td>Custom calorie and macro goals</td><td class="yes">Included</td><td class="paid">MyFitnessPal Premium</td></tr>
+                <tr><td>Food insights</td><td class="yes">Included</td><td class="paid">MyFitnessPal Premium</td></tr>
+                <tr><td>No ads while logging</td><td class="yes">Included</td><td class="paid">MyFitnessPal Premium</td></tr>
               </tbody>
-              <tfoot><tr><td>Price for a family of four</td><td class="yes">Free</td><td class="paid">$139.99 / year</td></tr></tfoot>
+              <tfoot><tr><td>Price per person<small>Strava $79.99 + MyFitnessPal Premium $79.99</small></td><td class="yes">Free during the beta</td><td class="paid">$159.98 / year</td></tr></tfoot>
             </table>
           </div>
         </div>
         <div class="side">
           <div><h3>Also in Lankki</h3><ul>
-            <li>Food and macro tracking with barcode scanning</li>
+            <li>Training and food on one Today screen</li>
             <li>Heart-rate drift on every run (aerobic decoupling)</li>
             <li>Shoe and bike mileage with replacement reminders</li>
             <li>Your whole Strava history imported in one go</li>
-            <li>Your data on your own computer, with SQL access</li></ul></div>
-          <div><h3>What Lankki doesn't do</h3><ul>
+            <li>Open source: run it on your own computer if you prefer</li></ul></div>
+          <div><h3>Not in Lankki yet</h3><ul>
             <li>Segments and leaderboards</li>
-            <li>A social feed with kudos and clubs</li>
+            <li>Friends, kudos and a social feed (planned)</li>
             <li>Route planning and offline route maps</li>
             <li>Live location sharing</li>
             <li>Recording with your phone's GPS: it reads activities from your watch or phone app instead</li></ul></div>
         </div>
       </div>
-      <p class="source">Strava features and prices from Strava's <a href="https://support.strava.com/hc/en-us/articles/216917657-Strava-Subscription-Features">Subscription Features</a> help article and <a href="https://www.strava.com/subscribe">strava.com/subscribe</a>, checked October 11, 2026; they may change. Strava is a trademark of Strava, Inc. Lankki is an independent project and isn't affiliated with Strava. Running Lankki needs a computer that stays on; AI features are billed to your own AI key.</p>
+      <p class="source">Strava features and prices from Strava's <a href="https://support.strava.com/hc/en-us/articles/216917657-Strava-Subscription-Features">Subscription Features</a> help article and <a href="https://www.strava.com/subscribe">strava.com/subscribe</a>; MyFitnessPal's from <a href="https://www.myfitnesspal.com/premium">myfitnesspal.com/premium</a>. US prices, checked October 11, 2026; they may change. Strava is a trademark of Strava, Inc. and MyFitnessPal a trademark of MyFitnessPal, Inc. Lankki is an independent project and isn't affiliated with either.</p>
     </div>
   </section>
 
@@ -371,17 +416,17 @@ footer a { color: var(--ink2); }
     <div class="wrap">
       <div class="head"><span class="eyebrow">Private by design</span><h2 id="priv-h">Your numbers stay yours.</h2></div>
       <div class="privacy">
-        <div class="card"><h3>On your own computer</h3><p>Lankki runs on a mini PC, NAS or Raspberry Pi at home. There's no Lankki company holding your data.</p></div>
+        <div class="card"><h3>Not for sale</h3><p>No ads, no tracking, and your data is never sold or shared. Lankki will never make money from ads or from your data.</p></div>
         <div class="card"><h3>Private per person</h3><p>Everyone has their own account. The app and the database both make sure each person sees only their own activities, food and weight.</p></div>
-        <div class="card"><h3>Nothing sent out unless you choose</h3><p>No ads, no tracking. Food search sends only the words you search; AI features stay off until you add your own key.</p></div>
+        <div class="card"><h3>Nothing sent out unless you choose</h3><p>Food search sends only the words you search. AI coach notes are optional and off until you turn them on.</p></div>
       </div>
-      <p class="honest"><b>An honest note:</b> whoever runs the server can technically read its database. Lankki is made for people who trust each other: a family, friends, a running club.</p>
+      <p class="honest"><b>An honest note:</b> during the beta, your data is kept on the Lankki beta server, run by Ben Banks, who can technically read its database. If you'd rather nobody else could, run Lankki on your own computer instead.</p>
     </div>
   </section>
 
   <section class="band" id="install" aria-labelledby="inst-h">
     <div class="wrap">
-      <div class="head"><span class="eyebrow">Install</span><h2 id="inst-h">Running in ten minutes.</h2><p>You need a computer that stays on, with <a href="https://docs.docker.com/get-docker/">Docker</a> installed.</p></div>
+      <div class="head"><span class="eyebrow">Prefer to host it yourself?</span><h2 id="inst-h">Your own Lankki in ten minutes.</h2><p>Lankki is open source (AGPL-3.0). Run it for your family on a computer that stays on, with <a href="https://docs.docker.com/get-docker/">Docker</a> installed.</p></div>
       <div class="steps">
         <div class="step"><span class="n">01</span><h3>Start it</h3><p>Lankki makes up its own passwords on the first start, so there's nothing to fill in.</p>
 <pre>git clone https://github.com/BenCBanks/lankki.git
@@ -407,6 +452,13 @@ docker compose up -d --build</pre></div>
         </ol>
       </div>
       <div class="phone"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A morning run in Lankki with stats and a map" loading="lazy" width="720" height="1558"></picture></div>
+    </div>
+  </section>
+  <section class="band final" aria-labelledby="final-h">
+    <div class="wrap">
+      <h2 id="final-h">Move regularly. Stay <em>connected.</em></h2>
+      <p>We're inviting a small group of testers. Tell us about your training and we'll send you an invite.</p>
+      <div class="ctas"><a class="btn solid" href="https://app.lankki.com/beta">Join the beta</a></div>
     </div>
   </section>
 </main>

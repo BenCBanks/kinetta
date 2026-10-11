@@ -625,6 +625,10 @@ function showLogin(msg = '') {
     <p class="small muted">New here? Ask the person who runs this Lankki for an invite link.</p></form></div>`;
   const f = $('form', root);
   $('input[name=login]', f).focus();
+  api('/api/beta').then((r) => {   // a server with the public waitlist on: point newcomers to it
+    const p = $('.login .small.muted', root);
+    if (r.open && p) { p.innerHTML = 'New here? <a href="/beta">Join the beta</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/beta'); showBeta(); }; }
+  }).catch(() => {});
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const b = $('button', f), err = $('.err', f);
@@ -680,11 +684,44 @@ async function showJoin(token) {
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account — your activities and food log are private to you.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
+// "Join the beta" (public waitlist, only when the server has LANKKI_BETA_SIGNUP=1): no account yet, an admin invites them
+async function showBeta() {
+  let open = false;
+  try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }
+  if (!open) { history.replaceState(null, '', '/'); return showLogin(); }
+  root.innerHTML = `<div class="login"><form novalidate>
+    <div>${BRAND}<h1>Join the beta</h1><p>Lankki puts your workouts and your food log in one private app. We're inviting a small group of testers — tell us a little about you and we'll send you an invite link.</p></div>
+    <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
+    <label>Email<input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label>
+    <label>Your phone<select name="phone" required><option value="">Choose…</option><option value="iphone">iPhone</option><option value="android">Android</option><option value="other">Something else</option></select></label>
+    <label>Your watch or tracker (optional)<input name="watch" maxlength="60" placeholder="e.g. Garmin Forerunner, Apple Watch, none"></label>
+    <label>Anything we should know? (optional)<textarea name="note" maxlength="300" rows="3"></textarea></label>
+    <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+    <p class="small muted">We use your email only to send your invite.</p>
+    <p class="err" role="alert"></p>
+    <button class="primary" type="submit">Ask to join</button>
+    <p class="small muted">Already have an account? <a href="/" id="b-login">Log in</a></p></form></div>`;
+  const f = $('form', root); f.name.focus();
+  $('#b-login', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const b = $('button', f), err = $('.err', f);
+    if (!f.name.value.trim() || !f.email.value.trim()) { err.textContent = 'Enter your name and email.'; return; }
+    if (!f.phone.value) { err.textContent = 'Choose your phone.'; f.phone.focus(); return; }
+    b.disabled = true; err.textContent = '';
+    try {
+      await api('/api/beta', json('POST', {name: f.name.value, email: f.email.value, phone: f.phone.value, watch: f.watch.value, note: f.note.value, website: f.website.value}));
+      root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Thanks, ${esc(f.name.value.trim().split(/\s+/)[0])}!</h1>
+        <p>You're on the list. We'll email your invite link to ${esc(f.email.value.trim())} when there's a spot.</p></div></div>`;
+    } catch (x) { err.textContent = x.message; b.disabled = false; }
+  });
+}
 async function showWelcome() {
   let setup = {needed: false};
   try { setup = await api('/api/setup'); } catch (x) { /* show the login */ }
   const join = location.pathname.match(/^\/join\/([\w-]+)$/);
   if (join) return showJoin(join[1]);
+  if (location.pathname === '/beta') return showBeta();
   if (!setup.needed) return showLogin();
   showNewAccount({title: 'Welcome to Lankki', button: 'Create my account',
     intro: "This is a brand-new Lankki. Create your account first — you'll be its admin and can invite your people next.",
@@ -693,7 +730,7 @@ async function showWelcome() {
 async function start() {
   try {
     App.me = await api('/api/me'); keep('/api/me', App.me);
-    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/')) history.replaceState(null, '', '/today');
+    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/today');
     render(); Q.flush(); netbar();
   } catch (x) {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }

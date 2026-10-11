@@ -48,6 +48,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       FDC_API_KEY: ${FDC_API_KEY:-}
       LANKKI_PUBLIC_URL: ${LANKKI_PUBLIC_URL:-}
+      LANKKI_BETA_SIGNUP: ${LANKKI_BETA_SIGNUP:-}
     volumes:
       - data:/data
       - secrets:/run/lankki:ro

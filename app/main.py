@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request, Response, Depends, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans
+from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta
 import threading
 from .auth import current_user
 
@@ -25,6 +25,7 @@ app.include_router(food_photo.router)
 app.include_router(nutrition_insights.router)
 app.include_router(history_import.router)
 app.include_router(plans.router)
+app.include_router(api_beta.router)
 STATIC = os.path.join(os.path.dirname(__file__), 'static')
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; "
        "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")

@@ -5,8 +5,10 @@
   </picture>
 </p>
 
-<p align="center"><b>Private fitness and food tracking for you and your people.</b><br>
-Runs, rides, walks, training plans and a food log, on a server you own.</p>
+<p align="center"><b>Your workouts and your food, in one app.</b><br>
+Activity tracking + food and health: runs, rides, walks, training plans, calories and macros. Private, free and open source.</p>
+
+<p align="center"><a href="https://app.lankki.com/beta">Join the hosted beta</a> · or run your own (below)</p>
 
 ---
 

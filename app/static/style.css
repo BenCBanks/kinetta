@@ -687,3 +687,10 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .wd[aria-pressed="true"] .wv { visibility: visible; }
 .wd[aria-pressed="true"] .sp-fill { filter: brightness(1.08); }
 .wd[aria-pressed="true"]:not(.today) small { color: var(--tx); }
+/* beta waitlist (2026-10-11) */
+.login .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.login textarea { resize: vertical; }
+.beta-req .row { align-items: flex-start; }
+.beta-req .who { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.beta-req .row { padding: 12px 0; }
+.beta-req .btnrow { margin-top: 8px; }

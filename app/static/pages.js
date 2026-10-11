@@ -766,6 +766,7 @@ function passwordSheet() {
 }
 route(/^\/me\/people$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>People</h1>
+    <div id="p-beta"></div>
     <div class="card"><h2>Invite someone</h2><form class="form" id="p-inv">
       <label>Who is it for? (optional)<input name="note" maxlength="60" autocomplete="off" placeholder="e.g. Sam"></label>
       <p class="small muted">You get a link to send by text or email. They open it, pick their own username and password, and they're in. Each link works once, for 7 days.</p>
@@ -814,6 +815,39 @@ route(/^\/me\/people$/, 'me', async (el) => {
     } catch (x) { toast(x.message); }
     btn.disabled = false;
   };
+  const PHONE = {iphone: 'iPhone', android: 'Android', other: 'Other phone'};
+  const drawBeta = (rows) => {   // waitlist from the public "Join the beta" page: invite or dismiss each request
+    const box = $('#p-beta', el); if (!box) return;
+    box.innerHTML = rows.length ? `<div class="card beta-req"><h2>Beta requests <span class="muted">${rows.length}</span></h2>${rows.map((r) => `<div class="row" data-req="${r.id}"><div class="who">
+      <b>${esc(r.name)}</b> <small class="muted">${esc(PHONE[r.phone] || r.phone)}${r.watch ? ' · ' + esc(r.watch) : ''} · ${esc(fdate(r.created, {month: 'short', day: 'numeric'}))}</small><br>
+      <small>${esc(r.email)}</small>${r.note ? `<p class="small muted">${esc(r.note)}</p>` : ''}
+      <div class="btnrow"><button class="primary" data-binv="${r.id}">Invite</button><button class="ghost" data-bdis="${r.id}">Dismiss</button></div></div></div>`).join('')}</div>` : '';
+    $$('[data-bdis]', box).forEach((b) => b.onclick = async () => {
+      b.disabled = true;
+      try { await api(`/api/beta-requests/${b.dataset.bdis}/dismiss`, {method: 'POST'}); drawBeta(await api('/api/beta-requests')); }
+      catch (x) { toast(x.message); b.disabled = false; }
+    });
+    $$('[data-binv]', box).forEach((b) => b.onclick = async () => {
+      b.disabled = true;
+      const r = rows.find((x) => String(x.id) === b.dataset.binv);
+      try {
+        const inv = await api(`/api/beta-requests/${r.id}/invite`, {method: 'POST'});
+        const url = inv.url || location.origin + inv.path, first = r.name.trim().split(/\s+/)[0];
+        const body = `Hi ${first},\n\nYou're in! Here's your invite to the Lankki beta. Open this link on your phone, pick a username and password, and you're set:\n\n${url}\n\nThe link works once, for 7 days. Tip: once you're in, add Lankki to your home screen so it opens like an app.\n\nThanks for testing!`;
+        const mail = `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent('Your Lankki beta invite')}&body=${encodeURIComponent(body)}`;
+        $(`[data-req="${r.id}"]`, box).innerHTML = `<div class="who"><b>${esc(r.name)}</b> <small class="muted">invited</small>
+          <p class="small">Send this to ${esc(r.email)}. It works once, until ${esc(fdate(inv.expires, {month: 'short', day: 'numeric'}))}.</p>
+          <input class="linkbox" readonly value="${esc(url)}" aria-label="Invite link">
+          <div class="btnrow"><a class="primary" href="${esc(mail)}">Email invite</a><button class="ghost" data-bcopy>Copy link</button></div></div>`;
+        const lb = $(`[data-req="${r.id}"] .linkbox`, box);
+        $(`[data-req="${r.id}"] [data-bcopy]`, box).onclick = async () => {
+          try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (x) { lb.focus(); lb.select(); toast('Select the link and copy it'); }
+        };
+        load('/api/invites', drawOpen, {maxAge: 0}).catch(() => {});
+      } catch (x) { toast(x.message); b.disabled = false; }
+    });
+  };
+  if (App.me.is_admin) load('/api/beta-requests', drawBeta, {maxAge: 0}).catch(() => {});
   load('/api/invites', drawOpen, {maxAge: 0}).catch(() => {});
   await load('/api/people', draw);
   const f = $('#p-add', el);

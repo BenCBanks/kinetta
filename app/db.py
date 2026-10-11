@@ -409,6 +409,21 @@ MIGRATIONS = [
       used_by    bigint REFERENCES users(id) ON DELETE SET NULL,
       used_at    timestamptz);
     """,
+    # 18: beta waitlist - people ask to join from the public /beta page (only when LANKKI_BETA_SIGNUP=1); an admin
+    #     turns a request into an invite link. Contact details of strangers: admin-only, no grant to fit_readers.
+    """
+    CREATE TABLE beta_requests (
+      id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      name      text NOT NULL,
+      email     text NOT NULL,
+      phone     text NOT NULL,
+      watch     text,
+      note      text,
+      created   timestamptz NOT NULL DEFAULT now(),
+      status    text NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'invited', 'dismissed')),
+      invite_id bigint REFERENCES invites(id) ON DELETE SET NULL);
+    CREATE UNIQUE INDEX beta_requests_email ON beta_requests (lower(email));
+    """,
 ]
 
 
