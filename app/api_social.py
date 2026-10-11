@@ -11,6 +11,7 @@ Keeping people's data safe:
  - Shared maps are trimmed here, with PostGIS: the first and last stretch of the route (the owner's choice: off, 200,
    400 or 800 m) is cut off before the line leaves the server. A route too short to trim gets no map at all.
 """
+import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -259,7 +260,7 @@ def set_activity_sharing(aid: int, body: ActivitySharingIn, user=Depends(current
 
 # ---------- seeing others' activities ----------
 @router.get('/feed/friends')
-def friends_feed(before: str | None = None, limit: int = 25, user=Depends(current_user)):
+def friends_feed(before: dt.datetime | None = None, limit: int = 25, user=Depends(current_user)):   # a bad date is refused (422)
     """Friends' activities they share with friends or everyone, newest first (page on with ?before=<start_time>)."""
     limit = max(1, min(limit, FEED_MAX))
     q = _select() + f' WHERE a.user_id IN ({FRIEND_IDS}) AND {CAN_SEE}'
