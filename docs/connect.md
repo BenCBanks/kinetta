@@ -47,7 +47,7 @@ your router. You need a domain that uses Cloudflare (a free account is enough).
    docker compose --profile tunnel up -d
    ```
 
-5. Also set `LANKKI_PUBLIC_URL=https://kinetta.yourname.com` in `.env`, so invite links use that address.
+5. Also set `KINETTA_PUBLIC_URL=https://kinetta.yourname.com` in `.env`, so invite links use that address.
 
 Anyone can now see your login page (not your data). Kinetta is built for that: accounts can only be created through
 your invite links, passwords need 10+ characters, repeated wrong passwords are blocked for 15 minutes, plain http is

@@ -1,6 +1,6 @@
 # Demo data for public screenshots: one made-up person ("Alex") on a throwaway copy. No real data.
 import json, os, urllib.request, http.cookiejar, uuid, glob, time, datetime as dt, random, sys
-B = os.environ.get('LANKKI_URL', 'http://localhost:8798'); G = sys.argv[1]   # a throwaway install, never a real one
+B = os.environ.get('KINETTA_URL', 'http://localhost:8798'); G = sys.argv[1]   # a throwaway install, never a real one
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 def q(m, p, b=None):
     r = urllib.request.Request(B + p, data=json.dumps(b if b is not None else {}).encode() if m != 'GET' else None, method=m,

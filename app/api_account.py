@@ -228,7 +228,7 @@ def create_invite(body: InviteIn, user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute("INSERT INTO invites (token_hash, created_by, note, expires) VALUES (%s, %s, %s, now() + %s) RETURNING id, expires",
                       (_hash(token), user['id'], (body.note or '').strip()[:60] or None, dt.timedelta(days=INVITE_DAYS))).fetchone()
-    base = os.environ.get('LANKKI_PUBLIC_URL', '').rstrip('/')    # e.g. https://app.example.com - links work from anywhere
+    base = os.environ.get('KINETTA_PUBLIC_URL', '').rstrip('/')    # e.g. https://app.example.com - links work from anywhere
     return {'id': r['id'], 'path': '/join/' + token, 'url': base + '/join/' + token if base else None, 'expires': r['expires']}
 
 

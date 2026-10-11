@@ -1,4 +1,4 @@
-"""Beta waitlist: a public "Join the beta" form (only when LANKKI_BETA_SIGNUP=1) and, for admins, the list of requests.
+"""Beta waitlist: a public "Join the beta" form (only when KINETTA_BETA_SIGNUP=1) and, for admins, the list of requests.
 
 Nobody gets an account from the form. An admin reads the request on Me > People and taps "Invite", which makes a normal
 one-time invite link to send them. Asking twice with the same email updates the first request (and says nothing about
@@ -18,7 +18,7 @@ EMAIL_RE = re.compile(r'^[^@\s<>]+@[^@\s<>]+\.[a-z]{2,}$', re.I)
 MAX_WAITING = 500     # stop taking requests if this many are unanswered (keeps a flood from filling the disk)
 
 
-def enabled(): return os.environ.get('LANKKI_BETA_SIGNUP', '') == '1'
+def enabled(): return os.environ.get('KINETTA_BETA_SIGNUP', '') == '1'
 
 
 class BetaIn(BaseModel):

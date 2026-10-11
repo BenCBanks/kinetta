@@ -9,7 +9,7 @@ the Apple Developer account before testers can install it.
 
 ## What the app does today
 
-- **Log in to your own server.** The login screen asks for the server's address (`https://app.kinetta.app` by default,
+- **Log in to your own server.** The login screen asks for the server's address (`https://login.kinetta.app` by default,
   or your own). The server must be on `https://`; iPhones don't let apps talk to plain `http://` addresses.
 - **Me > Apple Health.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
   permission sheet. Kinetta only reads; it never writes to Apple Health.

@@ -702,7 +702,7 @@ async function showJoin(token) {
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account — your activities and food log are private to you.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
-// "Join the beta" (public waitlist, only when the server has LANKKI_BETA_SIGNUP=1): no account yet, an admin invites them
+// "Join the beta" (public waitlist, only when the server has KINETTA_BETA_SIGNUP=1): no account yet, an admin invites them
 async function showBeta() {
   let open = false;
   try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }

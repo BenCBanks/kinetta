@@ -9,7 +9,7 @@ const Native = (() => {
   const P = on ? C.Plugins : {}, prefs = P.Preferences, health = P.HealthPlugin;
   const get = async (key) => (await prefs.get({key})).value;
   const put = (key, value) => (value == null ? prefs.remove({key}) : prefs.set({key, value: String(value)}));
-  const N = {on, base: '', token: null, server: 'https://app.kinetta.app'};
+  const N = {on, base: '', token: null, server: 'https://login.kinetta.app'};
   // the server and login token live in the app's own settings (Capacitor Preferences), which iOS doesn't clear the way it
   // can clear a web view's storage when the phone runs low on space
   N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); })().catch(() => {}) : Promise.resolve();

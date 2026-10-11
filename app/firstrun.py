@@ -4,7 +4,7 @@ passwords are never changed."""
 import os
 import secrets
 
-DIR = os.environ.get('LANKKI_SECRETS', '/run/lankki')
+DIR = os.environ.get('KINETTA_SECRETS', '/run/kinetta')
 
 for name in ('db_password', 'app_password'):
     path = os.path.join(DIR, name)

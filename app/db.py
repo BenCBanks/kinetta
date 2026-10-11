@@ -31,13 +31,13 @@ def _tz(v):
 
 
 # Time zone for new people until their phone tells us theirs (set at sign-up, changeable under Me > Settings).
-DEFAULT_TZ = _tz(os.environ.get('LANKKI_TZ')) or _tz(os.environ.get('TZ')) or 'UTC'
+DEFAULT_TZ = _tz(os.environ.get('KINETTA_TZ')) or _tz(os.environ.get('TZ')) or 'UTC'
 valid_tz = _tz
 
 def _conninfo(user, password):
     from psycopg.conninfo import make_conninfo
     return make_conninfo(host=os.environ.get('FIT_DB_HOST', 'fit-db'), port=os.environ.get('FIT_DB_PORT', '5432'), dbname='fit',
-                         user=user, password=password, application_name='lankki')
+                         user=user, password=password, application_name='kinetta')
 
 
 CONNINFO = _conninfo('fit_app', secret('FIT_APP_PASSWORD'))
@@ -409,7 +409,7 @@ MIGRATIONS = [
       used_by    bigint REFERENCES users(id) ON DELETE SET NULL,
       used_at    timestamptz);
     """,
-    # 18: beta waitlist - people ask to join from the public /beta page (only when LANKKI_BETA_SIGNUP=1); an admin
+    # 18: beta waitlist - people ask to join from the public /beta page (only when KINETTA_BETA_SIGNUP=1); an admin
     #     turns a request into an invite link. Contact details of strangers: admin-only, no grant to fit_readers.
     """
     CREATE TABLE beta_requests (
@@ -499,7 +499,7 @@ def migrate():
         for i, stmt in enumerate(MIGRATIONS[v:], start=v + 1):
             c.execute(stmt)
             c.execute('INSERT INTO schema_version (version) VALUES (%s)', (i,))
-        # new people and hand-entered activities default to this server's time zone (LANKKI_TZ / TZ)
+        # new people and hand-entered activities default to this server's time zone (KINETTA_TZ / TZ)
         for table in ('profile', 'activities'):
             cur = c.execute("SELECT column_default FROM information_schema.columns WHERE table_name = %s AND column_name = 'tz'", (table,)).fetchone()
             if cur and cur['column_default'] and cur['column_default'].startswith(f"'{DEFAULT_TZ}'"): continue

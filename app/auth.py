@@ -53,7 +53,7 @@ def failed(ip, login):
 # New passwords: at least 10 characters, not one of the passwords every attacker tries first, not the username.
 COMMON = {'password', 'password1', 'password12', 'password123', 'passw0rd', '1234567890', '12345678910', 'qwertyuiop',
           'qwerty1234', '1q2w3e4r5t', 'iloveyou12', 'letmein123', 'welcome123', 'football12', 'baseball12', 'abc1234567',
-          'changeme12', 'lankki1234', 'lankkilankki', 'running123', 'fitness123', 'summer2026', 'autumn2026', 'qwerty123456',
+          'changeme12', 'kinetta1234', 'kinettakinetta', 'running123', 'fitness123', 'summer2026', 'autumn2026', 'qwerty123456',
           '0987654321', '1111111111', 'aaaaaaaaaa', 'trustno1234', 'sunshine12', 'princess12', 'dragon1234', 'monkey1234'}
 
 

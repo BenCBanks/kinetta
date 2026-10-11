@@ -8,12 +8,11 @@
 <p align="center"><b>Your workouts and your food, in one app.</b><br>
 Activity tracking + food and health: runs, rides, walks, training plans, calories and macros. Private, free and open source.</p>
 
-<p align="center"><a href="https://app.kinetta.app/beta">Join the hosted beta</a> · or run your own (below)</p>
+<p align="center"><a href="https://login.kinetta.app/beta">Join the hosted beta</a> · or run your own (below)</p>
 
 ---
 
 Kinetta is a made-up word: *kinetic*, for the energy of moving every day, and *kin*, for the people you move with.
-(It was called Lankki until October 2026, which is why some settings still start with `LANKKI_`.)
 
 It started as one family's replacement for Strava and a food-tracking app. Everything stays on a computer you
 control, each person's data is private to them, and nothing is sold, shared or used for ads.
@@ -46,8 +45,8 @@ You need a computer that stays on: a mini PC, an old laptop, a NAS (Synology, Un
 **[Docker](https://docs.docker.com/get-docker/)** installed. Then, in a terminal:
 
 ```sh
-git clone https://github.com/BenCBanks/lankki.git
-cd lankki
+git clone https://github.com/BenCBanks/kinetta.git
+cd kinetta
 docker compose up -d
 ```
 
@@ -69,7 +68,7 @@ Copy `.env.example` to `.env`, fill in what you want, and run `docker compose up
 | Setting | What it does |
 |---|---|
 | `TZ` | Your time zone, e.g. `Europe/Helsinki`. New accounts use their phone's time zone. |
-| `LANKKI_PORT` | The port Kinetta listens on (default `8790`). |
+| `KINETTA_PORT` | The port Kinetta listens on (default `8790`). |
 | `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` | Turns on AI coach notes and food-photo estimates, billed to your own key. |
 | `FDC_API_KEY` | Better US food search ([free key](https://fdc.nal.usda.gov/api-key-signup.html)). |
 | `CLOUDFLARE_TUNNEL_TOKEN` | A public https address, see [docs/connect.md](docs/connect.md). |
@@ -77,7 +76,7 @@ Copy `.env.example` to `.env`, fill in what you want, and run `docker compose up
 ### Updating
 
 ```sh
-cd lankki
+cd kinetta
 git pull
 docker compose up -d --build
 ```

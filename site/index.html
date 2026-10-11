@@ -233,7 +233,7 @@ footer a { color: var(--ink2); }
   <div class="wrap">
     <a href="#" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Kinetta" width="149" height="24"></picture></a>
     <nav class="links" aria-label="Page">
-      <a href="#what">What it does</a><a href="#premium">Compare</a><a href="#install">Self-host</a><a class="nav-beta" href="https://app.kinetta.app/beta">Join the beta</a><a class="gh" href="https://github.com/BenCBanks/lankki">GitHub</a>
+      <a href="#what">What it does</a><a href="#premium">Compare</a><a href="#install">Self-host</a><a class="nav-beta" href="https://login.kinetta.app/beta">Join the beta</a><a class="gh" href="https://github.com/BenCBanks/kinetta">GitHub</a>
     </nav>
   </div>
 </header>
@@ -253,7 +253,7 @@ footer a { color: var(--ink2); }
         <h1>Your workouts and your food. <em>One app.</em></h1>
         <p class="lede">Kinetta does what a running app and a calorie counter do, together: every run, ride and walk, every meal and macro, and how they work on each other. Free and private.</p>
         <div class="ctas">
-          <a class="btn solid" href="https://app.kinetta.app/beta">Join the beta</a>
+          <a class="btn solid" href="https://login.kinetta.app/beta">Join the beta</a>
           <a class="btn line" href="#both">See how it works</a>
         </div>
         <p class="note">Free during the beta. Works in any phone's browser today; an iPhone app with Apple Health sync is on the way. No ads, and no one selling your data.</p>
@@ -428,14 +428,14 @@ footer a { color: var(--ink2); }
       <div class="head"><span class="eyebrow">Prefer to host it yourself?</span><h2 id="inst-h">Your own Kinetta in ten minutes.</h2><p>Kinetta is open source (AGPL-3.0). Run it for your family on a computer that stays on, with <a href="https://docs.docker.com/get-docker/">Docker</a> installed.</p></div>
       <div class="steps">
         <div class="step"><span class="n">01</span><h3>Start it</h3><p>Kinetta makes up its own passwords on the first start, so there's nothing to fill in.</p>
-<pre>git clone https://github.com/BenCBanks/lankki.git
-cd lankki
+<pre>git clone https://github.com/BenCBanks/kinetta.git
+cd kinetta
 docker compose up -d</pre></div>
         <div class="step"><span class="n">02</span><h3>Create your account</h3><p>Open <b>http://your-computer:8790</b>. The first account becomes the admin.</p>
 <pre><span class="c"># later, to update:</span>
 git pull
 docker compose up -d --build</pre></div>
-        <div class="step"><span class="n">03</span><h3>Reach it from your phone</h3><p>Phones need a secure address for the camera and the home screen. The <a href="https://github.com/BenCBanks/lankki/blob/main/docs/connect.md">connection guide</a> covers Tailscale, a free Cloudflare Tunnel or your own domain.</p></div>
+        <div class="step"><span class="n">03</span><h3>Reach it from your phone</h3><p>Phones need a secure address for the camera and the home screen. The <a href="https://github.com/BenCBanks/kinetta/blob/main/docs/connect.md">connection guide</a> covers Tailscale, a free Cloudflare Tunnel or your own domain.</p></div>
       </div>
     </div>
   </section>
@@ -457,7 +457,7 @@ docker compose up -d --build</pre></div>
     <div class="wrap">
       <h2 id="final-h">Move regularly. Stay <em>connected.</em></h2>
       <p>We're inviting a small group of testers. Tell us about your training and we'll send you an invite.</p>
-      <div class="ctas"><a class="btn solid" href="https://app.kinetta.app/beta">Join the beta</a></div>
+      <div class="ctas"><a class="btn solid" href="https://login.kinetta.app/beta">Join the beta</a></div>
     </div>
   </section>
 </main>
@@ -466,7 +466,7 @@ docker compose up -d --build</pre></div>
   <div class="wrap">
     <picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Kinetta" width="124" height="20"></picture>
     <div>
-      <p>Kinetta is free software under the <a href="https://github.com/BenCBanks/lankki/blob/main/LICENSE">GNU AGPL-3.0</a>. Source, issues and guides on <a href="https://github.com/BenCBanks/lankki">GitHub</a>. Commercial licenses available on request.</p>
+      <p>Kinetta is free software under the <a href="https://github.com/BenCBanks/kinetta/blob/main/LICENSE">GNU AGPL-3.0</a>. Source, issues and guides on <a href="https://github.com/BenCBanks/kinetta">GitHub</a>. Commercial licenses available on request.</p>
       <p>© 2026 Ben Banks. The Kinetta name and logo are not covered by the code license. Screenshots show made-up demo data. <a href="privacy">Privacy policy</a>.</p>
     </div>
   </div>

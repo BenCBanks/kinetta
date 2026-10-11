@@ -12,8 +12,8 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 
 ## How work gets to users
 - Work on a branch and open a pull request. Never push to `main`: a merge to `main` publishes the homepage
-  (`site/`, GitHub Pages at kinetta.app) and the Docker image (`ghcr.io/bencbanks/lankki`).
-- The maintainer's live server (app.kinetta.app) is updated separately, by the maintainer. Don't try to reach it,
+  (`site/`, GitHub Pages at kinetta.app) and the Docker image (`ghcr.io/bencbanks/kinetta`).
+- The maintainer's live server (login.kinetta.app) is updated separately, by the maintainer. Don't try to reach it,
   log in to it, or send anything to it.
 
 ## Layout
@@ -46,10 +46,10 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 
 ## Run and test
 ```sh
-LANKKI_PORT=8798 docker compose -p lankkitest up -d --build      # a throwaway copy
+KINETTA_PORT=8798 docker compose -p kinettatest up -d --build      # a throwaway copy
 curl localhost:8798/api/health
-LANKKI_URL=http://localhost:8798 python3 dev/demo/seed.py ...    # optional demo data, see dev/demo/README.md
-docker compose -p lankkitest down -v                             # remove it, data included
+KINETTA_URL=http://localhost:8798 python3 dev/demo/seed.py ...    # optional demo data, see dev/demo/README.md
+docker compose -p kinettatest down -v                             # remove it, data included
 ```
 - Open http://localhost:8798: on an empty install the first account you create is the admin. Test accounts are
   named `zz_test...`.

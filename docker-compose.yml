@@ -1,10 +1,10 @@
 # Kinetta - start it with:   docker compose up -d
 # then open http://<this computer's address>:8790 and create your account (the first account is the admin).
 # Settings are optional: copy .env.example to .env and edit it. How to reach Kinetta from your phone: docs/connect.md
-name: lankki
+name: kinetta
 
 x-image: &image
-  image: ghcr.io/bencbanks/lankki:${LANKKI_VERSION:-latest}
+  image: ghcr.io/bencbanks/kinetta:${KINETTA_VERSION:-latest}
   build: .
 
 services:
@@ -13,18 +13,18 @@ services:
     <<: *image
     command: ["python", "-m", "app.firstrun"]
     volumes:
-      - secrets:/run/lankki
+      - secrets:/run/kinetta
     restart: "no"
 
   db:
     image: postgis/postgis:17-3.5
     environment:
       POSTGRES_DB: fit
-      POSTGRES_PASSWORD_FILE: /run/lankki/db_password
+      POSTGRES_PASSWORD_FILE: /run/kinetta/db_password
       TZ: ${TZ:-UTC}
     volumes:
       - db:/var/lib/postgresql/data
-      - secrets:/run/lankki:ro
+      - secrets:/run/kinetta:ro
     depends_on:
       firstrun:
         condition: service_completed_successfully
@@ -38,20 +38,20 @@ services:
   app:
     <<: *image
     ports:
-      - "${LANKKI_PORT:-8790}:8000"
+      - "${KINETTA_PORT:-8790}:8000"
     environment:
       FIT_DB_HOST: db
-      FIT_APP_PASSWORD_FILE: /run/lankki/app_password
-      POSTGRES_PASSWORD_FILE: /run/lankki/db_password
+      FIT_APP_PASSWORD_FILE: /run/kinetta/app_password
+      POSTGRES_PASSWORD_FILE: /run/kinetta/db_password
       TZ: ${TZ:-UTC}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       FDC_API_KEY: ${FDC_API_KEY:-}
-      LANKKI_PUBLIC_URL: ${LANKKI_PUBLIC_URL:-}
-      LANKKI_BETA_SIGNUP: ${LANKKI_BETA_SIGNUP:-}
+      KINETTA_PUBLIC_URL: ${KINETTA_PUBLIC_URL:-}
+      KINETTA_BETA_SIGNUP: ${KINETTA_BETA_SIGNUP:-}
     volumes:
       - data:/data
-      - secrets:/run/lankki:ro
+      - secrets:/run/kinetta:ro
     networks:
       - default
       - public
