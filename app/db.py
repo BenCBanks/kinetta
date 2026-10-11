@@ -431,6 +431,55 @@ MIGRATIONS = [
     CREATE UNIQUE INDEX activities_healthkit ON activities (user_id, source_id) WHERE source = 'healthkit';
     ALTER TABLE profile ADD COLUMN health_ai_ok boolean NOT NULL DEFAULT false;
     """,
+    # 20 (2026-10-11): friends, sharing and comments (api_social.py).
+    #   friendships: one row per pair of people (either direction); 'pending' until the other person approves.
+    #   Each activity is 'me' (only me, the default), 'friends' or 'everyone' on this server. share_details: which details
+    #   others see ({} = the defaults in api_social.DETAILS); on an activity, NULL = follow the person's own setting.
+    #   share_trim_m: shared maps leave out this many metres at the start and the end of the route.
+    #   cheers + comments: a SQL login sees the ones it gave and the ones on its own activities.
+    """
+    ALTER TABLE profile ADD COLUMN share_default text NOT NULL DEFAULT 'me' CHECK (share_default IN ('me', 'friends', 'everyone')),
+      ADD COLUMN share_details jsonb NOT NULL DEFAULT '{}',
+      ADD COLUMN share_trim_m int NOT NULL DEFAULT 400 CHECK (share_trim_m IN (0, 200, 400, 800));
+    ALTER TABLE activities ADD COLUMN visibility text NOT NULL DEFAULT 'me' CHECK (visibility IN ('me', 'friends', 'everyone')),
+      ADD COLUMN share_details jsonb;
+    CREATE INDEX activities_shared ON activities (user_id, start_time DESC) WHERE visibility <> 'me';
+
+    CREATE TABLE friendships (
+      requester bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      addressee bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status    text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted')),
+      created   timestamptz NOT NULL DEFAULT now(),
+      accepted  timestamptz,
+      PRIMARY KEY (requester, addressee), CHECK (requester <> addressee));
+    CREATE UNIQUE INDEX friendships_pair ON friendships (least(requester, addressee), greatest(requester, addressee));
+    CREATE INDEX friendships_addressee ON friendships (addressee);
+    CREATE TABLE cheers (
+      activity_id bigint NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created     timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (activity_id, user_id));
+    CREATE TABLE comments (
+      id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      activity_id bigint NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      text        text NOT NULL CHECK (length(text) BETWEEN 1 AND 500),
+      created     timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX comments_activity ON comments (activity_id, created);
+
+    ALTER TABLE friendships ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON friendships FOR SELECT TO fit_readers USING (fit_me() IN (requester, addressee));
+    CREATE POLICY all_rows ON friendships FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON friendships TO fit_readers;
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['cheers', 'comments'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me()
+                          OR activity_id IN (SELECT id FROM activities WHERE user_id = fit_me()))', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP; END $$;
+    """,
 ]
 
 

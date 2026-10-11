@@ -34,7 +34,7 @@ def default_name(start, tz, sport):
 
 
 def profile_of(c, user_id):
-    p = c.execute('SELECT max_hr, rest_hr, sex, tz FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
+    p = c.execute('SELECT max_hr, rest_hr, sex, tz, share_default FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
     p = dict(p)
     if not p.get('max_hr'):   # until set by hand: the highest believable HR seen (P99.5 of activity maxima), else 190
         r = c.execute("""SELECT percentile_cont(0.995) WITHIN GROUP (ORDER BY max_hr) AS m FROM activities
@@ -93,7 +93,8 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
                    description=meta.get('description'), private_note=meta.get('private_note'), commute=bool(meta.get('commute')),
                    start_time=start, tz=tz, device=parsed.get('device'), source=source, source_id=meta.get('source_id'),
                    file_sha256=sha, file_path=path, strava_id=meta.get('strava_id'), gear_id=gear_id,
-                   laps=json.dumps(parsed.get('laps') or [], default=str))
+                   laps=json.dumps(parsed.get('laps') or [], default=str),
+                   visibility=prof.get('share_default') or 'me')   # who sees it: the person's choice for new activities
         for k in ('elapsed_s', 'moving_s', 'distance_m', 'ascent_m', 'descent_m', 'avg_hr', 'max_hr', 'avg_cad', 'avg_power',
                   'max_power', 'max_speed', 'avg_temp', 'calories', 'avg_vo', 'avg_gct', 'avg_stride', 'gap_s_per_km', 'effort',
                   'decoupling', 'vo2max', 'max_alt', 'min_alt', 'vam', 'norm_power', 'steps', 'pool_length_m', 'lengths',
