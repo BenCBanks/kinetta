@@ -698,3 +698,31 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .card ul.reads { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 4px; }
 /* delete my account (2026-10-11) */
 .primary.danger-btn { background: var(--alert); }
+/* ---------- friends + sharing (2026-10-11, social.js) ---------- */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+nav.tabs a { position: relative; }
+.tab-n { position: absolute; top: 3px; left: calc(50% + 5px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--alert); color: var(--ontx); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.primary.wide { width: 100%; }
+.shell > .seg.wide.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.seg.wide.vis3, .sheet .seg.wide.vis3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
+.seg.wide.trim4, .sheet .seg.wide.trim4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; }
+.seg.vis3 button, .seg.trim4 button { min-width: 0; min-height: 44px; white-space: normal; line-height: 1.2; padding: 6px 4px; }
+.card .seg.vis3, .card .seg.trim4 { margin: 4px 0 8px; }
+.badge.on { background: var(--accent2); color: var(--accent); }
+.checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; margin-bottom: 6px; }
+.checks .check { font-weight: 500; font-size: 14px; }
+.btnrow.tight { display: flex; gap: 8px; margin: 0; flex: none; } .btnrow.tight > * { min-height: 44px; }
+.map-note { margin: -6px 2px 10px; }
+.social .cheer { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.social .cheer svg { width: 18px; height: 18px; }
+.social .cheer[aria-pressed="true"] { background: var(--accent2); color: var(--accent); border-color: var(--accent); }
+.social .cheer[aria-pressed="true"] svg { fill: currentColor; }
+.social .cheer-who { margin: 8px 0 0; }
+.comments .comment { padding: 10px 0; border-top: 1px solid var(--line); }
+.comments .comment:first-child { margin-top: 10px; }
+.comment .c-hd { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.comment .c-hd .linkbtn { margin-left: auto; min-height: 32px; }
+.card .comment p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 2px 0 0; color: var(--tx); }
+.c-form { margin-top: 10px; } .c-form textarea { min-height: 64px; }
+.checks input[type=checkbox] { accent-color: var(--accent); }

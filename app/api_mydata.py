@@ -46,6 +46,13 @@ TABLES = {
     'imports': "SELECT to_jsonb(t)" + DROP + " FROM imports t WHERE user_id = %s ORDER BY created",
     'connections': """SELECT jsonb_build_object('kind', kind, 'status', status, 'last_sync', last_sync, 'created', created)
                         FROM connections WHERE user_id = %s""",
+    # friends (by username), and the cheers and comments you gave (2026-10-11, api_social.py)
+    'friends': """SELECT jsonb_build_object('login', u.login, 'name', u.name, 'status', f.status, 'you_asked', f.requester = me.id,
+                     'created', f.created, 'accepted', f.accepted)
+                   FROM (SELECT %s::bigint AS id) me JOIN friendships f ON me.id IN (f.requester, f.addressee)
+                   JOIN users u ON u.id = CASE WHEN f.requester = me.id THEN f.addressee ELSE f.requester END""",
+    'cheers_given': "SELECT to_jsonb(t)" + DROP + " FROM cheers t WHERE user_id = %s ORDER BY created",
+    'comments_written': "SELECT to_jsonb(t)" + DROP + " FROM comments t WHERE user_id = %s ORDER BY created",
 }
 CSVS = {
     'activities.csv': """SELECT start_time, sport, name, distance_m, moving_s, elapsed_s, ascent_m, avg_hr, max_hr, calories, effort, device

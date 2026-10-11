@@ -132,14 +132,19 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
   .observe(document.documentElement, {childList: true, subtree: true});
 
 // ---------- Activity feed ----------
+// Mine | Friends at the top of the Activity tab (the Friends view is in social.js)
+const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'friends'}">Mine</button><button data-whose="friends" aria-pressed="${cur === 'friends'}">Friends</button></div>`;
+const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () => go('/activity' + (b.dataset.whose ? '?view=' + b.dataset.whose : ''), {replace: true}));
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
+  if (q.get('view') === 'friends') return friendsFeed(el);
   const sports = ['', 'run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
   el.innerHTML = `<div class="top"><h1>Activity</h1><div class="acts"><button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>
-    <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
+    <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>${whoseSeg('')}
     <form id="f-sform" class="${term ? '' : 'hidden'}" role="search"><input type="search" name="q" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form>
     <div class="chips" role="group" aria-label="Sport">${sports.map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s === 'other' ? 'Other' : s ? SPORT_NAMES[s] + 's' : 'All'}</button>`).join('')}</div>
     <div class="feed-list" id="f-list">${skel(4)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
+  wireWhose(el);
   const sf = $('#f-sform', el); if (!term) sf.hidden = true;
   $('#f-search', el).onclick = () => { sf.hidden = !sf.hidden; if (!sf.hidden) $('input', sf).focus(); };
   sf.onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(location.search); const v = $('input', sf).value.trim(); v ? p.set('q', v) : p.delete('q'); go('/activity' + (p.toString() ? '?' + p : ''), {replace: true}); };
@@ -231,11 +236,13 @@ function drawDetail(el, a) {
       <div class="hero">${hero}</div><div class="hero more">${sportStats(a)}</div>
       ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}
       ${a.private_note ? `<p class="small"><b>Private note:</b> ${esc(a.private_note)}</p>` : ''}</div>
+    <div id="d-share"></div>
     <div class="cols"><div>
       ${a.line ? `<div class="map big" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
       ${a.chart ? '<div class="card"><h2>Charts</h2><div id="d-charts"></div></div>' : ''}
       ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
       ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
+      <div id="d-social"></div>
     </div><div>
       ${a.ai_note ? `<div class="card ai"><h2>Coach</h2><p>${esc(a.ai_note)}</p></div>`
         : App.me.coach ? `<div class="card"><h2>Coach</h2><p class="small muted">A short note on this workout from your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Get coach note' : 'Turn on AI coach'}</button></div>` : ''}
@@ -248,6 +255,7 @@ function drawDetail(el, a) {
     </div></div>`;
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
+  ownSocial(el, a);
   const cb = $('#d-coach', el);
   if (cb) cb.onclick = async () => {
     if (!App.me.ai_ok) { aiSheet(() => drawDetail(el, a)); return; }
@@ -305,22 +313,23 @@ function drawDetail(el, a) {
 function splitsTable(a, splits) {
   const foot = FOOT.includes(a.sport);
   const paces = splits.map((s) => s.pace_s_per_km).filter(Boolean), fastest = Math.min(...paces), slowest = Math.max(...paces);
-  return `<table class="tbl"><thead><tr><th>${U.du()}</th><th>${foot ? 'Pace' : 'Speed'}</th><th></th>${foot && splits.some((s) => s.gap_s_per_km) ? '<th class="r">GAP</th>' : ''}<th class="r">Elev</th><th class="r">HR</th></tr></thead><tbody>
+  const hasEl = splits.some((s) => s.elev_m != null), hasHr = splits.some((s) => s.avg_hr);
+  return `<table class="tbl"><thead><tr><th>${U.du()}</th><th>${foot ? 'Pace' : 'Speed'}</th><th></th>${foot && splits.some((s) => s.gap_s_per_km) ? '<th class="r">GAP</th>' : ''}${hasEl ? '<th class="r">Elev</th>' : ''}${hasHr ? '<th class="r">HR</th>' : ''}</tr></thead><tbody>
     ${splits.map((s) => {
       const full = Math.abs(s.distance_m - (imp() ? MI : 1000)) < 5;
       const w = s.pace_s_per_km ? (fastest / s.pace_s_per_km) : 0;
       return `<tr class="${s.pace_s_per_km === fastest ? 'best' : ''}"><td>${full ? s.n : U.dist(s.distance_m)}</td>
         <td class="num">${foot ? U.pace(s.pace_s_per_km) : U.speed(1000 / s.pace_s_per_km)}</td><td class="barcell"><div class="bar${s.pace_s_per_km === slowest ? ' slow' : ''}" data-w="${(0.25 + 0.75 * ((w - fastest / slowest) / (1 - fastest / slowest || 1))).toFixed(3)}"></div></td>
         ${foot && splits.some((x) => x.gap_s_per_km) ? `<td class="r num">${U.pace(s.gap_s_per_km)}</td>` : ''}
-        <td class="r num">${s.elev_m != null ? (s.elev_m > 0 ? '+' : '') + U.elev(s.elev_m) : '–'}</td><td class="r num">${s.avg_hr || '–'}</td></tr>`;
+        ${hasEl ? `<td class="r num">${s.elev_m != null ? (s.elev_m > 0 ? '+' : '') + U.elev(s.elev_m) : '–'}</td>` : ''}${hasHr ? `<td class="r num">${s.avg_hr || '–'}</td>` : ''}</tr>`;
     }).join('')}</tbody></table>`;
 }
 function lapsTable(a) {
-  const foot = FOOT.includes(a.sport);
-  return `<table class="tbl"><thead><tr><th>Lap</th><th>Dist</th><th>Time</th><th class="r">${foot ? 'Pace' : 'Speed'}</th><th class="r">HR</th></tr></thead><tbody>
+  const foot = FOOT.includes(a.sport), hasHr = a.laps.some((l) => l.avg_hr);
+  return `<table class="tbl"><thead><tr><th>Lap</th><th>Dist</th><th>Time</th><th class="r">${foot ? 'Pace' : 'Speed'}</th>${hasHr ? '<th class="r">HR</th>' : ''}</tr></thead><tbody>
     ${a.laps.map((l, i) => { const spk = l.distance_m ? (l.moving_s || l.elapsed_s) / l.distance_m * 1000 : null;
       return `<tr><td>${i + 1}</td><td class="num">${U.dist(l.distance_m)}</td><td class="num">${dur(l.moving_s || l.elapsed_s)}</td>
-        <td class="r num">${spk ? (foot ? U.pace(spk) : U.speed(1000 / spk)) : '–'}</td><td class="r num">${l.avg_hr ? Math.round(l.avg_hr) : '–'}</td></tr>`; }).join('')}</tbody></table>`;
+        <td class="r num">${spk ? (foot ? U.pace(spk) : U.speed(1000 / spk)) : '–'}</td>${hasHr ? `<td class="r num">${l.avg_hr ? Math.round(l.avg_hr) : '–'}</td>` : ''}</tr>`; }).join('')}</tbody></table>`;
 }
 function effortsTable(a) {
   return `<table class="tbl"><tbody>${a.efforts.map((e) => `<tr><td>${e.rank_then <= 3 ? `<span class="medal m${e.rank_then}" title="${['', 'Personal record', '2nd best', '3rd best'][e.rank_then]} at the time">${e.rank_then === 1 ? 'PR' : e.rank_then}</span>` : ''}${esc(e.label)}</td>
@@ -671,6 +680,8 @@ async function pHeatmap(body, q) {
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
   el.innerHTML = `<div class="top"><h1>${esc(me.name)}</h1></div>
+    <div class="card"><a class="row-link" href="/me/friends"><span>Friends</span><span class="val">${me.friend_requests ? `<span class="badge on">${me.friend_requests} waiting</span>` : ''}<span class="chev">${svg('chev')}</span></span></a>
+      <a class="row-link" href="/me/sharing"><span>Sharing</span><span class="val">Who sees your activities<span class="chev">${svg('chev')}</span></span></a></div>
     <div class="card"><a class="row-link" href="/me/import"><span>Upload activities</span><span class="chev">${svg('chev')}</span></a>
       <button class="row-link" data-addact><span>Add an activity by hand</span><span class="chev">${svg('chev')}</span></button>
       ${Native.on ? `<a class="row-link" href="/me/health"><span>Apple Health</span><span class="chev">${svg('chev')}</span></a>` : ''}

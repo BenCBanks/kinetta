@@ -256,6 +256,7 @@ function render() {
   const el = $('#page');
   const key = location.pathname + location.search;
   if (App.lastPath !== location.pathname) { el.classList.add('enter'); App.lastPath = location.pathname; }
+  if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
     requestAnimationFrame(() => window.scrollTo(0, App.scroll[key] || 0));
   });
@@ -317,7 +318,7 @@ function loadLeaflet() {   // (not "leaflet": leaflet.js overwrites window.leafl
   });
   return leafletP;
 }
-async function mapInto(el, lines, {sport = 'run', heat = false, still = false} = {}) {
+async function mapInto(el, lines, {sport = 'run', heat = false, still = false, ends = true} = {}) {   // ends: start/finish dots
   const L = await loadLeaflet();
   const map = L.map(el, still   // still = feed preview: a picture of the route, taps go to the card's link
     ? {zoomControl: false, attributionControl: true, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false,
@@ -332,7 +333,7 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false} =
   const group = L.featureGroup().addTo(map);
   for (const pts of all) L.polyline(pts, heat ? {color, weight: 2, opacity: .35} : {color, weight: 4, opacity: .95}).addTo(group);
   if (still) { map.attributionControl.setPrefix(false); return {map, L}; }
-  if (!heat && lines[0]) {
+  if (!heat && ends && lines[0]) {
     const pts = typeof lines[0] === 'string' ? decode(lines[0]) : lines[0];
     if (pts.length) {
       L.circleMarker(pts[0], {radius: 6, color: '#fff', weight: 2, fillColor: '#1E7A4F', fillOpacity: 1}).addTo(map);
