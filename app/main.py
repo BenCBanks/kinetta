@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_health, api_social
+from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social
 import threading
 from .auth import current_user
 
@@ -27,6 +27,7 @@ app.include_router(nutrition_insights.router)
 app.include_router(history_import.router)
 app.include_router(plans.router)
 app.include_router(api_beta.router)
+app.include_router(api_mydata.router)
 app.include_router(api_health.router)
 app.include_router(api_social.router)
 STATIC = os.path.join(os.path.dirname(__file__), 'static')
@@ -104,14 +105,15 @@ def logout(request: Request, response: Response):
 @app.get('/api/me')
 def me(user=Depends(current_user)):
     with db.connect() as c:
-        p = c.execute('SELECT units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, health_ai_ok FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, ai_ok, health_ai_ok FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
-    return {**user, 'friend_requests': waiting, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), **{k: v for k, v in p.items() if v is not None}}
+    return {**user, 'friend_requests': waiting, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):
     units: str | None = Field(None, pattern='^(imperial|metric)$')
     tz: str | None = Field(None, max_length=64)
+    ai_ok: bool | None = None      # consent to AI features (coach notes, weekly review, food photos)
     max_hr: int | None = Field(None, ge=120, le=230)
     rest_hr: int | None = Field(None, ge=30, le=100)
     sex: str | None = Field(None, pattern='^(male|female)$')

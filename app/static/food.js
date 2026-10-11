@@ -251,7 +251,10 @@ function addSheet(day, meal) {
     const tabs = {search: tSearch, recent: tRecent, mine: tMine, meals: tMeals, quick: tQuick};
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
-    $('#as-photo', b).onclick = () => { const w = where(); close(); photoSheet(w.day, w.meal); };
+    $('#as-photo', b).onclick = () => {   // photos go to the AI service, so it needs the person's OK first
+      const w = where(); close();
+      if (App.me.coach && !App.me.ai_ok) aiSheet(() => photoSheet(w.day, w.meal)); else photoSheet(w.day, w.meal);
+    };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
     show('search');
   });

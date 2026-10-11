@@ -424,14 +424,21 @@ MIGRATIONS = [
       invite_id bigint REFERENCES invites(id) ON DELETE SET NULL);
     CREATE UNIQUE INDEX beta_requests_email ON beta_requests (lower(email));
     """,
-    # 19 (2026-10-11): workouts sent by the Lankki iPhone app from Apple Health (api_health.py). source_id holds HealthKit's
+    # 19: AI consent per person - coach notes, weekly reviews and food photos send that person's data to the AI service,
+    #     so they only run once the person turns "AI features" on (NULL = never asked = off). Accounts that already
+    #     existed when this shipped keep the coach they had.
+    """
+    ALTER TABLE profile ADD COLUMN ai_ok boolean;
+    UPDATE profile SET ai_ok = true;
+    """,
+    # 20 (2026-10-11): workouts sent by the Lankki iPhone app from Apple Health (api_health.py). source_id holds HealthKit's
     #     own id for the workout, so one sent twice (a retry, a second phone) is stored once, even when both arrive at the
     #     same moment. health_ai_ok: the person said yes to the AI coach reading their Apple Health workouts (off until then).
     """
     CREATE UNIQUE INDEX activities_healthkit ON activities (user_id, source_id) WHERE source = 'healthkit';
     ALTER TABLE profile ADD COLUMN health_ai_ok boolean NOT NULL DEFAULT false;
     """,
-    # 20 (2026-10-11): friends, sharing and comments (api_social.py).
+    # 21 (2026-10-11): friends, sharing and comments (api_social.py).
     #   friendships: one row per pair of people (either direction); 'pending' until the other person approves.
     #   Each activity is 'me' (only me, the default), 'friends' or 'everyone' on this server. share_details: which details
     #   others see ({} = the defaults in api_social.DETAILS); on an activity, NULL = follow the person's own setting.

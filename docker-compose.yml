@@ -59,6 +59,9 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    logging:   # access logs hold visitors' IP addresses: keep them short
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
 
   # Optional: a public https address through Cloudflare, without opening your router (docs/connect.md).
   # Start with:  docker compose --profile tunnel up -d

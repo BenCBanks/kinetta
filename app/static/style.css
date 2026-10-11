@@ -696,6 +696,8 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .beta-req .btnrow { margin-top: 8px; }
 /* Me > Apple Health (iPhone app): what Lankki reads */
 .card ul.reads { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 4px; }
+/* delete my account (2026-10-11) */
+.primary.danger-btn { background: var(--alert); }
 /* ---------- friends + sharing (2026-10-11, social.js) ---------- */
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 nav.tabs a { position: relative; }
