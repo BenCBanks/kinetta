@@ -158,7 +158,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .spot li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; }
 .spot li svg { width: 26px; height: 16px; margin-top: 5px; color: var(--berry); }
 @media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; } .spot .pair { max-width: 520px; } }
-.pcards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; }
+.pcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 22px; }
 .pcard { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .pcard h4 { font: 600 19px/1.2 var(--display); margin: 0; letter-spacing: -0.01em; }
 .pcard p { color: var(--ink2); font-size: 15.5px; }
@@ -309,7 +309,7 @@ footer a { color: var(--ink2); }
         <div class="half"><span class="tag">Training</span><h3>Everything you do</h3><ul>
           <li>Runs, rides, walks, hikes, swims and gym workouts</li><li>Maps, splits, pace, heart rate and effort</li><li>Matched routes and similar-run comparisons</li><li>Training plans from 5K to marathon</li><li>Records, race predictions, fitness and fatigue</li><li>Friends, a shared feed, cheers and comments</li></ul></div>
         <div class="half"><span class="tag">Food and health</span><h3>Everything you eat</h3><ul>
-          <li>Barcode scanning and photo logging</li><li>Calories and macros against your own targets</li><li>Cooking mode: weigh the dish, weigh your plate</li><li>Saved meals, recipes and your own foods</li><li>Weight trend and plain-language food insights</li></ul></div>
+          <li>Barcode scanning and photo logging</li><li>AI review of your eating and feedback on recipes</li><li>Calories and macros against your own targets</li><li>Cooking mode: weigh the dish, weigh your plate</li><li>Saved meals, recipes and your own foods</li><li>Weight trend and plain-language food insights</li></ul></div>
         <div class="meet"><span class="tag">Where they meet</span><ul>
           <li><b>Workouts count on their own.</b> Every run, ride and walk from your watch adds to what you burned that day. No typing in exercise.</li>
           <li><b>Your real deficit.</b> What you ate against what you actually burned, day by day and week by week.</li>
@@ -392,7 +392,7 @@ footer a { color: var(--ink2); }
         <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Food</h3><ul>
           <li>USDA and Open Food Facts search</li><li>Barcode scanning</li><li>Cooking mode with leftovers and your pans</li><li>Running calorie deficit</li><li>Works offline, sends when you're back</li></ul></div>
         <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Extras</h3><ul>
-          <li>Optional AI coach notes (your own key)</li><li>Read-only SQL access to your own data</li><li>Installs on any phone's home screen</li><li>Light and dark mode</li><li>Miles or kilometers, per person</li></ul></div>
+          <li>Optional AI coach for workouts, eating and recipes</li><li>Read-only SQL access to your own data</li><li>Installs on any phone's home screen</li><li>Light and dark mode</li><li>Miles or kilometers, per person</li></ul></div>
       </div>
     </div>
   </section>
@@ -422,6 +422,10 @@ footer a { color: var(--ink2); }
       <div class="pcards">
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-coach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-coach.webp" alt="An AI coach note on a 2.98 mile run: pace, heart rate, what it means and what to do next" loading="lazy" width="720" height="1558"></picture></div>
           <h4>An AI coach that knows your history</h4><p>A short note on each new workout and a review every Sunday, written from your own numbers. Uses your own Gemini or Claude key (about a cent a note) and stays off until you add one.</p></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-dietcoach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-dietcoach.webp" alt="The coach's take on two weeks of eating: what's going well, and three specific things to try this week" loading="lazy" width="720" height="1558"></picture></div>
+          <h4>A review of your eating</h4><p>Two weeks of your food log read by the AI coach: what's going well, and two or three specific changes to try, using the foods you actually eat.</p></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-recipecoach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-recipecoach.webp" alt="Feedback on a chicken and vegetable traybake: calories and protein per portion, and three tweaks with what each one changes" loading="lazy" width="720" height="1558"></picture></div>
+          <h4>Feedback on your recipes</h4><p>Ask the coach about any dish you cook: calories and protein per portion, and tweaks like less oil or more protein, with what each one changes.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-plan.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-plan.webp" alt="A 10-week intermediate 10K training plan with the first workout" loading="lazy" width="720" height="1558"></picture></div>
           <h4>Training plans, 5K to marathon</h4><p>First-timer run/walk to advanced, 6 to 20 weeks. Paces come from your current fitness, and your runs tick off workouts on their own.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-fitness.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-fitness.webp" alt="Race predictions for 5K, 10K, half marathon and marathon, and a running fitness score" loading="lazy" width="720" height="1558"></picture></div>

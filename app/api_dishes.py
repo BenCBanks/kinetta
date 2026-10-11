@@ -120,10 +120,11 @@ def _out(d):
             'known': {k: d[f'known_{k}'] for k in KNOWN}, 'totals': totals,
             'cooked_g': cooked, 'eaten_g': round(d['eaten_g'], 1), 'left_g': left,
             'per_100g': {k: _r(v * 100 / cooked) if v is not None else None for k, v in totals.items()} if cooked else None,
-            'status': status, 'created': d['created'], 'updated': d['updated'], 'done_at': d['done_at']}
+            'status': status, 'created': d['created'], 'updated': d['updated'], 'done_at': d['done_at'],
+            'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['updated'] > d['ai_note_at']} if d.get('ai_note') else None}
 
 
-COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, eaten_g, created, updated, done_at'
+COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, eaten_g, created, updated, done_at, ai_note, ai_note_at'
 
 
 def _seen(c, uid, did, lock=False):

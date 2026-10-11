@@ -19,6 +19,8 @@ const SHOTS = [
   ['cook', 'DISH'],
   ['serve', 'DISH', {to: 'Weigh and serve', portion: '380'}],
   ['friends', '/me/friends'],
+  ['dietcoach', '/food?view=trends'],
+  ['recipecoach', 'DISH', {to: "Coach's take"}],
 ];
 (async () => {
   const browser = await chromium.launch(), errors = [];

@@ -534,6 +534,10 @@ MIGRATIONS = [
       USING (user_id = fit_me() OR dish_id IN (SELECT id FROM dishes WHERE user_id = fit_me()));
     CREATE POLICY all_rows ON dish_shares FOR SELECT TO fit_all_readers USING (true);
     GRANT SELECT ON dish_shares TO fit_readers;
+    """,    # 24 (2026-10-11): AI feedback on a recipe (food_coach.py), kept on the dish as JSON; the diet review uses coach_notes
+    #   (kind 'diet').
+    """
+    ALTER TABLE dishes ADD COLUMN ai_note text, ADD COLUMN ai_note_at timestamptz;
     """,
 ]
 

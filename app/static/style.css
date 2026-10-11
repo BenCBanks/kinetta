@@ -694,6 +694,17 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .pchart { margin-top: 12px; } .pc-plan { fill: var(--card2); } .pc-plan.cur { stroke: var(--prog); stroke-width: 1.5; } .pc-done { fill: var(--prog); }
 .sw.pc-plan-sw { background: var(--card2); border: 1px solid var(--line); } .sw.pc-done-sw { background: var(--prog); }
 
+/* ---------- AI coach on food (2026-10-11) ---------- */
+.coach-card h2 svg, .coach-card .linkbtn svg, .coach-card .primary svg { width: 18px; height: 18px; }
+.ai-head { font-size: 17px; font-weight: 650; color: var(--tx); line-height: 1.4; letter-spacing: -.01em; }
+.card .ai-head { color: var(--tx); }
+.ai-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ai-list li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start; color: var(--tx); line-height: 1.45; }
+.ai-list li svg { width: 18px; height: 18px; margin-top: 2px; color: var(--prog); }
+.ai-list li b { font-weight: 650; }
+.coach-card .callout { margin: 14px 0 0; }
+.coach-card > .linkbtn { padding: 0; margin-top: 6px; }
+
 /* ---------- cooking mode (cook.js) ---------- */
 .card.tap.dish-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
 .dish-row .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .dish-row b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

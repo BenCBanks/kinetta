@@ -635,8 +635,8 @@ function loadChart(box, days) {
 }
 
 // ---------- AI consent (2026-10-11): coach notes, weekly reviews and food photos send data to the AI service ----------
-const aiExplain = () => `<p>Kinetta can write a short <b>coach note</b> on each new workout, a <b>weekly review</b> on Sundays, and <b>estimate the food in a photo</b>.</p>
-  <p class="small muted">To do that, the workout's numbers and your recent training, or the photo, are sent to ${esc(App.me.ai_provider || 'an AI service')}, which writes the text. Nothing is sent while this is off, and you can turn it off any time under Me.</p>`;
+const aiExplain = () => `<p>Kinetta can write a short <b>coach note</b> on each new workout, a <b>weekly review</b> on Sundays, <b>estimate the food in a photo</b>, <b>review your eating</b> and give <b>feedback on your recipes</b>.</p>
+  <p class="small muted">To do that, the workout's numbers and your recent training, your food log, the recipe, or the photo, are sent to ${esc(App.me.ai_provider || 'an AI service')}, which writes the text. Nothing is sent while this is off, and you can turn it off any time under Me.</p>`;
 function aiSheet(after) {   // ask once; after() runs when they turn it on
   sheet('Turn on AI features?', `<div class="form">${aiExplain()}<div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
     $('#ai-no', b).onclick = close;

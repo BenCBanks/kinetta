@@ -52,6 +52,8 @@ function drawDish(el, d) {
       ${mine && !d.items.length ? '<p class="small muted">Type what goes in as you cook, with its weight. Each one adds to the total.</p>' : ''}
       ${mine ? `<button class="linkbtn" id="dk-known">${typed ? 'Change the total you typed in' : 'I already know the total'}</button>` : ''}</div>` : ''}
 
+    ${(mine && App.me.coach && (d.items.length || typed)) || d.review ? `<div class="card ai coach-card" id="dk-ai">${recipeReview(d, mine)}</div>` : ''}
+
     <h2 class="sec-head">Weigh and serve</h2>
     <div class="card serve">${weighed ? `<div class="kv"><span>Cooked weight</span><b class="num">${gfmt(d.cooked_g)}${mine ? ' <button class="linkbtn" id="dk-reweigh">Change</button>' : ''}</b></div>
         ${d.eaten_g ? `<div class="kv"><span>Served so far</span><b class="num">${gfmt(d.eaten_g)}</b></div>` : ''}
@@ -75,6 +77,13 @@ function drawDish(el, d) {
   [$('#dk-known', el), $('#dk-known2', el)].forEach((b) => { if (b) b.onclick = () => knownSheet(d, set); });
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   if (mine) { addLine(el, d, set); $('#dk-share', el).onclick = () => shareDishSheet(d, set); }
+  const rb = $('#dk-review', el);
+  if (rb) rb.onclick = async () => {
+    if (!App.me.ai_ok) { aiSheet(() => rb.click()); return; }
+    rb.disabled = true; const was = rb.innerHTML; rb.textContent = 'Reading the recipe…';
+    try { const r = await api(`/api/dishes/${d.id}/review`, json('POST', {})); set({...d, review: {...r, changed_since: false}}); }
+    catch (x) { toast(x.message); rb.disabled = false; rb.innerHTML = was; }
+  };
   if (weighed) {
     const f = $('#dk-portion', el), out = $('.portion-out', f), p = d.per_100g || {};
     let meal = guessMeal(); wireSeg(f, 'meal', (m) => { meal = m; });
@@ -108,6 +117,17 @@ function drawDish(el, d) {
       catch (x) { toast(x.message); btn.disabled = false; }
     };
   }
+}
+// AI feedback on the recipe (food_coach.py): kept on the dish, so friends it's shared with see it too
+function recipeReview(d, mine) {
+  const R = d.review;
+  if (!R) return `<h2>Coach's take</h2><p>Feedback on this recipe from your coach: calories and protein per portion, and a few tweaks to make it work harder for your training.</p>
+    <button class="primary wide" id="dk-review">${svg('sparkle')}Get feedback on this recipe</button>`;
+  return `<h2>Coach's take<span class="muted small">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</span></h2>
+    ${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
+    ${R.ideas ? `<h3 class="ghead">Ideas</h3><ul class="ai-list">${R.ideas.map((i) => `<li>${svg('sparkle')}<span><b>${esc(i.change)}</b>${i.effect ? ` <span class="muted">${esc(i.effect)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
+    ${R.note ? `<div class="callout warn">${esc(R.note)}</div>` : ''}
+    ${mine ? `<button class="linkbtn" id="dk-review">${svg('sparkle')}${R.changed_since ? 'The recipe changed - ask again' : 'Ask again'}</button>` : ''}`;
 }
 // who the dish is shared with: friends only, one tap each
 function shareDishSheet(d, set) {

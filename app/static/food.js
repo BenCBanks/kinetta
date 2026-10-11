@@ -736,9 +736,9 @@ async function nutritionTrends(root, q) {
   });
   root.innerHTML = `<div class="chips nrange" role="group" aria-label="Time range">${NRANGES.map(([d, n]) => `<button class="chip" data-r="${d}" aria-pressed="${String(d) === r}">${n}</button>`).join('')}
       <button class="chip" data-r="since" aria-pressed="${r === 'since'}" id="nt-since">Since…</button></div>
-    <div id="nt-body">${skel(3)}</div><div id="nt-energy"></div><div id="nt-weeks"></div>
+    <div id="nt-coach"></div><div id="nt-body">${skel(3)}</div><div id="nt-energy"></div><div id="nt-weeks"></div>
     <a class="ghost addpast" href="/food/import">${svg('upload')}<span>Add past days<small>weight, calories or deficits from before</small></span></a>`;
-  energyCard($('#nt-energy', root)); weeksCard($('#nt-weeks', root));
+  energyCard($('#nt-energy', root)); weeksCard($('#nt-weeks', root)); dietCoach($('#nt-coach', root));
   let since = null;
   $$('.nrange .chip', root).forEach((b) => b.onclick = () => (b.dataset.r === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(b.dataset.r)));
   const url = r === 'since' ? '/api/food/insights?days=30&since=' : `/api/food/insights?days=${r}`;
@@ -808,3 +808,28 @@ function drawTrends(box, I, days) {
 }
 
 start();
+
+// ---------- AI review of your eating (2026-10-11, food_coach.py): the last two weeks, what's going well, what to try ----------
+function dietCoach(box) {
+  if (!box || !App.me.coach) return;      // the server has no AI key: nothing to offer
+  load('/api/food/review', (r) => {
+    if (!box.isConnected) return;
+    const L = r.latest, when = L ? new Date(L.day + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
+    const list = (xs, ico) => (xs && xs.length ? `<ul class="ai-list">${xs.map((x) => `<li>${svg(ico)}<span>${esc(x)}</span></li>`).join('')}</ul>` : '');
+    box.innerHTML = L ? `<div class="card ai coach-card"><h2>Coach's take<span class="muted small">${esc(when)}</span></h2>
+        ${L.headline ? `<p class="ai-head">${esc(L.headline)}</p>` : ''}${L.text ? `<p>${esc(L.text)}</p>` : ''}
+        ${L.going_well ? `<h3 class="ghead">Going well</h3>${list(L.going_well, 'check')}` : ''}
+        ${L.try_next ? `<h3 class="ghead">Try this week</h3>${list(L.try_next, 'sparkle')}` : ''}
+        ${L.watch ? `<div class="callout warn">${esc(L.watch)}</div>` : ''}
+        <button class="linkbtn" id="dc-go">${svg('sparkle')}Review again</button></div>`
+      : `<div class="card ai coach-card"><h2>Coach's take</h2><p>A short review of your last two weeks of eating: what's going well, and two or three things to try next, from your own log.</p>
+        <button class="primary wide" id="dc-go">${svg('sparkle')}Review my eating</button></div>`;
+    const b = $('#dc-go', box);
+    b.onclick = async () => {
+      if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
+      b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';
+      try { const fresh = await api('/api/food/review', json('POST', {})); App.cache.set('/api/food/review', {data: {...r, enabled: true, latest: fresh}, at: Date.now()}); dietCoach(box); }
+      catch (x) { toast(x.message); b.disabled = false; b.innerHTML = was; }
+    };
+  }).catch(() => {});
+}
