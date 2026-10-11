@@ -459,7 +459,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
 const PVIEWS = [['totals', 'Totals'], ['fitness', 'Fitness'], ['records', 'Records']];
 const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
-  ['calendar', 'Calendar', 'Every day you trained', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
+  ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-berry'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
 function pSport(q) {
   let s = q.get('sport'); if (!s) try { s = localStorage.getItem('fit.psport'); } catch (e) { /* no storage */ }
@@ -698,29 +698,49 @@ async function pTrends(body, q) {
     });
   });
 }
+// The month at a glance (2026-10-11): what you did and how you ate, day by day. Each day shows its workout (the sport's
+// icon, tinted) and a bar for food against that day's goal; the right column is each week's distance. Tap a day for it all.
+const FOODST = {on: ['On target', 'within 10% of your goal'], over: ['Over', 'more than 10% over'], under: ['Under', 'more than 10% under'],
+  partial: ['Partly logged', 'under half a usual day'], today: ['Today', 'so far'], logged: ['Logged', 'no goal set']};
 async function pCalendar(body, q) {
-  const now = new Date(), month = q.get('month') || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [y, m] = month.split('-').map(Number), first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
+  const now = new Date(), cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, month = q.get('month') || cur;
+  const [y, m] = month.split('-').map(Number), first = new Date(y, m - 1, 1);
   const shift = (k) => { const d = new Date(y, m - 1 + k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
-  await load(`/api/calendar?month=${month}`, (rows) => {
-    const by = {}; for (const r of rows) (by[r.d] = by[r.d] || []).push(r);
-    const max = Math.max(1, ...Object.values(by).map((l) => l.reduce((s, r) => s + (r.moving_s || 0), 0)));
-    const today = now.toLocaleDateString('en-CA');
-    let cells = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<div class="dow">${d}</div>`).join('');
-    for (let i = 0; i < (first.getDay() + 6) % 7; i++) cells += '<div class="day out"></div>';
-    for (let d = 1; d <= days; d++) {
-      const key = `${month}-${String(d).padStart(2, '0')}`, l = by[key];
-      const secs = l ? l.reduce((s, r) => s + (r.moving_s || 0), 0) : 0;
-      cells += l ? `<a class="day has${key === today ? ' today' : ''}" href="/activity/${l[0].id}" aria-label="${esc(key)}: ${l.map((r) => r.name).join(', ')}"><span class="blob sp ${esc(l[0].sport)}" data-s="${(0.45 + 0.55 * secs / max).toFixed(2)}"></span><span>${d}</span></a>`
-                 : `<div class="day${key === today ? ' today' : ''}"><span>${d}</span></div>`;
-    }
-    const tot = rows.reduce((a, r) => ({n: a.n + 1, d: a.d + (r.distance_m || 0), t: a.t + (r.moving_s || 0)}), {n: 0, d: 0, t: 0});
-    body.innerHTML = `<div class="card"><div class="top"><button class="icon-btn" id="c-prev" aria-label="Previous month">${svg('back')}</button>
-      <h2>${esc(first.toLocaleDateString([], {month: 'long', year: 'numeric'}))}</h2><button class="icon-btn" id="c-next" aria-label="Next month">${svg('chev')}</button></div>
-      <div class="cal">${cells}</div><div class="bigstat">${stat('Activities', tot.n)}${stat('Distance', U.dist(tot.d, 1), U.du())}</div></div>`;
-    for (const b of $$('.blob', body)) { b.style.setProperty('--s', b.dataset.s); b.style.setProperty('--c', `var(--${[...b.classList].find((c) => c in SPORT_NAMES) || 'accent'})`); }
+  await load(`/api/calendar/month?month=${month}`, (M) => {
+    const S = M.summary, wk = (w) => (w.distance_m ? U.dist(w.distance_m, 1) : w.moving_s ? `${Math.round(w.moving_s / 60)}m` : '');
+    const cell = (x) => {
+      const a = x.acts[0], f = x.food, dn = new Date(x.d + 'T12:00').getDate();
+      const label = [new Date(x.d + 'T12:00').toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}),
+        x.acts.length ? x.acts.map((z) => z.name).join(', ') : 'no workout', f ? `${r0(f.kcal)} kcal${f.status ? ', ' + FOODST[f.status][0].toLowerCase() : ''}` : 'no food logged'].join(': ');
+      return `<button type="button" class="cd${x.in_month ? '' : ' out'}${x.today ? ' today' : ''}${a ? ' has s-' + esc(a.sport) : ''}" data-d="${esc(x.d)}" aria-label="${esc(label)}">
+        <span class="cd-n">${dn}</span><span class="cd-i">${a ? svg(a.sport) + (x.acts.length > 1 ? '<i>+</i>' : '') : ''}</span>
+        <span class="cd-f ${f && f.status ? esc(f.status) : ''}"></span></button>`;
+    };
+    let grid = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<div class="cd-h">${d}</div>`).join('') + `<div class="cd-h">${esc(U.du())}</div>`;
+    for (let i = 0; i < M.days.length; i += 7) grid += M.days.slice(i, i + 7).map(cell).join('') + `<div class="cd-w num">${esc(wk(M.weeks[i / 7]))}</div>`;
+    body.innerHTML = `<div class="card cal2"><div class="cal-nav"><button class="icon-btn" id="c-prev" aria-label="Previous month">${svg('back')}</button>
+        <h2>${esc(first.toLocaleDateString([], {month: 'long', year: 'numeric'}))}</h2><button class="icon-btn" id="c-next" aria-label="Next month"${month >= cur ? ' disabled' : ''}>${svg('chev')}</button></div>
+      <div class="stats3">${stat('Trained', `${S.trained}`, `of ${S.days} days`)}${stat('On target', S.judged ? `${S.on_target}` : '–', S.judged ? `of ${S.judged}` : '')}${stat('Weigh-ins', S.weighed)}</div>
+      <div class="cal-grid" role="grid" aria-label="Days of the month">${grid}</div>
+      <div class="legend cal-legend"><span><span class="lg-i">${svg('run')}</span>Workout</span>${['on', 'over', 'under', 'partial'].map((k) => `<span><span class="cd-f ${k}"></span>${FOODST[k][0]}</span>`).join('')}</div></div>
+      <p class="small muted cal-help">Each day shows your workout and a bar for what you ate against that day's goal. Tap a day for the details.${month < cur ? ` <a href="/progress/calendar">Back to this month</a>` : ''}</p>`;
     $('#c-prev', body).onclick = () => go(`/progress/calendar?month=${shift(-1)}`, {replace: true});
     $('#c-next', body).onclick = () => go(`/progress/calendar?month=${shift(1)}`, {replace: true});
+    $$('.cd', body).forEach((b) => b.onclick = () => calDay(M.days.find((x) => x.d === b.dataset.d), M));
+  });
+}
+function calDay(x, M) {
+  const f = x.food, title = new Date(x.d + 'T12:00').toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'});
+  sheet(title, `<h3 class="ghead">Training</h3>${x.acts.length ? `<div class="card list">${x.acts.map((a) => `<a class="row-link" href="/activity/${a.id}" data-close>${sportMark(a.sport)}
+      <span class="grow"><b>${esc(a.name)}</b><small class="muted">${a.distance_m ? `${esc(U.dist(a.distance_m))} ${esc(U.du())} · ` : ''}${esc(dur(a.moving_s))}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`
+      : '<p class="small muted">Rest day: no workout.</p>'}
+    <h3 class="ghead">Food</h3>${f ? `<div class="card cal-food"><div class="kv"><span>Eaten</span><b class="num">${r0(f.kcal)} kcal${f.goal ? ` <span class="muted">of ${r0(f.goal)}</span>` : ''}</b></div>
+      <div class="kv"><span>Protein</span><b class="num">${r0(f.protein_g)} g${M.protein_target ? ` <span class="muted">of ${r0(M.protein_target)}</span>` : ''}</b></div>
+      ${f.status ? `<div class="kv"><span>How it went</span><b><span class="cd-f ${esc(f.status)}"></span> ${esc(FOODST[f.status][0])} <span class="muted small">${esc(FOODST[f.status][1])}</span></b></div>` : ''}</div>`
+      : '<p class="small muted">Nothing logged.</p>'}
+    ${x.weight_kg ? `<h3 class="ghead">Weigh-in</h3><p class="num"><b>${esc(U.weight(x.weight_kg))} ${imp() ? 'lb' : 'kg'}</b></p>` : ''}
+    <a class="ghost wide" href="/food?d=${esc(x.d)}" data-close>${svg('food')}Open this day's food log</a>`, (b, close) => {
+    $$('[data-close]', b).forEach((l) => l.addEventListener('click', () => close()));
   });
 }
 async function pRoutes(body) {

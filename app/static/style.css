@@ -498,6 +498,32 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .rangebar .ry label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tx2); font-weight: 600; }
 .rangebar select { min-height: 38px; padding: 4px 10px; border-radius: 12px; }
 
+/* Calendar (2026-10-11): workouts + food, day by day */
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.cal-nav h2 { font-size: 19px; font-weight: 750; letter-spacing: -.02em; } .cal-nav .icon-btn { background: var(--card2); box-shadow: none; }
+.cal-nav .icon-btn:disabled { opacity: .35; }
+.cal2 .stats3 { margin-bottom: 16px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) 40px; gap: 4px; align-items: stretch; }
+.cd-h { font-size: 11px; font-weight: 700; color: var(--tx3); text-align: center; padding-bottom: 2px; }
+.cd { --c: var(--tx3); position: relative; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; min-height: 52px; padding: 4px 2px 5px;
+  border: 0; border-radius: 10px; background: var(--card2); color: var(--tx2); font: inherit; min-width: 0; }
+.cd.out { background: transparent; opacity: .45; }
+.cd.has { background: color-mix(in srgb, var(--c) 15%, var(--card)); }
+.cd.s-run { --c: var(--run); } .cd.s-ride { --c: var(--ride); } .cd.s-walk { --c: var(--walk); } .cd.s-hike { --c: var(--hike); } .cd.s-swim { --c: var(--swim); }
+.cd.s-row { --c: var(--row); } .cd.s-ski { --c: var(--ski); } .cd.s-workout { --c: var(--workout); }
+.cd.today { box-shadow: inset 0 0 0 2px var(--ink); }
+.cd:active { transform: scale(.94); }
+.cd-n { font-size: 11px; font-weight: 650; line-height: 1; }
+.cd-i { display: flex; align-items: center; color: var(--c); } .cd-i svg { width: 17px; height: 17px; } .cd-i i { font-style: normal; font-size: 10px; font-weight: 800; }
+.cd-f { display: block; width: 70%; height: 4px; border-radius: 2px; }
+.cd-f.on { background: var(--prog); } .cd-f.over { background: var(--warn); } .cd-f.under { background: var(--s1); }
+.cd-f.partial { background: var(--tx3); opacity: .45; } .cd-f.today, .cd-f.logged { background: var(--tx3); }
+.cd-w { display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--tx2); }
+.cal-legend { margin-top: 14px; font-size: 12px; } .cal-legend .cd-f { width: 16px; }
+.lg-i { display: inline-flex; color: var(--run); } .lg-i svg { width: 15px; height: 15px; }
+.cal-help { margin: 0 4px 12px; }
+.cal-food .kv:first-child { border-top: 0; } .cal-food .kv b { display: inline-flex; align-items: center; gap: 6px; } .cal-food .cd-f { width: 16px; display: inline-block; }
+
 /* ---------- uploads ---------- */
 .upload { display: grid; gap: 10px; }
 .drop { border: 2px dashed var(--line); border-radius: var(--r); padding: 26px 16px; text-align: center; color: var(--tx2); background: var(--card); }

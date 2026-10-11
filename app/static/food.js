@@ -329,12 +329,13 @@ async function tMeals(body, where, close) {
   try {
     const meals = await api('/api/food/meals');
     body.innerHTML = meals.length ? `<div class="results">${meals.map((m, i) => `<div class="fe"><div><b>${esc(m.name)}</b><small class="muted">${m.items.length} items · ${r0(m.totals.protein_g)}P ${r0(m.totals.carbs_g)}C ${r0(m.totals.fat_g)}F</small></div>
-      <div class="r"><b class="num">${r0(m.totals.kcal)}</b><button class="linkbtn" data-log="${i}">Log</button> <button class="linkbtn danger" data-del="${i}">Delete</button></div></div>`).join('')}</div>`
+      <div class="r"><b class="num">${r0(m.totals.kcal)}</b><button class="linkbtn" data-log="${i}">Log</button>${App.me.coach ? ` <button class="linkbtn" data-ai="${i}" aria-label="Coach's take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''} <button class="linkbtn danger" data-del="${i}">Delete</button></div></div>`).join('')}</div>`
       : '<p class="small muted">Save a meal from the "…" button on any meal to log it again in one tap.</p>';
     $$('[data-log]', body).forEach((x) => x.onclick = async () => {
       const m = meals[+x.dataset.log], w = where();
       try { await addEntries(m.items.map((it) => ({...it, ...w, ref: it.ref || null, source: 'meal'}))); close(); toast(`Logged ${m.name}`); } catch (e) { toast(e.message); }
     });
+    $$('[data-ai]', body).forEach((x) => x.onclick = () => mealCoach(meals[+x.dataset.ai]));
     $$('[data-del]', body).forEach((x) => x.onclick = async () => {
       const m = meals[+x.dataset.del]; if (!confirm(`Delete saved meal "${m.name}"?`)) return;
       try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); tMeals(body, where, close); } catch (e) { toast(e.message); }
@@ -832,4 +833,26 @@ function dietCoach(box) {
       catch (x) { toast(x.message); b.disabled = false; b.innerHTML = was; }
     };
   }).catch(() => {});
+}
+
+// AI feedback on a saved meal (food_coach.py): kept on the meal; opens over the Add food sheet
+function mealCoach(m) {
+  sheet(`Coach's take: ${m.name}`, `<div class="card ai coach-card" id="mc-box"></div>`, (b) => {
+    const box = $('#mc-box', b);
+    const draw = (R) => {
+      box.innerHTML = R ? `${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
+        ${R.ideas ? `<h3 class="ghead">Ideas</h3><ul class="ai-list">${R.ideas.map((i) => `<li>${svg('sparkle')}<span><b>${esc(i.change)}</b>${i.effect ? ` <span class="muted">${esc(i.effect)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
+        ${R.note ? `<div class="callout warn">${esc(R.note)}</div>` : ''}
+        <p class="small muted">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</p><button class="linkbtn" id="mc-go">${svg('sparkle')}Ask again</button>`
+        : `<p>Feedback on this meal from your coach: how it fits your day, and a few tweaks with what each one changes.</p><button class="primary wide" id="mc-go">${svg('sparkle')}Get feedback</button>`;
+      const g = $('#mc-go', box);
+      g.onclick = async () => {
+        if (!App.me.ai_ok) { aiSheet(() => g.click()); return; }
+        g.disabled = true; const was = g.innerHTML; g.textContent = 'Reading the meal…';
+        try { m.review = await api(`/api/food/meals/${m.id}/review`, json('POST', {})); invalidate('/api/food/meals'); draw(m.review); }
+        catch (x) { toast(x.message); g.disabled = false; g.innerHTML = was; }
+      };
+    };
+    draw(m.review);
+  });
 }

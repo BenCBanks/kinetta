@@ -538,6 +538,9 @@ MIGRATIONS = [
     #   (kind 'diet').
     """
     ALTER TABLE dishes ADD COLUMN ai_note text, ADD COLUMN ai_note_at timestamptz;
+    """,    # 25 (2026-10-11): AI feedback on a saved meal too (food_coach.py), kept on the meal like a dish's.
+    """
+    ALTER TABLE saved_meals ADD COLUMN ai_note text, ADD COLUMN ai_note_at timestamptz;
     """,
 ]
 

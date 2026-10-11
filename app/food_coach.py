@@ -1,10 +1,10 @@
 """AI feedback on food (2026-10-11): a review of the last two weeks of eating, and feedback on a recipe (a cooking-mode
-dish). Same rules as the coach (coach.py): off until the server has an AI key AND the person turned AI features on;
+dish, or a saved meal). Same rules as the coach (coach.py): off until the server has an AI key AND the person turned AI features on;
 only that person's own numbers are sent; Apple Health workouts only with their OK (the review includes exercise).
 
 The model answers in a small JSON shape so the app can lay it out (a headline, what's going well, what to try); anything
 else it says is kept as plain text. Reviews are kept: the diet review in coach_notes (kind 'diet', one per day), the
-recipe feedback on the dish (dishes.ai_note), so opening the page again costs nothing.
+recipe feedback on the dish or saved meal (ai_note), so opening the page again costs nothing.
 """
 import datetime as dt
 import json
@@ -74,7 +74,8 @@ def _check(c, user_id, health=False):
     if not coach.allowed(user_id): raise HTTPException(400, coach.OFF)
     if health and not coach.health_ok(c, user_id): raise HTTPException(400, coach.HEALTH_NO)
     n = c.execute("""SELECT (SELECT count(*) FROM coach_notes WHERE user_id = %(u)s AND kind = 'diet' AND created > now() - interval '1 day')
-                          + (SELECT count(*) FROM dishes WHERE user_id = %(u)s AND ai_note_at > now() - interval '1 day') AS n""",
+                          + (SELECT count(*) FROM dishes WHERE user_id = %(u)s AND ai_note_at > now() - interval '1 day')
+                          + (SELECT count(*) FROM saved_meals WHERE user_id = %(u)s AND ai_note_at > now() - interval '1 day') AS n""",
                   {'u': user_id}).fetchone()['n']
     if n >= DAILY_LIMIT: raise HTTPException(429, 'Daily limit for food feedback reached - try again tomorrow.')
 
@@ -165,4 +166,41 @@ def recipe_review(did: int, user=Depends(current_user)):
     except ValueError as e: raise HTTPException(400, str(e))
     with db.connect() as c:
         c.execute('UPDATE dishes SET ai_note = %s, ai_note_at = now() WHERE id = %s AND user_id = %s', (json.dumps(out), did, user['id']))
+    return {**out, 'at': dt.datetime.now(dt.timezone.utc)}
+
+
+# ---------- a saved meal (2026-10-11) ----------
+MEAL_SYSTEM = """You are a friendly sports-nutrition coach. You get one meal someone saved to log again (its foods with amounts
+and nutrition, the meal's totals, which meal of the day it usually is, and their daily targets) as JSON. Answer with JSON
+only, no code fences:
+{"summary": 1-2 sentences on this meal for someone who trains: its calories and protein against their day, and what it
+   does well,
+ "ideas": 2-3 specific tweaks, each {"change": what to do with real amounts (max 20 words), "effect": what it changes,
+   with rough numbers (max 20 words)} - for example more protein, more fibre or vegetables, or fewer calories without
+   losing what makes it work,
+ "note": one short line if a food's numbers look wrong, or null}
+Only use the numbers given. Keep it encouraging and practical. No medical claims."""
+
+
+@router.post('/food/meals/{mid:int}/review')
+def meal_review(mid: int, user=Depends(current_user)):
+    """Feedback on a saved meal, kept on the meal."""
+    with db.connect() as c:
+        m = c.execute('SELECT id, name, items, ai_note_at FROM saved_meals WHERE id = %s AND user_id = %s', (mid, user['id'])).fetchone()
+        if not m: raise HTTPException(404, 'Not found')
+        if m['ai_note_at'] and m['ai_note_at'] > dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=AGAIN_AFTER):
+            raise HTTPException(429, 'You just asked - try again in a few minutes.')
+        _check(c, user['id'])
+        p = c.execute('SELECT units, kcal_target, protein_target FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        usual = c.execute("""SELECT meal FROM food_entries WHERE user_id = %s AND source = 'meal' AND name = ANY(%s)
+                             GROUP BY meal ORDER BY count(*) DESC LIMIT 1""", (user['id'], [i.get('name') for i in m['items']])).fetchone()
+    keys = ('name', 'brand', 'amount', 'unit', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')
+    items = [{k: i.get(k) for k in keys if i.get(k) is not None} for i in m['items']]
+    ctx = {'units': p.get('units', 'imperial'), 'meal': m['name'], 'foods': items, 'usual_meal': usual and usual['meal'],
+           'totals': {k: round(sum((i.get(k) or 0) for i in m['items']), 1) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')},
+           'daily_targets': {k: v for k, v in p.items() if k.endswith('_target') and v}}
+    try: out = _ask(ctx, MEAL_SYSTEM)
+    except ValueError as e: raise HTTPException(400, str(e))
+    with db.connect() as c:
+        c.execute('UPDATE saved_meals SET ai_note = %s, ai_note_at = now() WHERE id = %s AND user_id = %s', (json.dumps(out), mid, user['id']))
     return {**out, 'at': dt.datetime.now(dt.timezone.utc)}

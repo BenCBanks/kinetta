@@ -66,7 +66,11 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Cooking mode (2026-10-11, `api_dishes.py` + `static/cook.js`): add ingredients while cooking ("100 g chicken"), or type
       the dish's total; weigh the cooked dish (pans remembered), weigh your plate, and your share is logged; leftovers stay 5 days
 - [x] AI feedback on food (2026-10-11, `food_coach.py`): a review of the last two weeks of eating (going well, what to
-      try, anything to watch) on Nutrition > Trends, and feedback on a dish's recipe (per portion + tweaks); AI consent rules apply
+      try, anything to watch) on Nutrition > Trends, and feedback on a dish's recipe or a saved meal (per portion + tweaks);
+      AI consent rules apply
+
+- [x] Calendar (2026-10-11): the month at a glance for training and food together - each day's workout and whether you
+      ate on target, weekly distance, trained / on-target / weigh-in counts; tap a day for the details
 
 ## Platform
 - [x] One-command Docker install; passwords generated on first start; first account becomes the admin
