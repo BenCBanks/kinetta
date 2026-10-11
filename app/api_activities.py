@@ -34,8 +34,15 @@ def polyline(coords):
     return ''.join(out)
 
 
+# Map detail (2026-10-11). Stored tracks stay within ~1 m of the watch's points. The activity map gets all of them;
+# feed/list previews are simplified to ~4 m (was ~27 m: corners were cut off). Route matching does its own coarse
+# simplification in activities.match_route, so map detail never slows it down.
+DETAIL_TOL, PREVIEW_TOL = 0, 0.00004
+
+
 def _line(c, aid, tol):
-    r = c.execute('SELECT ST_AsGeoJSON(ST_Simplify(geom, %s)) AS g FROM activities WHERE id = %s', (tol, aid)).fetchone()
+    r = c.execute('SELECT ST_AsGeoJSON(CASE WHEN %s > 0 THEN ST_Simplify(geom, %s) ELSE geom END) AS g FROM activities WHERE id = %s',
+                  (tol, tol, aid)).fetchone()
     return polyline(json.loads(r['g'])['coordinates']) if r and r['g'] else None
 
 
@@ -80,12 +87,12 @@ LIST_COLS = """a.id, a.sport, a.name, a.start_time, a.tz, a.distance_m, a.moving
 def feed(before: str | None = None, sport: str | None = None, q: str | None = None, limit: int = 20,
          user=Depends(current_user)):
     limit = max(1, min(limit, 100))
-    sql = f"""SELECT {LIST_COLS}, ST_AsGeoJSON(ST_Simplify(a.geom, 0.0003)) AS g,
+    sql = f"""SELECT {LIST_COLS}, ST_AsGeoJSON(ST_Simplify(a.geom, %s)) AS g,
                  (SELECT count(*) FROM best_efforts b WHERE b.activity_id = a.id AND NOT EXISTS (
                     SELECT 1 FROM best_efforts p WHERE p.user_id = b.user_id AND p.sport = b.sport AND p.distance_m = b.distance_m
                       AND p.start_time < b.start_time AND p.elapsed_s <= b.elapsed_s)) AS prs
               FROM activities a WHERE a.user_id = %s"""
-    args = [user['id']]
+    args = [PREVIEW_TOL, user['id']]
     if before: sql += ' AND a.start_time < %s'; args.append(before)
     if sport in SPORTS: sql += ' AND a.sport = %s'; args.append(sport)
     if q: sql += ' AND (a.name ILIKE %s OR a.description ILIKE %s)'; args += [f'%{q}%'] * 2
@@ -117,7 +124,7 @@ def detail(aid: int, user=Depends(current_user)):
                          WHERE a.id = %s AND a.user_id = %s""", (aid, user['id'])).fetchone()
         if not a: raise HTTPException(404, 'Not found')
         for k in ('geom', 'start_pt', 'end_pt', 'file_path', 'file_sha256', 'user_id'): a.pop(k, None)
-        a['line'] = _line(c, aid, 0.00002)
+        a['line'] = _line(c, aid, DETAIL_TOL)
         a['efforts'] = _rank_efforts(c, user['id'], aid)
         a['similar'] = _similar(c, user['id'], aid, 6)
     return a
@@ -265,9 +272,9 @@ def routes(user=Depends(current_user)):
         return c.execute("""
             SELECT r.id, r.name, r.sport, count(a.id) AS count, min(a.moving_s) AS best_s, max(a.start_time) AS last,
                    avg(a.distance_m) AS distance_m,
-                   (SELECT ST_AsGeoJSON(ST_Simplify(x.geom, 0.0003)) FROM activities x WHERE x.route_id = r.id ORDER BY x.start_time DESC LIMIT 1) AS g
+                   (SELECT ST_AsGeoJSON(ST_Simplify(x.geom, %s)) FROM activities x WHERE x.route_id = r.id ORDER BY x.start_time DESC LIMIT 1) AS g
             FROM routes r JOIN activities a ON a.route_id = r.id WHERE r.user_id = %s
-            GROUP BY r.id ORDER BY count(a.id) DESC, max(a.start_time) DESC""", (user['id'],)).fetchall()
+            GROUP BY r.id ORDER BY count(a.id) DESC, max(a.start_time) DESC""", (PREVIEW_TOL, user['id'])).fetchall()
 
 
 @router.get('/routes/{rid}')
@@ -277,7 +284,7 @@ def route(rid: int, user=Depends(current_user)):
         if not r: raise HTTPException(404, 'Not found')
         acts = c.execute("""SELECT id, name, start_time, distance_m, moving_s, avg_hr, gap_s_per_km, avg_temp, effort FROM activities
                             WHERE route_id = %s AND user_id = %s ORDER BY start_time""", (rid, user['id'])).fetchall()
-        g = c.execute("""SELECT ST_AsGeoJSON(ST_Simplify(geom, 0.00003)) AS g FROM activities WHERE route_id = %s AND user_id = %s
+        g = c.execute("""SELECT ST_AsGeoJSON(geom) AS g FROM activities WHERE route_id = %s AND user_id = %s
                          ORDER BY start_time DESC LIMIT 1""", (rid, user['id'])).fetchone()
     days = lambda t: t.timestamp() / 86400
     pace = [(days(a['start_time']), a['moving_s'] / a['distance_m'] * 1000) for a in acts if a['moving_s'] and a['distance_m']]
