@@ -10,15 +10,49 @@ function headline(a) {
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
   return first + (a.distance_m ? stat(r.label, r.v, r.u) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
 }
-function actCard(a) {
+// One card for every activity in a list (2026-10-11 redesign, Strava-style): who and when, the name, three numbers, the
+// map edge to edge, then cheers and comments. `who` adds the person (the Feed); without it the sport leads (Mine, Today).
+// The card is a link; the footer sits outside it so the Cheer button is a real button.
+function postCard(a, {who = false} = {}) {
+  const theirs = !!a.owner, href = theirs ? `/activity/friends/${a.id}` : `/activity/${a.id}`;
+  const kind = a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? a.sport_label : SPORT_NAMES[a.sport];
   const badges = [];
   if (a.prs) badges.push(`<span class="badge pr">${svg('trophy')} ${a.prs} PR${a.prs > 1 ? 's' : ''}</span>`);
   if (a.route_id) badges.push('<span class="badge">Matched route</span>');
   if (a.commute) badges.push('<span class="badge">Commute</span>');
-  return `<a class="card tap act${a.line ? ' has-map' : ' no-route'}" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
-    <div><div class="hd">${sportMark(a.sport)}<div><b>${esc(a.name)}</b><small>${esc(when(a.start_time))}${a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? ' · ' + esc(a.sport_label) : ''}</small></div></div>
-    <div class="stats3">${headline(a)}</div>${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}</div>
-    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}</a>`;
+  const head = who ? `${avatar(theirs ? a.owner : App.me)}<span class="ph-txt"><b>${theirs ? esc(a.owner.name) : 'You'}</b><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>${sportMark(a.sport)}`
+    : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>`;
+  const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
+  const vis = a.visibility || 'me';
+  const foot = theirs
+    ? `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
+       <a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>`
+    : `<span class="pf static">${svg('cheer')}${n('cheers')}<span class="vh">${a.cheers || 0} ${esc(CHEER.many)}</span></span><a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>
+       <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`;
+  return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
+    <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
+    <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
+    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}</a>
+    <div class="post-ft">${foot}</div></article>`;
+}
+function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
+  const st = [];
+  if (a.distance_m) st.push(stat('Distance', U.dist(a.distance_m), U.du()));
+  if (a.distance_m && a.moving_s && a.shares.pace) { const r = rate(a); st.push(stat(r.label, r.v, r.u)); }
+  st.push(stat('Time', dur(a.moving_s || a.elapsed_s)));
+  if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
+  return st.slice(0, 3).join('');
+}
+// Cheer straight from a feed card: the count changes at once and goes back if the server says no
+function wireCheers(box) {
+  $$('[data-cheer]', box).forEach((b) => b.onclick = async () => {
+    const on = b.getAttribute('aria-pressed') !== 'true', id = b.dataset.cheer;
+    const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
+    const shift = (d) => { const c = cnt(), v = (+c.textContent || 0) + d; c.textContent = v || ''; b.setAttribute('aria-pressed', String(d > 0)); };
+    shift(on ? 1 : -1); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
+    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); invalidate('/api/shared/' + id); App.cache.delete('feed:home'); }
+    catch (x) { shift(on ? -1 : 1); toast(x.message); }
+  });
 }
 const backBtn = (label = 'Back') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
 function wireBack(el, fallback) {
@@ -32,8 +66,8 @@ const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 route(/^\/today$/, 'today', async (el) => {
   const first = App.me.name.split(' ')[0];
   const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', timeZone: tz()});
-  el.innerHTML = `<div class="top"><div><h1>Hi, ${esc(first)}</h1><div class="sub">${esc(day)}</div></div>
-    <div class="acts"><button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
+  el.innerHTML = `<div class="top"><div><div class="eyebrow">${esc(day)}</div><h1>Hi, ${esc(first)}</h1></div>
+    <div class="acts"><a class="icon-btn bell" href="/me/notifications" aria-label="Notifications">${svg('bell')}<span class="bell-dot"${App.me.notifications ? '' : ' hidden'}></span></a><button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
     <div id="t-week">${skel(1)}</div><div id="t-plan"></div><div id="t-food"></div><div id="t-goals"></div><div id="t-review"></div><div id="t-last"></div><div id="t-form"></div>`;
   planCard($('#t-plan', el)).catch(() => {});
   todayFoodCard($('#t-food', el)).catch(() => {});
@@ -74,7 +108,7 @@ route(/^\/today$/, 'today', async (el) => {
   }).catch(() => {});
   const [feed, st, fit, goals] = await Promise.all([
     load('/api/activities?limit=3', (d) => {
-      $('#t-last', el).innerHTML = d.length ? `<h2 class="sec-head">Latest<a href="/activity">See all ›</a></h2>${d.map(actCard).join('')}` :
+      $('#t-last', el).innerHTML = d.length ? `<h2 class="sec-head">Latest<a href="/activity">See all ›</a></h2>${d.map((x) => postCard(x)).join('')}` :
         `<div class="card empty"><b>No activities yet</b>Upload your Garmin or Strava files to get started.<br><br><a class="primary" href="/me/import">Upload activities</a></div>`;
       feedMaps($('#t-last', el));
     }),
@@ -133,15 +167,17 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
   .observe(document.documentElement, {childList: true, subtree: true});
 
 // ---------- Activity feed ----------
-// Mine | Friends at the top of the Activity tab (the Friends view is in social.js)
-const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'friends'}">Mine</button><button data-whose="friends" aria-pressed="${cur === 'friends'}">Friends</button></div>`;
+// Feed | Mine at the top of the Activity tab (2026-10-11): the Feed (yours and your friends', newest first) leads;
+// Mine is only yours, with filters and search. The Feed itself is in social.js.
+const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'mine'}">Feed</button><button data-whose="mine" aria-pressed="${cur === 'mine'}">Mine</button></div>`;
 const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () => go('/activity' + (b.dataset.whose ? '?view=' + b.dataset.whose : ''), {replace: true}));
+const actTop = (search) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
+    <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>`;
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
-  if (q.get('view') === 'friends') return friendsFeed(el);
+  if (q.get('view') !== 'mine') return homeFeed(el);
   const sports = ['', 'run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
-  el.innerHTML = `<div class="top"><h1>Activity</h1><div class="acts"><button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>
-    <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>${whoseSeg('')}
+  el.innerHTML = `${actTop(true)}${whoseSeg('mine')}
     <form id="f-sform" class="${term ? '' : 'hidden'}" role="search"><input type="search" name="q" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form>
     <div class="chips" role="group" aria-label="Sport">${sports.map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s === 'other' ? 'Other' : s ? SPORT_NAMES[s] + 's' : 'All'}</button>`).join('')}</div>
     <div class="feed-list" id="f-list">${skel(4)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
@@ -155,7 +191,7 @@ route(/^\/activity$/, 'activity', async (el) => {
   let items = [];
   const draw = (rows) => {
     items = rows;
-    list.innerHTML = rows.length ? rows.map(actCard).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : 'Upload FIT, GPX or TCX files, or your whole Strava export.'}</div>`;
+    list.innerHTML = rows.length ? rows.map((x) => postCard(x)).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : 'Upload FIT, GPX or TCX files, or your whole Strava export.'}</div>`;
     more.hidden = rows.length < 25 || rows.length % 25 !== 0;
     feedMaps(list);
   };
@@ -165,7 +201,7 @@ route(/^\/activity$/, 'activity', async (el) => {
     try {
       const rows = await api(base + '&before=' + encodeURIComponent(items[items.length - 1].start_time));
       items = items.concat(rows); App.cache.set(base, {data: items, at: Date.now()});
-      list.insertAdjacentHTML('beforeend', rows.map(actCard).join('')); more.hidden = rows.length < 25; feedMaps(list);
+      list.insertAdjacentHTML('beforeend', rows.map((x) => postCard(x)).join('')); more.hidden = rows.length < 25; feedMaps(list);
     } catch (e) { toast(e.message); }
     more.disabled = false; more.textContent = 'Show more';
   };
@@ -232,8 +268,8 @@ function drawDetail(el, a) {
   const splits = imp() ? a.splits_mi : a.splits_km;
   el.innerHTML = `<div class="top">${backBtn('Activity')}<div><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>
     ${a.line ? `<div class="map big lead" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
-    <div class="d-title card"><div class="hd act"><div class="hd">${sportMark(a.sport)}<div><h1>${esc(a.name)}</h1>
-      <div class="sub">${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</div></div></div></div>
+    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span></div>
+      <h1>${esc(a.name)}</h1>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       <div class="hero">${hero}</div><div class="hero more">${sportStats(a)}</div>
       ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}
@@ -387,7 +423,7 @@ function editActivity(a) {
 // ---------- Matched route ----------
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn()}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
-  wireBack(el, '/progress?view=routes');
+  wireBack(el, '/progress/routes');
   await load(`/api/routes/${id}`, (r) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
     const pts = acts.filter((a) => a.moving_s && a.distance_m).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.moving_s / a.distance_m * 1000, id: a.id}));
@@ -406,7 +442,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
       <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
         <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
         <div class="r"><b class="num">${dur(a.moving_s)}</b><br><small class="muted num">${foot ? U.pace(a.moving_s / a.distance_m * 1000) + U.pu() : U.speed(a.distance_m / a.moving_s) + ' ' + U.su()}</small></div></a>`).join('')}</div>`;
-    wireBack(el, '/progress?view=routes');
+    wireBack(el, '/progress/routes');
     requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
     if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).catch(() => {}));
     $('#r-edit', el).onclick = () => sheet('Rename route', `<form class="form"><label>Name<input name="name" value="${esc(r.name)}" maxlength="120" enterkeyhint="done"></label>
@@ -416,17 +452,54 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   });
 });
 
-// ---------- Progress ----------
-const VIEWS = [['mileage', 'Mileage'], ['plan', 'Plan'], ['trends', 'Trends'], ['fitness', 'Fitness'], ['records', 'Records'], ['routes', 'Routes'], ['calendar', 'Calendar'], ['heatmap', 'Heatmap']];
+// ---------- Progress (2026-10-11): three views, one sport choice, the deeper views in a list ----------
+// Ben: "way too many pills". The tab now has one segmented control (Totals | Fitness | Records) and one sport button
+// in the header that every view follows (remembered on this phone). Year over year, Calendar, Routes, Heatmap and the
+// training plan open from the "More" list as their own pages.
+const PVIEWS = [['totals', 'Totals'], ['fitness', 'Fitness'], ['records', 'Records']];
+const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
+const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
+  ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
+  ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-berry'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
+function pSport(q) {
+  let s = q.get('sport'); if (!s) try { s = localStorage.getItem('fit.psport'); } catch (e) { /* no storage */ }
+  return PSPORTS.some((p) => p[0] === s) ? s : 'run';
+}
+const sportBtn = (cur) => { const k = cur || 'all', n = PSPORTS.find((p) => p[0] === k)[1];   // the sport this view shows
+  return `<button type="button" class="range-btn sport-btn" id="p-sport" aria-label="Sport: ${esc(n)}. Change">${svg(k === 'all' ? 'activity' : k)}<span>${esc(n)}</span>${svg('down')}</button>`; };
+function wireSport(el, cur) {
+  const b = $('#p-sport', el); if (!b) return;
+  b.onclick = () => sheet('Sport', `<div class="pick-list">${PSPORTS.map(([k, n]) => `<button type="button" class="row-link" data-ps="${k}"><span class="ri c-grey">${svg(k === 'all' ? 'activity' : k)}</span><span class="grow">${esc(n)}</span>${k === cur ? `<span class="tick">${svg('check')}</span>` : ''}</button>`).join('')}</div>`, (sb, close) => {
+    $$('[data-ps]', sb).forEach((x) => x.onclick = () => {
+      try { localStorage.setItem('fit.psport', x.dataset.ps); } catch (e) { /* no storage */ }
+      const u = new URLSearchParams(location.search); u.set('sport', x.dataset.ps); close(); go(location.pathname + '?' + u.toString(), {replace: true});
+    });
+  });
+}
+// each view takes the sports it can show: the shared choice, mapped to the nearest one it has
+const forView = (sport, view) => ({totals: {hike: 'walk'}, records: {all: 'run'}, trends: {hike: 'walk', all: 'run'}, heatmap: {all: ''}}[view] || {})[sport] ?? sport;
 route(/^\/progress$/, 'progress', async (el) => {
-  const q = new URLSearchParams(location.search), view = q.get('view') === 'totals' ? 'mileage' : q.get('view') || 'mileage';
-  el.innerHTML = `<div class="top"><h1>Progress</h1></div>
-    <div class="seg wide ptabs" role="group" aria-label="View">${VIEWS.map(([k, n]) => `<button data-v="${k}" aria-pressed="${k === view}">${n}</button>`).join('')}</div>
-    <div id="p-body">${skel(2)}</div>`;
-  $$('.seg button', el).forEach((b) => b.onclick = () => go('/progress?view=' + b.dataset.v, {replace: true}));
-  const on = $('.seg button[aria-pressed="true"]', el); if (on) on.scrollIntoView({block: 'nearest', inline: 'center'});
-  const body = $('#p-body', el);
-  await ({mileage: pMileage, plan: (box) => planInto(box), trends: pTrends, fitness: pFitness, records: pRecords, calendar: pCalendar, routes: pRoutes, heatmap: pHeatmap}[view] || pMileage)(body, q);
+  const q = new URLSearchParams(location.search), v0 = q.get('view') || 'totals';
+  if (v0 === 'plan') return go('/plan', {replace: true});
+  if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
+  const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
+  el.innerHTML = `<div class="top"><h1>Progress</h1>${view === 'fitness' ? '' : `<div class="acts">${sportBtn(forView(sport, view))}</div>`}</div>
+    <div class="seg wide three" role="group" aria-label="View">${PVIEWS.map(([k, n]) => `<button data-v="${k}" aria-pressed="${k === view}">${n}</button>`).join('')}</div>
+    <div id="p-body">${skel(2)}</div>
+    <h2 class="sec-head">More</h2><div class="card list">${PMORE.map(([k, n, d, ic, c]) => `<a class="row-link" href="${k === 'plan' ? '/plan' : '/progress/' + k}"><span class="ri ${c}">${svg(ic)}</span>
+      <span class="grow"><span>${esc(n)}</span><small class="muted">${esc(d)}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`;
+  $$('[data-v]', el).forEach((b) => b.onclick = () => { const u = new URLSearchParams(location.search); u.set('view', b.dataset.v); go('/progress?' + u.toString(), {replace: true}); });
+  wireSport(el, sport);
+  q.set('sport', forView(sport, view));
+  await ({totals: pMileage, fitness: pFitness, records: pRecords}[view])($('#p-body', el), q);
+});
+route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, view) => {
+  const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
+  const name = PMORE.find((m) => m[0] === view)[1];
+  el.innerHTML = `<div class="top">${backBtn('Progress')}${withSport ? `<div class="acts">${sportBtn(forView(sport, view))}</div>` : ''}</div><h1>${esc(name)}</h1><div id="p-body">${skel(2)}</div>`;
+  wireBack(el, '/progress'); wireSport(el, sport);
+  q.set('sport', forView(sport, view));
+  await ({trends: pTrends, calendar: pCalendar, routes: pRoutes, heatmap: pHeatmap}[view])($('#p-body', el), q);
 });
 async function pFitness(body, q) {
   const R = getRange(q), nowY = new Date().getFullYear();
@@ -455,8 +528,7 @@ async function pFitness(body, q) {
 }
 async function pRecords(body, q) {
   const sport = q.get('sport') || 'run';
-  body.innerHTML = `<div class="chips">${['run', 'ride', 'walk', 'hike'].map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${SPORT_NAMES[s]}</button>`).join('')}</div><div id="r-body">${skel(2)}</div>`;
-  $$('.chip', body).forEach((b) => b.onclick = () => go(`/progress?view=records&sport=${b.dataset.s}`, {replace: true}));
+  body.innerHTML = `<div id="r-body">${skel(2)}</div>`;
   await load(`/api/records?sport=${sport}`, (r) => {
     const yr = new Date().getFullYear();
     $('#r-body', body).innerHTML = r.efforts.length ? `<div class="card"><table class="tbl"><thead><tr><th>Distance</th><th class="r">Best</th><th class="r">${yr}</th></tr></thead><tbody>
@@ -527,18 +599,13 @@ function monthSeries(firstYm, get) {   // every month from firstYm to this month
   }
   return out;
 }
-function filterBar(items, cur, attr) {
-  return items.map(([k, n]) => `<button class="chip" data-${attr}="${k}" aria-pressed="${k === cur}">${esc(n)}</button>`).join('');
-}
 async function pMileage(body, q) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
-  const nav = (o) => { const u = new URLSearchParams(location.search); u.set('view', 'mileage'); u.set('sport', o.sport || sport); u.set('period', o.period || period); go('/progress?' + u.toString(), {replace: true}); };
-  const R = getRange(q), scoped = !!(R.from || R.to);
-  body.innerHTML = `<div class="filters"><div class="chips">${filterBar([['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['all', 'All']], sport, 's')}</div>
-    <div class="frow"><div class="seg" role="group" aria-label="Period">${[['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']].map(([k, n]) => `<button data-p="${k}" aria-pressed="${k === period}">${n}</button>`).join('')}</div><div class="rng"></div></div></div>
+  const nav = (o) => { const u = new URLSearchParams(location.search); u.set('view', 'totals'); u.set('period', o.period || period); go('/progress?' + u.toString(), {replace: true}); };
+  const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
+  body.innerHTML = `<div class="seg wide three period" role="group" aria-label="Period">${[['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']].map(([k, n]) => `<button data-p="${k}" aria-pressed="${k === period}">${n}</button>`).join('')}</div>
     <div id="m-body">${skel(2)}</div>`;
-  $$('.filters .chip', body).forEach((b) => b.onclick = () => nav({sport: b.dataset.s}));
-  $$('.seg button', body).forEach((b) => b.onclick = () => nav({period: b.dataset.p}));
+  $$('[data-p]', body).forEach((b) => b.onclick = () => nav({period: b.dataset.p}));
   await load(`/api/progress/volume?period=${period}`, (r) => {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
@@ -550,7 +617,6 @@ async function pMileage(body, q) {
     for (let d = start(first); d <= today; ) { all.push(new Date(d)); if (period === 'week') d.setDate(d.getDate() + 7); else if (period === 'month') d.setMonth(d.getMonth() + 1); else d.setFullYear(d.getFullYear() + 1); }
     const val = (d, f = 'd') => { const o = by[ymd(d)] || {}; return keys.reduce((s, k) => s + Number((o[k.k] || {})[f] || 0), 0); };
     const label = (d) => period === 'week' ? 'Week of ' + d.toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}) : period === 'month' ? d.toLocaleDateString([], {month: 'long', year: 'numeric'}) : String(d.getFullYear());
-    rangeBar($('.rng', body), R, first.getFullYear());
     const show = scoped ? all.filter((d) => inRange(R, d.getFullYear())) : period === 'week' ? all.slice(-26) : period === 'month' ? all.slice(-24) : all;
     if (!show.length) { box.innerHTML = '<div class="card empty"><b>Nothing in this range</b>Pick other years above.</div>'; return; }
     const cols = show.map((d, i) => {
@@ -583,8 +649,7 @@ async function pMileage(body, q) {
 async function pTrends(body, q) {
   const sport = q.get('sport') || 'run', foot = sport !== 'ride';
   const R = getRange(q);
-  body.innerHTML = `<div class="filters"><div class="chips">${filterBar([['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks']], sport, 's')}</div></div><div class="rng"></div><div id="g-body">${skel(3)}</div>`;
-  $$('.filters .chip', body).forEach((b) => b.onclick = () => { const u = new URLSearchParams(location.search); u.set('sport', b.dataset.s); go('/progress?' + u.toString(), {replace: true}); });
+  body.innerHTML = `<div class="rng"></div><div id="g-body">${skel(3)}</div>`;
   await load(`/api/progress/trends?sport=${sport}`, (r) => {
     const box = $('#g-body', body); if (!box) return;
     const noun = {run: 'runs', ride: 'rides', walk: 'walks'}[sport], one = noun.slice(0, -1);
@@ -633,29 +698,49 @@ async function pTrends(body, q) {
     });
   });
 }
+// The month at a glance (2026-10-11): what you did and how you ate, day by day. Each day shows its workout (the sport's
+// icon, tinted) and a bar for food against that day's goal; the right column is each week's distance. Tap a day for it all.
+const FOODST = {on: ['On target', 'within 10% of your goal'], over: ['Over', 'more than 10% over'], under: ['Under', 'more than 10% under'],
+  partial: ['Partly logged', 'under half a usual day'], today: ['Today', 'so far'], logged: ['Logged', 'no goal set']};
 async function pCalendar(body, q) {
-  const now = new Date(), month = q.get('month') || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [y, m] = month.split('-').map(Number), first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
+  const now = new Date(), cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, month = q.get('month') || cur;
+  const [y, m] = month.split('-').map(Number), first = new Date(y, m - 1, 1);
   const shift = (k) => { const d = new Date(y, m - 1 + k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
-  await load(`/api/calendar?month=${month}`, (rows) => {
-    const by = {}; for (const r of rows) (by[r.d] = by[r.d] || []).push(r);
-    const max = Math.max(1, ...Object.values(by).map((l) => l.reduce((s, r) => s + (r.moving_s || 0), 0)));
-    const today = now.toLocaleDateString('en-CA');
-    let cells = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<div class="dow">${d}</div>`).join('');
-    for (let i = 0; i < (first.getDay() + 6) % 7; i++) cells += '<div class="day out"></div>';
-    for (let d = 1; d <= days; d++) {
-      const key = `${month}-${String(d).padStart(2, '0')}`, l = by[key];
-      const secs = l ? l.reduce((s, r) => s + (r.moving_s || 0), 0) : 0;
-      cells += l ? `<a class="day has${key === today ? ' today' : ''}" href="/activity/${l[0].id}" aria-label="${esc(key)}: ${l.map((r) => r.name).join(', ')}"><span class="blob sp ${esc(l[0].sport)}" data-s="${(0.45 + 0.55 * secs / max).toFixed(2)}"></span><span>${d}</span></a>`
-                 : `<div class="day${key === today ? ' today' : ''}"><span>${d}</span></div>`;
-    }
-    const tot = rows.reduce((a, r) => ({n: a.n + 1, d: a.d + (r.distance_m || 0), t: a.t + (r.moving_s || 0)}), {n: 0, d: 0, t: 0});
-    body.innerHTML = `<div class="card"><div class="top"><button class="icon-btn" id="c-prev" aria-label="Previous month">${svg('back')}</button>
-      <h2>${esc(first.toLocaleDateString([], {month: 'long', year: 'numeric'}))}</h2><button class="icon-btn" id="c-next" aria-label="Next month">${svg('chev')}</button></div>
-      <div class="cal">${cells}</div><div class="bigstat">${stat('Activities', tot.n)}${stat('Distance', U.dist(tot.d, 1), U.du())}</div></div>`;
-    for (const b of $$('.blob', body)) { b.style.setProperty('--s', b.dataset.s); b.style.setProperty('--c', `var(--${[...b.classList].find((c) => c in SPORT_NAMES) || 'accent'})`); }
-    $('#c-prev', body).onclick = () => go(`/progress?view=calendar&month=${shift(-1)}`, {replace: true});
-    $('#c-next', body).onclick = () => go(`/progress?view=calendar&month=${shift(1)}`, {replace: true});
+  await load(`/api/calendar/month?month=${month}`, (M) => {
+    const S = M.summary, wk = (w) => (w.distance_m ? U.dist(w.distance_m, 1) : w.moving_s ? `${Math.round(w.moving_s / 60)}m` : '');
+    const cell = (x) => {
+      const a = x.acts[0], f = x.food, dn = new Date(x.d + 'T12:00').getDate();
+      const label = [new Date(x.d + 'T12:00').toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}),
+        x.acts.length ? x.acts.map((z) => z.name).join(', ') : 'no workout', f ? `${r0(f.kcal)} kcal${f.status ? ', ' + FOODST[f.status][0].toLowerCase() : ''}` : 'no food logged'].join(': ');
+      return `<button type="button" class="cd${x.in_month ? '' : ' out'}${x.today ? ' today' : ''}${a ? ' has s-' + esc(a.sport) : ''}" data-d="${esc(x.d)}" aria-label="${esc(label)}">
+        <span class="cd-n">${dn}</span><span class="cd-i">${a ? svg(a.sport) + (x.acts.length > 1 ? '<i>+</i>' : '') : ''}</span>
+        <span class="cd-f ${f && f.status ? esc(f.status) : ''}"></span></button>`;
+    };
+    let grid = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<div class="cd-h">${d}</div>`).join('') + `<div class="cd-h">${esc(U.du())}</div>`;
+    for (let i = 0; i < M.days.length; i += 7) grid += M.days.slice(i, i + 7).map(cell).join('') + `<div class="cd-w num">${esc(wk(M.weeks[i / 7]))}</div>`;
+    body.innerHTML = `<div class="card cal2"><div class="cal-nav"><button class="icon-btn" id="c-prev" aria-label="Previous month">${svg('back')}</button>
+        <h2>${esc(first.toLocaleDateString([], {month: 'long', year: 'numeric'}))}</h2><button class="icon-btn" id="c-next" aria-label="Next month"${month >= cur ? ' disabled' : ''}>${svg('chev')}</button></div>
+      <div class="stats3">${stat('Trained', `${S.trained}`, `of ${S.days} days`)}${stat('On target', S.judged ? `${S.on_target}` : '–', S.judged ? `of ${S.judged}` : '')}${stat('Weigh-ins', S.weighed)}</div>
+      <div class="cal-grid">${grid}</div>
+      <div class="legend cal-legend"><span><span class="lg-i">${svg('run')}</span>Workout</span>${['on', 'over', 'under', 'partial'].map((k) => `<span><span class="cd-f ${k}"></span>${FOODST[k][0]}</span>`).join('')}</div></div>
+      <p class="small muted cal-help">Each day shows your workout and a bar for what you ate against that day's goal. Tap a day for the details.${month < cur ? ` <a href="/progress/calendar">Back to this month</a>` : ''}</p>`;
+    $('#c-prev', body).onclick = () => go(`/progress/calendar?month=${shift(-1)}`, {replace: true});
+    $('#c-next', body).onclick = () => go(`/progress/calendar?month=${shift(1)}`, {replace: true});
+    $$('.cd', body).forEach((b) => b.onclick = () => calDay(M.days.find((x) => x.d === b.dataset.d), M));
+  });
+}
+function calDay(x, M) {
+  const f = x.food, title = new Date(x.d + 'T12:00').toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'});
+  sheet(title, `<h3 class="ghead">Training</h3>${x.acts.length ? `<div class="card list">${x.acts.map((a) => `<a class="row-link" href="/activity/${a.id}" data-close>${sportMark(a.sport)}
+      <span class="grow"><b>${esc(a.name)}</b><small class="muted">${a.distance_m ? `${esc(U.dist(a.distance_m))} ${esc(U.du())} · ` : ''}${esc(dur(a.moving_s))}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`
+      : '<p class="small muted">Rest day: no workout.</p>'}
+    <h3 class="ghead">Food</h3>${f ? `<div class="card cal-food"><div class="kv"><span>Eaten</span><b class="num">${r0(f.kcal)} kcal${f.goal ? ` <span class="muted">of ${r0(f.goal)}</span>` : ''}</b></div>
+      <div class="kv"><span>Protein</span><b class="num">${r0(f.protein_g)} g${M.protein_target ? ` <span class="muted">of ${r0(M.protein_target)}</span>` : ''}</b></div>
+      ${f.status ? `<div class="kv"><span>How it went</span><b><span class="cd-f ${esc(f.status)}"></span> ${esc(FOODST[f.status][0])} <span class="muted small">${esc(FOODST[f.status][1])}</span></b></div>` : ''}</div>`
+      : '<p class="small muted">Nothing logged.</p>'}
+    ${x.weight_kg ? `<h3 class="ghead">Weigh-in</h3><p class="num"><b>${esc(U.weight(x.weight_kg))} ${imp() ? 'lb' : 'kg'}</b></p>` : ''}
+    <a class="ghost wide" href="/food?d=${esc(x.d)}" data-close>${svg('food')}Open this day's food log</a>`, (b, close) => {
+    $$('[data-close]', b).forEach((l) => l.addEventListener('click', () => close()));
   });
 }
 async function pRoutes(body) {
@@ -674,8 +759,7 @@ function polyFromGeo(g) {   // GeoJSON -> encoded polyline (re-use miniRoute)
 }
 async function pHeatmap(body, q) {
   const sport = q.get('sport') || '';
-  body.innerHTML = `<div class="chips">${['', 'run', 'ride', 'walk', 'hike'].map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s ? SPORT_NAMES[s] : 'All'}</button>`).join('')}</div><div class="map tall" id="h-map"></div>`;
-  $$('.chip', body).forEach((b) => b.onclick = () => go(`/progress?view=heatmap${b.dataset.s ? '&sport=' + b.dataset.s : ''}`, {replace: true}));
+  body.innerHTML = '<div class="map tall" id="h-map"></div>';
   const lines = await api(`/api/heatmap${sport ? '?sport=' + sport : ''}`);
   if (!lines.length) { $('#h-map', body).outerHTML = '<div class="card empty"><b>Nothing to map yet</b>Activities with GPS show up here.</div>'; return; }
   await mapInto($('#h-map', body), lines, {heat: true});
@@ -684,35 +768,38 @@ async function pHeatmap(body, q) {
 // ---------- Me ----------
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
-  // profile header (2026-10-11 polish): initial, name, username; the long settings form now opens in a sheet
-  el.innerHTML = `<div class="profile"><span class="avatar" aria-hidden="true">${esc((me.name.trim()[0] || '?').toUpperCase())}</span><div><h1>${esc(me.name)}</h1><div class="sub">${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
-    <div class="card"><a class="row-link" href="/me/friends"><span>Friends</span><span class="val">${me.friend_requests ? `<span class="badge on">${me.friend_requests} waiting</span>` : ''}<span class="chev">${svg('chev')}</span></span></a>
-      <a class="row-link" href="/me/sharing"><span>Sharing</span><span class="val">Who sees your activities<span class="chev">${svg('chev')}</span></span></a></div>
-    <div class="card"><a class="row-link" href="/me/import"><span>Upload activities</span><span class="chev">${svg('chev')}</span></a>
-      <button class="row-link" data-addact><span>Add an activity by hand</span><span class="chev">${svg('chev')}</span></button>
-      ${Native.on ? `<a class="row-link" href="/me/health"><span>Apple Health</span><span class="chev">${svg('chev')}</span></a>` : ''}
-      <a class="row-link" href="/me/connections"><span>Watch connections</span><span class="chev">${svg('chev')}</span></a>
-      <a class="row-link" href="/me/gear"><span>Shoes & bikes</span><span class="chev">${svg('chev')}</span></a>
-      <a class="row-link" href="/plan"><span>Training plan</span><span class="chev">${svg('chev')}</span></a>
-      <a class="row-link" href="/me/goals"><span>Goals</span><span class="chev">${svg('chev')}</span></a>
-      <button class="row-link" id="m-targets"><span>Nutrition targets</span><span class="chev">${svg('chev')}</span></button>
-      <a class="row-link" href="/food/weight"><span>Weight trend</span><span class="chev">${svg('chev')}</span></a></div>
-    <div class="card"><h2>Settings</h2>
-      <div class="row"><span>Units</span><div class="seg" role="group" aria-label="Units">
+  // 2026-10-11 redesign: a settings-style list, each row with a coloured icon; the long forms open in sheets
+  const ch = `<span class="chev">${svg('chev')}</span>`;
+  const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
+  el.innerHTML = `<div class="profile">${avatar(me, 'lg')}<div><h1>${esc(me.name)}</h1><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
+    <div class="card list">${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
+      ${row('a', 'href="/me/friends"', 'people', 'c-berry', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
+      ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}</div>
+    <div class="card list">${row('a', 'href="/me/import"', 'upload', 'c-blue', 'Upload activities')}
+      ${row('button', 'data-addact', 'plus', 'c-blue', 'Add an activity by hand')}
+      ${Native.on ? row('a', 'href="/me/health"', 'heart', 'c-red', 'Apple Health') : ''}
+      ${row('a', 'href="/me/connections"', 'watch', 'c-ink', 'Watch connections')}
+      ${row('a', 'href="/me/gear"', 'shoe', 'c-orange', 'Shoes & bikes')}</div>
+    <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
+      ${row('a', 'href="/me/goals"', 'target', 'c-berry', 'Goals')}
+      ${row('button', 'id="m-targets"', 'food', 'c-green', 'Nutrition targets')}
+      ${row('a', 'href="/food/weight"', 'scale', 'c-purple', 'Weight trend')}</div>
+    <h2 class="sec-head">Settings</h2>
+    <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
-      <button class="row-link" id="m-body"><span>Body & heart rate</span><span class="val">${esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up')}<span class="chev">${svg('chev')}</span></span></button></div>
-    <div class="card"><h2>Account</h2>
-      <button class="row-link" id="m-name"><span>Name</span><span class="val">${esc(me.name)}<span class="chev">${svg('chev')}</span></span></button>
-      <button class="row-link" id="m-login"><span>Username</span><span class="val">${esc(me.login)}<span class="chev">${svg('chev')}</span></span></button>
-      <button class="row-link" id="m-pw"><span>Password</span><span class="val">Change<span class="chev">${svg('chev')}</span></span></button>
-      ${me.is_admin ? `<a class="row-link" href="/me/people"><span>People</span><span class="val">Invite, reset, remove<span class="chev">${svg('chev')}</span></span></a>` : ''}</div>
-    ${me.coach ? `<div class="card" id="ai"><h2>AI features</h2>${aiExplain()}
+      ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
+    <h2 class="sec-head">Account</h2>
+    <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
+      ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
+      ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
+      ${me.is_admin ? row('a', 'href="/me/people"', 'people', 'c-ink', 'People', 'Invite, reset, remove') : ''}</div>
+    ${me.coach ? `<h2 class="sec-head">AI features</h2><div class="card" id="ai">${aiExplain()}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
-    <div class="card"><h2>Your data</h2>
-      <a class="row-link" id="m-export" href="/api/account/export" download><span>Download my data</span><span class="val">Zip file<span class="chev">${svg('chev')}</span></span></a>
-      <a class="row-link" href="https://kinetta.app/privacy" target="_blank" rel="noopener"><span>Privacy policy</span><span class="val">kinetta.app<span class="chev">${svg('chev')}</span></span></a>
-      <button class="row-link" id="m-del"><span class="danger">Delete my account</span><span class="val"><span class="chev">${svg('chev')}</span></span></button></div>
-    <button class="ghost wide" id="logout">Log out</button>`;
+    <h2 class="sec-head">Your data</h2>
+    <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
+      ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
+      ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
+    <button class="ghost wide" id="logout">${svg('logout')}Log out</button>`;
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');

@@ -2,7 +2,7 @@
   "name": "kinetta-mobile",
   "private": true,
   "description": "The Kinetta iPhone app: the phone pages in app/static, inside a Capacitor shell, plus Apple Health",
-  "license": "AGPL-3.0-only",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
     "web": "node scripts/copy-web.mjs",
     "sync": "node scripts/copy-web.mjs && cap sync ios"

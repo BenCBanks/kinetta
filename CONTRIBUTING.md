@@ -10,5 +10,6 @@ When you send a pull request:
 - The phone app has no build step: edit `app/static/`, then bump the `?v=` numbers in `index.html`.
 - Test with throwaway accounts on your own install, never with real people's data.
 
-Contributions are accepted under the project's license (AGPL-3.0). Because the author may also offer Kinetta under a
-commercial license, you may be asked to sign a short contributor agreement before a larger contribution is merged.
+Kinetta is source-available under the PolyForm Noncommercial License 1.0.0, and the author also offers it under
+commercial licenses. So that your contribution can be included in both, you'll be asked to agree to a short contributor
+agreement (giving the author the right to license your contribution, including commercially) before it is merged.

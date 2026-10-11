@@ -487,6 +487,112 @@ MIGRATIONS = [
         EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
       END LOOP; END $$;
     """,
+    # 22 (2026-10-11): cooking mode (api_dishes.py). A dish collects ingredients while it cooks (items: a jsonb list, each
+    #   with its own per-100 g values so its amount can change later). known_*: a dish total typed in from a recipe, used
+    #   instead of the ingredients' sum. cooked_g: the finished dish without the pan. Each portion logged from it is an
+    #   ordinary food_entries row (source 'dish') and adds to eaten_g, so the leftovers are cooked_g - eaten_g.
+    #   pans: the person's empty pans, so a dish can be weighed in its pan.
+    """
+    CREATE TABLE dishes (
+      id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id   bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name      text NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+      items     jsonb NOT NULL DEFAULT '[]',
+      known_kcal real, known_protein_g real, known_carbs_g real, known_fat_g real,
+      cooked_g  real CHECK (cooked_g > 0),
+      eaten_g   real NOT NULL DEFAULT 0 CHECK (eaten_g >= 0),
+      created   timestamptz NOT NULL DEFAULT now(),
+      updated   timestamptz NOT NULL DEFAULT now(),
+      done_at   timestamptz);
+    CREATE INDEX dishes_user ON dishes (user_id, created DESC);
+    CREATE TABLE pans (
+      id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id   bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name      text NOT NULL CHECK (length(name) BETWEEN 1 AND 40),
+      grams     real NOT NULL CHECK (grams > 0),
+      created   timestamptz NOT NULL DEFAULT now());
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['dishes', 'pans'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP; END $$;
+    """,    # 23 (2026-10-11): profile.findable - false keeps you out of friend search (people can still add you by your exact
+    #   username). dish_shares: a dish its cook shares with friends, who can see it and log their own portion from it.
+    #   A SQL login sees the shares it made and the ones made to it.
+    """
+    ALTER TABLE profile ADD COLUMN findable boolean NOT NULL DEFAULT true;
+    CREATE TABLE dish_shares (
+      dish_id   bigint NOT NULL REFERENCES dishes(id) ON DELETE CASCADE,
+      user_id   bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created   timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (dish_id, user_id));
+    CREATE INDEX dish_shares_user ON dish_shares (user_id);
+    ALTER TABLE dish_shares ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON dish_shares FOR SELECT TO fit_readers
+      USING (user_id = fit_me() OR dish_id IN (SELECT id FROM dishes WHERE user_id = fit_me()));
+    CREATE POLICY all_rows ON dish_shares FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON dish_shares TO fit_readers;
+    """,    # 24 (2026-10-11): AI feedback on a recipe (food_coach.py), kept on the dish as JSON; the diet review uses coach_notes
+    #   (kind 'diet').
+    """
+    ALTER TABLE dishes ADD COLUMN ai_note text, ADD COLUMN ai_note_at timestamptz;
+    """,    # 25 (2026-10-11): AI feedback on a saved meal too (food_coach.py), kept on the meal like a dish's.
+    """
+    ALTER TABLE saved_meals ADD COLUMN ai_note text, ADD COLUMN ai_note_at timestamptz;
+    """,
+    # 26 (2026-10-11): ai_requests - one row per AI food review asked for, so the daily limit counts requests (a review
+    #   that is asked for again overwrites its note, so notes alone can't be counted). dishes.recipe_updated: when the
+    #   recipe itself last changed (ingredients, typed totals, weight) - logging a portion doesn't make feedback stale.
+    """
+    CREATE TABLE ai_requests (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind    text NOT NULL,
+      created timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX ai_requests_user ON ai_requests (user_id, created);
+    ALTER TABLE ai_requests ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON ai_requests FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON ai_requests FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON ai_requests TO fit_readers;
+    ALTER TABLE dishes ADD COLUMN recipe_updated timestamptz NOT NULL DEFAULT now();
+    UPDATE dishes SET recipe_updated = updated;
+    """,
+    # 27 (2026-10-11): notifications (notify.py) - who did what to which of your things (the words are made when read;
+    #   deleting the activity, dish, comment or person deletes the notification). push_subscriptions: phones and browsers
+    #   that asked for phone notifications (Web Push). profile.notify: which kinds to push ({} = all).
+    #   server_keys: this server's own keys (the Web Push key pair) - no SQL login may read it.
+    """
+    CREATE TABLE notifications (
+      id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind        text NOT NULL,
+      actor_id    bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      activity_id bigint REFERENCES activities(id) ON DELETE CASCADE,
+      dish_id     bigint REFERENCES dishes(id) ON DELETE CASCADE,
+      comment_id  bigint REFERENCES comments(id) ON DELETE CASCADE,
+      created     timestamptz NOT NULL DEFAULT now(),
+      read_at     timestamptz);
+    CREATE INDEX notifications_user ON notifications (user_id, created DESC);
+    CREATE TABLE push_subscriptions (
+      id       bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id  bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint text NOT NULL UNIQUE,
+      p256dh   text NOT NULL,
+      auth     text NOT NULL,
+      created  timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX push_subscriptions_user ON push_subscriptions (user_id);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['notifications', 'push_subscriptions'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP; END $$;
+    ALTER TABLE profile ADD COLUMN notify jsonb NOT NULL DEFAULT '{}';
+    CREATE TABLE server_keys (name text PRIMARY KEY, value text NOT NULL, created timestamptz NOT NULL DEFAULT now());
+    ALTER TABLE server_keys ENABLE ROW LEVEL SECURITY;
+    """,
 ]
 
 

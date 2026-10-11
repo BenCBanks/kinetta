@@ -90,7 +90,9 @@ def feed(before: str | None = None, sport: str | None = None, q: str | None = No
     sql = f"""SELECT {LIST_COLS}, ST_AsGeoJSON(ST_Simplify(a.geom, %s)) AS g,
                  (SELECT count(*) FROM best_efforts b WHERE b.activity_id = a.id AND NOT EXISTS (
                     SELECT 1 FROM best_efforts p WHERE p.user_id = b.user_id AND p.sport = b.sport AND p.distance_m = b.distance_m
-                      AND p.start_time < b.start_time AND p.elapsed_s <= b.elapsed_s)) AS prs
+                      AND p.start_time < b.start_time AND p.elapsed_s <= b.elapsed_s)) AS prs,
+                 a.visibility, (SELECT count(*) FROM cheers ch WHERE ch.activity_id = a.id) AS cheers,
+                 (SELECT count(*) FROM comments cm WHERE cm.activity_id = a.id) AS comments
               FROM activities a WHERE a.user_id = %s"""
     args = [PREVIEW_TOL, user['id']]
     if before: sql += ' AND a.start_time < %s'; args.append(before)
@@ -446,6 +448,60 @@ def calendar(month: str, user=Depends(current_user)):
                             WHERE user_id = %s AND (start_time AT TIME ZONE %s)::date >= make_date(%s, %s, 1)
                               AND (start_time AT TIME ZONE %s)::date < make_date(%s, %s, 1) + interval '1 month'
                             ORDER BY start_time""", (tz, user['id'], tz, y, m, tz, y, m)).fetchall()
+
+
+@router.get('/calendar/month')
+def calendar_month(month: str, user=Depends(current_user)):
+    """The month at a glance (2026-10-11): each day's workouts, food against that day's calorie goal and weigh-in,
+    plus each week's totals. A day counts as on target within 10 % of its goal; a day logged at under half a usual
+    day's calories is 'partial' (probably not fully logged), so it isn't judged."""
+    try:
+        y, m = map(int, month.split('-'))
+        if not 1900 <= y <= 2200: raise ValueError
+        first, nxt = dt.date(y, m, 1), dt.date(y + (m == 12), m % 12 + 1, 1)
+    except ValueError: raise HTTPException(400, 'month must be YYYY-MM')
+    last = nxt - dt.timedelta(days=1)
+    mon, sun = first - dt.timedelta(days=first.weekday()), last + dt.timedelta(days=6 - last.weekday())   # whole weeks, Monday to Sunday
+    with db.connect() as c:
+        p = c.execute('SELECT tz, kcal_target, protein_target FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        tz = p.get('tz') or db.DEFAULT_TZ
+        today = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
+        acts = c.execute("""SELECT id, sport, name, (start_time AT TIME ZONE %s)::date AS d, distance_m, moving_s FROM activities
+                            WHERE user_id = %s AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s ORDER BY start_time""",
+                         (tz, user['id'], tz, mon, sun)).fetchall()
+        food = {r['day']: r for r in c.execute("""SELECT day, round(sum(kcal)) AS kcal, round(sum(protein_g)) AS protein_g, count(*) AS n
+                                                  FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day""",
+                                               (user['id'], mon, sun)).fetchall()}
+        goals = {r['day']: r['kcal'] for r in c.execute('SELECT day, kcal FROM day_goals WHERE user_id = %s AND day BETWEEN %s AND %s',
+                                                         (user['id'], mon, sun)).fetchall()}
+        weights = {r['day']: r['kg'] for r in c.execute('SELECT day, kg FROM weights WHERE user_id = %s AND day BETWEEN %s AND %s',
+                                                         (user['id'], mon, sun)).fetchall()}
+        typical = c.execute("""SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY k) AS k FROM (SELECT sum(kcal) AS k FROM food_entries
+                               WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day) x""", (user['id'], today - dt.timedelta(days=60), today)).fetchone()['k']
+    by = {}
+    for a in acts: by.setdefault(a['d'], []).append({k: a[k] for k in ('id', 'sport', 'name', 'distance_m', 'moving_s')})
+    days, d = [], mon
+    while d < sun + dt.timedelta(days=1):
+        f, goal = food.get(d), goals.get(d, p.get('kcal_target'))
+        status = None
+        if f and d <= today:
+            if typical and f['kcal'] < 0.5 * typical and d < today: status = 'partial'
+            elif d == today: status = 'today'
+            elif goal: status = 'on' if abs(f['kcal'] - goal) <= 0.1 * goal else 'over' if f['kcal'] > goal else 'under'
+            else: status = 'logged'
+        days.append({'d': d, 'in_month': first <= d < nxt, 'today': d == today, 'acts': by.get(d, []),
+                     'food': {'kcal': f['kcal'], 'protein_g': f['protein_g'], 'goal': round(goal) if goal else None, 'status': status} if f else None,
+                     'weight_kg': weights.get(d)})
+        d += dt.timedelta(days=1)
+    weeks = [{'start': days[i]['d'], 'distance_m': sum(a['distance_m'] or 0 for x in days[i:i + 7] for a in x['acts']),
+              'moving_s': sum(a['moving_s'] or 0 for x in days[i:i + 7] for a in x['acts']), 'n': sum(len(x['acts']) for x in days[i:i + 7])}
+             for i in range(0, len(days), 7)]
+    inm = [x for x in days if x['in_month'] and x['d'] <= today]
+    judged = [x for x in inm if x['food'] and x['food']['status'] in ('on', 'over', 'under')]
+    return {'month': f'{y:04d}-{m:02d}', 'days': days, 'weeks': weeks, 'protein_target': p.get('protein_target'),
+            'summary': {'days': len(inm), 'trained': sum(1 for x in inm if x['acts']), 'logged': sum(1 for x in inm if x['food']),
+                        'judged': len(judged), 'on_target': sum(1 for x in judged if x['food']['status'] == 'on'),
+                        'weighed': sum(1 for x in inm if x['weight_kg'])}}
 
 
 @router.get('/heatmap')

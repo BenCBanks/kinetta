@@ -1,4 +1,4 @@
-"""Friends and sharing (2026-10-11): friend requests by exact username, who sees each activity (only me / friends /
+"""Friends and sharing (2026-10-11): friend requests (find people by name or username), who sees each activity (only me / friends /
 everyone on this Kinetta), which details others see, shared maps without the start and end, a friends feed, cheers and
 comments.
 
@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from psycopg import errors
 from pydantic import BaseModel, Field
 
-from . import db
+from . import db, notify
 from .api_activities import DETAIL_TOL, PREVIEW_TOL, polyline
 from .auth import current_user
 
@@ -159,6 +159,28 @@ def friends_waiting(user=Depends(current_user)):
         return {'n': waiting(c, user['id'])}
 
 
+@router.get('/people/search')
+def people_search(q: str = '', user=Depends(current_user)):
+    """Find people to add by name or username (like Strava's athlete search). Only names and usernames come back,
+    with where you stand with each: never anything they've logged. At least 2 letters, at most 20 people.
+    Someone who turned off "Let people find me" shows up only when the search is exactly their username, or when
+    you're already friends or have a request between you."""
+    q = q.strip()
+    if len(q) < 2: return []
+    like = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    with db.connect() as c:
+        rows = c.execute("""SELECT u.login::text AS login, u.name, f.status, f.requester = %(me)s AS sent
+            FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
+            LEFT JOIN profile p ON p.user_id = u.id
+            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL
+              AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
+              AND (u.login ILIKE %(pre)s OR u.name ILIKE %(pre)s OR u.name ILIKE %(word)s)
+            ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name LIMIT 20""",
+                         {'me': user['id'], 'q': q, 'pre': like + '%', 'word': '% ' + like + '%'}).fetchall()
+    rel = lambda r: 'friends' if r['status'] == 'accepted' else ('sent' if r['sent'] else 'incoming') if r['status'] else None
+    return [{'login': r['login'], 'name': r['name'], 'status': rel(r)} for r in rows]
+
+
 @router.post('/friends')
 def friend_request(body: FriendIn, user=Depends(current_user)):
     """Ask someone to be friends, by their exact username. If they already asked you, you're friends now."""
@@ -169,6 +191,7 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
         if f and f['status'] == 'accepted': raise HTTPException(409, f"You and {t['name']} are already friends")
         if f and f['requester'] == t['id']:
             c.execute("UPDATE friendships SET status = 'accepted', accepted = now() WHERE requester = %s AND addressee = %s", (t['id'], user['id']))
+            notify.drop(c, user['id'], 'friend_request', t['id']); notify.add(c, t['id'], 'friend_accepted', user['id'])
             return {'status': 'friends', 'name': t['name']}
         if not f:
             n = c.execute("SELECT count(*) AS n FROM friendships WHERE requester = %s AND status = 'pending'", (user['id'],)).fetchone()['n']
@@ -176,6 +199,7 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
             try:
                 with c.transaction():
                     c.execute('INSERT INTO friendships (requester, addressee) VALUES (%s, %s)', (user['id'], t['id']))
+                notify.add(c, t['id'], 'friend_request', user['id'])
             except errors.UniqueViolation:
                 pass    # they asked at the same moment; their request stands
     return {'status': 'sent', 'name': t['name']}
@@ -188,6 +212,7 @@ def friend_accept(login: str, user=Depends(current_user)):
         if not c.execute("""UPDATE friendships SET status = 'accepted', accepted = now()
                             WHERE requester = %s AND addressee = %s AND status = 'pending' RETURNING 1""", (t['id'], user['id'])).fetchone():
             raise HTTPException(404, 'No request from that person')
+        notify.drop(c, user['id'], 'friend_request', t['id']); notify.add(c, t['id'], 'friend_accepted', user['id'])
         return {'ok': True, 'waiting': waiting(c, user['id'])}
 
 
@@ -197,6 +222,7 @@ def friend_decline(login: str, user=Depends(current_user)):
     with db.connect() as c:
         t = _person(c, login)
         c.execute("DELETE FROM friendships WHERE requester = %s AND addressee = %s AND status = 'pending'", (t['id'], user['id']))
+        notify.drop(c, user['id'], 'friend_request', t['id'])
         return {'ok': True, 'waiting': waiting(c, user['id'])}
 
 
@@ -207,6 +233,11 @@ def friend_remove(login: str, user=Depends(current_user)):
         t = _person(c, login)
         c.execute("""DELETE FROM friendships WHERE (requester = %(me)s AND addressee = %(them)s)
                        OR (requester = %(them)s AND addressee = %(me)s AND status = 'accepted')""", {'me': user['id'], 'them': t['id']})
+        notify.drop(c, t['id'], 'friend_request', user['id'])           # a request you cancelled stops showing for them
+        # dishes either of you shared with the other stop being shared (api_dishes also checks the friendship)
+        c.execute("""DELETE FROM dish_shares s USING dishes d WHERE s.dish_id = d.id
+                       AND ((d.user_id = %(me)s AND s.user_id = %(them)s) OR (d.user_id = %(them)s AND s.user_id = %(me)s))""",
+                  {'me': user['id'], 'them': t['id']})
     return {'ok': True}
 
 
@@ -215,14 +246,15 @@ class SharingIn(BaseModel):
     default: str | None = Field(None, pattern='^(me|friends|everyone)$')
     details: dict | None = None
     trim_m: int | None = None
+    findable: bool | None = None         # show me in friend search
 
 
 @router.get('/sharing')
 def sharing(user=Depends(current_user)):
     with db.connect() as c:
-        p = c.execute('SELECT share_default, share_details, share_trim_m FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT share_default, share_details, share_trim_m, findable FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
     return {'default': p.get('share_default', 'me'), 'details': details_of(p.get('share_details')), 'trim_m': p.get('share_trim_m', 400),
-            'trims': TRIMS}
+            'trims': TRIMS, 'findable': p.get('findable', True)}
 
 
 @router.put('/sharing')
@@ -233,6 +265,7 @@ def set_sharing(body: SharingIn, user=Depends(current_user)):
     if body.trim_m is not None:
         if body.trim_m not in TRIMS: raise HTTPException(400, 'Choose off, 200, 400 or 800 m')
         sets['share_trim_m'] = body.trim_m
+    if body.findable is not None: sets['findable'] = body.findable
     if sets:
         with db.connect() as c:
             c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in sets)} WHERE user_id = %s", (*sets.values(), user['id']))
@@ -311,8 +344,10 @@ def social(aid: int, user=Depends(current_user)):
 @router.post('/activities/{aid}/cheer')
 def cheer(aid: int, user=Depends(current_user)):
     with db.connect() as c:
-        if can_see(c, user['id'], aid) == user['id']: raise HTTPException(400, "You can't cheer your own activity")
-        c.execute('INSERT INTO cheers (activity_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (aid, user['id']))
+        owner = can_see(c, user['id'], aid)
+        if owner == user['id']: raise HTTPException(400, "You can't cheer your own activity")
+        if c.execute('INSERT INTO cheers (activity_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (aid, user['id'])).fetchone():
+            notify.add(c, owner, 'cheer', user['id'], activity_id=aid)
         return _social(c, aid, user['id'], None)
 
 
@@ -333,7 +368,8 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
     if not text: raise HTTPException(400, 'Write something first')
     with db.connect() as c:
         owner = can_see(c, user['id'], aid)
-        c.execute('INSERT INTO comments (activity_id, user_id, text) VALUES (%s, %s, %s)', (aid, user['id'], text))
+        cid = c.execute('INSERT INTO comments (activity_id, user_id, text) VALUES (%s, %s, %s) RETURNING id', (aid, user['id'], text)).fetchone()['id']
+        notify.add(c, owner, 'comment', user['id'], activity_id=aid, comment_id=cid)
         return _social(c, aid, user['id'], owner)
 
 

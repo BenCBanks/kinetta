@@ -6,7 +6,7 @@
 </p>
 
 <p align="center"><b>Your workouts and your food, in one app.</b><br>
-Activity tracking + food and health: runs, rides, walks, training plans, calories and macros. Private, free and open source.</p>
+Activity tracking + food and health: runs, rides, walks, training plans, calories and macros. Private, and free to run on your own home server for personal use.</p>
 
 <p align="center"><a href="https://login.kinetta.app/beta">Join the hosted beta</a> · or run your own (below)</p>
 
@@ -112,11 +112,15 @@ Uploaded original files (FIT/GPX) are in the `data` volume.
 
 ## License
 
-Kinetta is free software under the **[GNU Affero General Public License v3.0](LICENSE)**: you may use, study, change
-and share it. If you run a changed version for other people, you must offer them your changes under the same license.
+Kinetta is **source-available** under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**:
 
-Want to use Kinetta in a way the AGPL doesn't allow, such as inside a closed product? Contact the author about a
-commercial license.
+- **Free for noncommercial use.** Run it on your own home server for yourself and your family, study it, change it,
+  and share it for noncommercial purposes. Charities, schools and other noncommercial organizations may use it too.
+- **Not for commercial use without a license.** Selling it, offering it as a paid or hosted service, or using it in or
+  for a business needs a commercial license from the author. Ask about one by opening an issue or through kinetta.app.
+
+Versions published before October 11, 2026 (up to commit `69a0169`) were released under the GNU AGPL-3.0, and copies of
+those versions stay under that license. Everything after that is under the PolyForm Noncommercial License.
 
 The name **Kinetta** and the Kinetta logo are not covered by the code license. Please don't use them for your own
 fork or product without permission.

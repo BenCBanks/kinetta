@@ -20,7 +20,7 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 | Path | What |
 |---|---|
 | `app/` | FastAPI server (Python 3.12). `main.py` wires the routers; `api_*.py` are the endpoints; `db.py` has the schema |
-| `app/static/` | The phone app: plain JavaScript, no build step (`app.js` core + charts, `pages.js`, `food.js`, `plan.js`, `native.js` iPhone-app-only parts, `style.css`) |
+| `app/static/` | The phone app: plain JavaScript, no build step (`app.js` core + charts, `pages.js`, `food.js`, `plan.js`, `social.js`, `cook.js`, `native.js` iPhone-app-only parts, `style.css`) |
 | `mobile/` | The iPhone app: a Capacitor shell around `app/static` plus Apple Health (see `mobile/README.md`, `docs/ios.md`); built on a macOS runner by `.github/workflows/ios.yml` |
 | `site/` | The kinetta.app homepage (one static `index.html` plus `assets/`) |
 | `docs/` | Public guides (connecting phones, SQL access) |
@@ -42,7 +42,10 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 - Match the code around you: short functions, comments that explain why, plain-language text in the UI.
 - UI: phone first. Centered, full-width buttons; roomy spacing; charts that explain themselves without helper text;
   colors from the CSS tokens in `style.css`, in both light and dark mode.
-- New dependencies must be compatible with AGPL-3.0; add them to `THIRD_PARTY.md`.
+- Kinetta is source-available (PolyForm Noncommercial 1.0.0) and also sold under commercial licenses, so new
+  dependencies must allow use in a commercial, closed product: permissive licenses (MIT, BSD, Apache-2.0, ISC) or
+  file-level copyleft (MPL-2.0), or LGPL libraries used unchanged as separate packages (like psycopg); never GPL or
+  AGPL. Add them to `THIRD_PARTY.md`.
 
 ## Run and test
 ```sh
@@ -55,8 +58,10 @@ docker compose -p kinettatest down -v                             # remove it, d
   named `zz_test...`.
 - Before you finish: `python -m py_compile app/*.py`, `node --check app/static/*.js`, a fresh-install test, and, if you
   added a migration, an upgrade test (start on `main`, then switch to your branch on the same database).
-- There is no unit-test suite yet. Test through the API with curl, and check pages in a browser (Playwright) at phone
-  width (390 px), light and dark, with no console errors.
+- The test suite is `dev/tests/run.sh` (API tests with zz_test accounts, plus AI and push tests inside the container with
+  stand-ins); `.github/workflows/tests.yml` runs it on every pull request. How to run it locally is at the top of the
+  script. Add a test there for anything you build or fix, and check pages in a browser (Playwright) at phone width
+  (390 px), light and dark, with no console errors.
 
 ## Where it's heading (the maintainer's plan, October 2026)
 1. **Hosted beta**: testers ask to join at `/beta`; the admin invites them from Me > People. Done.
