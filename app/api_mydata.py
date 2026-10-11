@@ -53,6 +53,10 @@ TABLES = {
                      'created', f.created, 'accepted', f.accepted)
                    FROM (SELECT %s::bigint AS id) me JOIN friendships f ON me.id IN (f.requester, f.addressee)
                    JOIN users u ON u.id = CASE WHEN f.requester = me.id THEN f.addressee ELSE f.requester END""",
+    'blocked': """SELECT jsonb_build_object('login', u.login, 'name', u.name, 'since', b.created)
+                   FROM blocks b JOIN users u ON u.id = b.blocked WHERE b.user_id = %s""",
+    'reports_made': """SELECT jsonb_build_object('about', u.login, 'what', r.what, 'reason', r.reason, 'note', r.note,
+                     'created', r.created, 'status', r.status) FROM reports r JOIN users u ON u.id = r.person WHERE r.reporter = %s""",
     'cheers_given': "SELECT to_jsonb(t)" + DROP + " FROM cheers t WHERE user_id = %s ORDER BY created",
     'comments_written': "SELECT to_jsonb(t)" + DROP + " FROM comments t WHERE user_id = %s ORDER BY created",
     'ai_food_requests': "SELECT to_jsonb(t)" + DROP + " FROM ai_requests t WHERE user_id = %s ORDER BY created",   # when you asked for AI food feedback

@@ -4,8 +4,8 @@ The iPhone app is the same Kinetta you use in Safari, inside a real app, so it c
 Watch, Coros, Wahoo, Strava and most other apps write their workouts to Apple Health, so once you connect it, your
 workouts show up in Kinetta without uploading files.
 
-It isn't on the App Store or TestFlight yet. This page is the plan, and the list of what the maintainer needs to do in
-the Apple Developer account before testers can install it.
+It isn't on the App Store or TestFlight yet, but everything on the code side is ready: once the Apple Developer steps
+below are done, every new version on `main` is signed and uploaded to TestFlight by GitHub Actions on its own.
 
 ## What the app does today
 
@@ -25,14 +25,15 @@ the Apple Developer account before testers can install it.
 
 1. **The app and Apple Health permission** (done in this first piece): the shell around `app/static`, the permission
    screen, syncing when the app is open, the server endpoint, and a build on GitHub's Mac computers for every change.
-2. **TestFlight**: signing and uploads from GitHub Actions (fastlane), once the Apple Developer setup below is done.
-   Internal testers (people added to the App Store Connect team) can install it right away; outside testers need a
-   privacy policy page first (roadmap step 2) and Apple's beta review.
+2. **TestFlight** (ready, waiting for the Apple setup below): the `testflight` job in `.github/workflows/ios.yml` signs
+   the app with Apple's own cloud signing and uploads it. Build numbers count up by themselves. Already in place for
+   Apple's checks: a privacy manifest (`mobile/ios/App/App/PrivacyInfo.xcprivacy`), the "no special encryption"
+   answer, the Apple Health permission texts, the 1024-pixel icon, delete-my-account in the app and the privacy policy
+   at https://kinetta.app/privacy.
 3. **Background sync**: new workouts arrive even when the app isn't opened (HealthKit background delivery; needs a
    small piece of our own Swift code and one more Apple capability).
 4. **More from Apple Health**: weight, resting heart rate and sleep.
-5. **App Store**: needs delete-my-account in the app and the privacy policy (roadmap step 2), screenshots, and a demo
-   account for Apple's reviewers.
+5. **App Store**: screenshots and a demo account for Apple's reviewers (see "Before outside testers" below).
 6. **Android** (Health Connect) after that. The Health plugin already supports it.
 
 ## What you need to do in your Apple Developer account
@@ -72,22 +73,39 @@ Do these in order. Nothing here costs money except the membership.
    | `ASC_ISSUER_ID` | the Issuer ID from step 5 |
    | `ASC_KEY_P8` | the whole text of the `.p8` file, including the `-----BEGIN PRIVATE KEY-----` lines |
 
-8. **Set up TestFlight testers.** In App Store Connect open the app > **TestFlight > Internal Testing > +**, name the
-   group `Family`, and add people. They need to be on your App Store Connect team (**Users and Access > +**, role
-   "Customer Support" or "Developer" is enough). Each tester installs the **TestFlight** app from the App Store.
+8. **Set up TestFlight testers.** Two kinds; beta testers want the second.
+   - **Family (internal testing):** **TestFlight > Internal Testing > +**, group `Family`. Internal testers must be on
+     your App Store Connect team (**Users and Access > +**, role "Customer Support"). New builds reach them at once.
+   - **Beta testers (external testing, with a public link):** **TestFlight > External Testing > +**, group `Beta`,
+     then add a build. The first build of each version goes through Apple's short beta review (usually a day). Then
+     turn on **Public Link** and send that link with each tester's Kinetta invite: they tap it, install TestFlight,
+     and install Kinetta. Up to 10,000 people, no Apple team accounts needed.
+   - Beta review asks for **Test Information**: a sentence on what to test, your contact details, and a **sign-in for
+     the reviewer** (see below).
 9. **Fill in App Privacy** (App Store Connect > the app > **App Privacy**), needed before outside testing or the App
    Store. Answers for Kinetta: data collected: **Health & Fitness** (Health, Fitness), **Contact Info** (name),
-   **Identifiers** (user ID); all *linked to the user*, *not used for tracking*, used for *App Functionality*. If the
-   AI coach is on for your server, also tick *Health* under "data shared with third parties" and describe the coach.
+   **Identifiers** (user ID), **Location** (precise: workout routes), **User Content** (photos of food, other content: recipes
+   and comments); all *linked to the user*, *not used for tracking*, used for *App Functionality*. These match the
+   app's privacy manifest. If the AI features are on for your server, also say that health, fitness and food data and
+   food photos are shared with Google (Gemini) when the person turns AI features on.
 
-When steps 1 to 7 are done, tell me and I'll add the signing and TestFlight upload to the GitHub Actions workflow.
-Nothing else in the code has to change.
+After step 7, start the upload once by hand: GitHub > **Actions > iPhone app > Run workflow** (branch `main`). The build
+shows up in App Store Connect under **TestFlight** 10 to 30 minutes later. From then on every change to the app on
+`main` uploads a new build by itself.
 
-Later, before outside testers or the App Store, Apple will also ask for:
-- a **privacy policy URL** (roadmap step 2; for a HealthKit app it must say how health data is used),
-- **delete my account** inside the app (roadmap step 2),
-- a **demo account** on the hosted server for Apple's reviewers (a `zz_test...` account with demo data),
-- screenshots at 6.9-inch iPhone size (the app is iPhone-only, so no iPad screenshots are needed).
+## Before outside testers or the App Store
+
+Already done: the **privacy policy URL** (https://kinetta.app/privacy, which covers Apple Health), **delete my account**
+inside the app (Me > Your data), and **download my data**.
+
+Still to do when you submit:
+- **A sign-in for Apple's reviewer** on login.kinetta.app, with some made-up workouts and food in it. Before making it,
+  remember that "Everyone" on a shared server means every account there, reviewer included: activities testers share
+  with *Everyone* would be visible to it (activities are *Only me* unless a person changes that).
+- **Screenshots** at 6.9-inch iPhone size (1320 x 2868). The app is iPhone-only, so no iPad screenshots are needed.
+- **Support URL**: https://kinetta.app works. **Marketing URL**: optional.
+- **Age rating** questionnaire: no objectionable content; friends can comment on each other's activities, so answer
+  yes to "user-generated content" if asked.
 
 ## For developers
 

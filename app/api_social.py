@@ -1,6 +1,6 @@
 """Friends and sharing (2026-10-11): friend requests (find people by name or username), who sees each activity (only me / friends /
 everyone on this Kinetta), which details others see, shared maps without the start and end, a friends feed, cheers and
-comments.
+comments, and blocking and reporting people (Apple requires both).
 
 Keeping people's data safe:
  - CAN_SEE / can_see() is the one rule for "may this person see this activity". Every endpoint here that touches someone
@@ -19,6 +19,7 @@ from psycopg import errors
 from pydantic import BaseModel, Field
 
 from . import db, notify
+from .api_account import _admin
 from .api_activities import DETAIL_TOL, PREVIEW_TOL, polyline
 from .auth import current_user
 
@@ -37,9 +38,16 @@ FIELDS = {'pace': ('gap_s_per_km', 'max_speed'), 'heart_rate': ('avg_hr', 'max_h
 MAX_PENDING = 50           # friend requests one person can have waiting at once
 FEED_MAX = 50
 
-CAN_SEE = """(a.user_id = %(viewer)s OR a.visibility = 'everyone' OR (a.visibility = 'friends' AND EXISTS (
+# Blocking works both ways: neither person sees the other's activities, cheers or comments, finds them in search or
+# can ask them to be friends. {who} is the other person's id column.
+def blocked(who):
+    return f"""EXISTS (SELECT 1 FROM blocks b WHERE (b.user_id = %(viewer)s AND b.blocked = {who})
+                                         OR (b.user_id = {who} AND b.blocked = %(viewer)s))"""
+
+
+CAN_SEE = f"""(a.user_id = %(viewer)s OR (NOT {blocked('a.user_id')} AND (a.visibility = 'everyone' OR (a.visibility = 'friends' AND EXISTS (
     SELECT 1 FROM friendships f WHERE f.status = 'accepted'
-      AND ((f.requester = a.user_id AND f.addressee = %(viewer)s) OR (f.addressee = a.user_id AND f.requester = %(viewer)s)))))"""
+      AND ((f.requester = a.user_id AND f.addressee = %(viewer)s) OR (f.addressee = a.user_id AND f.requester = %(viewer)s)))))))"""
 FRIEND_IDS = """SELECT CASE WHEN f.requester = %(viewer)s THEN f.addressee ELSE f.requester END FROM friendships f
     WHERE f.status = 'accepted' AND %(viewer)s IN (f.requester, f.addressee)"""
 
@@ -131,6 +139,11 @@ def _person(c, login):
     return t
 
 
+def _blocked_pair(c, me, them):
+    return bool(c.execute('SELECT 1 FROM blocks WHERE (user_id = %s AND blocked = %s) OR (user_id = %s AND blocked = %s)',
+                          (me, them, them, me)).fetchone())
+
+
 def _pair(c, me, them, lock=False):
     return c.execute(f"""SELECT requester, addressee, status FROM friendships
                          WHERE (requester = %(me)s AND addressee = %(them)s) OR (requester = %(them)s AND addressee = %(me)s)
@@ -172,11 +185,11 @@ def people_search(q: str = '', user=Depends(current_user)):
         rows = c.execute("""SELECT u.login::text AS login, u.name, f.status, f.requester = %(me)s AS sent
             FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
             LEFT JOIN profile p ON p.user_id = u.id
-            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL
+            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT {blocked}
               AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
               AND (u.login ILIKE %(pre)s OR u.name ILIKE %(pre)s OR u.name ILIKE %(word)s)
-            ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name LIMIT 20""",
-                         {'me': user['id'], 'q': q, 'pre': like + '%', 'word': '% ' + like + '%'}).fetchall()
+            ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name LIMIT 20""".replace('{blocked}', blocked('u.id')),
+                         {'viewer': user['id'], 'me': user['id'], 'q': q, 'pre': like + '%', 'word': '% ' + like + '%'}).fetchall()
     rel = lambda r: 'friends' if r['status'] == 'accepted' else ('sent' if r['sent'] else 'incoming') if r['status'] else None
     return [{'login': r['login'], 'name': r['name'], 'status': rel(r)} for r in rows]
 
@@ -187,6 +200,7 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
     with db.connect() as c:
         t = _person(c, body.login)
         if t['id'] == user['id']: raise HTTPException(400, "That's your own username")
+        if _blocked_pair(c, user['id'], t['id']): raise HTTPException(404, 'No one on this Kinetta has that username')
         f = _pair(c, user['id'], t['id'], lock=True)
         if f and f['status'] == 'accepted': raise HTTPException(409, f"You and {t['name']} are already friends")
         if f and f['requester'] == t['id']:
@@ -305,11 +319,11 @@ def friends_feed(before: dt.datetime | None = None, limit: int = 25, user=Depend
 
 
 def _social(c, aid, viewer, owner):
-    cheers = c.execute("""SELECT u.login::text AS login, u.name FROM cheers ch JOIN users u ON u.id = ch.user_id
-                          WHERE ch.activity_id = %s ORDER BY ch.created""", (aid,)).fetchall()
-    comments = c.execute("""SELECT cm.id, cm.text, cm.created, u.login::text AS login, u.name,
+    cheers = c.execute(f"""SELECT u.login::text AS login, u.name FROM cheers ch JOIN users u ON u.id = ch.user_id
+                           WHERE ch.activity_id = %(aid)s AND NOT {blocked('u.id')} ORDER BY ch.created""", {'aid': aid, 'viewer': viewer}).fetchall()
+    comments = c.execute(f"""SELECT cm.id, cm.text, cm.created, u.login::text AS login, u.name,
                               (cm.user_id = %(viewer)s OR %(owner)s) AS can_delete
-                            FROM comments cm JOIN users u ON u.id = cm.user_id WHERE cm.activity_id = %(aid)s
+                            FROM comments cm JOIN users u ON u.id = cm.user_id WHERE cm.activity_id = %(aid)s AND NOT {blocked('u.id')}
                             ORDER BY cm.created, cm.id""", {'viewer': viewer, 'owner': owner == viewer, 'aid': aid}).fetchall()
     cheered = bool(c.execute('SELECT 1 FROM cheers WHERE activity_id = %s AND user_id = %s', (aid, viewer)).fetchone())
     return {'mine': owner == viewer, 'cheers': cheers, 'cheered': cheered, 'comments': comments}
@@ -380,4 +394,102 @@ def comment_delete(cid: int, user=Depends(current_user)):
         if not c.execute("""DELETE FROM comments cm USING activities a WHERE cm.id = %(cid)s AND a.id = cm.activity_id
                               AND (cm.user_id = %(me)s OR a.user_id = %(me)s) RETURNING cm.id""", {'cid': cid, 'me': user['id']}).fetchone():
             raise HTTPException(404, 'Not found')
+    return {'ok': True}
+
+
+# ---------- blocking and reporting (2026-10-11; App Store guideline 1.2) ----------
+@router.get('/blocks')
+def blocks(user=Depends(current_user)):
+    with db.connect() as c:
+        return c.execute("""SELECT u.login::text AS login, u.name, b.created AS since FROM blocks b JOIN users u ON u.id = b.blocked
+                            WHERE b.user_id = %s ORDER BY u.name""", (user['id'],)).fetchall()
+
+
+@router.post('/people/{login}/block')
+def block(login: str, user=Depends(current_user)):
+    """Block someone: you stop being friends (requests either way go too), dishes stop being shared, notifications
+    between you are removed, and from now on neither of you sees the other. They aren't told."""
+    with db.connect() as c:
+        t = _person(c, login)
+        if t['id'] == user['id']: raise HTTPException(400, "You can't block yourself")
+        c.execute('INSERT INTO blocks (user_id, blocked) VALUES (%s, %s) ON CONFLICT DO NOTHING', (user['id'], t['id']))
+        pair = {'me': user['id'], 'them': t['id']}
+        c.execute("""DELETE FROM friendships WHERE (requester = %(me)s AND addressee = %(them)s)
+                       OR (requester = %(them)s AND addressee = %(me)s)""", pair)
+        c.execute("""DELETE FROM dish_shares s USING dishes d WHERE s.dish_id = d.id
+                       AND ((d.user_id = %(me)s AND s.user_id = %(them)s) OR (d.user_id = %(them)s AND s.user_id = %(me)s))""", pair)
+        c.execute("""DELETE FROM notifications WHERE (user_id = %(me)s AND actor_id = %(them)s)
+                       OR (user_id = %(them)s AND actor_id = %(me)s)""", pair)
+    return {'ok': True, 'name': t['name']}
+
+
+@router.delete('/people/{login}/block')
+def unblock(login: str, user=Depends(current_user)):
+    with db.connect() as c:
+        t = _person(c, login)
+        c.execute('DELETE FROM blocks WHERE user_id = %s AND blocked = %s', (user['id'], t['id']))
+    return {'ok': True}
+
+
+REASONS = ('spam', 'abuse', 'inappropriate', 'other')
+MAX_OPEN_REPORTS = 20      # per person reporting, so the admins' list can't be flooded
+
+
+class ReportIn(BaseModel):
+    login: str = Field(min_length=1, max_length=60)
+    activity_id: int | None = None
+    comment_id: int | None = None
+    reason: str = Field(pattern='^(spam|abuse|inappropriate|other)$')
+    note: str | None = Field(None, max_length=500)
+
+
+@router.post('/reports')
+def report(body: ReportIn, user=Depends(current_user)):
+    """Report a person, one of their activities or one of their comments to this server's admins. Only something you
+    can see can be reported; the admins get a notification and a copy of the words as they were."""
+    with db.connect() as c:
+        t = _person(c, body.login)
+        if t['id'] == user['id']: raise HTTPException(400, "You can't report yourself")
+        what = f"{t['name']} (@{t['login']})"
+        if body.comment_id:
+            cm = c.execute('SELECT activity_id, user_id, text FROM comments WHERE id = %s', (body.comment_id,)).fetchone()
+            if not cm or cm['user_id'] != t['id']: raise HTTPException(404, 'Not found')
+            can_see(c, user['id'], cm['activity_id'])
+            body.activity_id, what = cm['activity_id'], f'Comment: "{cm["text"]}"'
+        elif body.activity_id:
+            if can_see(c, user['id'], body.activity_id) != t['id']: raise HTTPException(404, 'Not found')
+            a = c.execute('SELECT name, description FROM activities WHERE id = %s', (body.activity_id,)).fetchone()
+            what = f"Activity: {a['name']}" + (f" - {a['description']}" if a['description'] else '')
+        n = c.execute("SELECT count(*) AS n FROM reports WHERE reporter = %s AND status = 'open'", (user['id'],)).fetchone()['n']
+        if n >= MAX_OPEN_REPORTS: raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
+        rid = c.execute("""INSERT INTO reports (reporter, person, activity_id, comment_id, what, reason, note)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                        (user['id'], t['id'], body.activity_id, body.comment_id, what[:1000], body.reason,
+                         (body.note or '').strip() or None)).fetchone()['id']
+        for a in c.execute('SELECT id FROM users WHERE is_admin AND id <> %s', (user['id'],)).fetchall():
+            notify.add(c, a['id'], 'report', user['id'])
+    return {'ok': True, 'id': rid}
+
+
+@router.get('/reports')
+def reports(user=Depends(current_user)):
+    """Open reports, for the admins (Me > People)."""
+    _admin(user)
+    with db.connect() as c:
+        return c.execute("""SELECT r.id, r.what, r.reason, r.note, r.created, r.activity_id, r.comment_id,
+                              p.login::text AS login, p.name, rp.name AS reporter
+                            FROM reports r JOIN users p ON p.id = r.person LEFT JOIN users rp ON rp.id = r.reporter
+                            WHERE r.status = 'open' ORDER BY r.created""").fetchall()
+
+
+@router.post('/reports/{rid}/done')
+def report_done(rid: int, remove: bool = False, user=Depends(current_user)):
+    """Close a report. remove=true also takes the reported thing down: the comment is deleted, or the activity goes back
+    to "Only me" (it stays in its owner's account)."""
+    _admin(user)
+    with db.connect() as c:
+        r = c.execute("UPDATE reports SET status = 'done' WHERE id = %s RETURNING activity_id, comment_id", (rid,)).fetchone()
+        if not r: raise HTTPException(404, 'Not found')
+        if remove and r['comment_id']: c.execute('DELETE FROM comments WHERE id = %s', (r['comment_id'],))
+        elif remove and r['activity_id']: c.execute("UPDATE activities SET visibility = 'me' WHERE id = %s", (r['activity_id'],))
     return {'ok': True}

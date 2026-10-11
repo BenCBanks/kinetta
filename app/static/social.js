@@ -61,7 +61,7 @@ async function homeFeed(el) {
   const draw = (pg) => {
     items = pg.rows;
     list.innerHTML = items.length ? items.map((a) => postCard(a, {who: true})).join('') : `<div class="card empty"><b>Nothing here yet</b>
-      Your activities and the ones your friends share show up here.<br><br><a class="primary" href="/me/import">Upload activities</a></div>`;
+      Your activities and the ones your friends share show up here.<br><br>${Native.on ? '<a class="primary" href="/me/health">Connect Apple Health</a>' : '<a class="primary" href="/me/connections">Connect your watch</a>'}</div>`;
     nudge.innerHTML = '';
     if (!pg.friends) load('/api/friends', (r) => { if (nudge.isConnected) nudge.innerHTML = r.friends.length ? '' : findNudge; }).catch(() => {});
     more.hidden = !pg.more; feedMaps(list); wireCheers(list);
@@ -106,8 +106,10 @@ function drawShared(el, a) {
     ${a.chart ? '<div class="card"><h2>Charts</h2><div id="s-charts"></div></div>' : ''}
     ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
     ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
-    ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}`;
+    ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
+    ${mine ? '' : `<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
   wireBack(el, mine ? `/activity/${a.id}` : '/activity');
+  if (!mine) $('#s-rb', el).onclick = () => reportSheet(a.owner, {activity_id: a.id});
   if (a.line) lazy($('#s-map', el), () => mapInto($('#s-map', el), [a.line], {sport: a.sport, ends: false})
     .catch(() => { $('#s-map', el).innerHTML = '<p class="empty">Map unavailable right now</p>'; }));
   socialBlock($('#s-social', el), a.id, a.social);
@@ -132,7 +134,7 @@ function socialBlock(box, aid, s) {
   box.innerHTML = `<div class="card social"><h2>${esc(CHEER.title)} and comments</h2>
     ${s.mine ? (who || `<p class="small muted">No ${esc(CHEER.many)} yet.</p>`) : `<button class="ghost wide cheer${s.just ? ' just' : ''}" aria-pressed="${s.cheered}">${svg('cheer')}<span>${esc(s.cheered ? CHEER.done : CHEER.verb)}</span></button>${who}`}
     <div class="comments">${s.comments.map((c) => `<div class="comment"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small>
-      ${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}</div><p>${esc(c.text)}</p></div>`).join('')}</div>
+      ${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div><p>${esc(c.text)}</p></div>`).join('')}</div>
     <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
       <button class="primary wide">Post comment</button></form></div>`;
   const after = (fresh, just = false) => { invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); App.cache.delete('feed:home'); socialBlock(box, aid, {...s, ...fresh, just}); };
@@ -149,6 +151,10 @@ function socialBlock(box, aid, s) {
     b.disabled = true;
     try { await api('/api/comments/' + b.dataset.del, {method: 'DELETE'}); after({comments: s.comments.filter((c) => String(c.id) !== b.dataset.del)}); }
     catch (x) { toast(x.message); b.disabled = false; }
+  });
+  $$('[data-rep]', box).forEach((b) => b.onclick = () => {
+    const c = s.comments.find((x) => String(x.id) === b.dataset.rep);
+    reportSheet(c, {comment_id: c.id}, () => after({comments: s.comments.filter((x) => x.login !== c.login)}));
   });
   const f = $('.c-form', box);
   f.onsubmit = async (e) => {
@@ -236,6 +242,10 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     act(box, '[data-ok]', async (b) => { await api(`/api/friends/${encodeURIComponent(b.dataset.ok)}/accept`, json('POST', {})); toast(`You and ${who(b.dataset.ok)} are friends now`); });
     act(box, '[data-no]', (b) => api(`/api/friends/${encodeURIComponent(b.dataset.no)}/decline`, json('POST', {})));
     act(box, '[data-cancel]', (b) => api('/api/friends/' + encodeURIComponent(b.dataset.cancel), {method: 'DELETE'}));
+    act(box, '[data-blk]', async (b) => {
+      if (!confirm(`Block ${who(b.dataset.blk)}? They can't see your activities, find you or ask to be friends, and you won't see theirs. They aren't told.`)) return false;
+      await api(`/api/people/${encodeURIComponent(b.dataset.blk)}/block`, json('POST', {})); toast(`${who(b.dataset.blk)} is blocked`);
+    });
     act(box, '[data-rm]', async (b) => {
       if (!confirm(`Remove ${who(b.dataset.rm)} from your friends? You'll stop seeing each other's friends-only activities.`)) return false;
       await api('/api/friends/' + encodeURIComponent(b.dataset.rm), {method: 'DELETE'});
@@ -258,7 +268,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   const draw = (r) => {
     Social.set(r.incoming.length); people = people.concat(r.incoming, r.friends, r.outgoing);
     lists.innerHTML = (r.incoming.length ? `<h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2><div class="card list">${r.incoming.map((p) =>
-        person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button>`)).join('')}</div>` : '') +
+        person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button><button class="ghost sm danger" data-blk="${esc(p.login)}" aria-label="Block ${esc(p.name)}">Block</button>`)).join('')}</div>` : '') +
       `<h2 class="sec-head">Your friends${r.friends.length ? ` <span class="count">${r.friends.length}</span>` : ''}</h2><div class="card list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="ghost sm" data-rm="${esc(p.login)}" aria-label="Remove ${esc(p.name)}">Remove</button>`)).join('')
         : '<p class="small muted">No friends yet. Search for someone above. They approve it first, then you each see what the other shares with friends.</p>'}</div>` +
       (r.outgoing.length ? `<h2 class="sec-head">Requests you sent</h2><div class="card list">${r.outgoing.map((p) => person(p, `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel</button>`)).join('')}</div>` : '');
@@ -266,6 +276,35 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   };
   await load('/api/friends', draw, {maxAge: 0});
 });
+
+// ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------
+const REPORT_WHY = {spam: 'Spam', abuse: 'Harassment or abuse', inappropriate: 'Inappropriate', other: 'Something else'};
+function reportSheet(p, what = {}, onBlocked) {
+  let why = null;
+  sheet(`${p.name}`, `<form class="form" id="rp-form"><h3 class="ghead">Report ${what.comment_id ? 'this comment' : what.activity_id ? 'this activity' : 'this person'}</h3>
+    <div class="checks">${Object.entries(REPORT_WHY).map(([k, n]) => `<label class="check"><input type="radio" name="why" value="${k}"> ${esc(n)}</label>`).join('')}</div>
+    <label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label>
+    <p class="small muted">The people who run this Kinetta see your report and what was reported. ${esc(p.name)} isn't told who reported it.</p>
+    <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Send report</button></div>
+    <h3 class="ghead">Block ${esc(p.name)}</h3>
+    <p class="small muted">You stop being friends, they can't see your activities, find you or ask to be friends, and you won't see their activities, cheers or comments. They aren't told. Undo it under Me › Sharing.</p>
+    <button type="button" class="ghost wide danger" id="rp-block">Block ${esc(p.name)}</button></form>`, (b, close) => {
+    const f = $('#rp-form', b);
+    f.onchange = () => { why = (f.querySelector('input[name=why]:checked') || {}).value || null; };
+    f.onsubmit = async (e) => {
+      e.preventDefault(); if (!why) { toast('Choose what is wrong'); return; }
+      try { await api('/api/reports', json('POST', {login: p.login, reason: why, note: f.note.value.trim() || null, ...what})); close(); toast('Thanks. Your report was sent'); }
+      catch (x) { toast(x.message); }
+    };
+    $('#rp-block', b).onclick = async () => {
+      try {
+        await api(`/api/people/${encodeURIComponent(p.login)}/block`, json('POST', {})); invalidate('/api/'); App.cache.delete('feed:home');
+        close(); toast(`${p.name} is blocked`);
+        if (onBlocked) onBlocked(); else go('/activity', {replace: true});
+      } catch (x) { toast(x.message); }
+    };
+  });
+}
 
 // ---------- Me > Sharing: the usual choices for new activities ----------
 route(/^\/me\/sharing$/, 'me', async (el) => {
@@ -280,7 +319,19 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
     <div class="card"><h2>Hide the start and end of your route</h2>
       <div class="seg wide trim4" role="group" aria-label="Hide the start and end">${s.trims.map((m) => `<button type="button" data-trim="${m}" aria-pressed="${m === s.trim_m}">${esc(trimName(m))}</button>`).join('')}</div>
-      <p class="small muted">Shared maps leave out this much at the start and at the end, so others can't see where you live. A route too short for that is shared without a map.</p></div>`;
+      <p class="small muted">Shared maps leave out this much at the start and at the end, so others can't see where you live. A route too short for that is shared without a map.</p></div>
+    <div class="card list" id="sh-blocked"><h2>Blocked people</h2><p class="small muted">Loading…</p></div>`;
+  const drawBlocked = (rows) => {
+    const b = $('#sh-blocked', box); if (!b) return;
+    b.innerHTML = `<h2>Blocked people</h2>${rows.length ? rows.map((p) => `<div class="person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span>
+      <button class="ghost sm" data-unblk="${esc(p.login)}">Unblock</button></div>`).join('') : '<p class="small muted">No one. To block someone, open one of their activities or comments and choose Report or block.</p>'}`;
+    $$('[data-unblk]', b).forEach((x) => x.onclick = async () => {
+      x.disabled = true;
+      try { await api(`/api/people/${encodeURIComponent(x.dataset.unblk)}/block`, {method: 'DELETE'}); invalidate('/api/'); drawBlocked(await api('/api/blocks')); toast('Unblocked'); }
+      catch (e) { toast(e.message); x.disabled = false; }
+    });
+  };
+  load('/api/blocks', drawBlocked, {maxAge: 0}).catch(() => {});
   const save = async (body, msg) => {
     try { await api('/api/sharing', json('PUT', body)); invalidate('/api/'); toast(msg); } catch (x) { toast(x.message); }
   };
@@ -296,7 +347,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 
 // ---------- Me > Notifications (2026-10-11, notify.py): the list, and phone notifications (Web Push) ----------
 const PUSH_NAMES = {friends: 'Friend requests', cheers: CHEER.title, comments: 'Comments', dishes: 'Shared dishes'};
-const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot'};
+const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', report: 'lock'};
 route(/^\/me\/notifications$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notifications</h1><div id="nt-push"></div><div id="nt-list">${skel(2)}</div>`;
   wireBack(el, '/me');

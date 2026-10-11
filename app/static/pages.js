@@ -63,6 +63,20 @@ App.navCount = 0;
 const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 
 // ---------- Today ----------
+// A new person's first steps, until their first workout arrives: automatic syncing first, so testers don't have to
+// upload files every week; the Home Screen tip only on an iPhone browser that isn't already the Home Screen app.
+function getStarted() {
+  const ch = `<span class="chev">${svg('chev')}</span>`;
+  const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
+  const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  return `<h2 class="sec-head">Get started</h2><div class="card list">
+    ${Native.on ? step('/me/health', 'heart', 'c-red', 'Connect Apple Health', 'Workouts from your watch arrive on their own.')
+      : step('/me/connections', 'watch', 'c-ink', 'Connect your watch', 'Garmin or Apple Watch: new workouts arrive on their own.')}
+    ${step('/me/import', 'upload', 'c-blue', 'Bring in your history', 'Your Strava export, or FIT, GPX and TCX files.')}
+    ${step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or snap a photo.')}
+    ${step('/me/friends', 'me', 'c-berry', 'Find your friends', 'See each other\'s runs and rides, and cheer them on.')}
+    ${ios && !home && !Native.on ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : ''}</div>`;
+}
 route(/^\/today$/, 'today', async (el) => {
   const first = App.me.name.split(' ')[0];
   const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', timeZone: tz()});
@@ -109,7 +123,7 @@ route(/^\/today$/, 'today', async (el) => {
   const [feed, st, fit, goals] = await Promise.all([
     load('/api/activities?limit=3', (d) => {
       $('#t-last', el).innerHTML = d.length ? `<h2 class="sec-head">Latest<a href="/activity">See all ›</a></h2>${d.map((x) => postCard(x)).join('')}` :
-        `<div class="card empty"><b>No activities yet</b>Upload your Garmin or Strava files to get started.<br><br><a class="primary" href="/me/import">Upload activities</a></div>`;
+        getStarted();
       feedMaps($('#t-last', el));
     }),
     load('/api/stats', (s) => {
@@ -913,7 +927,7 @@ function passwordSheet() {
 }
 route(/^\/me\/people$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>People</h1>
-    <div id="p-beta"></div>
+    <div id="p-reports"></div><div id="p-beta"></div>
     <div class="card"><h2>Invite someone</h2><form class="form" id="p-inv">
       <label>Who is it for? (optional)<input name="note" maxlength="60" autocomplete="off" placeholder="e.g. Sam"></label>
       <p class="small muted">You get a link to send by text or email. They open it, pick their own username and password, and they're in. Each link works once, for 7 days.</p>
@@ -980,7 +994,7 @@ route(/^\/me\/people$/, 'me', async (el) => {
       try {
         const inv = await api(`/api/beta-requests/${r.id}/invite`, {method: 'POST'});
         const url = inv.url || location.origin + inv.path, first = r.name.trim().split(/\s+/)[0];
-        const body = `Hi ${first},\n\nYou're in! Here's your invite to the Kinetta beta. Open this link on your phone, pick a username and password, and you're set:\n\n${url}\n\nThe link works once, for 7 days. Tip: once you're in, add Kinetta to your home screen so it opens like an app.\n\nThanks for testing!`;
+        const body = `Hi ${first},\n\nYou're in! Here's your invite to the Kinetta beta. Open this link on your phone, pick a username and password, and you're set:\n\n${url}\n\nThe link works once, for 7 days. Once you're in, Today shows how to get started: connect your watch (Me > Watch connections) so your workouts arrive on their own, and add Kinetta to your Home Screen so it opens like an app.\n\nThanks for testing!`;
         const mail = `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent('Your Kinetta beta invite')}&body=${encodeURIComponent(body)}`;
         $(`[data-req="${r.id}"]`, box).innerHTML = `<div class="who"><b>${esc(r.name)}</b> <small class="muted">invited</small>
           <p class="small">Send this to ${esc(r.email)}. It works once, until ${esc(fdate(inv.expires, {month: 'short', day: 'numeric'}))}.</p>
@@ -994,6 +1008,22 @@ route(/^\/me\/people$/, 'me', async (el) => {
       } catch (x) { toast(x.message); b.disabled = false; }
     });
   };
+  // reports from Report or block (social.js): take the thing down, or close the report and leave it
+  const WHY = {spam: 'Spam', abuse: 'Harassment or abuse', inappropriate: 'Inappropriate', other: 'Something else'};
+  const drawReports = (rows) => {
+    const box = $('#p-reports', el); if (!box) return;
+    box.innerHTML = rows.length ? `<div class="card beta-req"><h2>Reports <span class="muted">${rows.length}</span></h2>${rows.map((r) => `<div class="row"><div class="who">
+      <b>${esc(r.name)}</b> <small class="muted">@${esc(r.login)} · ${esc(WHY[r.reason] || r.reason)} · ${esc(fdate(r.created, {month: 'short', day: 'numeric'}))}${r.reporter ? ' · from ' + esc(r.reporter) : ''}</small>
+      <p class="small">${esc(r.what)}</p>${r.note ? `<p class="small muted">${esc(r.note)}</p>` : ''}
+      <div class="btnrow">${r.comment_id || r.activity_id ? `<button class="primary" data-rrm="${r.id}">${r.comment_id ? 'Delete comment' : 'Make it private'}</button>` : ''}<button class="ghost" data-rok="${r.id}">Close, leave it</button></div>
+      </div></div>`).join('')}<p class="small muted">To remove someone completely, tap them in the list below and choose Remove person.</p></div>` : '';
+    $$('[data-rrm], [data-rok]', box).forEach((b) => b.onclick = async () => {
+      b.disabled = true;
+      try { await api(`/api/reports/${b.dataset.rrm || b.dataset.rok}/done${b.dataset.rrm ? '?remove=true' : ''}`, json('POST', {})); drawReports(await api('/api/reports')); }
+      catch (x) { toast(x.message); b.disabled = false; }
+    });
+  };
+  if (App.me.is_admin) load('/api/reports', drawReports, {maxAge: 0}).catch(() => {});
   if (App.me.is_admin) load('/api/beta-requests', drawBeta, {maxAge: 0}).catch(() => {});
   load('/api/invites', drawOpen, {maxAge: 0}).catch(() => {});
   await load('/api/people', draw);
