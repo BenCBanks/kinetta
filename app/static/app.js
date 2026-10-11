@@ -13,7 +13,8 @@ const App = {me: null, cache: new Map(), pages: [], scroll: {}};
 async function api(path, opts = {}) {
   let r;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
-  try { r = await fetch(path, {credentials: 'same-origin', ...opts, headers: {...headers, ...(opts.headers || {})}}); }
+  // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
+  try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, headers: {...headers, ...Native.headers(), ...(opts.headers || {})}}); }
   catch (e) { throw Object.assign(new Error("Can't reach Lankki - check your connection."), {offline: true}); }
   let body = null; try { body = await r.json(); } catch (e) { /* empty */ }
   if (!r.ok) {
@@ -632,6 +633,7 @@ const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg" med
 function showLogin(msg = '') {
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<p>Your runs, rides, walks and food — private to you.</p></div>
+    ${Native.on ? `<label>Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
     <label>Username<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
     <p class="err" role="alert">${esc(msg)}</p>
@@ -639,7 +641,7 @@ function showLogin(msg = '') {
     <p class="small muted">New here? Ask the person who runs this Lankki for an invite link.</p></form></div>`;
   const f = $('form', root);
   $('input[name=login]', f).focus();
-  api('/api/beta').then((r) => {   // a server with the public waitlist on: point newcomers to it
+  if (!Native.on) api('/api/beta').then((r) => {   // a server with the public waitlist on: point newcomers to it
     const p = $('.login .small.muted', root);
     if (r.open && p) { p.innerHTML = 'New here? <a href="/beta">Join the beta</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/beta'); showBeta(); }; }
   }).catch(() => {});
@@ -649,7 +651,7 @@ function showLogin(msg = '') {
     const login = f.login.value.trim(), password = f.password.value;
     if (!login || !password) { err.textContent = 'Enter your username and password.'; return; }
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = '';
-    try { await api('/api/login', json('POST', {login, password})); await start(); }
+    try { if (Native.on) await Native.login(f.server.value, login, password); else await api('/api/login', json('POST', {login, password})); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; b.textContent = 'Log in'; f.password.select(); }
   });
 }
@@ -731,6 +733,7 @@ async function showBeta() {
   });
 }
 async function showWelcome() {
+  if (Native.on) return showLogin();   // new accounts, invites and the waitlist are on the server's web page
   let setup = {needed: false};
   try { setup = await api('/api/setup'); } catch (x) { /* show the login */ }
   const join = location.pathname.match(/^\/join\/([\w-]+)$/);
@@ -742,10 +745,12 @@ async function showWelcome() {
     send: (body) => api('/api/setup', json('POST', body))});
 }
 async function start() {
+  await Native.ready;
+  if (Native.on && !Native.token) return showLogin();
   try {
     App.me = await api('/api/me'); keep('/api/me', App.me);
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/today');
-    render(); Q.flush(); netbar();
+    render(); Q.flush(); netbar(); Native.autoSync();
   } catch (x) {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }
     if (x.offline && kept('/api/me')) {   // no connection: open with what's saved on this phone
@@ -757,4 +762,5 @@ async function start() {
     $('#retry').addEventListener('click', () => { root.innerHTML = '<p class="boot">Loading…</p>'; start(); });
   }
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+// (the iPhone app has its files built in: no service worker there)
+if ('serviceWorker' in navigator && !window.Capacitor) navigator.serviceWorker.register('/sw.js').catch(() => {});

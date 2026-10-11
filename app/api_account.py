@@ -71,7 +71,7 @@ def set_password(body: PasswordIn, request: Request, user=Depends(current_user))
         c.execute('UPDATE users SET pw_hash = %s WHERE id = %s', (auth.hash_pw(body.new), user['id']))
         # sign out everywhere else; this phone keeps its login
         c.execute('DELETE FROM sessions WHERE user_id = %s AND token_hash <> %s',
-                  (user['id'], auth._h(request.cookies.get(auth.COOKIE, ''))))
+                  (user['id'], auth._h(auth.session_token(request) or '')))
     return {'ok': True}
 
 

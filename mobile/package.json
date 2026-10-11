@@ -1,0 +1,19 @@
+{
+  "name": "lankki-mobile",
+  "private": true,
+  "description": "The Lankki iPhone app: the phone pages in app/static, inside a Capacitor shell, plus Apple Health",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "web": "node scripts/copy-web.mjs",
+    "sync": "node scripts/copy-web.mjs && cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/preferences": "8.0.1",
+    "capacitor-health": "8.4.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

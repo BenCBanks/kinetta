@@ -2,10 +2,11 @@
 import os, time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata
+from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health
 import threading
 from .auth import current_user
 
@@ -27,18 +28,24 @@ app.include_router(history_import.router)
 app.include_router(plans.router)
 app.include_router(api_beta.router)
 app.include_router(api_mydata.router)
+app.include_router(api_health.router)
 STATIC = os.path.join(os.path.dirname(__file__), 'static')
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; "
        "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
 
+# The Lankki iPhone app (mobile/) shows the same pages from inside the app, at this address. Its requests carry a login
+# token in a header instead of the cookie (see auth.session_token), so this origin can't act with a browser's login.
+APP_ORIGINS = ('capacitor://localhost',)
+
+
 @app.middleware('http')
 async def guard(request: Request, call_next):
-    # Cross-site requests can't change anything: writes must come from this site and be JSON.
+    # Cross-site requests can't change anything: writes must come from this site (or the iPhone app) and be JSON.
     if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and request.url.path.startswith('/api/'):
         origin = request.headers.get('origin')
         host = request.headers.get('x-forwarded-host') or request.headers.get('host')
-        if origin and origin.split('://', 1)[-1] != host:
+        if origin and origin.split('://', 1)[-1] != host and origin not in APP_ORIGINS:
             return Response('{"detail":"Bad origin"}', 403, media_type='application/json')
         ctype = request.headers.get('content-type', '')
         if 'application/json' not in ctype and not (request.url.path == '/api/import' and ctype.startswith('multipart/form-data')):
@@ -58,9 +65,15 @@ async def guard(request: Request, call_next):
     return r
 
 
+# Only the iPhone app may read answers across sites, and never with cookies (it sends its token in a header).
+app.add_middleware(CORSMiddleware, allow_origins=list(APP_ORIGINS), allow_credentials=False, allow_methods=['*'],
+                   allow_headers=['Authorization', 'Content-Type'], max_age=3600)
+
+
 class Login(BaseModel):
     login: str = Field(max_length=60)
     password: str = Field(max_length=200)
+    app: bool = False       # the iPhone app: answer with the login token instead of setting a cookie
 
 
 @app.post('/api/login')
@@ -75,6 +88,7 @@ def login(body: Login, request: Request, response: Response):
             auth.failed(ip, body.login)
             raise HTTPException(401, 'Wrong name or password')
         token = auth.new_session(c, u['id'], request.headers.get('user-agent'))
+    if body.app: return {'ok': True, 'token': token}
     auth.set_cookie(request, response, token)
     return {'ok': True}
 
@@ -82,7 +96,7 @@ def login(body: Login, request: Request, response: Response):
 @app.post('/api/logout')
 def logout(request: Request, response: Response):
     with db.connect() as c:
-        auth.end_session(c, request.cookies.get(auth.COOKIE))
+        auth.end_session(c, auth.session_token(request))
     response.delete_cookie(auth.COOKIE, path='/')
     return {'ok': True}
 
@@ -90,7 +104,7 @@ def logout(request: Request, response: Response):
 @app.get('/api/me')
 def me(user=Depends(current_user)):
     with db.connect() as c:
-        p = c.execute('SELECT units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, ai_ok FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, ai_ok, health_ai_ok FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
     return {**user, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
@@ -105,11 +119,13 @@ class ProfileIn(BaseModel):
     weight_kg: float | None = Field(None, ge=25, le=300)
     height_cm: float | None = Field(None, ge=100, le=250)
     activity_factor: float | None = Field(None, ge=1.1, le=1.7)
+    health_ai_ok: bool | None = None      # the AI coach may read workouts that came from Apple Health
 
 
 @app.put('/api/profile')
 def set_profile(body: ProfileIn, user=Depends(current_user)):
     vals = body.model_dump(exclude_unset=True)
+    if vals.get('health_ai_ok', False) is None: del vals['health_ai_ok']    # yes or no only
     if 'tz' in vals:
         vals['tz'] = db.valid_tz(vals['tz'])
         if not vals['tz']: raise HTTPException(400, 'Unknown time zone')
