@@ -10,15 +10,49 @@ function headline(a) {
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
   return first + (a.distance_m ? stat(r.label, r.v, r.u) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
 }
-function actCard(a) {
+// One card for every activity in a list (2026-10-11 redesign, Strava-style): who and when, the name, three numbers, the
+// map edge to edge, then cheers and comments. `who` adds the person (the Feed); without it the sport leads (Mine, Today).
+// The card is a link; the footer sits outside it so the Cheer button is a real button.
+function postCard(a, {who = false} = {}) {
+  const theirs = !!a.owner, href = theirs ? `/activity/friends/${a.id}` : `/activity/${a.id}`;
+  const kind = a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? a.sport_label : SPORT_NAMES[a.sport];
   const badges = [];
   if (a.prs) badges.push(`<span class="badge pr">${svg('trophy')} ${a.prs} PR${a.prs > 1 ? 's' : ''}</span>`);
   if (a.route_id) badges.push('<span class="badge">Matched route</span>');
   if (a.commute) badges.push('<span class="badge">Commute</span>');
-  return `<a class="card tap act${a.line ? ' has-map' : ' no-route'}" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
-    <div><div class="hd">${sportMark(a.sport)}<div><b>${esc(a.name)}</b><small>${esc(when(a.start_time))}${a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? ' · ' + esc(a.sport_label) : ''}</small></div></div>
-    <div class="stats3">${headline(a)}</div>${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}</div>
-    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}</a>`;
+  const head = who ? `${avatar(theirs ? a.owner : App.me)}<span class="ph-txt"><b>${theirs ? esc(a.owner.name) : 'You'}</b><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>${sportMark(a.sport)}`
+    : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>`;
+  const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
+  const vis = a.visibility || 'me';
+  const foot = theirs
+    ? `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
+       <a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>`
+    : `<span class="pf static" aria-label="${a.cheers || 0} ${esc(CHEER.many)}">${svg('cheer')}${n('cheers')}</span><a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>
+       <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`;
+  return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
+    <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
+    <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
+    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}</a>
+    <div class="post-ft">${foot}</div></article>`;
+}
+function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
+  const st = [];
+  if (a.distance_m) st.push(stat('Distance', U.dist(a.distance_m), U.du()));
+  if (a.distance_m && a.moving_s && a.shares.pace) { const r = rate(a); st.push(stat(r.label, r.v, r.u)); }
+  st.push(stat('Time', dur(a.moving_s || a.elapsed_s)));
+  if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
+  return st.slice(0, 3).join('');
+}
+// Cheer straight from a feed card: the count changes at once and goes back if the server says no
+function wireCheers(box) {
+  $$('[data-cheer]', box).forEach((b) => b.onclick = async () => {
+    const on = b.getAttribute('aria-pressed') !== 'true', id = b.dataset.cheer;
+    const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
+    const shift = (d) => { const c = cnt(), v = (+c.textContent || 0) + d; c.textContent = v || ''; b.setAttribute('aria-pressed', String(d > 0)); };
+    shift(on ? 1 : -1); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
+    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); invalidate('/api/shared/' + id); App.cache.delete('feed:home'); }
+    catch (x) { shift(on ? -1 : 1); toast(x.message); }
+  });
 }
 const backBtn = (label = 'Back') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
 function wireBack(el, fallback) {
@@ -32,7 +66,7 @@ const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 route(/^\/today$/, 'today', async (el) => {
   const first = App.me.name.split(' ')[0];
   const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', timeZone: tz()});
-  el.innerHTML = `<div class="top"><div><h1>Hi, ${esc(first)}</h1><div class="sub">${esc(day)}</div></div>
+  el.innerHTML = `<div class="top"><div><div class="eyebrow">${esc(day)}</div><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
     <div id="t-week">${skel(1)}</div><div id="t-plan"></div><div id="t-food"></div><div id="t-goals"></div><div id="t-review"></div><div id="t-last"></div><div id="t-form"></div>`;
   planCard($('#t-plan', el)).catch(() => {});
@@ -74,7 +108,7 @@ route(/^\/today$/, 'today', async (el) => {
   }).catch(() => {});
   const [feed, st, fit, goals] = await Promise.all([
     load('/api/activities?limit=3', (d) => {
-      $('#t-last', el).innerHTML = d.length ? `<h2 class="sec-head">Latest<a href="/activity">See all ›</a></h2>${d.map(actCard).join('')}` :
+      $('#t-last', el).innerHTML = d.length ? `<h2 class="sec-head">Latest<a href="/activity">See all ›</a></h2>${d.map((x) => postCard(x)).join('')}` :
         `<div class="card empty"><b>No activities yet</b>Upload your Garmin or Strava files to get started.<br><br><a class="primary" href="/me/import">Upload activities</a></div>`;
       feedMaps($('#t-last', el));
     }),
@@ -133,15 +167,17 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
   .observe(document.documentElement, {childList: true, subtree: true});
 
 // ---------- Activity feed ----------
-// Mine | Friends at the top of the Activity tab (the Friends view is in social.js)
-const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'friends'}">Mine</button><button data-whose="friends" aria-pressed="${cur === 'friends'}">Friends</button></div>`;
+// Feed | Mine at the top of the Activity tab (2026-10-11): the Feed (yours and your friends', newest first) leads;
+// Mine is only yours, with filters and search. The Feed itself is in social.js.
+const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'mine'}">Feed</button><button data-whose="mine" aria-pressed="${cur === 'mine'}">Mine</button></div>`;
 const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () => go('/activity' + (b.dataset.whose ? '?view=' + b.dataset.whose : ''), {replace: true}));
+const actTop = (search) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
+    <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>`;
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
-  if (q.get('view') === 'friends') return friendsFeed(el);
+  if (q.get('view') !== 'mine') return homeFeed(el);
   const sports = ['', 'run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
-  el.innerHTML = `<div class="top"><h1>Activity</h1><div class="acts"><button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>
-    <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>${whoseSeg('')}
+  el.innerHTML = `${actTop(true)}${whoseSeg('mine')}
     <form id="f-sform" class="${term ? '' : 'hidden'}" role="search"><input type="search" name="q" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form>
     <div class="chips" role="group" aria-label="Sport">${sports.map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s === 'other' ? 'Other' : s ? SPORT_NAMES[s] + 's' : 'All'}</button>`).join('')}</div>
     <div class="feed-list" id="f-list">${skel(4)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
@@ -155,7 +191,7 @@ route(/^\/activity$/, 'activity', async (el) => {
   let items = [];
   const draw = (rows) => {
     items = rows;
-    list.innerHTML = rows.length ? rows.map(actCard).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : 'Upload FIT, GPX or TCX files, or your whole Strava export.'}</div>`;
+    list.innerHTML = rows.length ? rows.map((x) => postCard(x)).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : 'Upload FIT, GPX or TCX files, or your whole Strava export.'}</div>`;
     more.hidden = rows.length < 25 || rows.length % 25 !== 0;
     feedMaps(list);
   };
@@ -165,7 +201,7 @@ route(/^\/activity$/, 'activity', async (el) => {
     try {
       const rows = await api(base + '&before=' + encodeURIComponent(items[items.length - 1].start_time));
       items = items.concat(rows); App.cache.set(base, {data: items, at: Date.now()});
-      list.insertAdjacentHTML('beforeend', rows.map(actCard).join('')); more.hidden = rows.length < 25; feedMaps(list);
+      list.insertAdjacentHTML('beforeend', rows.map((x) => postCard(x)).join('')); more.hidden = rows.length < 25; feedMaps(list);
     } catch (e) { toast(e.message); }
     more.disabled = false; more.textContent = 'Show more';
   };
@@ -232,8 +268,8 @@ function drawDetail(el, a) {
   const splits = imp() ? a.splits_mi : a.splits_km;
   el.innerHTML = `<div class="top">${backBtn('Activity')}<div><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>
     ${a.line ? `<div class="map big lead" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
-    <div class="d-title card"><div class="hd act"><div class="hd">${sportMark(a.sport)}<div><h1>${esc(a.name)}</h1>
-      <div class="sub">${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</div></div></div></div>
+    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span></div>
+      <h1>${esc(a.name)}</h1>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       <div class="hero">${hero}</div><div class="hero more">${sportStats(a)}</div>
       ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}
@@ -684,35 +720,37 @@ async function pHeatmap(body, q) {
 // ---------- Me ----------
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
-  // profile header (2026-10-11 polish): initial, name, username; the long settings form now opens in a sheet
-  el.innerHTML = `<div class="profile"><span class="avatar" aria-hidden="true">${esc((me.name.trim()[0] || '?').toUpperCase())}</span><div><h1>${esc(me.name)}</h1><div class="sub">${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
-    <div class="card"><a class="row-link" href="/me/friends"><span>Friends</span><span class="val">${me.friend_requests ? `<span class="badge on">${me.friend_requests} waiting</span>` : ''}<span class="chev">${svg('chev')}</span></span></a>
-      <a class="row-link" href="/me/sharing"><span>Sharing</span><span class="val">Who sees your activities<span class="chev">${svg('chev')}</span></span></a></div>
-    <div class="card"><a class="row-link" href="/me/import"><span>Upload activities</span><span class="chev">${svg('chev')}</span></a>
-      <button class="row-link" data-addact><span>Add an activity by hand</span><span class="chev">${svg('chev')}</span></button>
-      ${Native.on ? `<a class="row-link" href="/me/health"><span>Apple Health</span><span class="chev">${svg('chev')}</span></a>` : ''}
-      <a class="row-link" href="/me/connections"><span>Watch connections</span><span class="chev">${svg('chev')}</span></a>
-      <a class="row-link" href="/me/gear"><span>Shoes & bikes</span><span class="chev">${svg('chev')}</span></a>
-      <a class="row-link" href="/plan"><span>Training plan</span><span class="chev">${svg('chev')}</span></a>
-      <a class="row-link" href="/me/goals"><span>Goals</span><span class="chev">${svg('chev')}</span></a>
-      <button class="row-link" id="m-targets"><span>Nutrition targets</span><span class="chev">${svg('chev')}</span></button>
-      <a class="row-link" href="/food/weight"><span>Weight trend</span><span class="chev">${svg('chev')}</span></a></div>
-    <div class="card"><h2>Settings</h2>
-      <div class="row"><span>Units</span><div class="seg" role="group" aria-label="Units">
+  // 2026-10-11 redesign: a settings-style list, each row with a coloured icon; the long forms open in sheets
+  const ch = `<span class="chev">${svg('chev')}</span>`;
+  const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
+  el.innerHTML = `<div class="profile">${avatar(me, 'lg')}<div><h1>${esc(me.name)}</h1><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
+    <div class="card list">${row('a', 'href="/me/friends"', 'people', 'c-berry', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
+      ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}</div>
+    <div class="card list">${row('a', 'href="/me/import"', 'upload', 'c-blue', 'Upload activities')}
+      ${row('button', 'data-addact', 'plus', 'c-blue', 'Add an activity by hand')}
+      ${Native.on ? row('a', 'href="/me/health"', 'heart', 'c-red', 'Apple Health') : ''}
+      ${row('a', 'href="/me/connections"', 'watch', 'c-ink', 'Watch connections')}
+      ${row('a', 'href="/me/gear"', 'shoe', 'c-orange', 'Shoes & bikes')}</div>
+    <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
+      ${row('a', 'href="/me/goals"', 'target', 'c-berry', 'Goals')}
+      ${row('button', 'id="m-targets"', 'food', 'c-green', 'Nutrition targets')}
+      ${row('a', 'href="/food/weight"', 'scale', 'c-purple', 'Weight trend')}</div>
+    <h2 class="sec-head">Settings</h2>
+    <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
-      <button class="row-link" id="m-body"><span>Body & heart rate</span><span class="val">${esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up')}<span class="chev">${svg('chev')}</span></span></button></div>
-    <div class="card"><h2>Account</h2>
-      <button class="row-link" id="m-name"><span>Name</span><span class="val">${esc(me.name)}<span class="chev">${svg('chev')}</span></span></button>
-      <button class="row-link" id="m-login"><span>Username</span><span class="val">${esc(me.login)}<span class="chev">${svg('chev')}</span></span></button>
-      <button class="row-link" id="m-pw"><span>Password</span><span class="val">Change<span class="chev">${svg('chev')}</span></span></button>
-      ${me.is_admin ? `<a class="row-link" href="/me/people"><span>People</span><span class="val">Invite, reset, remove<span class="chev">${svg('chev')}</span></span></a>` : ''}</div>
-    ${me.coach ? `<div class="card" id="ai"><h2>AI features</h2>${aiExplain()}
+      ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
+    <h2 class="sec-head">Account</h2>
+    <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
+      ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
+      ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
+      ${me.is_admin ? row('a', 'href="/me/people"', 'people', 'c-ink', 'People', 'Invite, reset, remove') : ''}</div>
+    ${me.coach ? `<h2 class="sec-head">AI features</h2><div class="card" id="ai">${aiExplain()}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
-    <div class="card"><h2>Your data</h2>
-      <a class="row-link" id="m-export" href="/api/account/export" download><span>Download my data</span><span class="val">Zip file<span class="chev">${svg('chev')}</span></span></a>
-      <a class="row-link" href="https://kinetta.app/privacy" target="_blank" rel="noopener"><span>Privacy policy</span><span class="val">kinetta.app<span class="chev">${svg('chev')}</span></span></a>
-      <button class="row-link" id="m-del"><span class="danger">Delete my account</span><span class="val"><span class="chev">${svg('chev')}</span></span></button></div>
-    <button class="ghost wide" id="logout">Log out</button>`;
+    <h2 class="sec-head">Your data</h2>
+    <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
+      ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
+      ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
+    <button class="ghost wide" id="logout">${svg('logout')}Log out</button>`;
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');

@@ -63,11 +63,14 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Faster logging (2026-10-10): "Same as <day>" on empty meals, Your usuals with one-tap +, default meal learned from your log hours
 - [x] Offline (2026-10-10): app opens without signal (service worker), key screens kept on the phone, food/weight queue with
       client_id so resends never duplicate; Today food card (eaten/left/protein/weigh-in)
+- [x] Cooking mode (2026-10-11, `api_dishes.py` + `static/cook.js`): add ingredients while cooking ("100 g chicken"), or type
+      the dish's total; weigh the cooked dish (pans remembered), weigh your plate, and your share is logged; leftovers stay 5 days
 
 ## Platform
 - [x] One-command Docker install; passwords generated on first start; first account becomes the admin
 - [x] Invite links (one use, 7 days); each new account starts in its phone's time zone and units
 - [x] Private accounts, read-only SQL login per person with row-level security + friendly views, one-command database backups
 - [ ] Notifications on the phone (web push) for new activity notes and weekly review
-- [ ] Optional sharing between people (off by default)
+- [x] Sharing between people (2026-10-11, off by default): friends found by name or username, a Feed of yours and your
+      friends' activities (Mine for just yours), sharing per activity, hidden map ends, cheers and comments
 - [x] Admin: reset a person's password, remove a person + all their data (Me > Account > People)

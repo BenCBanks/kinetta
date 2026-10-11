@@ -73,14 +73,15 @@ nav.links a:hover { color: var(--ink); }
 .btn.line { color: var(--ink); }
 .btn:hover { transform: translateY(-1px); } .btn { transition: transform .15s; }
 .hero .note { margin-top: 18px; font-size: 14px; color: var(--ink3); }
-.track { position: absolute; inset: auto; right: -12%; top: 50%; width: 78%; transform: translateY(-50%); color: var(--line); pointer-events: none; }
+/* the whole oval sits behind the phone, inside the screen at every width (the runner never leaves the picture) */
+.stage { position: relative; display: grid; place-items: center; }
+.track { position: absolute; left: 50%; top: 50%; width: min(135%, calc(100vw - 24px)); transform: translate(-50%, -50%); color: var(--line); pointer-events: none; overflow: visible; }
 .track .runner { fill: var(--berry); }
 .phone { width: min(300px, 78vw); margin-inline: auto; border-radius: 40px; padding: 10px; background: var(--ink);
-  box-shadow: 0 30px 60px -30px rgba(30, 37, 34, .45); position: relative; }
+  box-shadow: 0 30px 60px -30px rgba(30, 37, 34, .45); position: relative; z-index: 1; }
 .phone img { border-radius: 31px; width: 100%; height: auto; min-width: 0; aspect-ratio: 720 / 1558; object-fit: cover; object-position: top; }
 @media (max-width: 860px) {
   .hero .wrap { grid-template-columns: 1fr; gap: 40px; }
-  .track { width: 150%; right: -60%; top: 72%; }
 }
 
 /* the word */
@@ -240,13 +241,6 @@ footer a { color: var(--ink2); }
 
 <main>
   <section class="hero">
-    <svg class="track" viewBox="0 0 800 440" aria-hidden="true">
-      <path id="lap" d="M220 20 H580 A200 200 0 0 1 580 420 H220 A200 200 0 0 1 220 20 Z" fill="none" stroke="currentColor" stroke-width="22"/>
-      <path d="M220 52 H580 A168 168 0 0 1 580 388 H220 A168 168 0 0 1 220 52 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="10 12" opacity=".8"/>
-      <circle class="runner" r="17" cx="0" cy="0">
-        <animateMotion dur="38s" repeatCount="indefinite" rotate="auto"><mpath href="#lap"/></animateMotion>
-      </circle>
-    </svg>
     <div class="wrap">
       <div>
         <span class="eyebrow">Activity tracking + food and health</span>
@@ -258,8 +252,17 @@ footer a { color: var(--ink2); }
         </div>
         <p class="note">Free during the beta. Works in any phone's browser today; an iPhone app with Apple Health sync is on the way. No ads, and no one selling your data.</p>
       </div>
-      <div class="phone">
-        <picture><source srcset="assets/shots/dark-today.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-today.webp" alt="Kinetta's Today screen: this week's 29.4 miles with a bar for each day, the next workout in a 10K plan, and calories eaten today" width="720" height="1558"></picture>
+      <div class="stage">
+        <svg class="track" viewBox="0 0 800 440" aria-hidden="true">
+          <path id="lap" d="M220 20 H580 A200 200 0 0 1 580 420 H220 A200 200 0 0 1 220 20 Z" fill="none" stroke="currentColor" stroke-width="22"/>
+          <path d="M220 52 H580 A168 168 0 0 1 580 388 H220 A168 168 0 0 1 220 52 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="10 12" opacity=".8"/>
+          <circle class="runner" r="17" cx="0" cy="0">
+            <animateMotion dur="38s" repeatCount="indefinite" rotate="auto"><mpath href="#lap"/></animateMotion>
+          </circle>
+        </svg>
+        <div class="phone">
+          <picture><source srcset="assets/shots/dark-today.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-today.webp" alt="Kinetta's Today screen: this week's 29.4 miles with a bar for each day, the next workout in a 10K plan, and calories eaten today" width="720" height="1558"></picture>
+        </div>
       </div>
     </div>
   </section>

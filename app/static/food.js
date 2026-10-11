@@ -57,13 +57,15 @@ route(/^\/food$/, 'food', async (el) => {
       <button class="icon-btn" id="fd-next" aria-label="Next day">${svg('chev')}</button></div>
     <div class="quick">
       <button class="primary" id="fq-add">${svg('search')} Add food</button>
-</div>
-    <div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div><div id="fd-weight"></div>`;
+      <button class="ghost" id="fq-cook">${svg('pot')} Cooking</button></div>
+    <div id="fd-dishes"></div><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div><div id="fd-weight"></div>`;
   wireView();
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   $('#fd-today', el).onclick = () => go('/food', {replace: true});
   $('#fq-add', el).onclick = () => addSheet(day, guessMeal());
+  $('#fq-cook', el).onclick = (e) => startCooking(e.currentTarget);
+  dishStrip($('#fd-dishes', el), day);
   await load(`/api/food/day?d=${day}`, (D) => drawDay(el, D), {maxAge: 5000});
 });
 
