@@ -1,6 +1,6 @@
-# Contributing to Lankki
+# Contributing to Kinetta
 
-Thanks for wanting to help! Lankki is a small project, so please **open an issue before writing a large change**, so we
+Thanks for wanting to help! Kinetta is a small project, so please **open an issue before writing a large change**, so we
 can agree on the idea first. Bug reports, ideas and questions are all welcome as issues.
 
 When you send a pull request:
@@ -10,5 +10,5 @@ When you send a pull request:
 - The phone app has no build step: edit `app/static/`, then bump the `?v=` numbers in `index.html`.
 - Test with throwaway accounts on your own install, never with real people's data.
 
-Contributions are accepted under the project's license (AGPL-3.0). Because the author may also offer Lankki under a
+Contributions are accepted under the project's license (AGPL-3.0). Because the author may also offer Kinetta under a
 commercial license, you may be asked to sign a short contributor agreement before a larger contribution is merged.

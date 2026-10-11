@@ -1,4 +1,4 @@
-"""Your data, your call (2026-10-11): download everything Lankki keeps about you, or delete your account.
+"""Your data, your call (2026-10-11): download everything Kinetta keeps about you, or delete your account.
 
 Download: one zip - every personal table as JSON Lines, spreadsheet-friendly CSVs of activities, food and weight, and
 the original activity files you or your watch uploaded. Secrets (password hash, login sessions, connection keys) and
@@ -61,9 +61,9 @@ CSVS = {
                    FROM food_entries WHERE user_id = %s ORDER BY day, position""",
     'weight.csv': 'SELECT day, kg, note, source FROM weights WHERE user_id = %s ORDER BY day',
 }
-README = """Your Lankki data, downloaded {when}.
+README = """Your Kinetta data, downloaded {when}.
 
-data/*.jsonl  every table Lankki keeps about you, one JSON object per line (activity tracks are GeoJSON).
+data/*.jsonl  every table Kinetta keeps about you, one JSON object per line (activity tracks are GeoJSON).
 *.csv         your activities, food log and weigh-ins, ready for a spreadsheet. Distances in meters, times in seconds.
 files/        the original activity files (FIT, GPX, TCX) you or your watch uploaded.
 
@@ -102,12 +102,12 @@ def export(user=Depends(current_user)):
     now = time.time()
     if now - _last_export.get(user['id'], 0) < 300: raise HTTPException(429, 'You just downloaded your data - try again in 5 minutes')
     _last_export[user['id']] = now
-    fd, path = tempfile.mkstemp(prefix='lankki-export-', suffix='.zip'); os.close(fd)
+    fd, path = tempfile.mkstemp(prefix='kinetta-export-', suffix='.zip'); os.close(fd)
     try:
         _write_export(user['id'], path)
     except Exception:
         os.unlink(path); _last_export.pop(user['id'], None); raise
-    return FileResponse(path, media_type='application/zip', filename=f"lankki-{user['login']}-{time.strftime('%Y-%m-%d')}.zip",
+    return FileResponse(path, media_type='application/zip', filename=f"kinetta-{user['login']}-{time.strftime('%Y-%m-%d')}.zip",
                         background=BackgroundTask(os.unlink, path), headers={'Cache-Control': 'no-store'})
 
 
@@ -126,7 +126,7 @@ def delete_account(body: DeleteIn, request: Request, response: Response, user=De
             raise HTTPException(400, 'Password is wrong')
         if me['is_admin'] and not c.execute('SELECT 1 FROM users WHERE is_admin AND id <> %s', (me['id'],)).fetchone() \
                 and c.execute('SELECT 1 FROM users WHERE id <> %s', (me['id'],)).fetchone():
-            raise HTTPException(400, "You're the admin and other people use this Lankki, so this account can't be deleted here")
+            raise HTTPException(400, "You're the admin and other people use this Kinetta, so this account can't be deleted here")
         erase(c, me)
     erase_files(me['id'])
     response.delete_cookie(auth.COOKIE, path='/')

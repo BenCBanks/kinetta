@@ -1,4 +1,4 @@
-# Publishes the lankki.com homepage (the site/ folder) with GitHub Pages whenever it changes on main.
+# Publishes the kinetta.app homepage (the site/ folder) with GitHub Pages whenever it changes on main.
 name: Homepage
 on:
   push:

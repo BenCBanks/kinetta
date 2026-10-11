@@ -1,6 +1,6 @@
 {
-  "appId": "com.lankki.app",
-  "appName": "Lankki",
+  "appId": "com.kinetta.app",
+  "appName": "Kinetta",
   "webDir": "www",
   "ios": {
     "contentInset": "never",

@@ -1,7 +1,7 @@
 {
-  "name": "lankki-mobile",
+  "name": "kinetta-mobile",
   "private": true,
-  "description": "The Lankki iPhone app: the phone pages in app/static, inside a Capacitor shell, plus Apple Health",
+  "description": "The Kinetta iPhone app: the phone pages in app/static, inside a Capacitor shell, plus Apple Health",
   "license": "AGPL-3.0-only",
   "scripts": {
     "web": "node scripts/copy-web.mjs",

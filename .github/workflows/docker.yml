@@ -1,4 +1,4 @@
-# Builds the Lankki app image for ordinary PCs (amd64) and Raspberry Pi / ARM NAS (arm64) and publishes it to
+# Builds the Kinetta app image for ordinary PCs (amd64) and Raspberry Pi / ARM NAS (arm64) and publishes it to
 # GitHub's container registry, so people can install without building. Runs on every push to main and on version tags.
 name: Docker image
 on:

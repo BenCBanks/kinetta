@@ -431,7 +431,7 @@ MIGRATIONS = [
     ALTER TABLE profile ADD COLUMN ai_ok boolean;
     UPDATE profile SET ai_ok = true;
     """,
-    # 20 (2026-10-11): workouts sent by the Lankki iPhone app from Apple Health (api_health.py). source_id holds HealthKit's
+    # 20 (2026-10-11): workouts sent by the Kinetta iPhone app from Apple Health (api_health.py). source_id holds HealthKit's
     #     own id for the workout, so one sent twice (a retry, a second phone) is stored once, even when both arrive at the
     #     same moment. health_ai_ok: the person said yes to the AI coach reading their Apple Health workouts (off until then).
     """

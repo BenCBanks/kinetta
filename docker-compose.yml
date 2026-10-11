@@ -1,6 +1,6 @@
-# Lankki - start it with:   docker compose up -d
+# Kinetta - start it with:   docker compose up -d
 # then open http://<this computer's address>:8790 and create your account (the first account is the admin).
-# Settings are optional: copy .env.example to .env and edit it. How to reach Lankki from your phone: docs/connect.md
+# Settings are optional: copy .env.example to .env and edit it. How to reach Kinetta from your phone: docs/connect.md
 name: lankki
 
 x-image: &image

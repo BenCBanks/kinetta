@@ -1,4 +1,4 @@
-/* Lankki — phone-first, light + dark. Principles: speed, native feel, data screens.
+/* Kinetta — phone-first, light + dark. Principles: speed, native feel, data screens.
    No inline style attributes anywhere (Content-Security-Policy): dynamic sizes go through CSS custom properties. */
 :root {
   --bg: #F6F4EF; --card: #FFFFFF; --card2: #EFECE6; --tx: #1C2321; --tx2: #4B5450; --tx3: #6B7470; --line: #E3DFD7;
@@ -661,8 +661,8 @@ button.pt-w { width: 100%; border: 0; text-align: left; margin-top: 10px; paddin
 .card > h2 .linkbtn { min-height: 40px; }
 .mealact .linkbtn { min-height: 44px; }
 
-/* ---------- Lankki: logo, first-run + join screens, invite links ---------- */
-.brand { display: block; margin: 0 0 18px; } .brand img { display: block; width: 186px; height: auto; }
+/* ---------- Kinetta: logo, first-run + join screens, invite links ---------- */
+.brand { display: block; margin: 0 0 18px; } .brand img { display: block; width: 210px; height: auto; }
 .login h1 + p { margin-top: 6px; }
 .login .small.muted { margin: -6px 0 0; font-weight: 400; }
 .login .form { width: 100%; max-width: 340px; display: grid; gap: 12px; }
@@ -694,7 +694,7 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .beta-req .who { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .beta-req .row { padding: 12px 0; }
 .beta-req .btnrow { margin-top: 8px; }
-/* Me > Apple Health (iPhone app): what Lankki reads */
+/* Me > Apple Health (iPhone app): what Kinetta reads */
 .card ul.reads { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 4px; }
 /* delete my account (2026-10-11) */
 .primary.danger-btn { background: var(--alert); }

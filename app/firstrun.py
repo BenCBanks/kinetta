@@ -12,6 +12,6 @@ for name in ('db_password', 'app_password'):
         continue
     with open(path, 'w') as f:
         f.write(secrets.token_hex(24))      # letters + digits only: safe inside SQL quotes and connection strings
-    os.chmod(path, 0o644)                   # readable by the database container's own user; the volume is private to Lankki
+    os.chmod(path, 0o644)                   # readable by the database container's own user; the volume is private to Kinetta
     print(f'created {name}')
 print('passwords ready')

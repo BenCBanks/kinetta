@@ -1,4 +1,4 @@
-"""Synthetic GPX activities for the Lankki demo screenshots (no real data). Usage: gen_gpx.py <outdir> <days>"""
+"""Synthetic GPX activities for the Kinetta demo screenshots (no real data). Usage: gen_gpx.py <outdir> <days>"""
 import datetime as dt, math, os, random, sys
 
 out, days = sys.argv[1], int(sys.argv[2])

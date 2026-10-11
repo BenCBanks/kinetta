@@ -1,4 +1,4 @@
-// Lankki phone app — Part 2: pages. Each page renders a skeleton at once, then fills from cache/API.
+// Kinetta phone app — Part 2: pages. Each page renders a skeleton at once, then fills from cache/API.
 'use strict';
 
 // ---------- shared bits ----------
@@ -710,7 +710,7 @@ route(/^\/me$/, 'me', async (el) => {
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <div class="card"><h2>Your data</h2>
       <a class="row-link" id="m-export" href="/api/account/export" download><span>Download my data</span><span class="val">Zip file<span class="chev">${svg('chev')}</span></span></a>
-      <a class="row-link" href="https://lankki.com/privacy" target="_blank" rel="noopener"><span>Privacy policy</span><span class="val">lankki.com<span class="chev">${svg('chev')}</span></span></a>
+      <a class="row-link" href="https://kinetta.app/privacy" target="_blank" rel="noopener"><span>Privacy policy</span><span class="val">kinetta.app<span class="chev">${svg('chev')}</span></span></a>
       <button class="row-link" id="m-del"><span class="danger">Delete my account</span><span class="val"><span class="chev">${svg('chev')}</span></span></button></div>
     <button class="ghost wide" id="logout">Log out</button>`;
   $('#m-targets', el).onclick = () => targetsSheet();
@@ -843,7 +843,7 @@ route(/^\/me\/people$/, 'me', async (el) => {
   const draw = (rows) => {
     const box = $('#p-list', el); if (!box) return;
     const can = (p) => !p.is_admin && p.login !== App.me.login;
-    box.innerHTML = `<div class="card"><h2>On this Lankki</h2>${rows.map((p) => `<${can(p) ? `button class="row-link" data-person="${esc(p.login)}"` : 'div class="row"'}><span><b>${esc(p.name)}</b><br><small class="muted">${esc(p.login)}${p.is_admin ? ' · admin' : ''}</small></span>
+    box.innerHTML = `<div class="card"><h2>On this Kinetta</h2>${rows.map((p) => `<${can(p) ? `button class="row-link" data-person="${esc(p.login)}"` : 'div class="row"'}><span><b>${esc(p.name)}</b><br><small class="muted">${esc(p.login)}${p.is_admin ? ' · admin' : ''}</small></span>
       <span class="val small muted">${p.has_password ? 'Since ' + esc(fdate(p.created, {month: 'short', year: 'numeric'})) : 'No password yet'}${can(p) ? `<span class="chev">${svg('chev')}</span>` : ''}</span></${can(p) ? 'button' : 'div'}>`).join('')}</div>`;
     $$('[data-person]', box).forEach((b) => b.onclick = () => personSheet(rows.find((p) => p.login === b.dataset.person), async () => { App.cache.delete('/api/people'); draw(await api('/api/people')); }));
   };
@@ -870,7 +870,7 @@ route(/^\/me\/people$/, 'me', async (el) => {
       $('#p-copy', el).onclick = async () => {
         try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (x) { box.focus(); box.select(); toast('Select the link and copy it'); }
       };
-      if (navigator.share) $('#p-share', el).onclick = () => navigator.share({title: 'Join me on Lankki', text: 'Here is your invite to Lankki:', url}).catch(() => {});
+      if (navigator.share) $('#p-share', el).onclick = () => navigator.share({title: 'Join me on Kinetta', text: 'Here is your invite to Kinetta:', url}).catch(() => {});
       fi.reset(); drawOpen(await api('/api/invites'));
     } catch (x) { toast(x.message); }
     btn.disabled = false;
@@ -893,8 +893,8 @@ route(/^\/me\/people$/, 'me', async (el) => {
       try {
         const inv = await api(`/api/beta-requests/${r.id}/invite`, {method: 'POST'});
         const url = inv.url || location.origin + inv.path, first = r.name.trim().split(/\s+/)[0];
-        const body = `Hi ${first},\n\nYou're in! Here's your invite to the Lankki beta. Open this link on your phone, pick a username and password, and you're set:\n\n${url}\n\nThe link works once, for 7 days. Tip: once you're in, add Lankki to your home screen so it opens like an app.\n\nThanks for testing!`;
-        const mail = `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent('Your Lankki beta invite')}&body=${encodeURIComponent(body)}`;
+        const body = `Hi ${first},\n\nYou're in! Here's your invite to the Kinetta beta. Open this link on your phone, pick a username and password, and you're set:\n\n${url}\n\nThe link works once, for 7 days. Tip: once you're in, add Kinetta to your home screen so it opens like an app.\n\nThanks for testing!`;
+        const mail = `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent('Your Kinetta beta invite')}&body=${encodeURIComponent(body)}`;
         $(`[data-req="${r.id}"]`, box).innerHTML = `<div class="who"><b>${esc(r.name)}</b> <small class="muted">invited</small>
           <p class="small">Send this to ${esc(r.email)}. It works once, until ${esc(fdate(inv.expires, {month: 'short', day: 'numeric'}))}.</p>
           <input class="linkbox" readonly value="${esc(url)}" aria-label="Invite link">

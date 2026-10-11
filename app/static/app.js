@@ -1,4 +1,4 @@
-// Lankki phone app — plain JS, no build step. Part 1: plumbing (api cache, router, formatting, icons, charts, maps).
+// Kinetta phone app — plain JS, no build step. Part 1: plumbing (api cache, router, formatting, icons, charts, maps).
 // Page code lives in pages.js. Design rules (instant feedback, cached screens,
 // optimistic edits with undo, skeletons, safe areas, no inline style attributes because of the CSP).
 'use strict';
@@ -15,7 +15,7 @@ async function api(path, opts = {}) {
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
   try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, headers: {...headers, ...Native.headers(), ...(opts.headers || {})}}); }
-  catch (e) { throw Object.assign(new Error("Can't reach Lankki - check your connection."), {offline: true}); }
+  catch (e) { throw Object.assign(new Error("Can't reach Kinetta - check your connection."), {offline: true}); }
   let body = null; try { body = await r.json(); } catch (e) { /* empty */ }
   if (!r.ok) {
     const d = body && body.detail;
@@ -617,7 +617,7 @@ function loadChart(box, days) {
 }
 
 // ---------- AI consent (2026-10-11): coach notes, weekly reviews and food photos send data to the AI service ----------
-const aiExplain = () => `<p>Lankki can write a short <b>coach note</b> on each new workout, a <b>weekly review</b> on Sundays, and <b>estimate the food in a photo</b>.</p>
+const aiExplain = () => `<p>Kinetta can write a short <b>coach note</b> on each new workout, a <b>weekly review</b> on Sundays, and <b>estimate the food in a photo</b>.</p>
   <p class="small muted">To do that, the workout's numbers and your recent training, or the photo, are sent to ${esc(App.me.ai_provider || 'an AI service')}, which writes the text. Nothing is sent while this is off, and you can turn it off any time under Me.</p>`;
 function aiSheet(after) {   // ask once; after() runs when they turn it on
   sheet('Turn on AI features?', `<div class="form">${aiExplain()}<div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
@@ -631,7 +631,7 @@ function aiSheet(after) {   // ask once; after() runs when they turn it on
 }
 
 // ---------- login, first-run setup, invite links + start ----------
-const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg" alt="Lankki" width="186" height="34"></picture>`;
+const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=2" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=2" alt="Kinetta" width="210" height="34"></picture>`;
 function showLogin(msg = '') {
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<p>Your runs, rides, walks and food — private to you.</p></div>
@@ -640,7 +640,7 @@ function showLogin(msg = '') {
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
     <p class="err" role="alert">${esc(msg)}</p>
     <button class="primary" type="submit">Log in</button>
-    <p class="small muted">New here? Ask the person who runs this Lankki for an invite link.</p></form></div>`;
+    <p class="small muted">New here? Ask the person who runs this Kinetta for an invite link.</p></form></div>`;
   const f = $('form', root);
   $('input[name=login]', f).focus();
   if (!Native.on) api('/api/beta').then((r) => {   // a server with the public waitlist on: point newcomers to it
@@ -698,7 +698,7 @@ async function showJoin(token) {
     $('a', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
     return;
   }
-  showNewAccount({title: 'Join Lankki', button: 'Create my account',
+  showNewAccount({title: 'Join Kinetta', button: 'Create my account',
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account — your activities and food log are private to you.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
@@ -708,14 +708,14 @@ async function showBeta() {
   try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }
   if (!open) { history.replaceState(null, '', '/'); return showLogin(); }
   root.innerHTML = `<div class="login"><form novalidate>
-    <div>${BRAND}<h1>Join the beta</h1><p>Lankki puts your workouts and your food log in one private app. We're inviting a small group of testers — tell us a little about you and we'll send you an invite link.</p></div>
+    <div>${BRAND}<h1>Join the beta</h1><p>Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers — tell us a little about you and we'll send you an invite link.</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
     <label>Email<input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label>
     <label>Your phone<select name="phone" required><option value="">Choose…</option><option value="iphone">iPhone</option><option value="android">Android</option><option value="other">Something else</option></select></label>
     <label>Your watch or tracker (optional)<input name="watch" maxlength="60" placeholder="e.g. Garmin Forerunner, Apple Watch, none"></label>
     <label>Anything we should know? (optional)<textarea name="note" maxlength="300" rows="3"></textarea></label>
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-    <p class="small muted">We use your email only to send your invite. <a href="https://lankki.com/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
+    <p class="small muted">We use your email only to send your invite. <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">Ask to join</button>
     <p class="small muted">Already have an account? <a href="/" id="b-login">Log in</a></p></form></div>`;
@@ -742,8 +742,8 @@ async function showWelcome() {
   if (join) return showJoin(join[1]);
   if (location.pathname === '/beta') return showBeta();
   if (!setup.needed) return showLogin();
-  showNewAccount({title: 'Welcome to Lankki', button: 'Create my account',
-    intro: "This is a brand-new Lankki. Create your account first — you'll be its admin and can invite your people next.",
+  showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account',
+    intro: "This is a brand-new Kinetta. Create your account first — you'll be its admin and can invite your people next.",
     send: (body) => api('/api/setup', json('POST', body))});
 }
 async function start() {

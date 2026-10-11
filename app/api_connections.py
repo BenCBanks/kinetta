@@ -1,7 +1,7 @@
 """Automatic connections.
 
 Apple Watch: the iPhone app "Health Auto Export" (Premium: REST API automation) POSTs JSON to
-    https://<your Lankki address>/api/ingest/apple     with header   Authorization: Bearer <token from Me > Connections>
+    https://<your Kinetta address>/api/ingest/apple     with header   Authorization: Bearer <token from Me > Connections>
   Workouts become activities (route + heart rate when present); body-mass metrics become weigh-ins.
   The payload format (v2) is parsed tolerantly: data.workouts[] {name, start, end, duration, distance{qty,units},
   activeEnergyBurned{qty,units}, heartRateData[], route[] {latitude, longitude, altitude, timestamp}}; data.metrics[].
@@ -161,7 +161,7 @@ class IntervalsIn(BaseModel):
 
 def _icu(path, key, raw=False):
     req = urllib.request.Request('https://intervals.icu' + path, headers={
-        'Authorization': 'Basic ' + base64.b64encode(f'API_KEY:{key}'.encode()).decode(), 'User-Agent': 'Lankki/1.0 (+https://lankki.com)', 'Accept': '*/*'})
+        'Authorization': 'Basic ' + base64.b64encode(f'API_KEY:{key}'.encode()).decode(), 'User-Agent': 'Kinetta/1.0 (+https://kinetta.app)', 'Accept': '*/*'})
     with urllib.request.urlopen(req, timeout=60) as r:
         data = r.read()
         return data if raw else json.loads(data)

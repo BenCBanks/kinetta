@@ -1,19 +1,19 @@
 <p align="center">
   <picture>
     <source srcset="docs/assets/logo-dark.svg" media="(prefers-color-scheme: dark)">
-    <img src="docs/assets/logo.svg" alt="Lankki" width="320">
+    <img src="docs/assets/logo.svg" alt="Kinetta" width="320">
   </picture>
 </p>
 
 <p align="center"><b>Your workouts and your food, in one app.</b><br>
 Activity tracking + food and health: runs, rides, walks, training plans, calories and macros. Private, free and open source.</p>
 
-<p align="center"><a href="https://app.lankki.com/beta">Join the hosted beta</a> · or run your own (below)</p>
+<p align="center"><a href="https://app.kinetta.app/beta">Join the hosted beta</a> · or run your own (below)</p>
 
 ---
 
-Lankki takes its name from a Finnish word for a jog around the block: a loop, and a link in a chain. We adapted it
-into our own name, a nod to moving regularly and staying connected with your people.
+Kinetta is a made-up word: *kinetic*, for the energy of moving every day, and *kin*, for the people you move with.
+(It was called Lankki until October 2026, which is why some settings still start with `LANKKI_`.)
 
 It started as one family's replacement for Strava and a food-tracking app. Everything stays on a computer you
 control, each person's data is private to them, and nothing is sold, shared or used for ads.
@@ -54,10 +54,10 @@ docker compose up -d
 (No git? Download the ZIP from the green **Code** button on GitHub, unzip it, and run `docker compose up -d` inside the folder.)
 
 Open **http://&lt;that computer's address&gt;:8790** in a browser and create your account. You are the admin.
-Lankki makes up its own database passwords on the first start; there is nothing to fill in.
+Kinetta makes up its own database passwords on the first start; there is nothing to fill in.
 
 **Next: reach it from your phone.** Phones need a secure `https://` address for the camera (barcodes, food photos)
-and to add Lankki to the home screen. **[docs/connect.md](docs/connect.md)** walks you through the easy options
+and to add Kinetta to the home screen. **[docs/connect.md](docs/connect.md)** walks you through the easy options
 (Tailscale for a family, a free Cloudflare Tunnel for a public address, or your own domain).
 
 **Then: invite your people.** Me → Account → People → *Create invite link*, and text them the link.
@@ -69,7 +69,7 @@ Copy `.env.example` to `.env`, fill in what you want, and run `docker compose up
 | Setting | What it does |
 |---|---|
 | `TZ` | Your time zone, e.g. `Europe/Helsinki`. New accounts use their phone's time zone. |
-| `LANKKI_PORT` | The port Lankki listens on (default `8790`). |
+| `LANKKI_PORT` | The port Kinetta listens on (default `8790`). |
 | `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` | Turns on AI coach notes and food-photo estimates, billed to your own key. |
 | `FDC_API_KEY` | Better US food search ([free key](https://fdc.nal.usda.gov/api-key-signup.html)). |
 | `CLOUDFLARE_TUNNEL_TOKEN` | A public https address, see [docs/connect.md](docs/connect.md). |
@@ -89,10 +89,10 @@ Your data is kept. Database changes are applied automatically when the new versi
 Your data lives in Docker volumes. A full copy of the database, to keep somewhere safe:
 
 ```sh
-docker compose exec -T db pg_dump -U postgres -Fc fit > lankki-$(date +%F).dump
+docker compose exec -T db pg_dump -U postgres -Fc fit > kinetta-$(date +%F).dump
 ```
 
-Restore it into a fresh install with `docker compose exec -T db pg_restore -U postgres -d fit --clean --if-exists < lankki-<date>.dump`.
+Restore it into a fresh install with `docker compose exec -T db pg_restore -U postgres -d fit --clean --if-exists < kinetta-<date>.dump`.
 Uploaded original files (FIT/GPX) are in the `data` volume.
 
 ## Privacy
@@ -101,7 +101,7 @@ Uploaded original files (FIT/GPX) are in the `data` volume.
   logged-in person, and the database enforces the same rule with row-level security.
 - Nothing is sent anywhere except what you turn on: food search sends the search words, barcode lookups the
   barcode, and the optional AI features send that person's own numbers (or food photo) to the AI provider whose key you set.
-- Be honest with your people: **whoever runs the server can technically read the database**. Lankki is meant for
+- Be honest with your people: **whoever runs the server can technically read the database**. Kinetta is meant for
   people who trust each other, such as a family, friends or a running club.
 
 ## For the curious
@@ -113,13 +113,13 @@ Uploaded original files (FIT/GPX) are in the `data` volume.
 
 ## License
 
-Lankki is free software under the **[GNU Affero General Public License v3.0](LICENSE)**: you may use, study, change
+Kinetta is free software under the **[GNU Affero General Public License v3.0](LICENSE)**: you may use, study, change
 and share it. If you run a changed version for other people, you must offer them your changes under the same license.
 
-Want to use Lankki in a way the AGPL doesn't allow, such as inside a closed product? Contact the author about a
+Want to use Kinetta in a way the AGPL doesn't allow, such as inside a closed product? Contact the author about a
 commercial license.
 
-The name **Lankki** and the Lankki logo are not covered by the code license. Please don't use them for your own
+The name **Kinetta** and the Kinetta logo are not covered by the code license. Please don't use them for your own
 fork or product without permission.
 
 Copyright © 2026 Ben Banks.

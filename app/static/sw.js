@@ -1,4 +1,4 @@
-// Service worker (2026-10-10): keeps the app's own files on the phone so Lankki opens without a connection.
+// Service worker (2026-10-10): keeps the app's own files on the phone so Kinetta opens without a connection.
 // Pages: network first, the saved copy when offline. /static files: saved copy first (their URLs carry ?v=, so a new
 // version is a new URL), older versions of the same file are dropped. /api/ is never touched here: personal data
 // goes to the network only (the app keeps its own small offline copy of a few screens).

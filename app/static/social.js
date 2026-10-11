@@ -1,11 +1,11 @@
-// Lankki phone app — Part 5: friends and sharing (2026-10-11). Friends (by exact username, approved by the other
+// Kinetta phone app — Part 5: friends and sharing (2026-10-11). Friends (by exact username, approved by the other
 // person), who sees each activity, which details they see, the Friends feed, read-only pages for friends' activities,
 // cheers and comments. The server decides what anyone else gets (app/api_social.py); these pages only show it.
 'use strict';
 
 // The quick appreciation button. Its name lives only here, so it can be renamed in one place.
 const CHEER = {verb: 'Cheer', done: 'Cheered', one: 'cheer', many: 'cheers', title: 'Cheers'};
-const VIS = {me: 'Only me', friends: 'Friends', everyone: 'Everyone on this Lankki'};
+const VIS = {me: 'Only me', friends: 'Friends', everyone: 'Everyone on this Kinetta'};
 const VIS_SHORT = {me: 'Only me', friends: 'Friends', everyone: 'Everyone'};
 const DETAIL_NAMES = {map: 'Map', heart_rate: 'Heart rate', pace: 'Pace and speed', splits: 'Splits and laps', elevation: 'Elevation',
   calories: 'Calories', description: 'Description', device: 'Device or watch'};
@@ -189,7 +189,7 @@ function shareSheet(aid, s) {
     ${s.visibility !== 'me' ? `<a class="small" href="/activity/friends/${aid}" data-close>See what they see ›</a>` : ''}
     <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`, (b, close) => {
     const f = $('#sh-form', b), note = $('.vis-note', b);
-    const say = () => { note.textContent = vis === 'me' ? 'Only you. Nobody else can see it.' : vis === 'friends' ? 'Friends you have approved.' : 'Anyone with an account on this Lankki server.'; };
+    const say = () => { note.textContent = vis === 'me' ? 'Only you. Nobody else can see it.' : vis === 'friends' ? 'Friends you have approved.' : 'Anyone with an account on this Kinetta server.'; };
     say(); wireSeg(b, 'vis', (v) => { vis = v; say(); });
     const u = $('#sh-usual', b); if (u) u.onclick = () => { usual = true; u.textContent = 'Your usual details will be used'; u.disabled = true; };
     f.onsubmit = async (e) => {

@@ -1,4 +1,4 @@
-// Lankki phone app — the iPhone app's extra parts (2026-10-11). In a browser this file does nothing.
+// Kinetta phone app — the iPhone app's extra parts (2026-10-11). In a browser this file does nothing.
 // The iPhone app (mobile/) shows these same pages from inside the app, so they aren't on the server's address: every
 // request goes to the server the person chose at login, with their login token in a header instead of a cookie.
 // Apple Health: Me > Apple Health asks for permission, then workouts (with heart rate and route) are sent to the server
@@ -9,14 +9,14 @@ const Native = (() => {
   const P = on ? C.Plugins : {}, prefs = P.Preferences, health = P.HealthPlugin;
   const get = async (key) => (await prefs.get({key})).value;
   const put = (key, value) => (value == null ? prefs.remove({key}) : prefs.set({key, value: String(value)}));
-  const N = {on, base: '', token: null, server: 'https://app.lankki.com'};
+  const N = {on, base: '', token: null, server: 'https://app.kinetta.app'};
   // the server and login token live in the app's own settings (Capacitor Preferences), which iOS doesn't clear the way it
   // can clear a web view's storage when the phone runs low on space
   N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); })().catch(() => {}) : Promise.resolve();
   N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   N.login = async (server, login, password) => {
-    N.base = N.address(server); if (!N.base) throw new Error("Enter your Lankki server's address.");
+    N.base = N.address(server); if (!N.base) throw new Error("Enter your Kinetta server's address.");
     const r = await api('/api/login', json('POST', {login, password, app: true}));
     N.token = r.token; await put('server', N.base); await put('token', N.token);
   };
@@ -75,22 +75,22 @@ route(/^\/me\/health$/, 'me', async (el) => {
   wireBack(el, '/me');
   const box = $('#h-body', el);
   if (!Native.on) {
-    box.innerHTML = `<div class="card"><p>Apple Health works in the Lankki iPhone app. In a browser, use <a href="/me/connections">Watch connections</a> instead.</p></div>`;
+    box.innerHTML = `<div class="card"><p>Apple Health works in the Kinetta iPhone app. In a browser, use <a href="/me/connections">Watch connections</a> instead.</p></div>`;
     return;
   }
   const [isOn, st] = [await Native.healthOn(), await Native.healthStatus()];
   const ai = !!App.me.health_ai_ok;
   box.innerHTML = `<div class="card">
       <h2>${isOn ? 'Connected' : 'Bring in your workouts'}</h2>
-      <p>Lankki reads from Apple Health:</p>
+      <p>Kinetta reads from Apple Health:</p>
       <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories</li><li><b>Heart rate</b> during workouts</li><li><b>Routes</b> of outdoor workouts</li></ul>
-      <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Lankki only reads; it never changes your Health data.</p>
-      <p class="small muted">Workouts go only to your Lankki server${Native.base ? ` (${esc(Native.base.replace(/^https?:\/\//, ''))})` : ''} and are private to you.</p>
+      <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Kinetta only reads; it never changes your Health data.</p>
+      <p class="small muted">Workouts go only to your Kinetta server${Native.base ? ` (${esc(Native.base.replace(/^https?:\/\//, ''))})` : ''} and are private to you.</p>
       ${isOn ? `<p class="small">${st ? `Last sync ${esc(when(st.at))}: ${st.added} new, ${st.duplicates} already here${st.failed ? `, ${st.failed} couldn't be read` : ''}.` : 'Not synced yet.'}</p>` : ''}
       <p class="err" role="alert"></p>
       ${isOn ? `<button class="primary wide" id="h-sync">Sync now</button>
         <button class="ghost wide" id="h-year">Also bring in the past year</button>
-        <button class="ghost wide" id="h-settings">Change what Lankki can read</button>
+        <button class="ghost wide" id="h-settings">Change what Kinetta can read</button>
         <button class="ghost wide danger" id="h-off">Stop syncing</button>`
       : '<button class="primary wide" id="h-on">Connect Apple Health</button>'}</div>
     <div class="card"><h2>AI coach</h2>
@@ -107,7 +107,7 @@ route(/^\/me\/health$/, 'me', async (el) => {
   const yr = $('#h-year', box); if (yr) yr.onclick = () => busy(yr, 'Bringing in the past year…', async () => done(await Native.syncHealth({days: 365})));
   const se = $('#h-settings', box); if (se) se.onclick = () => Native.openHealthSettings();
   const off = $('#h-off', box); if (off) off.onclick = async () => {
-    if (!confirm('Stop syncing? Workouts already here stay. To remove Lankki\'s access completely, use the Health app\'s settings.')) return;
+    if (!confirm('Stop syncing? Workouts already here stay. To remove Kinetta\'s access completely, use the Health app\'s settings.')) return;
     await Native.disconnectHealth(); render();
   };
   $('#h-ai', box).onchange = async (e) => {

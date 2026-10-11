@@ -1,4 +1,4 @@
-// Lankki — Part 4: training plans. 5K / 10K / half / marathon,
+// Kinetta — Part 4: training plans. 5K / 10K / half / marathon,
 // first-timer to advanced. The server builds the weeks (plans.py). Here: a numbered setup with a live preview and a
 // start button that stays in view; the plan itself with progress so far, today, this week, plan details, paces and
 // every week; tap any workout for its details. Found from Today, Progress > Plan and Me > Training plan.

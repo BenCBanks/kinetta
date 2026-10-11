@@ -20,7 +20,7 @@ from . import db, energy
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
-UA = 'Lankki/1.0 (self-hosted fitness app; +https://lankki.com)'
+UA = 'Kinetta/1.0 (self-hosted fitness app; +https://kinetta.app)'
 MEALS = ('breakfast', 'lunch', 'dinner', 'snacks')
 _last_off = [0.0]
 

@@ -1,5 +1,5 @@
 """Friends and sharing (2026-10-11): friend requests by exact username, who sees each activity (only me / friends /
-everyone on this Lankki), which details others see, shared maps without the start and end, a friends feed, cheers and
+everyone on this Kinetta), which details others see, shared maps without the start and end, a friends feed, cheers and
 comments.
 
 Keeping people's data safe:
@@ -127,7 +127,7 @@ class FriendIn(BaseModel):
 
 def _person(c, login):
     t = c.execute('SELECT id, login::text AS login, name FROM users WHERE login = %s', ((login or '').strip().lower(),)).fetchone()
-    if not t: raise HTTPException(404, 'No one on this Lankki has that username')
+    if not t: raise HTTPException(404, 'No one on this Kinetta has that username')
     return t
 
 

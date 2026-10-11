@@ -1,6 +1,6 @@
-# Working on Lankki: instructions for AI coding agents (Claude Code, Codex, and others)
+# Working on Kinetta: instructions for AI coding agents (Claude Code, Codex, and others)
 
-Lankki is "your workouts and your food, in one app": activity tracking (runs, rides, walks, training plans, routes) plus
+Kinetta is "your workouts and your food, in one app": activity tracking (runs, rides, walks, training plans, routes) plus
 food and health (calories, macros, barcode and photo logging, weight), with each person's data private to them.
 The maintainer, Ben Banks, isn't a developer: write PR descriptions and summaries in plain language, say what you
 tested and what you didn't, and explain any choice he has to make.
@@ -12,8 +12,8 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 
 ## How work gets to users
 - Work on a branch and open a pull request. Never push to `main`: a merge to `main` publishes the homepage
-  (`site/`, GitHub Pages at lankki.com) and the Docker image (`ghcr.io/bencbanks/lankki`).
-- The maintainer's live server (app.lankki.com) is updated separately, by the maintainer. Don't try to reach it,
+  (`site/`, GitHub Pages at kinetta.app) and the Docker image (`ghcr.io/bencbanks/lankki`).
+- The maintainer's live server (app.kinetta.app) is updated separately, by the maintainer. Don't try to reach it,
   log in to it, or send anything to it.
 
 ## Layout
@@ -22,7 +22,7 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 | `app/` | FastAPI server (Python 3.12). `main.py` wires the routers; `api_*.py` are the endpoints; `db.py` has the schema |
 | `app/static/` | The phone app: plain JavaScript, no build step (`app.js` core + charts, `pages.js`, `food.js`, `plan.js`, `native.js` iPhone-app-only parts, `style.css`) |
 | `mobile/` | The iPhone app: a Capacitor shell around `app/static` plus Apple Health (see `mobile/README.md`, `docs/ios.md`); built on a macOS runner by `.github/workflows/ios.yml` |
-| `site/` | The lankki.com homepage (one static `index.html` plus `assets/`) |
+| `site/` | The kinetta.app homepage (one static `index.html` plus `assets/`) |
 | `docs/` | Public guides (connecting phones, SQL access) |
 | `dev/demo/` | Made-up demo data for testing and screenshots |
 | `docker-compose.yml` | How people install it (app + PostgreSQL 17/PostGIS, passwords generated on first start) |

@@ -1,6 +1,6 @@
 # Read-only SQL access to your own data
 
-Lankki keeps everything in PostgreSQL. If you enjoy SQL, each person can get a **read-only** login that sees only
+Kinetta keeps everything in PostgreSQL. If you enjoy SQL, each person can get a **read-only** login that sees only
 their own rows. The database itself enforces that (row-level security), so a mistake can't show or change anyone
 else's data.
 
@@ -21,7 +21,7 @@ and run `docker compose up -d`. `127.0.0.1` means "only from this computer". Fro
 
 ## 2. Create the login
 
-On the server, in the Lankki folder (replace `sam` with the person's Lankki username):
+On the server, in the Kinetta folder (replace `sam` with the person's Kinetta username):
 
 ```sh
 docker compose exec app python -m app.users sql-login sam

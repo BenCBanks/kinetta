@@ -45,9 +45,9 @@ jobs:
           -sdk iphoneos -destination 'generic/platform=iOS'
           -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
       - name: Pack the Simulator app
-        run: cd build/Build/Products/Debug-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/Lankki-simulator.zip" App.app
+        run: cd build/Build/Products/Debug-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/Kinetta-simulator.zip" App.app
       - uses: actions/upload-artifact@v4
         with:
-          name: Lankki-simulator
-          path: Lankki-simulator.zip
+          name: Kinetta-simulator
+          path: Kinetta-simulator.zip
           retention-days: 7

@@ -1,4 +1,4 @@
-"""Lankki web app: accounts, login, per-person settings, the phone-installable app and all API routers."""
+"""Kinetta web app: accounts, login, per-person settings, the phone-installable app and all API routers."""
 import os, time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response, Depends, HTTPException
@@ -35,7 +35,7 @@ CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' 
        "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
 
-# The Lankki iPhone app (mobile/) shows the same pages from inside the app, at this address. Its requests carry a login
+# The Kinetta iPhone app (mobile/) shows the same pages from inside the app, at this address. Its requests carry a login
 # token in a header instead of the cookie (see auth.session_token), so this origin can't act with a browser's login.
 APP_ORIGINS = ('capacitor://localhost',)
 

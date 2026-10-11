@@ -1,4 +1,4 @@
-# Lankki — features
+# Kinetta — features
 
 Goal: everything the big fitness and food apps do, plus deeper analysis and optional AI — private, on your own server.
 Status key: [x] built · [~] partly · [ ] planned. Keep this list current when you build something.

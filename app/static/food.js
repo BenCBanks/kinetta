@@ -1,4 +1,4 @@
-// Lankki — Food log pages. Fast logging: search (own foods + recent first, then Open Food Facts + USDA),
+// Kinetta — Food log pages. Fast logging: search (own foods + recent first, then Open Food Facts + USDA),
 // barcode, quick add, photo (Gemini estimate), saved meals, copy a day. Every entry editable; deletes have Undo.
 'use strict';
 const MEAL_NAMES = {breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snacks: 'Snacks'};

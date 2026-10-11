@@ -1,4 +1,4 @@
-"""Apple Health workouts sent by the Lankki iPhone app (mobile/, app/static/native.js).
+"""Apple Health workouts sent by the Kinetta iPhone app (mobile/, app/static/native.js).
 
 POST /api/health/workouts   {"workouts": [...]}   from the logged-in person only (the app's login token, auth.session_token)
 

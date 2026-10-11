@@ -1,21 +1,21 @@
-# The Lankki iPhone app
+# The Kinetta iPhone app
 
-The iPhone app is the same Lankki you use in Safari, inside a real app, so it can read **Apple Health**. Garmin, Apple
+The iPhone app is the same Kinetta you use in Safari, inside a real app, so it can read **Apple Health**. Garmin, Apple
 Watch, Coros, Wahoo, Strava and most other apps write their workouts to Apple Health, so once you connect it, your
-workouts show up in Lankki without uploading files.
+workouts show up in Kinetta without uploading files.
 
 It isn't on the App Store or TestFlight yet. This page is the plan, and the list of what the maintainer needs to do in
 the Apple Developer account before testers can install it.
 
 ## What the app does today
 
-- **Log in to your own server.** The login screen asks for the server's address (`https://app.lankki.com` by default,
+- **Log in to your own server.** The login screen asks for the server's address (`https://app.kinetta.app` by default,
   or your own). The server must be on `https://`; iPhones don't let apps talk to plain `http://` addresses.
-- **Me > Apple Health.** Explains what Lankki reads (workouts, heart rate during workouts, routes), then shows Apple's
-  permission sheet. Lankki only reads; it never writes to Apple Health.
+- **Me > Apple Health.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
+  permission sheet. Kinetta only reads; it never writes to Apple Health.
 - **Sync.** The first sync brings in the last 30 days ("Also bring in the past year" goes further back). After that,
   the app sends new workouts whenever it's opened or brought back to the front. Each workout is sent with Apple
-  Health's own id for it, so a workout sent twice is stored once. A workout that's already in Lankki from somewhere
+  Health's own id for it, so a workout sent twice is stored once. A workout that's already in Kinetta from somewhere
   else (a Garmin file, a Strava export) isn't added again either.
 - **AI coach consent.** The coach reads Apple Health workouts only after you tick "Let the AI coach read my Apple
   Health workouts". Until then the coach is off for anyone with Apple Health workouts (Apple's rules require consent
@@ -47,14 +47,14 @@ Do these in order. Nothing here costs money except the membership.
    agreement or bank details.
 3. **Register the app's id.** In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list)
    choose **Identifiers > + > App IDs > App**:
-   - Description: `Lankki`
-   - Bundle ID: **Explicit**, `com.lankki.app`
-     (if Apple says it's taken, pick another, such as `com.lankki.ios`, and tell me: it's set in
+   - Description: `Kinetta`
+   - Bundle ID: **Explicit**, `com.kinetta.app`
+     (if Apple says it's taken, pick another, such as `com.kinetta.ios`, and tell me: it's set in
      `mobile/capacitor.config.json` and the Xcode project)
    - Capabilities: tick **HealthKit** only. Leave "Clinical Health Records" unticked. (Background delivery comes later.)
 4. **Create the app in App Store Connect.** **Apps > + > New App**:
-   - Platform: iOS. Name: `Lankki` (must be unique on the App Store; try "Lankki: Workouts & Food" if it's taken).
-   - Primary language: English (U.S.). Bundle ID: the one from step 3. SKU: `lankki-ios`. User access: Full Access.
+   - Platform: iOS. Name: `Kinetta` (must be unique on the App Store; try "Kinetta: Workouts & Food" if it's taken).
+   - Primary language: English (U.S.). Bundle ID: the one from step 3. SKU: `kinetta-ios`. User access: Full Access.
 5. **Make an API key for GitHub Actions**, so the Mac runner can sign and upload without your password or two-factor
    codes. In App Store Connect: **Users and Access > Integrations > App Store Connect API > Team Keys > +**.
    - Name: `GitHub Actions`. Access: **Admin** (needed so the build can create its own signing certificate).
@@ -76,7 +76,7 @@ Do these in order. Nothing here costs money except the membership.
    group `Family`, and add people. They need to be on your App Store Connect team (**Users and Access > +**, role
    "Customer Support" or "Developer" is enough). Each tester installs the **TestFlight** app from the App Store.
 9. **Fill in App Privacy** (App Store Connect > the app > **App Privacy**), needed before outside testing or the App
-   Store. Answers for Lankki: data collected: **Health & Fitness** (Health, Fitness), **Contact Info** (name),
+   Store. Answers for Kinetta: data collected: **Health & Fitness** (Health, Fitness), **Contact Info** (name),
    **Identifiers** (user ID); all *linked to the user*, *not used for tracking*, used for *App Functionality*. If the
    AI coach is on for your server, also tick *Health* under "data shared with third parties" and describe the coach.
 

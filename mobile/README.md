@@ -1,4 +1,4 @@
-# mobile/: the Lankki iPhone app
+# mobile/: the Kinetta iPhone app
 
 A [Capacitor](https://capacitorjs.com) shell around the phone pages in `app/static`. There is no second copy of the
 app: `npm run sync` copies `app/static` into `www/`, and Capacitor builds that into the iPhone app. What's different
@@ -28,7 +28,7 @@ npx cap open ios      # opens Xcode; pick a Simulator and press Run
 Apple Health works in the Simulator too: open the Health app there and add a workout by hand first.
 
 Without a Mac: every pull request that touches `mobile/` or `app/static/` is built on a GitHub Actions Mac runner
-(`.github/workflows/ios.yml`). The Simulator build is attached to the run as `Lankki-simulator` for 7 days.
+(`.github/workflows/ios.yml`). The Simulator build is attached to the run as `Kinetta-simulator` for 7 days.
 
 ## After changing the phone pages
 
