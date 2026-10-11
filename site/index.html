@@ -113,6 +113,46 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .more li { padding: 7px 0; border-top: 1px solid var(--line); }
 @media (max-width: 760px) { .more { grid-template-columns: 1fr; } }
 
+
+/* premium: included, not upsold */
+.spot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 56px; align-items: center; margin-bottom: 72px; }
+.spot .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.spot .pair .frame:nth-child(2) { margin-top: 48px; }
+.frame { border-radius: 26px; padding: 7px; background: var(--ink); min-width: 0; }
+.frame img { border-radius: 20px; width: 100%; height: auto; aspect-ratio: 720 / 1300; object-fit: cover; object-position: top; }
+.spot h3 { font-size: clamp(26px, 3vw, 34px); margin-top: 14px; }
+.spot p { color: var(--ink2); font-size: 18px; margin-top: 14px; max-width: 44ch; }
+.spot ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink2); }
+.spot li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; }
+.spot li svg { width: 26px; height: 16px; margin-top: 5px; color: var(--berry); }
+@media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; } .spot .pair { max-width: 520px; } }
+.pcards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; }
+.pcard { display: grid; gap: 14px; align-content: start; min-width: 0; }
+.pcard h4 { font: 600 19px/1.2 var(--display); margin: 0; letter-spacing: -0.01em; }
+.pcard p { color: var(--ink2); font-size: 15.5px; }
+@media (max-width: 900px) {
+  .pcards { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(260px, 72vw); overflow-x: auto;
+    scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; }
+  .pcard { scroll-snap-align: start; }
+}
+.compare { margin-top: 72px; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.tablewrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 20px; }
+table.cmp { width: 100%; border-collapse: collapse; font-size: 15.5px; min-width: 460px; }
+.cmp caption { text-align: left; padding: 22px 22px 6px; font: 600 20px var(--display); }
+.cmp th, .cmp td { padding: 12px 22px; text-align: left; border-top: 1px solid var(--line); vertical-align: top; }
+.cmp thead th { font: 500 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); border-top: 0; padding-top: 16px; }
+.cmp td small { display: block; color: var(--ink3); font-size: 13px; margin-top: 2px; }
+.cmp .yes { color: var(--spruce); font-weight: 600; white-space: nowrap; }
+.cmp .paid { color: var(--ink2); white-space: nowrap; }
+.cmp tfoot td { font-weight: 600; }
+.side { display: grid; gap: 22px; }
+.side h3 { font-size: 20px; margin-bottom: 8px; }
+.side ul { margin: 0; padding-left: 1.1em; color: var(--ink2); font-size: 15.5px; display: grid; gap: 6px; }
+.source { font-size: 13px; color: var(--ink3); margin-top: 16px; max-width: 80ch; }
+.source a { color: var(--ink3); }
+.compare > *, .spot > * { min-width: 0; }
+@media (max-width: 900px) { .compare { grid-template-columns: 1fr; } }
+
 /* privacy */
 .privacy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 26px; }
@@ -162,7 +202,7 @@ footer a { color: var(--ink2); }
   <div class="wrap">
     <a href="#" aria-label="Lankki home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Lankki" width="132" height="24"></picture></a>
     <nav class="links" aria-label="Page">
-      <a href="#what">What it does</a><a href="#install">Install</a><a class="gh" href="https://github.com/BenCBanks/lankki">GitHub</a>
+      <a href="#what">What it does</a><a href="#premium">Compare</a><a href="#install">Install</a><a class="gh" href="https://github.com/BenCBanks/lankki">GitHub</a>
     </nav>
   </div>
 </header>
@@ -187,7 +227,7 @@ footer a { color: var(--ink2); }
         <p class="note">Open source (AGPL-3.0). No ads, no subscription, no one selling your data.</p>
       </div>
       <div class="phone">
-        <picture><source srcset="assets/shots/dark-today.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-today.webp" alt="Lankki's Today screen: this week's 29.4 miles as a bar per day, the next workout in a 10K plan, and calories eaten today" width="720" height="1558"></picture>
+        <picture><source srcset="assets/shots/dark-today.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-today.webp" alt="Lankki's Today screen: this week's 29.4 miles with a bar for each day, the next workout in a 10K plan, and calories eaten today" width="720" height="1558"></picture>
       </div>
     </div>
   </section>
@@ -240,6 +280,81 @@ footer a { color: var(--ink2); }
         <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Extras</h3><ul>
           <li>Optional AI coach notes (your own key)</li><li>Read-only SQL access to your own data</li><li>Installs on any phone's home screen</li><li>Light and dark mode</li><li>Miles or kilometers, per person</li></ul></div>
       </div>
+    </div>
+  </section>
+
+  <section class="band" id="premium" aria-labelledby="prem-h">
+    <div class="wrap">
+      <div class="head"><span class="eyebrow">Included, not upsold</span><h2 id="prem-h">The premium features, free.</h2>
+        <p>The analysis other apps keep behind a subscription comes standard in Lankki, for everyone on your server. Strava, for example, charges $79.99 a year for most of what's below, or $139.99 for a family.</p></div>
+
+      <div class="spot">
+        <div>
+          <span class="eyebrow">See yourself improve</span>
+          <h3>Your favorite loop, run after run.</h3>
+          <p>Lankki notices when you run the same route again, lines every effort up on one chart and tells you, in plain words, whether you're getting faster.</p>
+          <ul>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Matched routes</b>: pace over time on each route you repeat, with your best and average times.</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Faster at the same heartbeat</b>: shows whether you're getting fitter, even on days your pace looks the same.</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Similar efforts</b>: every run compared with your others of the same distance, seconds per mile included.</span></li>
+          </ul>
+        </div>
+        <div class="pair">
+          <div class="frame"><picture><source srcset="assets/shots/dark-route.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-route.webp" alt="The Freedom Park loop run 34 times: best 24:43, average 26:04, and a pace-over-time chart that says: getting faster, about 15 seconds per mile per month, and fitter at the same effort" loading="lazy" width="720" height="1558"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-similar.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-similar.webp" alt="Similar efforts: five earlier runs on the same route, each showing how many seconds per mile faster this run was" loading="lazy" width="720" height="1558"></picture></div>
+        </div>
+      </div>
+
+      <div class="pcards">
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-coach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-coach.webp" alt="An AI coach note on a 2.98 mile run: pace, heart rate, what it means and what to do next" loading="lazy" width="720" height="1558"></picture></div>
+          <h4>An AI coach that knows your history</h4><p>A short note on each new workout and a review every Sunday, written from your own numbers. Uses your own Gemini or Claude key (about a cent a note) and stays off until you add one.</p></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-plan.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-plan.webp" alt="A 10-week intermediate 10K training plan with the first workout" loading="lazy" width="720" height="1558"></picture></div>
+          <h4>Training plans, 5K to marathon</h4><p>First-timer run/walk to advanced, 6 to 20 weeks. Paces come from your current fitness, and your runs tick off workouts on their own.</p></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-fitness.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-fitness.webp" alt="Race predictions for 5K, 10K, half marathon and marathon, and a running fitness score" loading="lazy" width="720" height="1558"></picture></div>
+          <h4>Race predictions and fitness</h4><p>Predicted 5K to marathon times from how you're running now, a VO2max estimate, and fitness, fatigue and form over time.</p></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-heatmap.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-heatmap.webp" alt="A personal heatmap of every route run, ridden or walked around Charlotte" loading="lazy" width="720" height="1558"></picture></div>
+          <h4>Your personal heatmap</h4><p>Every street you've covered, by sport. Runs, rides, walks, hikes, swims, rows, skis and gym workouts all live in one place.</p></div>
+      </div>
+
+      <div class="compare">
+        <div>
+          <div class="tablewrap">
+            <table class="cmp">
+              <caption>What you'd pay for elsewhere</caption>
+              <thead><tr><th scope="col">Feature</th><th scope="col">Lankki</th><th scope="col">Strava</th></tr></thead>
+              <tbody>
+                <tr><td>Progress on routes you repeat<small>Strava: Matched Activities</small></td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>AI insights on your workouts<small>Lankki: your own AI key · Strava: Athlete Intelligence</small></td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Running training plans</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Personal heatmap</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Fitness, fatigue and form<small>Strava: Fitness &amp; Freshness</small></td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Effort score for every workout<small>Strava: Relative Effort</small></td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Grade-adjusted pace</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Heart-rate zones from your own max and resting heart rate</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Best efforts and personal-record history</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Training log and monthly totals</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+                <tr><td>Weekly and yearly goals</td><td class="yes">Included</td><td class="paid">Subscription</td></tr>
+              </tbody>
+              <tfoot><tr><td>Price for a family of four</td><td class="yes">Free</td><td class="paid">$139.99 / year</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+        <div class="side">
+          <div><h3>Also in Lankki</h3><ul>
+            <li>Food and macro tracking with barcode scanning</li>
+            <li>Heart-rate drift on every run (aerobic decoupling)</li>
+            <li>Shoe and bike mileage with replacement reminders</li>
+            <li>Your whole Strava history imported in one go</li>
+            <li>Your data on your own computer, with SQL access</li></ul></div>
+          <div><h3>What Lankki doesn't do</h3><ul>
+            <li>Segments and leaderboards</li>
+            <li>A social feed with kudos and clubs</li>
+            <li>Route planning and offline route maps</li>
+            <li>Live location sharing</li>
+            <li>Recording with your phone's GPS: it reads activities from your watch or phone app instead</li></ul></div>
+        </div>
+      </div>
+      <p class="source">Strava features and prices from Strava's <a href="https://support.strava.com/hc/en-us/articles/216917657-Strava-Subscription-Features">Subscription Features</a> help article and <a href="https://www.strava.com/subscribe">strava.com/subscribe</a>, checked October 11, 2026; they may change. Strava is a trademark of Strava, Inc. Lankki is an independent project and isn't affiliated with Strava. Running Lankki needs a computer that stays on; AI features are billed to your own AI key.</p>
     </div>
   </section>
 
