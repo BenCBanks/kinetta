@@ -42,7 +42,10 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 - Match the code around you: short functions, comments that explain why, plain-language text in the UI.
 - UI: phone first. Centered, full-width buttons; roomy spacing; charts that explain themselves without helper text;
   colors from the CSS tokens in `style.css`, in both light and dark mode.
-- New dependencies must be compatible with AGPL-3.0; add them to `THIRD_PARTY.md`.
+- Kinetta is source-available (PolyForm Noncommercial 1.0.0) and also sold under commercial licenses, so new
+  dependencies must allow use in a commercial, closed product: permissive licenses (MIT, BSD, Apache-2.0, ISC) or
+  file-level copyleft (MPL-2.0), or LGPL libraries used unchanged as separate packages (like psycopg); never GPL or
+  AGPL. Add them to `THIRD_PARTY.md`.
 
 ## Run and test
 ```sh
