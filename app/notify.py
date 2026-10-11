@@ -20,7 +20,7 @@ from . import db
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
-KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared')
+KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'report')   # report: admins only, in the app only
 PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',)}
 MAX_SUBS = 10           # devices per person
 _keys = {}
@@ -31,6 +31,8 @@ def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=N
     """Record a notification for user_id (never for your own actions; a repeat within a day isn't recorded twice),
     then push it to their phones in the background."""
     if not user_id or user_id == actor_id or kind not in KINDS: return
+    if c.execute('SELECT 1 FROM blocks WHERE (user_id = %s AND blocked = %s) OR (user_id = %s AND blocked = %s)',
+                 (user_id, actor_id, actor_id, user_id)).fetchone(): return   # blocked either way: nothing between them
     if kind != 'comment' and c.execute("""SELECT 1 FROM notifications WHERE user_id = %s AND kind = %s AND actor_id = %s
                                             AND activity_id IS NOT DISTINCT FROM %s AND dish_id IS NOT DISTINCT FROM %s
                                             AND created > now() - interval '1 day'""",
@@ -61,6 +63,7 @@ def _words(r):
     if r['kind'] == 'comment':
         snip = (r['comment'] or '').strip()
         return f'{who} commented on your {act}' + (f': "{snip[:80]}{"…" if len(snip) > 80 else ""}"' if snip else ''), f"/activity/{r['activity_id']}"
+    if r['kind'] == 'report': return f'{who} reported something for the admins to look at', '/me/people'
     return f"{who} shared {r['dish'] or 'a dish'} with you", f"/food/cook/{r['dish_id']}"
 
 

@@ -593,6 +593,34 @@ MIGRATIONS = [
     CREATE TABLE server_keys (name text PRIMARY KEY, value text NOT NULL, created timestamptz NOT NULL DEFAULT now());
     ALTER TABLE server_keys ENABLE ROW LEVEL SECURITY;
     """,
+    # 28 (2026-10-11): blocking and reporting (api_social.py) - Apple requires both in apps where people see each other's
+    #     posts. blocks = whom each person blocked (theirs, RLS like other personal tables). reports = what was reported
+    #     to the admins, with a copy of the words at the time: admin-only, no grant to fit_readers.
+    """
+    CREATE TABLE blocks (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      blocked bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, blocked), CHECK (user_id <> blocked));
+    CREATE INDEX blocks_blocked ON blocks (blocked);
+    ALTER TABLE blocks ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON blocks FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON blocks FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON blocks TO fit_readers;
+    CREATE TABLE reports (
+      id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      reporter    bigint REFERENCES users(id) ON DELETE SET NULL,
+      person      bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      activity_id bigint REFERENCES activities(id) ON DELETE SET NULL,
+      comment_id  bigint REFERENCES comments(id) ON DELETE SET NULL,
+      what        text NOT NULL,
+      reason      text NOT NULL CHECK (reason IN ('spam', 'abuse', 'inappropriate', 'other')),
+      note        text,
+      created     timestamptz NOT NULL DEFAULT now(),
+      status      text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')));
+    CREATE INDEX reports_open ON reports (created) WHERE status = 'open';
+    ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
+    """,
 ]
 
 

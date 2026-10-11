@@ -187,6 +187,7 @@ nav.tabs a:active { transform: scale(.94); }
 .row-link:first-child, .card > h2 + .row-link { border-top: 0; }
 button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; }
 .row-link:active { opacity: .6; }
+.gs-sub { display: block; font-size: 13px; margin-top: 2px; }   /* Today > Get started: one line under each step */
 .row-link > :first-child { min-width: 0; }
 .row-link .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .row-link .grow small { font-size: 13px; }
 .row-link .val { display: inline-flex; align-items: center; gap: 6px; color: var(--tx3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }

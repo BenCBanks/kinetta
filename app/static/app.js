@@ -654,7 +654,7 @@ const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=2"
 function showLogin(msg = '') {
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<p>Your runs, rides, walks and food — private to you.</p></div>
-    ${Native.on ? `<label>Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
+    ${Native.on ? `<label${(Native.base || Native.server) === Native.server ? ' hidden' : ''} id="l-server">Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
     <label>Username<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
     <p class="err" role="alert">${esc(msg)}</p>
@@ -662,6 +662,13 @@ function showLogin(msg = '') {
     <p class="small muted">New here? Ask the person who runs this Kinetta for an invite link.</p></form></div>`;
   const f = $('form', root);
   $('input[name=login]', f).focus();
+  // the iPhone app: most people use the hosted server, so its address stays out of the way until asked for, and the
+  // waitlist opens in Safari (accounts are made on the server's web page)
+  if (Native.on) {
+    const p = $('.login .small.muted', root), srv = $('#l-server', root);
+    p.innerHTML = `New here? <a href="${Native.server}/beta" target="_blank" rel="noopener">Join the beta</a>${srv.hidden ? ' · <a href="#" id="l-other">Use a different server</a>' : ''}`;
+    const o = $('#l-other', p); if (o) o.onclick = (e) => { e.preventDefault(); srv.hidden = false; o.remove(); $('input', srv).focus(); };
+  }
   if (!Native.on) api('/api/beta').then((r) => {   // a server with the public waitlist on: point newcomers to it
     const p = $('.login .small.muted', root);
     if (r.open && p) { p.innerHTML = 'New here? <a href="/beta">Join the beta</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/beta'); showBeta(); }; }

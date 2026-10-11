@@ -1,6 +1,7 @@
 # Builds the iPhone app (mobile/) on a Mac runner, to prove it still builds after every change to it or to the phone
-# pages it carries (app/static). No signing yet, so nothing goes to Apple: the result is a Simulator build, kept for
-# 7 days as a download. Signing and TestFlight come later; what's needed for them is in docs/ios.md.
+# pages it carries (app/static): an unsigned Simulator build, kept for 7 days as a download.
+# On main (and when started by hand) the "testflight" job then signs the app and uploads it to App Store Connect, where
+# it appears in TestFlight. It needs four repository secrets (docs/ios.md, steps 5-7); until they exist it does nothing.
 name: iPhone app
 on:
   pull_request:
@@ -51,3 +52,71 @@ jobs:
           name: Kinetta-simulator
           path: Kinetta-simulator.zip
           retention-days: 7
+
+  testflight:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      TEAM: ${{ secrets.APPLE_TEAM_ID }}
+      KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+      KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Check the Apple keys are set up
+        id: keys
+        run: |
+          if [ -n "$TEAM" ] && [ -n "$KEY_ID" ] && [ -n "$ISSUER" ] && [ -n "$KEY_P8" ]; then echo "ok=1" >> "$GITHUB_OUTPUT"
+          else echo "::notice::No TestFlight upload: the Apple secrets aren't set up yet (docs/ios.md, steps 5-7)."; fi
+        working-directory: .
+      - if: steps.keys.outputs.ok
+        uses: actions/checkout@v4
+      - if: steps.keys.outputs.ok
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - if: steps.keys.outputs.ok
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - if: steps.keys.outputs.ok
+        run: npm ci && npm run sync
+      # Apple's own signing: with the App Store Connect key, Xcode makes and keeps the certificate and profile itself,
+      # so no certificate files live in this repository or its secrets. Each upload needs a higher build number than the
+      # last; the workflow's run number (+100, above any build made by hand) always goes up.
+      - name: Sign and archive
+        if: steps.keys.outputs.ok
+        run: |
+          printf '%s' "$KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Kinetta.xcarchive" \
+            -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER" \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION=$((GITHUB_RUN_NUMBER + 100)) archive
+      - name: Upload to App Store Connect (TestFlight)
+        if: steps.keys.outputs.ok
+        run: |
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Kinetta.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/export" -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER"
+          echo "::notice::Build $((GITHUB_RUN_NUMBER + 100)) uploaded. It shows up in TestFlight after Apple's processing (usually 10-30 minutes)."
+      - name: Remove the key
+        if: always() && steps.keys.outputs.ok
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
