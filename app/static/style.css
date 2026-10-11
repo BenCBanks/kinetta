@@ -720,6 +720,9 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .seg.wide.meal4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; } .meal4 button { min-width: 0; padding: 6px 2px; font-size: 13px; }
 .portion-out { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 28px; }
 .portion-out b { font: 800 24px var(--numf); letter-spacing: -.02em; } .portion-out span { font-size: 14px; }
+.dish-row .av { width: 34px; height: 34px; font-size: 13px; }
+.share-dish .avs { display: flex; align-items: center; gap: 6px; } .share-dish .avs .av { width: 32px; height: 32px; font-size: 12px; margin-right: -12px; box-shadow: 0 0 0 2px var(--card); }
+.share-dish .avs span { margin-left: 18px; font-weight: 600; } .share-dish .ghost.wide { margin-top: 12px; }
 .serve .kv b .linkbtn { min-height: 0; padding: 0 0 0 8px; font-size: 14px; }
 
 /* ---------- admin: invites + beta ---------- */

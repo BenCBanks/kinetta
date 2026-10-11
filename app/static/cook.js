@@ -5,15 +5,16 @@
 
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
 
-// Nutrition > Log: dishes on the go (cooking now, or leftovers), plus the way in
+// Nutrition > Log: dishes on the go (cooking now, leftovers, or shared by a friend), plus the way in
 function dishStrip(box, day) {
   if (!box) return;
   load('/api/dishes', (list) => {
     if (!box.isConnected) return;
-    box.innerHTML = list.map((d) => `<a class="card tap dish-row" href="/food/cook/${d.id}"><span class="ri c-orange">${svg('pot')}</span>
-      <span class="grow"><b>${esc(d.name)}</b><small class="muted">${d.status === 'cooking' ? `${d.items.length} item${d.items.length === 1 ? '' : 's'} · ${r0(d.totals.kcal)} kcal so far`
+    box.innerHTML = list.map((d) => `<a class="card tap dish-row" href="/food/cook/${d.id}">${d.mine === false ? avatar(d.owner) : `<span class="ri c-orange">${svg('pot')}</span>`}
+      <span class="grow"><b>${esc(d.name)}</b><small class="muted">${d.mine === false ? `From ${esc(d.owner.name)} · ${d.left_g != null ? gfmt(d.left_g) + ' left' : 'still cooking'}`
+        : d.status === 'cooking' ? `${d.items.length} item${d.items.length === 1 ? '' : 's'} · ${r0(d.totals.kcal)} kcal so far`
         : `${gfmt(d.left_g)} left · ${r0(d.per_100g && d.per_100g.kcal)} kcal/100 g`}</small></span>
-      <span class="badge ${d.status === 'cooking' ? 'alert' : 'on'}">${d.status === 'cooking' ? 'Cooking' : 'Serve'}</span></a>`).join('');
+      <span class="badge ${d.left_g == null ? 'alert' : 'on'}">${d.left_g == null ? 'Cooking' : 'Serve'}</span></a>`).join('');
   }).catch(() => {});
 }
 async function startCooking(btn) {
@@ -28,44 +29,52 @@ route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
   await load(`/api/dishes/${id}`, (d) => drawDish(el, d), {maxAge: 0});
 });
 
+// The cook sees everything and can change it; a friend it's shared with sees the dish and logs their own portion.
 function drawDish(el, d) {
-  const t = d.totals, weighed = d.cooked_g != null, typed = d.known.kcal != null;
+  const t = d.totals, weighed = d.cooked_g != null, typed = d.known.kcal != null, mine = d.mine !== false;
   const set = (fresh) => { App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh); };
+  const ing = (it) => `<div><b>${esc(it.name)}</b><small class="muted num">${gfmt(it.grams)}</small></div>
+    <div class="r"><b class="num">${r0(it.kcal)}</b><small class="muted num">${r0(it.protein_g)}P ${r0(it.carbs_g)}C ${r0(it.fat_g)}F</small></div>`;
+  const shared = mine ? d.shared_with || [] : [];
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts"><button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button></div></div>
-    <div class="eyebrow">${d.status === 'cooking' ? 'Cooking' : d.status === 'leftovers' ? 'Leftovers' : 'Finished'}</div>
+    <div class="eyebrow">${mine ? (d.status === 'cooking' ? 'Cooking' : d.status === 'leftovers' ? 'Leftovers' : 'Finished') : `From ${esc(d.owner.name)}`}</div>
     <h1 class="dish-name">${esc(d.name)}</h1>
     <div class="card dish-hero"><div class="dh-top"><div><small>Whole dish</small><b class="num">${r0(t.kcal)}<i>kcal</i></b></div>
       ${weighed ? `<div class="dh-w"><small>Cooked weight</small><b class="num">${gfmt(d.cooked_g)}</b></div>` : ''}</div>
       <div class="dh-mac">${MACROS.map(([k, n]) => `<span><b class="num">${r0(t[k])}g</b><small>${n}</small></span>`).join('')}</div>
-      ${typed ? `<p class="small muted">Using the total you typed in${d.items.length ? ', not the ingredients' : ''}. <button class="linkbtn" id="dk-known2">Change</button></p>` : ''}</div>
+      ${typed ? `<p class="small muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.${mine ? ' <button class="linkbtn" id="dk-known2">Change</button>' : ''}</p>` : ''}</div>
 
-    <h2 class="sec-head">Ingredients${d.items.length ? ` <span class="count">${d.items.length}</span>` : ''}</h2>
-    <div class="card"><form class="addline" id="dk-add"><input name="t" placeholder="e.g. 100 g chicken" aria-label="Add an ingredient, like 100 g chicken"
+    ${mine || d.items.length ? `<h2 class="sec-head">Ingredients${d.items.length ? ` <span class="count">${d.items.length}</span>` : ''}</h2>
+    <div class="card">${mine ? `<form class="addline" id="dk-add"><input name="t" placeholder="e.g. 100 g chicken" aria-label="Add an ingredient, like 100 g chicken"
         autocomplete="off" autocapitalize="none" enterkeyhint="search" required><button class="primary sm" aria-label="Find it">${svg('plus')}Add</button></form>
-      <div id="dk-match"></div>
-      <div class="ing-list">${d.items.map((it) => `<button class="fe" data-it="${esc(it.id)}"><div><b>${esc(it.name)}</b><small class="muted num">${gfmt(it.grams)}</small></div>
-        <div class="r"><b class="num">${r0(it.kcal)}</b><small class="muted num">${r0(it.protein_g)}P ${r0(it.carbs_g)}C ${r0(it.fat_g)}F</small></div></button>`).join('')}</div>
-      ${!d.items.length ? '<p class="small muted">Type what goes in as you cook, with its weight. Each one adds to the total.</p>' : ''}
-      <button class="linkbtn" id="dk-known">${typed ? 'Change the total you typed in' : 'I already know the total'}</button></div>
+      <div id="dk-match"></div>` : ''}
+      <div class="ing-list">${d.items.map((it) => (mine ? `<button class="fe" data-it="${esc(it.id)}">${ing(it)}</button>` : `<div class="fe">${ing(it)}</div>`)).join('')}</div>
+      ${mine && !d.items.length ? '<p class="small muted">Type what goes in as you cook, with its weight. Each one adds to the total.</p>' : ''}
+      ${mine ? `<button class="linkbtn" id="dk-known">${typed ? 'Change the total you typed in' : 'I already know the total'}</button>` : ''}</div>` : ''}
 
     <h2 class="sec-head">Weigh and serve</h2>
-    <div class="card serve">${weighed ? `<div class="kv"><span>Cooked weight</span><b class="num">${gfmt(d.cooked_g)} <button class="linkbtn" id="dk-reweigh">Change</button></b></div>
+    <div class="card serve">${weighed ? `<div class="kv"><span>Cooked weight</span><b class="num">${gfmt(d.cooked_g)}${mine ? ' <button class="linkbtn" id="dk-reweigh">Change</button>' : ''}</b></div>
         ${d.eaten_g ? `<div class="kv"><span>Served so far</span><b class="num">${gfmt(d.eaten_g)}</b></div>` : ''}
         <div class="kv"><span>Left</span><b class="num">${gfmt(d.left_g)}</b></div>
         <form class="form" id="dk-portion"><label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="e.g. 380" required aria-label="Your portion in grams"><span>g</span></span></label>
           <div class="seg wide meal4" role="group" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([m, n]) => `<button type="button" data-meal="${m}" aria-pressed="${m === guessMeal()}">${n}</button>`).join('')}</div>
           <div class="portion-out" aria-live="polite"></div>
           <button class="primary wide">Log my portion</button></form>`
+      : !mine ? `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't weighed the finished dish yet. Once it's weighed, weigh your plate here and your share is logged.</p>`
       : `<p class="small muted">When it's cooked, weigh the whole dish. In its pan is fine: pick the pan and its weight comes off.</p>
         <form class="form" id="dk-weigh"><label>Whole dish<span class="gfield"><input name="g" inputmode="decimal" placeholder="e.g. 1600" required aria-label="Weight of the whole dish in grams"><span>g</span></span></label>
           <label>Weighed in<select name="pan"><option value="">Nothing (just the food)</option></select></label>
           <button type="button" class="linkbtn" id="dk-pan">+ Add a pan</button>
-          <button class="primary wide">Save the weight</button></form>`}</div>`;
+          <button class="primary wide">Save the weight</button></form>`}</div>
+    ${mine ? `<h2 class="sec-head">Eating together</h2><div class="card share-dish">
+      ${shared.length ? `<div class="avs">${shared.map((p) => avatar(p)).join('')}<span>Shared with ${esc(shared.map((p) => p.name.split(' ')[0]).join(', '))}</span></div>`
+        : '<p class="small muted">Share the dish with a friend and they can log their own portion from it. What they take comes off the leftovers.</p>'}
+      <button class="ghost wide" id="dk-share">${svg('people')}${shared.length ? 'Change who it\'s shared with' : 'Share with a friend'}</button></div>` : ''}`;
   wireBack(el, '/food');
-  $('#dk-more', el).onclick = () => dishMenu(d, set);
+  $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set) : sharedMenu(d));
   [$('#dk-known', el), $('#dk-known2', el)].forEach((b) => { if (b) b.onclick = () => knownSheet(d, set); });
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
-  addLine(el, d, set);
+  if (mine) { addLine(el, d, set); $('#dk-share', el).onclick = () => shareDishSheet(d, set); }
   if (weighed) {
     const f = $('#dk-portion', el), out = $('.portion-out', f), p = d.per_100g || {};
     let meal = guessMeal(); wireSeg(f, 'meal', (m) => { meal = m; });
@@ -88,7 +97,7 @@ function drawDish(el, d) {
       const v = prompt('Weight of the whole cooked dish, without the pan (g)', Math.round(d.cooked_g)); if (v == null) return;
       try { set(await api(`/api/dishes/${d.id}`, json('PATCH', {cooked_g: +v.replace(',', '.')}))); } catch (x) { toast(x.message); }
     };
-  } else {
+  } else if (mine) {
     const f = $('#dk-weigh', el);
     const pans = (list) => { f.pan.innerHTML = '<option value="">Nothing (just the food)</option>' + list.map((p) => `<option value="${p.id}">${esc(p.name)} (${gfmt(p.grams)})</option>`).join(''); };
     load('/api/dishes/pans', pans).catch(() => {});
@@ -99,6 +108,36 @@ function drawDish(el, d) {
       catch (x) { toast(x.message); btn.disabled = false; }
     };
   }
+}
+// who the dish is shared with: friends only, one tap each
+function shareDishSheet(d, set) {
+  sheet('Share this dish', `<p class="small muted">Friends you share it with see the dish and log their own portion. They can't change it.</p><div id="sd-list">${skel(1)}</div>`, async (b) => {
+    const box = $('#sd-list', b);
+    let on = new Set((d.shared_with || []).map((p) => p.login)), fr;
+    try { fr = (await api('/api/friends')).friends; } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
+    const draw = () => {
+      box.innerHTML = fr.length ? `<div class="card list">${fr.map((p) => `<div class="person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span>
+        <button class="${on.has(p.login) ? 'ghost' : 'primary'} sm" data-sd="${esc(p.login)}">${on.has(p.login) ? `${svg('check')}Shared` : 'Share'}</button></div>`).join('')}</div>`
+        : '<p class="small muted">No friends yet. Add them under Me &gt; Friends, then share dishes with them here.</p>';
+      $$('[data-sd]', box).forEach((x) => x.onclick = async () => {
+        x.disabled = true; const login = x.dataset.sd;
+        try {
+          if (on.has(login)) { await api(`/api/dishes/${d.id}/share/${encodeURIComponent(login)}`, {method: 'DELETE'}); on.delete(login); }
+          else { await api(`/api/dishes/${d.id}/share`, json('POST', {login})); on.add(login); }
+          d = await api(`/api/dishes/${d.id}`); set(d); draw();
+        } catch (e) { toast(e.message); x.disabled = false; }
+      });
+    };
+    draw();
+  });
+}
+function sharedMenu(d) {
+  sheet(d.name, `<p class="small muted">${esc(d.owner.name)} shared this dish with you.</p><div class="btncol"><button class="ghost danger" id="sm-hide">Remove it from my list</button></div>`, (b, close) => {
+    $('#sm-hide', b).onclick = async () => {
+      try { await api(`/api/dishes/${d.id}/share/${encodeURIComponent(App.me.login)}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); }
+      catch (x) { toast(x.message); }
+    };
+  });
 }
 
 // "100 g chicken": read the amount, search the food, tap the right match. No match? Type the calories.

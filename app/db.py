@@ -518,6 +518,22 @@ MIGRATIONS = [
         EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
         EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
       END LOOP; END $$;
+    """,    # 23 (2026-10-11): profile.findable - false keeps you out of friend search (people can still add you by your exact
+    #   username). dish_shares: a dish its cook shares with friends, who can see it and log their own portion from it.
+    #   A SQL login sees the shares it made and the ones made to it.
+    """
+    ALTER TABLE profile ADD COLUMN findable boolean NOT NULL DEFAULT true;
+    CREATE TABLE dish_shares (
+      dish_id   bigint NOT NULL REFERENCES dishes(id) ON DELETE CASCADE,
+      user_id   bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created   timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (dish_id, user_id));
+    CREATE INDEX dish_shares_user ON dish_shares (user_id);
+    ALTER TABLE dish_shares ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON dish_shares FOR SELECT TO fit_readers
+      USING (user_id = fit_me() OR dish_id IN (SELECT id FROM dishes WHERE user_id = fit_me()));
+    CREATE POLICY all_rows ON dish_shares FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON dish_shares TO fit_readers;
     """,
 ]
 

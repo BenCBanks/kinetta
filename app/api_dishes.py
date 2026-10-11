@@ -5,7 +5,9 @@ a recipe (known_*, which wins over the ingredients' sum). Once cooked, the whole
 pan: pans remembers the person's empty pans). A portion of P grams is logged as an ordinary food entry with the dish's
 totals x P / cooked_g, and adds to eaten_g; the leftovers are cooked_g - eaten_g, offered again for 5 days.
 
-Every query is limited to user['id'].
+Every query is limited to user['id'], with one exception (2026-10-11): the cook can share a dish with friends
+(dish_shares). They see it (_seen) and can log their own portion from it, which comes off the same leftovers; only the
+cook can change it, weigh it, share it or delete it.
 """
 import datetime as dt
 import json
@@ -121,7 +123,28 @@ def _out(d):
             'status': status, 'created': d['created'], 'updated': d['updated'], 'done_at': d['done_at']}
 
 
-COLS = 'id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, eaten_g, created, updated, done_at'
+COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, eaten_g, created, updated, done_at'
+
+
+def _seen(c, uid, did, lock=False):
+    """A dish this person may see: their own, or one a friend shared with them. Otherwise 404."""
+    d = c.execute(f"""SELECT {COLS} FROM dishes WHERE id = %(d)s AND (user_id = %(u)s
+                        OR EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s))"""
+                  + (' FOR UPDATE' if lock else ''), {'d': did, 'u': uid}).fetchone()
+    if not d: raise HTTPException(404, 'Not found')
+    return d
+
+
+def _view(c, uid, d):
+    """_out plus who it's from (a friend's dish) or who it's shared with (your own)."""
+    o = _out(d)
+    o['mine'] = d['user_id'] == uid
+    if o['mine']:
+        o['shared_with'] = c.execute("""SELECT u.login::text AS login, u.name FROM dish_shares s JOIN users u ON u.id = s.user_id
+                                        WHERE s.dish_id = %s ORDER BY u.name""", (d['id'],)).fetchall()
+    else:
+        o['owner'] = c.execute('SELECT login::text AS login, name FROM users WHERE id = %s', (d['user_id'],)).fetchone()
+    return o
 
 
 def _get(c, uid, did, lock=False):
@@ -174,10 +197,11 @@ def pan_delete(pid: int, user=Depends(current_user)):
 def dishes(user=Depends(current_user)):
     """Dishes still in use: still cooking, or with leftovers from the last few days. Newest first."""
     with db.connect() as c:
-        rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE user_id = %s
-                               AND (done_at IS NULL OR (cooked_g - eaten_g >= 1 AND created > now() - make_interval(days => %s)))
-                             ORDER BY created DESC, id DESC LIMIT 50""", (user['id'], LEFTOVER_DAYS)).fetchall()
-    return [_out(d) for d in rows]
+        rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE (user_id = %(u)s
+                                 OR EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s))
+                               AND (done_at IS NULL OR (cooked_g - eaten_g >= 1 AND created > now() - make_interval(days => %(days)s)))
+                             ORDER BY created DESC, id DESC LIMIT 50""", {'u': user['id'], 'days': LEFTOVER_DAYS}).fetchall()
+        return [_view(c, user['id'], d) for d in rows]
 
 
 class DishIn(BaseModel):
@@ -193,13 +217,13 @@ def dish_add(body: DishIn, user=Depends(current_user)):
     with db.connect() as c:
         name = (body.name or '').strip() or _default_name(_today(c, user['id']))
         did = c.execute('INSERT INTO dishes (user_id, name) VALUES (%s, %s) RETURNING id', (user['id'], name)).fetchone()['id']
-        return _out(_get(c, user['id'], did))
+        return _view(c, user['id'], _get(c, user['id'], did))
 
 
 @router.get('/{did:int}')
 def dish(did: int, user=Depends(current_user)):
     with db.connect() as c:
-        return _out(_get(c, user['id'], did))
+        return _view(c, user['id'], _seen(c, user['id'], did))
 
 
 class DishEdit(BaseModel):
@@ -242,7 +266,7 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         if sets:
             c.execute(f"UPDATE dishes SET {', '.join(f'{k} = %s' for k in sets)}, updated = now() WHERE id = %s AND user_id = %s",
                       (*sets.values(), did, user['id']))
-        return _out(_get(c, user['id'], did))
+        return _view(c, user['id'], _get(c, user['id'], did))
 
 
 @router.delete('/{did:int}')
@@ -295,7 +319,7 @@ def item_add(did: int, body: ItemIn, user=Depends(current_user)):
         if len(items) >= MAX_ITEMS: raise HTTPException(400, f'A dish can have up to {MAX_ITEMS} ingredients')
         item = {'id': secrets.token_hex(4), 'name': body.name.strip(), 'grams': round(body.grams, 1), **_item_values(per100, body.grams),
                 'per100': per100, 'source': body.source, 'ref': body.ref}
-        return _out(_save_items(c, user['id'], did, items + [item]))
+        return _view(c, user['id'], _save_items(c, user['id'], did, items + [item]))
 
 
 class ItemEdit(BaseModel):
@@ -314,7 +338,7 @@ def item_edit(did: int, iid: str, body: ItemEdit, user=Depends(current_user)):
         items = _get(c, user['id'], did, lock=True)['items']
         n = _find(items, iid)
         items[n] = {**items[n], 'grams': round(body.grams, 1), **_item_values(items[n]['per100'], body.grams)}
-        return _out(_save_items(c, user['id'], did, items))
+        return _view(c, user['id'], _save_items(c, user['id'], did, items))
 
 
 @router.delete('/{did:int}/items/{iid}')
@@ -322,7 +346,7 @@ def item_delete(did: int, iid: str, user=Depends(current_user)):
     with db.connect() as c:
         items = _get(c, user['id'], did, lock=True)['items']
         del items[_find(items, iid)]
-        return _out(_save_items(c, user['id'], did, items))
+        return _view(c, user['id'], _save_items(c, user['id'], did, items))
 
 
 # ---------- log a portion ----------
@@ -335,7 +359,7 @@ class PortionIn(BaseModel):
 @router.post('/{did:int}/portion')
 def portion(did: int, body: PortionIn, user=Depends(current_user)):
     with db.connect() as c:
-        d = _get(c, user['id'], did, lock=True)      # locked: two portions at once can't both take the last of it
+        d = _seen(c, user['id'], did, lock=True)     # locked: two portions at once can't both take the last of it
         if not d['cooked_g']: raise HTTPException(400, 'Weigh the cooked dish first')
         if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, "Add the ingredients or the dish's total calories first")
         left = max(0.0, d['cooked_g'] - d['eaten_g'])
@@ -352,5 +376,39 @@ def portion(did: int, body: PortionIn, user=Depends(current_user)):
                           (user['id'], day, body.meal, d['name'], round(body.grams, 1), vals['kcal'], vals['protein_g'], vals['carbs_g'],
                            vals['fat_g'], vals['fiber_g'], json.dumps(ref), pos)).fetchone()
         c.execute("""UPDATE dishes SET eaten_g = eaten_g + %s, done_at = coalesce(done_at, now()), updated = now()
-                     WHERE id = %s AND user_id = %s""", (round(body.grams, 1), did, user['id']))
-        return {'entry': entry, 'dish': _out(_get(c, user['id'], did))}
+                     WHERE id = %s""", (round(body.grams, 1), did))        # _seen above checked it's theirs or shared with them
+        return {'entry': entry, 'dish': _view(c, user['id'], _seen(c, user['id'], did))}
+
+
+# ---------- share a dish with friends (2026-10-11) ----------
+MAX_SHARES = 10
+
+
+class ShareIn(BaseModel):
+    login: str = Field(min_length=1, max_length=60)
+
+
+@router.post('/{did:int}/share')
+def share(did: int, body: ShareIn, user=Depends(current_user)):
+    """The cook shares the dish with a friend (approved friends only), who can then log a portion from it."""
+    with db.connect() as c:
+        _get(c, user['id'], did, lock=True)
+        t = c.execute("""SELECT u.id, u.name FROM users u JOIN friendships f ON f.status = 'accepted'
+                           AND ((f.requester = u.id AND f.addressee = %(me)s) OR (f.addressee = u.id AND f.requester = %(me)s))
+                         WHERE u.login = %(l)s""", {'me': user['id'], 'l': body.login.strip().lower()}).fetchone()
+        if not t: raise HTTPException(404, 'You can share a dish only with friends')
+        if c.execute('SELECT count(*) AS n FROM dish_shares WHERE dish_id = %s', (did,)).fetchone()['n'] >= MAX_SHARES:
+            raise HTTPException(400, f'A dish can be shared with up to {MAX_SHARES} people')
+        c.execute('INSERT INTO dish_shares (dish_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (did, t['id']))
+        return _view(c, user['id'], _get(c, user['id'], did))
+
+
+@router.delete('/{did:int}/share/{login}')
+def unshare(did: int, login: str, user=Depends(current_user)):
+    """The cook stops sharing with someone, or someone hides a dish shared with them (their own username)."""
+    with db.connect() as c:
+        d = _seen(c, user['id'], did)
+        t = c.execute('SELECT id FROM users WHERE login = %s', (login.strip().lower(),)).fetchone()
+        if not t or (d['user_id'] != user['id'] and t['id'] != user['id']): raise HTTPException(404, 'Not found')
+        c.execute('DELETE FROM dish_shares WHERE dish_id = %s AND user_id = %s', (did, t['id']))
+    return {'ok': True}

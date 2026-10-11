@@ -1,7 +1,7 @@
 # Made-up social + cooking state for the homepage screenshots, on top of dev/demo/seed.py (a throwaway install only).
 # Adds a friend, "Jordan", with a few weeks of rides and walks (the demo routes, two days later and an hour earlier, so
 # the newest activity in the feed is Jordan's), shares some of Alex's runs with friends, cheers and comments both ways,
-# a waiting friend request from "Sam", a pan, a dish still cooking and a dish with leftovers.
+# a waiting friend request from "Sam", a pan, a dish shared with Jordan and a dish with leftovers.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
 
@@ -75,4 +75,5 @@ for n, g, p in [('Chicken breast, raw', 600, {'kcal': 120, 'protein_g': 22.5, 'c
                 ('Olive oil', 27, {'kcal': 884, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 100})]:
     alex('POST', f"/api/dishes/{tray['id']}/items", {'name': n, 'grams': g, 'per100': p})
 alex('PATCH', f"/api/dishes/{tray['id']}", {'gross_g': 2550, 'pan_id': pan['id']})
+alex('POST', f"/api/dishes/{tray['id']}/share", {'login': 'jordan'})            # eating together: Jordan logs a portion too
 print('staged: tray', tray['id'], 'soup', soup['id'])

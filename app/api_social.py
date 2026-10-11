@@ -162,14 +162,18 @@ def friends_waiting(user=Depends(current_user)):
 @router.get('/people/search')
 def people_search(q: str = '', user=Depends(current_user)):
     """Find people to add by name or username (like Strava's athlete search). Only names and usernames come back,
-    with where you stand with each: never anything they've logged. At least 2 letters, at most 20 people."""
+    with where you stand with each: never anything they've logged. At least 2 letters, at most 20 people.
+    Someone who turned off "Let people find me" shows up only when the search is exactly their username, or when
+    you're already friends or have a request between you."""
     q = q.strip()
     if len(q) < 2: return []
     like = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
     with db.connect() as c:
         rows = c.execute("""SELECT u.login::text AS login, u.name, f.status, f.requester = %(me)s AS sent
             FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
+            LEFT JOIN profile p ON p.user_id = u.id
             WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL
+              AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
               AND (u.login ILIKE %(pre)s OR u.name ILIKE %(pre)s OR u.name ILIKE %(word)s)
             ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name LIMIT 20""",
                          {'me': user['id'], 'q': q, 'pre': like + '%', 'word': '% ' + like + '%'}).fetchall()
@@ -233,14 +237,15 @@ class SharingIn(BaseModel):
     default: str | None = Field(None, pattern='^(me|friends|everyone)$')
     details: dict | None = None
     trim_m: int | None = None
+    findable: bool | None = None         # show me in friend search
 
 
 @router.get('/sharing')
 def sharing(user=Depends(current_user)):
     with db.connect() as c:
-        p = c.execute('SELECT share_default, share_details, share_trim_m FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT share_default, share_details, share_trim_m, findable FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
     return {'default': p.get('share_default', 'me'), 'details': details_of(p.get('share_details')), 'trim_m': p.get('share_trim_m', 400),
-            'trims': TRIMS}
+            'trims': TRIMS, 'findable': p.get('findable', True)}
 
 
 @router.put('/sharing')
@@ -251,6 +256,7 @@ def set_sharing(body: SharingIn, user=Depends(current_user)):
     if body.trim_m is not None:
         if body.trim_m not in TRIMS: raise HTTPException(400, 'Choose off, 200, 400 or 800 m')
         sets['share_trim_m'] = body.trim_m
+    if body.findable is not None: sets['findable'] = body.findable
     if sets:
         with db.connect() as c:
             c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in sets)} WHERE user_id = %s", (*sets.values(), user['id']))

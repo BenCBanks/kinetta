@@ -271,6 +271,8 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       <p class="small muted">Activities you already have keep their setting. You can change it on each activity.</p></div>
     <div class="card"><h2>What others see</h2><form class="checks" id="sh-d">${detailChecks(s.details)}</form>
       <p class="small muted">Distance, time and the type of activity are always shown to the people who can see it. Splits and laps are shared only with pace. Private notes and coach notes are never shared. You can choose differently on each activity.</p></div>
+    <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
+      <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
     <div class="card"><h2>Hide the start and end of your route</h2>
       <div class="seg wide trim4" role="group" aria-label="Hide the start and end">${s.trims.map((m) => `<button type="button" data-trim="${m}" aria-pressed="${m === s.trim_m}">${esc(trimName(m))}</button>`).join('')}</div>
       <p class="small muted">Shared maps leave out this much at the start and at the end, so others can't see where you live. A route too short for that is shared without a map.</p></div>`;
@@ -280,4 +282,5 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   wireSeg(box, 'vis', (v) => save({default: v}, `New activities: ${VIS[v].toLowerCase()}`));
   wireSeg(box, 'trim', (m) => save({trim_m: +m}, m === '0' ? 'Maps show the whole route' : `Maps hide the first and last ${trimName(+m)}`));
   const f = $('#sh-d', box); f.onchange = () => save({details: readChecks(f)}, 'Saved');
+  $('#sh-find', box).onchange = (e) => save({findable: e.target.checked}, e.target.checked ? 'People can find you by name' : "You're hidden from friend search");
 });
