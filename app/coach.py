@@ -38,6 +38,17 @@ def enabled():
     return provider() is not None
 
 
+def allowed(user_id):
+    """The server has an AI key AND this person turned AI features on (Me > AI features)."""
+    if not enabled(): return False
+    with db.connect() as c:
+        r = c.execute('SELECT ai_ok FROM profile WHERE user_id = %s', (user_id,)).fetchone()
+    return bool(r and r['ai_ok'])
+
+
+OFF = 'AI features are off for you - turn them on under Me > AI features.'
+
+
 HEALTH_NO = 'The coach needs your OK to read workouts from Apple Health first: Me > Apple Health.'
 
 
@@ -142,6 +153,7 @@ def _week_context(c, user_id, week_start):
 def week_review(user_id, week_start=None):
     """Writes (or rewrites) the review for the week starting Monday week_start (default: this week)."""
     if not enabled(): raise ValueError('The coach is not switched on yet (needs an AI key on the server).')
+    if not allowed(user_id): raise ValueError(OFF)
     if week_start is None:
         today = dt.date.today(); week_start = today - dt.timedelta(days=today.weekday())
     with db.connect() as c:
@@ -166,7 +178,7 @@ def weekly_scheduler():
         time.sleep((target - now).total_seconds())
         if not enabled(): continue
         with db.connect() as c:
-            ids = [r['id'] for r in c.execute('SELECT id FROM users').fetchall()]
+            ids = [r['user_id'] for r in c.execute('SELECT user_id FROM profile WHERE ai_ok').fetchall()]
         for uid in ids:
             try: week_review(uid)
             except Exception as e: print('weekly review', uid, e, flush=True)
@@ -175,6 +187,7 @@ def weekly_scheduler():
 def note(user_id, aid, on_demand=False):
     """Writes activities.ai_note; returns the text (or raises ValueError with a friendly message)."""
     if not enabled(): raise ValueError('The coach is not switched on yet (needs an AI key on the server).')
+    if not allowed(user_id): raise ValueError(OFF)
     with db.connect() as c:
         if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         if on_demand:
@@ -210,7 +223,7 @@ def _claude(ctx, system=None):
 
 def after_import(user_id, ids):
     """Background: notes for activities that started in the last 3 days (bulk history never triggers paid calls)."""
-    if not enabled() or not ids: return
+    if not ids or not allowed(user_id): return
     def run():
         with _lock:
             with db.connect() as c:

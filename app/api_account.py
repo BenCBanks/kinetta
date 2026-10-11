@@ -145,16 +145,27 @@ def remove_person(login: str, body: RemoveIn, user=Depends(current_user)):
     with db.connect() as c:
         t = _target(c, user, login)
         if body.confirm.strip().lower() != t['login'].lower(): raise HTTPException(400, 'Type the username exactly to confirm')
-        c.execute('DELETE FROM users WHERE id = %s', (t['id'],))    # every personal table cascades
-        if t['sql_role']:
-            try:
-                with c.transaction():
-                    c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(t['sql_role'])))
-            except Exception:
-                pass    # the person is gone; a leftover SQL login can't see any rows
-    for d in (os.path.join(DATA, 'files', str(t['id'])), os.path.join(DATA, 'uploads', str(t['id']))):
-        if os.path.isdir(d): shutil.rmtree(d, ignore_errors=True)
+        erase(c, t)
+    erase_files(t['id'])
     return {'ok': True}
+
+
+def erase(c, t):
+    """Delete a person and every row of theirs (all personal tables cascade from users), plus their beta request."""
+    c.execute("""DELETE FROM beta_requests WHERE invite_id IN (SELECT id FROM invites WHERE used_by = %s)""", (t['id'],))
+    c.execute('DELETE FROM users WHERE id = %s', (t['id'],))
+    if t['sql_role']:
+        try:
+            with c.transaction():
+                c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(t['sql_role'])))
+        except Exception:
+            pass    # the person is gone; a leftover SQL login can't see any rows
+
+
+def erase_files(uid):
+    """Their original activity files and uploads (call after the rows are gone)."""
+    for d in (os.path.join(DATA, 'files', str(uid)), os.path.join(DATA, 'uploads', str(uid))):
+        if os.path.isdir(d): shutil.rmtree(d, ignore_errors=True)
 
 
 # ---------- first run + invite links ----------

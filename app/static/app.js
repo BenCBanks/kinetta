@@ -614,6 +614,20 @@ function loadChart(box, days) {
   const b = $$('.badge', box); b[0].classList.add('s1'); b[1].classList.add('s2'); b[2].classList.add('s3');
 }
 
+// ---------- AI consent (2026-10-11): coach notes, weekly reviews and food photos send data to the AI service ----------
+const aiExplain = () => `<p>Lankki can write a short <b>coach note</b> on each new workout, a <b>weekly review</b> on Sundays, and <b>estimate the food in a photo</b>.</p>
+  <p class="small muted">To do that, the workout's numbers and your recent training, or the photo, are sent to ${esc(App.me.ai_provider || 'an AI service')}, which writes the text. Nothing is sent while this is off, and you can turn it off any time under Me.</p>`;
+function aiSheet(after) {   // ask once; after() runs when they turn it on
+  sheet('Turn on AI features?', `<div class="form">${aiExplain()}<div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
+    $('#ai-no', b).onclick = close;
+    $('#ai-yes', b).onclick = async (e) => {
+      e.target.disabled = true;
+      try { await api('/api/profile', json('PUT', {ai_ok: true})); App.me.ai_ok = true; keep('/api/me', App.me); close(); toast('AI features on'); if (after) after(); }
+      catch (x) { toast(x.message); e.target.disabled = false; }
+    };
+  });
+}
+
 // ---------- login, first-run setup, invite links + start ----------
 const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg" alt="Lankki" width="186" height="34"></picture>`;
 function showLogin(msg = '') {
@@ -699,7 +713,7 @@ async function showBeta() {
     <label>Your watch or tracker (optional)<input name="watch" maxlength="60" placeholder="e.g. Garmin Forerunner, Apple Watch, none"></label>
     <label>Anything we should know? (optional)<textarea name="note" maxlength="300" rows="3"></textarea></label>
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-    <p class="small muted">We use your email only to send your invite.</p>
+    <p class="small muted">We use your email only to send your invite. <a href="https://lankki.com/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">Ask to join</button>
     <p class="small muted">Already have an account? <a href="/" id="b-login">Log in</a></p></form></div>`;

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lankki Privacy Policy</title>
+<meta name="description" content="What Lankki collects, why, who else sees it, and how to download or delete it.">
+<link rel="canonical" href="https://lankki.com/privacy">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Figtree:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #F4F1EC; --paper: #FBFAF7; --ink: #1E2522; --ink2: #4A524E; --ink3: #6D7571; --line: #DFDAD1;
+  --berry: #C0283D; --spruce: #2F6F5E;
+  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --body: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121716; --paper: #1A201E; --ink: #EEF2F0; --ink2: #BFC7C3; --ink3: #939D99; --line: #2C3533;
+  --berry: #EF5868; --spruce: #6CC3A8; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121716; --paper: #1A201E; --ink: #EEF2F0; --ink2: #BFC7C3; --ink3: #939D99; --line: #2C3533;
+  --berry: #EF5868; --spruce: #6CC3A8; color-scheme: dark; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.65 var(--body); }
+a { color: var(--spruce); }
+:focus-visible { outline: 3px solid var(--berry); outline-offset: 3px; border-radius: 4px; }
+.wrap { max-width: 760px; margin: 0 auto; padding-inline: 20px; }
+header { padding-block: 22px; } header .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+header img { width: 120px; height: auto; display: block; } header a.back { color: var(--ink2); text-decoration: none; font-weight: 500; font-size: 15px; }
+h1, h2 { font-family: var(--display); font-weight: 600; line-height: 1.15; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(32px, 5vw, 44px); margin-top: 24px; }
+h2 { font-size: 22px; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); }
+p, ul { margin: 14px 0 0; color: var(--ink2); max-width: 68ch; } ul { padding-left: 1.2em; } li + li { margin-top: 6px; }
+b { color: var(--ink); }
+.date { color: var(--ink3); font-size: 15px; margin-top: 10px; }
+.short { margin-top: 28px; background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 24px 26px; }
+.short h2 { border: 0; padding: 0; margin: 0; font-size: 19px; }
+.short ul { margin-top: 12px; }
+.tablewrap { overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 15.5px; }
+th, td { text-align: left; vertical-align: top; padding: 11px 16px; border-top: 1px solid var(--line); color: var(--ink2); }
+thead th { border-top: 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); font-weight: 500; }
+td:first-child { color: var(--ink); font-weight: 600; }
+footer { margin-top: 64px; border-top: 1px solid var(--line); padding-block: 28px 48px; color: var(--ink3); font-size: 14.5px; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <a href="/" aria-label="Lankki home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Lankki" width="120" height="22"></picture></a>
+  <a class="back" href="/">← lankki.com</a>
+</div></header>
+<main class="wrap">
+  <h1>Privacy policy</h1>
+  <p class="date">Last updated October 11, 2026</p>
+
+  <section class="short" aria-labelledby="short-h">
+    <h2 id="short-h">The short version</h2>
+    <ul>
+      <li>Your workouts, food log and health numbers are <b>yours</b>. Other Lankki users can't see them.</li>
+      <li><b>No ads, no tracking, no selling or sharing your data.</b></li>
+      <li>AI features send data to an AI service <b>only if you turn them on</b>.</li>
+      <li>You can <b>download</b> everything, or <b>delete</b> your account and all of it, from the app at any time.</li>
+    </ul>
+  </section>
+
+  <h2>Who this covers</h2>
+  <p>This policy covers the Lankki beta at <b>app.lankki.com</b> and this website, <b>lankki.com</b>. Both are run by Ben Banks, an individual in North Carolina, USA ("we" below).</p>
+  <p>Lankki is also open-source software that anyone can run on their own computer. If you use someone else's Lankki, the person running it holds your data, and this policy doesn't apply to them.</p>
+
+  <h2>What we collect</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th scope="col">What</th><th scope="col">Examples</th><th scope="col">Why</th></tr></thead>
+    <tbody>
+      <tr><td>Beta request</td><td>Name, email, phone type, watch, your note</td><td>To decide on and send your invite</td></tr>
+      <tr><td>Account</td><td>Name, username, password (stored only in scrambled form), time zone, units</td><td>To let you log in and show things your way</td></tr>
+      <tr><td>Profile</td><td>Sex, birth year, height, weight, heart-rate settings, calorie and macro targets</td><td>Heart-rate zones, effort, calorie needs</td></tr>
+      <tr><td>Activities</td><td>GPS routes, distance, pace, heart rate, power, cadence, the original files from your watch or uploads</td><td>To show, analyze and compare your workouts</td></tr>
+      <tr><td>Food and health</td><td>Food log, saved meals, weigh-ins, goals, training plans, gear</td><td>Your food log, trends and plans</td></tr>
+      <tr><td>Connections</td><td>Settings for services you link, such as intervals.icu or Health Auto Export</td><td>To bring in new activities automatically</td></tr>
+      <tr><td>Technical</td><td>Login sessions with the type of browser or phone; IP address and pages requested</td><td>Keeping you logged in, blocking password guessing, fixing problems</td></tr>
+    </tbody>
+  </table></div>
+  <p>Your location is collected only as part of the activities you record or upload. Lankki doesn't track where you are otherwise. Food photos you use for estimates are sent to the AI service and are not stored.</p>
+
+  <h2>Who else sees it</h2>
+  <ul>
+    <li><b>Other Lankki users:</b> no. Each person sees only their own data. If we add social features, sharing will be your choice per activity and this policy will be updated first.</li>
+    <li><b>The person who runs the server</b> (Ben Banks) can technically access its database, as with any service. We look at data only to keep the service working, fix a problem you report, or when the law requires it.</li>
+    <li><b>Cloudflare</b> carries all traffic to app.lankki.com and encrypts it on the way.</li>
+    <li><b>The AI service</b> (currently Google's Gemini), <b>only if you turn on AI features</b>: the numbers of a workout and your recent training for coach notes and weekly reviews, and photos you choose for food estimates. You can turn this off under Me at any time.</li>
+    <li><b>Food databases</b> (Open Food Facts and the USDA FoodData Central): the words you search for or barcodes you scan, not who you are.</li>
+    <li><b>OpenStreetMap</b> supplies the maps, so it sees which map area your phone loads.</li>
+    <li><b>Services you connect yourself</b>, such as intervals.icu or Health Auto Export, under their own policies.</li>
+  </ul>
+  <p>We don't sell your data, use it for advertising, or share it with anyone else, except when the law requires it.</p>
+
+  <h2>Where it's kept, and for how long</h2>
+  <ul>
+    <li>On a server in the United States, until you delete it.</li>
+    <li>Encrypted backups are made every night and kept for up to 30 days, so deleted data disappears from backups within 30 days too.</li>
+    <li>Server logs that include IP addresses are trimmed automatically and kept only briefly.</li>
+    <li>Beta requests are kept until we invite you or you ask us to remove them. Once you have an account, your request is deleted along with it.</li>
+  </ul>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li><b>Download your data:</b> Me → Your data → Download my data gives you a zip with everything, including your original activity files.</li>
+    <li><b>Delete your account:</b> Me → Your data → Delete my account deletes your account and all its data straight away.</li>
+    <li><b>AI features:</b> Me → AI features, on or off at any time.</li>
+    <li><b>Correct things:</b> you can edit or delete any activity, food entry or weigh-in in the app.</li>
+  </ul>
+
+  <h2>Security</h2>
+  <p>Connections are encrypted (HTTPS). Passwords are stored only in scrambled form (Argon2). The database itself keeps each person's rows separate, repeated wrong passwords are blocked, and the server is reachable from the internet only through the Lankki app. No system is perfectly secure; if something goes wrong that affects your data, we'll tell you.</p>
+
+  <h2>Health information</h2>
+  <p>Lankki is a fitness and food tracker, not a medical service, and its numbers and AI notes aren't medical advice. We treat your health information as sensitive and use it only to run Lankki for you.</p>
+
+  <h2>Children</h2>
+  <p>Lankki isn't meant for anyone under 16, and we don't knowingly collect data from them.</p>
+
+  <h2>Changes</h2>
+  <p>If we change this policy, we'll update this page and the date at the top. For important changes, we'll tell you in the app first.</p>
+
+  <h2>Questions</h2>
+  <p>During the beta, ask the person who invited you, or use the app's account tools above. For questions about the software itself, open an issue on <a href="https://github.com/BenCBanks/lankki/issues">GitHub</a>; please don't put personal details there.</p>
+</main>
+<footer><div class="wrap">© 2026 Ben Banks · <a href="/">lankki.com</a></div></footer>
+</body>
+</html>

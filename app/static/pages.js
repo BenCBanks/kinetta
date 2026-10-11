@@ -238,7 +238,7 @@ function drawDetail(el, a) {
       ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
     </div><div>
       ${a.ai_note ? `<div class="card ai"><h2>Coach</h2><p>${esc(a.ai_note)}</p></div>`
-        : App.me.coach ? '<div class="card"><h2>Coach</h2><p class="small muted">A short note on this workout from your AI coach, using your own history.</p><button class="ghost" id="d-coach">Get coach note</button></div>' : ''}
+        : App.me.coach ? `<div class="card"><h2>Coach</h2><p class="small muted">A short note on this workout from your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Get coach note' : 'Turn on AI coach'}</button></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
       ${a.efforts && a.efforts.length ? `<div class="card"><h2>Best efforts</h2>${effortsTable(a)}</div>` : ''}
       ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
@@ -250,6 +250,7 @@ function drawDetail(el, a) {
   $('#d-edit', el).onclick = () => editActivity(a);
   const cb = $('#d-coach', el);
   if (cb) cb.onclick = async () => {
+    if (!App.me.ai_ok) { aiSheet(() => drawDetail(el, a)); return; }
     cb.disabled = true; cb.textContent = 'Thinking…';
     try { const r = await api(`/api/activities/${a.id}/coach`, json('POST', {})); a.ai_note = r.note; App.cache.delete(`/api/activities/${a.id}`); drawDetail(el, a); }
     catch (x) { toast(x.message); cb.disabled = false; cb.textContent = 'Get coach note'; }
@@ -698,12 +699,25 @@ route(/^\/me$/, 'me', async (el) => {
       <button class="row-link" id="m-login"><span>Username</span><span class="val">${esc(me.login)}<span class="chev">${svg('chev')}</span></span></button>
       <button class="row-link" id="m-pw"><span>Password</span><span class="val">Change<span class="chev">${svg('chev')}</span></span></button>
       ${me.is_admin ? `<a class="row-link" href="/me/people"><span>People</span><span class="val">Invite, reset, remove<span class="chev">${svg('chev')}</span></span></a>` : ''}</div>
+    ${me.coach ? `<div class="card" id="ai"><h2>AI features</h2>${aiExplain()}
+      <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
+    <div class="card"><h2>Your data</h2>
+      <a class="row-link" id="m-export" href="/api/account/export" download><span>Download my data</span><span class="val">Zip file<span class="chev">${svg('chev')}</span></span></a>
+      <a class="row-link" href="https://lankki.com/privacy" target="_blank" rel="noopener"><span>Privacy policy</span><span class="val">lankki.com<span class="chev">${svg('chev')}</span></span></a>
+      <button class="row-link" id="m-del"><span class="danger">Delete my account</span><span class="val"><span class="chev">${svg('chev')}</span></span></button></div>
     <button class="ghost" id="logout">Log out</button>`;
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');
   $('#m-pw', el).onclick = () => passwordSheet();
-  $$('.seg button', el).forEach((b) => b.onclick = async () => {
+  $('#m-export', el).onclick = () => toast('Preparing your download - this can take a minute');
+  $('#m-del', el).onclick = () => deleteSheet();
+  $$('[data-ai]', el).forEach((b) => b.onclick = async () => {
+    const on = b.dataset.ai === '1'; if (on === !!me.ai_ok) return;
+    try { await api('/api/profile', json('PUT', {ai_ok: on})); me.ai_ok = on; keep('/api/me', me); invalidate('/api/coach'); render(); toast(on ? 'AI features on' : 'AI features off - nothing is sent'); }
+    catch (x) { toast(x.message); }
+  });
+  $$('.seg button[data-u]', el).forEach((b) => b.onclick = async () => {
     const prev = me.units; me.units = b.dataset.u; render();
     try { await api('/api/profile', json('PUT', {units: me.units})); } catch (x) { me.units = prev; render(); toast('Could not save: ' + x.message); }
   });
@@ -745,6 +759,25 @@ function accountSheet(field) {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try { const r = await api('/api/account', json('PUT', {[field]: f.v.value})); me[field] = r[field]; close(); render(); toast(isName ? 'Name saved' : 'Username changed - use it next time you log in'); }
       catch (x) { toast(x.message); btn.disabled = false; }
+    };
+  });
+}
+// delete my own account and everything in it (2026-10-11); needs the password, can't be undone
+function deleteSheet() {
+  sheet('Delete my account', `<form class="form" id="del">
+    <input name="username" value="${esc(App.me.login)}" autocomplete="username" hidden>
+    <p>This deletes your account and <b>everything</b> in it straight away: activities, routes, food log, weigh-ins, plans and the files you uploaded. It can't be undone.</p>
+    <p class="small muted">Want a copy first? Use Download my data. Copies in the server's backups are deleted as the backups rotate out, within 30 days.</p>
+    <label>Your password<input name="pw" type="password" autocomplete="current-password" required></label>
+    <div class="actions"><button class="primary danger-btn">Delete everything</button></div></form>`, (b, close) => {
+    const f = $('#del', b); f.pw.focus();
+    f.onsubmit = async (e) => {
+      e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
+      try {
+        await api('/api/account/delete', json('POST', {password: f.pw.value}));
+        close(); store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
+        App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin('Your account and all your data were deleted.');
+      } catch (x) { toast(x.message); btn.disabled = false; }
     };
   });
 }

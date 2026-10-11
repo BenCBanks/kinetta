@@ -4,7 +4,7 @@ POST /api/health/workouts   {"workouts": [...]}   from the logged-in person only
 
 Each workout carries HealthKit's own id for it. It is stored as source 'healthkit' with that id, and sending it again
 (the next sync overlaps the last one, a retry after a dropped connection, a second iPhone) changes nothing: the id is
-looked up first, and a unique index (migration 19) catches two copies that arrive at the same moment. A workout that is
+looked up first, and a unique index (migration 20) catches two copies that arrive at the same moment. A workout that is
 already here from somewhere else (a Garmin file, a Strava export) is a duplicate too: same start time and distance,
 see activities.find_duplicate.
 
@@ -16,7 +16,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg import errors
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from . import activities, db, parsers
 from .auth import current_user
@@ -52,6 +52,11 @@ class WorkoutIn(BaseModel):
 
 class WorkoutsIn(BaseModel):
     workouts: list[WorkoutIn] = Field(max_length=50)       # the app sends big histories in batches
+
+    @model_validator(mode='after')
+    def not_too_big(self):     # the app sends 10 workouts at a time; this keeps one request from tying up the server
+        if sum(len(w.route) + len(w.heart_rate) for w in self.workouts) > 300_000: raise ValueError('Too many points in one request - send fewer workouts at a time')
+        return self
 
 
 def _utc(t):
