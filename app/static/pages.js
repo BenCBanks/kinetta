@@ -27,7 +27,7 @@ function postCard(a, {who = false} = {}) {
   const foot = theirs
     ? `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
        <a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>`
-    : `<span class="pf static" aria-label="${a.cheers || 0} ${esc(CHEER.many)}">${svg('cheer')}${n('cheers')}</span><a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>
+    : `<span class="pf static">${svg('cheer')}${n('cheers')}<span class="vh">${a.cheers || 0} ${esc(CHEER.many)}</span></span><a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>
        <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`;
   return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
@@ -465,8 +465,8 @@ function pSport(q) {
   let s = q.get('sport'); if (!s) try { s = localStorage.getItem('fit.psport'); } catch (e) { /* no storage */ }
   return PSPORTS.some((p) => p[0] === s) ? s : 'run';
 }
-const sportBtn = (cur) => `<button type="button" class="range-btn sport-btn" id="p-sport" aria-label="Sport: ${esc(PSPORTS.find((p) => p[0] === cur)[1])}. Change">
-  ${svg(cur === 'all' ? 'activity' : cur)}<span>${esc(PSPORTS.find((p) => p[0] === cur)[1])}</span>${svg('down')}</button>`;
+const sportBtn = (cur) => { const k = cur || 'all', n = PSPORTS.find((p) => p[0] === k)[1];   // the sport this view shows
+  return `<button type="button" class="range-btn sport-btn" id="p-sport" aria-label="Sport: ${esc(n)}. Change">${svg(k === 'all' ? 'activity' : k)}<span>${esc(n)}</span>${svg('down')}</button>`; };
 function wireSport(el, cur) {
   const b = $('#p-sport', el); if (!b) return;
   b.onclick = () => sheet('Sport', `<div class="pick-list">${PSPORTS.map(([k, n]) => `<button type="button" class="row-link" data-ps="${k}"><span class="ri c-grey">${svg(k === 'all' ? 'activity' : k)}</span><span class="grow">${esc(n)}</span>${k === cur ? `<span class="tick">${svg('check')}</span>` : ''}</button>`).join('')}</div>`, (sb, close) => {
@@ -483,7 +483,7 @@ route(/^\/progress$/, 'progress', async (el) => {
   if (v0 === 'plan') return go('/plan', {replace: true});
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
   const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
-  el.innerHTML = `<div class="top"><h1>Progress</h1>${view === 'fitness' ? '' : `<div class="acts">${sportBtn(sport)}</div>`}</div>
+  el.innerHTML = `<div class="top"><h1>Progress</h1>${view === 'fitness' ? '' : `<div class="acts">${sportBtn(forView(sport, view))}</div>`}</div>
     <div class="seg wide three" role="group" aria-label="View">${PVIEWS.map(([k, n]) => `<button data-v="${k}" aria-pressed="${k === view}">${n}</button>`).join('')}</div>
     <div id="p-body">${skel(2)}</div>
     <h2 class="sec-head">More</h2><div class="card list">${PMORE.map(([k, n, d, ic, c]) => `<a class="row-link" href="${k === 'plan' ? '/plan' : '/progress/' + k}"><span class="ri ${c}">${svg(ic)}</span>
@@ -496,7 +496,7 @@ route(/^\/progress$/, 'progress', async (el) => {
 route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, view) => {
   const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
   const name = PMORE.find((m) => m[0] === view)[1];
-  el.innerHTML = `<div class="top">${backBtn('Progress')}${withSport ? `<div class="acts">${sportBtn(sport)}</div>` : ''}</div><h1>${esc(name)}</h1><div id="p-body">${skel(2)}</div>`;
+  el.innerHTML = `<div class="top">${backBtn('Progress')}${withSport ? `<div class="acts">${sportBtn(forView(sport, view))}</div>` : ''}</div><h1>${esc(name)}</h1><div id="p-body">${skel(2)}</div>`;
   wireBack(el, '/progress'); wireSport(el, sport);
   q.set('sport', forView(sport, view));
   await ({trends: pTrends, calendar: pCalendar, routes: pRoutes, heatmap: pHeatmap}[view])($('#p-body', el), q);
@@ -721,7 +721,7 @@ async function pCalendar(body, q) {
     body.innerHTML = `<div class="card cal2"><div class="cal-nav"><button class="icon-btn" id="c-prev" aria-label="Previous month">${svg('back')}</button>
         <h2>${esc(first.toLocaleDateString([], {month: 'long', year: 'numeric'}))}</h2><button class="icon-btn" id="c-next" aria-label="Next month"${month >= cur ? ' disabled' : ''}>${svg('chev')}</button></div>
       <div class="stats3">${stat('Trained', `${S.trained}`, `of ${S.days} days`)}${stat('On target', S.judged ? `${S.on_target}` : '–', S.judged ? `of ${S.judged}` : '')}${stat('Weigh-ins', S.weighed)}</div>
-      <div class="cal-grid" role="grid" aria-label="Days of the month">${grid}</div>
+      <div class="cal-grid">${grid}</div>
       <div class="legend cal-legend"><span><span class="lg-i">${svg('run')}</span>Workout</span>${['on', 'over', 'under', 'partial'].map((k) => `<span><span class="cd-f ${k}"></span>${FOODST[k][0]}</span>`).join('')}</div></div>
       <p class="small muted cal-help">Each day shows your workout and a bar for what you ate against that day's goal. Tap a day for the details.${month < cur ? ` <a href="/progress/calendar">Back to this month</a>` : ''}</p>`;
     $('#c-prev', body).onclick = () => go(`/progress/calendar?month=${shift(-1)}`, {replace: true});

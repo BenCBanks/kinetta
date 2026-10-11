@@ -45,7 +45,10 @@ async function feedPage(before) {
   const b = before ? '&before=' + encodeURIComponent(before) : '';
   const [mine, theirs] = await Promise.all([api(`/api/activities?limit=${FEED_N}${b}`), api(`/api/feed/friends?limit=${FEED_N}${b}`)]);
   const all = mine.concat(theirs).sort((x, y) => new Date(y.start_time) - new Date(x.start_time));
-  return {rows: all.slice(0, FEED_N), more: all.length > FEED_N || mine.length === FEED_N || theirs.length === FEED_N, friends: theirs.length};
+  // the next page asks for "older than the last card", so activities sharing the last card's start time all go on this page
+  let n = Math.min(FEED_N, all.length);
+  while (n && n < all.length && +new Date(all[n].start_time) === +new Date(all[n - 1].start_time)) n++;
+  return {rows: all.slice(0, n), more: all.length > n || mine.length === FEED_N || theirs.length === FEED_N, friends: theirs.length};
 }
 async function homeFeed(el) {
   el.innerHTML = `${actTop(false)}${whoseSeg('')}<div id="ff-nudge"></div>
@@ -282,5 +285,9 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   wireSeg(box, 'vis', (v) => save({default: v}, `New activities: ${VIS[v].toLowerCase()}`));
   wireSeg(box, 'trim', (m) => save({trim_m: +m}, m === '0' ? 'Maps show the whole route' : `Maps hide the first and last ${trimName(+m)}`));
   const f = $('#sh-d', box); f.onchange = () => save({details: readChecks(f)}, 'Saved');
-  $('#sh-find', box).onchange = (e) => save({findable: e.target.checked}, e.target.checked ? 'People can find you by name' : "You're hidden from friend search");
+  $('#sh-find', box).onchange = async (e) => {
+    const on = e.target.checked;
+    try { await api('/api/sharing', json('PUT', {findable: on})); toast(on ? 'People can find you by name' : "You're hidden from friend search"); }
+    catch (x) { e.target.checked = !on; toast(x.message); }
+  };
 });

@@ -282,7 +282,8 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
   background: color-mix(in srgb, var(--c) 13%, transparent); }
 .sp svg { width: 20px; height: 20px; }
 .sp.run { --c: var(--run); } .sp.ride { --c: var(--ride); } .sp.walk { --c: var(--walk); } .sp.hike { --c: var(--hike); } .sp.swim { --c: var(--swim); }
-.sp.row { --c: var(--row); } .sp.ski { --c: var(--ski); } .sp.workout { --c: var(--workout); }
+.sp.row { --c: var(--row); padding: 0; border-top: 0; min-height: 0; justify-content: center; }  /* rowing: undo the list .row */
+.sp.ski { --c: var(--ski); } .sp.workout { --c: var(--workout); }
 .stats3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .stat { min-width: 0; }
 .stat small, .tcard small { display: block; color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
@@ -759,7 +760,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .portion-out b { font: 800 24px var(--numf); letter-spacing: -.02em; } .portion-out span { font-size: 14px; }
 .dish-row .av { width: 34px; height: 34px; font-size: 13px; }
 .share-dish .avs { display: flex; align-items: center; gap: 6px; } .share-dish .avs .av { width: 32px; height: 32px; font-size: 12px; margin-right: -12px; box-shadow: 0 0 0 2px var(--card); }
-.share-dish .avs span { margin-left: 18px; font-weight: 600; } .share-dish .ghost.wide { margin-top: 12px; }
+.share-dish .avs > span:not(.av) { margin-left: 18px; font-weight: 600; } .share-dish .ghost.wide { margin-top: 12px; }
 .serve .kv b .linkbtn { min-height: 0; padding: 0 0 0 8px; font-size: 14px; }
 
 /* ---------- admin: invites + beta ---------- */

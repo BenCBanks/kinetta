@@ -270,6 +270,7 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         if v.get('done') is not None:
             sets['done_at'] = (d['done_at'] or dt.datetime.now(dt.timezone.utc)) if v['done'] else None
             if not v['done'] and d['eaten_g'] > 0: raise HTTPException(400, 'Portions are already logged from this dish')
+            if v['done'] and d['cooked_g']: sets['eaten_g'] = max(d['eaten_g'], d['cooked_g'])   # "no leftovers left": it leaves the list
         if sets:
             c.execute(f"UPDATE dishes SET {', '.join(f'{k} = %s' for k in sets)}, updated = now() WHERE id = %s AND user_id = %s",
                       (*sets.values(), did, user['id']))
