@@ -1,5 +1,5 @@
-// Kinetta phone app — Part 5: friends and sharing (2026-10-11). Friends (by exact username, approved by the other
-// person), who sees each activity, which details they see, the Friends feed, read-only pages for friends' activities,
+// Kinetta phone app — Part 5: friends and sharing (2026-10-11). Friends (found by name or username, approved by the
+// other person), who sees each activity, which details they see, the Feed, read-only pages for friends' activities,
 // cheers and comments. The server decides what anyone else gets (app/api_social.py); these pages only show it.
 'use strict';
 
@@ -37,41 +37,42 @@ const Social = {
   set(n) { if (App.me && n != null) { App.me.friend_requests = n; Social.badge(); } },
 };
 
-// ---------- Activity tab: the Friends view ----------
-function friendCard(a) {
-  const st = [];
-  if (a.distance_m) st.push(stat('Distance', U.dist(a.distance_m), U.du()));
-  if (a.distance_m && a.moving_s && a.shares.pace) { const r = rate(a); st.push(stat(r.label, r.v, r.u)); }
-  st.push(stat('Time', dur(a.moving_s || a.elapsed_s)));
-  if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
-  const counts = [a.cheers ? `<span class="badge${a.cheered ? ' on' : ''}">${svg('cheer')} ${a.cheers}</span>` : '',
-    a.comments ? `<span class="badge">${svg('comment')} ${a.comments}</span>` : ''].join('');
-  return `<a class="card tap act${a.line ? ' has-map' : ' no-route'}" href="/activity/friends/${a.id}" data-prefetch="/api/shared/${a.id}">
-    <div><div class="hd">${sportMark(a.sport)}<div><b>${esc(a.name)}</b><small>${esc(a.owner.name)} · ${esc(when(a.start_time))}</small></div></div>
-    <div class="stats3">${st.slice(0, 3).join('')}</div>${counts ? `<div class="badges">${counts}</div>` : ''}</div>
-    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}</a>`;
+// ---------- Activity tab: the Feed (yours and your friends', newest first) ----------
+// Two lists merged by start time. Each page asks both for the next N before the oldest card shown, keeps the newest N,
+// and the rest comes again on the next page, so nothing is skipped or shown twice.
+const FEED_N = 15;
+async function feedPage(before) {
+  const b = before ? '&before=' + encodeURIComponent(before) : '';
+  const [mine, theirs] = await Promise.all([api(`/api/activities?limit=${FEED_N}${b}`), api(`/api/feed/friends?limit=${FEED_N}${b}`)]);
+  const all = mine.concat(theirs).sort((x, y) => new Date(y.start_time) - new Date(x.start_time));
+  return {rows: all.slice(0, FEED_N), more: all.length > FEED_N || mine.length === FEED_N || theirs.length === FEED_N, friends: theirs.length};
 }
-async function friendsFeed(el) {
-  el.innerHTML = `<div class="top"><h1>Activity</h1></div>${whoseSeg('friends')}
+async function homeFeed(el) {
+  el.innerHTML = `${actTop(false)}${whoseSeg('')}<div id="ff-nudge"></div>
     <div class="feed-list" id="ff-list">${skel(3)}</div><button class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   wireWhose(el);
-  const base = '/api/feed/friends?limit=25', list = $('#ff-list', el), more = $('#ff-more', el);
+  const list = $('#ff-list', el), more = $('#ff-more', el), nudge = $('#ff-nudge', el);
   let items = [];
-  const draw = (rows) => {
-    items = rows;
-    list.innerHTML = rows.length ? rows.map(friendCard).join('') : `<div class="card empty"><b>Nothing from friends yet</b>
-      When your friends share an activity with friends, it shows up here.<br><br><a class="primary" href="/me/friends">Find friends</a></div>`;
-    more.hidden = rows.length < 25 || rows.length % 25 !== 0;
-    feedMaps(list);
+  const draw = (pg) => {
+    items = pg.rows;
+    list.innerHTML = items.length ? items.map((a) => postCard(a, {who: true})).join('') : `<div class="card empty"><b>Nothing here yet</b>
+      Your activities and the ones your friends share show up here.<br><br><a class="primary" href="/me/import">Upload activities</a></div>`;
+    nudge.innerHTML = '';
+    if (!pg.friends) load('/api/friends', (r) => { if (nudge.isConnected) nudge.innerHTML = r.friends.length ? '' : findNudge; }).catch(() => {});
+    more.hidden = !pg.more; feedMaps(list); wireCheers(list);
   };
-  await load(base, draw);
+  const findNudge = `<a class="card tap nudge" href="/me/friends"><span class="nudge-ico">${svg('people')}</span>
+      <span class="grow"><b>Find your friends</b><small>Search by name, then see each other's runs and rides here.</small></span><span class="chev">${svg('chev')}</span></a>`;
+  const hit = App.cache.get('feed:home'); if (hit) draw(hit.data);
+  try { const pg = await feedPage(); App.cache.set('feed:home', {data: pg, at: Date.now()}); if (list.isConnected) draw(pg); }
+  catch (x) { if (!hit) throw x; }
   more.onclick = async () => {
     more.disabled = true; more.textContent = 'Loading…';
     try {
-      const rows = await api(base + '&before=' + encodeURIComponent(items[items.length - 1].start_time));
-      items = items.concat(rows); App.cache.set(base, {data: items, at: Date.now()});
-      list.insertAdjacentHTML('beforeend', rows.map(friendCard).join('')); more.hidden = rows.length < 25; feedMaps(list);
-    } catch (e) { toast(e.message); }
+      const pg = await feedPage(items[items.length - 1].start_time);
+      items = items.concat(pg.rows);
+      list.insertAdjacentHTML('beforeend', pg.rows.map((a) => postCard(a, {who: true})).join('')); more.hidden = !pg.more; feedMaps(list); wireCheers(list);
+    } catch (x) { toast(x.message); }
     more.disabled = false; more.textContent = 'Show more';
   };
 }
@@ -79,7 +80,7 @@ async function friendsFeed(el) {
 // ---------- someone else's activity (read-only); for your own: what others see ----------
 route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn()}</div>${skel(1)}<div class="sk block"></div>`;
-  wireBack(el, '/activity?view=friends');
+  wireBack(el, '/activity');
   await load(`/api/shared/${id}`, (a) => drawShared(el, a), {maxAge: 30000});
 });
 function drawShared(el, a) {
@@ -87,10 +88,11 @@ function drawShared(el, a) {
   const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) +
     (a.distance_m && sh.pace ? stat(r.label, r.v, r.u) : '');
   const splits = imp() ? a.splits_mi : a.splits_km;
-  el.innerHTML = `<div class="top">${backBtn(mine ? 'Back' : 'Friends')}</div>
+  el.innerHTML = `<div class="top">${backBtn(mine ? 'Back' : 'Feed')}</div>
     ${mine ? '<div class="callout">This is what others see of your activity.</div>' : ''}
-    <div class="d-title card"><div class="hd act"><div class="hd">${sportMark(a.sport)}<div><h1>${esc(a.name)}</h1>
-      <div class="sub">${esc(a.owner.name)} · ${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</div></div></div></div>
+    <div class="d-title card"><div class="post-hd">${avatar(a.owner)}<span class="ph-txt"><b>${esc(a.owner.name)}</b>
+      <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${sportMark(a.sport)}</div>
+      <h1>${esc(a.name)}</h1>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}</div>
     ${a.line ? `<div class="map big" id="s-map" role="img" aria-label="Route map${a.ends_hidden ? ', without the start and end' : ''}"></div>
@@ -100,7 +102,7 @@ function drawShared(el, a) {
     ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
     ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
     ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}`;
-  wireBack(el, mine ? `/activity/${a.id}` : '/activity?view=friends');
+  wireBack(el, mine ? `/activity/${a.id}` : '/activity');
   if (a.line) lazy($('#s-map', el), () => mapInto($('#s-map', el), [a.line], {sport: a.sport, ends: false})
     .catch(() => { $('#s-map', el).innerHTML = '<p class="empty">Map unavailable right now</p>'; }));
   socialBlock($('#s-social', el), a.id, a.social);
@@ -128,7 +130,7 @@ function socialBlock(box, aid, s) {
       ${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}</div><p>${esc(c.text)}</p></div>`).join('')}</div>
     <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
       <button class="primary wide">Post comment</button></form></div>`;
-  const after = (fresh, just = false) => { invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); socialBlock(box, aid, {...s, ...fresh, just}); };
+  const after = (fresh, just = false) => { invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); App.cache.delete('feed:home'); socialBlock(box, aid, {...s, ...fresh, just}); };
   const cb = $('.cheer', box);
   if (cb) cb.onclick = async () => {
     cb.disabled = true;
@@ -203,48 +205,59 @@ function shareSheet(aid, s) {
   });
 }
 
-// ---------- Me > Friends ----------
+// ---------- Me > Friends: search by name or username, requests, your friends ----------
 route(/^\/me\/friends$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Friends</h1>
-    <div class="card"><h2>Add a friend</h2><form class="form" id="fr-add">
-      <label>Their username<input name="login" maxlength="30" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="send" required></label>
-      <p class="small muted">Type their exact username (ask them: it's under Me &gt; Account). They approve it first. Then you can each see what the other shares with friends.</p>
-      <button class="primary wide">Send request</button></form></div>
-    <div id="fr-lists">${skel(1)}</div>
-    <a class="card tap row-link" href="/me/sharing"><span><b>Sharing</b><br><small class="muted">Who sees new activities, and which details</small></span><span class="chev">${svg('chev')}</span></a>`;
+    <form class="searchbox" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
+      <input type="search" name="q" placeholder="Search by name or username" aria-label="Search people" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"></form>
+    <div id="fr-found"></div><div id="fr-lists">${skel(1)}</div>
+    <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Who sees new activities, and which details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
-  const lists = $('#fr-lists', el);
-  const row = (p, btns) => `<div class="row"><span><b>${esc(p.name)}</b><br><small class="muted">${esc(p.login)}</small></span><span class="btnrow tight">${btns}</span></div>`;
-  const draw = (r) => {
-    Social.set(r.incoming.length);
-    lists.innerHTML = (r.incoming.length ? `<div class="card"><h2>Waiting for you <span class="muted">${r.incoming.length}</span></h2>${r.incoming.map((p) =>
-        row(p, `<button class="primary" data-ok="${esc(p.login)}">Approve</button><button class="ghost" data-no="${esc(p.login)}">Decline</button>`)).join('')}</div>` : '') +
-      `<div class="card"><h2>Your friends</h2>${r.friends.length ? r.friends.map((p) => row(p, `<button class="ghost" data-rm="${esc(p.login)}" aria-label="Remove ${esc(p.name)}">Remove</button>`)).join('')
-        : '<p class="small muted">No friends yet. Add someone by their username above.</p>'}</div>` +
-      (r.outgoing.length ? `<div class="card"><h2>Requests you sent</h2>${r.outgoing.map((p) => row(p, `<button class="ghost" data-cancel="${esc(p.login)}">Cancel</button>`)).join('')}</div>` : '');
-    const act = (sel, fn) => $$(sel, lists).forEach((b) => b.onclick = async () => {
-      b.disabled = true;
-      try { if (await fn(b) === false) { b.disabled = false; return; } invalidate('/api/feed/friends'); App.cache.delete('/api/friends'); await load('/api/friends', draw, {maxAge: 0}); }
-      catch (x) { toast(x.message); b.disabled = false; }
-    });
-    const who = (login) => (r.incoming.concat(r.friends, r.outgoing).find((p) => p.login === login) || {}).name || login;
-    act('[data-ok]', async (b) => { await api(`/api/friends/${encodeURIComponent(b.dataset.ok)}/accept`, json('POST', {})); toast(`You and ${who(b.dataset.ok)} are friends now`); });
-    act('[data-no]', (b) => api(`/api/friends/${encodeURIComponent(b.dataset.no)}/decline`, json('POST', {})));
-    act('[data-cancel]', (b) => api('/api/friends/' + encodeURIComponent(b.dataset.cancel), {method: 'DELETE'}));
-    act('[data-rm]', async (b) => {
+  const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el);
+  const person = (p, btns) => `<div class="person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span><span class="btnrow tight">${btns}</span></div>`;
+  const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
+    sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Requested</button>`,
+    incoming: `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button>`})[p.status] || `<button class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button>`;
+  let last = null, people = [];
+  const who = (login) => (people.find((p) => p.login === login) || {}).name || login;
+  const refresh = async () => { invalidate('/api/feed/friends'); App.cache.delete('feed:home'); App.cache.delete('/api/friends'); await load('/api/friends', draw, {maxAge: 0}); if (f.q.value.trim().length > 1) find(true); };
+  const act = (box, sel, fn) => $$(sel, box).forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { if (await fn(b) === false) { b.disabled = false; return; } await refresh(); }
+    catch (x) { toast(x.message); b.disabled = false; }
+  });
+  const wire = (box) => {
+    act(box, '[data-add]', async (b) => { const r = await api('/api/friends', json('POST', {login: b.dataset.add})); toast(r.status === 'friends' ? `You and ${r.name} are friends now` : `Request sent to ${r.name}`); });
+    act(box, '[data-ok]', async (b) => { await api(`/api/friends/${encodeURIComponent(b.dataset.ok)}/accept`, json('POST', {})); toast(`You and ${who(b.dataset.ok)} are friends now`); });
+    act(box, '[data-no]', (b) => api(`/api/friends/${encodeURIComponent(b.dataset.no)}/decline`, json('POST', {})));
+    act(box, '[data-cancel]', (b) => api('/api/friends/' + encodeURIComponent(b.dataset.cancel), {method: 'DELETE'}));
+    act(box, '[data-rm]', async (b) => {
       if (!confirm(`Remove ${who(b.dataset.rm)} from your friends? You'll stop seeing each other's friends-only activities.`)) return false;
       await api('/api/friends/' + encodeURIComponent(b.dataset.rm), {method: 'DELETE'});
     });
   };
-  const f = $('#fr-add', el);
-  f.onsubmit = async (e) => {
-    e.preventDefault(); const btn = $('button', f); btn.disabled = true;
+  async function find(again) {
+    const q = f.q.value.trim();
+    if (q.length < 2) { found.innerHTML = ''; last = null; return; }
+    if (q === last && !again) return; last = q;
     try {
-      const r = await api('/api/friends', json('POST', {login: f.login.value.trim()}));
-      toast(r.status === 'friends' ? `You and ${r.name} are friends now` : `Request sent to ${r.name}`); f.reset();
-      App.cache.delete('/api/friends'); await load('/api/friends', draw, {maxAge: 0});
+      const r = await api('/api/people/search?q=' + encodeURIComponent(q));
+      if (q !== last) return;
+      people = people.concat(r);
+      found.innerHTML = `<div class="card list">${r.length ? r.map((p) => person(p, btnFor(p))).join('') : `<p class="small muted">No one called "${esc(q)}" here yet. They need a Kinetta account first.</p>`}</div>`;
+      wire(found);
     } catch (x) { toast(x.message); }
-    btn.disabled = false;
+  }
+  let t; f.q.oninput = () => { clearTimeout(t); t = setTimeout(find, 250); };
+  f.onsubmit = (e) => { e.preventDefault(); find(); };
+  const draw = (r) => {
+    Social.set(r.incoming.length); people = people.concat(r.incoming, r.friends, r.outgoing);
+    lists.innerHTML = (r.incoming.length ? `<h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2><div class="card list">${r.incoming.map((p) =>
+        person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button>`)).join('')}</div>` : '') +
+      `<h2 class="sec-head">Your friends${r.friends.length ? ` <span class="count">${r.friends.length}</span>` : ''}</h2><div class="card list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="ghost sm" data-rm="${esc(p.login)}" aria-label="Remove ${esc(p.name)}">Remove</button>`)).join('')
+        : '<p class="small muted">No friends yet. Search for someone above. They approve it first, then you each see what the other shares with friends.</p>'}</div>` +
+      (r.outgoing.length ? `<h2 class="sec-head">Requests you sent</h2><div class="card list">${r.outgoing.map((p) => person(p, `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel</button>`)).join('')}</div>` : '');
+    wire(lists);
   };
   await load('/api/friends', draw, {maxAge: 0});
 });

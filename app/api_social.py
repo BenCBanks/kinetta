@@ -1,4 +1,4 @@
-"""Friends and sharing (2026-10-11): friend requests by exact username, who sees each activity (only me / friends /
+"""Friends and sharing (2026-10-11): friend requests (find people by name or username), who sees each activity (only me / friends /
 everyone on this Kinetta), which details others see, shared maps without the start and end, a friends feed, cheers and
 comments.
 
@@ -157,6 +157,24 @@ def waiting(c, uid):
 def friends_waiting(user=Depends(current_user)):
     with db.connect() as c:
         return {'n': waiting(c, user['id'])}
+
+
+@router.get('/people/search')
+def people_search(q: str = '', user=Depends(current_user)):
+    """Find people to add by name or username (like Strava's athlete search). Only names and usernames come back,
+    with where you stand with each: never anything they've logged. At least 2 letters, at most 20 people."""
+    q = q.strip()
+    if len(q) < 2: return []
+    like = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    with db.connect() as c:
+        rows = c.execute("""SELECT u.login::text AS login, u.name, f.status, f.requester = %(me)s AS sent
+            FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
+            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL
+              AND (u.login ILIKE %(pre)s OR u.name ILIKE %(pre)s OR u.name ILIKE %(word)s)
+            ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name LIMIT 20""",
+                         {'me': user['id'], 'q': q, 'pre': like + '%', 'word': '% ' + like + '%'}).fetchall()
+    rel = lambda r: 'friends' if r['status'] == 'accepted' else ('sent' if r['sent'] else 'incoming') if r['status'] else None
+    return [{'login': r['login'], 'name': r['name'], 'status': rel(r)} for r in rows]
 
 
 @router.post('/friends')
