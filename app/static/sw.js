@@ -28,3 +28,23 @@ self.addEventListener('fetch', (e) => {
     }));
   }
 });
+
+// Phone notifications (2026-10-11, notify.py): show what the server sent; a tap opens that page in Kinetta
+self.addEventListener('push', (e) => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) { d = {body: e.data && e.data.text()}; }
+  e.waitUntil((async () => {
+    await self.registration.showNotification(d.title || 'Kinetta', {body: d.body || '', tag: d.tag, data: {url: d.url || '/'},
+      icon: '/static/icon-192.png', badge: '/static/icon-192.png'});
+    if (d.badge && self.navigator && navigator.setAppBadge) navigator.setAppBadge(d.badge).catch(() => {});
+  })());
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || '/', self.location.origin);
+  if (url.origin !== self.location.origin) return;          // only ever our own pages
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({type: 'window', includeUncontrolled: true});
+    for (const w of wins) if (new URL(w.url).origin === url.origin) { await w.focus(); return w.navigate(url.href).catch(() => self.clients.openWindow(url.href)); }
+    return self.clients.openWindow(url.href);
+  })());
+});

@@ -55,8 +55,10 @@ docker compose -p kinettatest down -v                             # remove it, d
   named `zz_test...`.
 - Before you finish: `python -m py_compile app/*.py`, `node --check app/static/*.js`, a fresh-install test, and, if you
   added a migration, an upgrade test (start on `main`, then switch to your branch on the same database).
-- There is no unit-test suite yet. Test through the API with curl, and check pages in a browser (Playwright) at phone
-  width (390 px), light and dark, with no console errors.
+- The test suite is `dev/tests/run.sh` (API tests with zz_test accounts, plus AI and push tests inside the container with
+  stand-ins); `.github/workflows/tests.yml` runs it on every pull request. How to run it locally is at the top of the
+  script. Add a test there for anything you build or fix, and check pages in a browser (Playwright) at phone width
+  (390 px), light and dark, with no console errors.
 
 ## Where it's heading (the maintainer's plan, October 2026)
 1. **Hosted beta**: testers ask to join at `/beta`; the admin invites them from Me > People. Done.

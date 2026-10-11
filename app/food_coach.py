@@ -121,6 +121,8 @@ def diet_review_get(user=Depends(current_user)):
 
 @router.post('/food/review')
 def diet_review(user=Depends(current_user)):
+    if not coach.enabled(): raise HTTPException(400, 'The coach is not switched on yet (needs an AI key on the server).')
+    if not coach.allowed(user['id']): raise HTTPException(400, coach.OFF)      # before reading anything
     with db.connect() as c:
         ctx = _diet_context(c, user['id'])
         last = c.execute("SELECT created FROM coach_notes WHERE user_id = %s AND kind = 'diet' AND period_start = %s",

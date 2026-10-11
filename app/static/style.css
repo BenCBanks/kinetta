@@ -721,6 +721,22 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .pchart { margin-top: 12px; } .pc-plan { fill: var(--card2); } .pc-plan.cur { stroke: var(--prog); stroke-width: 1.5; } .pc-done { fill: var(--prog); }
 .sw.pc-plan-sw { background: var(--card2); border: 1px solid var(--line); } .sw.pc-done-sw { background: var(--prog); }
 
+/* ---------- notifications (2026-10-11) ---------- */
+.icon-btn.bell { position: relative; }
+.bell-dot { position: absolute; top: 9px; right: 10px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--card); }
+.notes { padding: 4px 8px; }
+.note { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 14px; color: inherit; position: relative; }
+.note + .note::before { content: ''; position: absolute; top: 0; left: 64px; right: 8px; border-top: 1px solid var(--line); }
+.note.unread { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.note.unread .note-t { font-weight: 650; }
+.note:active { opacity: .6; }
+.note .grow { flex: 1; min-width: 0; display: grid; gap: 2px; } .note-t { line-height: 1.35; overflow-wrap: anywhere; } .note small { font-size: 12px; }
+.note-av { position: relative; flex: none; }
+.note-k { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); color: var(--accent); box-shadow: 0 0 0 1.5px var(--line); }
+.note-k svg { width: 12px; height: 12px; }
+.checks.one { grid-template-columns: 1fr; }
+
 /* ---------- AI coach on food (2026-10-11) ---------- */
 .coach-card h2 svg, .coach-card .linkbtn svg, .coach-card .primary svg { width: 18px; height: 18px; }
 .ai-head { font-size: 17px; font-weight: 650; color: var(--tx); line-height: 1.4; letter-spacing: -.01em; }

@@ -17,7 +17,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from . import db
+from . import db, notify
 from .api_food import MEALS
 from .auth import current_user
 
@@ -407,7 +407,8 @@ def share(did: int, body: ShareIn, user=Depends(current_user)):
         if not t: raise HTTPException(404, 'You can share a dish only with friends')
         if c.execute('SELECT count(*) AS n FROM dish_shares WHERE dish_id = %s', (did,)).fetchone()['n'] >= MAX_SHARES:
             raise HTTPException(400, f'A dish can be shared with up to {MAX_SHARES} people')
-        c.execute('INSERT INTO dish_shares (dish_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (did, t['id']))
+        if c.execute('INSERT INTO dish_shares (dish_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (did, t['id'])).fetchone():
+            notify.add(c, t['id'], 'dish_shared', user['id'], dish_id=did)
         return _view(c, user['id'], _get(c, user['id'], did))
 
 

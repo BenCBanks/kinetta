@@ -67,7 +67,7 @@ route(/^\/today$/, 'today', async (el) => {
   const first = App.me.name.split(' ')[0];
   const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', timeZone: tz()});
   el.innerHTML = `<div class="top"><div><div class="eyebrow">${esc(day)}</div><h1>Hi, ${esc(first)}</h1></div>
-    <div class="acts"><button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
+    <div class="acts"><a class="icon-btn bell" href="/me/notifications" aria-label="Notifications">${svg('bell')}<span class="bell-dot"${App.me.notifications ? '' : ' hidden'}></span></a><button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
     <div id="t-week">${skel(1)}</div><div id="t-plan"></div><div id="t-food"></div><div id="t-goals"></div><div id="t-review"></div><div id="t-last"></div><div id="t-form"></div>`;
   planCard($('#t-plan', el)).catch(() => {});
   todayFoodCard($('#t-food', el)).catch(() => {});
@@ -772,7 +772,8 @@ route(/^\/me$/, 'me', async (el) => {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div class="profile">${avatar(me, 'lg')}<div><h1>${esc(me.name)}</h1><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
-    <div class="card list">${row('a', 'href="/me/friends"', 'people', 'c-berry', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
+    <div class="card list">${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
+      ${row('a', 'href="/me/friends"', 'people', 'c-berry', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}</div>
     <div class="card list">${row('a', 'href="/me/import"', 'upload', 'c-blue', 'Upload activities')}
       ${row('button', 'data-addact', 'plus', 'c-blue', 'Add an activity by hand')}

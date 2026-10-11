@@ -1,0 +1,44 @@
+# Kinetta's test suite on every pull request that touches the app: a throwaway copy with the made-up demo data, then
+# dev/tests/run.sh (syntax, the API tests, and the AI + push tests inside the container with stand-ins - nothing is
+# sent anywhere: the AI key is a placeholder).
+name: Tests
+on:
+  pull_request:
+    paths: ["app/**", "dev/**", "requirements.txt", "Dockerfile", "docker-compose.yml", ".github/workflows/tests.yml"]
+  push:
+    branches: [main]
+    paths: ["app/**", "dev/**", "requirements.txt", "Dockerfile", "docker-compose.yml", ".github/workflows/tests.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start a throwaway Kinetta
+        run: |
+          GEMINI_API_KEY=placeholder-for-tests KINETTA_PORT=8798 TZ=America/New_York docker compose -p kinettatest up -d --build
+          for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
+      - name: Load the demo data
+        env:
+          KINETTA_URL: http://localhost:8798
+        run: |
+          python3 dev/demo/gen_gpx.py /tmp/gpx 120
+          python3 dev/demo/seed.py /tmp/gpx
+          python3 dev/screenshots/stage.py /tmp/gpx
+      - name: Run the tests
+        run: dev/tests/run.sh
+      - name: Server log (if something failed)
+        if: failure()
+        run: docker compose -p kinettatest logs app | tail -100
+      - name: Stop it
+        if: always()
+        run: docker compose -p kinettatest down -v

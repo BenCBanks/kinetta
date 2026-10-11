@@ -558,6 +558,41 @@ MIGRATIONS = [
     ALTER TABLE dishes ADD COLUMN recipe_updated timestamptz NOT NULL DEFAULT now();
     UPDATE dishes SET recipe_updated = updated;
     """,
+    # 27 (2026-10-11): notifications (notify.py) - who did what to which of your things (the words are made when read;
+    #   deleting the activity, dish, comment or person deletes the notification). push_subscriptions: phones and browsers
+    #   that asked for phone notifications (Web Push). profile.notify: which kinds to push ({} = all).
+    #   server_keys: this server's own keys (the Web Push key pair) - no SQL login may read it.
+    """
+    CREATE TABLE notifications (
+      id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind        text NOT NULL,
+      actor_id    bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      activity_id bigint REFERENCES activities(id) ON DELETE CASCADE,
+      dish_id     bigint REFERENCES dishes(id) ON DELETE CASCADE,
+      comment_id  bigint REFERENCES comments(id) ON DELETE CASCADE,
+      created     timestamptz NOT NULL DEFAULT now(),
+      read_at     timestamptz);
+    CREATE INDEX notifications_user ON notifications (user_id, created DESC);
+    CREATE TABLE push_subscriptions (
+      id       bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id  bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint text NOT NULL UNIQUE,
+      p256dh   text NOT NULL,
+      auth     text NOT NULL,
+      created  timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX push_subscriptions_user ON push_subscriptions (user_id);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['notifications', 'push_subscriptions'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP; END $$;
+    ALTER TABLE profile ADD COLUMN notify jsonb NOT NULL DEFAULT '{}';
+    CREATE TABLE server_keys (name text PRIMARY KEY, value text NOT NULL, created timestamptz NOT NULL DEFAULT now());
+    ALTER TABLE server_keys ENABLE ROW LEVEL SECURITY;
+    """,
 ]
 
 

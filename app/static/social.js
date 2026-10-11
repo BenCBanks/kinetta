@@ -18,21 +18,23 @@ Object.assign(IC, {
 const trimName = (m) => (!m ? 'Off' : imp() ? {200: '⅛ mi', 400: '¼ mi', 800: '½ mi'}[m] : `${m} m`);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-// the number of friend requests waiting, on the Me tab (checked again at most once a minute)
+// the number on the Me tab: unread notifications (or friend requests waiting, if more); checked at most once a minute
 const Social = {
   at: 0,
+  count: () => Math.max((App.me && App.me.notifications) || 0, (App.me && App.me.friend_requests) || 0),
   badge() {
     const a = $('nav.tabs a[data-tab="me"]'); if (!a) return;
-    const n = (App.me && App.me.friend_requests) || 0; let b = $('.tab-n', a);
+    const n = Social.count(); let b = $('.tab-n', a);
+    $$('.bell-dot').forEach((d) => { d.hidden = !App.me || !App.me.notifications; });
     if (!n) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('span'); b.className = 'tab-n'; a.append(b); }
-    b.innerHTML = `${n > 9 ? '9+' : n}<span class="vh"> friend request${n > 1 ? 's' : ''} waiting</span>`;
+    b.innerHTML = `${n > 9 ? '9+' : n}<span class="vh"> new notification${n > 1 ? 's' : ''}</span>`;
   },
   refresh() {
     Social.badge();
     if (!App.me || !navigator.onLine || Date.now() - Social.at < 60000) return;
     Social.at = Date.now();
-    api('/api/friends/waiting').then((r) => { App.me.friend_requests = r.n; Social.badge(); }).catch(() => {});
+    api('/api/notifications/count').then((r) => { App.me.notifications = r.unread; App.me.friend_requests = r.friend_requests; Social.badge(); }).catch(() => {});
   },
   set(n) { if (App.me && n != null) { App.me.friend_requests = n; Social.badge(); } },
 };
@@ -291,3 +293,65 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
     catch (x) { e.target.checked = !on; toast(x.message); }
   };
 });
+
+// ---------- Me > Notifications (2026-10-11, notify.py): the list, and phone notifications (Web Push) ----------
+const PUSH_NAMES = {friends: 'Friend requests', cheers: CHEER.title, comments: 'Comments', dishes: 'Shared dishes'};
+const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot'};
+route(/^\/me\/notifications$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notifications</h1><div id="nt-push"></div><div id="nt-list">${skel(2)}</div>`;
+  wireBack(el, '/me');
+  await load('/api/notifications', (r) => {
+    const list = $('#nt-list', el); if (!list) return;
+    list.innerHTML = r.items.length ? `<div class="card list notes">${r.items.map((n) => `<a class="note${n.read ? '' : ' unread'}" href="${esc(n.link)}">
+        <span class="note-av">${avatar(n.who)}<span class="note-k">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
+        <span class="grow"><span class="note-t">${esc(n.text)}</span><small class="muted">${esc(when(n.created))}</small></span></a>`).join('')}</div>`
+      : `<div class="card empty"><b>Nothing yet</b>Friend requests, ${esc(CHEER.many)}, comments and shared dishes show up here.</div>`;
+    pushCard($('#nt-push', el), r);
+    if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+    if (r.unread) api('/api/notifications/read', json('POST', {})).then(() => { App.me.notifications = 0; Social.badge(); invalidate('/api/notifications'); }).catch(() => {});
+  }, {maxAge: 0});
+});
+const pushable = () => !Native.on && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+async function pushSub() { try { const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription(); } catch (e) { return null; } }
+async function pushCard(box, r) {
+  if (!box) return;
+  const ios = /iPhone|iPad/.test(navigator.userAgent);
+  if (!r.push_ready) { box.innerHTML = ''; return; }
+  if (!pushable()) {
+    box.innerHTML = `<div class="card"><h2>Phone notifications</h2><p class="small muted">${Native.on ? 'Coming to the iPhone app with its App Store version. Until then, you see them here.'
+      : ios ? 'On iPhone, add Kinetta to your Home Screen first (Share › Add to Home Screen), open it from there, then turn them on here.'
+      : "This browser can't show notifications. You still see them here."}</p></div>`;
+    return;
+  }
+  const sub = await pushSub(), on = !!sub && Notification.permission === 'granted';
+  box.innerHTML = `<div class="card"><h2>Phone notifications</h2>
+    ${on ? `<div class="checks one" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${r.push[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>
+      <button class="ghost wide" id="np-off">Turn off on this device</button>`
+    : Notification.permission === 'denied' ? '<p class="small muted">Notifications are blocked for Kinetta in this browser\'s settings. Allow them there, then come back.</p>'
+    : `<p class="small muted">Get a notification on this device when someone sends a friend request, gives a ${esc(CHEER.one)}, comments, or shares a dish.</p>
+      <button class="primary wide" id="np-on">${svg('heart')}Turn on</button>`}</div>`;
+  const b = $('#np-on', box);
+  if (b) b.onclick = async () => {
+    b.disabled = true;
+    try {
+      if (await Notification.requestPermission() !== 'granted') { toast('Notifications were not allowed'); pushCard(box, r); return; }
+      const {key} = await api('/api/push/key'), reg = await navigator.serviceWorker.ready;
+      const raw = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - key.length % 4) % 4)), (ch) => ch.charCodeAt(0));
+      const s = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: raw});
+      await api('/api/push/subscribe', json('POST', s.toJSON()));
+      toast('Notifications on for this device'); pushCard(box, r);
+    } catch (x) { toast(x.message || 'Could not turn on notifications'); b.disabled = false; }
+  };
+  const off = $('#np-off', box);
+  if (off) off.onclick = async () => {
+    off.disabled = true;
+    try { await api('/api/push/unsubscribe', json('POST', {endpoint: sub.endpoint})); await sub.unsubscribe(); toast('Notifications off for this device'); pushCard(box, r); }
+    catch (x) { toast(x.message); off.disabled = false; }
+  };
+  const kinds = $('#np-kinds', box);
+  if (kinds) kinds.onchange = async (e) => {
+    const k = e.target.name, v = e.target.checked;
+    try { r.push = (await api('/api/notifications/settings', json('PUT', {[k]: v}))).push; invalidate('/api/notifications'); }
+    catch (x) { e.target.checked = !v; toast(x.message); }
+  };
+}

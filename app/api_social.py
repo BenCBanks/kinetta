@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from psycopg import errors
 from pydantic import BaseModel, Field
 
-from . import db
+from . import db, notify
 from .api_activities import DETAIL_TOL, PREVIEW_TOL, polyline
 from .auth import current_user
 
@@ -191,6 +191,7 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
         if f and f['status'] == 'accepted': raise HTTPException(409, f"You and {t['name']} are already friends")
         if f and f['requester'] == t['id']:
             c.execute("UPDATE friendships SET status = 'accepted', accepted = now() WHERE requester = %s AND addressee = %s", (t['id'], user['id']))
+            notify.drop(c, user['id'], 'friend_request', t['id']); notify.add(c, t['id'], 'friend_accepted', user['id'])
             return {'status': 'friends', 'name': t['name']}
         if not f:
             n = c.execute("SELECT count(*) AS n FROM friendships WHERE requester = %s AND status = 'pending'", (user['id'],)).fetchone()['n']
@@ -198,6 +199,7 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
             try:
                 with c.transaction():
                     c.execute('INSERT INTO friendships (requester, addressee) VALUES (%s, %s)', (user['id'], t['id']))
+                notify.add(c, t['id'], 'friend_request', user['id'])
             except errors.UniqueViolation:
                 pass    # they asked at the same moment; their request stands
     return {'status': 'sent', 'name': t['name']}
@@ -210,6 +212,7 @@ def friend_accept(login: str, user=Depends(current_user)):
         if not c.execute("""UPDATE friendships SET status = 'accepted', accepted = now()
                             WHERE requester = %s AND addressee = %s AND status = 'pending' RETURNING 1""", (t['id'], user['id'])).fetchone():
             raise HTTPException(404, 'No request from that person')
+        notify.drop(c, user['id'], 'friend_request', t['id']); notify.add(c, t['id'], 'friend_accepted', user['id'])
         return {'ok': True, 'waiting': waiting(c, user['id'])}
 
 
@@ -219,6 +222,7 @@ def friend_decline(login: str, user=Depends(current_user)):
     with db.connect() as c:
         t = _person(c, login)
         c.execute("DELETE FROM friendships WHERE requester = %s AND addressee = %s AND status = 'pending'", (t['id'], user['id']))
+        notify.drop(c, user['id'], 'friend_request', t['id'])
         return {'ok': True, 'waiting': waiting(c, user['id'])}
 
 
@@ -229,6 +233,7 @@ def friend_remove(login: str, user=Depends(current_user)):
         t = _person(c, login)
         c.execute("""DELETE FROM friendships WHERE (requester = %(me)s AND addressee = %(them)s)
                        OR (requester = %(them)s AND addressee = %(me)s AND status = 'accepted')""", {'me': user['id'], 'them': t['id']})
+        notify.drop(c, t['id'], 'friend_request', user['id'])           # a request you cancelled stops showing for them
         # dishes either of you shared with the other stop being shared (api_dishes also checks the friendship)
         c.execute("""DELETE FROM dish_shares s USING dishes d WHERE s.dish_id = d.id
                        AND ((d.user_id = %(me)s AND s.user_id = %(them)s) OR (d.user_id = %(them)s AND s.user_id = %(me)s))""",
@@ -339,8 +344,10 @@ def social(aid: int, user=Depends(current_user)):
 @router.post('/activities/{aid}/cheer')
 def cheer(aid: int, user=Depends(current_user)):
     with db.connect() as c:
-        if can_see(c, user['id'], aid) == user['id']: raise HTTPException(400, "You can't cheer your own activity")
-        c.execute('INSERT INTO cheers (activity_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (aid, user['id']))
+        owner = can_see(c, user['id'], aid)
+        if owner == user['id']: raise HTTPException(400, "You can't cheer your own activity")
+        if c.execute('INSERT INTO cheers (activity_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (aid, user['id'])).fetchone():
+            notify.add(c, owner, 'cheer', user['id'], activity_id=aid)
         return _social(c, aid, user['id'], None)
 
 
@@ -361,7 +368,8 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
     if not text: raise HTTPException(400, 'Write something first')
     with db.connect() as c:
         owner = can_see(c, user['id'], aid)
-        c.execute('INSERT INTO comments (activity_id, user_id, text) VALUES (%s, %s, %s)', (aid, user['id'], text))
+        cid = c.execute('INSERT INTO comments (activity_id, user_id, text) VALUES (%s, %s, %s) RETURNING id', (aid, user['id'], text)).fetchone()['id']
+        notify.add(c, owner, 'comment', user['id'], activity_id=aid, comment_id=cid)
         return _social(c, aid, user['id'], owner)
 
 

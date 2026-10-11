@@ -6,3 +6,4 @@ python-multipart==0.0.*
 numpy==2.*
 fitdecode==0.10.*
 anthropic==1.*
+pywebpush==2.0.*
