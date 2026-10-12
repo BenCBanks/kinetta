@@ -147,7 +147,7 @@ function foodToDish(d, f, set) {
 // Log a dish (Add food > Saved Dishes, or a friend's dish). One question only, the way the dish is measured (Ben,
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
 function dishLogSheet(d, w, done) {
-  const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one', per = 1;     // by servings: the whole dish is one serving
+  const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one';     // by servings: the whole dish is one serving
   const vals = (k) => Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, (t[x] || 0) * k]));
   const half = (x) => (x === 0.5 ? '½' : String(x).replace('.5', '½'));
   sheet(d.name, `<form class="form" id="dl">
@@ -160,7 +160,7 @@ function dishLogSheet(d, w, done) {
       <button class="primary"${!bySv && !wt ? ' disabled' : ''}>Add to ${esc(MEAL_NAMES[w.meal])}${w.day !== isoDay(new Date()) ? `, ${esc(dayLabel(w.day))}` : ''}</button></div></form>`, (b, close) => {
     const f = $('#dl', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
     let n = 1;
-    const factor = () => (bySv ? n / per : num(f.g) > 0 && wt ? num(f.g) / wt : null);
+    const factor = () => (bySv ? n : num(f.g) > 0 && wt ? num(f.g) / wt : null);
     const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k)) : ''; };
     if (bySv) $$('[data-st]', f).forEach((x) => x.onclick = () => {
       n = Math.max(0.5, Math.min(20, n + 0.5 * +x.dataset.st));

@@ -685,6 +685,13 @@ MIGRATIONS = [
           > (EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = d.id), d.updated, d.id);
     UPDATE dishes SET done_at = NULL, eaten_g = 0, eaten_share = 0;
     """,
+    # 33 (2026-10-12): by servings now means the whole dish is one serving (Ben). A dish saved in the day before that as
+    #   "by servings, makes N" (N > 1) would log N times too much, so it's switched to by weight (log grams; a dish with
+    #   no weight asks for one before it can be logged, rather than logging the wrong amount).
+    """
+    UPDATE dishes SET serving = 'portion' WHERE serving = 'one' AND servings > 1;
+    UPDATE dishes SET servings = 1 WHERE serving = 'one';
+    """,
 ]
 
 

@@ -1005,3 +1005,4 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .sheet .am-amt .icon-btn { width: 46px; height: 46px; } .sheet .am-amt .icon-btn svg { width: 20px; height: 20px; }
 .sheet .seg.wide.am-units { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); } .am-units button { min-height: 34px; width: 100%; }
 .m-note { margin: 10px 2px 6px; }
+.ghead-act { display: flex; align-items: center; justify-content: space-between; } .ghead-act .linkbtn { min-height: 32px; padding: 0; font-size: 13px; text-transform: none; letter-spacing: 0; }
