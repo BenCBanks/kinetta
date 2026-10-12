@@ -192,15 +192,15 @@ def weekly_scheduler():
             except Exception as e: print('weekly review', uid, e, flush=True)
 
 
-def note(user_id, aid, on_demand=False):
+def note(user_id, aid):
     """Writes activities.ai_note; returns the text (or raises ValueError with a friendly message)."""
     if not enabled(): raise ValueError('The coach is not switched on yet (needs an AI key on the server).')
     if not allowed(user_id): raise ValueError(OFF)
     with db.connect() as c:
         if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
-        if on_demand:
-            n = c.execute("""SELECT count(*) AS n FROM activities WHERE user_id = %s AND ai_note_at > now() - interval '1 day'""", (user_id,)).fetchone()['n']
-            if n >= DAILY_LIMIT: raise ValueError('Daily limit for coach notes reached - try again tomorrow.')
+        # every note counts, the ones written after an import too (2026-10-12 review: imports could run up the bill)
+        n = c.execute("""SELECT count(*) AS n FROM activities WHERE user_id = %s AND ai_note_at > now() - interval '1 day'""", (user_id,)).fetchone()['n']
+        if n >= DAILY_LIMIT: raise ValueError('Daily limit for coach notes reached - try again tomorrow.')
         ctx = _context(c, user_id, aid)
     if not ctx: raise ValueError('Activity not found')
     text = _gemini(ctx) if provider() == 'gemini' else _claude(ctx)

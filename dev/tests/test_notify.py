@@ -60,10 +60,14 @@ ck(not any(i['kind'] == 'dish_shared' for i in notes(n2)['items']), 'dish delete
 # phone notifications: the key, sign-up checks, settings
 s, k = n1.get('/api/push/key'); ck(s == 200 and len(k['key']) > 80, 'push key')
 ck(n1.post('/api/push/subscribe', {'endpoint': 'http://insecure.example/x', 'keys': {'p256dh': 'x' * 87, 'auth': 'y' * 22}})[0] == 422, 'https only')
-ck(n1.post('/api/push/subscribe', {'endpoint': 'https://push.example/abc', 'keys': {'p256dh': 'x'}})[0] == 400, 'needs both keys')
-ck(n1.post('/api/push/subscribe', {'endpoint': 'https://push.example/abc', 'keys': {'p256dh': 'x' * 87, 'auth': 'y' * 22}})[0] == 200, 'subscribe')
+ck(n1.post('/api/push/subscribe', {'endpoint': 'https://fcm.googleapis.com/fcm/send/abc', 'keys': {'p256dh': 'x'}})[0] == 400, 'needs both keys')
+for bad in ('https://push.example/abc', 'https://192.168.1.10/x', 'https://localhost:8123/api', 'https://fcm.googleapis.com.evil.example/x',
+            'https://user@fcm.googleapis.com/x', 'https://fcm.googleapis.com:8443/x'):
+    ck(n1.post('/api/push/subscribe', {'endpoint': bad, 'keys': {'p256dh': 'x' * 87, 'auth': 'y' * 22}})[0] == 400, f'not a push service: {bad}')
+for good in ('https://fcm.googleapis.com/fcm/send/abc', 'https://web.push.apple.com/QOx', 'https://updates.push.services.mozilla.com/wpush/v2/x'):
+    ck(n1.post('/api/push/subscribe', {'endpoint': good, 'keys': {'p256dh': 'x' * 87, 'auth': 'y' * 22}})[0] == 200, f'subscribe {good}')
 s, r = n1.put('/api/notifications/settings', {'cheers': False}); ck(r['push'] == {'friends': True, 'cheers': False, 'comments': True, 'dishes': True}, 'settings')
 n1.put('/api/notifications/settings', {'cheers': True})
-ck(n1.post('/api/push/unsubscribe', {'endpoint': 'https://push.example/abc'})[0] == 200, 'unsubscribe')
+ck(all(n1.post('/api/push/unsubscribe', {'endpoint': e})[0] == 200 for e in ('https://fcm.googleapis.com/fcm/send/abc', 'https://web.push.apple.com/QOx', 'https://updates.push.services.mozilla.com/wpush/v2/x')), 'unsubscribe')
 ck(n3.get('/api/notifications')[0] == 200 and person('zz_test_note3').get('/api/push/key')[0] == 200, 'others fine')
 print(f'notifications: {n} checks passed')

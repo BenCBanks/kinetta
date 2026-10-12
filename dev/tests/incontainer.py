@@ -199,4 +199,32 @@ try:
 finally:
     food_photo.ask = was_ask
 
+# --- 2026-10-12 server review: unpacking limits, and the coach's daily limit counts automatic notes ---
+import gzip as _gz, io as _io, zipfile as _zf
+from app import importer, parsers
+big = _gz.compress(b'0' * (parsers.MAX_FILE + 10))
+try: parsers.gunzip_capped(big); ck(False, 'gz bomb read')
+except parsers.ParseError: ck(True, 'a .gz that unpacks too big is refused')
+buf = _io.BytesIO()
+with _zf.ZipFile(buf, 'w', _zf.ZIP_DEFLATED) as z: z.writestr('bomb.fit', b'0' * (parsers.MAX_FILE + 10))
+z = _zf.ZipFile(buf)
+try: importer._zip_read(z, 'bomb.fit'); ck(False, 'zip bomb read')
+except parsers.ParseError: ck(True, 'a zip member that unpacks too big is refused')
+with db.connect() as c:
+    c.execute('UPDATE profile SET ai_ok = true WHERE user_id = %s', (uid,))
+    keep = c.execute('SELECT id, ai_note, ai_note_at FROM activities WHERE user_id = %s ORDER BY id LIMIT %s', (uid, coach.DAILY_LIMIT + 1)).fetchall()
+    c.execute("UPDATE activities SET ai_note = 'x', ai_note_at = now() WHERE id = ANY(%s)", ([r['id'] for r in keep[:coach.DAILY_LIMIT]],))
+try:
+    coach.note(uid, keep[-1]['id']); ck(False, 'over the limit')
+except ValueError as e: ck('Daily limit' in str(e), 'automatic notes count towards the daily limit')
+finally:
+    with db.connect() as c:
+        for r in keep: c.execute('UPDATE activities SET ai_note = %s, ai_note_at = %s WHERE id = %s', (r['ai_note'], r['ai_note_at'], r['id']))
+        c.execute('UPDATE profile SET ai_ok = false WHERE user_id = %s', (uid,))
+
+from app import api_connections as AC
+first, again = AC.intervals_sync_now(user={'id': jid}), AC.intervals_sync_now(user={'id': jid})
+ck(not first.get('already') and again.get('already'), 'Sync now: a second tap within 2 minutes starts nothing')
+ck(not AC.intervals_sync_now(user={'id': uid}).get('already'), "one person's sync doesn't hold up another's")
+
 print(f'in the container (AI + push): {n} checks passed')

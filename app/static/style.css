@@ -666,6 +666,7 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
      2026-10-12, which keeps the old setting until it's added to the Home Screen again */
   body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); z-index: 1500; pointer-events: none;
     background: linear-gradient(rgba(0, 0, 0, .34), rgba(0, 0, 0, 0)); }
+  body:has(.map-head:first-child)::before { display: none; }     /* the activity map runs clean under the Dynamic Island */
 }
 .ways.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .ways.three .way { align-items: center; justify-content: center; min-height: 0; padding: 12px 6px; gap: 6px; } .ways.three .way svg { width: 24px; height: 24px; }

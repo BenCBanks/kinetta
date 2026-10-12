@@ -40,11 +40,21 @@ def sport_of(name, sub=None):
     return 'other'
 
 
+MAX_FILE = 256 * 1024 ** 2      # one workout file, unpacked: real ones are a few MB (2026-10-12 review: a tiny .gz could unpack to GBs)
+
+
+def gunzip_capped(data, cap=MAX_FILE):
+    with gzip.GzipFile(fileobj=io.BytesIO(data)) as g:
+        out = g.read(cap + 1)
+    if len(out) > cap: raise ParseError('the file unpacks to more than 256 MB - not a workout file')
+    return out
+
+
 def read(name, data):
     """Parse one file by its name (extension) and bytes."""
     low = name.lower()
     if low.endswith('.gz'):
-        try: data = gzip.decompress(data)
+        try: data = gunzip_capped(data)
         except OSError as e: raise ParseError(f'not a valid .gz file: {e}')
         low = low[:-3]
     if low.endswith('.fit'): out = read_fit(data)

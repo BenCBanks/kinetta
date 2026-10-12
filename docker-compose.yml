@@ -49,6 +49,9 @@ services:
       FDC_API_KEY: ${FDC_API_KEY:-}
       KINETTA_PUBLIC_URL: ${KINETTA_PUBLIC_URL:-}
       KINETTA_BETA_SIGNUP: ${KINETTA_BETA_SIGNUP:-}
+      # who to believe about a visitor's address (login-guessing limits): see docs/connect.md
+      KINETTA_TRUST_CLOUDFLARE: ${KINETTA_TRUST_CLOUDFLARE:-}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
     volumes:
       - data:/data
       - secrets:/run/kinetta:ro
