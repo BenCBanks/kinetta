@@ -866,7 +866,6 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .cmsg .dots i:nth-child(2) { animation-delay: .15s; } .cmsg .dots i:nth-child(3) { animation-delay: .3s; }
 @keyframes cdot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .cmsg .dots i { animation: none; } }
-#dk-search { margin-top: 8px; }
 
 /* cooking, round two (2026-10-12): the meal it's for, a portion as a share, save-as-recipe switch, Finish, saved recipes */
 .dish-for { display: grid; gap: 6px; margin: 4px 0 14px; } .dish-for small { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
@@ -892,10 +891,16 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .way.wide { grid-column: 1 / -1; min-height: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; }
 .way.wide svg { grid-row: span 2; } .way.wide b, .way.wide small { text-align: left; }
 .swipe { position: relative; overflow: hidden; } .swipe + .swipe { border-top: 1px solid var(--line); }
-.swipe .fe { border-top: 0; position: relative; z-index: 1; background: var(--card); touch-action: pan-y; transition: transform .2s ease; }
-.sw-del { position: absolute; top: 0; right: 0; bottom: 0; width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  border: 0; border-radius: 10px; background: var(--alert); color: #fff; font-weight: 650; font-size: 13px; }
+.swipe .fe { border-top: 0; touch-action: pan-y; } .swipe .fe .r { transition: opacity .2s ease; }
+.swipe.open .fe > div:first-child { padding-right: 48px; }   /* a long name wraps clear of the Remove button */
+.sw-del { position: absolute; z-index: 2; top: 4px; right: 0; bottom: 4px; width: 0; overflow: hidden; white-space: nowrap; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px; padding: 0; border: 0; border-radius: 10px; background: var(--alert); color: #fff; font-weight: 650; font-size: 13px; transition: width .2s ease; }
 .sw-del svg { width: 18px; height: 18px; }
 .help-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; min-height: 36px; margin: -6px 0 10px; }
 .help-link svg { width: 18px; height: 18px; }
 .sheet .cook-steps { margin: 0; }
+/* 2026-10-12, round 2: pencil to rename a dish; Add food's day as a short label; four Add food tabs */
+.dish-name { display: flex; align-items: center; gap: 8px; } .dish-name .dn-edit { flex: none; width: 34px; height: 34px; box-shadow: none; background: var(--card2); }
+.dish-name .dn-edit svg { width: 16px; height: 16px; color: var(--accent); }
+.mealpick .dayfield { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: var(--r2); border: 1px solid var(--line); background: var(--card); color: var(--tx); font-weight: 600; white-space: nowrap; overflow: hidden; }
+.sheet .seg.wide:has(> :nth-child(4):last-child) { display: flex; } .sheet .seg.wide:has(> :nth-child(4):last-child) button { flex: 1 1 auto; white-space: nowrap; }

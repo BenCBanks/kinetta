@@ -141,7 +141,7 @@ function drawDay(el, D) {
   });
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => copyDay(addDays(D.day, -1), D.day);
 }
-const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit}`);
+const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit}`);
 const refresh = () => { invalidate('/api/food'); render(); };
 
 async function addEntries(items) {   // each item gets a client_id, so a resend after a lost connection never doubles it
@@ -234,15 +234,18 @@ const macroInputs = (e = {}) => `<div class="mac4">
 function addSheet(day, meal) {
   sheet('Add food', `<div class="ways"><button class="way" id="as-photo">${svg('camera')}<b>Take a photo</b><small>AI estimates the calories</small></button>
       <button class="way" id="as-scan">${svg('barcode')}<b>Scan a barcode</b><small>packaged food</small></button>
-      <button class="way wide" id="as-dish">${svg('pot')}<b>Create a dish</b><small>cooking at home, or a saved recipe</small></button></div>
+      <button class="way wide" id="as-dish">${svg('pot')}<b>Create or edit</b><small>a dish you're cooking, or a saved recipe</small></button></div>
     <h3 class="ways-or">Or search and enter manually</h3>
-    <div class="seg wide" role="tablist">${[['search', 'Search'], ['recent', 'Recent'], ['mine', 'Mine'], ['meals', 'Meals'], ['quick', 'Quick']]
+    <div class="seg wide" role="tablist">${[['search', 'Search'], ['recent', 'Recent'], ['saved', 'Saved dishes'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div class="two mealpick"><label>Meal<select id="as-meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-    <label>Day<input id="as-day" type="date" value="${esc(day)}"></label></div><div id="as-body"></div>`, (b, close) => {
+    <label>Day<span class="daypick dayfield">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></label></div><div id="as-body"></div>`, (b, close) => {
+    const dp = $('#as-day', b);     // a short label ("Today", "Sat, Oct 10") over the native picker: the full date field didn't fit
+    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
+    dp.onchange = () => { if (dp.value) $('#as-dayl', b).textContent = dayLabel(dp.value); };
     const body = $('#as-body', b);
     const where = () => ({day: $('#as-day', b).value, meal: $('#as-meal', b).value});
-    const tabs = {search: tSearch, recent: tRecent, mine: tMine, meals: tMeals, quick: tQuick};
+    const tabs = {search: tSearch, recent: tRecent, saved: tSaved, quick: tQuick};
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
     $('#as-photo', b).onclick = () => {   // photos go to the AI service, so it needs the person's OK first
@@ -303,33 +306,65 @@ async function tRecent(body, where, close) {
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
-async function tMine(body, where, close) {
-  body.innerHTML = skel(1);
-  const draw = async () => {
-    const foods = await api('/api/food/foods');
-    body.innerHTML = `<button class="ghost wide" id="tm-new">+ Create a food</button><div class="results">${foods.map(foodRow).join('')}</div>`;
-    $('#tm-new', body).onclick = () => foodEditor(null, draw);
-    $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], draw)));
-  };
-  try { await draw(); } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
-}
-async function tMeals(body, where, close) {
+// Saved dishes (2026-10-12; was two tabs, Mine and Meals): saved meals, saved recipes and your own foods in one list.
+// Each opens a sheet to say how much (servings or grams) before it's logged.
+async function tSaved(body, where, close) {
   body.innerHTML = skel(1);
   try {
-    const meals = await api('/api/food/meals');
-    body.innerHTML = meals.length ? `<div class="results">${meals.map((m, i) => `<div class="fe"><div><b>${esc(m.name)}</b><small class="muted">${m.items.length} items · ${r0(m.totals.kcal)} kcal</small></div>
-      <div class="r"><b class="num">${r0(m.totals.kcal)}</b><button class="linkbtn" data-log="${i}">Log</button>${App.me.coach ? ` <button class="linkbtn" data-ai="${i}" aria-label="Coach's take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''} <button class="linkbtn danger" data-del="${i}">Delete</button></div></div>`).join('')}</div>`
-      : '<p class="small muted">Save a meal from the "…" button on any meal to log it again in one tap.</p>';
-    $$('[data-log]', body).forEach((x) => x.onclick = async () => {
-      const m = meals[+x.dataset.log], w = where();
-      try { await addEntries(m.items.map((it) => ({...it, ...w, ref: it.ref || null, source: 'meal'}))); close(); toast(`Logged ${m.name}`); } catch (e) { toast(e.message); }
-    });
-    $$('[data-ai]', body).forEach((x) => x.onclick = () => mealCoach(meals[+x.dataset.ai]));
-    $$('[data-del]', body).forEach((x) => x.onclick = async () => {
-      const m = meals[+x.dataset.del]; if (!confirm(`Delete saved meal "${m.name}"?`)) return;
-      try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); tMeals(body, where, close); } catch (e) { toast(e.message); }
-    });
+    const [meals, recipes, foods] = await Promise.all([api('/api/food/meals'), api('/api/dishes/recipes').catch(() => []), api('/api/food/foods')]);
+    const row = (kind, i, name, sub, kcal) => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
+      <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">kcal</small></div></button>`;
+    const list = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
+    body.innerHTML = `${meals.length ? `<h3 class="ghead">Meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, list(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
+      ${recipes.length ? `<h3 class="ghead">Recipes</h3><div class="results">${recipes.map((r, i) => row('rec', i, r.name, list(r.items), r.totals.kcal)).join('')}</div>` : ''}
+      <h3 class="ghead">My foods</h3><div class="results">${foods.map(foodRow).join('')}</div>
+      <button class="ghost wide" id="tm-new">+ Create a food</button>
+      ${meals.length ? '' : '<p class="small muted">Save a meal from the "…" button on any meal in your log, and it shows up here.</p>'}`;
+    const again = () => tSaved(body, where, close);
+    $('#tm-new', body).onclick = () => foodEditor(null, again);
+    $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
+    $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet('meal', meals[+x.dataset.meal], where(), close, again));
+    $$('[data-rec]', body).forEach((x) => x.onclick = () => savedSheet('recipe', recipes[+x.dataset.rec], where(), close, again));
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+}
+// How much of a saved meal or recipe: grams (when its weight is known) or servings. A saved meal is 1 serving as saved
+// ("½" or "2" scale every food in it); a recipe is the whole pot, so it's "I had 1 of 4".
+function savedSheet(kind, m, w, closeParent, after) {
+  const meal = kind === 'meal', T = m.totals;
+  const weight = meal ? (m.items.every((it) => it.unit === 'g') ? m.items.reduce((a, it) => a + it.amount, 0) : null) : m.weight_g;
+  sheet(m.name, `<form class="form" id="sv">
+    ${meal ? `<p class="small muted">${esc(m.items.map((x) => x.name).join(', '))}</p>` : ''}
+    ${weight ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="${Math.round(weight)}" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
+    <div class="share-line">${weight ? '<span class="muted">or</span>' : ''}${meal ? `<input name="n" inputmode="decimal" value="1" aria-label="Servings"><span>servings</span>`
+      : `<span>I had</span><input name="n" inputmode="decimal" value="1" aria-label="How many servings you had"><span>of</span><input name="of" inputmode="decimal" placeholder="4" aria-label="Servings in the whole recipe"><span>servings</span>`}</div>
+    <div class="portion-out" aria-live="polite"></div>
+    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${meal && App.me.coach ? `<button type="button" class="ghost" id="sv-ai" aria-label="Coach's take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''}<span class="spacer"></span>
+      <button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
+    const f = $('#sv', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
+    let mode = meal ? 'n' : weight ? 'g' : 'n';
+    const factor = () => {      // the share of the saved meal/recipe being logged
+      if (mode === 'g') { const g = num(f.g); return g > 0 && weight ? g / weight : null; }
+      if (meal) { const n = num(f.n); return n > 0 ? n : null; }
+      const n = num(f.n), of = num(f.of); return n > 0 && of > 0 && n <= of ? n / of : null;
+    };
+    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((x) => x[0])].map((x) => [x, (T[x] || 0) * k]))) : ''; };
+    const byN = () => { mode = 'n'; const k = factor(); if (f.g) f.g.value = k ? Math.round(weight * k) : ''; show(); };
+    if (f.g) f.g.oninput = () => { mode = 'g'; show(); };
+    f.n.oninput = byN; if (f.of) f.of.oninput = byN; byN();
+    f.onsubmit = async (e) => {
+      e.preventDefault(); const k = factor();
+      if (!k) { toast(meal ? 'How many servings?' : weight ? 'Type your portion in grams, or how many servings you had' : 'Type how many servings the recipe makes, and how many you had'); return; }
+      const sc = (v) => (v == null ? null : v * k);
+      const items = meal ? m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}))
+        : [{...w, name: m.name, amount: mode === 'g' ? num(f.g) : num(f.n), unit: mode === 'g' ? 'g' : `of ${num(f.of)} servings`, ...Object.fromEntries(['kcal', ...MACROS.map((x) => x[0])].map((x) => [x, sc(T[x] || 0)])), fiber_g: sc(T.fiber_g), source: 'recipe', ref: {recipe_id: m.id}}];
+      try { await addEntries(items); close(); closeParent(); toast(`Added ${m.name}`); } catch (x) { toast(x.message); }
+    };
+    $('#sv-del', b).onclick = async () => {
+      if (!confirm(meal ? `Delete the saved meal ${m.name}?` : `Delete the recipe ${m.name}? Food you logged from it stays in your food log.`)) return;
+      try { await api(meal ? `/api/food/meals/${m.id}` : `/api/dishes/recipes/${m.id}`, {method: 'DELETE'}); close(); toast('Deleted'); after(); } catch (x) { toast(x.message); }
+    };
+    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => mealCoach(m);
+  });
 }
 function tQuick(body, where, close) {
   body.innerHTML = `<form class="form" id="tq"><label>Name<input name="name" placeholder="e.g. Restaurant salad" maxlength="200"></label>${macroInputs()}
