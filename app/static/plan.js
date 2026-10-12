@@ -25,7 +25,7 @@ const STATUS = {done: 'Done', today: 'Today', missed: 'Missed', upcoming: 'Comin
 
 function workoutRow(w, U = '') {
   const d = new Date(w.day + 'T12:00'), st = w.status || '';
-  const badge = st === 'done' ? `<span class="badge good">${svg('check')} ${w.actual != null && w.dist ? `${esc(w.actual)} ${esc(U)}` : 'Done'}</span>`
+  const badge = st === 'done' ? `<span class="badge good">${svg('check')} ${w.actual != null && w.dist ? `${esc(w.actual)} ${esc(U)}` : 'Done'}${w.ran_on ? ` on ${esc(pday(w.ran_on, {weekday: 'short'}))}` : ''}</span>`
     : st === 'today' ? '<span class="badge today">Today</span>' : st === 'missed' ? '<span class="badge">Missed</span>' : '';
   return `<button class="pw ${esc(st)}" data-wday="${esc(w.day)}"><div class="pw-day"><small>${DOW[(d.getDay() + 6) % 7]}</small><b class="num">${d.getDate()}</b></div>
     <div class="pw-main"><b>${esc(w.title)}${HARD.includes(w.type) ? ' <span class="pw-hard">hard</span>' : ''}</b><small>${esc(w.detail)}</small>${badge ? `<div class="badges">${badge}</div>` : ''}</div>
@@ -37,13 +37,28 @@ function wireWorkouts(box, d) {
     if (w) workoutSheet(w, d.plan.unit);
   });
 }
+// Mark as done (2026-10-12): for a workout done without a recorded run (a treadmill, a watch left at home)
 function workoutSheet(w, U) {
+  const ran = w.status === 'done' && w.activity_id, can = !ran && (w.status === 'today' || w.status === 'missed' || w.by_hand);
+  const note = ran ? `Done - you ran ${w.actual} ${U}${w.ran_on ? ` on ${pday(w.ran_on, {weekday: 'long'})}` : ''}.` : w.by_hand ? 'Done - ticked off by hand.'
+    : w.status === 'upcoming' ? 'Record a run that day (or a day either side) and it ticks off by itself.'
+    : w.status === 'today' ? 'Record a run today and it ticks off by itself, or tick it off yourself.' : STATUS[w.status] || '';
   sheet(w.title, `<p class="muted">${esc(pday(w.day, {weekday: 'long', month: 'long', day: 'numeric'}))}${w.dist ? ` · ${esc(w.dist)} ${esc(U)}` : w.minutes ? ` · about ${esc(w.minutes)} min` : ''}</p>
     <div class="card flat"><h3 class="ghead">What to do</h3><p>${esc(w.detail)}</p>
       <h3 class="ghead">Why</h3><p>${esc(WHY[w.type] || '')}</p></div>
-    <p class="small muted">${esc(STATUS[w.status] || '')}${w.status === 'done' && w.actual != null ? ` - you ran ${esc(w.actual)} ${esc(U)}` : ''}${w.status === 'upcoming' || w.status === 'today' ? ' - record a run that day and it ticks off by itself.' : ''}</p>
-    ${w.activity_id ? `<a class="ghost wide" href="/activity/${w.activity_id}">See the run you did</a>` : ''}`, (b, close) => {
+    <p class="small muted">${esc(note)}</p>
+    ${ran ? `<a class="ghost wide" href="/activity/${w.activity_id}">See the run you did</a>` : ''}
+    ${can ? (w.by_hand ? '<button class="ghost wide" id="pw-undo">Not done after all</button>' : `<button class="primary wide" id="pw-done">${svg('check')}Mark as done</button>`) : ''}`, (b, close) => {
     const a = $('a.ghost', b); if (a) a.addEventListener('click', () => close());
+    const set = async (btn, on) => {
+      btn.disabled = true;
+      try {
+        await api(on ? '/api/plans/current/marks' : '/api/plans/current/marks/' + w.day, on ? json('POST', {day: w.day}) : {method: 'DELETE'});
+        invalidate('/api/plans'); close(); toast(on ? 'Workout ticked off' : 'Tick removed'); render();
+      } catch (x) { toast(x.message); btn.disabled = false; }
+    };
+    const d = $('#pw-done', b); if (d) d.onclick = () => set(d, true);
+    const u = $('#pw-undo', b); if (u) u.onclick = () => set(u, false);
   });
 }
 
@@ -64,12 +79,15 @@ function planCard(box) {
     const started = d.today >= p.start_day;
     const head = d.days_to_race > 0 ? `${d.days_to_race} day${d.days_to_race === 1 ? '' : 's'} to go` : d.days_to_race === 0 ? 'Race day!' : 'Finished';
     const wk = d.this_week ? `Week ${d.this_week} of ${p.weeks}` : started ? 'Plan finished' : `Starts ${pday(p.start_day)}`;
-    const show = w || n;
+    const show = w || n, ran = d.today_run;
+    // a run today on a rest day still shows (2026-10-12: "it is not registering that I worked out")
+    const rest = ran && !w ? `<a class="pt-w ran" href="/activity/${ran.activity_id}"><small>${svg('check')} You ran ${esc(ran.actual)} ${esc(p.unit)} today</small>
+      <b>Rest day on the plan</b><span class="small">Extra running counts toward this week. Next: ${esc(n ? `${n.title}, ${pday(n.day, {weekday: 'long'})}` : 'race day')}</span></a>` : '';
     box.innerHTML = `<div class="card plan-today"><h2>${esc(p.race_name)} plan<span class="muted small">${esc(head)}</span></h2>
       ${started ? `<div class="ptrack"><div class="bar" data-w="${Math.min(1, (d.this_week ? d.this_week - 1 : p.weeks) / p.weeks).toFixed(3)}"></div></div>` : ''}
       <p class="small muted">${esc(wk)}${pr.workouts_due ? ` · ${pr.workouts_done} of ${pr.workouts_due} workouts done so far` : ''}</p>
-      ${show ? `<button class="pt-w ${esc(w ? w.status : '')}" data-wday="${esc(show.day)}"><small>${w ? (w.status === 'done' ? 'Done today' : 'Today') : started ? `Rest day today · next ${esc(pday(n.day, {weekday: 'long'}))}` : `First run · ${esc(pday(n.day, {weekday: 'long', month: 'short', day: 'numeric'}))}`}</small>
-        <b>${esc(show.title)}</b><span class="small">${esc(show.detail)}</span></button>` : ''}
+      ${rest || (show ? `<button class="pt-w ${esc(w ? w.status : '')}" data-wday="${esc(show.day)}"><small>${w ? (w.status === 'done' ? (w.ran_on ? `Done on ${esc(pday(w.ran_on, {weekday: 'long'}))}` : 'Done today') : 'Today') : started ? `Rest day today · next ${esc(pday(n.day, {weekday: 'long'}))}` : `First run · ${esc(pday(n.day, {weekday: 'long', month: 'short', day: 'numeric'}))}`}</small>
+        <b>${esc(show.title)}</b><span class="small">${esc(show.detail)}</span></button>` : '')}
       <a class="ghost wide" href="/plan">Open my plan</a></div>`;
     wireWorkouts(box, d);
   });
