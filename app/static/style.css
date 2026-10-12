@@ -242,6 +242,16 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
   letter-spacing: -.01em; color: #fff; background: linear-gradient(140deg, color-mix(in srgb, var(--c) 78%, #fff), var(--c)); }
 .av0 { --c: #C8283F; } .av1 { --c: #2A78D6; } .av2 { --c: #1D8A64; } .av3 { --c: #D9731F; } .av4 { --c: #6A4FC9; } .av5 { --c: #0E8FA8; }
 .av.lg { width: 64px; height: 64px; font-size: 24px; }
+.av { position: relative; overflow: hidden; }
+.av.xl { width: 120px; height: 120px; font-size: 42px; }
+/* Me: tap your picture to change it (2026-10-12) */
+.av-edit { position: relative; flex: none; padding: 0; border: 0; background: none; border-radius: 50%; }
+.av-cam { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); color: var(--tx); box-shadow: var(--shadow); }
+.av-cam svg { width: 15px; height: 15px; }
+.pp-sheet { display: grid; justify-items: center; gap: 12px; text-align: center; padding-bottom: 6px; }
+.pp-sheet .wide { width: 100%; } .pp-sheet .primary svg { width: 18px; height: 18px; margin-right: 8px; vertical-align: -3px; }
+.av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--card); }
 .person { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); min-height: 60px; }
 .person:first-child { border-top: 0; }
 .person.req { flex-wrap: wrap; row-gap: 8px; } .person.req .btnrow { flex: 1 0 100%; padding-left: 52px; } .person.req .btnrow > * { flex: 1; }
@@ -1006,3 +1016,45 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .sheet .seg.wide.am-units { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); } .am-units button { min-height: 34px; width: 100%; }
 .m-note { margin: 10px 2px 6px; }
 .ghead-act { display: flex; align-items: center; justify-content: space-between; } .ghead-act .linkbtn { min-height: 32px; padding: 0; font-size: 13px; text-transform: none; letter-spacing: 0; }
+
+/* ---------- photos (2026-10-12): activity photos, who sent cheers ---------- */
+.ph-strip { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 14px -16px 0; padding: 0 16px; }
+.ph-strip::-webkit-scrollbar { display: none; }
+.ph-th { flex: none; width: 96px; height: 96px; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--card2); }
+.ph-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ph-add { flex: none; width: 96px; height: 96px; border: 1.5px dashed color-mix(in srgb, var(--tx3) 55%, transparent); border-radius: 12px; background: none; color: var(--tx2);
+  display: grid; place-content: center; justify-items: center; gap: 4px; font-size: 13px; font-weight: 600; }
+.ph-add svg { width: 22px; height: 22px; color: var(--accent); }
+.ph-strip.empty .ph-add { width: 100%; height: 48px; grid-auto-flow: column; gap: 8px; }
+.cheer-pile { display: flex; align-items: center; gap: 10px; width: calc(100% + 32px); margin: 14px -16px -16px; padding: 10px 16px; border: 0;
+  border-top: 1px solid var(--line); background: none; color: var(--tx); font-size: 14px; text-align: left; }
+.cheer-pile .faces { display: flex; flex: none; } .cheer-pile .faces .av { width: 28px; height: 28px; font-size: 11px; box-shadow: 0 0 0 2px var(--card); }
+.cheer-pile .faces .av + .av { margin-left: -8px; }
+.cheer-pile .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cheer-pile .chev svg, .social .cheer-who .chev svg { width: 16px; height: 16px; color: var(--tx3); }
+.social .cheer-who { width: 100%; border: 0; background: none; padding: 6px 0; color: var(--tx); text-align: left; }
+.social .cheer-who .grow { flex: 1; min-width: 0; }
+.comments .comment { display: flex; gap: 10px; }
+.comments .comment > .av { width: 32px; height: 32px; font-size: 12px; margin-top: 2px; }
+.comment .c-body { flex: 1; min-width: 0; }
+.post-photos { display: grid; gap: 2px; margin: 14px -16px -12px; }
+.post .fmap:has(+ .post-photos) { margin-bottom: 0; } .post .fmap + .post-photos { margin-top: 2px; }
+.post-photos.n1 { grid-template-columns: 1fr; } .post-photos.n2 { grid-template-columns: 1fr 1fr; } .post-photos.n3 { grid-template-columns: 1fr 1fr 1fr; }
+.post-photos span { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--card2); }
+.post-photos.n1 span { aspect-ratio: 16 / 9; }
+.post-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.post-photos b { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .45); color: #fff; font-size: 22px; }
+.ph-view { position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; display: flex; flex-direction: column; touch-action: pan-y; }
+.ph-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(env(safe-area-inset-top) + 8px) 12px 8px; }
+.ph-bar .icon-btn { background: rgba(255, 255, 255, .14); color: #fff; box-shadow: none; } .ph-sp { width: 44px; }
+.ph-stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 0 0 calc(env(safe-area-inset-bottom) + 12px); }
+.ph-stage img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+.ph-nav { position: absolute; top: 50%; width: 44px; height: 44px; margin-top: -22px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .14);
+  color: #fff; display: grid; place-items: center; }
+.ph-nav.prev { left: 10px; } .ph-nav.next { right: 10px; } .ph-nav.next svg { transform: scaleX(-1); }
+.ph-nav svg { width: 22px; height: 22px; }
+body.ph-open { overflow: hidden; }
+.comment .c-hd { flex-wrap: wrap; column-gap: 8px; row-gap: 0; }
+.comment .c-acts { display: flex; gap: 16px; } .comment .c-acts:empty { display: none; }
+.comment .c-acts .linkbtn { min-height: 32px; padding: 0; font-size: 13px; }
+.comment .c-hd b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } .comment .c-hd small { white-space: nowrap; }

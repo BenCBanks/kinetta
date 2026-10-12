@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from . import db, notify
 from .api_account import _admin
-from .api_activities import DETAIL_TOL, PREVIEW_TOL, polyline
+from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
@@ -80,7 +80,7 @@ def _select(extra=''):
     return f"""SELECT a.id, a.sport, a.sport_label, a.name, a.start_time, a.distance_m, a.moving_s, a.elapsed_s,
       a.gap_s_per_km, a.max_speed, a.avg_hr, a.max_hr, a.effort, a.ascent_m, a.descent_m, a.max_alt, a.min_alt, a.vam,
       a.calories, a.description, a.device, {extra}
-      a.share_details AS a_details, p.share_details AS p_details, s.trim_m, u.login::text AS owner_login, u.name AS owner_name,
+      a.share_details AS a_details, p.share_details AS p_details, s.trim_m, u.login::text AS owner_login, u.name AS owner_name, u.photo_v AS owner_photo, {PHOTOS_SQL},
       CASE WHEN a.geom IS NULL THEN NULL
            WHEN s.trim_m = 0 THEN ST_AsGeoJSON(ST_Simplify(a.geom, %(tol)s))
            WHEN s.len_m < 2 * s.trim_m + %(min_m)s THEN NULL
@@ -118,7 +118,8 @@ def shared_activity(r):
         if keep:
             axes = ('d', 't') if d['pace'] or not ch.get('d') else ('d',)
             out['chart'] = {k: ch[k] for k in (*axes, *keep) if ch.get(k)}
-    out['owner'] = {'login': r['owner_login'], 'name': r['owner_name']}
+    out['owner'] = {'login': r['owner_login'], 'name': r['owner_name'], 'photo': r['owner_photo']}
+    out['photos'] = r['photos']    # photos follow the activity: whoever sees it sees them (api_photos.py)
     out['shares'] = d
     out.update(cheers=r['cheer_n'], cheered=r['cheered'], comments=r['comment_n'])
     return out
@@ -153,10 +154,10 @@ def _pair(c, me, them, lock=False):
 @router.get('/friends')
 def friends(user=Depends(current_user)):
     with db.connect() as c:
-        rows = c.execute("""SELECT u.login::text AS login, u.name, f.status, f.requester = %(me)s AS sent, f.created, f.accepted
+        rows = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent, f.created, f.accepted
                             FROM friendships f JOIN users u ON u.id = CASE WHEN f.requester = %(me)s THEN f.addressee ELSE f.requester END
                             WHERE %(me)s IN (f.requester, f.addressee) ORDER BY u.name""", {'me': user['id']}).fetchall()
-    pick = lambda r: {'login': r['login'], 'name': r['name'], 'since': r['accepted'] or r['created']}
+    pick = lambda r: {'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'since': r['accepted'] or r['created']}
     return {'friends': [pick(r) for r in rows if r['status'] == 'accepted'],
             'incoming': [pick(r) for r in rows if r['status'] == 'pending' and not r['sent']],
             'outgoing': [pick(r) for r in rows if r['status'] == 'pending' and r['sent']]}
@@ -182,7 +183,7 @@ def people_search(q: str = '', user=Depends(current_user)):
     if len(q) < 2: return []
     like = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
     with db.connect() as c:
-        rows = c.execute("""SELECT u.login::text AS login, u.name, f.status, f.requester = %(me)s AS sent
+        rows = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent
             FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
             LEFT JOIN profile p ON p.user_id = u.id
             WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT {blocked}
@@ -191,7 +192,7 @@ def people_search(q: str = '', user=Depends(current_user)):
             ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name LIMIT 20""".replace('{blocked}', blocked('u.id')),
                          {'viewer': user['id'], 'me': user['id'], 'q': q, 'pre': like + '%', 'word': '% ' + like + '%'}).fetchall()
     rel = lambda r: 'friends' if r['status'] == 'accepted' else ('sent' if r['sent'] else 'incoming') if r['status'] else None
-    return [{'login': r['login'], 'name': r['name'], 'status': rel(r)} for r in rows]
+    return [{'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'status': rel(r)} for r in rows]
 
 
 @router.post('/friends')
@@ -319,9 +320,9 @@ def friends_feed(before: dt.datetime | None = None, limit: int = 25, user=Depend
 
 
 def _social(c, aid, viewer, owner):
-    cheers = c.execute(f"""SELECT u.login::text AS login, u.name FROM cheers ch JOIN users u ON u.id = ch.user_id
+    cheers = c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo FROM cheers ch JOIN users u ON u.id = ch.user_id
                            WHERE ch.activity_id = %(aid)s AND NOT {blocked('u.id')} ORDER BY ch.created""", {'aid': aid, 'viewer': viewer}).fetchall()
-    comments = c.execute(f"""SELECT cm.id, cm.text, cm.created, u.login::text AS login, u.name,
+    comments = c.execute(f"""SELECT cm.id, cm.text, cm.created, u.login::text AS login, u.name, u.photo_v AS photo,
                               (cm.user_id = %(viewer)s OR %(owner)s) AS can_delete
                             FROM comments cm JOIN users u ON u.id = cm.user_id WHERE cm.activity_id = %(aid)s AND NOT {blocked('u.id')}
                             ORDER BY cm.created, cm.id""", {'viewer': viewer, 'owner': owner == viewer, 'aid': aid}).fetchall()
@@ -401,7 +402,7 @@ def comment_delete(cid: int, user=Depends(current_user)):
 @router.get('/blocks')
 def blocks(user=Depends(current_user)):
     with db.connect() as c:
-        return c.execute("""SELECT u.login::text AS login, u.name, b.created AS since FROM blocks b JOIN users u ON u.id = b.blocked
+        return c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, b.created AS since FROM blocks b JOIN users u ON u.id = b.blocked
                             WHERE b.user_id = %s ORDER BY u.name""", (user['id'],)).fetchall()
 
 
@@ -477,19 +478,22 @@ def reports(user=Depends(current_user)):
     _admin(user)
     with db.connect() as c:
         return c.execute("""SELECT r.id, r.what, r.reason, r.note, r.created, r.activity_id, r.comment_id,
-                              p.login::text AS login, p.name, rp.name AS reporter
+                              p.login::text AS login, p.name, p.photo_v AS photo, rp.name AS reporter
                             FROM reports r JOIN users p ON p.id = r.person LEFT JOIN users rp ON rp.id = r.reporter
                             WHERE r.status = 'open' ORDER BY r.created""").fetchall()
 
 
 @router.post('/reports/{rid}/done')
 def report_done(rid: int, remove: bool = False, user=Depends(current_user)):
-    """Close a report. remove=true also takes the reported thing down: the comment is deleted, or the activity goes back
-    to "Only me" (it stays in its owner's account)."""
+    """Close a report. remove=true also takes the reported thing down: the comment is deleted, the activity goes back
+    to "Only me" (it stays in its owner's account), or for a report about the person, their profile photo is removed."""
     _admin(user)
     with db.connect() as c:
-        r = c.execute("UPDATE reports SET status = 'done' WHERE id = %s RETURNING activity_id, comment_id", (rid,)).fetchone()
+        r = c.execute("UPDATE reports SET status = 'done' WHERE id = %s RETURNING person, activity_id, comment_id", (rid,)).fetchone()
         if not r: raise HTTPException(404, 'Not found')
         if remove and r['comment_id']: c.execute('DELETE FROM comments WHERE id = %s', (r['comment_id'],))
         elif remove and r['activity_id']: c.execute("UPDATE activities SET visibility = 'me' WHERE id = %s", (r['activity_id'],))
+        elif remove:
+            c.execute('DELETE FROM profile_photos WHERE user_id = %s', (r['person'],))
+            c.execute('UPDATE users SET photo_v = NULL WHERE id = %s', (r['person'],))
     return {'ok': True}

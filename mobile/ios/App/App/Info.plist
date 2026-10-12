@@ -49,6 +49,10 @@
 	<string>Kinetta reads your workouts, with their heart rate and routes, and sends them to your own Kinetta server, where only you can see them.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Kinetta doesn't save anything to Apple Health; it only reads your workouts.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Kinetta uses the camera to scan barcodes and food labels, take photos of meals, and add photos to your activities and profile.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Kinetta lets you choose photos for your meals, your activities and your profile picture.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

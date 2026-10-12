@@ -31,8 +31,14 @@ function postCard(a, {who = false} = {}) {
   return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
     <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
-    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}</a>
+    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}${postPhotos(a)}</a>
     <div class="post-ft">${foot}</div></article>`;
+}
+// photos on a feed card (2026-10-12): up to three in a row under the map, "+N" on the last when there are more
+function postPhotos(a) {
+  const ph = a.photos || []; if (!ph.length) return '';
+  const shown = ph.slice(0, 3), more = ph.length - shown.length;
+  return `<div class="post-photos n${shown.length}${a.line ? '' : ' nomap'}" aria-label="${ph.length} photo${ph.length > 1 ? 's' : ''}">${shown.map((p, i) => `<span>${pimg(`/api/activity-photos/${p.id}?size=thumb`)}${more && i === shown.length - 1 ? `<b>+${more}</b>` : ''}</span>`).join('')}</div>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
@@ -329,7 +335,7 @@ function drawDetail(el, a) {
     <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span></div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      <div class="hero">${hero}</div></div>
+      <div class="hero">${hero}</div><div id="d-photos"></div><div class="cpile"></div></div>
     <div class="seg wide dtabs" role="tablist" aria-label="Sections">${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
     ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
   let drawCharts = null;
@@ -347,6 +353,7 @@ function drawDetail(el, a) {
   $('#d-edit', el).onclick = () => editActivity(a);
   $('#d-send', el).onclick = () => shareOut(a);
   ownSocial(el, a);
+  photoStrip($('#d-photos', el), a, true);
   const cb = $('#d-coach', el);
   if (cb) cb.onclick = async () => {
     if (!App.me.ai_ok) { aiSheet(() => drawDetail(el, a)); return; }
@@ -1002,12 +1009,35 @@ async function pHeatmap(body, q) {
 }
 
 // ---------- Me ----------
+// Profile photo (2026-10-12, api_photos.py): shown with your name, so friends and people who find you see it
+function profilePhotoSheet(done) {
+  const me = App.me;
+  sheet('Profile photo', `<div class="pp-sheet">${avatar(me, 'xl')}
+    <p class="small muted">Shown with your name: to friends, and to people who find you on this Kinetta.</p>
+    <input type="file" accept="image/*" hidden id="pp-file">
+    <button type="button" class="primary wide" id="pp-pick">${svg('camera')}${me.photo ? 'Choose a new photo' : 'Choose a photo'}</button>
+    ${me.photo ? '<button type="button" class="ghost wide" id="pp-rm">Remove photo</button>' : ''}</div>`, (b, close) => {
+    const file = $('#pp-file', b), pick = $('#pp-pick', b), rm = $('#pp-rm', b);
+    pick.onclick = () => file.click();
+    file.onchange = async () => {
+      const f = file.files && file.files[0]; if (!f) return;
+      pick.disabled = true; pick.textContent = 'Saving…';
+      try { const image = await shrinkPhoto(f, 1024); me.photo = (await api('/api/me/photo', json('PUT', {image}))).photo; close(); toast('Photo saved'); done(); }
+      catch (x) { toast(x.message || "That photo couldn't be opened"); pick.disabled = false; pick.textContent = 'Choose a photo'; }
+    };
+    if (rm) rm.onclick = async () => {
+      rm.disabled = true;
+      try { await api('/api/me/photo', {method: 'DELETE'}); me.photo = null; close(); done(); }
+      catch (x) { toast(x.message); rm.disabled = false; }
+    };
+  });
+}
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
   // 2026-10-11 redesign: a settings-style list, each row with a coloured icon; the long forms open in sheets
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<div class="profile">${avatar(me, 'lg')}<div><h1>${esc(me.name)}</h1><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
+  el.innerHTML = `<div class="profile"><button type="button" class="av-edit" id="m-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'lg')}<span class="av-cam">${svg('camera')}</span></button><div><h1>${esc(me.name)}</h1><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
     <div class="card list">${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/friends"', 'people', 'c-berry', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}</div>
@@ -1037,6 +1067,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
       ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
     <button class="ghost wide" id="logout">${svg('logout')}Log out</button>`;
+  $('#m-photo', el).onclick = () => profilePhotoSheet(() => render());
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');
@@ -1241,9 +1272,9 @@ route(/^\/me\/people$/, 'me', async (el) => {
   const drawReports = (rows) => {
     const box = $('#p-reports', el); if (!box) return;
     box.innerHTML = rows.length ? `<div class="card beta-req"><h2>Reports <span class="muted">${rows.length}</span></h2>${rows.map((r) => `<div class="row"><div class="who">
-      <b>${esc(r.name)}</b> <small class="muted">@${esc(r.login)} · ${esc(WHY[r.reason] || r.reason)} · ${esc(fdate(r.created, {month: 'short', day: 'numeric'}))}${r.reporter ? ' · from ' + esc(r.reporter) : ''}</small>
+      ${r.photo && !r.activity_id && !r.comment_id ? avatar(r) : ''}<b>${esc(r.name)}</b> <small class="muted">@${esc(r.login)} · ${esc(WHY[r.reason] || r.reason)} · ${esc(fdate(r.created, {month: 'short', day: 'numeric'}))}${r.reporter ? ' · from ' + esc(r.reporter) : ''}</small>
       <p class="small">${esc(r.what)}</p>${r.note ? `<p class="small muted">${esc(r.note)}</p>` : ''}
-      <div class="btnrow">${r.comment_id || r.activity_id ? `<button class="primary" data-rrm="${r.id}">${r.comment_id ? 'Delete comment' : 'Make it private'}</button>` : ''}<button class="ghost" data-rok="${r.id}">Close, leave it</button></div>
+      <div class="btnrow">${r.comment_id || r.activity_id || r.photo ? `<button class="primary" data-rrm="${r.id}">${r.comment_id ? 'Delete comment' : r.activity_id ? 'Make it private' : 'Remove profile photo'}</button>` : ''}<button class="ghost" data-rok="${r.id}">Close, leave it</button></div>
       </div></div>`).join('')}<p class="small muted">To remove someone completely, tap them in the list below and choose Remove person.</p></div>` : '';
     $$('[data-rrm], [data-rok]', box).forEach((b) => b.onclick = async () => {
       b.disabled = true;

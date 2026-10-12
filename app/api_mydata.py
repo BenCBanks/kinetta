@@ -60,6 +60,8 @@ TABLES = {
     'reports_made': """SELECT jsonb_build_object('about', u.login, 'what', r.what, 'reason', r.reason, 'note', r.note,
                      'created', r.created, 'status', r.status) FROM reports r JOIN users u ON u.id = r.person WHERE r.reporter = %s""",
     'cheers_given': "SELECT to_jsonb(t)" + DROP + " FROM cheers t WHERE user_id = %s ORDER BY created",
+    # photos (2026-10-12, api_photos.py): the list here, the pictures themselves in photos/
+    'activity_photos': "SELECT to_jsonb(t)" + DROP + " - 'img' - 'thumb' FROM activity_photos t WHERE user_id = %s ORDER BY id",
     'comments_written': "SELECT to_jsonb(t)" + DROP + " FROM comments t WHERE user_id = %s ORDER BY created",
     'ai_food_requests': "SELECT to_jsonb(t)" + DROP + " FROM ai_requests t WHERE user_id = %s ORDER BY created",   # when you asked for AI food feedback
     # dishes shared with you by friends (cooking mode, 2026-10-11): which dish, from whom
@@ -78,6 +80,7 @@ README = """Your Kinetta data, downloaded {when}.
 data/*.jsonl  every table Kinetta keeps about you, one JSON object per line (activity tracks are GeoJSON).
 *.csv         your activities, food log and weigh-ins, ready for a spreadsheet. Distances in meters, times in seconds.
 files/        the original activity files (FIT, GPX, TCX) you or your watch uploaded.
+photos/       your profile photo and the photos on your activities (activity id - photo id.jpg).
 
 Left out on purpose: your password (only a scrambled form is stored), login sessions and connection keys.
 """
@@ -100,6 +103,12 @@ def _write_export(uid, path):
             if rows: w.writerow(rows[0].keys())
             for r in rows: w.writerow(r.values())
             z.writestr(name, buf.getvalue())
+        if (pp := c.execute('SELECT img FROM profile_photos WHERE user_id = %s', (uid,)).fetchone()):
+            z.writestr('photos/profile.jpg', bytes(pp['img']))
+        with c.cursor(name='x_photos') as cur:
+            cur.itersize = 20
+            cur.execute('SELECT id, activity_id, img FROM activity_photos WHERE user_id = %s ORDER BY id', (uid,))
+            for r in cur: z.writestr(f"photos/activities/{r['activity_id']}-{r['id']}.jpg", bytes(r['img']))
     base = os.path.join(DATA, 'files', str(uid))
     if os.path.isdir(base):
         with zipfile.ZipFile(path, 'a', zipfile.ZIP_STORED) as z:     # already compressed (.fit / .gz) mostly

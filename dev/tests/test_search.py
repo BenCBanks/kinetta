@@ -7,7 +7,7 @@ def ck(c, m):
     global n
     assert c, m; n += 1
 s, r = a.get('/api/people/search?q=r'); ck(s == 200 and r == [], 'one letter: nothing')
-s, r = a.get('/api/people/search?q=rach'); ck([p['login'] for p in r] == ['zz_test_rachel'] and r[0]['status'] is None and set(r[0]) == {'login', 'name', 'status'}, f'by first name {r}')
+s, r = a.get('/api/people/search?q=rach'); ck([p['login'] for p in r] == ['zz_test_rachel'] and r[0]['status'] is None and set(r[0]) == {'login', 'name', 'photo', 'status'}, f'by first name {r}')
 s, r = a.get('/api/people/search?q=Test%20R'); ck(len(r) == 1, 'by full name')
 s, r = a.get('/api/people/search?q=zz_test'); ck('zz_test_rachel' in [p['login'] for p in r] and 'zz_test_cook' not in [p['login'] for p in r], f'by username, never yourself {r}')
 s, r = a.get('/api/people/search?q=%25'); ck(r == [], f'% is literal {r}')

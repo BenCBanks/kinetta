@@ -692,6 +692,34 @@ MIGRATIONS = [
     UPDATE dishes SET serving = 'portion' WHERE serving = 'one' AND servings > 1;
     UPDATE dishes SET servings = 1 WHERE serving = 'one';
     """,
+    # 34 (2026-10-12): photos (api_photos.py). A profile photo per person (users.photo_v changes with each new photo, so
+    #   phones fetch the new one) and photos on activities, seen by whoever may see the activity. Every photo is a JPEG
+    #   the server made itself (nothing from the original file: no location, no phone details). thumb: small, for lists.
+    """
+    ALTER TABLE users ADD COLUMN photo_v text;
+    CREATE TABLE profile_photos (
+      user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      img     bytea NOT NULL,
+      created timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE activity_photos (
+      id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      activity_id bigint NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      img         bytea NOT NULL,
+      thumb       bytea NOT NULL,
+      w           int NOT NULL,
+      h           int NOT NULL,
+      created     timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX activity_photos_activity ON activity_photos (activity_id, id);
+    CREATE INDEX activity_photos_user ON activity_photos (user_id);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['profile_photos', 'activity_photos'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP; END $$;
+    """,
 ]
 
 

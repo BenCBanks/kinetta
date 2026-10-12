@@ -51,7 +51,7 @@ def drop(c, user_id, kind, actor_id):
 
 # ---------- reading: the words are made here ----------
 _LIST = """SELECT n.id, n.kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,
-             u.login::text AS login, u.name, a.name AS activity, d.name AS dish, cm.text AS comment
+             u.login::text AS login, u.name, u.photo_v AS photo, a.name AS activity, d.name AS dish, cm.text AS comment
            FROM notifications n JOIN users u ON u.id = n.actor_id
            LEFT JOIN activities a ON a.id = n.activity_id LEFT JOIN dishes d ON d.id = n.dish_id LEFT JOIN comments cm ON cm.id = n.comment_id"""
 
@@ -71,7 +71,7 @@ def _words(r):
 def _item(r):
     text, link = _words(r)
     return {'id': r['id'], 'kind': r['kind'], 'text': text, 'link': link, 'created': r['created'], 'read': r['read'],
-            'who': {'login': r['login'], 'name': r['name']}}
+            'who': {'login': r['login'], 'name': r['name'], 'photo': r['photo']}}
 
 
 def unread(c, uid):

@@ -180,7 +180,7 @@ def _view(c, uid, d):
     o = _out(d)
     o['mine'] = d['user_id'] == uid
     if o['mine']:
-        o['shared_with'] = c.execute("""SELECT u.login::text AS login, u.name FROM dish_shares s JOIN users u ON u.id = s.user_id
+        o['shared_with'] = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo FROM dish_shares s JOIN users u ON u.id = s.user_id
                                         WHERE s.dish_id = %s ORDER BY u.name""", (d['id'],)).fetchall()
     else:
         o['owner'] = c.execute('SELECT login::text AS login, name FROM users WHERE id = %s', (d['user_id'],)).fetchone()

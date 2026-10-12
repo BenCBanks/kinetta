@@ -97,7 +97,7 @@ function drawShared(el, a) {
       <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${sportMark(a.sport)}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="s-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}</div>
+      <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}<div id="s-photos"></div><div class="cpile"></div></div>
     ${a.line ? `<div class="map big" id="s-map" role="img" aria-label="Route map${a.ends_hidden ? ', without the start and end' : ''}"></div>
       ${a.ends_hidden ? '<p class="small muted map-note">The start and end of the route are hidden.</p>' : ''}` : ''}
     ${a.chart ? '<div class="card"><h2>Charts</h2><div id="s-charts"></div></div>' : ''}
@@ -110,6 +110,7 @@ function drawShared(el, a) {
   if (a.line) lazy($('#s-map', el), () => mapInto($('#s-map', el), [a.line], {sport: a.sport, ends: false})
     .catch(() => { $('#s-map', el).innerHTML = '<p class="empty">Map unavailable right now</p>'; }));
   wireTalk($('#s-soc', el), a.id, a.social, new URLSearchParams(location.search).get('tab') === 'comments');
+  photoStrip($('#s-photos', el), a, false);
   if (a.chart) requestAnimationFrame(() => sharedCharts($('#s-charts', el), a));
 }
 function sharedCharts(box, a) {
@@ -129,8 +130,10 @@ const talkIcons = (s) => `<button type="button" class="pf cheer" data-tcheer ari
   <button type="button" class="pf" data-ttalk aria-label="Comments">${svg('comment')}<span class="num">${s.comments.length || ''}</span></button>`;
 function wireTalk(box, aid, s, open) {
   if (!box) return;
+  const pile = box.closest('.d-title') && $('.cpile', box.closest('.d-title'));
   const draw = () => {
     box.innerHTML = talkIcons(s);
+    if (pile) { pile.innerHTML = cheerPile(s.cheers); const pb = $('[data-cpile]', pile); if (pb) pb.onclick = () => cheersSheet(s.cheers); }
     const cb = $('[data-tcheer]', box);
     cb.onclick = async () => {
       const was = s; cb.disabled = true;
@@ -147,6 +150,18 @@ function wireTalk(box, aid, s, open) {
   draw();
   if (open) commentsSheet(aid, s, (fresh) => { s = fresh; draw(); });
 }
+// Who sent cheers (2026-10-12, Ben): up to three faces and "Jordan Lee and 2 others" under the activity's numbers; a tap
+// lists everyone. The same list opens from the comments sheet.
+const cheerName = (c) => (c.login === App.me.login ? 'You' : c.name);
+function cheerPile(cheers) {
+  if (!cheers.length) return '';
+  const first = cheerName(cheers[0]), more = cheers.length - 1;
+  return `<button type="button" class="cheer-pile" data-cpile><span class="faces">${cheers.slice(0, 3).map((c) => avatar(c)).join('')}</span>
+    <span class="grow"><b>${esc(CHEER.title)}</b> from ${esc(first)}${more ? ` and ${more} other${more > 1 ? 's' : ''}` : ''}</span><span class="chev">${svg('chev')}</span></button>`;
+}
+function cheersSheet(cheers) {
+  sheet(`${CHEER.title} · ${cheers.length}`, `<div class="card list">${cheers.map((c) => `<div class="person">${avatar(c)}<span class="grow"><b>${esc(cheerName(c))}</b><small class="muted">@${esc(c.login)}</small></span></div>`).join('')}</div>`);
+}
 function socialChanged(aid) {
   invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); App.cache.delete('feed:home');
 }
@@ -156,12 +171,12 @@ function commentsSheet(aid, s, onChange) {
 }
 function drawComments(box, aid, s, onChange) {
   const names = s.cheers.map((c) => c.name);
-  const who = names.length ? `<p class="small cheer-who">${svg('cheer')}<span><b>${esc(CHEER.title)}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</span></p>` : '';
-  box.innerHTML = `${who}<div class="comments">${s.comments.length ? s.comments.map((c) => `<div class="comment"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small>
-      ${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div><p>${esc(c.text)}</p></div>`).join('')
+  const who = names.length ? `<button type="button" class="small cheer-who" data-cwho>${svg('cheer')}<span class="grow"><b>${esc(CHEER.title)}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</span><span class="chev">${svg('chev')}</span></button>` : '';
+  box.innerHTML = `${who}<div class="comments">${s.comments.length ? s.comments.map((c) => `<div class="comment">${avatar(c)}<div class="c-body"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small></div><p>${esc(c.text)}</p><div class="c-acts">${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div></div></div>`).join('')
       : '<p class="small muted c-none">No comments yet.</p>'}</div>
     <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
       <button class="primary wide">Post comment</button></form>`;
+  const cw = $('[data-cwho]', box); if (cw) cw.onclick = () => cheersSheet(s.cheers);
   const after = (fresh) => { socialChanged(aid); s = {...s, ...fresh}; drawComments(box, aid, s, onChange); if (onChange) onChange(s); };
   $$('[data-del]', box).forEach((b) => b.onclick = async () => {
     if (!confirm('Delete this comment?')) return;
@@ -180,6 +195,78 @@ function drawComments(box, aid, s, onChange) {
     try { after(await api(`/api/activities/${aid}/comments`, json('POST', {text}))); }
     catch (x) { toast(x.message); btn.disabled = false; }
   };
+}
+
+// ---------- activity photos (2026-10-12, api_photos.py) ----------
+// A row of small photos on the activity page (the owner also gets an Add button); a tap opens them full screen. The
+// phone shrinks each photo first (1600 px); the server saves it again without its hidden details (where it was taken).
+const PHOTO_MAX = 10;
+const photoSrc = (p, thumb) => `/api/activity-photos/${p.id}${thumb ? '?size=thumb' : ''}`;
+function photoChanged(aid) {
+  invalidate('/api/activities/' + aid); invalidate('/api/shared/' + aid); invalidate('/api/activities?'); invalidate('/api/feed/friends'); App.cache.delete('feed:home');
+}
+function photoStrip(box, a, mine) {
+  if (!box) return;
+  const ph = a.photos || [];
+  if (!ph.length && !mine) { box.innerHTML = ''; return; }
+  const canAdd = mine && ph.length < PHOTO_MAX;
+  box.innerHTML = `<div class="ph-strip${ph.length ? '' : ' empty'}">${ph.map((p, i) => `<button type="button" class="ph-th" data-ph="${i}" aria-label="Photo ${i + 1} of ${ph.length}">${pimg(photoSrc(p, true))}</button>`).join('')}
+    ${canAdd ? `<button type="button" class="ph-add" data-phadd>${svg('camera')}<span>${ph.length ? 'Add' : 'Add photos'}</span></button><input type="file" accept="image/*" multiple hidden data-phfile>` : ''}</div>`;
+  $$('[data-ph]', box).forEach((b) => b.onclick = () => photoViewer(a, +b.dataset.ph, mine, () => photoStrip(box, a, mine)));
+  const add = $('[data-phadd]', box), file = $('[data-phfile]', box);
+  if (!add) return;
+  add.onclick = () => file.click();
+  file.onchange = async () => {
+    const files = [...file.files].slice(0, PHOTO_MAX - ph.length); if (!files.length) return;
+    add.disabled = true;
+    let done = 0;
+    for (const f of files) {
+      $('span', add).textContent = files.length > 1 ? `Adding ${done + 1} of ${files.length}…` : 'Adding…';
+      try {
+        const image = await shrinkPhoto(f, 1600);
+        a.photos = [...(a.photos || []), await api(`/api/activities/${a.id}/photos`, json('POST', {image}))]; done++;
+      } catch (x) { toast(x.message || "That photo couldn't be added"); break; }
+    }
+    if (done) photoChanged(a.id);
+    photoStrip(box, a, mine);
+  };
+}
+// full screen: swipe or the arrows for the next one; the owner can remove one
+function photoViewer(a, start, mine, onChange) {
+  let i = start;
+  const v = document.createElement('div');
+  v.className = 'ph-view'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', 'Photos');
+  const draw = () => {
+    const ph = a.photos, p = ph[i];
+    v.innerHTML = `<div class="ph-bar"><button type="button" class="icon-btn" data-x aria-label="Close">${svg('close')}</button><span class="num">${i + 1} of ${ph.length}</span>
+        ${mine ? `<button type="button" class="icon-btn" data-del aria-label="Remove this photo">${svg('trash')}</button>` : '<span class="ph-sp"></span>'}</div>
+      <div class="ph-stage">${pimg(photoSrc(p), `width="${p.w}" height="${p.h}"`).replace('alt=""', `alt="Photo ${i + 1} of ${ph.length}"`)}</div>
+      ${ph.length > 1 ? `<button type="button" class="ph-nav prev" data-step="-1" aria-label="Previous photo"${i ? '' : ' hidden'}>${svg('back')}</button>
+        <button type="button" class="ph-nav next" data-step="1" aria-label="Next photo"${i < ph.length - 1 ? '' : ' hidden'}>${svg('back')}</button>` : ''}`;
+    $('[data-x]', v).onclick = close;
+    $$('[data-step]', v).forEach((b) => b.onclick = () => step(+b.dataset.step));
+    const del = $('[data-del]', v);
+    if (del) del.onclick = async () => {
+      if (!confirm('Remove this photo?')) return;
+      del.disabled = true;
+      try {
+        await api('/api/activity-photos/' + p.id, {method: 'DELETE'});
+        a.photos = ph.filter((x) => x.id !== p.id); photoChanged(a.id); onChange();
+        if (!a.photos.length) return close();
+        i = Math.min(i, a.photos.length - 1); draw();
+      } catch (x) { toast(x.message); del.disabled = false; }
+    };
+    $('[data-x]', v).focus();
+  };
+  const step = (d) => { const n = i + d; if (n >= 0 && n < a.photos.length) { i = n; draw(); } };
+  const key = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); };
+  let x0 = null;
+  v.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
+  v.addEventListener('pointerup', (e) => { if (x0 != null && Math.abs(e.clientX - x0) > 50) step(e.clientX < x0 ? 1 : -1); x0 = null; });
+  function close() { document.removeEventListener('keydown', key); v.remove(); document.body.classList.remove('ph-open'); }
+  document.addEventListener('keydown', key);
+  document.body.append(v); document.body.classList.add('ph-open');
+  draw();
 }
 
 // ---------- your own activity: cheers + comments by the title; who sees it lives in the Edit sheet ----------
