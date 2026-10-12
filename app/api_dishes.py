@@ -201,7 +201,8 @@ def pan_delete(pid: int, user=Depends(current_user)):
 def dishes(user=Depends(current_user)):
     """Dishes still in use: still cooking, or with leftovers from the last few days. Newest first."""
     with db.connect() as c:
-        rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE (user_id = %(u)s
+        # a dish you opened (still its default name) but never added anything to stays off the list (Cooking reopens it, see dish_add)
+        rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE ((user_id = %(u)s AND NOT (done_at IS NULL AND items = '[]'::jsonb AND cooked_g IS NULL AND known_kcal IS NULL AND name IN ('Breakfast', 'Lunch', 'Dinner')))
                                  OR (EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s)
                         AND EXISTS (SELECT 1 FROM friendships f WHERE f.status = 'accepted'
                           AND ((f.requester = dishes.user_id AND f.addressee = %(u)s) OR (f.addressee = dishes.user_id AND f.requester = %(u)s)))))
@@ -221,6 +222,12 @@ def _default_name(now):
 @router.post('')
 def dish_add(body: DishIn, user=Depends(current_user)):
     with db.connect() as c:
+        # tapping Cooking twice shouldn't leave a row of empty dishes: reopen the empty one you already have
+        empty = c.execute("""SELECT id FROM dishes WHERE user_id = %s AND done_at IS NULL AND items = '[]'::jsonb AND cooked_g IS NULL AND known_kcal IS NULL AND name IN ('Breakfast', 'Lunch', 'Dinner')
+                             ORDER BY created DESC LIMIT 1""", (user['id'],)).fetchone()
+        if empty and not (body.name or '').strip():
+            c.execute('UPDATE dishes SET created = now(), updated = now() WHERE id = %s', (empty['id'],))
+            return _view(c, user['id'], _get(c, user['id'], empty['id']))
         name = (body.name or '').strip() or _default_name(_today(c, user['id']))
         did = c.execute('INSERT INTO dishes (user_id, name) VALUES (%s, %s) RETURNING id', (user['id'], name)).fetchone()['id']
         return _view(c, user['id'], _get(c, user['id'], did))

@@ -31,7 +31,8 @@ const json = (method, body) => ({method, body: JSON.stringify(body)});
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
 async function load(path, render, {maxAge = 15000} = {}) {
   let hit = App.cache.get(path);
-  if (!hit && !navigator.onLine) { const k = kept(path); if (k) { hit = {data: k, at: 0}; App.cache.set(path, hit); } }
+  // the phone's saved copy shows at once (fresh data replaces it a moment later), except yesterday's "today" food log
+  if (!hit) { const k = kept(path); if (k && !(k.day && !path.includes('d=') && k.day !== isoDay(new Date()))) { hit = {data: k, at: 0}; App.cache.set(path, hit); } }
   if (hit) render(hit.data, true);
   if (hit && Date.now() - hit.at < maxAge) return hit.data;
   let data;
@@ -256,7 +257,9 @@ function sheet(title, html, onMount) {
   addEventListener('mouseup', (e) => { if (my != null) { settle(e.clientY - my > 90); my = null; } });
   document.addEventListener('keydown', onKey);
   document.body.append(s); document.body.classList.add('has-sheet');
-  const first = $('input, select, textarea, button:not([data-close])', $('.sbody', s)); if (first) first.focus({preventScroll: true});
+  // phones: a text box waits for a tap (a focused box pops up the keyboard over the sheet); buttons still take focus
+  const first = $('input, select, textarea, button:not([data-close])', $('.sbody', s));
+  if (first && !(first.matches('input, textarea') && matchMedia('(pointer: coarse)').matches)) first.focus({preventScroll: true});
   if (onMount) onMount($('.sbody', s), close);
   return close;
 }
@@ -778,10 +781,20 @@ async function showWelcome() {
 async function start() {
   await Native.ready;
   if (Native.on && !Native.token) return showLogin();
-  try {
-    App.me = await api('/api/me'); keep('/api/me', App.me);
+  const enter = () => {
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/today');
     render(); Q.flush(); netbar(); Native.autoSync();
+  };
+  // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
+  const saved = kept('/api/me');
+  if (saved && !location.pathname.startsWith('/join/')) {
+    App.me = saved; enter();
+    api('/api/me').then((me) => { App.me = me; keep('/api/me', me); }).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
+    return;
+  }
+  try {
+    App.me = await api('/api/me'); keep('/api/me', App.me);
+    enter();
   } catch (x) {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }
     if (x.offline && kept('/api/me')) {   // no connection: open with what's saved on this phone

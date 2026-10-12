@@ -40,6 +40,11 @@ did = d['id']
 s, d2 = b.post('/api/dishes', {})
 check('create default name', s == 200 and d2['name'] in ('Breakfast', 'Lunch', 'Dinner'), d2)
 check('name too long 422', b.post('/api/dishes', {'name': 'x' * 81})[0] == 422)
+# tapping Cooking again reopens the empty dish instead of making another; empty ones stay off the list
+s, d3 = b.post('/api/dishes', {})
+check('empty dish reused', s == 200 and d3['id'] == d2['id'], (d2['id'], d3.get('id')))
+lst = [x['id'] for x in b.get('/api/dishes')[1]]
+check('empty dish hidden, named one shown', d2['id'] not in lst and did in lst, lst)
 
 s, d = b.post(f'/api/dishes/{did}/items', {'name': 'Chicken breast', 'grams': 400,
                                           'per100': {'kcal': 165, 'protein_g': 31, 'carbs_g': 0, 'fat_g': 3.6, 'fiber_g': 0},
@@ -101,7 +106,7 @@ day = b.get('/api/food/day?d=2026-10-11')[1]
 check('in food log', any(x['id'] == e['id'] and x['meal'] == 'dinner' and x['source'] == 'dish' for x in day['entries']), day['entries'])
 check('food log totals', abs(sum(x['kcal'] for x in day['entries'] if (x.get('ref') or {}).get('dish_id') == did) - 350.5) < .2, day['totals'])
 check('list shows leftovers', any(x['id'] == did and x['left_g'] == 650 for x in b.get('/api/dishes')[1]))
-check('list newest first', [x['id'] for x in b.get('/api/dishes')[1]][:2] == [d2['id'], did])
+check('list: the empty default dish stays off it', [x['id'] for x in b.get('/api/dishes')[1]][:1] == [did])
 
 # second portion, default day (today), refuse too large
 s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 300, 'meal': 'lunch'})
@@ -137,7 +142,7 @@ s, x = b.patch(f'/api/dishes/{d2["id"]}', {'done': True})
 check('close', s == 200 and x['done_at'] and x['status'] == 'finished')
 check('closed unweighed dish hidden', d2['id'] not in [y['id'] for y in b.get('/api/dishes')[1]])
 s, x = b.patch(f'/api/dishes/{d2["id"]}', {'done': False})
-check('reopen', s == 200 and x['status'] == 'cooking' and d2['id'] in [y['id'] for y in b.get('/api/dishes')[1]])
+check('reopen', s == 200 and x['status'] == 'cooking')
 
 # ---- another person can't touch it ----
 for name, (s, _) in {'get': a.get(f'/api/dishes/{kid}'), 'patch': a.patch(f'/api/dishes/{kid}', {'name': 'Hacked'}),
