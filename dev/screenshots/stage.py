@@ -1,7 +1,8 @@
 # Made-up social + cooking state for the homepage screenshots, on top of dev/demo/seed.py (a throwaway install only).
 # Adds a friend, "Jordan", with a few weeks of rides and walks (the demo routes, two days later and an hour earlier, so
 # the newest activity in the feed is Jordan's), shares some of Alex's runs with friends, cheers and comments both ways,
-# a waiting friend request from "Sam", a pan, a dish shared with Jordan and a dish with leftovers.
+# a waiting friend request from "Sam", a pan, a dish shared with Jordan and a dish with leftovers. Alex also ran this
+# morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
 
@@ -54,6 +55,10 @@ print('jordan import', upload(jordan, [(os.path.basename(p), later(open(p, 'rb')
 jordan('POST', '/api/friends', {'login': 'alex'}); alex('POST', '/api/friends/jordan/accept')
 sam('POST', '/api/friends', {'login': 'alex'})                      # waiting for Alex
 alex('PUT', '/api/sharing', {'default': 'friends'})
+last = [p for p in sorted(glob.glob(G + '/*running.gpx'))][-1]; raw = open(last, 'rb').read()
+t0 = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1).decode().replace('Z', '+00:00'))
+ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2.5)
+print('alex today', upload(alex, [('today-running.gpx', later(raw, (ago - t0).total_seconds() // 60))]).get('added'))
 mine = alex('GET', '/api/activities?limit=8')
 for a in mine: alex('PUT', f"/api/activities/{a['id']}/sharing", {'visibility': 'friends'})
 jordan('POST', f"/api/activities/{mine[0]['id']}/cheer")

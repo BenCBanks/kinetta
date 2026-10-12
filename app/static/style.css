@@ -795,8 +795,8 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .gfield > span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--tx3); font-weight: 600; pointer-events: none; }
 .ing-list { margin-top: 6px; }
 .seg.wide.meal4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; } .meal4 button { min-width: 0; padding: 6px 2px; font-size: 13px; }
-.portion-out { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; } .portion-out:empty { display: none; }
-.portion-out b { font: 800 24px var(--numf); letter-spacing: -.02em; } .portion-out span { font-size: 14px; }
+.portion-out:empty { display: none; } .portion-out .nut { padding: 6px 0; margin: 0; border-bottom: 0; }
+.portion-out .warn-text { display: block; font-size: 14px; text-align: center; }
 .dish-row .av { width: 34px; height: 34px; font-size: 13px; }
 /* 2026-10-12: tighter cooking screen. One big button (Log my portion); everything else is a row or a small pill */
 .card.tap.share-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 12px 14px 12px 16px; border: 0; text-align: left; font: inherit; }

@@ -88,7 +88,7 @@ function drawDish(el, d) {
     let meal = guessMeal(); wireSeg(f, 'meal', (m) => { meal = m; });
     const show = () => {
       const g = +f.g.value.replace(',', '.');
-      out.innerHTML = g > 0 ? `<b class="num">${r0(p.kcal * g / 100)} kcal</b><span class="muted num">${MACROS.map(([k, , s]) => `${r0(p[k] * g / 100)}${s}`).join(' ')}</span>
+      out.innerHTML = g > 0 ? `${nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, p[k] * g / 100])))}
         ${d.left_g != null && g > d.left_g * 1.05 + .5 ? `<span class="warn-text">Only ${gfmt(d.left_g)} left</span>` : ''}` : '';
     };
     f.g.oninput = show;
