@@ -55,16 +55,20 @@ p { margin: 0; }
 header.top { padding-block: 22px; }
 header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 header.top img { width: 149px; height: auto; }
-nav.links { display: flex; gap: 22px; font-weight: 500; font-size: 15px; }
+nav.links { display: flex; align-items: center; gap: 22px; font-weight: 500; font-size: 15px; }
 nav.links a { text-decoration: none; color: var(--ink2); }
 nav.links a:hover { color: var(--ink); }
-/* phones: the links drop under the logo as a row you can swipe, instead of being hidden */
-@media (max-width: 560px) {
+/* top links: one or two words each, Join the beta always a filled berry button */
+nav.links a.nav-beta { padding: 8px 16px; border-radius: 999px; background: var(--berry); color: #fff !important; }
+@media (max-width: 1000px) { nav.links { gap: 16px; font-size: 14px; } nav.links a.gh { display: none; } }
+/* phones: the links drop under the logo as a row you can swipe, Join the beta first */
+@media (max-width: 760px) {
   header.top { padding-block: 16px 6px; }
   header.top .wrap { flex-wrap: wrap; row-gap: 12px; }
   nav.links { order: 2; flex: 1 0 100%; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-inline: -20px; padding: 2px 20px 6px; font-size: 14px; }
   nav.links::-webkit-scrollbar { display: none; }
   nav.links a { flex: none; white-space: nowrap; padding: 7px 14px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); }
+  nav.links a.nav-beta { order: -1; border-color: var(--berry); }
 }
 
 /* hero */
@@ -195,7 +199,7 @@ table.cmp { width: 100%; border-collapse: collapse; font-size: 15.5px; min-width
 
 /* one app instead of two (2026-10-11) */
 .hero .eyebrow { display: block; margin-bottom: 18px; }
-.nav-beta { font-weight: 600; color: var(--berry) !important; }
+.nav-beta { font-weight: 600; }
 .combo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .combo > div { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 28px; min-width: 0; }
 .combo .tag { font: 500 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--spruce); }
@@ -269,7 +273,7 @@ footer a { color: var(--ink2); }
   <div class="wrap">
     <a href="#" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Kinetta" width="149" height="24"></picture></a>
     <nav class="links" aria-label="Page">
-      <a href="#what">What it does</a><a href="#friends">Friends</a><a href="#cooking">Cooking</a><a href="#premium">Compare</a><a href="#install">Self-host</a><a class="nav-beta" href="https://login.kinetta.app/beta">Join the beta</a><a class="gh" href="https://github.com/BenCBanks/kinetta">GitHub</a>
+      <a href="#what">Features</a><a href="#friends">Friends</a><a href="#cooking">Cooking</a><a href="#premium">It&#39;s free</a><a href="#privacy">Privacy</a><a href="#install">Host it yourself</a><a class="gh" href="https://github.com/BenCBanks/kinetta">GitHub</a><a class="nav-beta" href="https://login.kinetta.app/beta">Join the beta</a>
     </nav>
   </div>
 </header>
@@ -495,7 +499,7 @@ footer a { color: var(--ink2); }
     </div>
   </section>
 
-  <section class="band" aria-labelledby="priv-h">
+  <section class="band" id="privacy" aria-labelledby="priv-h">
     <div class="wrap">
       <div class="head"><span class="eyebrow">Private by design</span><h2 id="priv-h">Your numbers stay yours.</h2></div>
       <div class="privacy">
