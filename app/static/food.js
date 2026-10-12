@@ -361,15 +361,14 @@ async function tSaved(body, where, close) {
     const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
       <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
     const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
-      d.serving === 'one' ? d.totals.kcal / (d.servings || 1) : d.totals.kcal, d.serving === 'one' ? 'kcal a serving' : 'kcal total');
+      d.totals.kcal, d.serving === 'one' ? 'kcal a serving' : 'kcal total');
     body.innerHTML = `${mine.length ? `<h3 class="ghead">Dishes</h3><div class="results">${mine.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead">My foods</h3><div class="results">${foods.map(foodRow).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-dish">+ New dish</button><button class="ghost wide" id="tm-new">+ Create a food</button></div>
+      <div class="btncol"><button class="ghost wide" id="tm-dish">+ New dish</button></div>
 `;
     const again = () => tSaved(body, where, close);
-    $('#tm-new', body).onclick = () => foodEditor(null, again);
     $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
     $$('[data-dish]', body).forEach((x) => x.onclick = () => dishLogSheet(dishes[+x.dataset.dish], where(), (editing) => close()));
@@ -426,26 +425,50 @@ function tQuick(body, where, close) {
 }
 
 // choose an amount for a food (live numbers), then add
+// How much (2026-10-12, Ben: the unit dropdown was big and odd, "Amount" unclear, a scanned product's name tiny): the
+// product's full name as the title (brand + name), its serving size underneath, "Servings" with - and +, and small
+// buttons for the other units (grams) when the food has them.
 function amountSheet(f, w, closeParent, onEditFood) {
   const last = f._last;
   const startUnit = last ? last.unit : f._unit || 'serving', startAmt = last ? last.amount : 1;
-  sheet(f.name, `<form class="form" id="am">
-    ${f.brand ? `<p class="muted">${esc(f.brand)}</p>` : ''}
-    <div class="two"><label>Amount<input name="amount" inputmode="decimal" value="${r1(startAmt)}"></label>
-      <label>Unit<select name="unit">${unitOptions(f.per100 || f.per_serving ? f : null, startUnit)}</select></label></div>
+  const nm = f.name && f.name !== 'Unnamed product' ? f.name : '', br = f.brand || '';
+  const title = br && nm && !nm.toLowerCase().includes(br.toLowerCase().split(',')[0].trim()) ? `${br.split(',')[0].trim()} ${nm}` : nm || br || 'Food';
+  const sub = f.serving && f.serving.label ? `1 serving = ${f.serving.label}${f.serving.g && !/\d\s*g\b/.test(f.serving.label) ? ` (${r1(f.serving.g)} g)` : ''}` : '';
+  const units = [...unitOptions(f.per100 || f.per_serving ? f : null, startUnit).matchAll(/value="([^"]*)"/g)].map((m) => m[1]);
+  const uName = (u) => (u === 'serving' ? 'Servings' : u === 'g' ? 'Grams' : u.charAt(0).toUpperCase() + u.slice(1));
+  sheet(title, `<form class="form" id="am">
+    ${sub ? `<p class="am-sub">${esc(sub)}</p>` : ''}
+    <div class="am-amt"><button type="button" class="icon-btn" data-step="-1" aria-label="Less">${svg('minus')}</button>
+      <label><input name="amount" inputmode="decimal" value="${r1(startAmt)}" aria-describedby="am-u"><small id="am-u">${esc(uName(startUnit))}</small></label>
+      <button type="button" class="icon-btn" data-step="1" aria-label="More">${svg('plus')}</button></div>
+    <input type="hidden" name="unit" value="${esc(startUnit)}">
+    ${units.length > 1 ? `<div class="seg wide am-units" role="group" aria-label="Unit">${units.map((u) => `<button type="button" data-unit="${esc(u)}" aria-pressed="${u === startUnit}">${esc(uName(u))}</button>`).join('')}</div>` : ''}
     <div class="macpreview" id="am-p"></div>
     <div class="actions">${onEditFood ? '<button type="button" class="ghost" id="am-edit">Edit food</button><span class="spacer"></span>' : ''}<button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     const fm = $('#am', b);
     const calc = () => { const a = parseFloat(fm.amount.value) || 0; const v = f.per100 || f.per_serving ? scaleFood(f, a, fm.unit.value) : {kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0};
       $('#am-p', b).innerHTML = `<div><b class="num">${r0(v.kcal)}</b><small>kcal</small></div>${MACROS.map(([k, , s]) => `<div><b class="num">${r1(v[k])}</b><small>${s === 'P' ? 'protein' : s === 'C' ? 'carbs' : 'fat'} g</small></div>`).join('')}`; return v; };
-    fm.amount.oninput = calc; fm.unit.onchange = calc; calc(); fm.amount.select();
+    fm.amount.oninput = calc; calc();
+    $$('[data-step]', fm).forEach((x) => x.onclick = () => {      // ½ a serving at a time, or 10 g
+      const st = fm.unit.value === 'g' ? 10 : 0.5, a = (parseFloat(fm.amount.value) || 0) + st * +x.dataset.step;
+      fm.amount.value = r1(Math.max(st, a)); calc();
+    });
+    $$('[data-unit]', fm).forEach((x) => x.onclick = () => {
+      const u = x.dataset.unit, was = fm.unit.value; if (u === was) return;
+      const g1 = f.serving && f.serving.g, a = parseFloat(fm.amount.value) || 0;
+      if (g1 && was === 'serving' && u === 'g') fm.amount.value = r1(a * g1);       // keep the same amount of food
+      else if (g1 && was === 'g' && u === 'serving') fm.amount.value = r1(a / g1);
+      else fm.amount.value = u === 'g' ? 100 : 1;
+      fm.unit.value = u; $('#am-u', fm).textContent = uName(u);
+      $$('[data-unit]', fm).forEach((y) => y.setAttribute('aria-pressed', String(y === x))); calc();
+    });
     if (onEditFood) $('#am-edit', b).onclick = () => { close(); onEditFood(); };
     fm.onsubmit = async (e) => {
       e.preventDefault(); const a = parseFloat(fm.amount.value); if (!(a > 0)) { toast('Enter an amount'); return; }
       const v = calc();
       const ref = {source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
       try { await addEntries([{...w, name: f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}]);
-        close(); closeParent(); toast(`Added ${f.name}`); } catch (x) { toast(x.message); }
+        close(); closeParent(); toast(`Added ${title}`); } catch (x) { toast(x.message); }
     };
   });
 }

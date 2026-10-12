@@ -150,7 +150,7 @@ def _recipe_context(c, user_id, d):
     known = {k: d[f'known_{k}'] for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g') if d[f'known_{k}'] is not None}
     return {'units': p.get('units', 'imperial'), 'dish': d['name'], 'ingredients': items, 'whole_dish': _totals(d),
             'typed_in_totals': known or None, 'weight_g': _weight(d), 'weighed_after_cooking': d['cooked_g'] is not None, 'typical_portion_g': portion,
-            'eaten_as': f"makes {d['servings'] or 1} serving(s)" if d['serving'] == 'one' else 'a portion by weight',
+            'eaten_as': 'the whole dish is one serving' if d['serving'] == 'one' else 'a portion by weight',
             'notes': 'grams and kcal; whole_dish uses the typed-in totals when given; ingredient weights are raw; weight_g is the ingredients added up unless weighed_after_cooking'}
 
 

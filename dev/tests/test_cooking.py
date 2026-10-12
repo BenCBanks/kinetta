@@ -126,13 +126,12 @@ s, r = b.post(f'/api/dishes/{smid}/portion', {'count': 1.5, 'meal': 'snacks'})
 check('one and a half', s == 200 and r['entry']['amount'] == 1.5 and r['entry']['kcal'] == 160.2, r)
 s, sm = b.patch(f'/api/dishes/{smid}', {'serving': 'portion'})
 check('and back', sm['serving'] == 'portion')
-# a pot by servings: makes 4, so 1 serving is a quarter and 1½ is three eighths
+# by servings, the whole dish is one serving (Ben, 2026-10-12): an older phone's "makes 4" doesn't split it
 s, pot = b.patch(f'/api/dishes/{did}', {'serving': 'one', 'servings': 4})
-check('makes 4', pot['serving'] == 'one' and pot['servings'] == 4, pot)
 s, r = b.post(f'/api/dishes/{did}/portion', {'count': 1, 'meal': 'dinner'})
-check('1 serving of 4 = a quarter', s == 200 and r['entry']['unit'] == 'serving' and abs(r['entry']['kcal'] - 1001.5 / 4) < .2, r)
+check('1 serving = the whole dish', s == 200 and r['entry']['unit'] == 'serving' and abs(r['entry']['kcal'] - 1001.5) < .2, r)
 s, r = b.post(f'/api/dishes/{did}/portion', {'count': 1.5, 'meal': 'dinner'})
-check('1½ servings of 4', abs(r['entry']['kcal'] - 1001.5 * 1.5 / 4) < .2, r)
+check('1½ servings', abs(r['entry']['kcal'] - 1001.5 * 1.5) < .2, r)
 b.patch(f'/api/dishes/{did}', {'serving': 'portion'})
 
 # ---- known_kcal override (from a recipe) ----

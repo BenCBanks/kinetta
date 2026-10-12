@@ -662,8 +662,10 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 /* Home Screen app (2026-10-12): the page runs under the iPhone's status bar (black-translucent), so the map reaches the
    top; a soft shade keeps the white clock and battery readable on light pages */
 @media (display-mode: standalone) {
-  body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: calc(env(safe-area-inset-top) + 8px); z-index: 1500; pointer-events: none;
-    background: linear-gradient(rgba(0, 0, 0, .42), rgba(0, 0, 0, 0)); }
+  /* exactly the status bar's height: zero (invisible) when iOS draws its own solid bar, e.g. an icon added before
+     2026-10-12, which keeps the old setting until it's added to the Home Screen again */
+  body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); z-index: 1500; pointer-events: none;
+    background: linear-gradient(rgba(0, 0, 0, .34), rgba(0, 0, 0, 0)); }
 }
 .ways.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .ways.three .way { align-items: center; justify-content: center; min-height: 0; padding: 12px 6px; gap: 6px; } .ways.three .way svg { width: 24px; height: 24px; }
@@ -993,3 +995,13 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .plus-menu svg { width: 20px; height: 20px; color: var(--accent); }
 .mealact .linkbtn svg { width: 15px; height: 15px; margin-right: 4px; vertical-align: -2px; }
 .mm-list { margin-bottom: 12px; } .mm-list .fe:first-child { border-top: 0; } .mm-list .r small svg { width: 12px; height: 12px; vertical-align: -1px; }
+
+/* how much of a food (2026-10-12): servings with - and +, units as small buttons */
+.am-sub { margin: -8px 0 4px; color: var(--tx2); font-size: 15px; }
+.am-amt { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 4px 0; }
+.am-amt label { display: grid; justify-items: center; gap: 2px; }
+.am-amt input { width: 110px; text-align: center; font: 800 32px/1.1 var(--numf); min-height: 52px; padding: 4px 8px; background: var(--card); }
+.am-amt small { color: var(--tx3); font-size: 13px; font-weight: 650; }
+.sheet .am-amt .icon-btn { width: 46px; height: 46px; } .sheet .am-amt .icon-btn svg { width: 20px; height: 20px; }
+.sheet .seg.wide.am-units { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); } .am-units button { min-height: 34px; width: 100%; }
+.m-note { margin: 10px 2px 6px; }
