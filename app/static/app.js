@@ -593,8 +593,8 @@ function energyChart(box, cols, {height = 190, weight = null} = {}) {   // weigh
   const show = (e) => {
     const r = e.currentTarget.getBoundingClientRect(), i = Math.floor(((e.clientX - r.left) / r.width * W - padL) / bw); if (i < 0 || i >= n) return;
     const c = cols[i]; hls.forEach((h) => { h.setAttribute('x', (padL + i * bw).toFixed(1)); h.setAttribute('visibility', 'visible'); });
-    const def = c.eaten != null && c.burned ? c.burned - c.eaten : null;
-    ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span><span>Burned <b>${f(c.burned)}</b></span>${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}`;
+    const def = c.eaten != null && c.burned && c.counted !== false ? c.burned - c.eaten : null;   // partly logged days: no deficit
+    ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span><span>Burned <b>${f(c.burned)}</b></span>${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${c.counted === false && c.eaten != null && !c.partial ? '<span>Partly logged, not counted</span>' : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}${c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : ''}`;
   };
   svgs.forEach((sv) => { sv.addEventListener('pointerdown', show); sv.addEventListener('pointermove', show); });
 }

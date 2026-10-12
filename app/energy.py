@@ -84,6 +84,16 @@ def context(c, user_id):
 ACTIVITY = {1.2: 'Mostly sitting', 1.3: 'Some walking and standing', 1.45: 'On my feet a lot'}
 
 
+# A day with only a snack logged isn't a 2,000 kcal deficit: days under 40% of the calorie goal (or of daily needs, without
+# a goal) look partly logged and stay out of deficits, averages and the needs check, like days with nothing logged.
+PARTLY = 0.4
+
+
+def full_day_min(c, user_id, base):
+    goal = (c.execute('SELECT kcal_target FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}).get('kcal_target')
+    return PARTLY * float(goal or base)
+
+
 def tdee(c, user_id, days=28):
     """Daily needs from BMR (see the top of this file) + the measured check. Key 'tdee' = daily needs WITHOUT exercise."""
     ctx = context(c, user_id)
@@ -96,7 +106,8 @@ def tdee(c, user_id, days=28):
         'SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day',
         (user_id, start, end)).fetchall()}
     typical = median(intake.values()) if intake else 0
-    full = {d: k for d, k in intake.items() if k >= 0.5 * typical}     # partly logged days left out
+    least = full_day_min(c, user_id, base)
+    full = {d: k for d, k in intake.items() if k >= 0.5 * typical and k >= least}     # partly logged days left out
     ex = exercise_by_day(c, user_id, ctx['tz'], start, end, ctx['kg'])
     avg_ex = sum(v['kcal'] for v in ex.values()) / days
     inside = [p for p in ctx['points'] if start <= p[0] <= end]
@@ -142,6 +153,7 @@ def deficits(c, user_id, since=None):
         (user_id, since, ctx['today'])).fetchall()}
     done = [k for d, k in intake.items() if d < ctx['today']]
     typical = median(done) if done else 0
+    least = full_day_min(c, user_id, info['base'])
     ex = exercise_by_day(c, user_id, ctx['tz'], since, ctx['today'], ctx['kg'])
     over = burn_overrides(c, user_id, since, ctx['today'])
     days, total, counted = [], 0.0, 0
@@ -150,7 +162,7 @@ def deficits(c, user_id, since=None):
         eaten, exk = intake.get(d), (ex.get(d) or {}).get('kcal', 0.0)
         burn = over.get(d, daily_burn(info, exk))
         today = d == ctx['today']
-        skip = eaten is None or (not today and typical and eaten < 0.5 * typical)
+        skip = eaten is None or (not today and ((typical and eaten < 0.5 * typical) or eaten < least))
         deficit = None if skip else burn - eaten
         if deficit is not None and not today: total += deficit; counted += 1
         days.append({'day': d.isoformat(), 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burn),

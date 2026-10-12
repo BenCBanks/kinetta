@@ -230,11 +230,13 @@ def day(d: str | None = None, user=Depends(current_user)):
     totals = {k: round(sum((e[k] or 0) for e in entries), 1) for k in NUM}
     with db.connect() as c:
         info = energy.tdee(c, user['id'])
+        least = energy.full_day_min(c, user['id'], info['base'])
     with db.connect() as c:
         over = energy.burn_overrides(c, user['id'], day_, day_).get(day_)
     burned['day_burn'] = round(over if over is not None else energy.daily_burn(info, today_ex['kcal']))   # whole day, incl. exercise
     burned['imported'] = over is not None
     burned['deficit'] = round(burned['day_burn'] - totals['kcal']) if entries else None
+    burned['partly'] = bool(entries) and day_ < ctx['today'] and totals['kcal'] < least   # left out of averages and totals
     # burn breakdown: resting (BMR, needs height) + daily activity (the rest of the base) + exercise
     burned['base'] = info['base']
     burned['bmr'] = info['bmr']; burned['bmr_exact'] = info['bmr_exact']
