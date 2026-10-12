@@ -150,7 +150,7 @@ def _n(v):
 def ai_actions(text, items):
     """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent."""
     lines = '\n'.join(f"{i['id']} | {i['name']} | {i['grams']:g}" for i in items) or '(nothing yet)'
-    out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text)}], SCHEMA, 'cook chat', timeout=30)
+    out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text)}], SCHEMA, 'cook chat', timeout=45)
     u = data.get('usageMetadata', {})
     print(f"cook chat: model {model} actions {len(out.get('actions') or [])} tokens in {u.get('promptTokenCount')} "
           f"out {u.get('candidatesTokenCount')}", flush=True)

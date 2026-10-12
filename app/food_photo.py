@@ -57,13 +57,30 @@ def _num(v, hi):
     return round(min(max(v, 0.0), hi), 1)
 
 
+# Flash-Lite can run away on a NUMBER field ("0.9456666...e000000..." until it hits the output limit, ~60 s, broken JSON).
+# Asking for short numbers stops it; the output cap makes any runaway fail fast instead of hanging the request.
+ROUNDING = '\nNumbers: round grams and kcal to whole numbers and the macros to one decimal (e.g. 0.9), never longer.'
+MAX_OUTPUT_TOKENS = 2048
+
+
+def _ordered(schema):
+    """The schema with propertyOrdering = the order its fields are written in (name and grams before the macros)."""
+    if not isinstance(schema, dict): return schema
+    out = {k: (_ordered(v) if k == 'items' else {f: _ordered(x) for f, x in v.items()} if k == 'properties' else v)
+           for k, v in schema.items()}
+    if 'properties' in out: out['propertyOrdering'] = list(out['properties'])
+    return out
+
+
 def ask(parts, schema, label, timeout=45):
     """One Gemini Flash-Lite call that answers in JSON (schema). Returns (answer, raw response, model); 502 if it fails."""
+    parts = [*parts, {'text': ROUNDING}]
     model = os.environ.get('GEMINI_FOOD_MODEL', 'gemini-3.1-flash-lite')
     req = urllib.request.Request(
         f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
         json.dumps({'contents': [{'parts': parts}],
-                    'generationConfig': {'responseMimeType': 'application/json', 'responseSchema': schema, 'temperature': 0.2}}).encode(),
+                    'generationConfig': {'responseMimeType': 'application/json', 'responseSchema': _ordered(schema), 'temperature': 0.2,
+                                         'maxOutputTokens': MAX_OUTPUT_TOKENS}}).encode(),
         {'Content-Type': 'application/json', 'x-goog-api-key': os.environ.get('GEMINI_API_KEY', '')})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r: data = json.load(r)
