@@ -808,7 +808,8 @@ function drawTrends(box, I, days) {
   });
 }
 
-start();
+// once every script has loaded: start can draw a screen at once from the phone's saved copy, before plan.js, social.js, cook.js run
+addEventListener('DOMContentLoaded', start);
 
 // ---------- AI review of your eating (2026-10-11, food_coach.py): the last two weeks, what's going well, what to try ----------
 function dietCoach(box) {

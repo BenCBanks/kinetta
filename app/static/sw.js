@@ -1,5 +1,5 @@
 // Service worker (2026-10-10): keeps the app's own files on the phone so Kinetta opens without a connection.
-// Pages: network first, the saved copy when offline. /static files: saved copy first (their URLs carry ?v=, so a new
+// Pages: the saved copy first, refreshed in the background for next time (2026-10-12: the network adds about a second). /static files: saved copy first (their URLs carry ?v=, so a new
 // version is a new URL), older versions of the same file are dropped. /api/ is never touched here: personal data
 // goes to the network only (the app keeps its own small offline copy of a few screens).
 const SHELL = 'fit-shell-1';
@@ -11,9 +11,10 @@ self.addEventListener('activate', (e) => e.waitUntil((async () => {
 self.addEventListener('fetch', (e) => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
-  if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).then((r) => { if (r.ok) caches.open(SHELL).then((c) => c.put('/', r.clone())); return r; })
-      .catch(() => caches.match('/').then((r) => r || Response.error())));
+  if (req.mode === 'navigate') {   // the saved page at once (no wait on the network); a fresh copy is saved for next time
+    const fresh = fetch(req).then((r) => { if (r.ok) { const c2 = r.clone(); caches.open(SHELL).then((c) => c.put('/', c2)); } return r; });
+    e.respondWith(caches.match('/').then((hit) => hit || fresh).catch(() => fresh));
+    e.waitUntil(fresh.catch(() => {}));
     return;
   }
   if (url.pathname.startsWith('/static/') || url.pathname === '/manifest.webmanifest') {
