@@ -58,7 +58,14 @@ header.top img { width: 149px; height: auto; }
 nav.links { display: flex; gap: 22px; font-weight: 500; font-size: 15px; }
 nav.links a { text-decoration: none; color: var(--ink2); }
 nav.links a:hover { color: var(--ink); }
-@media (max-width: 560px) { nav.links a:not(.nav-beta) { display: none; } }
+/* phones: the links drop under the logo as a row you can swipe, instead of being hidden */
+@media (max-width: 560px) {
+  header.top { padding-block: 16px 6px; }
+  header.top .wrap { flex-wrap: wrap; row-gap: 12px; }
+  nav.links { order: 2; flex: 1 0 100%; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-inline: -20px; padding: 2px 20px 6px; font-size: 14px; }
+  nav.links::-webkit-scrollbar { display: none; }
+  nav.links a { flex: none; white-space: nowrap; padding: 7px 14px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); }
+}
 
 /* hero */
 .hero { position: relative; overflow: hidden; padding-block: 40px 72px; }
@@ -69,7 +76,7 @@ nav.links a:hover { color: var(--ink); }
 .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 22px; border-radius: 999px;
   font: 600 16px/1 var(--body); text-decoration: none; border: 1.5px solid var(--ink); }
-.btn.solid { background: var(--ink); color: var(--bg); }
+.btn.solid { background: var(--berry); color: #fff; }
 .btn.line { color: var(--ink); }
 .btn:hover { transform: translateY(-1px); } .btn { transition: transform .15s; }
 .hero .note { margin-top: 18px; font-size: 14px; color: var(--ink3); }
