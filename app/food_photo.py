@@ -141,3 +141,57 @@ def photo(body: PhotoIn, user=Depends(current_user)):
     print(f"food photo: user {user['id']} model {model} items {len(items)} tokens in {u.get('promptTokenCount')} "
           f"out {u.get('candidatesTokenCount')} think {u.get('thoughtsTokenCount', 0)}", flush=True)
     return {'items': items, 'notes': ' '.join(str(out.get('notes') or '').split())[:300], 'model': model}
+
+
+# ---------- a photo of a nutrition label (2026-10-12): read it, and the app asks how much went in ----------
+LABEL_PROMPT = """This is a photo of a food package's nutrition facts label (maybe with the front of the package). Read it
+exactly as printed; don't estimate anything that isn't on it. Give:
+name: the product, short (e.g. "Protein penne pasta"), from the package if it shows, else from the ingredients; brand if it shows.
+serving_label: the serving size as printed (e.g. "2 oz (56g)", "1 cup (240mL)"); serving_g: that serving in grams (or mL
+for drinks); servings_per_package: as printed (number, use the "about" number); package_g: the net weight in grams if it shows.
+per_serving: kcal, protein_g, carbs_g (total carbohydrate), fat_g (total fat), fiber_g (dietary fiber) for ONE serving,
+from the "per serving" column (not "per container" or "as prepared").
+readable: false if this isn't a nutrition label or it can't be read; then note says why in one short sentence."""
+
+LABEL_SCHEMA = {
+    'type': 'OBJECT',
+    'properties': {
+        'readable': {'type': 'BOOLEAN'}, 'note': {'type': 'STRING'}, 'name': {'type': 'STRING'}, 'brand': {'type': 'STRING'},
+        'serving_label': {'type': 'STRING'}, 'serving_g': {'type': 'NUMBER'}, 'servings_per_package': {'type': 'NUMBER'},
+        'package_g': {'type': 'NUMBER'},
+        'per_serving': {'type': 'OBJECT', 'properties': {k: {'type': 'NUMBER'} for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')}}},
+    'required': ['readable'],
+}
+
+
+class LabelIn(BaseModel):
+    image: str = Field(max_length=6_000_000)      # base64 JPEG (data: URL prefix allowed)
+
+
+@router.post('/label')
+def label(body: LabelIn, user=Depends(current_user)):
+    """Read a nutrition label: {name, brand, serving: {label, g}, servings, package_g, per_serving, per100}. Nothing is saved."""
+    if coach.enabled() and not coach.allowed(user['id']): raise HTTPException(403, coach.OFF)
+    if not os.environ.get('GEMINI_API_KEY'): raise HTTPException(503, 'Reading labels needs a Gemini key on the server')
+    try: img = base64.b64decode(body.image.split(',', 1)[-1], validate=True)
+    except (binascii.Error, ValueError): raise HTTPException(400, "That photo couldn't be read")
+    if not img.startswith(b'\xff\xd8') or len(img) > 4_000_000: raise HTTPException(400, 'Send a JPEG photo under 4 MB')
+    brake(user['id'])
+    out, _, model = ask([{'text': LABEL_PROMPT}, {'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}}],
+                        LABEL_SCHEMA, 'food label')
+    print(f"food label: user {user['id']} model {model} readable {out.get('readable')}", flush=True)
+    if not out.get('readable'):
+        raise HTTPException(422, ' '.join(str(out.get('note') or '').split())[:200] or "That doesn't look like a nutrition label - try a closer, sharper photo.")
+    sg = _num(out.get('serving_g'), 2000)
+    ps = out.get('per_serving') or {}
+    per = {k: _num(ps.get(k), 5000) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')}
+    if not sg or ps.get('kcal') is None: raise HTTPException(422, "Couldn't read the serving size in grams or the calories - try a closer photo of the label.")
+    from .api_food import _sane
+    per100 = _sane({k: (v * 100 / sg if v is not None else None) for k, v in per.items()})
+    if not per100: raise HTTPException(422, "The numbers on the label didn't add up - try a sharper photo, or type it in.")
+    n = _num(out.get('servings_per_package'), 1000)
+    pkg = _num(out.get('package_g'), 20000) or (round(n * sg) if n else None)
+    s = lambda v, k: ' '.join(str(v or '').split())[:k] or None
+    return {'name': s(out.get('name'), 80) or 'Food from a label', 'brand': s(out.get('brand'), 60),
+            'serving': {'label': s(out.get('serving_label'), 40) or f'{sg:g} g', 'g': sg}, 'servings': n, 'package_g': pkg,
+            'per_serving': per, 'per100': per100}

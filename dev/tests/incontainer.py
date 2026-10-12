@@ -178,7 +178,30 @@ try:
     refs = cook_chat.product_refs('one bx of bettr goods protien pene pasta')
     ck('Test protein penne | package 411 g' in refs and ('usda', 'bettr goods protien pene pasta') in seen, f'reference products for the model {seen}')
     seen.clear(); ck(cook_chat.product_refs('2 apples') == '' and not seen, 'no lookup for loose food')
+    seen.clear(); cook_chat.food_photo._used[(999, 'web', __import__('datetime').date.today())] = cook_chat.WEB_LIMIT
+    cook_chat.product_refs('a box of penne', 999); ck(seen == [('usda', 'penne')], f'over the web search brake: USDA only {seen}')
+    seen.clear(); cook_chat.product_refs('a box of penne and 2 cans of beans', 998)
+    ck(sorted(seen) == [('usda', 'beans'), ('usda', 'penne'), ('web', '2 cans of beans'), ('web', 'a box of penne')], f'each packaged part looked up {seen}')
 finally:
     cook_chat._web_product, cook_chat._usda_products = real_web, real_usda
+
+# a photo of a nutrition label (2026-10-12): per-serving numbers -> per 100 g; package from servings x serving size
+jpeg = 'data:image/jpeg;base64,' + __import__('base64').b64encode(b'\xff\xd8' + b'0' * 200).decode()
+was_ask = food_photo.ask
+label_out = {'readable': True, 'name': 'Protein penne', 'brand': 'Test', 'serving_label': '2 oz (56g)', 'serving_g': 56, 'servings_per_package': 7,
+             'per_serving': {'kcal': 190, 'protein_g': 10, 'carbs_g': 38, 'fat_g': 1, 'fiber_g': 5}}
+food_photo.ask = lambda parts, schema, label, timeout=45: (label_out, {}, 'stand-in')
+try:
+    with db.connect() as c: c.execute('UPDATE profile SET ai_ok = true WHERE user_id = %s', (uid,))
+    L = food_photo.label(food_photo.LabelIn(image=jpeg), user={'id': uid})
+    ck(round(L['per100']['kcal']) == 339 and round(L['per100']['protein_g'], 1) == 17.9 and L['package_g'] == 392 and L['serving']['g'] == 56, f'label read {L}')
+    label_out = {**label_out, 'package_g': 411}; ck(food_photo.label(food_photo.LabelIn(image=jpeg), user={'id': uid})['package_g'] == 411, 'net weight wins')
+    label_out = {'readable': False, 'note': 'That is a cat.'}
+    ck(refused(lambda: food_photo.label(food_photo.LabelIn(image=jpeg), user={'id': uid}), 422, 'cat'), 'not a label: says why')
+    label_out = {'readable': True, 'name': 'X', 'per_serving': {'kcal': 100}}
+    ck(refused(lambda: food_photo.label(food_photo.LabelIn(image=jpeg), user={'id': uid}), 422, 'serving size'), 'no serving size: asks again')
+    ck(refused(lambda: food_photo.label(food_photo.LabelIn(image='aGVsbG8='), user={'id': uid}), 400), 'not a JPEG')
+finally:
+    food_photo.ask = was_ask
 
 print(f'in the container (AI + push): {n} checks passed')

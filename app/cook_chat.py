@@ -13,6 +13,8 @@ Cheap first, AI only when needed:
 The cook's own dish only (api_dishes._get checks user_id). Nothing about the person is sent: just the dish's
 ingredient names and amounts and their message.
 """
+import concurrent.futures
+import datetime as dt
 import difflib
 import json
 import os
@@ -30,7 +32,8 @@ from . import api_dishes as D, api_food, coach, db, food_photo
 from .auth import current_user
 
 router = APIRouter(prefix='/api/dishes')
-DAILY_LIMIT = 150
+DAILY_LIMIT = 60          # messages to the AI per person per day (2026-10-12, was 150): plenty for cooking, a brake on misuse
+WEB_LIMIT = 25            # web product searches per person per day; after that only the free USDA lookup
 WEIGHTS = {'g', 'kg', 'oz', 'lb', 'ml', 'cl', 'dl', 'l'}    # units that already say the grams
 
 # ---------- reading the message ----------
@@ -125,7 +128,8 @@ Their message: \"\"\"{text}\"\"\"
 
 {refs}
 Turn it into actions:
-- "add" for each ingredient they put in. Keep their amount. Turn household amounts into grams with typical sizes
+- "add" for each ingredient they put in. Keep their amount; when they also give a weight ("2 apples which weigh 100 grams",
+  "a can of beans, 400 g drained") use that weight as the grams. Turn household amounts into grams with typical sizes
   (an apple ~180 g, an egg ~50 g, a tbsp of oil ~13.5 g, a cup of cooked rice ~160 g, a splash of oil ~5 g, a pinch ~0.4 g).
   Give kcal, protein_g, carbs_g, fat_g, fiber_g for THAT amount, using USDA-style values for the food as they'd weigh it
   (raw / dry / as bought) unless they say it's cooked or canned.
@@ -141,7 +145,9 @@ If the message isn't about food going into this dish, return no actions and say 
 REFS = """Real products that may match what they typed (looked up for you; per 100 g as sold):
 {lines}
 If one is the product they mean, use its package weight and its numbers. If none is the same brand, the closest one is a
-good guide to the package size, and say which size you assumed in the reply so they can check the box.
+good guide to the package size. Always think of the usual size a home cook buys at a US grocery store (a can of tomatoes
+or beans is about 14.5-15.5 oz / 410-440 g, a box of pasta 12-16 oz), never food-service or bulk sizes. Say which size
+you assumed in the reply so they can check the package.
 """
 
 SCHEMA = {
@@ -207,7 +213,8 @@ def _usda_products(q):
     out = []
     for f in raw:
         food = api_food._fdc_food(f)
-        if food: out.append({**food, 'package_g': package_grams(f.get('packageWeight') or '')})
+        pg = package_grams(f.get('packageWeight') or '')
+        if food and not (pg and pg > 2500): out.append({**food, 'package_g': pg})    # not food-service sizes (a #10 can is ~3 kg)
     return out[:5]
 
 
@@ -225,7 +232,7 @@ def _web_product(text):
                                              'generationConfig': {'temperature': 0.1}}).encode(),
                                  {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
     try:
-        with urllib.request.urlopen(req, timeout=25) as r: d = json.load(r)
+        with urllib.request.urlopen(req, timeout=15) as r: d = json.load(r)    # slower than that: USDA's answer will do
         t = ''.join(p.get('text', '') for p in d['candidates'][0]['content']['parts'])
         x = json.loads(t[t.index('{'):t.rindex('}') + 1])
         per = api_food._sane({k: _n((x.get('per100') or {}).get(k)) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')})
@@ -242,24 +249,40 @@ def _web_product(text):
     return None
 
 
-def product_refs(text):
-    """Reference products for a packaged amount, as prompt lines ('' when there's nothing to look up)."""
-    if not packaged(text): return ''
-    q = ' '.join(w for w in _FILLER.sub(' ', text).split() if not _package_word(w))
-    if len(q) < 3: return ''
-    found = ([w] if (w := _web_product(text)) else []) + _usda_products(q)
+def _web_allowed(uid):
+    """A quiet daily brake on web searches (they cost more than a message): over it, USDA alone answers."""
+    if uid is None: return True
+    k = (uid, 'web', dt.date.today())
+    if food_photo._used.get(k, 0) >= WEB_LIMIT: return False
+    food_photo._used[k] = food_photo._used.get(k, 0) + 1
+    return True
+
+
+def product_refs(text, uid=None):
+    """Reference products for each packaged amount in the message, as prompt lines ('' when there's nothing to look up).
+    "2 apples which weigh 100 grams and a box of food lion penne" looks up only the penne, with its own words."""
+    found = []
+    parts = [p.strip() for p in re.split(r'[,;\n]|\band\b|\bplus\b|&|\bthen\b|\balso\b', text, flags=re.I) if p.strip()]
+    jobs = []
+    for part in [p for p in parts if packaged(p)][:3]:       # a few lookups at most per message
+        q = ' '.join(w for w in _FILLER.sub(' ', part).split() if not _package_word(w))
+        if len(q) >= 3: jobs += ([(_web_product, part)] if _web_allowed(uid) else []) + [(_usda_products, q)]
+    if not jobs: return ''
+    with concurrent.futures.ThreadPoolExecutor(len(jobs)) as pool:      # all at once: a message waits for the slowest, not the sum
+        for r in pool.map(lambda j: j[0](j[1]), jobs):
+            found += [r] if isinstance(r, dict) else (r or [])[:3]
     if not found: return ''
     line = lambda f: (f"{f.get('brand') or ''} | {f['name']} | package {f['package_g']:g} g | " if f.get('package_g') else f"{f.get('brand') or ''} | {f['name']} | package size unknown | ") + \
         ' '.join(f"{k} {f['per100'][k]:g}" for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g') if f['per100'].get(k) is not None) + \
         (f" ({f['source']})" if str(f.get('source', '')).startswith('web') else '')
-    return REFS.format(lines='\n'.join(line(f) for f in found[:6]))
+    return REFS.format(lines='\n'.join(line(f) for f in found[:10]))
 
 
-def ai_actions(text, items):
+def ai_actions(text, items, uid=None):
     """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent (and, for a packaged
     amount, the product words to USDA / a web search)."""
     lines = '\n'.join(f"{i['id']} | {i['name']} | {i['grams']:g}" for i in items) or '(nothing yet)'
-    out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text))}], SCHEMA, 'cook chat', timeout=45)
+    out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text, uid))}], SCHEMA, 'cook chat', timeout=45)
     u = data.get('usageMetadata', {})
     print(f"cook chat: model {model} actions {len(out.get('actions') or [])} tokens in {u.get('promptTokenCount')} "
           f"out {u.get('candidatesTokenCount')}", flush=True)
@@ -306,7 +329,7 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
         if not _ai_ready(uid):
             return {'fallback': True, 'needs_ok': bool(os.environ.get('GEMINI_API_KEY')) and coach.enabled()}
         food_photo.brake(uid, DAILY_LIMIT, 'cook', 'messages')
-        actions, reply = ai_actions(text, d['items'])
+        actions, reply = ai_actions(text, d['items'], uid)
     else:
         actions, reply = None, None
     with db.connect() as c:
