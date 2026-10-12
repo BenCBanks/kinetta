@@ -22,7 +22,7 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 | `app/` | FastAPI server (Python 3.12). `main.py` wires the routers; `api_*.py` are the endpoints; `db.py` has the schema |
 | `app/static/` | The phone app: plain JavaScript, no build step (`app.js` core + charts, `pages.js`, `food.js`, `plan.js`, `social.js`, `cook.js`, `native.js` iPhone-app-only parts, `style.css`) |
 | `mobile/` | The iPhone app: a Capacitor shell around `app/static` plus Apple Health (see `mobile/README.md`, `docs/ios.md`); built on a macOS runner by `.github/workflows/ios.yml` |
-| `site/` | The kinetta.app homepage (one static `index.html` plus `assets/`) |
+| `site/` | The kinetta.app website: one page per tab (`index` Home, `training`, `food`, `friends`, `compare`, `privacy`, `self-host`), shared styles in `assets/site.css`. The header and footer are copied on every page: change them on all of them |
 | `docs/` | Public guides (connecting phones, SQL access) |
 | `dev/demo/` | Made-up demo data for testing and screenshots |
 | `docker-compose.yml` | How people install it (app + PostgreSQL 17/PostGIS, passwords generated on first start) |
