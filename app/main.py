@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, food_coach, notify
+from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify
 import threading
 from .auth import current_user
 
@@ -31,6 +31,7 @@ app.include_router(api_mydata.router)
 app.include_router(api_health.router)
 app.include_router(api_social.router)
 app.include_router(api_dishes.router)
+app.include_router(cook_chat.router)
 app.include_router(food_coach.router)
 app.include_router(notify.router)
 STATIC = os.path.join(os.path.dirname(__file__), 'static')

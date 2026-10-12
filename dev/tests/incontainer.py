@@ -3,7 +3,7 @@ the phone push replaced by stand-ins: what is sent, what is kept, consent and li
 and a placeholder AI key (GEMINI_API_KEY) so the server thinks it has one; nothing leaves the machine."""
 import json
 from fastapi import HTTPException
-from app import api_dishes, api_food, coach, db, food_coach, notify
+from app import api_dishes, api_food, coach, cook_chat, db, food_coach, food_photo, notify
 
 calls = []
 def fake_model(ctx, system=None):
@@ -64,6 +64,36 @@ for k in range(40):
 with db.connect() as c: asked = c.execute('SELECT count(*) AS n FROM ai_requests WHERE user_id = %s', (uid,)).fetchone()['n']
 ck(asked == food_coach.DAILY_LIMIT and len(calls) == food_coach.DAILY_LIMIT, f'{asked} requests, {len(calls)} model calls')
 ck(food_coach._parse('not json') == {'text': 'not json'} and food_coach._parse('{"headline": 5, "going_well": "x"}') == {}, 'odd answers')
+
+# --- cooking in plain words: the AI only when memory doesn't know, then remembered ---
+asked_cook = []
+def fake_ask(parts, schema, label, timeout=45):
+    asked_cook.append(parts[0]['text'])
+    return {'actions': [{'op': 'add', 'name': 'Apple', 'amount': '2 medium', 'grams': 364, 'kcal': 189, 'protein_g': 1, 'carbs_g': 50, 'fat_g': 0.6, 'fiber_g': 8.7},
+                        {'op': 'add', 'name': 'Olive oil', 'amount': '1 tbsp', 'grams': 13.5, 'kcal': 9000, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 14}],
+            'reply': 'Added 2 medium apples (about 360 g) and 1 tbsp olive oil.'}, {}, 'stand-in'
+food_photo.ask = fake_ask
+with db.connect() as c: c.execute('UPDATE profile SET ai_ok = (user_id = %s)', (uid,))
+cd = api_dishes.dish_add(api_dishes.DishIn(name='Test cook chat'), user={'id': uid})['id']
+r = cook_chat.say(cd, cook_chat.SayIn(text='2 apples and a tbsp of olive oil'), user={'id': uid})
+ck(r['by'] == 'ai' and len(r['added']) == 1 and r['dish']['items'][0]['units'] == {'each': 182.0}, f'ai add {r}')
+ck('left that out' in r['reply'], 'impossible numbers (9000 kcal of oil) skipped and said')
+ck('alex' not in asked_cook[-1] and 'Test cook chat' not in asked_cook[-1], 'only ingredients and the message are sent')
+r = cook_chat.say(cd, cook_chat.SayIn(text='3 apples'), user={'id': uid})
+ck(r['by'] == 'memory' and r['dish']['items'][-1]['grams'] == 546 and len(asked_cook) == 1, f'remembered size, no AI {r}')
+first = r['dish']['items'][0]['id']
+def fix(parts, schema, label, timeout=45):
+    asked_cook.append(parts[0]['text'])
+    return {'actions': [{'op': 'change', 'id': first, 'grams': 200}, {'op': 'remove', 'id': 'nope'}], 'reply': 'Made it 200 g.'}, {}, 'stand-in'
+food_photo.ask = fix
+r = cook_chat.say(cd, cook_chat.SayIn(text='oops the apples were 200 g'), user={'id': uid})
+ck(r['changed'] == [first] and r['dish']['items'][0]['grams'] == 200 and r['removed'] == [], f'correction {r}')
+ck(f'{first} | Apple | 364' in asked_cook[-1], 'the dish so far is sent so it can be corrected')
+ck(refused(lambda: cook_chat.say(cd, cook_chat.SayIn(text='x'), user={'id': jid}), 404), "only the cook's dish")
+with db.connect() as c: c.execute('UPDATE profile SET ai_ok = false WHERE user_id = %s', (uid,))
+r = cook_chat.say(cd, cook_chat.SayIn(text='a pinch of saffron'), user={'id': uid})
+ck(r.get('fallback') and r.get('needs_ok') and len(asked_cook) == 2, 'AI off: search instead, and nothing sent')
+api_dishes.dish_delete(cd, user={'id': uid})
 
 # --- phone push: what is sent, and the person's choices ---
 sent = []

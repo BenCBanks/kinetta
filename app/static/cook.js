@@ -1,6 +1,8 @@
 // Kinetta phone app — Part 6: cooking mode (2026-10-11). Build a dish while you cook ("100 g chicken", "250 g carrots"),
 // weigh the whole cooked dish, weigh your plate, and your portion is logged with its share of the calories and macros.
 // The rest stays as leftovers for a few days. The server does the sums (app/api_dishes.py).
+// 2026-10-12: ingredients are typed the way you'd text them ("2 apples", "a splash of oil", "make the rice 200 g"):
+// app/cook_chat.py answers from what you've used before, or asks the AI; search-and-pick stays as the fallback.
 'use strict';
 
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
@@ -34,7 +36,7 @@ route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
 function drawDish(el, d) {
   const t = d.totals, weighed = d.cooked_g != null, typed = d.known.kcal != null, mine = d.mine !== false;
   const set = (fresh) => { App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh); };
-  const ing = (it) => `<div><b>${esc(it.name)}</b><small class="muted num">${gfmt(it.grams)}</small></div>
+  const ing = (it) => `<div><b>${esc(it.name)}</b><small class="muted num">${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</small></div>
     <div class="r"><b class="num">${r0(it.kcal)}</b><small class="muted num">${r0(it.protein_g)}P ${r0(it.carbs_g)}C ${r0(it.fat_g)}F</small></div>`;
   const shared = mine ? d.shared_with || [] : [];
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts"><button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button></div></div>
@@ -47,9 +49,9 @@ function drawDish(el, d) {
       ${typed ? `<p class="small muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.${mine ? ' <button class="linkbtn" id="dk-known2">Change</button>' : ''}</p>` : ''}</div>` : ''}
 
     ${mine || d.items.length ? `<h2 class="sec-head">Ingredients${d.items.length ? ` <span class="count">${d.items.length}</span>` : ''}</h2>
-    <div class="card">${mine ? `<form class="addline" id="dk-add"><input name="t" placeholder="e.g. 100 g chicken" aria-label="Add an ingredient, like 100 g chicken"
-        autocomplete="off" autocapitalize="none" enterkeyhint="search" required><button class="primary sm">${svg('plus')}Add</button></form>
-      <div id="dk-match"></div>` : ''}
+    <div class="card">${mine ? `${chatLog(d)}<form class="addline" id="dk-add"><input name="t" placeholder="What went in?" aria-label="What went in, in your own words, like 2 apples or a tablespoon of olive oil"
+        autocomplete="off" enterkeyhint="send" maxlength="600" required><button class="primary sm">${svg('plus')}Add</button></form>
+      <div id="dk-match"></div><button type="button" class="linkbtn" id="dk-search">Search the food database instead</button>` : ''}
       <div class="ing-list">${d.items.map((it) => (mine ? `<button class="fe" data-it="${esc(it.id)}">${ing(it)}</button>` : `<div class="fe">${ing(it)}</div>`)).join('')}</div>
       ${mine ? `<button class="linkbtn" id="dk-known">${typed ? 'Change the total you typed in' : 'I already know the total'}</button>` : ''}</div>` : ''}
 
@@ -73,7 +75,7 @@ function drawDish(el, d) {
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set) : sharedMenu(d));
   [$('#dk-known', el), $('#dk-known2', el)].forEach((b) => { if (b) b.onclick = () => knownSheet(d, set); });
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
-  if (mine) { addLine(el, d, set); $('#dk-share', el).onclick = () => shareDishSheet(d, set); }
+  if (mine) { chatBox(el, d, set); $('#dk-share', el).onclick = () => shareDishSheet(d, set); }
   const rb = $('#dk-review', el);
   if (rb) rb.onclick = async () => {
     if (!App.me.ai_ok) { aiSheet(() => rb.click()); return; }
@@ -120,7 +122,7 @@ function drawDish(el, d) {
 function cookSteps(d) {
   const added = d.items.length > 0 || d.known.kcal != null;
   const steps = [
-    [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type each ingredient with its weight as you cook, like 200 g rice.'],
+    [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it as you cook, the way you\'d text it.'],
     [false, 'Weigh the finished dish', 'The whole pot or tray. In its pan is fine: the pan comes off.'],
     [false, 'Weigh your plate', 'Your share of the calories is logged for you.'],
   ];
@@ -171,54 +173,95 @@ function sharedMenu(d) {
   });
 }
 
-// "100 g chicken": read the amount, search the food, tap the right match. No match? Type the calories.
-function addLine(el, d, set) {
-  const f = $('#dk-add', el), box = $('#dk-match', el);
-  let seq = 0;
-  f.onsubmit = async (e) => {
-    e.preventDefault(); const text = f.t.value.trim(); if (!text) return;
-    const my = ++seq; box.innerHTML = '<p class="small muted">Looking it up…</p>';
-    let p; try { p = await api('/api/dishes/parse', json('POST', {text})); } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
-    if (my !== seq) return;
-    const q = p.query || text;
-    box.innerHTML = `<div class="match"><label>${esc(q)}<span class="gfield"><input name="mg" inputmode="decimal" value="${p.grams ? Math.round(p.grams * 10) / 10 : ''}"
-        placeholder="${p.unit ? `${esc(p.amount)} ${esc(p.unit)} in grams?` : 'Grams'}" aria-label="How many grams"><span>g</span></span></label>
-      <div class="mres" aria-live="polite"><p class="small muted">Searching…</p></div>
-      <button type="button" class="linkbtn" id="dk-type">Type the calories instead</button></div>`;
-    const gIn = $('[name=mg]', box), res = $('.mres', box);
-    const grams = () => { const g = +gIn.value.replace(',', '.'); if (!(g > 0)) { toast('How many grams? Type the weight first'); gIn.focus(); return null; } return g; };
-    let busy = false;
-    const add = async (body) => {
-      if (busy) return false; busy = true;
-      try { const fresh = await api(`/api/dishes/${d.id}/items`, json('POST', body)); toast(`Added ${body.name}`); set(fresh); const n = $('#dk-add input'); if (n) n.focus(); return true; }
-      catch (x) { toast(x.message); return false; }
-      finally { busy = false; }
-    };
-    $('#dk-type', box).onclick = () => typeSheet(q, gIn.value, add);
-    if (!p.grams) gIn.focus();
-    const foods = [];
-    const draw = (groups) => {
-      foods.length = 0; let html = '';
-      for (const [title, list] of groups) {
-        const ok = list.filter((x) => x.per100 && x.per100.kcal != null); if (!ok.length) continue;
-        html += `<h3 class="ghead">${title}</h3>` + ok.slice(0, 6).map((x) => { foods.push(x); return `<button type="button" class="fe" data-m="${foods.length - 1}"><div><b>${esc(x.name)}</b>
-          <small class="muted">${x.brand ? esc(x.brand) + ' · ' : ''}${r0(x.per100.kcal)} kcal per 100 g</small></div><span class="qadd icon-btn" aria-hidden="true">${svg('plus')}</span></button>`; }).join('');
-      }
-      res.innerHTML = html || '<p class="small muted">No matches with calories per 100 g. Type the calories instead.</p>';
-      $$('[data-m]', res).forEach((b) => b.onclick = () => {
-        const g = grams(); if (g == null) return; const x = foods[+b.dataset.m];
-        add({name: x.name, grams: g, per100: x.per100, source: x.source, ref: x.id ? {id: x.id} : null});
-      });
-    };
-    try {
-      const local = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=mine`); if (my !== seq) return;
-      const recent = local.recent.filter((r) => r.unit === 'g' && r.amount > 0).map((r) => ({name: r.name, brand: r.brand, source: r.source,
-        per100: Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'].map((k) => [k, r[k] == null ? null : r[k] / r.amount * 100]))}));
-      draw([['Yours', local.mine.concat(recent)]]);
-      const ext = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=usda,off`); if (my !== seq) return;
-      draw([['Yours', local.mine.concat(recent)], ['USDA', ext.usda], ['Open Food Facts', ext.off]]);
-    } catch (x) { if (my === seq) res.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+// The conversation while you cook, kept per dish until the app is closed (the ingredient list is the real record)
+const CHATS = new Map();
+function chatLog(d) {
+  const log = CHATS.get(d.id) || [];
+  const first = !log.length && !d.items.length && d.known.kcal == null;
+  if (!log.length && !first) return '<div class="cchat" id="dk-chat" aria-live="polite"></div>';
+  const bubble = (m, i) => m.who === 'me' ? `<p class="cmsg me">${esc(m.text)}</p>`
+    : `<div class="cmsg ai${m.wait ? ' wait' : ''}">${m.wait ? '<span class="dots" aria-label="Working it out"><i></i><i></i><i></i></span>' : esc(m.text)}
+        ${m.added && m.added.length && !m.undone ? `<button type="button" class="linkbtn" data-undo="${i}">Undo</button>` : ''}</div>`;
+  return `<div class="cchat" id="dk-chat" aria-live="polite">${first ? `<div class="cmsg ai">Tell me what goes in as you cook, like you'd text a friend: “2 apples”, “a splash of olive oil and 3 cloves of garlic”, “make the rice 200 g”.</div>` : ''}
+    ${log.slice(-8).map((m, k) => bubble(m, log.length - Math.min(log.length, 8) + k)).join('')}</div>`;
+}
+function chatBox(el, d, set) {
+  const f = $('#dk-add', el), log = CHATS.get(d.id) || [];
+  CHATS.set(d.id, log);
+  const redraw = (fresh) => { const t = $('#dk-add input', el); const v = t ? t.value : ''; set(fresh); const n = $('#dk-add input', el); if (n) { n.value = v; n.focus(); } };
+  const send = async (text) => {
+    const me = {who: 'me', text}, wait = {who: 'ai', wait: true};
+    log.push(me, wait); $('#dk-chat', el).outerHTML = chatLog(d); f.t.value = ''; $('#dk-match', el).innerHTML = '';
+    let r;
+    try { r = await api(`/api/dishes/${d.id}/say`, json('POST', {text})); }
+    catch (x) { log.splice(log.indexOf(wait), 1, {who: 'ai', text: x.message}); redraw(d); return; }
+    if (r.fallback) {          // nothing remembered and no AI: pick it from the food search
+      log.splice(log.indexOf(me), 2); redraw(d);
+      searchFlow(el, d, set, text);
+      if (r.needs_ok && !App.me.ai_ok) aiSheet(() => { $('#dk-match', el).innerHTML = ''; send(text); });
+      return;
+    }
+    log.splice(log.indexOf(wait), 1, {who: 'ai', text: r.reply, added: r.added});
+    redraw(r.dish);
   };
+  f.onsubmit = (e) => { e.preventDefault(); const text = f.t.value.trim(); if (text) send(text); };
+  $('#dk-search', el).onclick = () => searchFlow(el, d, set, f.t.value.trim());
+  $$('[data-undo]', el).forEach((b) => b.onclick = async () => {
+    const m = log[+b.dataset.undo]; b.disabled = true;
+    try {
+      let fresh = d;
+      for (const id of m.added) if (fresh.items.some((x) => x.id === id)) fresh = await api(`/api/dishes/${d.id}/items/${id}`, {method: 'DELETE'});
+      m.undone = true; log.push({who: 'ai', text: 'Taken back out.'}); redraw(fresh);
+    } catch (x) { toast(x.message); b.disabled = false; }
+  });
+}
+
+// Search and pick: read the amount, search the food, tap the right match. No match? Type the calories.
+let searchSeq = 0;
+async function searchFlow(el, d, set, text) {
+  const box = $('#dk-match', el);
+  if (!text) { toast('Type the food first, like 2 apples'); $('#dk-add input', el).focus(); return; }
+  const my = ++searchSeq; box.innerHTML = '<p class="small muted">Looking it up…</p>';
+  let p; try { p = await api('/api/dishes/parse', json('POST', {text})); } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
+  if (my !== searchSeq) return;
+  const q = p.search || p.query || text, g0 = p.grams || p.guess_g;
+  box.innerHTML = `<div class="match"><label>${esc(q)}${p.guess_g && !p.grams ? `<small class="muted">Usually about ${gfmt(p.guess_g)}: change it if you weighed it</small>` : ''}<span class="gfield"><input name="mg" inputmode="decimal" value="${g0 ? Math.round(g0 * 10) / 10 : ''}"
+      placeholder="${p.amount ? `${esc(p.amount)} ${esc(p.unit || '')} in grams?` : 'Grams'}" aria-label="How many grams"><span>g</span></span></label>
+    <div class="mres" aria-live="polite"><p class="small muted">Searching…</p></div>
+    <button type="button" class="linkbtn" id="dk-type">Type the calories instead</button></div>`;
+  const gIn = $('[name=mg]', box), res = $('.mres', box);
+  const grams = () => { const g = +gIn.value.replace(',', '.'); if (!(g > 0)) { toast('How many grams? Type the weight first'); gIn.focus(); return null; } return g; };
+  let busy = false;
+  const add = async (body) => {
+    if (busy) return false; busy = true;
+    try { const fresh = await api(`/api/dishes/${d.id}/items`, json('POST', body)); toast(`Added ${body.name}`); set(fresh); const n = $('#dk-add input'); if (n) n.focus(); return true; }
+    catch (x) { toast(x.message); return false; }
+    finally { busy = false; }
+  };
+  $('#dk-type', box).onclick = () => typeSheet(q, gIn.value, add);
+  if (!g0) gIn.focus();
+  const foods = [];
+  const draw = (groups) => {
+    foods.length = 0; let html = '';
+    for (const [title, list] of groups) {
+      const ok = list.filter((x) => x.per100 && x.per100.kcal != null); if (!ok.length) continue;
+      html += `<h3 class="ghead">${title}</h3>` + ok.slice(0, 6).map((x) => { foods.push(x); return `<button type="button" class="fe" data-m="${foods.length - 1}"><div><b>${esc(x.name)}</b>
+        <small class="muted">${x.brand ? esc(x.brand) + ' · ' : ''}${r0(x.per100.kcal)} kcal per 100 g</small></div><span class="qadd icon-btn" aria-hidden="true">${svg('plus')}</span></button>`; }).join('');
+    }
+    res.innerHTML = html || '<p class="small muted">No matches with calories per 100 g. Type the calories instead.</p>';
+    $$('[data-m]', res).forEach((b) => b.onclick = () => {
+      const g = grams(); if (g == null) return; const x = foods[+b.dataset.m];
+      add({name: x.name, grams: g, per100: x.per100, source: x.source, ref: x.id ? {id: x.id} : null});
+    });
+  };
+  try {
+    const local = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=mine`); if (my !== searchSeq) return;
+    const recent = local.recent.filter((r) => r.unit === 'g' && r.amount > 0).map((r) => ({name: r.name, brand: r.brand, source: r.source,
+      per100: Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'].map((k) => [k, r[k] == null ? null : r[k] / r.amount * 100]))}));
+    draw([['Yours', local.mine.concat(recent)]]);
+    const ext = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=usda,off`); if (my !== searchSeq) return;
+    draw([['Yours', local.mine.concat(recent)], ['USDA', ext.usda], ['Open Food Facts', ext.off]]);
+  } catch (x) { if (my === searchSeq) res.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 function typeSheet(name, grams, done) {
   sheet('Type it in', `<form class="form" id="ty"><label>Ingredient<input name="name" value="${esc(name)}" maxlength="120" required></label>

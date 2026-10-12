@@ -846,3 +846,17 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .shell > .seg.wide.dtabs { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 2px 0 12px; }
 .seg.dtabs button { min-width: 0; min-height: 36px; padding: 5px 2px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dpane > .card:last-child { margin-bottom: 12px; }
+
+/* ---------- cooking: type what went in, like a chat (2026-10-12) ---------- */
+.cchat { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.cchat:empty { display: none; }
+.cmsg { margin: 0; max-width: 86%; padding: 9px 13px; border-radius: 18px; font-size: 14.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.cmsg.me { align-self: flex-end; background: var(--btn); color: var(--onbtn); border-bottom-right-radius: 6px; }
+.cmsg.ai { align-self: flex-start; background: var(--card2); color: var(--tx); border-bottom-left-radius: 6px; }
+.cmsg.ai .linkbtn { display: block; margin-top: 4px; padding: 0; min-height: 0; font-size: 13.5px; }
+.cmsg .dots { display: inline-flex; gap: 4px; padding: 4px 0; }
+.cmsg .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--tx3); animation: cdot 1s infinite ease-in-out; }
+.cmsg .dots i:nth-child(2) { animation-delay: .15s; } .cmsg .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes cdot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .cmsg .dots i { animation: none; } }
+#dk-search { margin-top: 8px; }
