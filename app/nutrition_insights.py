@@ -43,6 +43,7 @@ def insights(days: int = 30, since: dt.date | None = None, user=Depends(current_
         goals = {r['day']: float(r['kcal']) for r in c.execute('SELECT day, kcal FROM day_goals WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
         ex = energy.exercise_by_day(c, uid, ctx['tz'], start - dt.timedelta(days=28), today, ctx['kg'])
         over = energy.burn_overrides(c, uid, start, today)
+        least = energy.full_day_min(c, uid, info['base'])
         raw_w = {r['day']: float(r['kg']) for r in c.execute('SELECT day, kg FROM weights WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
 
     usual = sum(v['kcal'] for d, v in ex.items() if start - dt.timedelta(days=28) <= d < start) / 28 if ex else 0
@@ -57,7 +58,7 @@ def insights(days: int = 30, since: dt.date | None = None, user=Depends(current_
         default = prof.get('kcal_target')
         goal = goals.get(d, default if default else None)      # workouts deepen the deficit, they don't raise the goal
         eaten = _f(f['kcal']) if f else None
-        counted = bool(f) and d < today and not (typical and eaten < 0.5 * typical)
+        counted = bool(f) and d < today and not (typical and eaten < 0.5 * typical) and eaten >= least
         deficit = burned - eaten if counted else None
         if deficit is not None: total += deficit
         rows.append({'day': d.isoformat(), 'imported_burn': d in over, 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burned), 'exercise': round(exk),
