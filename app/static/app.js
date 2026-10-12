@@ -259,7 +259,8 @@ function sheet(title, html, onMount) {
   document.body.append(s); document.body.classList.add('has-sheet');
   // phones: a text box waits for a tap (a focused box pops up the keyboard over the sheet); buttons still take focus
   const first = $('input, select, textarea, button:not([data-close])', $('.sbody', s));
-  if (first && !(first.matches('input, textarea') && matchMedia('(pointer: coarse)').matches)) first.focus({preventScroll: true});
+  // (2026-10-12: a select too - iOS opened the meal picker as soon as Add food appeared)
+  if (first && !(first.matches('input, textarea, select') && matchMedia('(pointer: coarse)').matches)) first.focus({preventScroll: true});
   if (onMount) onMount($('.sbody', s), close);
   return close;
 }

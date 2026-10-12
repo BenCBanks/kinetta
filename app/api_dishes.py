@@ -2,8 +2,9 @@
 
 A dish is a list of ingredients (each with its own per-100 g values, so its amount can change) or a total typed in from
 a recipe (known_*, which wins over the ingredients' sum). Its weight is the ingredients added up, unless the cook typed
-the cooked weight (cooked_g). serving says how it's eaten: 'one' (a smoothie, a coffee: logged as whole servings) or
-'portion' (a pot of chili: a portion in grams, or a share like "1 of 4"; servings remembers the 4).
+the cooked weight (cooked_g). serving says how it's measured: 'one' = by servings (it makes `servings`, 1 for a smoothie,
+4 for a pot of chili; you log a number of servings) or 'portion' = by weight (you log grams). The API also takes a
+share ("1 of 4"), which older phones send.
 
 2026-10-12, round three: a dish is simply saved (there's no cooking / finished / leftovers any more, and no pans). Every
 dish with something in it is kept until the cook deletes it; one opened and left empty is cleared away (_tidy). The old
@@ -240,7 +241,8 @@ def dish_add(body: DishIn, user=Depends(current_user)):
             return _view(c, user['id'], _get(c, user['id'], empty['id']))
         if c.execute('SELECT count(*) AS n FROM dishes WHERE user_id = %s', (user['id'],)).fetchone()['n'] >= MAX_DISHES:
             raise HTTPException(400, f'You can keep up to {MAX_DISHES} dishes - delete one first')
-        did = c.execute('INSERT INTO dishes (user_id, name) VALUES (%s, %s) RETURNING id', (user['id'], name or NEW_NAME)).fetchone()['id']
+        # new dishes are measured by servings, 1 to start (2026-10-12): the simplest to log; a pot switches to weight or more servings
+        did = c.execute("INSERT INTO dishes (user_id, name, serving, servings) VALUES (%s, %s, 'one', 1) RETURNING id", (user['id'], name or NEW_NAME)).fetchone()['id']
         return _view(c, user['id'], _get(c, user['id'], did))
 
 
@@ -384,7 +386,8 @@ def portion(did: int, body: PortionIn, user=Depends(current_user)):
         if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, "Add the ingredients or the dish's total calories first")
         weight = _weight(d)
         if body.grams is not None and not weight: raise HTTPException(400, "This dish has no weight yet - log a share of it, or add its weight")
-        if body.count is not None: f, amount, unit = body.count, round(body.count, 2), 'serving'
+        if body.count is not None:      # servings: of a dish that makes N (a smoothie makes 1), else of the whole dish
+            f, amount, unit = body.count / ((d['servings'] or 1) if d['serving'] == 'one' else 1), round(body.count, 2), 'serving'
         elif body.grams is not None: f, amount, unit = body.grams / weight, round(body.grams, 1), 'g'
         elif weight: f, amount, unit = body.share, round(body.share * weight, 1), 'g'
         else: f, amount, unit = body.share, round(body.share, 3), 'dish'     # "0.25 dish": a typed-in total with no weight

@@ -26,7 +26,7 @@ for m, p, body in [('patch', f'/api/dishes/{did}', {'name': 'x'}), ('post', f'/a
                    ('delete', f'/api/dishes/{did}', None), ('post', f'/api/dishes/{did}/share', {'login': 'zz_test_cook'})]:
     st = (getattr(b, m)(p, body) if body is not None else getattr(b, m)(p))[0]; ck(st == 404, f'friend cannot {m} {p}: {st}')
 ck(b.get(f'/api/dishes/{did}')[1]['weight_g'] == 800, 'friend sees the ingredients added up before it is weighed')
-ck(b.post(f'/api/dishes/{did}/portion', {'share': .25, 'of': 9, 'meal': 'dinner'})[0] == 200 and a.get(f'/api/dishes/{did}')[1]['servings'] is None, "a friend's 1 of 9 doesn't change the dish")
+ck(b.post(f'/api/dishes/{did}/portion', {'share': .25, 'of': 9, 'meal': 'dinner'})[0] == 200 and a.get(f'/api/dishes/{did}')[1]['servings'] == 1, "a friend's 1 of 9 doesn't change the dish")
 a.patch(f'/api/dishes/{did}', {'cooked_g': 1000})
 s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 250, 'meal': 'dinner'}); ck(s == 200 and r['entry']['kcal'] == 200 and 'dish' not in r, f'friend portion {r}')
 day = b.get('/api/food/day')[1]; ck(any(e['source'] == 'dish' and e['kcal'] == 200 for e in day['entries']), 'in friend food log')

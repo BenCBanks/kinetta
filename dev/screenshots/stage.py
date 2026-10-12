@@ -70,7 +70,7 @@ for a in jordan('GET', '/api/activities?limit=4')[:3]: alex('POST', f"/api/activ
 for d in alex('GET', '/api/dishes'):
     if d.get('mine') is not False: alex('DELETE', f"/api/dishes/{d['id']}")
 soup = alex('POST', '/api/dishes', {'name': 'Lentil and tomato soup'})
-alex('PATCH', f"/api/dishes/{soup['id']}", {'known_kcal': 1450, 'known_protein_g': 82, 'known_carbs_g': 208, 'known_fat_g': 31, 'cooked_g': 2100})
+alex('PATCH', f"/api/dishes/{soup['id']}", {'serving': 'portion', 'known_kcal': 1450, 'known_protein_g': 82, 'known_carbs_g': 208, 'known_fat_g': 31, 'cooked_g': 2100})
 alex('POST', f"/api/dishes/{soup['id']}/portion", {'grams': 420, 'meal': 'lunch', 'day': str(dt.date.today() - dt.timedelta(days=1))})
 smoothie = alex('POST', '/api/dishes', {'name': 'Berry protein smoothie'})
 for n, g, p in [('Banana', 120, {'kcal': 89, 'protein_g': 1.1, 'carbs_g': 23, 'fat_g': .3, 'fiber_g': 2.6}),
@@ -78,7 +78,7 @@ for n, g, p in [('Banana', 120, {'kcal': 89, 'protein_g': 1.1, 'carbs_g': 23, 'f
                 ('Whey protein', 30, {'kcal': 400, 'protein_g': 80, 'carbs_g': 8, 'fat_g': 6}),
                 ('Milk, 2%', 250, {'kcal': 50, 'protein_g': 3.3, 'carbs_g': 4.8, 'fat_g': 2})]:
     alex('POST', f"/api/dishes/{smoothie['id']}/items", {'name': n, 'grams': g, 'per100': p})
-alex('PATCH', f"/api/dishes/{smoothie['id']}", {'serving': 'one'})
+# the smoothie keeps the default: by servings, makes 1
 tray = alex('POST', '/api/dishes', {'name': 'Chicken and veg traybake'})
 for n, g, p in [('Chicken breast, raw', 600, {'kcal': 120, 'protein_g': 22.5, 'carbs_g': 0, 'fat_g': 2.6}),
                 ('Sweet potato, raw', 500, {'kcal': 86, 'protein_g': 1.6, 'carbs_g': 20, 'fat_g': .1, 'fiber_g': 3}),
@@ -86,6 +86,6 @@ for n, g, p in [('Chicken breast, raw', 600, {'kcal': 120, 'protein_g': 22.5, 'c
                 ('Red onion, raw', 150, {'kcal': 40, 'protein_g': 1.1, 'carbs_g': 9.3, 'fat_g': .1, 'fiber_g': 1.7}),
                 ('Olive oil', 27, {'kcal': 884, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 100})]:
     alex('POST', f"/api/dishes/{tray['id']}/items", {'name': n, 'grams': g, 'per100': p})
-alex('PATCH', f"/api/dishes/{tray['id']}", {'cooked_g': 1400})                 # weighed after roasting
+alex('PATCH', f"/api/dishes/{tray['id']}", {'serving': 'portion', 'cooked_g': 1400})   # by weight: weighed after roasting
 alex('POST', f"/api/dishes/{tray['id']}/share", {'login': 'jordan'})            # eating together: Jordan logs a portion too
 print('staged: tray', tray['id'], 'soup', soup['id'])
