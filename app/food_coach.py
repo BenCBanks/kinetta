@@ -13,7 +13,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 
 from . import coach, db, energy
-from .api_dishes import _seen, _totals, _weight, sync_recipe
+from .api_dishes import _seen, _totals, _weight
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
@@ -144,12 +144,13 @@ def diet_review(user=Depends(current_user)):
 def _recipe_context(c, user_id, d):
     """No personal targets here: the answer is kept on the dish and friends it's shared with can read it."""
     p = c.execute('SELECT units FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
-    portion = c.execute("""SELECT round(avg(amount)) AS g FROM food_entries WHERE user_id = %s AND source = 'dish'
+    portion = c.execute("""SELECT round(avg(amount)) AS g FROM food_entries WHERE user_id = %s AND source = 'dish' AND unit = 'g'
                            AND ref->>'dish_id' = %s""", (user_id, str(d['id']))).fetchone()['g']
     items = [{k: i.get(k) for k in ('name', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')} for i in d['items']]
     known = {k: d[f'known_{k}'] for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g') if d[f'known_{k}'] is not None}
     return {'units': p.get('units', 'imperial'), 'dish': d['name'], 'ingredients': items, 'whole_dish': _totals(d),
             'typed_in_totals': known or None, 'weight_g': _weight(d), 'weighed_after_cooking': d['cooked_g'] is not None, 'typical_portion_g': portion,
+            'eaten_as': 'the whole dish is one serving' if d['serving'] == 'one' else 'a portion of it',
             'notes': 'grams and kcal; whole_dish uses the typed-in totals when given; ingredient weights are raw; weight_g is the ingredients added up unless weighed_after_cooking'}
 
 
@@ -169,7 +170,6 @@ def recipe_review(did: int, user=Depends(current_user)):
     except ValueError as e: raise HTTPException(400, str(e))
     with db.connect() as c:
         c.execute('UPDATE dishes SET ai_note = %s, ai_note_at = now() WHERE id = %s AND user_id = %s', (json.dumps(out), did, user['id']))
-        sync_recipe(c, user['id'], did)
     return {**out, 'at': dt.datetime.now(dt.timezone.utc)}
 
 

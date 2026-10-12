@@ -317,8 +317,9 @@ function drawDetail(el, a) {
       ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}`,
   };
   const has = (k) => k === 'overview' || pane[k].trim() !== '';
-  el.innerHTML = `<div class="top">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>
-    ${a.line ? `<div class="map big lead" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
+  // with a map, the map runs to the top of the screen and the buttons float over it (2026-10-12, Ben)
+  const topBar = `<div class="top${a.line ? ' over' : ''}">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
+  el.innerHTML = `${a.line ? `<div class="map-head"><div class="map big lead" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>${topBar}</div>` : topBar}
     <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span></div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
@@ -514,7 +515,11 @@ function pictureSheet(a, s) {
     <div class="btnrow one"><button class="primary" id="pi-go">Share picture</button></div>`, (b) => {
     let blob = null;
     const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b);
-    const make = () => routePicture(a, t && !t.checked ? 0 : trim).then((bl) => { blob = bl; if (img.src) URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(bl); });
+    const make = () => {      // the map tiles take a moment: the button waits for the picture
+      go.disabled = true; $('.pic-wrap', b).classList.add('busy');
+      return routePicture(a, t && !t.checked ? 0 : trim).then((bl) => { blob = bl; if (img.src) URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(bl); })
+        .finally(() => { go.disabled = false; $('.pic-wrap', b).classList.remove('busy'); });
+    };
     make(); if (t) t.onchange = make;
     go.onclick = async () => {
       if (!blob) return;
@@ -537,37 +542,74 @@ function trimRoute(pts, m) {
   const end = cum[cum.length - 1] - m;
   return end - m < 200 ? [] : pts.filter((_, i) => cum[i] >= m && cum[i] <= end);
 }
+// the map behind the route: OpenStreetMap tiles (they allow this: CORS on, credited on the picture), zoomed so the route
+// fills the box. Tiles that don't load are skipped; with none, the dark background stays.
+const TILE = 256;
+function mercator(la, lo) {     // 0..1 across the world map
+  const s = Math.sin(la * Math.PI / 180);
+  return [(lo + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)];
+}
+function loadTile(url) {
+  return new Promise((res) => {
+    const im = new Image(); im.crossOrigin = 'anonymous'; im.referrerPolicy = 'strict-origin-when-cross-origin';
+    const t = setTimeout(() => res(null), 8000);
+    im.onload = () => { clearTimeout(t); res(im); }; im.onerror = () => { clearTimeout(t); res(null); };
+    im.src = url;
+  });
+}
+async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon -> canvas x/y
+  const m = pts.map(([la, lo]) => mercator(la, lo));
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of m) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const fit = Math.min((box.w - 2 * box.pad) / Math.max((x1 - x0) * TILE, 1e-9), (box.h - 2 * box.pad - box.under) / Math.max((y1 - y0) * TILE, 1e-9));
+  const zf = Math.max(3, Math.min(18, Math.log2(fit))), z = Math.min(17, Math.floor(zf)), k = Math.min(2, 2 ** (zf - z)), n = TILE * 2 ** z;
+  const cx = (x0 + x1) / 2 * n, cy = (y0 + y1) / 2 * n, mx = box.x + box.w / 2, my = box.y + (box.h - box.under) / 2;
+  const tx0 = Math.floor((cx + (box.x - mx) / k) / TILE), tx1 = Math.floor((cx + (box.x + box.w - mx) / k) / TILE);
+  const ty0 = Math.max(0, Math.floor((cy + (box.y - my) / k) / TILE)), ty1 = Math.min(2 ** z - 1, Math.floor((cy + (box.y + box.h - my) / k) / TILE));
+  const jobs = [];
+  for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
+    const wx = ((tx % 2 ** z) + 2 ** z) % 2 ** z;
+    jobs.push(loadTile(`https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`).then((im) => im && [im, tx, ty]));
+  }
+  const got = (await Promise.all(jobs)).filter(Boolean);
+  g.save(); g.beginPath(); g.rect(box.x, box.y, box.w, box.h); g.clip();
+  for (const [im, tx, ty] of got) g.drawImage(im, (tx * TILE - cx) * k + mx, (ty * TILE - cy) * k + my, TILE * k + 0.5, TILE * k + 0.5);
+  g.restore();
+  return {tiles: got.length, P: ([la, lo]) => { const [x, y] = mercator(la, lo); return [(x * n - cx) * k + mx, (y * n - cy) * k + my]; }};
+}
 async function routePicture(a, trim) {
   const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d'), font = getComputedStyle(document.body).fontFamily, accent = col('--accent') || '#E0582B';
+  const g = c.getContext('2d'), font = getComputedStyle(document.body).fontFamily, accent = col('--accent') || '#E0582B', BG = '#121418';
   const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#1d1f24'); bg.addColorStop(1, '#0d0e11');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  // the route, fitted into the top of the picture
+  // the map and route across the top; it fades into the dark panel with the numbers
   const pts = a.line ? trimRoute(decode(a.line), trim) : [];
-  const box = {x: 90, y: 110, w: W - 180, h: 660};
+  const MAPH = 840;
+  let tiles = 0;
   if (pts.length > 1) {
-    const k = Math.cos(pts[0][0] * Math.PI / 180);
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const [la, lo] of pts) { const x = lo * k, y = -la; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-    const sc = Math.min(box.w / Math.max(x1 - x0, 1e-9), box.h / Math.max(y1 - y0, 1e-9));
-    const ox = box.x + (box.w - (x1 - x0) * sc) / 2, oy = box.y + (box.h - (y1 - y0) * sc) / 2;
-    const P = ([la, lo]) => [(lo * k - x0) * sc + ox, (-la - y0) * sc + oy];
+    const {tiles: t, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: MAPH, pad: 110, under: 150});
+    tiles = t;
+    if (tiles) { g.fillStyle = 'rgba(12,14,18,.18)'; g.fillRect(0, 0, W, MAPH); }
+    const fade = g.createLinearGradient(0, MAPH - 260, 0, MAPH); fade.addColorStop(0, 'rgba(18,20,24,0)'); fade.addColorStop(1, BG);
+    g.fillStyle = fade; g.fillRect(0, MAPH - 260, W, 260);
+    g.fillStyle = BG; g.fillRect(0, MAPH, W, H - MAPH);
     g.lineJoin = g.lineCap = 'round';
     const path = () => { g.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
-    path(); g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 26; g.stroke();
+    path(); g.strokeStyle = tiles ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.12)'; g.lineWidth = tiles ? 20 : 26; g.stroke();
     path(); g.strokeStyle = accent; g.lineWidth = 11; g.stroke();
     if (!trim) for (const [p, f] of [[pts[0], '#3fb950'], [pts[pts.length - 1], '#f85149']]) {
       const [x, y] = P(p); g.beginPath(); g.arc(x, y, 15, 0, 7); g.fillStyle = f; g.fill(); g.lineWidth = 5; g.strokeStyle = '#fff'; g.stroke();
     }
   }
-  // the name, the day, then four numbers
+  // the name, the day, then up to four numbers
   g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
-  g.font = `800 60px ${font}`;
+  g.font = `800 56px ${font}`;
   const words = (a.name || '').split(/\s+/), lines = [''];
   for (const w of words) { const t = (lines[lines.length - 1] + ' ' + w).trim(); if (g.measureText(t).width > W - 180 && lines[lines.length - 1]) { if (lines.length === 2) { lines[1] += '…'; break; } lines.push(w); } else lines[lines.length - 1] = t; }
-  let y = 870; lines.forEach((l) => { g.fillText(l, 90, y); y += 70; });
-  g.font = `500 32px ${font}`; g.fillStyle = 'rgba(255,255,255,.62)';
-  g.fillText(`${fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'})} · ${a.sport_label || SPORT_NAMES[a.sport]}`, 90, y - 14);
+  let y = 880; lines.forEach((l) => { g.fillText(l, 90, y); y += 64; });
+  const dateY = y - 10;
+  g.font = `500 30px ${font}`; g.fillStyle = 'rgba(255,255,255,.62)';
+  g.fillText(`${fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'})} · ${a.sport_label || SPORT_NAMES[a.sport]}`, 90, dateY);
   const r = rate(a), cells = [];
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
   if (a.distance_m && a.moving_s) cells.push([r.label, r.v, r.u]);
@@ -576,14 +618,15 @@ async function routePicture(a, trim) {
   else if (a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
   else if (a.calories) cells.push(['Calories', String(Math.round(a.calories)), '']);
   // two columns, up to two rows, so long times and climbs never run into each other
-  const cw = (W - 180) / 2, top = cells.length > 2 ? 1010 : 1160;
+  const cw = (W - 180) / 2, top = dateY + 78;
   cells.slice(0, 4).forEach(([lab, v, u], i) => {
-    const x = 90 + (i % 2) * cw, y0 = top + Math.floor(i / 2) * 150;
-    g.font = `600 26px ${font}`; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(lab.toUpperCase(), x, y0);
-    g.font = `800 66px ${font}`; g.fillStyle = '#fff'; g.fillText(v, x, y0 + 72);
-    if (u) { const vw = g.measureText(v).width; g.font = `600 30px ${font}`; g.fillStyle = 'rgba(255,255,255,.62)'; g.fillText(u.trim(), x + vw + 10, y0 + 72); }
+    const x = 90 + (i % 2) * cw, y0 = top + Math.floor(i / 2) * 130;
+    g.font = `600 24px ${font}`; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(lab.toUpperCase(), x, y0);
+    g.font = `800 60px ${font}`; g.fillStyle = '#fff'; g.fillText(v, x, y0 + 66);
+    if (u) { const vw = g.measureText(v).width; g.font = `600 28px ${font}`; g.fillStyle = 'rgba(255,255,255,.62)'; g.fillText(u.trim(), x + vw + 10, y0 + 66); }
   });
-  g.font = `800 30px ${font}`; g.fillStyle = accent; g.textAlign = 'right'; g.fillText('Kinetta', W - 90, H - 44);
+  if (tiles) { g.font = `500 20px ${font}`; g.fillStyle = 'rgba(255,255,255,.4)'; g.fillText('Map © OpenStreetMap contributors', 90, H - 40); }
+  g.font = `800 30px ${font}`; g.fillStyle = accent; g.textAlign = 'right'; g.fillText('Kinetta', W - 90, H - 40);
   return new Promise((res) => c.toBlob(res, 'image/png'));
 }
 

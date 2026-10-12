@@ -1,4 +1,4 @@
-"""Cooking mode (api_dishes.py): parser, ingredients, weighing, portions, leftovers, pans, who may do what."""
+"""Dishes (api_dishes.py): parser, ingredients, weight, one serving vs a portion, logging, who may do what."""
 import sys
 from kc import Client, person
 
@@ -35,12 +35,12 @@ check('parse too long -> 422', b.post('/api/dishes/parse', {'text': 'x' * 201})[
 
 # ---- a dish with 3 ingredients ----
 s, d = b.post('/api/dishes', {'name': 'Test chicken stew'})
-check('create', s == 200 and d['name'] == 'Test chicken stew' and d['status'] == 'cooking' and d['items'] == [], d)
+check('create', s == 200 and d['name'] == 'Test chicken stew' and d['named'] and d['items'] == [] and d['serving'] == 'portion' and 'status' not in d, d)
 did = d['id']
-s, d2 = b.post('/api/dishes', {})
-check('create default name', s == 200 and d2['name'] in ('Breakfast', 'Lunch', 'Dinner'), d2)
+s, d2 = b.post('/api/dishes', {'meal': 'dinner'})       # older phones still send the meal
+check('create unnamed', s == 200 and d2['name'] == 'New dish' and not d2['named'], d2)
 check('name too long 422', b.post('/api/dishes', {'name': 'x' * 81})[0] == 422)
-# tapping Cooking again reopens the empty dish instead of making another; empty ones stay off the list
+# Start a new dish again reopens the empty one instead of making another; empty ones stay off the list
 s, d3 = b.post('/api/dishes', {})
 check('empty dish reused', s == 200 and d3['id'] == d2['id'], (d2['id'], d3.get('id')))
 lst = [x['id'] for x in b.get('/api/dishes')[1]]
@@ -56,7 +56,7 @@ s, d = b.post(f'/api/dishes/{did}/items', {'name': 'Olive oil', 'grams': 27, 'kc
 check('item typed totals', s == 200 and d['items'][2]['kcal'] == 239 and d['items'][2]['per100']['kcal'] == 885.185, d)
 oil = d['items'][2]['id']
 check('totals', d['totals'] == {'kcal': 1001.5, 'protein_g': 126.2, 'carbs_g': 24.0, 'fat_g': 41.9, 'fiber_g': 7.0}, d['totals'])
-check('weight is the ingredients added up until weighed', d['weight_g'] == 677 and not d['weighed'] and d['left_g'] == 677 and d['per_100g']['kcal'] == 147.9, d)
+check('weight is the ingredients added up', d['weight_g'] == 677 and d['items_g'] == 677 and not d['weighed'] and d['per_100g']['kcal'] == 147.9, d)
 
 # rescale + delete an item
 s, d = b.patch(f'/api/dishes/{did}/items/{oil}', {'grams': 13.5})
@@ -79,49 +79,53 @@ check('no name -> 422', b.post(f'/api/dishes/{did}/items', {'grams': 10, 'kcal':
 check('rescale 0 -> 422', b.patch(f'/api/dishes/{did}/items/{oil}', {'grams': 0})[0] == 422)
 check('bad meal -> 422', b.post(f'/api/dishes/{did}/portion', {'grams': 100, 'meal': 'brunch'})[0] == 422)
 check('cooked_g 0 -> 422', b.patch(f'/api/dishes/{did}', {'cooked_g': 0})[0] == 422)
+check('bad serving -> 422', b.patch(f'/api/dishes/{did}', {'serving': 'some'})[0] == 422)
+check('servings 0 -> 422', b.patch(f'/api/dishes/{did}', {'servings': 0})[0] == 422)
+check('pans are gone', b.get('/api/dishes/pans')[0] in (404, 405) and b.patch(f'/api/dishes/{did}', {'gross_g': 2000})[1]['cooked_g'] is None)
 
-# a portion is grams or a share, not both or neither
+# a portion is one of grams, a share or a count
 check('grams and share -> 400', b.post(f'/api/dishes/{did}/portion', {'grams': 100, 'share': .5, 'meal': 'dinner'})[0] == 400)
+check('grams and count -> 400', b.post(f'/api/dishes/{did}/portion', {'grams': 100, 'count': 1, 'meal': 'dinner'})[0] == 400)
 check('neither -> 400', b.post(f'/api/dishes/{did}/portion', {'meal': 'dinner'})[0] == 400)
 check('share > 1 -> 422', b.post(f'/api/dishes/{did}/portion', {'share': 1.5, 'meal': 'dinner'})[0] == 422)
+check('count 0 -> 422', b.post(f'/api/dishes/{did}/portion', {'count': 0, 'meal': 'dinner'})[0] == 422)
 
-# ---- pans + cooked weight ----
-s, pan = b.post('/api/dishes/pans', {'name': 'Big pot', 'grams': 1250})
-check('pan add', s == 200 and pan['grams'] == 1250, pan)
-check('pan list', [p['name'] for p in b.get('/api/dishes/pans')[1]] == ['Big pot'])
-check('pan bad -> 422', b.post('/api/dishes/pans', {'name': 'X', 'grams': -1})[0] == 422)
-check('gross less than pan -> 400', b.patch(f'/api/dishes/{did}', {'gross_g': 1200, 'pan_id': pan['id']})[0] == 400)
-s, d = b.patch(f'/api/dishes/{did}', {'gross_g': 2250, 'pan_id': pan['id']})
-check('cooked = gross - pan', s == 200 and d['cooked_g'] == 1000 and d['weight_g'] == 1000 and d['weighed'] and d['left_g'] == 1000, d)
+# ---- the weight: typed over, back to the sum ----
+s, d = b.patch(f'/api/dishes/{did}', {'cooked_g': 1000})
+check('typed weight wins', s == 200 and d['cooked_g'] == 1000 and d['weight_g'] == 1000 and d['weighed'] and d['items_g'] == 677, d)
 check('per_100g', d['per_100g']['kcal'] == 100.2, d['per_100g'])
-check('cooked_g + gross_g -> 400', b.patch(f'/api/dishes/{did}', {'gross_g': 2250, 'cooked_g': 5})[0] == 400)
+s, d = b.patch(f'/api/dishes/{did}', {'cooked_g': 677})
+check('typing the sum = not weighed', d['cooked_g'] is None and not d['weighed'] and d['weight_g'] == 677, d)
+s, d = b.patch(f'/api/dishes/{did}', {'cooked_g': 1000})
 
-# ---- a portion ----
+# ---- log a portion (any number of times: nothing runs out) ----
 s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 350, 'meal': 'dinner', 'day': '2026-10-11'})
-check('portion', s == 200, r)
+check('portion', s == 200 and set(r) == {'entry'}, r)
 e = r['entry']
 check('entry values', e['name'] == 'Test chicken stew' and e['amount'] == 350 and e['unit'] == 'g' and e['source'] == 'dish'
       and abs(e['kcal'] - 350.5) < .2 and abs(e['protein_g'] - 44.2) < .2 and e['ref']['dish_id'] == did and e['ref']['weight_g'] == 1000, e)
-check('dish after portion: still open until finished', r['dish']['eaten_g'] == 350 and r['dish']['left_g'] == 650 and r['dish']['status'] == 'cooking' and r['dish']['eaten'], r['dish'])
 day = b.get('/api/food/day?d=2026-10-11')[1]
 check('in food log', any(x['id'] == e['id'] and x['meal'] == 'dinner' and x['source'] == 'dish' for x in day['entries']), day['entries'])
-check('food log totals', abs(sum(x['kcal'] for x in day['entries'] if (x.get('ref') or {}).get('dish_id') == did) - 350.5) < .2, day['totals'])
-check('list shows leftovers', any(x['id'] == did and x['left_g'] == 650 for x in b.get('/api/dishes')[1]))
-check('list: the empty default dish stays off it', [x['id'] for x in b.get('/api/dishes')[1]][:1] == [did])
+for i in range(3): s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 600, 'meal': 'lunch'})
+check('more than the whole dish over time is fine', s == 200 and r['entry']['day'], r)
+check('still on the list', did in [x['id'] for x in b.get('/api/dishes')[1]])
+s, r = b.post(f'/api/dishes/{did}/portion', {'share': .25, 'of': 4, 'meal': 'dinner'})
+check('a share is grams when there is a weight', s == 200 and r['entry']['amount'] == 250 and r['entry']['unit'] == 'g' and abs(r['entry']['kcal'] - 250.4) < .2, r)
+check('the 4 is remembered', b.get(f'/api/dishes/{did}')[1]['servings'] == 4)
+b.patch(f'/api/food/entries/{e["id"]}', {'amount': 200, 'kcal': 200})
+check('editing an entry leaves the dish alone', b.get(f'/api/dishes/{did}')[1]['weight_g'] == 1000)
 
-# second portion, default day (today), refuse too large
-s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 300, 'meal': 'lunch'})
-check('second portion', s == 200 and r['dish']['left_g'] == 350 and r['entry']['day'], r)
-s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 400, 'meal': 'lunch'})
-check('too large -> 400', s == 400 and '350 g' in r['detail'], r)
-check('snack portion within 5% slack', b.post(f'/api/dishes/{did}/portion', {'grams': 360, 'meal': 'snacks', 'day': '2026-10-12'})[0] == 200)
-s, r = b.get(f'/api/dishes/{did}')
-check('fully eaten', r['left_g'] == 0 and r['status'] == 'cooking', r)
-check('portion of empty dish -> 400', b.post(f'/api/dishes/{did}/portion', {'grams': 10, 'meal': 'lunch'})[0] == 400)
-check('done false after portions -> 400', b.patch(f'/api/dishes/{did}', {'done': False})[0] == 400)
-s, r = b.post(f'/api/dishes/{did}/finish', {'leftovers': True})
-check('finish with nothing left: deleted', s == 200 and r['kept'] is False and b.get(f'/api/dishes/{did}')[0] == 404, r)
-check('its portions stay in the log', any(x['name'] == 'Test chicken stew' for x in b.get('/api/food/day?d=2026-10-11')[1]['entries']))
+# ---- one serving (a smoothie) ----
+s, sm = b.post('/api/dishes', {'name': 'Test smoothie'}); smid = sm['id']
+b.post(f'/api/dishes/{smid}/items', {'name': 'Banana', 'grams': 120, 'per100': {'kcal': 89, 'protein_g': 1.1, 'carbs_g': 23, 'fat_g': .3}})
+s, sm = b.patch(f'/api/dishes/{smid}', {'serving': 'one'})
+check('one serving', s == 200 and sm['serving'] == 'one', sm)
+s, r = b.post(f'/api/dishes/{smid}/portion', {'count': 1, 'meal': 'breakfast'})
+check('logged whole', s == 200 and r['entry']['amount'] == 1 and r['entry']['unit'] == 'serving' and r['entry']['kcal'] == 106.8, r)
+s, r = b.post(f'/api/dishes/{smid}/portion', {'count': 1.5, 'meal': 'snacks'})
+check('one and a half', s == 200 and r['entry']['amount'] == 1.5 and r['entry']['kcal'] == 160.2, r)
+s, sm = b.patch(f'/api/dishes/{smid}', {'serving': 'portion'})
+check('and back', sm['serving'] == 'portion')
 
 # ---- known_kcal override (from a recipe) ----
 s, k = b.post('/api/dishes', {'name': 'Test lasagne'})
@@ -139,25 +143,22 @@ s, k = b.patch(f'/api/dishes/{kid}', {'known_kcal': None, 'name': 'Test lasagne 
 check('null clears known', k['totals']['kcal'] == 875 and k['known']['kcal'] is None and k['name'] == 'Test lasagne 2', k)
 check('empty name -> 422', b.patch(f'/api/dishes/{kid}', {'name': ''})[0] == 422)
 check('blank name -> 400', b.patch(f'/api/dishes/{kid}', {'name': '   '})[0] == 400)
-
-# ---- done flag (closed without portions), cooking list ----
-s, x = b.patch(f'/api/dishes/{d2["id"]}', {'done': True})       # older phones
-check('close', s == 200 and x['done_at'] and x['status'] == 'finished')
-s, x = b.patch(f'/api/dishes/{d2["id"]}', {'done': False})
-check('reopen', s == 200 and x['status'] == 'cooking')
-b.patch(f'/api/dishes/{d2["id"]}', {'done': True})
-check('a finished dish is cleared away', d2['id'] not in [y['id'] for y in b.get('/api/dishes')[1]] and b.get(f'/api/dishes/{d2["id"]}')[0] == 404)
+# a typed-in total with no weight: shares only
+s, k2 = b.post('/api/dishes', {'name': 'Test pie'}); k2id = k2['id']
+s, k2 = b.patch(f'/api/dishes/{k2id}', {'known_kcal': 2000, 'known_protein_g': 80})
+check('no weight', k2['weight_g'] is None, k2)
+check('grams need a weight', b.post(f'/api/dishes/{k2id}/portion', {'grams': 100, 'meal': 'dinner'})[0] == 400)
+s, r = b.post(f'/api/dishes/{k2id}/portion', {'share': .25, 'meal': 'dinner'})
+check('share of a dish without weight', s == 200 and r['entry']['unit'] == 'dish' and r['entry']['amount'] == .25 and r['entry']['kcal'] == 500, r)
 
 # ---- another person can't touch it ----
 for name, (s, _) in {'get': a.get(f'/api/dishes/{kid}'), 'patch': a.patch(f'/api/dishes/{kid}', {'name': 'Hacked'}),
                      'item add': a.post(f'/api/dishes/{kid}/items', {'name': 'X', 'grams': 10, 'kcal': 1}),
                      'item del': a.delete(f'/api/dishes/{kid}/items/{k["items"][0]["id"]}'),
                      'portion': a.post(f'/api/dishes/{kid}/portion', {'grams': 10, 'meal': 'lunch'}),
-                     'delete': a.delete(f'/api/dishes/{kid}'), 'pan del': a.delete(f'/api/dishes/pans/{pan["id"]}'),
-                     'gross with their pan': (a.patch(f'/api/dishes/{a.post("/api/dishes", {})[1]["id"]}', {'gross_g': 3000, 'pan_id': pan['id']})[0], 0)}.items():
+                     'delete': a.delete(f'/api/dishes/{kid}')}.items():
     check(f'other person {name} -> 404', s == 404, s)
 check('other list empty of hers', kid not in [y['id'] for y in a.get('/api/dishes')[1]])
-check('other pans empty', a.get('/api/dishes/pans')[1] == [])
 check('still hers', b.get(f'/api/dishes/{kid}')[1]['name'] == 'Test lasagne 2')
 check('not logged in -> 401', Client().get('/api/dishes')[0] == 401)
 
@@ -166,79 +167,11 @@ s, m = b.post('/api/dishes', {'name': 'Test big'})
 for i in range(60): b.post(f'/api/dishes/{m["id"]}/items', {'name': f'Thing {i}', 'grams': 1, 'kcal': 1})
 check('61st item -> 400', b.post(f'/api/dishes/{m["id"]}/items', {'name': 'More', 'grams': 1, 'kcal': 1})[0] == 400)
 
-# ---- delete keeps logged entries ----
+# ---- delete keeps logged entries; old recipe routes are gone ----
 check('delete dish', b.delete(f'/api/dishes/{kid}')[0] == 200 and b.get(f'/api/dishes/{kid}')[0] == 404)
 check('entries kept', any(x['name'] == 'Test lasagne' for x in b.get('/api/food/day')[1]['entries']))
-check('pan delete', b.delete(f'/api/dishes/pans/{pan["id"]}')[0] == 200 and b.get('/api/dishes/pans')[1] == [])
-check('route /pans not swallowed by /{id}', b.get('/api/dishes/pans')[0] == 200 and b.get('/api/dishes/abc')[0] in (404, 405))
-
-# ---- 2026-10-12: the meal, the weight, shares, finish, saved recipes ----
-s, m1 = b.post('/api/dishes', {'meal': 'breakfast'})
-check('cooked for a meal', s == 200 and m1['meal'] == 'breakfast' and m1['name'] == 'Breakfast', m1)
-s, m1 = b.patch(f'/api/dishes/{m1["id"]}', {'meal': 'lunch'})
-check('changing the meal renames an unnamed dish', m1['meal'] == 'lunch' and m1['name'] == 'Lunch', m1)
-b.patch(f'/api/dishes/{m1["id"]}', {'name': 'Test porridge'})
-s, m1 = b.patch(f'/api/dishes/{m1["id"]}', {'meal': 'snacks'})
-check('but keeps a real name', m1['meal'] == 'snacks' and m1['name'] == 'Test porridge', m1)
-check('bad meal -> 422', b.patch(f'/api/dishes/{m1["id"]}', {'meal': 'brunch'})[0] == 422)
-mid = m1['id']
-b.post(f'/api/dishes/{mid}/items', {'name': 'Oats', 'grams': 300, 'per100': {'kcal': 380, 'protein_g': 13, 'carbs_g': 60, 'fat_g': 7}})
-s, m1 = b.post(f'/api/dishes/{mid}/items', {'name': 'Milk', 'grams': 500, 'per100': {'kcal': 60, 'protein_g': 3.4, 'carbs_g': 4.8, 'fat_g': 3.2}})
-check('weight = ingredients', m1['weight_g'] == 800 and m1['totals']['kcal'] == 1440, m1)
-s, m1 = b.patch(f'/api/dishes/{mid}', {'cooked_g': 720})
-check('weighed wins', m1['weight_g'] == 720 and m1['weighed'], m1)
-s, m1 = b.patch(f'/api/dishes/{mid}', {'cooked_g': None})
-check('back to the ingredients', m1['weight_g'] == 800 and not m1['weighed'], m1)
-s, r = b.post(f'/api/dishes/{mid}/portion', {'share': .25, 'meal': 'breakfast'})
-check('a share of a dish with a weight is grams', s == 200 and r['entry']['amount'] == 200 and r['entry']['unit'] == 'g' and r['entry']['kcal'] == 360
-      and r['dish']['left_g'] == 600, r)
-# a typed-in total with no weight: shares only
-s, k2 = b.post('/api/dishes', {'name': 'Test pie'}); k2id = k2['id']
-s, k2 = b.patch(f'/api/dishes/{k2id}', {'known_kcal': 2000, 'known_protein_g': 80})
-check('no weight', k2['weight_g'] is None and k2['left_share'] == 1, k2)
-check('grams need a weight', b.post(f'/api/dishes/{k2id}/portion', {'grams': 100, 'meal': 'dinner'})[0] == 400)
-s, r = b.post(f'/api/dishes/{k2id}/portion', {'share': .25, 'meal': 'dinner'})
-check('share of a dish without weight', s == 200 and r['entry']['unit'] == 'dish' and r['entry']['amount'] == .25 and r['entry']['kcal'] == 500
-      and r['dish']['left_share'] == .75, r)
-pie_entry = r['entry']['id']
-s, r = b.post(f'/api/dishes/{k2id}/portion', {'share': .8, 'meal': 'dinner'})
-check('more than is left -> 400', s == 400 and '75%' in r['detail'], r)
-b.patch(f'/api/food/entries/{pie_entry}', {'amount': .5, 'kcal': 1000})
-check('editing the entry moves the share', b.get(f'/api/dishes/{k2id}')[1]['left_share'] == .5)
-b.delete(f'/api/food/entries/{pie_entry}')
-check('deleting it gives it back', b.get(f'/api/dishes/{k2id}')[1]['left_share'] == 1)
-# finish: keep the leftovers, then finish them
-b.post(f'/api/dishes/{k2id}/portion', {'share': .5, 'meal': 'dinner'})
-s, r = b.post(f'/api/dishes/{k2id}/finish', {'leftovers': True})
-check('finish keeping leftovers', s == 200 and r['kept'] and r['dish']['status'] == 'leftovers' and r['recipe_id'] is None, r)
-check('leftovers on the list', any(x['id'] == k2id and x['status'] == 'leftovers' for x in b.get('/api/dishes')[1]))
-s, r = b.post(f'/api/dishes/{k2id}/finish', {})
-check('leftovers gone: deleted', r['kept'] is False and b.get(f'/api/dishes/{k2id}')[0] == 404, r)
-check('nothing saved unless asked', b.get('/api/dishes/recipes')[1] == [])
-# saving a recipe
-check('friend cannot finish', a.post(f'/api/dishes/{mid}/finish', {})[0] == 404)
-s, m1 = b.post(f'/api/dishes/{mid}/recipe')
-rid = m1['recipe_id']
-check('saved', s == 200 and rid, m1)
-check('saving twice is one recipe', b.post(f'/api/dishes/{mid}/recipe')[1]['recipe_id'] == rid and len(b.get('/api/dishes/recipes')[1]) == 1)
-b.patch(f'/api/dishes/{mid}/items/{m1["items"][1]["id"]}', {'grams': 250})
-b.patch(f'/api/dishes/{mid}', {'name': 'Test porridge 2'})
-rs = b.get('/api/dishes/recipes')[1]
-check('changes follow into the recipe', rs[0]['name'] == 'Test porridge 2' and rs[0]['totals']['kcal'] == 1290 and rs[0]['items'] == ['Oats', 'Milk'], rs)
-check('recipes are private', a.get('/api/dishes/recipes')[1] == [] and a.post(f'/api/dishes/recipes/{rid}/cook', {})[0] == 404
-      and a.delete(f'/api/dishes/recipes/{rid}')[0] == 404)
-s, r = b.post(f'/api/dishes/{mid}/finish', {'leftovers': False})
-check('finish deletes the dish, keeps the recipe', not r['kept'] and r['recipe_id'] == rid and b.get(f'/api/dishes/{mid}')[0] == 404
-      and len(b.get('/api/dishes/recipes')[1]) == 1, r)
-s, again = b.post(f'/api/dishes/recipes/{rid}/cook', {'meal': 'breakfast'})
-check('cook it again', s == 200 and again['name'] == 'Test porridge 2' and again['recipe_id'] == rid and again['meal'] == 'breakfast'
-      and [i['grams'] for i in again['items']] == [300, 250] and again['status'] == 'cooking' and not again['eaten'], again)
-s, again = b.delete(f'/api/dishes/{again["id"]}/recipe')
-check('stop saving', s == 200 and again['recipe_id'] is None and b.get('/api/dishes/recipes')[1] == [], again)
-s, r = b.post(f'/api/dishes/{again["id"]}/finish', {'save': True})
-check('save while finishing', r['recipe_id'] and [x['name'] for x in b.get('/api/dishes/recipes')[1]] == ['Test porridge 2'], r)
-check('delete a recipe', b.delete(f'/api/dishes/recipes/{r["recipe_id"]}')[0] == 200 and b.get('/api/dishes/recipes')[1] == [])
-check('recipes route not swallowed', b.get('/api/dishes/recipes')[0] == 200)
+check('no finish or recipes any more', b.post(f'/api/dishes/{did}/finish', {})[0] in (404, 405) and b.get('/api/dishes/recipes')[0] in (404, 405, 422))
+check('list: yours, most recently changed first', [x['id'] for x in b.get('/api/dishes')[1]][:2] == [m['id'], k2id], [x['name'] for x in b.get('/api/dishes')[1]])
 
 print(f'cooking: {ok} passed, {fail} failed')
 sys.exit(1 if fail else 0)

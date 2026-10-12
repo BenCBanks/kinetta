@@ -353,6 +353,15 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .map.full, .map.big.full, .map.lead.full { position: fixed; inset: 0; height: auto; margin: 0; border-radius: 0; z-index: 2000; }
 .map.full .map-full { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); }
 .map-note { margin: -4px 4px 12px; }
+/* activity page: the map fills the top of the screen (under the status bar); back/share/edit float over it */
+.map-head { position: relative; margin: calc(-10px - env(safe-area-inset-top)) -16px 12px; }
+.map-head .map.lead { margin: 0; height: calc(380px + env(safe-area-inset-top)); border-radius: 0 0 var(--r) var(--r); }
+.top.over { position: absolute; top: calc(env(safe-area-inset-top) + 8px); left: 12px; right: 12px; z-index: 1001; margin: 0; pointer-events: none; }
+.top.over > * { pointer-events: auto; }
+.top.over .back, .top.over .icon-btn { background: color-mix(in srgb, var(--card) 70%, transparent); -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.4); box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
+.map-head .map-full { top: auto; bottom: 12px; left: 12px; right: auto; }
+.map-head .map.full .map-full { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); bottom: auto; left: auto; }
 .hero { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
 .hero .stat b { font-size: 25px; }
 .hero.more { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
@@ -376,7 +385,8 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .e-share .vis-note { margin: -2px 0 0; } .e-share .checks { margin-top: 8px; }
 /* share a picture: the preview fills the sheet width */
 .pic-wrap { border-radius: var(--r); overflow: hidden; background: #111; aspect-ratio: 4 / 5; margin-bottom: 12px; }
-.pic { display: block; width: 100%; height: 100%; object-fit: contain; }
+.pic { display: block; width: 100%; height: 100%; object-fit: contain; transition: opacity .2s; }
+.pic-wrap.busy .pic { opacity: .45; } .pic-wrap.busy { background: linear-gradient(110deg, #111 40%, #1d1f24 50%, #111 60%) 0 0 / 200% 100%; animation: sk 1.2s linear infinite; }
 .comments .comment { padding: 12px 0; border-top: 1px solid var(--line); }
 .comments .comment:first-child { margin-top: 10px; }
 .comment .c-hd { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
@@ -816,11 +826,29 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .serve .gfield input, .match .gfield input { min-height: 40px; padding-block: 6px; font-size: 16px; }
 .serve .seg.meal4 button { min-height: 34px; }
 .serve .primary.wide { margin-top: 4px; }
-#dk-portion { gap: 10px; }
-.pan-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; }
-.pan-row select { flex: 1; min-height: 34px; padding: 6px 12px; border-radius: 999px; font-size: 16px; background: var(--card2); border-color: transparent; }
-.pan-row .linkbtn { min-height: 38px; padding: 0 4px; font-size: 14px; white-space: nowrap; }
-.serve .kv b .linkbtn { min-height: 0; padding: 0 0 0 8px; font-size: 14px; }
+/* 2026-10-12, round three: the name edited in place, a one-line weight, one serving vs a portion, the log sheet stepper */
+.dish-name-in { display: block; width: 100%; margin: 2px 0 14px; padding: 6px 10px; min-height: 48px; border-radius: 12px; border: 1px solid transparent;
+  background: transparent; font: 800 26px/1.15 var(--font); letter-spacing: -.03em; color: var(--tx); resize: none; overflow: hidden; }
+.dish-name-in::placeholder { color: var(--tx3); font-weight: 700; }
+.dish-name-in:hover { border-color: var(--line); } .dish-name-in:focus { background: var(--card); }
+.dish-name-in ~ .sec-head { font-size: 17px; margin-top: 20px; } .dish-name-in ~ .card:not(.cook-steps) { padding: 14px 16px; }
+.add-title { display: block; margin: 0 2px 10px; font-size: 15px; font-weight: 650; color: var(--tx); }
+.serve .sv-note { margin: 8px 2px 0; }
+.wt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.wt-row label { font-weight: 650; font-size: 15px; }
+.wt-row .gfield { width: 128px; flex: none; } .wt-row .gfield input { min-height: 40px; padding: 6px 34px 6px 12px; text-align: right; font: 700 17px var(--numf);
+  background: var(--card2); border-color: transparent; }
+.wt-row .gfield > span { right: 12px; }
+.wt-reset { display: block; margin: 6px 0 0 auto; min-height: 32px; padding: 0; font-size: 14px; }
+.stepper { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 6px 0; }
+.stepper span { min-width: 92px; text-align: center; } .stepper b { display: block; font: 800 40px/1 var(--numf); }
+.stepper small { display: block; color: var(--tx3); font-size: 13px; font-weight: 600; margin-top: 4px; }
+.sheet .stepper .icon-btn { width: 48px; height: 48px; } .sheet .stepper .icon-btn svg { width: 22px; height: 22px; }
+.card.list .dish-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.card.list .dish-row:first-child { border-top: 0; }
+.dish-row .r { flex: none; font-weight: 700; } .dish-row .r small { font-weight: 500; color: var(--tx3); }
+.dish-row > svg { width: 16px; height: 16px; color: var(--tx3); flex: none; }
+#dl .actions > #dl-edit { flex: 0 0 auto; padding: 0 16px; } #dl-edit svg { width: 16px; height: 16px; margin-right: 6px; }
 
 /* ---------- admin: invites + beta ---------- */
 .beta-req .row { align-items: flex-start; padding: 12px 0; }
@@ -837,6 +865,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
   .shell { max-width: 1100px; padding-bottom: 120px; }
   .cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; align-items: start; }
   .map { height: 380px; } .map.big { height: 480px; } .map.lead { margin: 0 0 12px; border-radius: var(--r); }
+  .map-head { margin: 0 0 12px; } .map-head .map.lead { height: 480px; border-radius: var(--r); }
   .fmap, .post .fmap { height: 240px; }
   .feed-list, .shell > .seg.wide.two { max-width: 640px; margin-left: auto; margin-right: auto; }
 }
@@ -873,22 +902,18 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .dish-for { display: grid; gap: 6px; margin: 4px 0 14px; } .dish-for small { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
 .dish-for .seg button { min-height: 36px; padding-inline: 4px; }
 .serve .seg.full { margin-bottom: 4px; } .serve .seg.full button { min-height: 36px; }
-.share-line { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--tx2); flex-wrap: wrap; }
-.share-line input { width: 64px; min-height: 40px; padding: 6px 8px; text-align: center; font-size: 16px; }
+.share-line { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--tx2); flex-wrap: wrap; }
+.share-line input { width: 54px; min-height: 40px; padding: 6px 8px; text-align: center; font-size: 16px; }
 .serve [hidden] { display: none !important; }
 .portion-out .small { display: block; text-align: center; margin-top: 6px; }
 .tog { flex: none; width: 46px; height: 28px; border-radius: 999px; background: var(--card2); box-shadow: inset 0 0 0 1px var(--line); position: relative; transition: background .2s; }
 .tog::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s; }
 [aria-checked="true"] > .tog { background: var(--accent); box-shadow: none; } [aria-checked="true"] > .tog::after { transform: translateX(18px); }
-.finish { margin: 18px 0 8px; text-align: center; } .finish .ghost.wide { width: 100%; min-height: 46px; } .finish p { margin-top: 8px; }
-.finish .ghost svg { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
+.finish { margin: 18px 0 8px; text-align: center; } .finish .ghost.wide, .finish .primary.wide { width: 100%; min-height: 46px; } .finish p { margin-top: 8px; }
+.finish .ghost svg, .finish .primary svg { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
 #fn .check { align-items: flex-start; } #fn .check > span { display: grid; gap: 2px; } #fn .check small { font-weight: 500; font-size: 13px; }
 #fn .check input { margin-top: 2px; } #fn p.small svg { width: 16px; height: 16px; vertical-align: -3px; color: var(--prog); }
 #fn .checks { display: grid; grid-template-columns: 1fr; gap: 4px; margin-bottom: 8px; }
-.recipe-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; } .recipe-row + .recipe-row { border-top: 1px solid var(--line); }
-.rr-cook { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; background: none; border: 0; padding: 10px 0; color: var(--tx); font: inherit; cursor: pointer; }
-.rr-cook b { font-size: 15px; } .rr-cook small { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recipe-row .icon-btn { color: var(--tx3); }
 /* 2026-10-12: Create a dish in Add food; swipe an ingredient left to remove it; Need help? on a dish */
 .way.wide { grid-column: 1 / -1; min-height: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; }
 .way.wide svg { grid-row: span 2; } .way.wide b, .way.wide small { text-align: left; }

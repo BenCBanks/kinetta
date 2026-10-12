@@ -1,4 +1,4 @@
-"""Fixes from the final review: parser, calendar weeks, portions back to leftovers, unfriending ends dish shares."""
+"""Fixes from the final review: parser, calendar weeks, unfriending ends dish shares."""
 from kc import ALEX, login
 
 
@@ -25,11 +25,10 @@ a('GET','/api/calendar/month?month=9999-12',want=400); a('GET','/api/calendar/mo
 # portions back to leftovers
 d=a('POST','/api/dishes',{'name':'Test stew'}); did=d['id']
 a('POST',f'/api/dishes/{did}/items',{'name':'Beans','grams':1000,'per100':{'kcal':100}}); a('PATCH',f'/api/dishes/{did}',{'cooked_g':1000})
-r=a('POST',f'/api/dishes/{did}/portion',{'grams':300,'meal':'dinner'}); eid=r['entry']['id']; ck(r['dish']['left_g']==700,'700 left')
-a('PATCH',f'/api/food/entries/{eid}',{'amount':200}); ck(a('GET',f'/api/dishes/{did}')['left_g']==800,'edit gives 100 back')
-dl=a('DELETE',f'/api/food/entries/{eid}')['deleted']; ck(a('GET',f'/api/dishes/{did}')['left_g']==1000,'delete gives it all back')
+r=a('POST',f'/api/dishes/{did}/portion',{'grams':300,'meal':'dinner'}); eid=r['entry']['id']; ck(r['entry']['kcal']==300,'portion logged')
+dl=a('DELETE',f'/api/food/entries/{eid}')['deleted']
 a('POST','/api/food/entries',[{k:dl[k] for k in ('day','meal','name','amount','unit','kcal','protein_g','carbs_g','fat_g','source','ref') if dl.get(k) is not None}])
-ck(a('GET',f'/api/dishes/{did}')['left_g']==800,'undo takes it again')
+ck(a('GET',f'/api/dishes/{did}')['weight_g']==1000,'undo of a deleted portion leaves the dish as it was')
 ck(a('GET',f'/api/dishes/{did}')['review'] is None,'no review yet')
 # unfriend ends sharing
 a('POST',f'/api/dishes/{did}/share',{'login':'jordan'}); ck(j('GET',f'/api/dishes/{did}')['mine'] is False,'shared')

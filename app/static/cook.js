@@ -1,159 +1,118 @@
-// Kinetta phone app — Part 6: cooking mode (2026-10-11). Build a dish while you cook ("100 g chicken", "250 g carrots"),
-// weigh the whole cooked dish, weigh your plate, and your portion is logged with its share of the calories and macros.
-// The rest stays as leftovers for a few days. The server does the sums (app/api_dishes.py).
+// Kinetta phone app — Part 6: dishes (2026-10-11). Build a dish from what goes in ("100 g chicken", "250 g carrots"),
+// keep it, and log it from Add food > Saved Dishes whenever you eat it. The server does the sums (app/api_dishes.py).
 // 2026-10-12: ingredients are typed the way you'd text them ("2 apples", "a splash of oil", "make the rice 200 g"):
 // app/cook_chat.py answers from what you've used before, or asks the AI; search-and-pick stays as the fallback.
+// 2026-10-12, round three (Ben): a dish is simply saved, no cooking / leftovers / finish; the name is edited in place;
+// the weight is the ingredients added up and can be typed over (no pans); a dish is eaten as one serving (a smoothie)
+// or by portion (a pot of chili), and logging happens in Add food, not here.
 'use strict';
 
-// 2026-10-12, round two: a dish is cooked for a meal; its weight is the ingredients added up until the cooked dish is
-// weighed; a portion is grams or a share ("1 of 4"); Finish takes it off the list (keeping leftovers if you like), and a
-// dish is kept only if you save it as a recipe, which Cooking offers to cook again.
-
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
-Object.assign(IC, {bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>',
+Object.assign(IC, {minus: '<path d="M5 12h14"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'});
-const isDefaultName = (n) => Object.values(MEAL_NAMES).includes(n);
-const leftText = (d) => (d.weight_g ? `${gfmt(d.left_g)} left` : `${Math.round(d.left_share * 100)}% left`);
-const someLeft = (d) => (d.weight_g ? d.left_g >= 1 : d.left_share >= 0.01);
-const LEFTOVER_DAYS = 5;
+const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 
-// Add food > Create or edit (2026-10-12; was the Cooking button and a list on Nutrition): start a new dish for the meal
-// picked in Add food, go back to one still open (cooking, leftovers, or shared by a friend), or cook a saved recipe again.
-function dishSheet(day, meal) {
-  const q = day && day !== isoDay(new Date()) ? `?d=${day}` : '';      // a past day's log: portions go to that day
-  sheet('Create or edit', `<div class="btncol"><button class="primary" id="ck-new">${svg('plus')}Start a new dish</button></div>
-    <div id="ck-open"></div><div id="ck-saved"></div>`, (b, close) => {
-    const open = async (url, btn) => {
-      btn.disabled = true;
-      try { const d = await api(url, json('POST', {meal})); App.cache.delete('/api/dishes'); close(); go(`/food/cook/${d.id}${q}`); }
+// Add food > Create or edit: start a new dish, or open one of yours to change it
+function dishSheet() {
+  sheet('Create or edit', `<div class="btncol"><button class="primary" id="ck-new">${svg('plus')}Start a new dish</button></div><div id="ck-mine"></div>`, (b, close) => {
+    $('#ck-new', b).onclick = async (e) => {
+      const btn = e.currentTarget; btn.disabled = true;
+      try { const d = await api('/api/dishes', json('POST', {})); App.cache.delete('/api/dishes'); close(); go(`/food/cook/${d.id}`); }
       catch (x) { toast(x.message); btn.disabled = false; }
     };
-    $('#ck-new', b).onclick = (e) => open('/api/dishes', e.currentTarget);
     load('/api/dishes', (list) => {
-      const box = $('#ck-open', b); if (!box || !list.length) return;
-      box.innerHTML = `<h3 class="ghead">Still open</h3>` + list.map((d) => `<a class="card tap dish-row" href="/food/cook/${d.id}${q}">${d.mine === false ? avatar(d.owner) : `<span class="ri c-orange">${svg('pot')}</span>`}
-        <span class="grow"><b>${esc(d.name)}</b><small class="muted">${d.mine === false ? `From ${esc(d.owner.name)} · ${esc(leftText(d))}`
-          : d.status === 'cooking' ? `${esc(MEAL_NAMES[d.meal])} · ${d.items.length ? `${d.items.length} item${d.items.length === 1 ? '' : 's'} · ` : ''}${r0(d.totals.kcal)} kcal`
-          : esc(leftText(d))}</small></span>
-        <span class="badge ${d.status === 'cooking' ? 'alert' : 'on'}">${d.status === 'cooking' ? 'Cooking' : 'Leftovers'}</span></a>`).join('');
-      $$('a', box).forEach((a) => a.addEventListener('click', () => close()));
+      const box = $('#ck-mine', b), mine = list.filter((d) => d.mine !== false); if (!box || !mine.length) return;
+      box.innerHTML = `<h3 class="ghead">Your dishes</h3><div class="card list">${mine.map((d) => `<a class="dish-row tap" href="/food/cook/${d.id}"><span class="grow"><b>${esc(d.name)}</b>
+        <small class="muted">${esc(d.items.length ? listOf(d.items.map((i) => i.name)) : d.known.kcal != null ? 'Total typed in' : 'Nothing added yet')}</small></span><span class="r num">${r0(d.totals.kcal)}<small> kcal</small></span>${svg('chev')}</a>`).join('')}</div>`;
+      $$('a', box).forEach((x) => x.addEventListener('click', () => close()));
     }, {maxAge: 0}).catch(() => {});
-    let saved = [];
-    const drawSaved = () => {
-      const box = $('#ck-saved', b); if (!box) return;
-      box.innerHTML = saved.length ? `<h3 class="ghead">Saved recipes</h3><div class="card list">${saved.map((r) => `<div class="recipe-row"><button class="rr-cook" data-rc="${r.id}"><b>${esc(r.name)}</b>
-        <small class="muted">${r.items.length ? esc(r.items.slice(0, 4).join(', ')) + (r.items.length > 4 ? ` and ${r.items.length - 4} more` : '') + ' · ' : ''}${r0(r.totals.kcal)} kcal</small></button>
-        <button class="icon-btn" data-rdel="${r.id}" aria-label="Delete the recipe ${esc(r.name)}">${svg('trash')}</button></div>`).join('')}</div>` : '';
-      $$('[data-rc]', box).forEach((x) => x.onclick = () => open(`/api/dishes/recipes/${x.dataset.rc}/cook`, x));
-      $$('[data-rdel]', box).forEach((x) => x.onclick = async () => {
-        const r = saved.find((y) => String(y.id) === x.dataset.rdel);
-        if (!confirm(`Delete the recipe ${r.name}? Food you logged from it stays in your food log.`)) return;
-        try { await api(`/api/dishes/recipes/${r.id}`, {method: 'DELETE'}); saved = saved.filter((y) => y !== r); drawSaved(); toast('Recipe deleted'); }
-        catch (e) { toast(e.message); }
-      });
-    };
-    api('/api/dishes/recipes').then((list) => { saved = list; drawSaved(); }).catch(() => {});
   });
 }
 
 route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div>${skel(2)}`;
-  wireBack(el, '/food' + location.search);
+  wireBack(el, '/food');
   try { await load(`/api/dishes/${id}`, (d) => drawDish(el, d), {maxAge: 0}); }
-  catch (x) {     // finished and cleared away (or no longer shared)
+  catch (x) {     // deleted (or no longer shared)
     if (x.status !== 404) throw x;
-    el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><div class="card empty"><b>This dish is finished</b>Portions logged from it are still in the food log.</div>`;
-    wireBack(el, '/food' + location.search);
+    el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><div class="card empty"><b>This dish is gone</b>Portions logged from it are still in the food log.</div>`;
+    wireBack(el, '/food');
   }
 });
 
-// The cook sees everything and can change it; a friend it's shared with sees the dish and logs their own portion.
+// The cook sees everything and can change it; a friend it's shared with sees the dish and can log their own portion.
 function drawDish(el, d) {
-  const t = d.totals, typed = d.known.kcal != null, mine = d.mine !== false, has = d.items.length > 0 || typed;
-  const cooking = d.status === 'cooking', w = d.weight_g, saved = d.recipe_id != null;
-  const pastDay = new URLSearchParams(location.search).get('d');
-  // the meal it's cooked for, while it's cooked today; leftovers and a friend's dish pick the meal when they're eaten
-  // the meal a portion goes to: the dish's own meal while it's cooked today, otherwise the time of day; you can change it when you log
-  const startMeal = mine && cooking && !pastDay && isoDay(new Date(d.created)) === isoDay(new Date()) ? d.meal : guessMeal();
-  const set = (fresh) => { App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh); };
+  const t = d.totals, typed = d.known.kcal != null, mine = d.mine !== false, has = d.items.length > 0 || typed, w = d.weight_g;
+  const set = (fresh) => {      // redraw, keeping whatever box was being typed in
+    const act = document.activeElement, keep = act && act.id && el.contains(act) ? [act.id, act.value] : null;
+    App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh);
+    if (keep) { const n = $('#' + keep[0], el); if (n) { n.value = keep[1]; n.focus(); } }
+  };
   const ing = (it) => `<div><b>${esc(it.name)}</b><small class="muted num">${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</small></div>
     <div class="r"><b class="num">${r0(it.kcal)}</b><small class="muted">kcal</small></div>`;
   const shared = mine ? d.shared_with || [] : [];
-  const mealSeg = (attr, cur, label) => `<div class="seg wide meal4" role="group" aria-label="${label}">${Object.entries(MEAL_NAMES).map(([m, n]) => `<button type="button" data-${attr}="${m}" aria-pressed="${m === cur}">${n}</button>`).join('')}</div>`;
-  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts"><button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button></div></div>
-    <div class="eyebrow">${mine ? (cooking ? 'Cooking' : 'Leftovers') : `From ${esc(d.owner.name)}`}</div>
-    <h1 class="dish-name">${esc(d.name)}${mine ? `<button class="icon-btn dn-edit" id="dk-rename" aria-label="Rename the dish">${svg('edit')}</button>` : ''}</h1>
-    ${mine ? `<button class="linkbtn help-link" id="dk-help">${svg('help')}Need help?</button>` : ''}
-    ${has || d.weighed ? `<div class="card dish-hero"><div class="dh-top"><div><small>Whole dish</small><b class="num">${r0(t.kcal)}<i>kcal</i></b></div>
-      ${w ? `<div class="dh-w"><small>${d.weighed ? 'Cooked weight' : 'Weight'}</small><b class="num">${gfmt(w)}</b></div>` : ''}</div>
+  const one = d.serving === 'one';
+  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${mine ? `<button class="icon-btn" id="dk-help" aria-label="How dishes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button></div></div>
+    ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the dish" aria-label="Dish name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
+      : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
+    ${has ? `<div class="card dish-hero"><div class="dh-top"><div><small>${one ? 'One serving' : 'Whole dish'}</small><b class="num">${r0(t.kcal)}<i>kcal</i></b></div>
+      ${w && !one ? `<div class="dh-w"><small>Weight</small><b class="num">${gfmt(w)}</b></div>` : ''}</div>
       <div class="dh-mac">${MACROS.map(([k, n]) => `<span><b class="num">${r0(t[k])}g</b><small>${n}</small></span>`).join('')}</div>
       ${typed ? `<p class="small muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.${mine ? ' <button class="linkbtn" id="dk-known2">Change</button>' : ''}</p>` : ''}</div>` : ''}
 
     ${mine || d.items.length ? `<h2 class="sec-head">Ingredients${d.items.length ? ` <span class="count">${d.items.length}</span>` : ''}</h2>
-    <div class="card">${mine ? `${chatLog(d)}<form class="addline" id="dk-add"><input name="t" placeholder="What went in?" aria-label="What went in, in your own words, like 2 apples or a tablespoon of olive oil"
-        autocomplete="off" enterkeyhint="send" maxlength="600" required><button type="button" class="icon-btn lbl-btn" id="dk-label" aria-label="Add from a photo of the nutrition label">${svg('camera')}</button><button class="primary sm" aria-label="Add">${svg('plus')}<span class="al-t">Add</span></button></form>
+    <div class="card">${mine ? `<label class="add-title" for="dk-t">Add an ingredient or take a picture</label>${chatLog(d)}<form class="addline" id="dk-add"><input name="t" id="dk-t" placeholder="e.g. 2 apples" aria-label="Add an ingredient in your own words, like 2 apples or a tablespoon of olive oil"
+        autocomplete="off" enterkeyhint="send" maxlength="600" required><button type="button" class="icon-btn lbl-btn" id="dk-label" aria-label="Take a picture of the nutrition label">${svg('camera')}</button><button class="primary sm" aria-label="Add">${svg('plus')}<span class="al-t">Add</span></button></form>
       <input type="file" accept="image/*" id="dk-label-file" hidden>
       <div id="dk-match"></div>` : ''}
       <div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="fe sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="fe">${ing(it)}</div>`)).join('')}</div>
       ${mine ? `<button class="linkbtn" id="dk-known">${typed ? 'Change the total you typed in' : 'I already know the total'}</button>` : ''}</div>` : ''}
 
+    ${mine && has ? `<h2 class="sec-head">How you eat it</h2>
+    <div class="card serve"><div class="seg wide" role="group" aria-label="How you eat it">
+        <button type="button" data-sv="one" aria-pressed="${one}">One serving</button><button type="button" data-sv="portion" aria-pressed="${!one}">A portion of it</button></div>
+      <p class="small muted sv-note">${one ? 'Like a smoothie or a coffee: logged as a whole serving.' : 'Like a pot of chili: you log your portion in grams, or as 1 of 4.'}</p>
+      ${one ? '' : `<form class="wt-row" id="dk-weigh"><label for="dk-w">Total weight</label><span class="gfield"><input id="dk-w" name="g" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
+          value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole dish in grams"><span>g</span></span></form>
+        ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
+
     ${(mine && App.me.coach && has) || d.review ? `<div class="card ai coach-card" id="dk-ai">${recipeReview(d, mine)}</div>` : ''}
 
-    ${mine && has ? `<h2 class="sec-head">Weight</h2>
-    <div class="card serve"><div class="kvs"><div class="kv"><span>Whole dish</span><b class="num">${w ? gfmt(w) : 'Not weighed'}${d.weighed ? ' <button class="linkbtn" id="dk-reweigh">Change</button>' : ''}</b></div></div>
-      ${d.weighed && d.items.length ? '<button class="linkbtn" id="dk-sum">Use the ingredients added up</button>' : ''}
-      <form id="dk-weigh"${d.weighed ? ' hidden' : ''}><div class="addline"><span class="gfield"><input name="g" inputmode="decimal" placeholder="Cooked dish, e.g. 1600" required aria-label="Weight of the whole cooked dish in grams"><span>g</span></span><button class="primary">Save</button></div>
-        <div class="pan-row"><span class="muted">Weighed in</span><select name="pan" aria-label="Weighed in a pan"><option value="">No pan</option></select><button type="button" class="linkbtn" id="dk-pan">+ Pan</button></div></form></div>` : ''}
-
-    ${has ? `<h2 class="sec-head">${d.eaten ? 'Log another portion' : 'Log what you ate'}</h2>
-    <div class="card serve">${d.eaten || !cooking || !mine ? `<div class="kvs"><div class="kv"><span>Left</span><b class="num">${d.weight_g ? gfmt(d.left_g) : `${Math.round(d.left_share * 100)}%`}</b></div></div>` : ''}
-      <form class="form" id="dk-portion">
-        ${w ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="e.g. 380" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
-        <div class="share-line">${w ? '<span class="muted">or</span>' : ''}<span>I had</span><input name="n" inputmode="decimal" value="1" aria-label="How many servings you had"><span>of</span>
-          <input name="of" inputmode="decimal" placeholder="3" aria-label="Servings in the whole dish"><span>servings</span></div>
-        ${mealSeg('meal', startMeal, 'Meal')}
-        <div class="portion-out" aria-live="polite"></div>
-        <button class="primary wide">Log it to <span class="lg-meal">${esc(MEAL_NAMES[startMeal])}</span>${pastDay ? ` for ${esc(dayLabel(pastDay))}` : ''}</button></form></div>`
-      : !mine ? `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>` : ''}
-
-    ${mine && has ? `<button class="card tap share-row" id="dk-save" role="switch" aria-checked="${saved}"><span class="ri">${svg('bookmark')}</span>
-      <span class="grow"><b>Save as a recipe</b></span><span class="tog" aria-hidden="true"></span></button>` : ''}
-    ${mine ? `<button class="card tap share-row" id="dk-share">${shared.length ? `<span class="avs">${shared.map((p) => avatar(p)).join('')}</span>` : `<span class="ri">${svg('people')}</span>`}
-      <span class="grow"><b>${shared.length ? `Shared with ${esc(shared.map((p) => p.name.split(' ')[0]).join(', '))}` : 'Share with a friend'}</b>
-      <small class="muted">${shared.length ? 'Tap to change' : 'They log their own plate from it'}</small></span>${svg('chev')}</button>
-    <div class="finish"><button class="ghost wide" id="dk-finish">${svg('check')}${cooking ? 'Finish' : 'The leftovers are gone'}</button>
-      <p class="small muted">${cooking ? 'Done cooking? Finish takes it off your list. What you logged stays in your food log.'
-        : `Leftovers stay on your list until ${esc(new Date(new Date(d.done_at).getTime() + LEFTOVER_DAYS * 864e5).toLocaleDateString([], {weekday: 'long'}))}.`}</p></div>` : ''}`;
-  wireBack(el, '/food' + location.search);
+    ${shared.length ? `<button class="card tap share-row" id="dk-share"><span class="avs">${shared.map((p) => avatar(p)).join('')}</span>
+      <span class="grow"><b>Shared with ${esc(shared.map((p) => p.name.split(' ')[0]).join(', '))}</b><small class="muted">Tap to change</small></span>${svg('chev')}</button>` : ''}
+    ${mine ? `<div class="finish"><button class="primary wide" id="dk-done">${svg('check')}Done</button>
+      <p class="small muted">${has ? 'Saved. Log it any time from Add food &gt; Saved Dishes.' : 'Add what goes in, and it’s saved as you go.'}</p></div>`
+      : has ? `<div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
+  wireBack(el, '/food');
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search()) : sharedMenu(d));
   [$('#dk-known', el), $('#dk-known2', el)].forEach((b) => { if (b) b.onclick = () => knownSheet(d, set); });
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
-  if (mine) {
-    $('#dk-help', el).onclick = () => sheet('How cooking works', cookSteps(d));
-    swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
-    chatBox(el, d, set);
-    labelButton(el, d, set);
-    $('#dk-share', el).onclick = () => shareDishSheet(d, set);
-    $('#dk-finish', el).onclick = () => finishSheet(d);
-    $('#dk-rename', el).onclick = () => renameSheet(d, set);
+  const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
+  if (!mine) return;
+  $('#dk-help', el).onclick = () => sheet('How dishes work', cookSteps(d));
+  swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
+  chatBox(el, d, set);
+  labelButton(el, d, set);
+  const sh = $('#dk-share', el); if (sh) sh.onclick = () => shareDishSheet(d, set);
+  // Done: back to Nutrition (a dish with nothing in it and no name isn't kept)
+  $('#dk-done', el).onclick = () => { if (!has && !$('#dk-name', el).value.trim()) { api(`/api/dishes/${d.id}`, {method: 'DELETE'}).catch(() => {}); App.cache.delete('/api/dishes'); } go('/food', {replace: true}); };
+  // the name, edited in place: saved when you leave the box or press Done on the keyboard
+  const nm = $('#dk-name', el);
+  const saveName = async () => { const n = nm.value.trim(); if (n && n !== d.name) await patch({name: n}); else if (!n && d.named) nm.value = d.name; };
+  const fit = () => { nm.style.height = 'auto'; nm.style.height = `${nm.scrollHeight}px`; };      // a long name wraps instead of being cut off
+  fit(); nm.oninput = () => { nm.value = nm.value.replace(/\n/g, ' '); fit(); };
+  nm.onchange = saveName;
+  nm.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); nm.blur(); } };
+  wireSeg(el, 'sv', (v) => { if (v !== d.serving) patch({serving: v}); });
+  const wf = $('#dk-weigh', el);
+  if (wf) {      // digits only; saved when you leave the box. Typing what the ingredients add up to = not weighed
+    wf.g.oninput = () => { wf.g.value = wf.g.value.replace(/\D/g, ''); };
+    const save = () => { const g = +wf.g.value; if (!(g > 0)) { wf.g.value = w ? Math.round(w) : ''; return; } if (Math.round(g) !== Math.round(w || 0)) patch({cooked_g: g}); };
+    wf.g.onchange = save;
+    wf.onsubmit = (e) => { e.preventDefault(); wf.g.blur(); };
+    const sum = $('#dk-sum', el); if (sum) sum.onclick = () => patch({cooked_g: null});
   }
-  const sv = $('#dk-save', el);
-  if (sv) sv.onclick = async () => {
-    sv.disabled = true;
-    try {
-      if (saved) {
-        if (!confirm(`Stop saving ${d.name}? The saved recipe is deleted; this dish stays until you finish it.`)) { sv.disabled = false; return; }
-        set(await api(`/api/dishes/${d.id}/recipe`, {method: 'DELETE'})); toast('Not saved');
-      } else {
-        if (isDefaultName(d.name)) {      // "Dinner" isn't a recipe name
-          const n = prompt('What do you call this dish?', ''); if (!n || !n.trim()) { sv.disabled = false; return; }
-          await api(`/api/dishes/${d.id}`, json('PATCH', {name: n.trim()}));
-        }
-        set(await api(`/api/dishes/${d.id}/recipe`, json('POST', {}))); toast('Saved as a recipe. Find it under Add food > Saved dishes');
-      }
-    } catch (x) { toast(x.message); sv.disabled = false; }
-  };
   const rb = $('#dk-review', el);
   if (rb) rb.onclick = async () => {
     if (!App.me.ai_ok) { aiSheet(() => rb.click()); return; }
@@ -161,55 +120,55 @@ function drawDish(el, d) {
     try { const r = await api(`/api/dishes/${d.id}/review`, json('POST', {})); set({...d, review: {...r, changed_since: false}}); }
     catch (x) { rb.disabled = false; rb.innerHTML = was; aiError(rb, x.message); }
   };
-  const wf = $('#dk-weigh', el);
-  if (wf) {
-    const pans = (list) => { wf.pan.innerHTML = '<option value="">No pan</option>' + list.map((p) => `<option value="${p.id}">${esc(p.name)} (${gfmt(p.grams)})</option>`).join(''); };
-    load('/api/dishes/pans', pans).catch(() => {});
-    $('#dk-pan', el).onclick = () => panSheet((list) => pans(list));
-    wf.onsubmit = async (e) => {
-      e.preventDefault(); const btn = $('button.primary', wf), g = +wf.g.value.replace(',', '.'); btn.disabled = true;
-      if (await patch(wf.pan.value ? {gross_g: g, pan_id: +wf.pan.value} : {cooked_g: g})) toast('Weight saved');
-      else btn.disabled = false;
-    };
-    const rw = $('#dk-reweigh', el); if (rw) rw.onclick = () => { wf.hidden = false; wf.g.value = Math.round(d.cooked_g); wf.g.focus(); };
-    const sum = $('#dk-sum', el); if (sum) sum.onclick = () => patch({cooked_g: null});
-  }
-  const f = $('#dk-portion', el);
-  if (f) {
-    const out = $('.portion-out', f), p = d.per_100g || {};
-    let meal = startMeal, mode = w ? 'g' : 'share';
-    wireSeg(f, 'meal', (m) => { meal = m; $('.lg-meal', f).textContent = MEAL_NAMES[m]; });
-    const num = (i) => +i.value.replace(',', '.');
-    const share = () => { const n = num(f.n), of = num(f.of); return n > 0 && of > 0 && n <= of ? n / of : null; };
+}
+// Log a dish (Add food > Saved Dishes, or a friend's dish): one serving is a count (½, 1, 2…); a portion is grams or
+// "I had 1 of 4" (the 4 is remembered). w = {day, meal} from Add food.
+function dishLogSheet(d, w, done) {
+  const t = d.totals, wt = d.weight_g, one = d.serving === 'one';
+  const vals = (k) => Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, (t[x] || 0) * k]));
+  sheet(d.name, `<form class="form" id="dl">
+    ${one ? `<div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
+        <span><b class="num" id="dl-n">1</b><small id="dl-u">serving</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div>`
+      : `${wt ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="Whole dish: ${Math.round(wt)}" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
+        <div class="share-line">${wt ? '<span class="muted">or</span>' : ''}<span>I had</span><input name="n" inputmode="decimal" value="1" aria-label="How many servings you had"><span>of</span>
+          <input name="of" inputmode="decimal" value="${d.servings || ''}" placeholder="4" aria-label="Servings in the whole dish"><span>servings</span></div>`}
+    <div class="portion-out" aria-live="polite"></div>
+    <div class="actions">${d.mine !== false ? `<button type="button" class="ghost" id="dl-edit">${svg('edit')}Edit</button><span class="spacer"></span>` : ''}
+      <button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}${w.day !== isoDay(new Date()) ? `, ${esc(dayLabel(w.day))}` : ''}</button></div></form>`, (b, close) => {
+    const f = $('#dl', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
+    let n = 1, mode = wt ? 'g' : 'share';
+    const share = () => { const a = num(f.n), of = num(f.of); return a > 0 && of > 0 && a <= of ? a / of : null; };
+    const factor = () => (one ? n : mode === 'g' ? (num(f.g) > 0 ? num(f.g) / wt : null) : share());
     const show = () => {
-      let v = null, warn = '';
-      if (mode === 'g') {
-        const g = num(f.g);
-        if (g > 0) { v = Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, p[k] * g / 100])); if (d.left_g != null && g > d.left_g * 1.05 + .5) warn = `Only ${gfmt(d.left_g)} left`; }
-      } else {
-        const s = share();
-        if (s) { v = Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, (t[k] || 0) * s])); if (s > d.left_share * 1.05 + .01) warn = `Only ${leftText(d)}`; }
-        else if (f.of.value && f.n.value) warn = 'The first number can\'t be bigger than the second';
-      }
-      out.innerHTML = (v ? nutGrid(v) : '') + (warn ? `<span class="warn-text">${esc(warn)}</span>` : '');
+      const k = factor();
+      out.innerHTML = k ? nutGrid(vals(k)) : (!one && mode === 'share' && f.n.value && f.of.value ? '<span class="warn-text">The first number can\'t be bigger than the second</span>' : '');
     };
-    // typing grams logs by weight; typing servings logs that share, and shows it in grams too (which you can then adjust)
-    const byShare = () => { mode = 'share'; const s = share(); if (w && f.g) f.g.value = s ? Math.round(w * s) : ''; show(); };
-    if (f.g) f.g.oninput = () => { mode = 'g'; show(); };
-    f.n.oninput = byShare; f.of.oninput = byShare;
+    if (one) $$('[data-st]', f).forEach((x) => x.onclick = () => {
+      n = Math.max(0.5, Math.min(20, n + 0.5 * +x.dataset.st));
+      $('#dl-n', f).textContent = n === 0.5 ? '½' : String(n).replace('.5', '½'); $('#dl-u', f).textContent = n > 1 ? 'servings' : 'serving'; show();
+    });
+    else {        // typing grams logs by weight; typing servings logs that share, and shows it in grams too
+      const byShare = () => { mode = 'share'; const s = share(); if (wt && f.g) f.g.value = s ? Math.round(wt * s) : ''; show(); };
+      if (f.g) f.g.oninput = () => { mode = 'g'; show(); };
+      f.n.oninput = byShare; f.of.oninput = byShare;
+      if (d.servings) byShare();
+    }
     show();
+    const ed = $('#dl-edit', b); if (ed) ed.onclick = () => { close(); done(true); go(`/food/cook/${d.id}`); };
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f);
-      const body = {meal, day: pastDay || undefined};
-      if (mode === 'g') { const g = num(f.g); if (!(g > 0)) return; body.grams = g; }
-      else { const s = share(); if (!s) { toast(w ? 'Type your portion in grams, or how many servings you had' : 'Type how many servings the dish made, and how many you had'); return; } body.share = s; }
+      const body = {meal: w.meal, day: w.day};
+      if (one) body.count = n;
+      else if (mode === 'g') { const g = num(f.g); if (!(g > 0)) { toast('Type your portion in grams, or how many servings you had'); return; } body.grams = g; }
+      else { const s = share(); if (!s) { toast(wt ? 'Type your portion in grams, or how many servings you had' : 'Type how many servings the dish made, and how many you had'); return; } body.share = s; body.of = Math.round(num(f.of)) || undefined; }
       btn.disabled = true;
       try {
         const r = await api(`/api/dishes/${d.id}/portion`, json('POST', body));
-        invalidate('/api/food/'); toast(`Logged to ${MEAL_NAMES[meal]}${pastDay ? ` on ${dayLabel(pastDay)}` : ''}: ${r0(r.entry.kcal)} kcal`); set(r.dish);
+        invalidate('/api/food/'); App.cache.delete('/api/dishes'); close(); done(false);
+        toast(`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${r0(r.entry.kcal)} kcal`);
       } catch (x) { toast(x.message); btn.disabled = false; }
     };
-  }
+  });
 }
 // Swipe an ingredient left to show Remove (2026-10-12). The name stays put (so you can see what you're removing); the
 // Remove button slides in over the calories, which fade out. A tap on an open row just closes it.
@@ -299,46 +258,17 @@ async function removeItem(d, it, set) {
     toast(`Removed ${it.name}`, async () => { try { set(await api(`/api/dishes/${d.id}/items`, json('POST', back))); } catch (x) { toast(x.message); } });
   } catch (x) { toast(x.message); }
 }
-// Finish: off the list. Keep the leftovers (offered for a few days) or not; save it as a recipe or not (off unless you say)
-function finishSheet(d) {
-  const cooking = d.status === 'cooking', left = someLeft(d), saved = d.recipe_id != null;
-  sheet(cooking ? `Finish ${d.name}` : 'Leftovers gone?', `<form class="form" id="fn">
-    ${cooking && !d.eaten ? '<p class="callout warn">You haven\'t logged any of it yet. Log what you ate first, or keep it all as leftovers.</p>' : ''}
-    ${cooking && left ? `<div class="checks" role="radiogroup" aria-label="Leftovers">
-      <label class="check"><input type="radio" name="keep" value="0" checked> <span>Nothing left<small class="muted">It's cleared away</small></span></label>
-      <label class="check"><input type="radio" name="keep" value="1"> <span>Keep the leftovers<small class="muted">${esc(leftText(d))}: they stay on your list for ${LEFTOVER_DAYS} days, to log later</small></span></label></div>`
-      : !cooking ? '<p class="small muted">It comes off your list.</p>' : ''}
-    ${saved ? `<p class="small">${svg('check')} Saved as a recipe: find it in Add food &gt; Saved dishes.</p>`
-      : `<label class="check"><input type="checkbox" name="save"> <span>Save it as a recipe<small class="muted">To cook again without typing it all in</small></span></label>`}
-    <div class="actions"><button class="primary">${cooking ? 'Finish' : 'Take it off my list'}</button></div></form>`, (b, close) => {
-    const f = $('#fn', b);
-    f.onsubmit = async (e) => {
-      e.preventDefault(); const btn = $('button.primary', f), save = !!(f.save && f.save.checked);
-      if (save && isDefaultName(d.name)) {
-        const n = prompt('What do you call this dish?', ''); if (!n || !n.trim()) return;
-        try { await api(`/api/dishes/${d.id}`, json('PATCH', {name: n.trim()})); } catch (x) { toast(x.message); return; }
-      }
-      btn.disabled = true;
-      try {
-        const r = await api(`/api/dishes/${d.id}/finish`, json('POST', {leftovers: !!(f.keep && f.keep.value === '1'), save}));
-        App.cache.delete('/api/dishes'); App.cache.delete(`/api/dishes/${d.id}`); close();
-        toast([r.kept ? 'Leftovers kept' : 'Finished', save ? 'saved as a recipe' : ''].filter(Boolean).join(', '));
-        go('/food' + location.search, {replace: true});
-      } catch (x) { toast(x.message); btn.disabled = false; }
-    };
-  });
-}
-// What to do next, until something's eaten: three numbered steps, the current one highlighted (weighing is optional)
+// Need help? (the ? at the top): three short steps, the current one highlighted
 function cookSteps(d) {
   const added = d.items.length > 0 || d.known.kcal != null;
   const steps = [
-    [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it as you cook, the way you\'d text it.'],
-    [d.weighed, 'Weigh the cooked dish, if you like', d.weighed ? gfmt(d.cooked_g) : 'Without it, the ingredients are added up. In its pan is fine: the pan comes off.'],
-    [false, 'Log what you ate', 'In grams, or as servings like 1 of 3. It goes in the meal you\'re cooking for.'],
+    [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it the way you\'d text it, or take a picture of the nutrition label.'],
+    [added, 'Say how you eat it', 'One serving (a smoothie, a coffee), or a portion of it (a pot of chili). For a portion, type the cooked weight if you weighed it.'],
+    [false, 'Log it when you eat it', 'Add food > Saved Dishes, any day. It stays saved until you delete it.'],
   ];
   const now = added ? 2 : 0;
-  return `<ol class="card cook-steps" aria-label="How cooking works">${steps.map(([done, title, sub], i) =>
-    `<li class="${done ? 'done' : i === now ? 'now' : ''}"${i === now ? ' aria-current="step"' : ''}><span class="stepn">${done ? svg('check') : i + 1}</span>
+  return `<ol class="card cook-steps" aria-label="How dishes work">${steps.map(([done, title, sub], i) =>
+    `<li class="${done && i !== now ? 'done' : i === now ? 'now' : ''}"${i === now ? ' aria-current="step"' : ''}><span class="stepn">${done && i !== now ? svg('check') : i + 1}</span>
       <div><b>${title}</b><small>${esc(sub)}</small></div></li>`).join('')}</ol>`;
 }
 // AI feedback on the recipe (food_coach.py): kept on the dish, so friends it's shared with see it too
@@ -513,7 +443,7 @@ function knownSheet(d, set) {
   sheet('Total for the whole dish', `<form class="form" id="kn"><label>Calories<input name="kcal" inputmode="decimal" value="${v(k.kcal)}" required></label>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal" value="${v(k.protein_g)}"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal" value="${v(k.carbs_g)}"></label></div>
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal" value="${v(k.fat_g)}"></label><span></span></div>
-    <p class="small muted">From a recipe or your own sums. It's used instead of the ingredients. Then weigh the dish and your portion as usual.</p>
+    <p class="small muted">From a recipe or your own sums. It's used instead of the ingredients.</p>
     <div class="actions">${k.kcal != null ? '<button type="button" class="ghost" id="kn-clear">Use the ingredients</button>' : ''}<button class="primary">Save</button></div></form>`, (b, close) => {
     const f = $('#kn', b);     // no keyboard until a box is tapped (2026-10-12)
     const save = async (body) => {
@@ -527,51 +457,13 @@ function knownSheet(d, set) {
     const c = $('#kn-clear', b); if (c) c.onclick = () => save({known_kcal: null, known_protein_g: null, known_carbs_g: null, known_fat_g: null});
   });
 }
-function panSheet(after) {
-  sheet('Your pans', `<div id="pn-list">${skel(1)}</div>
-    <form class="form" id="pn"><h3 class="ghead">Add a pan</h3><div class="two"><label>Name<input name="name" maxlength="40" placeholder="Big pot" required></label>
-      <label>Empty weight (g)<input name="grams" inputmode="decimal" required></label></div>
-      <p class="small muted">Weigh it once, empty. After that you can weigh dishes in it.</p><div class="actions"><button class="primary">Add pan</button></div></form>`, (b) => {
-    const list = $('#pn-list', b);
-    const draw = (pans) => {
-      list.innerHTML = pans.length ? `<div class="card list">${pans.map((p) => `<div class="row"><span>${esc(p.name)} <span class="muted num">${gfmt(p.grams)}</span></span>
-        <button class="linkbtn danger" data-pdel="${p.id}" aria-label="Remove ${esc(p.name)}">Remove</button></div>`).join('')}</div>` : '';
-      $$('[data-pdel]', list).forEach((x) => x.onclick = async () => {
-        try { await api(`/api/dishes/pans/${x.dataset.pdel}`, {method: 'DELETE'}); refresh(); } catch (e) { toast(e.message); }
-      });
-      after(pans);
-    };
-    const refresh = async () => { App.cache.delete('/api/dishes/pans'); await load('/api/dishes/pans', draw, {maxAge: 0}); };
-    refresh();
-    const f = $('#pn', b);
-    f.onsubmit = async (e) => {
-      e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
-      try { await api('/api/dishes/pans', json('POST', {name: f.name.value.trim(), grams: +f.grams.value.replace(',', '.')})); f.reset(); refresh(); toast('Pan added'); }
-      catch (x) { toast(x.message); }
-      btn.disabled = false;
-    };
-  });
-}
-// the pencil next to the name (2026-10-12): "Dinner" is only a placeholder until you name it
-function renameSheet(d, set) {
-  sheet('Name the dish', `<form class="form" id="rn"><label>Name<input name="n" maxlength="80" value="${isDefaultName(d.name) ? '' : esc(d.name)}" placeholder="e.g. Chicken traybake" enterkeyhint="done" required></label>
-    <div class="actions"><button class="primary">Save</button></div></form>`, (b, close) => {
-    const f = $('#rn', b); f.n.focus();
-    f.onsubmit = async (e) => {
-      e.preventDefault(); const n = f.n.value.trim(); if (!n) return;
-      try { set(await api(`/api/dishes/${d.id}`, json('PATCH', {name: n}))); close(); } catch (x) { toast(x.message); }
-    };
-  });
-}
 function dishMenu(d, set, search) {
-  sheet(d.name, `<div class="btncol"><button class="ghost" id="dm-name">Rename</button>
-    <button class="ghost" id="dm-search">Search the food database</button>
-    <button class="ghost" id="dm-done">${d.status === 'cooking' ? 'Finish' : 'The leftovers are gone'}</button>
+  sheet(d.name, `<div class="btncol"><button class="ghost" id="dm-search">Search the food database</button>
+    <button class="ghost" id="dm-share">${(d.shared_with || []).length ? 'Shared with friends' : 'Share with a friend'}</button>
     <button class="ghost danger" id="dm-del">Delete dish</button></div>
-    <p class="small muted">What you've logged from it stays in your food log.${d.recipe_id ? ' Deleting the dish keeps its saved recipe.' : ''}</p>`, (b, close) => {
-    $('#dm-name', b).onclick = () => { close(); renameSheet(d, set); };
+    <p class="small muted">What you've logged from it stays in your food log.</p>`, (b, close) => {
     $('#dm-search', b).onclick = () => { close(); search(); };
-    $('#dm-done', b).onclick = () => { close(); finishSheet(d); };
+    $('#dm-share', b).onclick = () => { close(); shareDishSheet(d, set); };
     $('#dm-del', b).onclick = async () => {
       if (!confirm(`Delete ${d.name}?`)) return;
       try { await api(`/api/dishes/${d.id}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); toast('Dish deleted'); } catch (x) { toast(x.message); }

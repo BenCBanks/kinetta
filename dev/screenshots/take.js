@@ -17,7 +17,7 @@ const SHOTS = [
   ['heatmap', '/progress/heatmap'],
   ['food', '/food'],
   ['cook', 'DISH'],
-  ['serve', 'DISH', {to: 'Log', portion: '380'}],
+  ['serve', '/food', {logDish: 'Chicken and veg traybake', portion: '380'}],
   ['friends', '/me/friends'],
   ['dietcoach', '/food?view=trends', {to: "Coach's take"}],
   ['recipecoach', 'DISH', {to: "Coach's take"}],
@@ -39,13 +39,17 @@ const SHOTS = [
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
       return {RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
-        DISH: '/food/cook/' + ((dishes.find((d) => d.status === 'cooking') || dishes[0] || {}).id || '')};
+        DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || '')};
     });
     for (const [name, path, opt = {}] of SHOTS) {
       await page.evaluate((p) => { window.scrollTo(0, 0); go(p); }, ids[path] || path);
       await page.waitForTimeout(1500);
       await page.waitForFunction(() => !document.querySelector('.leaflet-container') || document.querySelector('.leaflet-tile-loaded'), null, {timeout: 8000}).catch(() => {});
-      if (opt.portion) { await page.fill('#dk-portion input[name=g]', opt.portion); }
+      if (opt.logDish) {      // Add food > Saved Dishes > the dish: the log sheet, with a portion typed in
+        await page.evaluate(() => addSheet(isoDay(new Date()), 'dinner'));
+        await page.click('[data-t=saved]'); await page.click(`.fe:has-text("${opt.logDish}")`);
+        await page.fill('#dl input[name=g]', opt.portion);
+      }
       if (opt.to) await page.evaluate((t) => {
         const h = [...document.querySelectorAll('.card > h2, h2.sec-head')].find((x) => x.textContent.trim().startsWith(t));
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 16);
