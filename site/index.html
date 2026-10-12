@@ -149,12 +149,6 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
     scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; }
   .shot { scroll-snap-align: start; }
 }
-.more { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 40px; margin-top: 56px; }
-.more h3 { font-size: 17px; display: flex; align-items: center; gap: 10px; }
-.more h3 svg { width: 26px; height: 16px; flex: none; }
-.more ul { margin: 10px 0 0; padding: 0; list-style: none; color: var(--ink2); font-size: 15.5px; }
-.more li { padding: 7px 0; border-top: 1px solid var(--line); }
-@media (max-width: 760px) { .more { grid-template-columns: 1fr; } }
 
 
 /* premium: included, not upsold */
@@ -169,7 +163,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .spot li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; }
 .spot li svg { width: 26px; height: 16px; margin-top: 5px; color: var(--berry); }
 @media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; } .spot .pair { max-width: 520px; } }
-.pcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 22px; }
+.pcards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 22px; }
 .pcard { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .pcard h4 { font: 600 19px/1.2 var(--display); margin: 0; letter-spacing: -0.01em; }
 .pcard p { color: var(--ink2); font-size: 15.5px; }
@@ -239,14 +233,6 @@ pre .c { color: #8C9792; }
 .step a { color: var(--spruce); font-weight: 600; }
 @media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
 
-/* people */
-.people { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: center; }
-.people ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 18px; }
-.people li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; align-items: start; font-size: 17px; color: var(--ink2); }
-.people li b { color: var(--ink); display: block; font-family: var(--display); font-weight: 600; font-size: 18px; }
-.people .dot { width: 44px; height: 26px; }
-.people .phone { width: min(280px, 72vw); }
-@media (max-width: 860px) { .people { grid-template-columns: 1fr; } }
 
 /* footer */
 footer { border-top: 1px solid var(--line); padding-block: 44px 56px; color: var(--ink3); font-size: 14.5px; }
@@ -312,7 +298,7 @@ footer a { color: var(--ink2); }
       <a class="hcard" href="#friends"><span class="hico"><svg aria-hidden="true"><use href="#i-people"/></svg></span><h3>Friends and a feed</h3><p>Cheers, comments, and your home kept off the map.</p></a>
       <a class="hcard" href="#cooking"><span class="hico"><svg aria-hidden="true"><use href="#i-pot"/></svg></span><h3>Cooking mode</h3><p>Weigh the pot, weigh your plate. Done.</p></a>
       <a class="hcard" href="#premium"><span class="hico"><svg aria-hidden="true"><use href="#i-spark"/></svg></span><h3>An AI coach</h3><p>Feedback on workouts, meals and recipes.</p></a>
-      <a class="hcard" href="#premium"><span class="hico"><svg aria-hidden="true"><use href="#i-target"/></svg></span><h3>Training plans</h3><p>5K to marathon, paced to you.</p></a>
+      <a class="hcard" href="#what"><span class="hico"><svg aria-hidden="true"><use href="#i-target"/></svg></span><h3>Training plans</h3><p>5K to marathon, paced to you.</p></a>
       <a class="hcard" href="#what"><span class="hico"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><h3>Photo and barcode</h3><p>Snap it or scan it. Logged.</p></a>
       <a class="hcard" href="#both"><span class="hico"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><h3>Your real deficit</h3><p>What you burned against what you ate.</p></a>
     </div>
@@ -323,7 +309,7 @@ footer a { color: var(--ink2); }
       <div class="head"><span class="eyebrow">One app instead of two</span><h2 id="both-h">Like Strava and MyFitnessPal, combined.</h2></div>
       <div class="combo">
         <div class="half"><span class="tag">Training</span><h3>Everything you do</h3><ul>
-          <li>Runs, rides, walks, swims, gym</li><li>Maps, pace, heart rate</li><li>Training plans</li><li>Records and race predictions</li><li>Friends and a feed</li></ul></div>
+          <li>Runs, rides, walks, swims, gym</li><li>Garmin, Apple Watch, Strava import</li><li>Maps, pace, heart rate</li><li>Training plans</li><li>Records and race predictions</li><li>Friends and a feed</li></ul></div>
         <div class="half"><span class="tag">Food and health</span><h3>Everything you eat</h3><ul>
           <li>Barcode and photo logging</li><li>Calories and macros</li><li>Cooking mode</li><li>Saved meals and recipes</li><li>Weight trend</li></ul></div>
         <div class="meet"><span class="tag">Where they meet</span><ul>
@@ -401,15 +387,6 @@ footer a { color: var(--ink2); }
           <figcaption><h3>Food, made quick</h3><p>Search, scan or snap a photo.</p></figcaption>
         </figure></div>
       </div>
-
-      <div class="more">
-        <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Activities</h3><ul>
-          <li>FIT, GPX, TCX, Strava export</li><li>Garmin and Apple Watch sync</li><li>Routes, records, heatmap</li></ul></div>
-        <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Food</h3><ul>
-          <li>Huge food database</li><li>Barcode scanning</li><li>Works offline</li></ul></div>
-        <div><h3><svg aria-hidden="true"><use href="#oval"/></svg>Extras</h3><ul>
-          <li>Optional AI coach</li><li>Light and dark mode</li><li>Miles or kilometers</li></ul></div>
-      </div>
     </div>
   </section>
 
@@ -442,12 +419,8 @@ footer a { color: var(--ink2); }
           <h4>A review of your eating</h4><p>What's working, and what to try next.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-recipecoach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-recipecoach.webp" alt="Feedback on a chicken and vegetable traybake: calories and protein per portion, and three tweaks with what each one changes" loading="lazy" width="720" height="1558"></picture></div>
           <h4>Feedback on your recipes</h4><p>Simple tweaks for any dish you cook.</p></div>
-        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-plan.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-plan.webp" alt="A 10-week intermediate 10K training plan with the first workout" loading="lazy" width="720" height="1558"></picture></div>
-          <h4>Training plans, 5K to marathon</h4><p>Beginner to advanced, paced to you.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-fitness.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-fitness.webp" alt="Race predictions for 5K, 10K, half marathon and marathon, and a running fitness score" loading="lazy" width="720" height="1558"></picture></div>
           <h4>Race predictions and fitness</h4><p>Your 5K to marathon times, today.</p></div>
-        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-heatmap.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-heatmap.webp" alt="A personal heatmap of every route run, ridden or walked around Charlotte" loading="lazy" width="720" height="1558"></picture></div>
-          <h4>Your personal heatmap</h4><p>Every street you've covered.</p></div>
       </div>
 
       <div class="compare">
@@ -471,11 +444,6 @@ footer a { color: var(--ink2); }
           </div>
         </div>
         <div class="side">
-          <div><h3>Also in Kinetta</h3><ul>
-            <li>Training and food on one screen</li>
-            <li>Cooking mode</li>
-            <li>Shoe mileage reminders</li>
-            <li>Strava history import</li></ul></div>
           <div><h3>Not in Kinetta yet</h3><ul>
             <li>Segments and leaderboards</li>
             <li>Route planning</li>
@@ -516,19 +484,6 @@ docker compose up -d --build</pre></div>
     </div>
   </section>
 
-  <section class="band" aria-labelledby="ppl-h">
-    <div class="wrap people">
-      <div>
-        <div class="head"><span class="eyebrow">Your people</span><h2 id="ppl-h">Invite them with a link.</h2></div>
-        <ol>
-          <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>Create an invite</b>Me → People.</span></li>
-          <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>Send it</b>Text, email, group chat.</span></li>
-          <li><svg class="dot" aria-hidden="true"><use href="#oval"/></svg><span><b>They're in</b>Private to them.</span></li>
-        </ol>
-      </div>
-      <div class="phone"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A morning run in Kinetta with its map, distance, pace and time" loading="lazy" width="720" height="1558"></picture></div>
-    </div>
-  </section>
   <section class="word band" aria-labelledby="word-h">
     <div class="wrap">
       <div class="entry" id="word-h">
