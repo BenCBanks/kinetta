@@ -161,7 +161,8 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 /* premium: included, not upsold */
 .spot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 56px; align-items: center; margin-bottom: 72px; }
 .spot .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
-.spot .pair .frame:nth-child(2) { margin-top: 48px; }
+/* 2026-10-12 (Ben): the two phones side by side, level and centred (the second used to sit 48 px lower) */
+.spot .pair { justify-content: center; }
 .frame { border-radius: 26px; padding: 7px; background: var(--ink); min-width: 0; }
 .frame img { border-radius: 20px; width: 100%; height: auto; aspect-ratio: 720 / 1300; object-fit: cover; object-position: top; }
 .spot h3 { font-size: clamp(26px, 3vw, 34px); margin-top: 14px; }
@@ -169,7 +170,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .spot ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink2); }
 .spot li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; }
 .spot li svg { width: 26px; height: 16px; margin-top: 5px; color: var(--berry); }
-@media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; } .spot .pair { max-width: 520px; } }
+@media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; } .spot .pair { max-width: 520px; margin: 0 auto; width: 100%; } }
 .pcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 22px; }
 .pcard { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .pcard h4 { font: 600 19px/1.2 var(--display); margin: 0; letter-spacing: -0.01em; }
