@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
-from . import activities, analysis, coach, db, importer
+from . import activities, analysis, coach, db, importer, plans
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
@@ -357,8 +357,11 @@ def fitness(days: int = 365, user=Depends(current_user)):
     recent = [e for e in effs if e['start_time'] >= cutoff]
     basis = max(recent, key=lambda e: e['vdot']) if recent else None
     current = round(basis['vdot'], 1) if basis else None
-    preds = [{'label': lbl, 'distance_m': m, 'seconds': analysis.race_time(current, m)}
-             for m, lbl in ((5000, '5K'), (10000, '10K'), (21097.5, 'Half marathon'), (42195, 'Marathon'))] if current else []
+    # each race from its best-suited effort, slowed for long races on low mileage (2026-10-12, plans.run_predictions)
+    with db.connect() as c:
+        preds = plans.run_predictions(c, user['id'], ((5000, '5K'), (10000, '10K'), (21097.5, 'Half marathon'), (42195, 'Marathon'))) if current else []
+    for p in preds:
+        f = p.pop('from'); p['from'] = {'label': f['label'], 'activity_id': f['activity_id']}
     months = {}
     for e in effs: months[e['m']] = max(months.get(e['m'], 0), e['vdot'])
     ramp = None
@@ -573,15 +576,15 @@ def gear_delete(gid: int, user=Depends(current_user)):
 # ---------- goals ----------
 class GoalIn(BaseModel):
     sport: str | None = Field(None, pattern='^(run|ride|walk|hike|swim|row|ski|workout|other)$')
-    period: str = Field(pattern='^(week|month|year)$')
-    metric: str = Field(pattern='^(distance|time|elevation|count)$')
+    period: str = Field(pattern='^(day|week|month|year)$')
+    metric: str = Field(pattern='^(distance|time|elevation|count|calories)$')
     target: float = Field(gt=0, le=1e9)
 
 
 @router.get('/goals')
 def goals(user=Depends(current_user)):
-    """Each goal with progress for the current week/month/year (in the person's time zone; weeks start Monday)."""
-    col = {'distance': 'sum(distance_m)', 'time': 'sum(moving_s)', 'elevation': 'sum(ascent_m)', 'count': 'count(*)'}
+    """Each goal with progress for the current day/week/month/year (in the person's time zone; weeks start Monday)."""
+    col = {'distance': 'sum(distance_m)', 'time': 'sum(moving_s)', 'elevation': 'sum(ascent_m)', 'count': 'count(*)', 'calories': 'sum(calories)'}
     with db.connect() as c:
         tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
         out = []

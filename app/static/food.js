@@ -19,7 +19,8 @@ function todayFoodCard(box) {
     if (!box.isConnected) return;
     App.mealHours = D.meal_hours || App.mealHours;
     const g = D.goal && D.goal.kcal, T = D.totals, pt = D.targets && D.targets.protein_target;
-    if (g == null && !D.entries.length && !D.weight_kg && !Object.keys(D.last_meals || {}).length) { box.innerHTML = ''; return; }
+    // only on days with food logged (2026-10-12): people who don't track food never see it; the Nutrition tab is for starting
+    if (!D.entries.length) { box.innerHTML = ''; return; }
     const left = g != null ? g - T.kcal : null;
     box.innerHTML = `<div class="card tfood"><h2>Food today<a class="more" href="/food">Open log ›</a></h2>
       <a class="tap" href="/food"><div class="stats3">${stat('Eaten', r0(T.kcal), 'kcal')}${g != null ? stat(left < 0 ? 'Over' : 'Left', r0(Math.abs(left)), 'kcal') : stat('Goal', 'not set')}${stat('Protein', r0(T.protein_g) + (pt ? '/' + r0(pt) : ''), 'g')}</div>

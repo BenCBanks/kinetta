@@ -277,6 +277,31 @@ def race_time(vdot, meters):
     return round(hi * 60)
 
 
+def endurance_k(weekly_km):
+    """Riegel exponent for stretching a time to a longer race: 1.06 for runners on about 70 km a week, rising to 1.10 on
+    little mileage. Daniels' tables (and plain Riegel) assume you've trained for the distance; runners on low mileage
+    slow down more in long races than they predict (Vickers & Vertosick 2016, 2,300 recreational runners)."""
+    return 1.06 + 0.04 * min(1.0, max(0.0, (70 - weekly_km) / 55))
+
+
+def predict(meters, seconds, target_m, weekly_km):
+    """Race time (s) for target_m from one effort: Daniels for the same or a shorter race; for a longer one, whichever
+    is slower of Daniels and Riegel with the mileage-based exponent, so a fast mile doesn't promise a fast marathon."""
+    t = race_time(vdot(meters, seconds), target_m)
+    if target_m > meters: t = max(t, seconds * (target_m / meters) ** endurance_k(weekly_km))
+    return round(t)
+
+
+def predictions(efforts, weekly_km, targets):
+    """For each (meters, label) target: the best prediction over the efforts (dicts with distance_m and elapsed_s), and
+    the effort it came from. Longer efforts win the longer races, because stretching a short one costs more."""
+    out = []
+    for m, label in targets:
+        best = min(efforts, key=lambda e: predict(e['distance_m'], e['elapsed_s'], m, weekly_km), default=None)
+        if best: out.append({'label': label, 'distance_m': m, 'seconds': predict(best['distance_m'], best['elapsed_s'], m, weekly_km), 'from': best})
+    return out
+
+
 def splits(S, sport, unit):
     """Per mile/km: moving time, pace, GAP pace, avg HR, elevation change. Last partial split included."""
     if S['n'] < 2 or S['dist'][-1] < unit * 0.25: return []

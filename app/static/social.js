@@ -10,7 +10,8 @@ const VIS_SHORT = {me: 'Only me', friends: 'Friends', everyone: 'Everyone'};
 const DETAIL_NAMES = {map: 'Map', heart_rate: 'Heart rate', pace: 'Pace and speed', splits: 'Splits and laps', elevation: 'Elevation',
   calories: 'Calories', description: 'Description', device: 'Device or watch'};
 Object.assign(IC, {
-  cheer: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  // a party popper (2026-10-12, was a star): the cone fills in once you've cheered
+  cheer: '<path class="cone" d="M3.5 20.5 8 9l7 7z"/><path d="M10.5 6.5c.4-1.4-.3-2.4-1.3-2.8M17.5 13.5c1.4-.4 2.4.3 2.8 1.3M13 9.5c1-2.3 2.6-3.4 5-3.2"/><path d="M14.5 3v1M20.5 9h-1M18 4.8l-.7.7M21 4l-.1.1"/>',
   comment: '<path d="M4 5h16v11H10l-5 4v-4H4z"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   people: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/>',
@@ -53,21 +54,17 @@ async function feedPage(before) {
   return {rows: all.slice(0, n), more: all.length > n || mine.length === FEED_N || theirs.length === FEED_N, friends: theirs.length};
 }
 async function homeFeed(el) {
-  el.innerHTML = `${actTop(false)}${whoseSeg('')}<div id="ff-nudge"></div>
+  el.innerHTML = `${actTop(false, true)}${whoseSeg('')}
     <div class="feed-list" id="ff-list">${skel(3)}</div><button class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   wireWhose(el);
-  const list = $('#ff-list', el), more = $('#ff-more', el), nudge = $('#ff-nudge', el);
+  const list = $('#ff-list', el), more = $('#ff-more', el);
   let items = [];
   const draw = (pg) => {
     items = pg.rows;
     list.innerHTML = items.length ? items.map((a) => postCard(a, {who: true})).join('') : `<div class="card empty"><b>Nothing here yet</b>
       Your activities and the ones your friends share show up here.<br><br>${Native.on ? '<a class="primary" href="/me/health">Connect Apple Health</a>' : '<a class="primary" href="/me/connections">Connect your watch</a>'}</div>`;
-    nudge.innerHTML = '';
-    if (!pg.friends) load('/api/friends', (r) => { if (nudge.isConnected) nudge.innerHTML = r.friends.length ? '' : findNudge; }).catch(() => {});
     more.hidden = !pg.more; feedMaps(list); wireCheers(list);
   };
-  const findNudge = `<a class="card tap nudge" href="/me/friends"><span class="nudge-ico">${svg('people')}</span>
-      <span class="grow"><b>Find your friends</b><small>Search by name, then see each other's runs and rides here.</small></span><span class="chev">${svg('chev')}</span></a>`;
   const hit = App.cache.get('feed:home'); if (hit) draw(hit.data);
   try { const pg = await feedPage(); App.cache.set('feed:home', {data: pg, at: Date.now()}); if (list.isConnected) draw(pg); }
   catch (x) { if (!hit) throw x; }
@@ -113,6 +110,7 @@ function drawShared(el, a) {
   if (a.line) lazy($('#s-map', el), () => mapInto($('#s-map', el), [a.line], {sport: a.sport, ends: false})
     .catch(() => { $('#s-map', el).innerHTML = '<p class="empty">Map unavailable right now</p>'; }));
   socialBlock($('#s-social', el), a.id, a.social);
+  if (new URLSearchParams(location.search).get('tab') === 'comments') setTimeout(() => $('#s-social', el).scrollIntoView({block: 'start'}), 60);
   if (a.chart) requestAnimationFrame(() => sharedCharts($('#s-charts', el), a));
 }
 function sharedCharts(box, a) {
@@ -178,7 +176,7 @@ async function ownSocial(el, a) {
     <small class="muted">${s.visibility === 'me' ? 'Tap to share it' : esc(['distance and time', ...on].join(', '))}${s.visibility !== 'me' && s.details.map && s.trim_m ? ' · map ends hidden' : ''}</small></span>
     <span class="chev">${svg('chev')}</span></button>`;
   $('#sh-edit', share).onclick = () => shareSheet(a.id, s);
-  if (s.visibility !== 'me' || s.cheers.length || s.comments.length) socialBlock(soc, a.id, s);
+  if (s.visibility !== 'me' || s.cheers.length || s.comments.length) { socialBlock(soc, a.id, s); if (el._social) el._social(); }
 }
 function detailChecks(d) {
   return Object.entries(DETAIL_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${d[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('');
@@ -225,7 +223,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Who sees new activities, and which details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
   const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el);
-  const person = (p, btns) => `<div class="person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span><span class="btnrow tight">${btns}</span></div>`;
+  const person = (p, btns, cls = '') => `<div class="person ${cls}">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span><span class="btnrow tight">${btns}</span></div>`;
   const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
     sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Requested</button>`,
     incoming: `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button>`})[p.status] || `<button class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button>`;
@@ -268,7 +266,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   const draw = (r) => {
     Social.set(r.incoming.length); people = people.concat(r.incoming, r.friends, r.outgoing);
     lists.innerHTML = (r.incoming.length ? `<h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2><div class="card list">${r.incoming.map((p) =>
-        person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button><button class="ghost sm danger" data-blk="${esc(p.login)}" aria-label="Block ${esc(p.name)}">Block</button>`)).join('')}</div>` : '') +
+        person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button><button class="ghost sm danger" data-blk="${esc(p.login)}" aria-label="Block ${esc(p.name)}">Block</button>`, 'req')).join('')}</div>` : '') +
       `<h2 class="sec-head">Your friends${r.friends.length ? ` <span class="count">${r.friends.length}</span>` : ''}</h2><div class="card list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="ghost sm" data-rm="${esc(p.login)}" aria-label="Remove ${esc(p.name)}">Remove</button>`)).join('')
         : '<p class="small muted">No friends yet. Search for someone above. They approve it first, then you each see what the other shares with friends.</p>'}</div>` +
       (r.outgoing.length ? `<h2 class="sec-head">Requests you sent</h2><div class="card list">${r.outgoing.map((p) => person(p, `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel</button>`)).join('')}</div>` : '');

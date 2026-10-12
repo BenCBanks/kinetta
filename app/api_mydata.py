@@ -36,6 +36,7 @@ TABLES = {
     'gear': "SELECT to_jsonb(t)" + DROP + " FROM gear t WHERE user_id = %s ORDER BY id",
     'goals': "SELECT to_jsonb(t)" + DROP + " FROM goals t WHERE user_id = %s ORDER BY id",
     'training_plans': "SELECT to_jsonb(t)" + DROP + " FROM training_plans t WHERE user_id = %s ORDER BY id",
+    'plan_marks': "SELECT to_jsonb(t)" + DROP + " FROM plan_marks t WHERE user_id = %s ORDER BY day",
     'coach_notes': "SELECT to_jsonb(t)" + DROP + " FROM coach_notes t WHERE user_id = %s ORDER BY created",
     'food_entries': "SELECT to_jsonb(t)" + DROP + " FROM food_entries t WHERE user_id = %s ORDER BY day, position",
     'custom_foods': "SELECT to_jsonb(t)" + DROP + " FROM custom_foods t WHERE user_id = %s ORDER BY id",

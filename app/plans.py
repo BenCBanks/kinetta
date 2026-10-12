@@ -9,7 +9,9 @@ long runs, a mid-week long run for advanced marathoners; couch-to-5K style run/w
   - paces come from current running fitness (Daniels VDOT, same as Progress > Fitness) and update as you get fitter;
     a goal time sets the race-pace sessions. Without any fast runs yet, workouts are described by effort only.
 Only the plan settings are stored (training_plans); the weeks are rebuilt from them, so the schedule never drifts.
-Completion = a run logged that day (any source)."""
+Completion (2026-10-12): a run logged that day (any source); a run on a rest day ticks off the nearest open workout in
+the same week (up to 3 days before, or the next day), since people swap days; or a workout ticked off by hand
+(plan_marks), e.g. a treadmill run with no watch."""
 import datetime as dt
 import math
 from zoneinfo import ZoneInfo
@@ -279,6 +281,17 @@ def current_vdot(c, uid):
     return round(max(vs), 1) if vs else None
 
 
+def run_predictions(c, uid, targets):
+    """Race predictions from the best efforts (a mile or longer) of the last 90 days and the last 8 weeks' running
+    (analysis.predictions). Shared by Progress > Fitness and the plan."""
+    effs = c.execute("""SELECT label, distance_m, elapsed_s, start_time, activity_id FROM best_efforts WHERE user_id = %s
+                        AND sport = 'run' AND distance_m >= 1609 AND elapsed_s > 0 AND start_time > now() - interval '90 days'""", (uid,)).fetchall()
+    effs = [e for e in effs if 25 <= analysis.vdot(e['distance_m'], e['elapsed_s']) <= 85]      # drop GPS glitches
+    km = c.execute("""SELECT coalesce(sum(distance_m), 0) / 8000.0 AS km FROM activities WHERE user_id = %s AND sport = 'run'
+                      AND start_time > now() - interval '56 days'""", (uid,)).fetchone()['km']
+    return analysis.predictions(effs, float(km), targets)
+
+
 def recent_weekly(c, uid, unit):
     r = c.execute("""SELECT coalesce(sum(distance_m), 0) AS m FROM activities WHERE user_id = %s AND sport = 'run'
                      AND start_time > now() - interval '28 days'""", (uid,)).fetchone()
@@ -340,6 +353,7 @@ def options(user=Depends(current_user)):
     with db.connect() as c:
         tz, unit, today = _ctx(c, user['id'])
         v = current_vdot(c, user['id']); wk = recent_weekly(c, user['id'], unit)
+        pred = {x['label']: x['seconds'] for x in run_predictions(c, user['id'], [(R['m'], key) for key, R in RACES.items()])}
     k = 1.0 if unit == 'mi' else MI / 1000
     races = []
     for key, R in RACES.items():
@@ -349,7 +363,7 @@ def options(user=Depends(current_user)):
             if 'vol' in L: item |= {'peak_week': round(L['vol'][1] * k), 'longest': round(L['long'][1] * k)}
             lv.append(item)
         races.append({'key': key, 'name': R['name'], 'weeks': R['weeks'], 'default_weeks': R['default'], 'levels': lv,
-                      'predicted_s': analysis.race_time(v, R['m']) if v else None})
+                      'predicted_s': pred.get(key)})
     suggest = 'first' if wk < 3 else 'beginner' if wk < 15 * k else 'intermediate' if wk < 30 * k else 'advanced'
     return {'races': races, 'unit': unit, 'vdot': v, 'recent_weekly': wk, 'suggest_level': suggest, 'today': today.isoformat()}
 
@@ -390,6 +404,8 @@ def current(user=Depends(current_user)):
         runs = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sum(distance_m) AS m, min(id) AS id, count(*) AS n
                             FROM activities WHERE user_id = %s AND sport = 'run' AND start_time >= %s::date - 1
                             GROUP BY 1""", (tz, user['id'], p['start_day'])).fetchall()
+        marks = {r['day'] for r in c.execute('SELECT day FROM plan_marks WHERE plan_id = %s AND user_id = %s', (p['id'], user['id'])).fetchall()}
+        pred = run_predictions(c, user['id'], [(RACES[p['race']]['m'], p['race'])])
     P = paces(v, p['goal_s'], RACES[p['race']]['m'])
     weeks = build(p, P)
     U = p['unit']; per = MI if U == 'mi' else 1000
@@ -400,17 +416,30 @@ def current(user=Depends(current_user)):
         o = _out_week(wk, U)
         end = wk['start'] + dt.timedelta(days=6)
         o['done'] = round(sum(r['m'] or 0 for d, r in by_day.items() if wk['start'] <= d <= end) / per, 1)
-        for w, raw in zip(o['workouts'], wk['workouts']):
-            r = by_day.get(raw['day'])
-            if r:
-                w['status'] = 'done'; w['actual'] = round((r['m'] or 0) / per, 1); w['activity_id'] = r['id']
+        pairs = list(zip(o['workouts'], wk['workouts']))
+        def done(w, r): w['status'] = 'done'; w['actual'] = round((r['m'] or 0) / per, 1); w['activity_id'] = r['id']
+        for w, raw in pairs:
+            if raw['day'] in by_day: done(w, by_day[raw['day']])
+        # a run on a rest day counts for the nearest open workout that week (people swap days): one up to 3 days
+        # earlier (made up late) or the next day's (run early)
+        planned = {raw['day'] for _, raw in pairs}
+        for d in sorted(x for x in by_day if wk['start'] <= x <= end and x not in planned):
+            near = [(abs((raw['day'] - d).days), raw['day'], i) for i, (w, raw) in enumerate(pairs)
+                    if 'status' not in w and raw['day'] not in marks and -3 <= (raw['day'] - d).days <= 1]
+            if near:
+                w = pairs[min(near)[2]][0]; done(w, by_day[d]); w['ran_on'] = d.isoformat()
+        for w, raw in pairs:
+            if 'status' in w: pass
+            elif raw['day'] in marks: w['status'] = 'done'; w['by_hand'] = True
             else:
                 w['status'] = ('today' if raw['day'] == today else 'before' if raw['day'] < created else
                                'missed' if raw['day'] < today else 'upcoming')
             if raw['day'] == today: today_w = w
         if wk['start'] <= today <= end: this_week = o['n']
         out.append(o)
-    nxt = next((w for wk in out for w in wk['workouts'] if w['day'] > today.isoformat()), None)
+    nxt = next((w for wk in out for w in wk['workouts'] if w['day'] > today.isoformat() and w['status'] != 'done'), None)
+    ran = by_day.get(today)     # a run today, even on a rest day, shows on the Today card
+    today_run = {'actual': round((ran['m'] or 0) / per, 1), 'activity_id': ran['id']} if ran else None
     # progress so far: workouts and distance due up to yesterday (today counts once it's done)
     due = [w for wk in out for w in wk['workouts'] if w['status'] in ('done', 'missed')]
     done_w = [w for wk in out for w in wk['workouts'] if w['status'] == 'done']
@@ -423,10 +452,40 @@ def current(user=Depends(current_user)):
     return {'plan': {'id': p['id'], 'race': p['race'], 'race_name': R['name'], 'level': p['level'], 'level_name': LEVEL_NAMES[p['level']],
                      'weeks': p['weeks'], 'runs': p['runs'], 'long_day': p['long_day'], 'unit': U, 'start_day': p['start_day'].isoformat(),
                      'race_day': p['race_day'].isoformat(), 'goal_s': p['goal_s']},
-            'today': today.isoformat(), 'today_workout': today_w, 'next_workout': nxt, 'this_week': this_week,
-            'days_to_race': (p['race_day'] - today).days, 'vdot': v, 'predicted_s': analysis.race_time(v, R['m']) if v else None,
+            'today': today.isoformat(), 'today_workout': today_w, 'next_workout': nxt, 'this_week': this_week, 'today_run': today_run,
+            'days_to_race': (p['race_day'] - today).days, 'vdot': v, 'predicted_s': pred[0]['seconds'] if pred else None,
             'paces': pace_out, 'summary': _summary(p, weeks), 'progress': progress, 'level_desc': LEVELS[p['race']][p['level']]['desc'],
             'taper_weeks': R['taper'], 'weeks': out}
+
+
+class MarkIn(BaseModel):
+    day: dt.date
+
+
+def _plan_day(c, uid, day):
+    """The active plan, if `day` is one of its workouts and not in the future."""
+    p = c.execute('SELECT * FROM training_plans WHERE user_id = %s AND active', (uid,)).fetchone()
+    if not p: raise HTTPException(404, 'No training plan')
+    if day > _ctx(c, uid)[2]: raise HTTPException(400, "You can't tick off a workout before its day")
+    if not any(w['day'] == day for wk in build(p, paces(None)) for w in wk['workouts']): raise HTTPException(400, 'No workout that day')
+    return p
+
+
+@router.post('/current/marks')
+def mark(b: MarkIn, user=Depends(current_user)):
+    """Tick off a workout by hand (done without a recorded run)."""
+    with db.connect() as c:
+        p = _plan_day(c, user['id'], b.day)
+        c.execute('INSERT INTO plan_marks (user_id, plan_id, day) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING', (user['id'], p['id'], b.day))
+    return {'ok': True}
+
+
+@router.delete('/current/marks/{day}')
+def unmark(day: dt.date, user=Depends(current_user)):
+    with db.connect() as c:
+        c.execute("""DELETE FROM plan_marks WHERE user_id = %s AND day = %s
+                     AND plan_id = (SELECT id FROM training_plans WHERE user_id = %s AND active)""", (user['id'], day, user['id']))
+    return {'ok': True}
 
 
 @router.post('/restart')

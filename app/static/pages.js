@@ -24,10 +24,12 @@ function postCard(a, {who = false} = {}) {
     : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>`;
   const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
   const vis = a.visibility || 'me';
+  // the comment button opens the comments; on your own activity (you can't cheer yourself) the cheer count does too
+  const talk = `${href}?tab=comments`;
   const foot = theirs
     ? `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
-       <a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>`
-    : `<span class="pf static">${svg('cheer')}${n('cheers')}<span class="vh">${a.cheers || 0} ${esc(CHEER.many)}</span></span><a class="pf" href="${href}" aria-label="Comments">${svg('comment')}${n('comments')}</a>
+       <a class="pf" href="${talk}" aria-label="Comments">${svg('comment')}${n('comments')}</a>`
+    : `<a class="pf cheer mine" href="${talk}" aria-label="${a.cheers || 0} ${esc(CHEER.many)}">${svg('cheer')}${n('cheers')}</a><a class="pf" href="${talk}" aria-label="Comments">${svg('comment')}${n('comments')}</a>
        <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`;
   return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
@@ -167,11 +169,12 @@ route(/^\/today$/, 'today', async (el) => {
   ]);
 });
 function goalFmt(metric, v) {
-  return metric === 'distance' ? `${U.dist(v, 1)} ${U.du()}` : metric === 'time' ? dur(v, true) : metric === 'elevation' ? `${U.elev(v)} ${U.eu()}` : `${Math.round(v)}`;
+  return metric === 'distance' ? `${U.dist(v, 1)} ${U.du()}` : metric === 'time' ? dur(v, true) : metric === 'elevation' ? `${U.elev(v)} ${U.eu()}`
+    : metric === 'calories' ? `${Math.round(v).toLocaleString()} kcal` : `${Math.round(v)}`;
 }
 function goalRow(g) {
   const pct = Math.min(1, g.value / g.target);
-  const what = `${g.sport ? SPORT_NAMES[g.sport] : 'All'} · this ${g.period}`;
+  const what = `${g.metric === 'calories' ? 'Calories burned' : g.sport ? SPORT_NAMES[g.sport] : 'All'}${g.metric === 'calories' && g.sport ? ` (${SPORT_NAMES[g.sport].toLowerCase()})` : ''} · ${g.period === 'day' ? 'today' : 'this ' + g.period}`;
   return `<div class="goal"><div class="top2"><b>${esc(what)}</b><span class="num">${esc(goalFmt(g.metric, g.value))} / ${esc(goalFmt(g.metric, g.target))}</span></div>
     <div class="track"><div class="bar" data-w="${pct.toFixed(3)}"></div></div></div>`;
 }
@@ -185,7 +188,8 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 // Mine is only yours, with filters and search. The Feed itself is in social.js.
 const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'mine'}">Feed</button><button data-whose="mine" aria-pressed="${cur === 'mine'}">Mine</button></div>`;
 const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () => go('/activity' + (b.dataset.whose ? '?view=' + b.dataset.whose : ''), {replace: true}));
-const actTop = (search) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
+const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
+    ${friends ? `<a class="icon-btn" href="/me/friends" aria-label="Find friends">${svg('search')}</a>` : ''}
     <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>`;
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
@@ -275,35 +279,56 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   await load(`/api/activities/${id}`, (a) => drawDetail(el, a), {maxAge: 60000});
 });
 
+// Sections (2026-10-12, Ben: "one huge long list"): the map, title, headline numbers and sharing stay on top; the rest is
+// split into Overview | Splits | Charts | Efforts | Comments, each shown only when it has something. ?tab= opens one
+// (the feed's comment button opens Comments).
+const DTABS = [['overview', 'Overview'], ['splits', 'Splits'], ['charts', 'Charts'], ['efforts', 'Efforts'], ['comments', 'Comments']];
 function drawDetail(el, a) {
   const r = rate(a);
   const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m ? stat(r.label, r.v, r.u) : '');
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
+  const more = sportStats(a);
+  const pane = {
+    overview: `${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
+        ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
+      ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
+      ${a.ai_note ? `<div class="card ai"><h2>Coach</h2><p>${esc(a.ai_note)}</p></div>`
+        : App.me.coach ? `<div class="card"><h2>Coach</h2><p class="small muted">A short note on this workout from your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Get coach note' : 'Turn on AI coach'}</button></div>` : ''}
+      ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
+      ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}`,
+    splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
+      ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
+    charts: `${a.chart ? '<div class="card"><div id="d-charts"></div></div>' : ''}
+      ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
+      ${a.power_curve && a.power_curve.length ? `<div class="card"><h2>Power curve</h2><table class="tbl">${a.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}`,
+    efforts: `${a.efforts && a.efforts.length ? `<div class="card"><h2>Best efforts</h2>${effortsTable(a)}</div>` : ''}
+      ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}`,
+    comments: '<div id="d-social"></div>',
+  };
+  const has = (k) => k === 'overview' || (k !== 'comments' && pane[k].trim() !== '');
   el.innerHTML = `<div class="top">${backBtn('Activity')}<div><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>
     ${a.line ? `<div class="map big lead" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
     <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span></div>
       <h1>${esc(a.name)}</h1>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      <div class="hero">${hero}</div><div class="hero more">${sportStats(a)}</div>
-      ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}
-      ${a.private_note ? `<p class="small"><b>Private note:</b> ${esc(a.private_note)}</p>` : ''}</div>
+      <div class="hero">${hero}</div></div>
     <div id="d-share"></div>
-    <div class="cols"><div>
-      ${a.chart ? '<div class="card"><h2>Charts</h2><div id="d-charts"></div></div>' : ''}
-      ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
-      ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
-      <div id="d-social"></div>
-    </div><div>
-      ${a.ai_note ? `<div class="card ai"><h2>Coach</h2><p>${esc(a.ai_note)}</p></div>`
-        : App.me.coach ? `<div class="card"><h2>Coach</h2><p class="small muted">A short note on this workout from your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Get coach note' : 'Turn on AI coach'}</button></div>` : ''}
-      ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
-      ${a.efforts && a.efforts.length ? `<div class="card"><h2>Best efforts</h2>${effortsTable(a)}</div>` : ''}
-      ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
-      ${a.power_curve && a.power_curve.length ? `<div class="card"><h2>Power curve</h2><table class="tbl">${a.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}
-      ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}
-      ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}
-    </div></div>`;
+    <div class="seg wide dtabs" role="tablist" aria-label="Sections">${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
+    ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
+  let drawCharts = null;
+  const want = new URLSearchParams(location.search).get('tab');
+  const show = (k, remember) => {
+    const b = $(`[data-dt="${k}"]`, el); if (!b || b.hidden) k = 'overview';
+    $$('[data-dt]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.dt === k)));
+    $$('[data-pane]', el).forEach((x) => { x.hidden = x.dataset.pane !== k; });
+    if (k === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; }
+    if (remember) history.replaceState(null, '', location.pathname + (k === 'overview' ? '' : '?tab=' + k));
+  };
+  $$('[data-dt]', el).forEach((b) => b.onclick = () => show(b.dataset.dt, true));
+  show(want || 'overview');
+  // Comments appears once ownSocial knows there's something to show (shared, or cheers and comments already)
+  el._social = () => { const b = $('[data-dt="comments"]', el); if (!b) return; b.hidden = false; if (want === 'comments') show('comments'); };
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
   ownSocial(el, a);
@@ -357,8 +382,10 @@ function drawDetail(el, a) {
         if (!marker) marker = mapObj.L.circleMarker(p, {radius: 7, color: '#fff', weight: 2, fillColor: col('--s1'), fillOpacity: 1}).addTo(mapObj.map);
         else marker.setLatLng(p);
       }});
-    requestAnimationFrame(draw);
-    let w = box.clientWidth; new ResizeObserver(() => { if (Math.abs(box.clientWidth - w) > 20) { w = box.clientWidth; draw(); } }).observe(box);
+    let w = 0;
+    drawCharts = () => { w = box.clientWidth; draw(); };
+    if (!$('[data-pane="charts"]', el).hidden) { requestAnimationFrame(drawCharts); drawCharts = null; }
+    new ResizeObserver(() => { if (w && box.clientWidth && Math.abs(box.clientWidth - w) > 20) { w = box.clientWidth; draw(); } }).observe(box);
   }
 }
 function splitsTable(a, splits) {
@@ -518,16 +545,17 @@ route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, v
 async function pFitness(body, q) {
   const R = getRange(q), nowY = new Date().getFullYear();
   const days = R.from ? Math.min(3650, Math.ceil((Date.now() - new Date(R.from, 0, 1)) / 864e5) + 1) : 3650;
-  body.innerHTML = `<div class="rng"></div><div id="fi-body">${skel(2)}</div>`;
+  // predictions first, then the date range (2026-10-12): the range changes the charts below it, not the predictions
+  body.innerHTML = `<div id="fi-pred">${skel(1)}</div><div class="rng"></div><div id="fi-body">${skel(1)}</div>`;
   await load(`/api/fitness?days=${days}`, (f0) => {
-    const box = $('#fi-body', body); if (!box) return;
+    const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
     const f = {...f0, days: f0.days.filter((d) => inRange(R, +d.d.slice(0, 4)))};
     rangeBar($('.rng', body), R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
     const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0}, b = f.basis;
-    box.innerHTML = `${f.predictions.length ? `<div class="card"><h2>Race predictions</h2><div class="pred">${f.predictions.map((p) => `<div><small class="muted">${esc(p.label)}</small><b class="num">${dur(p.seconds)}</b><small class="muted num">${U.pace(p.seconds / p.distance_m * 1000)}${U.pu()}</small></div>`).join('')}</div>
-        <p class="small muted">Based on your best effort of the last 90 days: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a> on ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}. Longer races assume you've trained for them (long runs). An all-out race usually beats a training effort.</p></div>`
-      : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>'}
-      <div class="card"><h2>Running fitness</h2>${f.vdot_months.length ? `<div class="bigstat">${stat('VDOT now', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
+    pbox.innerHTML = f.predictions.length ? `<div class="card"><h2>Race predictions</h2><div class="pred">${f.predictions.map((p) => `<div><small class="muted">${esc(p.label)}</small><b class="num">${dur(p.seconds)}</b><small class="muted num">${U.pace(p.seconds / p.distance_m * 1000)}${U.pu()}</small></div>`).join('')}</div>
+        <p class="small muted">From your best efforts of the last 90 days (fastest: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a>, ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}). Half and full marathon times allow for your weekly mileage: they get faster as it grows.</p></div>`
+      : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>';
+    box.innerHTML = `<div class="card"><h2>Running fitness</h2>${f.vdot_months.length ? `<div class="bigstat">${stat('VDOT now', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
         <p class="small muted">VDOT is Jack Daniels' race-fitness number: what your fastest stretch each month (a mile or longer) shows you can do. Higher is fitter; about 1 point ≈ 1.5% faster.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
       <div class="card"><h2>Fitness, fatigue & form</h2>
       <div class="bigstat">${stat('Fitness', Math.round(last.fitness))}${stat('Form', (last.form > 0 ? '+' : '') + Math.round(last.form))}</div>
@@ -1169,12 +1197,12 @@ route(/^\/me\/gear$/, 'me', async (el) => {
 });
 
 route(/^\/me\/goals$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost" id="o-add">Add</button></div><h1>Goals</h1><div id="o-list">${skel(1)}</div>`;
+  el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost sm" id="o-add">${svg('plus')}Add goal</button></div><h1>Goals</h1><div id="o-list">${skel(1)}</div>`;
   wireBack(el, '/me');
   $('#o-add', el).onclick = () => sheet('New goal', `<form class="form">
     <div class="two"><label>Sport<select name="sport"><option value="">All sports</option>${['run', 'ride', 'walk', 'hike', 'swim'].map((s) => `<option value="${s}">${SPORT_NAMES[s]}</option>`).join('')}</select></label>
-    <label>Every<select name="period"><option value="week">Week</option><option value="month">Month</option><option value="year">Year</option></select></label></div>
-    <div class="two"><label>Measure<select name="metric"><option value="distance">Distance (${U.du()})</option><option value="time">Time (hours)</option><option value="elevation">Climb (${U.eu()})</option><option value="count">Activities</option></select></label>
+    <label>Every<select name="period"><option value="day">Day</option><option value="week" selected>Week</option><option value="month">Month</option><option value="year">Year</option></select></label></div>
+    <div class="two"><label>Measure<select name="metric"><option value="distance">Distance (${U.du()})</option><option value="time">Time (hours)</option><option value="calories">Calories burned (kcal)</option><option value="elevation">Climb (${U.eu()})</option><option value="count">Activities</option></select></label>
     <label>Target<input name="target" inputmode="decimal" required></label></div>
     <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Add goal</button></div></form>`, (b, close) => {
     const f = $('form', b);
@@ -1185,7 +1213,7 @@ route(/^\/me\/goals$/, 'me', async (el) => {
     };
   });
   await load('/api/goals', (g) => {
-    $('#o-list', el).innerHTML = g.length ? `<div class="card">${g.map((x) => `${goalRow(x)}<button class="ghost danger small" data-del="${x.id}">Remove</button>`).join('')}</div>` : '<div class="card empty"><b>No goals yet</b>Set a weekly, monthly or yearly target.</div>';
+    $('#o-list', el).innerHTML = g.length ? `<div class="card">${g.map((x) => `${goalRow(x)}<button class="ghost danger small" data-del="${x.id}">Remove</button>`).join('')}</div>` : '<div class="card empty"><b>No goals yet</b>Set a target for distance, time or calories burned: each day, week, month or year.</div>';
     $$('[data-del]', el).forEach((b) => b.onclick = async () => {
       const row = g.find((x) => x.id === +b.dataset.del);
       try { await api(`/api/goals/${row.id}`, {method: 'DELETE'}); invalidate('/api/goals'); render();

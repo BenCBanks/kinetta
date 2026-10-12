@@ -621,6 +621,24 @@ MIGRATIONS = [
     CREATE INDEX reports_open ON reports (created) WHERE status = 'open';
     ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
     """,
+    # 29 (2026-10-12): plan workouts ticked off by hand (plans.py: done without a recorded run, e.g. on a treadmill
+    # with no watch), and calorie-burn goals, including daily ones
+    """
+    CREATE TABLE plan_marks (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plan_id bigint NOT NULL REFERENCES training_plans(id) ON DELETE CASCADE,
+      day date NOT NULL,
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (plan_id, day));
+    CREATE INDEX plan_marks_user ON plan_marks (user_id);
+    ALTER TABLE plan_marks ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON plan_marks FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON plan_marks FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON plan_marks TO fit_readers;
+    ALTER TABLE goals DROP CONSTRAINT goals_period_check, DROP CONSTRAINT goals_metric_check;
+    ALTER TABLE goals ADD CONSTRAINT goals_period_check CHECK (period IN ('day', 'week', 'month', 'year')),
+      ADD CONSTRAINT goals_metric_check CHECK (metric IN ('distance', 'time', 'elevation', 'count', 'calories'));
+    """,
 ]
 
 
