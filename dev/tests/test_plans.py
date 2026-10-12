@@ -1,6 +1,8 @@
 """Training plans tick off a run of the planned distance that day (not other days), and by hand on any day; calorie-burn goals (daily too); race predictions slow down
 for longer races (2026-10-12)."""
 import datetime as dt
+import os
+import subprocess
 import sys
 from kc import person
 
@@ -35,30 +37,34 @@ W = {w['day']: w for w in D['weeks'][0]['workouts']}
 t = today.isoformat()
 if t in W and W[t]['dist'] and W[t]['dist'] <= 6.1: check("today's workout done", W[t]['status'] == 'done', W[t])
 
-# week 2 is always ahead: a full-length run ticks its day off, a short one doesn't, a rest-day run ticks nothing off
-def week2(): return {w['day']: w for w in p.get('/api/plans/current')[1]['weeks'][1]['workouts']}
-W2 = week2(); d1, d2 = sorted(W2)[:2]
+# the plan moved back 2 weeks (runs can't be dated ahead), so its week 1 is in the past: a full-length run ticks its day
+# off, a short one doesn't, a rest-day run ticks nothing off
+subprocess.run(['docker', 'compose', '-p', os.environ.get('KINETTA_PROJECT', 'kinettatest'), 'exec', '-T', 'app', 'python', '-c',
+                "from app import db\nwith db.connect() as c: c.execute(\"UPDATE training_plans SET start_day = start_day - 14, race_day = race_day - 14 "
+                "WHERE active AND user_id = (SELECT id FROM users WHERE login = 'zz_test_plans')\")"], check=True)
+def week1(): return {w['day']: w for w in p.get('/api/plans/current')[1]['weeks'][0]['workouts']}
+W1 = week1(); d1, d2 = sorted(W1)[:2]
 run = lambda day, mi: p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': f'{day}T07:00',
-                                                         'duration_s': 3000, 'distance_m': mi * 1609.344, 'calories': 500})
-run(d1, W2[d1]['dist'] * 0.99); run(d2, W2[d2]['dist'] * 0.5)
-rest2 = next(d for d in (dt.date.fromisoformat(d1) + dt.timedelta(days=k) for k in range(1, 7)) if d.isoformat() not in W2)
-run(rest2, 20)
-W2 = week2()
-check('full-length run ticks it off', W2[d1]['status'] == 'done' and not W2[d1].get('by_hand'), W2[d1])
-check('short run does not', W2[d2]['status'] != 'done' and W2[d2].get('short') and W2[d2]['actual'], W2[d2])
-check('rest-day run ticks nothing else off', [d for d, w in W2.items() if w['status'] == 'done'] == [d1], W2)
+                                                         'duration_s': 3000, 'distance_m': mi * 1609.344, 'calories': 500})[0]
+rest1 = next(d for d in (dt.date.fromisoformat(d1) + dt.timedelta(days=k) for k in range(1, 7)) if d.isoformat() not in W1)
+check('runs added', [run(d1, W1[d1]['dist'] * 0.99), run(d2, W1[d2]['dist'] * 0.5), run(rest1, 20)] == [200] * 3)
+W1 = week1()
+check('full-length run ticks it off', W1[d1]['status'] == 'done' and not W1[d1].get('by_hand'), W1[d1])
+check('short run does not', W1[d2]['status'] != 'done' and W1[d2].get('short') and W1[d2]['actual'], W1[d2])
+check('rest-day run ticks nothing else off', [d for d, w in W1.items() if w['status'] == 'done'] == [d1], W1)
 
 # by hand: any workout day, future too; unticking wins over a run; clearing goes back to the run
-check('no ticking off a rest day', p.post('/api/plans/current/marks', {'day': rest2.isoformat()})[0] == 400)
-check('tick off ahead by hand', p.post('/api/plans/current/marks', {'day': d2})[0] == 200)
-check('shows as done by hand', week2()[d2]['status'] == 'done' and week2()[d2].get('by_hand'))
+check('no ticking off a rest day', p.post('/api/plans/current/marks', {'day': rest1.isoformat()})[0] == 400)
+check('tick off by hand', p.post('/api/plans/current/marks', {'day': d2})[0] == 200)
+check('shows as done by hand', week1()[d2]['status'] == 'done' and week1()[d2].get('by_hand'))
 check('untick', p.post('/api/plans/current/marks', {'day': d1, 'done': False})[0] == 200)
-check('not done after untick, run or not', week2()[d1]['status'] != 'done', week2()[d1])
-check('tick again', p.post('/api/plans/current/marks', {'day': d1, 'done': True})[0] == 200 and week2()[d1]['status'] == 'done')
+check('not done after untick, run or not', week1()[d1]['status'] != 'done', week1()[d1])
+check('tick again', p.post('/api/plans/current/marks', {'day': d1, 'done': True})[0] == 200 and week1()[d1]['status'] == 'done')
 check('clear', p.delete(f'/api/plans/current/marks/{d2}')[0] == 200)
-check('not done after clearing (short run)', week2()[d2]['status'] != 'done', week2()[d2])
-past = next((d for d in sorted(W) if d < t), None)
-if past: check('tick off a past day', p.post('/api/plans/current/marks', {'day': past})[0] == 200)
+check('not done after clearing (short run)', week1()[d2]['status'] != 'done', week1()[d2])
+ahead = max(w['day'] for wk in p.get('/api/plans/current')[1]['weeks'][-2:] for w in wk['workouts'])
+check('tick off a future day', p.post('/api/plans/current/marks', {'day': ahead})[0] == 200)
+check('future day shows done', next(w for wk in p.get('/api/plans/current')[1]['weeks'] for w in wk['workouts'] if w['day'] == ahead)['status'] == 'done')
 
 # calorie-burn goals, daily and weekly
 s, r = p.post('/api/goals', {'period': 'day', 'metric': 'calories', 'target': 600})
