@@ -106,7 +106,7 @@ function firstFood(box, day) {
       ${step('ff-dish', 'pot', 'c-orange', 'Save a dish you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
     $('#ff-goal', box).onclick = () => targetsSheet();
     $('#ff-log', box).onclick = () => addSheet(day, guessMeal());
-    $('#ff-dish', box).onclick = () => dishSheet();
+    $('#ff-dish', box).onclick = (e) => newDish(e.currentTarget);
   }).catch(() => {});
 }
 function ring(v, target, label) {
@@ -157,7 +157,7 @@ function drawDay(el, D) {
     return `<section class="card meal"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => `<button class="fe${e.pending ? ' pending' : ''}" data-id="${e.id}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`).join('')}
-      <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="${MEAL_NAMES[m]} options">${svg('more')}</button>` : ''}</div></section>`;
+      <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('edit')}Edit</button>` : ''}</div></section>`;
   }).join('') + (D.entries.length ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
   $$('[data-add]', el).forEach((b) => b.onclick = () => addSheet(D.day, b.dataset.add));
   $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
@@ -195,11 +195,17 @@ async function copyDay(from, to, meal) {
   try { const r = await api('/api/food/copy', json('POST', {from_day: from, to_day: to, meal: meal || null})); refresh(); toast(r.copied ? `Copied ${r.copied} item${r.copied > 1 ? 's' : ''}` : 'Nothing to copy'); }
   catch (x) { toast(x.message); }
 }
+// Edit a meal (2026-10-12, Ben: make it obvious): every food in it, tap one to change or remove it; then save or copy it
 function mealMenu(D, meal) {
-  sheet(MEAL_NAMES[meal], `<div class="card">
+  const list = D.entries.filter((e) => e.meal === meal && !e.pending);
+  sheet(`Edit ${MEAL_NAMES[meal].toLowerCase()}`, `<p class="small muted">Tap a food to change how much, move it or remove it.</p>
+    <div class="card list mm-list">${list.map((e) => `<button class="fe" data-me="${e.id}"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))}</small></div>
+      <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal ${svg('chev')}</small></div></button>`).join('')}</div>
+    <div class="card list">
     <button class="row-link" id="mm-save"><span>Save as a meal for next time</span></button>
     <button class="row-link" id="mm-copy"><span>Copy to today</span></button>
     <button class="row-link" id="mm-tomorrow"><span>Copy to the next day</span></button></div>`, (b, close) => {
+    $$('[data-me]', b).forEach((x) => x.onclick = () => { close(); entrySheet(list.find((e) => String(e.id) === x.dataset.me), D.day); });
     $('#mm-save', b).onclick = async () => {
       const name = prompt('Name this meal', `${MEAL_NAMES[meal]} favourite`); if (!name) return;
       try { await api('/api/food/meals', json('POST', {name, from_day: D.day, meal})); invalidate('/api/food/meals'); close(); toast('Meal saved'); } catch (x) { toast(x.message); }
@@ -273,7 +279,7 @@ function addSheet(day, meal) {
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
     <div class="ways three"><button class="way" id="as-photo">${svg('camera')}<b>Photo</b></button>
       <button class="way" id="as-scan">${svg('barcode')}<b>Barcode</b></button>
-      <button class="way" id="as-dish">${svg('pot')}<b>Dish</b></button></div>
+      <button class="way" id="as-dish">${svg('pot')}<b>New dish</b></button></div>
     <div class="seg wide" role="tablist">${[['recent', 'Recent'], ['saved', 'Saved Dishes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
@@ -290,7 +296,7 @@ function addSheet(day, meal) {
       if (App.me.coach && !App.me.ai_ok) aiSheet(() => photoSheet(w.day, w.meal)); else photoSheet(w.day, w.meal);
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
-    $('#as-dish', b).onclick = () => { close(); dishSheet(); };
+    $('#as-dish', b).onclick = (e) => { close(); newDish(e.currentTarget); };     // a saved dish is logged from Saved Dishes
     show('recent');
   });
 }
@@ -355,16 +361,16 @@ async function tSaved(body, where, close) {
     const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
       <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
     const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
-      d.totals.kcal, d.serving === 'one' ? 'kcal' : 'kcal total');
+      d.serving === 'one' ? d.totals.kcal / (d.servings || 1) : d.totals.kcal, d.serving === 'one' ? 'kcal a serving' : 'kcal total');
     body.innerHTML = `${mine.length ? `<h3 class="ghead">Dishes</h3><div class="results">${mine.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead">My foods</h3><div class="results">${foods.map(foodRow).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-dish">+ Create a dish</button><button class="ghost wide" id="tm-new">+ Create a food</button></div>
-      ${meals.length ? '' : '<p class="small muted">Save a meal from the "…" button on any meal in your log, and it shows up here.</p>'}`;
+      <div class="btncol"><button class="ghost wide" id="tm-dish">+ New dish</button><button class="ghost wide" id="tm-new">+ Create a food</button></div>
+`;
     const again = () => tSaved(body, where, close);
     $('#tm-new', body).onclick = () => foodEditor(null, again);
-    $('#tm-dish', body).onclick = () => { close(); dishSheet(); };
+    $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
     $$('[data-dish]', body).forEach((x) => x.onclick = () => dishLogSheet(dishes[+x.dataset.dish], where(), (editing) => close()));
     $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet(meals[+x.dataset.meal], where(), close, again));
@@ -532,7 +538,8 @@ function reviewItems(box, list, {intro = '', add}) {
 }
 
 // ---------- barcode ----------
-function scanSheet(day, meal) {
+// onFound (a dish's + menu, 2026-10-12): hand the product back instead of logging it
+function scanSheet(day, meal, onFound) {
   let stop = () => {};
   const closeSheet = sheet('Scan a barcode', `<div class="scan"><video id="sc-v" playsinline muted></video><div class="scanbox"></div></div>
     <p class="small muted" id="sc-msg">Point the camera at the barcode.</p>
@@ -540,7 +547,7 @@ function scanSheet(day, meal) {
     const v = $('#sc-v', b), msg = $('#sc-msg', b);
     const found = async (code) => {
       stop(); msg.textContent = `Found ${code} — looking it up…`;
-      try { const f = await api(`/api/food/barcode/${code}`); close(); amountSheet(f, {day, meal}, () => {}); }
+      try { const f = await api(`/api/food/barcode/${code}`); close(); if (onFound) onFound(f); else amountSheet(f, {day, meal}, () => {}); }
       catch (x) { msg.textContent = x.message; if (x.status === 404) { const go2 = confirm(`${x.message}. Create it now?`); if (go2) { close(); foodEditor({name: '', barcode: code, serving: {label: '1 serving'}}, null); } } }
     };
     $('#sc-f', b).onsubmit = (e) => { e.preventDefault(); const c = e.target.code.value.replace(/\D/g, ''); if (c.length >= 6) found(c); };

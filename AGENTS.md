@@ -47,6 +47,12 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
   file-level copyleft (MPL-2.0), or LGPL libraries used unchanged as separate packages (like psycopg); never GPL or
   AGPL. Add them to `THIRD_PARTY.md`.
 
+## Working in parallel
+Several agents may work on different parts at once, each on its own branch (ideally its own git worktree and its own
+test copy on its own `KINETTA_PORT` and `-p` project name). Before opening a pull request, rebase on the latest `main`:
+if `main` gained a migration, renumber yours to come after it, and re-bump `?v=` numbers from `main`'s values. Keep
+style changes in the section of `style.css` for your area, so changes from different branches merge cleanly.
+
 ## Run and test
 ```sh
 KINETTA_PORT=8798 docker compose -p kinettatest up -d --build      # a throwaway copy

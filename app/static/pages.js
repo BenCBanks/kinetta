@@ -362,9 +362,13 @@ function drawDetail(el, a) {
   if (a.line) {   // full screen: the same map fills the screen (chart dot keeps working); X or Esc closes it
     const box = $('#d-map', el), btn = $('#d-full', el);
     const refit = () => { if (mapObj) { mapObj.map.invalidateSize(); mapObj.map.fitBounds(mapObj.L.latLngBounds(decode(a.line)), {padding: [24, 24]}); } };
+    // full screen moves the map to <body> (2026-10-12): inside the page, the page's own box set its size, so it ran
+    // taller than the screen; a placeholder keeps its spot for the way back
+    const spot = document.createComment('map');
     const close = () => {
       if (!box.classList.contains('full')) return;
       box.classList.remove('full'); document.body.classList.remove('map-open');
+      if (spot.parentNode) spot.replaceWith(box); else { box.remove(); return; }     // left the page while it was full screen
       btn.innerHTML = svg('expand'); btn.setAttribute('aria-label', 'Full-screen map'); refit(); btn.focus();
       removeEventListener('keydown', onKey);
     };
@@ -372,6 +376,7 @@ function drawDetail(el, a) {
     btn.onclick = (e) => {
       e.stopPropagation();
       if (box.classList.contains('full')) { close(); return; }
+      box.replaceWith(spot); document.body.append(box); addEventListener('popstate', close, {once: true});
       box.classList.add('full'); document.body.classList.add('map-open');
       btn.innerHTML = svg('close'); btn.setAttribute('aria-label', 'Close full-screen map'); refit();
       addEventListener('keydown', onKey);
