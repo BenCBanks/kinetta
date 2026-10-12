@@ -24,13 +24,11 @@ function postCard(a, {who = false} = {}) {
     : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>`;
   const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
   const vis = a.visibility || 'me';
-  // the comment button opens the comments; on your own activity (you can't cheer yourself) the cheer count does too
+  // the comment button opens the comments; you can cheer your own activity too (2026-10-12)
   const talk = `${href}?tab=comments`;
-  const foot = theirs
-    ? `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
-       <a class="pf" href="${talk}" aria-label="Comments">${svg('comment')}${n('comments')}</a>`
-    : `<a class="pf cheer mine" href="${talk}" aria-label="${a.cheers || 0} ${esc(CHEER.many)}">${svg('cheer')}${n('cheers')}</a><a class="pf" href="${talk}" aria-label="Comments">${svg('comment')}${n('comments')}</a>
-       <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`;
+  const foot = `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
+       <a class="pf" href="${talk}" aria-label="Comments">${svg('comment')}${n('comments')}</a>` + (theirs ? '' : `
+       <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`);
   return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
     <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
@@ -52,7 +50,7 @@ function wireCheers(box) {
     const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
     const shift = (d) => { const c = cnt(), v = (+c.textContent || 0) + d; c.textContent = v || ''; b.setAttribute('aria-pressed', String(d > 0)); };
     shift(on ? 1 : -1); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
-    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); invalidate('/api/shared/' + id); App.cache.delete('feed:home'); }
+    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); invalidate('/api/shared/' + id); invalidate('/api/activities?'); App.cache.delete('feed:home'); }
     catch (x) { shift(on ? -1 : 1); toast(x.message); }
   });
 }
@@ -327,7 +325,7 @@ function drawDetail(el, a) {
   };
   $$('[data-dt]', el).forEach((b) => b.onclick = () => show(b.dataset.dt, true));
   show(want || 'overview');
-  // Comments appears once ownSocial knows there's something to show (shared, or cheers and comments already)
+  // Comments appears once ownSocial has loaded the cheers and comments
   el._social = () => { const b = $('[data-dt="comments"]', el); if (!b) return; b.hidden = false; if (want === 'comments') show('comments'); };
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);

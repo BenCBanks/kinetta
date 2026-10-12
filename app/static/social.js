@@ -130,12 +130,12 @@ function socialBlock(box, aid, s) {
   const names = s.cheers.map((c) => c.name);
   const who = names.length ? `<p class="small cheer-who"><b>${esc(plural(names.length, CHEER.one, CHEER.many))}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</p>` : '';
   box.innerHTML = `<div class="card social"><h2>${esc(CHEER.title)} and comments</h2>
-    ${s.mine ? (who || `<p class="small muted">No ${esc(CHEER.many)} yet.</p>`) : `<button class="ghost wide cheer${s.just ? ' just' : ''}" aria-pressed="${s.cheered}">${svg('cheer')}<span>${esc(s.cheered ? CHEER.done : CHEER.verb)}</span></button>${who}`}
+    <button class="ghost wide cheer${s.just ? ' just' : ''}" aria-pressed="${s.cheered}">${svg('cheer')}<span>${esc(s.cheered ? CHEER.done : CHEER.verb)}</span></button>${who}
     <div class="comments">${s.comments.map((c) => `<div class="comment"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small>
       ${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div><p>${esc(c.text)}</p></div>`).join('')}</div>
     <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
       <button class="primary wide">Post comment</button></form></div>`;
-  const after = (fresh, just = false) => { invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); App.cache.delete('feed:home'); socialBlock(box, aid, {...s, ...fresh, just}); };
+  const after = (fresh, just = false) => { invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); App.cache.delete('feed:home'); socialBlock(box, aid, {...s, ...fresh, just}); };
   const cb = $('.cheer', box);
   if (cb) cb.onclick = async () => {
     cb.disabled = true;
@@ -176,7 +176,7 @@ async function ownSocial(el, a) {
     <small class="muted">${s.visibility === 'me' ? 'Tap to share it' : esc(['distance and time', ...on].join(', '))}${s.visibility !== 'me' && s.details.map && s.trim_m ? ' · map ends hidden' : ''}</small></span>
     <span class="chev">${svg('chev')}</span></button>`;
   $('#sh-edit', share).onclick = () => shareSheet(a.id, s);
-  if (s.visibility !== 'me' || s.cheers.length || s.comments.length) { socialBlock(soc, a.id, s); if (el._social) el._social(); }
+  socialBlock(soc, a.id, s); if (el._social) el._social();     // always: you can cheer your own activity (2026-10-12)
 }
 function detailChecks(d) {
   return Object.entries(DETAIL_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${d[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('');

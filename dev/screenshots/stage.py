@@ -68,10 +68,12 @@ jordan('POST', f"/api/activities/{mine[2]['id']}/cheer")
 for a in jordan('GET', '/api/activities?limit=4')[:3]: alex('POST', f"/api/activities/{a['id']}/cheer")
 
 for d in alex('GET', '/api/dishes'): alex('DELETE', f"/api/dishes/{d['id']}")
+for r in alex('GET', '/api/dishes/recipes'): alex('DELETE', f"/api/dishes/recipes/{r['id']}")
 pan = alex('POST', '/api/dishes/pans', {'name': 'Roasting tray', 'grams': 1150})
 soup = alex('POST', '/api/dishes', {'name': 'Lentil and tomato soup'})
 alex('PATCH', f"/api/dishes/{soup['id']}", {'known_kcal': 1450, 'known_protein_g': 82, 'known_carbs_g': 208, 'known_fat_g': 31, 'cooked_g': 2100})
 alex('POST', f"/api/dishes/{soup['id']}/portion", {'grams': 420, 'meal': 'lunch', 'day': str(dt.date.today() - dt.timedelta(days=1))})
+alex('POST', f"/api/dishes/{soup['id']}/finish", {'leftovers': True})              # yesterday's soup: leftovers
 tray = alex('POST', '/api/dishes', {'name': 'Chicken and veg traybake'})
 for n, g, p in [('Chicken breast, raw', 600, {'kcal': 120, 'protein_g': 22.5, 'carbs_g': 0, 'fat_g': 2.6}),
                 ('Sweet potato, raw', 500, {'kcal': 86, 'protein_g': 1.6, 'carbs_g': 20, 'fat_g': .1, 'fiber_g': 3}),
@@ -81,4 +83,5 @@ for n, g, p in [('Chicken breast, raw', 600, {'kcal': 120, 'protein_g': 22.5, 'c
     alex('POST', f"/api/dishes/{tray['id']}/items", {'name': n, 'grams': g, 'per100': p})
 alex('PATCH', f"/api/dishes/{tray['id']}", {'gross_g': 2550, 'pan_id': pan['id']})
 alex('POST', f"/api/dishes/{tray['id']}/share", {'login': 'jordan'})            # eating together: Jordan logs a portion too
+alex('POST', f"/api/dishes/{tray['id']}/recipe")                                 # saved, so Cooking offers it again
 print('staged: tray', tray['id'], 'soup', soup['id'])

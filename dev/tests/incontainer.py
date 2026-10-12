@@ -111,4 +111,22 @@ ck(notify._vapid() is not None and len(notify._vapid()[1]) > 80, 'server push ke
 with db.connect() as c:
     c.execute('DELETE FROM notifications WHERE id = %s', (nid,)); c.execute('DELETE FROM push_subscriptions WHERE user_id = %s', (uid,))
     c.execute('UPDATE profile SET ai_ok = false'); c.execute('DELETE FROM ai_requests')
+# --- dishes not saved are cleared away: left cooking 5+ days, or leftovers older than that; saved recipes stay ---
+old1 = api_dishes.dish_add(api_dishes.DishIn(name='Test forgotten stew'), user={'id': uid})['id']
+api_dishes.item_add(old1, api_dishes.ItemIn(name='Beans', grams=500, kcal=500), user={'id': uid})
+old2 = api_dishes.dish_add(api_dishes.DishIn(name='Test old leftovers'), user={'id': uid})['id']
+api_dishes.item_add(old2, api_dishes.ItemIn(name='Rice', grams=500, kcal=600), user={'id': uid})
+api_dishes.recipe_save(old2, user={'id': uid})
+api_dishes.finish(old2, api_dishes.FinishIn(leftovers=True), user={'id': uid})
+with db.connect() as c:
+    c.execute("UPDATE dishes SET updated = now() - interval '6 days' WHERE id = %s", (old1,))
+    c.execute("UPDATE dishes SET done_at = now() - interval '6 days' WHERE id = %s", (old2,))
+ids = [d['id'] for d in api_dishes.dishes(user={'id': uid})]
+with db.connect() as c:
+    left = c.execute('SELECT count(*) AS n FROM dishes WHERE id IN (%s, %s)', (old1, old2)).fetchone()['n']
+    rec = c.execute("SELECT id FROM recipes WHERE user_id = %s AND name = 'Test old leftovers'", (uid,)).fetchone()
+ck(old1 not in ids and old2 not in ids and left == 0, 'old dishes deleted')
+ck(rec is not None, 'its saved recipe stays')
+api_dishes.recipe_delete(rec['id'], user={'id': uid})
+
 print(f'in the container (AI + push): {n} checks passed')

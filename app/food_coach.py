@@ -13,7 +13,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 
 from . import coach, db, energy
-from .api_dishes import _seen, _totals
+from .api_dishes import _seen, _totals, _weight, sync_recipe
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
@@ -149,8 +149,8 @@ def _recipe_context(c, user_id, d):
     items = [{k: i.get(k) for k in ('name', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')} for i in d['items']]
     known = {k: d[f'known_{k}'] for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g') if d[f'known_{k}'] is not None}
     return {'units': p.get('units', 'imperial'), 'dish': d['name'], 'ingredients': items, 'whole_dish': _totals(d),
-            'typed_in_totals': known or None, 'cooked_weight_g': d['cooked_g'], 'typical_portion_g': portion,
-            'notes': 'grams and kcal; whole_dish uses the typed-in totals when given; ingredient weights are raw'}
+            'typed_in_totals': known or None, 'weight_g': _weight(d), 'weighed_after_cooking': d['cooked_g'] is not None, 'typical_portion_g': portion,
+            'notes': 'grams and kcal; whole_dish uses the typed-in totals when given; ingredient weights are raw; weight_g is the ingredients added up unless weighed_after_cooking'}
 
 
 @router.post('/dishes/{did:int}/review')
@@ -169,6 +169,7 @@ def recipe_review(did: int, user=Depends(current_user)):
     except ValueError as e: raise HTTPException(400, str(e))
     with db.connect() as c:
         c.execute('UPDATE dishes SET ai_note = %s, ai_note_at = now() WHERE id = %s AND user_id = %s', (json.dumps(out), did, user['id']))
+        sync_recipe(c, user['id'], did)
     return {**out, 'at': dt.datetime.now(dt.timezone.utc)}
 
 

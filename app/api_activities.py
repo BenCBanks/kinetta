@@ -92,6 +92,7 @@ def feed(before: str | None = None, sport: str | None = None, q: str | None = No
                     SELECT 1 FROM best_efforts p WHERE p.user_id = b.user_id AND p.sport = b.sport AND p.distance_m = b.distance_m
                       AND p.start_time < b.start_time AND p.elapsed_s <= b.elapsed_s)) AS prs,
                  a.visibility, (SELECT count(*) FROM cheers ch WHERE ch.activity_id = a.id) AS cheers,
+                 EXISTS (SELECT 1 FROM cheers ch WHERE ch.activity_id = a.id AND ch.user_id = a.user_id) AS cheered,
                  (SELECT count(*) FROM comments cm WHERE cm.activity_id = a.id) AS comments
               FROM activities a WHERE a.user_id = %s"""
     args = [PREVIEW_TOL, user['id']]

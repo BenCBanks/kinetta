@@ -846,8 +846,10 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 }
 
 /* ---------- activity page sections (2026-10-12) ---------- */
-.shell > .seg.wide.dtabs { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 2px 0 12px; }
-.seg.dtabs button { min-width: 0; min-height: 36px; padding: 5px 2px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* tabs share the width by the length of their names, and the text shrinks a little on narrow phones: never cut off, never
+   scrolling (2026-10-12) */
+.shell > .seg.wide.dtabs { display: flex; overflow: visible; margin: 2px 0 12px; }
+.seg.dtabs button { flex: 1 1 auto; min-width: 0; min-height: 36px; padding: 5px 4px; font-size: clamp(11px, 3.3vw, 13px); white-space: nowrap; letter-spacing: -.1px; }
 .dpane > .card:last-child { margin-bottom: 12px; }
 
 /* ---------- cooking: type what went in, like a chat (2026-10-12) ---------- */
@@ -863,3 +865,24 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 @keyframes cdot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .cmsg .dots i { animation: none; } }
 #dk-search { margin-top: 8px; }
+
+/* cooking, round two (2026-10-12): the meal it's for, a portion as a share, save-as-recipe switch, Finish, saved recipes */
+.dish-for { display: grid; gap: 6px; margin: 4px 0 14px; } .dish-for small { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
+.dish-for .seg button { min-height: 36px; padding-inline: 4px; }
+.serve .seg.full { margin-bottom: 4px; } .serve .seg.full button { min-height: 36px; }
+.share-line { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--tx2); flex-wrap: wrap; }
+.share-line input { width: 64px; min-height: 40px; padding: 6px 8px; text-align: center; font-size: 16px; }
+.serve [hidden] { display: none !important; }
+.portion-out .small { display: block; text-align: center; margin-top: 6px; }
+.tog { flex: none; width: 46px; height: 28px; border-radius: 999px; background: var(--card2); box-shadow: inset 0 0 0 1px var(--line); position: relative; transition: background .2s; }
+.tog::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s; }
+[aria-checked="true"] > .tog { background: var(--accent); box-shadow: none; } [aria-checked="true"] > .tog::after { transform: translateX(18px); }
+.finish { margin: 18px 0 8px; text-align: center; } .finish .ghost.wide { width: 100%; min-height: 46px; } .finish p { margin-top: 8px; }
+.finish .ghost svg { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
+#fn .check { align-items: flex-start; } #fn .check > span { display: grid; gap: 2px; } #fn .check small { font-weight: 500; font-size: 13px; }
+#fn .check input { margin-top: 2px; } #fn p.small svg { width: 16px; height: 16px; vertical-align: -3px; color: var(--prog); }
+#fn .checks { display: grid; grid-template-columns: 1fr; gap: 4px; margin-bottom: 8px; }
+.recipe-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; } .recipe-row + .recipe-row { border-top: 1px solid var(--line); }
+.rr-cook { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; background: none; border: 0; padding: 10px 0; color: var(--tx); font: inherit; cursor: pointer; }
+.rr-cook b { font-size: 15px; } .rr-cook small { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recipe-row .icon-btn { color: var(--tx3); }
