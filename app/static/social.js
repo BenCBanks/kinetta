@@ -26,7 +26,8 @@ const Social = {
   badge() {
     const a = $('nav.tabs a[data-tab="me"]'); if (!a) return;
     const n = Social.count(); let b = $('.tab-n', a);
-    $$('.bell-dot').forEach((d) => { d.hidden = !App.me || !App.me.notifications; });
+    const un = (App.me && App.me.notifications) || 0;
+    $$('.bell-dot').forEach((d) => { d.hidden = !un; d.textContent = un > 9 ? '9+' : un || ''; });
     if (!n) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('span'); b.className = 'tab-n'; a.append(b); }
     b.innerHTML = `${n > 9 ? '9+' : n}<span class="vh"> new notification${n > 1 ? 's' : ''}</span>`;
@@ -62,7 +63,7 @@ async function homeFeed(el) {
   const draw = (pg) => {
     items = pg.rows;
     list.innerHTML = items.length ? items.map((a) => postCard(a, {who: true})).join('') : `<div class="card empty"><b>Nothing here yet</b>
-      Your activities and the ones your friends share show up here.<br><br>${Native.on ? '<a class="primary" href="/me/health">Connect Apple Health</a>' : '<a class="primary" href="/me/connections">Connect your watch</a>'}</div>`;
+      Your activities and the ones your friends share show up here.${startCta()}<div class="btncol"><a class="ghost" href="/me/friends">Find your friends</a></div></div>`;
     more.hidden = !pg.more; feedMaps(list); wireCheers(list);
   };
   const hit = App.cache.get('feed:home'); if (hit) draw(hit.data);
