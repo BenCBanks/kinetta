@@ -94,12 +94,11 @@ function drawShared(el, a) {
     ${mine ? '<div class="callout">This is what others see of your activity.</div>' : ''}
     <div class="d-title card"><div class="post-hd">${avatar(a.owner)}<span class="ph-txt"><b>${esc(a.owner.name)}</b>
       <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${sportMark(a.sport)}</div>
-      <h1>${esc(a.name)}</h1>
+      <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="s-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}</div>
     ${a.line ? `<div class="map big" id="s-map" role="img" aria-label="Route map${a.ends_hidden ? ', without the start and end' : ''}"></div>
       ${a.ends_hidden ? '<p class="small muted map-note">The start and end of the route are hidden.</p>' : ''}` : ''}
-    <div id="s-social"></div>
     ${a.chart ? '<div class="card"><h2>Charts</h2><div id="s-charts"></div></div>' : ''}
     ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
     ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
@@ -109,8 +108,7 @@ function drawShared(el, a) {
   if (!mine) $('#s-rb', el).onclick = () => reportSheet(a.owner, {activity_id: a.id});
   if (a.line) lazy($('#s-map', el), () => mapInto($('#s-map', el), [a.line], {sport: a.sport, ends: false})
     .catch(() => { $('#s-map', el).innerHTML = '<p class="empty">Map unavailable right now</p>'; }));
-  socialBlock($('#s-social', el), a.id, a.social);
-  if (new URLSearchParams(location.search).get('tab') === 'comments') setTimeout(() => $('#s-social', el).scrollIntoView({block: 'start'}), 60);
+  wireTalk($('#s-soc', el), a.id, a.social, new URLSearchParams(location.search).get('tab') === 'comments');
   if (a.chart) requestAnimationFrame(() => sharedCharts($('#s-charts', el), a));
 }
 function sharedCharts(box, a) {
@@ -124,26 +122,46 @@ function sharedCharts(box, a) {
   chartStack(box, x, rows, {xfmt: (v) => (byDist ? `${U.dist(v)} ${U.du()}` : dur(v))});
 }
 
-// cheers + comments under an activity (yours or a friend's)
-function socialBlock(box, aid, s) {
+// The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
+// from below). Both activity pages use them; the counts follow what happens in the comments sheet.
+const talkIcons = (s) => `<button type="button" class="pf cheer" data-tcheer aria-pressed="${!!s.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}<span class="num">${s.cheers.length || ''}</span></button>
+  <button type="button" class="pf" data-ttalk aria-label="Comments">${svg('comment')}<span class="num">${s.comments.length || ''}</span></button>`;
+function wireTalk(box, aid, s, open) {
   if (!box) return;
-  const names = s.cheers.map((c) => c.name);
-  const who = names.length ? `<p class="small cheer-who"><b>${esc(CHEER.title)}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</p>` : '';
-  box.innerHTML = `<div class="card social"><h2>${esc(CHEER.title)} and comments</h2>
-    <button class="ghost wide cheer${s.just ? ' just' : ''}" aria-pressed="${s.cheered}">${svg('cheer')}<span>${esc(s.cheered ? CHEER.done : CHEER.verb)}</span></button>${who}
-    <div class="comments">${s.comments.map((c) => `<div class="comment"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small>
-      ${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div><p>${esc(c.text)}</p></div>`).join('')}</div>
-    <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
-      <button class="primary wide">Post comment</button></form></div>`;
-  const after = (fresh, just = false) => { invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); App.cache.delete('feed:home'); socialBlock(box, aid, {...s, ...fresh, just}); };
-  const cb = $('.cheer', box);
-  if (cb) cb.onclick = async () => {
-    cb.disabled = true;
-    try {
-      if (s.cheered) { await api(`/api/activities/${aid}/cheer`, {method: 'DELETE'}); after({cheered: false, cheers: s.cheers.filter((c) => c.login !== App.me.login)}); }
-      else after(await api(`/api/activities/${aid}/cheer`, json('POST', {})), true);
-    } catch (x) { toast(x.message); cb.disabled = false; }
+  const draw = () => {
+    box.innerHTML = talkIcons(s);
+    const cb = $('[data-tcheer]', box);
+    cb.onclick = async () => {
+      const was = s; cb.disabled = true;
+      s = {...s, cheered: !s.cheered, cheers: s.cheered ? s.cheers.filter((c) => c.login !== App.me.login) : [...s.cheers, {login: App.me.login, name: App.me.name}]};
+      draw(); if (s.cheered) $('[data-tcheer]', box).classList.add('just');
+      try {
+        if (was.cheered) await api(`/api/activities/${aid}/cheer`, {method: 'DELETE'});
+        else s = {...s, ...await api(`/api/activities/${aid}/cheer`, json('POST', {}))};
+        socialChanged(aid);
+      } catch (x) { s = was; draw(); toast(x.message); }
+    };
+    $('[data-ttalk]', box).onclick = () => commentsSheet(aid, s, (fresh) => { s = fresh; draw(); });
   };
+  draw();
+  if (open) commentsSheet(aid, s, (fresh) => { s = fresh; draw(); });
+}
+function socialChanged(aid) {
+  invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); App.cache.delete('feed:home');
+}
+// cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
+function commentsSheet(aid, s, onChange) {
+  sheet('Comments', '<div class="social"></div>', (b) => drawComments($('.social', b), aid, s, onChange));
+}
+function drawComments(box, aid, s, onChange) {
+  const names = s.cheers.map((c) => c.name);
+  const who = names.length ? `<p class="small cheer-who">${svg('cheer')}<span><b>${esc(CHEER.title)}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</span></p>` : '';
+  box.innerHTML = `${who}<div class="comments">${s.comments.length ? s.comments.map((c) => `<div class="comment"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small>
+      ${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div><p>${esc(c.text)}</p></div>`).join('')
+      : '<p class="small muted c-none">No comments yet.</p>'}</div>
+    <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
+      <button class="primary wide">Post comment</button></form>`;
+  const after = (fresh) => { socialChanged(aid); s = {...s, ...fresh}; drawComments(box, aid, s, onChange); if (onChange) onChange(s); };
   $$('[data-del]', box).forEach((b) => b.onclick = async () => {
     if (!confirm('Delete this comment?')) return;
     b.disabled = true;
@@ -163,20 +181,14 @@ function socialBlock(box, aid, s) {
   };
 }
 
-// ---------- your own activity: who sees it, which details, cheers + comments ----------
+// ---------- your own activity: cheers + comments by the title; who sees it lives in the Edit sheet ----------
 async function ownSocial(el, a) {
-  const share = $('#d-share', el), soc = $('#d-social', el); if (!share) return;
+  const box = $('#d-soc', el); if (!box) return;
   let s;
   try { s = await api(`/api/activities/${a.id}/social`); } catch (x) { return; }
-  if (!share.isConnected) return;
-  const on = Object.keys(DETAIL_NAMES).filter((k) => s.details[k] && (k !== 'splits' || s.details.pace)).map((k) => DETAIL_NAMES[k].toLowerCase());
-  // one tappable line (2026-10-11 polish); the details and "See what they see" are in the sheet
-  share.innerHTML = `<button class="card tap share-row" id="sh-edit"><span class="ico">${svg(s.visibility === 'me' ? 'lock' : 'people')}</span>
-    <span class="grow"><b>${esc(s.visibility === 'me' ? 'Only you can see this' : `Shared with ${VIS[s.visibility].replace('Everyone', 'everyone').replace('Friends', 'friends')}`)}</b>
-    <small class="muted">${s.visibility === 'me' ? 'Tap to share it' : esc(['distance and time', ...on].join(', '))}${s.visibility !== 'me' && s.details.map && s.trim_m ? ' · map ends hidden' : ''}</small></span>
-    <span class="chev">${svg('chev')}</span></button>`;
-  $('#sh-edit', share).onclick = () => shareSheet(a.id, s);
-  socialBlock(soc, a.id, s); if (el._social) el._social();     // always: you can cheer your own activity (2026-10-12)
+  if (!box.isConnected) return;
+  a._social = s;
+  wireTalk(box, a.id, s, new URLSearchParams(location.search).get('tab') === 'comments');
 }
 function detailChecks(d) {
   return Object.entries(DETAIL_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${d[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('');
@@ -190,28 +202,26 @@ function wireSeg(box, attr, onPick) {
     $$(`[data-${attr}]`, box).forEach((o) => o.setAttribute('aria-pressed', String(o === b))); onPick(b.dataset[attr]);
   });
 }
-function shareSheet(aid, s) {
+// Sharing inside the Edit sheet (2026-10-12, Ben: not so prominent on every run). Returns save(), which sends the
+// choice only when something changed.
+function shareFields(box, aid, s) {
   let vis = s.visibility, usual = false;
-  sheet('Sharing', `<form class="form" id="sh-form"><h3 class="ghead">Who can see this activity</h3>${visSeg(vis)}
-    <p class="small muted vis-note"></p>
-    <h3 class="ghead">What they see</h3><div class="checks">${detailChecks(s.details)}</div>
-    <p class="small muted">Splits and laps are shared only with pace. Private notes and coach notes are never shared.</p>
-    ${s.custom ? '<button type="button" class="linkbtn" id="sh-usual">Use my usual details</button>' : ''}
-    ${s.visibility !== 'me' ? `<a class="small" href="/activity/friends/${aid}" data-close>See what they see ›</a>` : ''}
-    <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`, (b, close) => {
-    const f = $('#sh-form', b), note = $('.vis-note', b);
-    const say = () => { note.textContent = vis === 'me' ? 'Only you. Nobody else can see it.' : vis === 'friends' ? 'Friends you have approved.' : 'Anyone with an account on this Kinetta server.'; };
-    say(); wireSeg(b, 'vis', (v) => { vis = v; say(); });
-    const u = $('#sh-usual', b); if (u) u.onclick = () => { usual = true; u.textContent = 'Your usual details will be used'; u.disabled = true; };
-    f.onsubmit = async (e) => {
-      e.preventDefault();
-      const d = readChecks(f), changed = Object.keys(d).some((k) => d[k] !== s.details[k]), body = {visibility: vis};
-      if (usual) body.usual_details = true; else if (changed || s.custom) body.details = d;
-      const btn = $('button.primary', f); btn.disabled = true;
-      try { await api(`/api/activities/${aid}/sharing`, json('PUT', body)); invalidate('/api/'); close(); toast('Sharing saved'); render(); }
-      catch (x) { toast(x.message); btn.disabled = false; }
-    };
-  });
+  box.innerHTML = `<h3 class="ghead">Who can see it</h3>${visSeg(vis)}<p class="small muted vis-note"></p>
+    <details class="sh-more"><summary>What they see</summary><div class="checks">${detailChecks(s.details)}</div>
+      <p class="small muted">Splits and laps are shared only with pace. Private notes and coach notes are never shared.</p>
+      ${s.custom ? '<button type="button" class="linkbtn" id="sh-usual">Use my usual details</button>' : ''}</details>
+    ${s.visibility !== 'me' ? `<a class="small" href="/activity/friends/${aid}" data-close>See what they see ›</a>` : ''}`;
+  const note = $('.vis-note', box);
+  const say = () => { note.textContent = vis === 'me' ? 'Only you. Nobody else can see it.' : vis === 'friends' ? 'Friends you have approved.' : 'Anyone with an account on this Kinetta server.'; };
+  say(); wireSeg(box, 'vis', (v) => { vis = v; say(); });
+  const u = $('#sh-usual', box); if (u) u.onclick = () => { usual = true; u.textContent = 'Your usual details will be used'; u.disabled = true; };
+  return async () => {
+    const d = Object.fromEntries(Object.keys(DETAIL_NAMES).map((k) => [k, $(`input[name="${k}"]`, box).checked]));
+    const changed = Object.keys(d).some((k) => d[k] !== s.details[k]), body = {visibility: vis};
+    if (usual) body.usual_details = true; else if (changed) body.details = d;
+    if (vis === s.visibility && !usual && !changed) return;
+    await api(`/api/activities/${aid}/sharing`, json('PUT', body)); socialChanged(aid);
+  };
 }
 
 // ---------- Me > Friends: search by name or username, requests, your friends ----------

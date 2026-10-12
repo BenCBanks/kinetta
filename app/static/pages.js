@@ -24,10 +24,9 @@ function postCard(a, {who = false} = {}) {
     : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>`;
   const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
   const vis = a.visibility || 'me';
-  // the comment button opens the comments; you can cheer your own activity too (2026-10-12)
-  const talk = `${href}?tab=comments`;
+  // the comment button opens the comments in a sheet from below, right here (2026-10-12); you can cheer your own activity too
   const foot = `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
-       <a class="pf" href="${talk}" aria-label="Comments">${svg('comment')}${n('comments')}</a>` + (theirs ? '' : `
+       <button type="button" class="pf" data-talk="${a.id}" aria-label="Comments">${svg('comment')}${n('comments')}</button>` + (theirs ? '' : `
        <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`);
   return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
@@ -43,8 +42,21 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
   if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
   return st.slice(0, 3).join('');
 }
-// Cheers straight from a feed card: the count changes at once and goes back if the server says no
+// Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment
+// button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
+  $$('[data-talk]', box).forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const s = await api(`/api/activities/${b.dataset.talk}/social`);
+      commentsSheet(b.dataset.talk, s, (fresh) => {
+        b.innerHTML = svg('comment') + (fresh.comments.length ? `<span class="num">${fresh.comments.length}</span>` : '');
+        const c = $(`[data-cheer="${b.dataset.talk}"]`, box);
+        if (c) { c.setAttribute('aria-pressed', String(fresh.cheered)); c.innerHTML = svg('cheer') + (fresh.cheers.length ? `<span class="num">${fresh.cheers.length}</span>` : ''); }
+      });
+    } catch (x) { toast(x.message); }
+    b.disabled = false;
+  });
   $$('[data-cheer]', box).forEach((b) => b.onclick = async () => {
     const on = b.getAttribute('aria-pressed') !== 'true', id = b.dataset.cheer;
     const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
@@ -124,7 +136,7 @@ route(/^\/today$/, 'today', async (el) => {
     load('/api/activities?limit=3', (d) => {
       $('#t-last', el).innerHTML = d.length ? `<h2 class="sec-head">Latest<a href="/activity">See all ›</a></h2>${d.map((x) => postCard(x)).join('')}` :
         getStarted();
-      feedMaps($('#t-last', el));
+      feedMaps($('#t-last', el)); wireCheers($('#t-last', el));
     }),
     load('/api/stats', (s) => {
       const wk = s.weeks.filter((w) => w.week === s.weeks.reduce((m, x) => (x.week > m ? x.week : m), ''));
@@ -209,7 +221,7 @@ route(/^\/activity$/, 'activity', async (el) => {
     items = rows;
     list.innerHTML = rows.length ? rows.map((x) => postCard(x)).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : 'Upload FIT, GPX or TCX files, or your whole Strava export.'}</div>`;
     more.hidden = rows.length < 25 || rows.length % 25 !== 0;
-    feedMaps(list);
+    feedMaps(list); wireCheers(list);
   };
   await load(base, draw);
   more.onclick = async () => {
@@ -217,7 +229,7 @@ route(/^\/activity$/, 'activity', async (el) => {
     try {
       const rows = await api(base + '&before=' + encodeURIComponent(items[items.length - 1].start_time));
       items = items.concat(rows); App.cache.set(base, {data: items, at: Date.now()});
-      list.insertAdjacentHTML('beforeend', rows.map((x) => postCard(x)).join('')); more.hidden = rows.length < 25; feedMaps(list);
+      list.insertAdjacentHTML('beforeend', rows.map((x) => postCard(x)).join('')); more.hidden = rows.length < 25; feedMaps(list); wireCheers(list);
     } catch (e) { toast(e.message); }
     more.disabled = false; more.textContent = 'Show more';
   };
@@ -277,10 +289,11 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   await load(`/api/activities/${id}`, (a) => drawDetail(el, a), {maxAge: 60000});
 });
 
-// Sections (2026-10-12, Ben: "one huge long list"): the map, title, headline numbers and sharing stay on top; the rest is
-// split into Overview | Splits | Charts | Efforts | Comments, each shown only when it has something. ?tab= opens one
-// (the feed's comment button opens Comments).
-const DTABS = [['overview', 'Overview'], ['splits', 'Splits'], ['charts', 'Charts'], ['efforts', 'Efforts'], ['comments', 'Comments']];
+// Sections (2026-10-12, Ben: "one huge long list"): the map, title and headline numbers stay on top; the rest is
+// split into Overview | Splits | Charts | Efforts, each shown only when it has something. ?tab= opens one. Cheers and
+// comments are small icons by the title (comments open in a sheet; ?tab=comments opens it), sharing is in Edit, and
+// the share button sends a link or a picture (2026-10-12).
+const DTABS = [['overview', 'Overview'], ['splits', 'Splits'], ['charts', 'Charts'], ['efforts', 'Efforts']];
 function drawDetail(el, a) {
   const r = rate(a);
   const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m ? stat(r.label, r.v, r.u) : '');
@@ -302,16 +315,14 @@ function drawDetail(el, a) {
       ${a.power_curve && a.power_curve.length ? `<div class="card"><h2>Power curve</h2><table class="tbl">${a.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}`,
     efforts: `${a.efforts && a.efforts.length ? `<div class="card"><h2>Best efforts</h2>${effortsTable(a)}</div>` : ''}
       ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}`,
-    comments: '<div id="d-social"></div>',
   };
-  const has = (k) => k === 'overview' || (k !== 'comments' && pane[k].trim() !== '');
-  el.innerHTML = `<div class="top">${backBtn('Activity')}<div><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>
+  const has = (k) => k === 'overview' || pane[k].trim() !== '';
+  el.innerHTML = `<div class="top">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>
     ${a.line ? `<div class="map big lead" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>` : ''}
     <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span></div>
-      <h1>${esc(a.name)}</h1>
+      <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       <div class="hero">${hero}</div></div>
-    <div id="d-share"></div>
     <div class="seg wide dtabs" role="tablist" aria-label="Sections">${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
     ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
   let drawCharts = null;
@@ -324,11 +335,10 @@ function drawDetail(el, a) {
     if (remember) history.replaceState(null, '', location.pathname + (k === 'overview' ? '' : '?tab=' + k));
   };
   $$('[data-dt]', el).forEach((b) => b.onclick = () => show(b.dataset.dt, true));
-  show(want || 'overview');
-  // Comments appears once ownSocial has loaded the cheers and comments
-  el._social = () => { const b = $('[data-dt="comments"]', el); if (!b) return; b.hidden = false; if (want === 'comments') show('comments'); };
+  show(want && want !== 'comments' ? want : 'overview');
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
+  $('#d-send', el).onclick = () => shareOut(a);
   ownSocial(el, a);
   const cb = $('#d-coach', el);
   if (cb) cb.onclick = async () => {
@@ -437,9 +447,14 @@ function editActivity(a) {
     <label>Private note (only you)<textarea name="private_note" maxlength="10000">${esc(a.private_note || '')}</textarea></label>
     <label>Gear<select name="gear"><option value="">None</option></select></label>
     <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
+    <div id="e-share" class="e-share"><p class="small muted">Loading sharing…</p></div>
     <div class="actions"><button type="button" class="ghost danger" id="e-del">Delete</button><span class="spacer"></span>
       <button type="button" class="ghost" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, async (body, close) => {
     const f = $('#e-form', body);
+    let saveShare = null;   // sharing (2026-10-12): moved here from the activity page
+    (a._social ? Promise.resolve(a._social) : api(`/api/activities/${a.id}/social`))
+      .then((s) => { if (f.isConnected) saveShare = shareFields($('#e-share', body), a.id, s); })
+      .catch(() => { $('#e-share', body).innerHTML = '<p class="small muted">Sharing could not load. Try again later.</p>'; });
     api('/api/gear').then((gear) => { f.gear.insertAdjacentHTML('beforeend', gear.filter((g) => !g.retired || g.id === a.gear_id).map((g) => `<option value="${g.id}"${g.id === a.gear_id ? ' selected' : ''}>${esc(g.name)}</option>`).join('')); }).catch(() => {});
     f.onsubmit = async (e) => {
       e.preventDefault();
@@ -448,6 +463,7 @@ function editActivity(a) {
       const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'Saving…';
       try {
         await api(`/api/activities/${a.id}`, json('PATCH', body2));
+        if (saveShare) await saveShare();
         invalidate('/api/activities'); invalidate('/api/stats'); close(); toast('Saved'); render();
       } catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Save'; }
     };
@@ -457,6 +473,118 @@ function editActivity(a) {
       catch (x) { toast(x.message); }
     };
   });
+}
+
+// ---------- Share (2026-10-12): send a link to people on Kinetta, or a picture of the route and the key numbers ----------
+Object.assign(IC, {share: '<path d="M12 15V3M8 7l4-4 4 4"/><path d="M8 11H6v10h12V11h-2"/>', image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'});
+const appBase = () => (Native.on && Native.base ? Native.base : location.origin);
+function shareOut(a) {
+  const ch = `<span class="chev">${svg('chev')}</span>`;
+  sheet('Share', `<div class="pick-list">
+      <button type="button" class="row-link" id="so-link"><span class="ri c-blue">${svg('link')}</span><span class="grow">Send a link<small class="muted gs-sub" id="so-who">For friends on Kinetta</small></span>${ch}</button>
+      <button type="button" class="row-link" id="so-img"><span class="ri c-orange">${svg('image')}</span><span class="grow">Share a picture<small class="muted gs-sub">The route with distance, ${FOOT.includes(a.sport) ? 'pace' : 'speed'}, time and climb</small></span>${ch}</button></div>`, async (b, close) => {
+    let s = a._social;
+    if (!s) try { s = a._social = await api(`/api/activities/${a.id}/social`); } catch (x) { /* asked again on tap */ }
+    const who = $('#so-who', b);
+    if (s) who.textContent = s.visibility === 'me' ? 'Only you can see it now. Sending shares it with your friends' : s.visibility === 'friends' ? 'Opens for your friends on Kinetta' : 'Opens for anyone with a Kinetta account here';
+    $('#so-link', b).onclick = async () => {
+      try {
+        if (!s) s = a._social = await api(`/api/activities/${a.id}/social`);
+        if (s.visibility === 'me') {   // a link nobody can open is no use: share it with friends first, and say so
+          await api(`/api/activities/${a.id}/sharing`, json('PUT', {visibility: 'friends'}));
+          s.visibility = 'friends'; socialChanged(a.id); toast('Shared with your friends');
+        }
+        const url = `${appBase()}/activity/friends/${a.id}`;
+        close();
+        if (navigator.share) { navigator.share({title: a.name, url}).catch(() => {}); return; }
+        await navigator.clipboard.writeText(url); toast('Link copied');
+      } catch (x) { toast(x.message || 'Could not copy the link'); }
+    };
+    $('#so-img', b).onclick = () => { close(); pictureSheet(a, s); };
+  });
+}
+// The picture: 1080 × 1350 (fits Instagram, Messages and stories), always dark so it looks the same for everyone.
+// The start and end are cut off by the person's "hide the start and end" distance (400 m when that is off), so a
+// picture doesn't show where they live, unless they untick it.
+function pictureSheet(a, s) {
+  const trim = (s && s.trim_m) || 400, hasLine = !!(a.line && decode(a.line).length > 1);
+  sheet('Share a picture', `<div class="pic-wrap"><img class="pic" id="pi-img" alt="Picture of ${esc(a.name)}"></div>
+    ${hasLine ? `<label class="check"><input type="checkbox" id="pi-trim" checked> Hide where it starts and ends</label>` : ''}
+    <div class="btnrow one"><button class="primary" id="pi-go">Share picture</button></div>`, (b) => {
+    let blob = null;
+    const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b);
+    const make = () => routePicture(a, t && !t.checked ? 0 : trim).then((bl) => { blob = bl; if (img.src) URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(bl); });
+    make(); if (t) t.onchange = make;
+    go.onclick = async () => {
+      if (!blob) return;
+      const file = new File([blob], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}.png`, {type: 'image/png'});
+      if (navigator.canShare && navigator.canShare({files: [file]})) { navigator.share({files: [file], title: a.name}).catch(() => {}); return; }
+      const l = document.createElement('a'); l.href = img.src; l.download = file.name; document.body.append(l); l.click(); l.remove();
+      toast('Picture saved');
+    };
+  });
+}
+// cut `m` metres off each end of the route; nothing left (a short loop) means no route is drawn
+function trimRoute(pts, m) {
+  if (!m) return pts;
+  const R = 6371000, rad = Math.PI / 180, cum = [0];
+  for (let i = 1; i < pts.length; i++) {
+    const [la1, lo1] = pts[i - 1], [la2, lo2] = pts[i];
+    const x = (lo2 - lo1) * rad * Math.cos((la1 + la2) / 2 * rad), y = (la2 - la1) * rad;
+    cum.push(cum[i - 1] + Math.hypot(x, y) * R);
+  }
+  const end = cum[cum.length - 1] - m;
+  return end - m < 200 ? [] : pts.filter((_, i) => cum[i] >= m && cum[i] <= end);
+}
+async function routePicture(a, trim) {
+  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'), font = getComputedStyle(document.body).fontFamily, accent = col('--accent') || '#E0582B';
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#1d1f24'); bg.addColorStop(1, '#0d0e11');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  // the route, fitted into the top of the picture
+  const pts = a.line ? trimRoute(decode(a.line), trim) : [];
+  const box = {x: 90, y: 110, w: W - 180, h: 660};
+  if (pts.length > 1) {
+    const k = Math.cos(pts[0][0] * Math.PI / 180);
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [la, lo] of pts) { const x = lo * k, y = -la; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    const sc = Math.min(box.w / Math.max(x1 - x0, 1e-9), box.h / Math.max(y1 - y0, 1e-9));
+    const ox = box.x + (box.w - (x1 - x0) * sc) / 2, oy = box.y + (box.h - (y1 - y0) * sc) / 2;
+    const P = ([la, lo]) => [(lo * k - x0) * sc + ox, (-la - y0) * sc + oy];
+    g.lineJoin = g.lineCap = 'round';
+    const path = () => { g.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
+    path(); g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 26; g.stroke();
+    path(); g.strokeStyle = accent; g.lineWidth = 11; g.stroke();
+    if (!trim) for (const [p, f] of [[pts[0], '#3fb950'], [pts[pts.length - 1], '#f85149']]) {
+      const [x, y] = P(p); g.beginPath(); g.arc(x, y, 15, 0, 7); g.fillStyle = f; g.fill(); g.lineWidth = 5; g.strokeStyle = '#fff'; g.stroke();
+    }
+  }
+  // the name, the day, then four numbers
+  g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
+  g.font = `800 60px ${font}`;
+  const words = (a.name || '').split(/\s+/), lines = [''];
+  for (const w of words) { const t = (lines[lines.length - 1] + ' ' + w).trim(); if (g.measureText(t).width > W - 180 && lines[lines.length - 1]) { if (lines.length === 2) { lines[1] += '…'; break; } lines.push(w); } else lines[lines.length - 1] = t; }
+  let y = 870; lines.forEach((l) => { g.fillText(l, 90, y); y += 70; });
+  g.font = `500 32px ${font}`; g.fillStyle = 'rgba(255,255,255,.62)';
+  g.fillText(`${fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'})} · ${a.sport_label || SPORT_NAMES[a.sport]}`, 90, y - 14);
+  const r = rate(a), cells = [];
+  if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
+  if (a.distance_m && a.moving_s) cells.push([r.label, r.v, r.u]);
+  cells.push(['Time', dur(a.moving_s || a.elapsed_s), '']);
+  if (a.ascent_m != null) cells.push(['Elevation gain', U.elev(a.ascent_m), U.eu()]);
+  else if (a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
+  else if (a.calories) cells.push(['Calories', String(Math.round(a.calories)), '']);
+  // two columns, up to two rows, so long times and climbs never run into each other
+  const cw = (W - 180) / 2, top = cells.length > 2 ? 1010 : 1160;
+  cells.slice(0, 4).forEach(([lab, v, u], i) => {
+    const x = 90 + (i % 2) * cw, y0 = top + Math.floor(i / 2) * 150;
+    g.font = `600 26px ${font}`; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(lab.toUpperCase(), x, y0);
+    g.font = `800 66px ${font}`; g.fillStyle = '#fff'; g.fillText(v, x, y0 + 72);
+    if (u) { const vw = g.measureText(v).width; g.font = `600 30px ${font}`; g.fillStyle = 'rgba(255,255,255,.62)'; g.fillText(u.trim(), x + vw + 10, y0 + 72); }
+  });
+  g.font = `800 30px ${font}`; g.fillStyle = accent; g.textAlign = 'right'; g.fillText('Kinetta', W - 90, H - 44);
+  return new Promise((res) => c.toBlob(res, 'image/png'));
 }
 
 // ---------- Matched route ----------

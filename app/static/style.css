@@ -364,21 +364,23 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .insight b { display: block; } .insight span { color: var(--tx2); font-size: 14px; }
 .ai { background: linear-gradient(150deg, color-mix(in srgb, var(--prog2) 80%, var(--card)), var(--card)); }
 .ai p { color: var(--tx); white-space: pre-wrap; }
-.card.share-row { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; text-align: left; font: inherit; color: inherit; }
-.share-row .ico { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--accent2); color: var(--accent); }
-.share-row .ico svg { width: 20px; height: 20px; }
-.share-row .grow { flex: 1; display: grid; gap: 2px; min-width: 0; } .share-row b { font-size: 15px; }
-.share-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.social .cheer { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.social .cheer svg { width: 18px; height: 18px; }
-.social .cheer[aria-pressed="true"] { background: var(--accent2); color: var(--accent); }
-.social .cheer.just svg { animation: pop .3s ease; }
-.social .cheer-who { margin: 10px 0 0; }
+/* cheers + comments as small icons by the title (2026-10-12); the comments open in a sheet */
+.t-row { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; } .t-row h1 { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.t-soc { flex: none; display: flex; gap: 2px; margin: -4px -8px 0 0; }
+.t-soc .pf { padding: 0 8px; min-width: 40px; justify-content: center; }
+.social .cheer-who { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
+.social .cheer-who svg { flex: none; width: 18px; height: 18px; color: var(--accent); } .social .cheer-who svg .cone { fill: currentColor; }
+.social .comments .comment:first-child { margin-top: 6px; } .social .c-none { margin: 6px 0 0; }
+.social .comment p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 2px 0 0; color: var(--tx); }
+.e-share { border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 10px; } .e-share .ghead { margin: 6px 0 0; }
+.e-share .vis-note { margin: -2px 0 0; } .e-share .checks { margin-top: 8px; }
+/* share a picture: the preview fills the sheet width */
+.pic-wrap { border-radius: var(--r); overflow: hidden; background: #111; aspect-ratio: 4 / 5; margin-bottom: 12px; }
+.pic { display: block; width: 100%; height: 100%; object-fit: contain; }
 .comments .comment { padding: 12px 0; border-top: 1px solid var(--line); }
 .comments .comment:first-child { margin-top: 10px; }
 .comment .c-hd { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .comment .c-hd .linkbtn { margin-left: auto; min-height: 32px; }
-.card .comment p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 2px 0 0; color: var(--tx); }
 .c-form { margin-top: 12px; } .c-form textarea { min-height: 64px; background: var(--card2); border-color: transparent; }
 .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; margin-bottom: 6px; }
 .checks .check { font-weight: 500; font-size: 15px; }
@@ -802,7 +804,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .dish-row .av { width: 34px; height: 34px; font-size: 13px; }
 /* 2026-10-12: tighter cooking screen. One big button (Log my portion); everything else is a row or a small pill */
 .card.tap.share-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 12px 14px 12px 16px; border: 0; text-align: left; font: inherit; }
-.share-row .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .share-row b { font-size: 15px; font-weight: 650; } .share-row small { font-size: 13px; }
+.share-row .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .share-row b { font-size: 15px; font-weight: 650; } .share-row small { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .share-row > svg { width: 18px; height: 18px; color: var(--tx3); flex: none; }
 .share-row .ri { background: var(--accent2); color: var(--accent); }
 .share-row .avs { display: flex; padding-right: 10px; } .share-row .avs .av { width: 30px; height: 30px; font-size: 12px; margin-right: -10px; box-shadow: 0 0 0 2px var(--card); }
