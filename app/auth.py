@@ -104,9 +104,9 @@ def current_user(request: Request):
     token = session_token(request)
     if not token: raise HTTPException(401, 'Not logged in')
     with db.connect() as c:
-        row = c.execute(f"""SELECT u.id, u.login::text AS login, u.name, u.is_admin, s.last_seen < now() - interval '1 hour' AS stale
+        row = c.execute(f"""SELECT u.id, u.login::text AS login, u.name, u.is_admin, u.photo_v, s.last_seen < now() - interval '1 hour' AS stale
             FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = %s AND s.last_seen > now() - interval '{SESSION_DAYS} days'""", (_h(token),)).fetchone()
         if not row: raise HTTPException(401, 'Not logged in')
         if row['stale']: c.execute('UPDATE sessions SET last_seen = now() WHERE token_hash = %s', (_h(token),))
-        return {'id': row['id'], 'login': row['login'], 'name': row['name'], 'is_admin': row['is_admin']}
+        return {'id': row['id'], 'login': row['login'], 'name': row['name'], 'is_admin': row['is_admin'], 'photo': row['photo_v']}

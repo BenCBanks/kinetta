@@ -196,8 +196,15 @@ function avatar(p, cls = '') {
   const name = (p && p.name) || '?', login = (p && p.login) || name;
   const ini = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
   let h = 0; for (const ch of login) h = (h * 31 + ch.charCodeAt(0)) % 997;
-  return `<span class="av av${h % 6}${cls ? ' ' + cls : ''}" aria-hidden="true">${esc(ini)}</span>`;
+  // a profile photo (2026-10-12, api_photos.py) sits over the initials; its address changes when the photo does
+  const img = p && p.photo ? pimg(`/api/people/${encodeURIComponent(login)}/photo?v=${encodeURIComponent(p.photo)}`) : '';
+  return `<span class="av av${h % 6}${cls ? ' ' + cls : ''}" aria-hidden="true">${esc(ini)}${img}</span>`;
 }
+// A photo from the server (2026-10-12). The iPhone app signs in with a header, which an <img> can't send, so there the
+// picture is fetched with the token instead (native.js fills in data-asrc); in a browser it's an ordinary image.
+const pimg = (path, attrs = '') => `<img ${Native.on ? 'data-asrc' : 'src'}="${esc(path)}" alt="" loading="lazy" decoding="async" ${attrs}>`;
+// a photo that won't load (removed meanwhile, or offline) leaves the initials showing
+document.addEventListener('error', (e) => { if (e.target.matches && e.target.matches('.av img')) e.target.remove(); }, true);
 const svg = (k, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k] || IC.other}</svg>`;
 const sportMark = (s) => `<span class="sp ${esc(s)}" aria-hidden="true">${svg(s)}</span>`;
 

@@ -20,6 +20,20 @@ const Native = (() => {
     const r = await api('/api/login', json('POST', {login, password, app: true}));
     N.token = r.token; await put('server', N.base); await put('token', N.token);
   };
+  // photos (app.js pimg): fetched with the login token, kept in memory by address (an address never changes its picture)
+  const pics = new Map();
+  const fill = () => {
+    for (const im of document.querySelectorAll('img[data-asrc]')) {
+      const p = im.dataset.asrc; im.removeAttribute('data-asrc');
+      let u = pics.get(p);
+      if (!u) {
+        u = fetch(N.base + p, {credentials: 'omit', headers: N.headers()}).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(r.status)))).then((b) => URL.createObjectURL(b));
+        pics.set(p, u); u.catch(() => pics.delete(p));
+      }
+      u.then((x) => { im.src = x; }, () => im.dispatchEvent(new Event('error')));
+    }
+  };
+  if (on) new MutationObserver(fill).observe(document.documentElement, {childList: true, subtree: true});
   N.forget = async () => { N.token = null; if (on) { await put('token', null); await put('health.last', null); } };
 
   // ---------- Apple Health ----------

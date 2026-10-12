@@ -22,7 +22,7 @@ base1 = len(notes(n1)['items'])
 # friend request -> declined -> gone; asked again -> accepted -> the asker is told
 n2.post('/api/friends', {'login': 'zz_test_note1'})
 r = notes(n1); ck(r['unread'] == 1 and r['items'][0]['kind'] == 'friend_request' and r['items'][0]['text'] == 'Note2 Test wants to be friends', f'request {r["items"][:1]}')
-ck(r['items'][0]['link'] == '/me/friends' and set(r['items'][0]['who']) == {'login', 'name'}, 'link and only name + username')
+ck(r['items'][0]['link'] == '/me/friends' and set(r['items'][0]['who']) == {'login', 'name', 'photo'}, 'link and only name, username + photo')
 ck(n1.get('/api/me')[1]['notifications'] == 1 and n1.get('/api/notifications/count')[1]['unread'] == 1, 'counts')
 n1.post('/api/friends/zz_test_note2/decline')
 ck(notes(n1)['unread'] == 0, 'declined: the request notification goes')
