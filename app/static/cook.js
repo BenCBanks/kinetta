@@ -17,11 +17,11 @@ const leftText = (d) => (d.weight_g ? `${gfmt(d.left_g)} left` : `${Math.round(d
 const someLeft = (d) => (d.weight_g ? d.left_g >= 1 : d.left_share >= 0.01);
 const LEFTOVER_DAYS = 5;
 
-// Add food > Create a dish (2026-10-12; was the Cooking button and a list on Nutrition): start a new dish for the meal
+// Add food > Create or edit (2026-10-12; was the Cooking button and a list on Nutrition): start a new dish for the meal
 // picked in Add food, go back to one still open (cooking, leftovers, or shared by a friend), or cook a saved recipe again.
 function dishSheet(day, meal) {
   const q = day && day !== isoDay(new Date()) ? `?d=${day}` : '';      // a past day's log: portions go to that day
-  sheet('Create a dish', `<div class="btncol"><button class="primary" id="ck-new">${svg('plus')}Start a new dish</button></div>
+  sheet('Create or edit', `<div class="btncol"><button class="primary" id="ck-new">${svg('plus')}Start a new dish</button></div>
     <div id="ck-open"></div><div id="ck-saved"></div>`, (b, close) => {
     const open = async (url, btn) => {
       btn.disabled = true;
@@ -73,7 +73,8 @@ function drawDish(el, d) {
   const cooking = d.status === 'cooking', w = d.weight_g, saved = d.recipe_id != null;
   const pastDay = new URLSearchParams(location.search).get('d');
   // the meal it's cooked for, while it's cooked today; leftovers and a friend's dish pick the meal when they're eaten
-  const fixedMeal = mine && cooking && !pastDay && isoDay(new Date(d.created)) === isoDay(new Date());
+  // the meal a portion goes to: the dish's own meal while it's cooked today, otherwise the time of day; you can change it when you log
+  const startMeal = mine && cooking && !pastDay && isoDay(new Date(d.created)) === isoDay(new Date()) ? d.meal : guessMeal();
   const set = (fresh) => { App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh); };
   const ing = (it) => `<div><b>${esc(it.name)}</b><small class="muted num">${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</small></div>
     <div class="r"><b class="num">${r0(it.kcal)}</b><small class="muted">kcal</small></div>`;
@@ -81,8 +82,7 @@ function drawDish(el, d) {
   const mealSeg = (attr, cur, label) => `<div class="seg wide meal4" role="group" aria-label="${label}">${Object.entries(MEAL_NAMES).map(([m, n]) => `<button type="button" data-${attr}="${m}" aria-pressed="${m === cur}">${n}</button>`).join('')}</div>`;
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts"><button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button></div></div>
     <div class="eyebrow">${mine ? (cooking ? 'Cooking' : 'Leftovers') : `From ${esc(d.owner.name)}`}</div>
-    <h1 class="dish-name">${esc(d.name)}</h1>
-    ${mine && cooking ? `<div class="dish-for"><small class="muted">Cooking for</small>${mealSeg('dmeal', d.meal, 'Which meal it is for')}</div>` : ''}
+    <h1 class="dish-name">${esc(d.name)}${mine ? `<button class="icon-btn dn-edit" id="dk-rename" aria-label="Rename the dish">${svg('edit')}</button>` : ''}</h1>
     ${mine ? `<button class="linkbtn help-link" id="dk-help">${svg('help')}Need help?</button>` : ''}
     ${has || d.weighed ? `<div class="card dish-hero"><div class="dh-top"><div><small>Whole dish</small><b class="num">${r0(t.kcal)}<i>kcal</i></b></div>
       ${w ? `<div class="dh-w"><small>${d.weighed ? 'Cooked weight' : 'Weight'}</small><b class="num">${gfmt(w)}</b></div>` : ''}</div>
@@ -92,7 +92,7 @@ function drawDish(el, d) {
     ${mine || d.items.length ? `<h2 class="sec-head">Ingredients${d.items.length ? ` <span class="count">${d.items.length}</span>` : ''}</h2>
     <div class="card">${mine ? `${chatLog(d)}<form class="addline" id="dk-add"><input name="t" placeholder="What went in?" aria-label="What went in, in your own words, like 2 apples or a tablespoon of olive oil"
         autocomplete="off" enterkeyhint="send" maxlength="600" required><button class="primary sm">${svg('plus')}Add</button></form>
-      <div id="dk-match"></div><button type="button" class="linkbtn" id="dk-search">Search the food database instead</button>` : ''}
+      <div id="dk-match"></div>` : ''}
       <div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="fe sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="fe">${ing(it)}</div>`)).join('')}</div>
       ${mine ? `<button class="linkbtn" id="dk-known">${typed ? 'Change the total you typed in' : 'I already know the total'}</button>` : ''}</div>` : ''}
 
@@ -110,9 +110,9 @@ function drawDish(el, d) {
         ${w ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="e.g. 380" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
         <div class="share-line">${w ? '<span class="muted">or</span>' : ''}<span>I had</span><input name="n" inputmode="decimal" value="1" aria-label="How many servings you had"><span>of</span>
           <input name="of" inputmode="decimal" placeholder="3" aria-label="Servings in the whole dish"><span>servings</span></div>
-        ${fixedMeal ? '' : mealSeg('meal', guessMeal(), 'Meal')}
+        ${mealSeg('meal', startMeal, 'Meal')}
         <div class="portion-out" aria-live="polite"></div>
-        <button class="primary wide">Log it to ${fixedMeal ? esc(MEAL_NAMES[d.meal]) : 'my food'}${pastDay ? ` for ${esc(dayLabel(pastDay))}` : ''}</button></form></div>`
+        <button class="primary wide">Log it to <span class="lg-meal">${esc(MEAL_NAMES[startMeal])}</span>${pastDay ? ` for ${esc(dayLabel(pastDay))}` : ''}</button></form></div>`
       : !mine ? `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>` : ''}
 
     ${mine && has ? `<button class="card tap share-row" id="dk-save" role="switch" aria-checked="${saved}"><span class="ri">${svg('bookmark')}</span>
@@ -124,7 +124,7 @@ function drawDish(el, d) {
       <p class="small muted">${cooking ? 'Done cooking? Finish takes it off your list. What you logged stays in your food log.'
         : `Leftovers stay on your list until ${esc(new Date(new Date(d.done_at).getTime() + LEFTOVER_DAYS * 864e5).toLocaleDateString([], {weekday: 'long'}))}.`}</p></div>` : ''}`;
   wireBack(el, '/food' + location.search);
-  $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set) : sharedMenu(d));
+  $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search()) : sharedMenu(d));
   [$('#dk-known', el), $('#dk-known2', el)].forEach((b) => { if (b) b.onclick = () => knownSheet(d, set); });
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
@@ -134,7 +134,7 @@ function drawDish(el, d) {
     chatBox(el, d, set);
     $('#dk-share', el).onclick = () => shareDishSheet(d, set);
     $('#dk-finish', el).onclick = () => finishSheet(d);
-    wireSeg(el, 'dmeal', (m) => patch({meal: m}));
+    $('#dk-rename', el).onclick = () => renameSheet(d, set);
   }
   const sv = $('#dk-save', el);
   if (sv) sv.onclick = async () => {
@@ -148,7 +148,7 @@ function drawDish(el, d) {
           const n = prompt('What do you call this dish?', ''); if (!n || !n.trim()) { sv.disabled = false; return; }
           await api(`/api/dishes/${d.id}`, json('PATCH', {name: n.trim()}));
         }
-        set(await api(`/api/dishes/${d.id}/recipe`, json('POST', {}))); toast('Saved as a recipe. Find it under Add food > Create a dish');
+        set(await api(`/api/dishes/${d.id}/recipe`, json('POST', {}))); toast('Saved as a recipe. Find it under Add food > Saved dishes');
       }
     } catch (x) { toast(x.message); sv.disabled = false; }
   };
@@ -175,8 +175,8 @@ function drawDish(el, d) {
   const f = $('#dk-portion', el);
   if (f) {
     const out = $('.portion-out', f), p = d.per_100g || {};
-    let meal = fixedMeal ? d.meal : guessMeal(), mode = w ? 'g' : 'share';
-    wireSeg(f, 'meal', (m) => { meal = m; });
+    let meal = startMeal, mode = w ? 'g' : 'share';
+    wireSeg(f, 'meal', (m) => { meal = m; $('.lg-meal', f).textContent = MEAL_NAMES[m]; });
     const num = (i) => +i.value.replace(',', '.');
     const share = () => { const n = num(f.n), of = num(f.of); return n > 0 && of > 0 && n <= of ? n / of : null; };
     const show = () => {
@@ -209,28 +209,34 @@ function drawDish(el, d) {
     };
   }
 }
-// Swipe an ingredient left to show Remove (2026-10-12); a tap on an open row just closes it
+// Swipe an ingredient left to show Remove (2026-10-12). The name stays put (so you can see what you're removing); the
+// Remove button slides in over the calories, which fade out. A tap on an open row just closes it.
 function swipeRows(el, onRemove) {
-  const W = 96, closeAll = (but) => $$('.swipe.open', el).forEach((x) => { if (x !== but) { x.classList.remove('open'); $('.sw-row', x).style.transform = ''; } });
+  const W = 96;
+  const place = (sw, px, anim) => {     // px = how far the button is out, 0..W
+    const del = $('.sw-del', sw), r = $('.sw-row .r', sw);
+    del.style.transition = r.style.transition = anim ? '' : 'none';
+    del.style.width = `${px}px`; r.style.opacity = String(Math.max(0, 1 - px / (W * 0.6)));
+  };
+  const closeAll = (but) => $$('.swipe.open', el).forEach((x) => { if (x !== but) { x.classList.remove('open'); place(x, 0, true); } });
   $$('.swipe', el).forEach((sw) => {
     const row = $('.sw-row', sw);
-    let x0 = 0, y0 = 0, base = 0, dx = 0, drag = false, down = false, moved = false;
-    row.addEventListener('pointerdown', (e) => { down = true; drag = moved = false; x0 = e.clientX; y0 = e.clientY; base = sw.classList.contains('open') ? -W : 0; dx = 0; });
+    let x0 = 0, y0 = 0, base = 0, px = 0, drag = false, down = false, moved = false;
+    row.addEventListener('pointerdown', (e) => { down = true; drag = moved = false; x0 = e.clientX; y0 = e.clientY; base = sw.classList.contains('open') ? W : 0; px = base; });
     row.addEventListener('pointermove', (e) => {
       if (!down) return;
       const mx = e.clientX - x0, my = e.clientY - y0;
-      if (!drag && Math.abs(mx) > 8 && Math.abs(mx) > Math.abs(my) * 1.3) { drag = moved = true; closeAll(sw); row.style.transition = 'none'; try { row.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } }
+      if (!drag && Math.abs(mx) > 8 && Math.abs(mx) > Math.abs(my) * 1.3) { drag = moved = true; closeAll(sw); try { row.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } }
       if (!drag) { if (Math.abs(my) > 8) down = false; return; }
-      dx = Math.max(-W - 20, Math.min(0, base + mx)); row.style.transform = `translateX(${dx}px)`;
+      px = Math.max(0, Math.min(W + 16, base - mx)); place(sw, px, false);
     });
     const end = () => {
       if (!down) return; down = false; if (!drag) return;
-      row.style.transition = ''; const open = dx < -W / 2;
-      sw.classList.toggle('open', open); row.style.transform = open ? `translateX(${-W}px)` : '';
+      const open = px > W / 2; sw.classList.toggle('open', open); place(sw, open ? W : 0, true);
     };
     row.addEventListener('pointerup', end); row.addEventListener('pointercancel', end);
     row.addEventListener('click', (e) => {     // after a swipe, or on an open row: no item sheet
-      if (moved || sw.classList.contains('open')) { e.stopImmediatePropagation(); e.preventDefault(); if (!moved) { sw.classList.remove('open'); row.style.transform = ''; } moved = false; }
+      if (moved || sw.classList.contains('open')) { e.stopImmediatePropagation(); e.preventDefault(); if (!moved) { sw.classList.remove('open'); place(sw, 0, true); } moved = false; }
     }, true);
     $('.sw-del', sw).onclick = () => onRemove($('.sw-del', sw).dataset.del);
   });
@@ -253,7 +259,7 @@ function finishSheet(d) {
       <label class="check"><input type="radio" name="keep" value="0" checked> <span>Nothing left<small class="muted">It's cleared away</small></span></label>
       <label class="check"><input type="radio" name="keep" value="1"> <span>Keep the leftovers<small class="muted">${esc(leftText(d))}: they stay on your list for ${LEFTOVER_DAYS} days, to log later</small></span></label></div>`
       : !cooking ? '<p class="small muted">It comes off your list.</p>' : ''}
-    ${saved ? `<p class="small">${svg('check')} Saved as a recipe: cook it again from Add food &gt; Create a dish.</p>`
+    ${saved ? `<p class="small">${svg('check')} Saved as a recipe: find it in Add food &gt; Saved dishes.</p>`
       : `<label class="check"><input type="checkbox" name="save"> <span>Save it as a recipe<small class="muted">To cook again without typing it all in</small></span></label>`}
     <div class="actions"><button class="primary">${cooking ? 'Finish' : 'Take it off my list'}</button></div></form>`, (b, close) => {
     const f = $('#fn', b);
@@ -360,7 +366,7 @@ function chatBox(el, d, set) {
     redraw(r.dish);
   };
   f.onsubmit = (e) => { e.preventDefault(); const text = f.t.value.trim(); if (text) send(text); };
-  $('#dk-search', el).onclick = () => searchFlow(el, d, set, f.t.value.trim());
+  el._search = () => searchFlow(el, d, set, f.t.value.trim());
   $$('[data-undo]', el).forEach((b) => b.onclick = async () => {
     const m = log[+b.dataset.undo]; b.disabled = true;
     try {
@@ -460,7 +466,7 @@ function knownSheet(d, set) {
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal" value="${v(k.fat_g)}"></label><span></span></div>
     <p class="small muted">From a recipe or your own sums. It's used instead of the ingredients. Then weigh the dish and your portion as usual.</p>
     <div class="actions">${k.kcal != null ? '<button type="button" class="ghost" id="kn-clear">Use the ingredients</button>' : ''}<button class="primary">Save</button></div></form>`, (b, close) => {
-    const f = $('#kn', b); f.kcal.focus();
+    const f = $('#kn', b);     // no keyboard until a box is tapped (2026-10-12)
     const save = async (body) => {
       const btn = $('button.primary', f); btn.disabled = true;
       try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); close(); } catch (x) { toast(x.message); btn.disabled = false; }
@@ -497,15 +503,25 @@ function panSheet(after) {
     };
   });
 }
-function dishMenu(d, set) {
+// the pencil next to the name (2026-10-12): "Dinner" is only a placeholder until you name it
+function renameSheet(d, set) {
+  sheet('Name the dish', `<form class="form" id="rn"><label>Name<input name="n" maxlength="80" value="${isDefaultName(d.name) ? '' : esc(d.name)}" placeholder="e.g. Chicken traybake" enterkeyhint="done" required></label>
+    <div class="actions"><button class="primary">Save</button></div></form>`, (b, close) => {
+    const f = $('#rn', b); f.n.focus();
+    f.onsubmit = async (e) => {
+      e.preventDefault(); const n = f.n.value.trim(); if (!n) return;
+      try { set(await api(`/api/dishes/${d.id}`, json('PATCH', {name: n}))); close(); } catch (x) { toast(x.message); }
+    };
+  });
+}
+function dishMenu(d, set, search) {
   sheet(d.name, `<div class="btncol"><button class="ghost" id="dm-name">Rename</button>
+    <button class="ghost" id="dm-search">Search the food database</button>
     <button class="ghost" id="dm-done">${d.status === 'cooking' ? 'Finish' : 'The leftovers are gone'}</button>
     <button class="ghost danger" id="dm-del">Delete dish</button></div>
     <p class="small muted">What you've logged from it stays in your food log.${d.recipe_id ? ' Deleting the dish keeps its saved recipe.' : ''}</p>`, (b, close) => {
-    $('#dm-name', b).onclick = async () => {
-      const n = prompt('Name of the dish', d.name); if (!n || !n.trim()) return;
-      try { set(await api(`/api/dishes/${d.id}`, json('PATCH', {name: n.trim()}))); close(); } catch (x) { toast(x.message); }
-    };
+    $('#dm-name', b).onclick = () => { close(); renameSheet(d, set); };
+    $('#dm-search', b).onclick = () => { close(); search(); };
     $('#dm-done', b).onclick = () => { close(); finishSheet(d); };
     $('#dm-del', b).onclick = async () => {
       if (!confirm(`Delete ${d.name}?`)) return;
