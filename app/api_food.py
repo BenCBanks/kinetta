@@ -496,17 +496,25 @@ def weights(days: int = 180, user=Depends(current_user)):
 
 @router.put('/weights')
 def weight_set(body: WeightIn, user=Depends(current_user)):
+    if body.day > dt.date.today() + dt.timedelta(days=1): raise HTTPException(400, "That day hasn't happened yet")
     with db.connect() as c:
         c.execute("""INSERT INTO weights (user_id, day, kg, note) VALUES (%s, %s, %s, %s)
                      ON CONFLICT (user_id, day) DO UPDATE SET kg = excluded.kg, note = excluded.note, source = NULL""", (user['id'], body.day, body.kg, body.note))
-        c.execute('UPDATE profile SET weight_kg = %s WHERE user_id = %s', (body.kg, user['id']))
+        _latest_weight(c, user['id'])
     return {'ok': True}
+
+
+def _latest_weight(c, uid):
+    """The profile weight (used for calorie burn) is the newest weigh-in, so adding an old one doesn't change it."""
+    c.execute('''UPDATE profile SET weight_kg = coalesce((SELECT kg FROM weights WHERE user_id = %s ORDER BY day DESC LIMIT 1), weight_kg)
+                 WHERE user_id = %s''', (uid, uid))
 
 
 @router.delete('/weights/{day}')
 def weight_delete(day: dt.date, user=Depends(current_user)):
     with db.connect() as c:
         c.execute('DELETE FROM weights WHERE user_id = %s AND day = %s', (user['id'], day))
+        _latest_weight(c, user['id'])
     return {'ok': True}
 
 

@@ -387,7 +387,7 @@ function chartStack(box, x, rows, {xfmt, onIndex} = {}) {
   const W = Math.max(300, box.clientWidth || 340), H = 92, padL = 34, padR = 6;
   const n = x.length; if (n < 2) { box.innerHTML = '<p class="muted">No samples recorded.</p>'; return; }
   const X = (i) => padL + (x[i] - x[0]) / (x[n - 1] - x[0] || 1) * (W - padL - padR);
-  const readout = document.createElement('div'); readout.className = 'readout num'; readout.innerHTML = '<span>Touch a chart to read values</span>';
+  const readout = document.createElement('div'); readout.className = 'readout num'; readout.innerHTML = '<span></span>';
   box.innerHTML = ''; box.append(readout);
   const svgs = [];
   for (const r of rows) {
@@ -464,7 +464,7 @@ function barChart(box, items, {fmt, height = 120}) {
 // ---------- progress charts (2026-10-09): one readout line above each chart, touch/hover to read ----------
 const niceStep = (max, n = 4) => { const raw = max / n, p = 10 ** Math.floor(Math.log10(raw || 1)), m = raw / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
 // Columns of stacked bars. cols: [{label, tick, segs: [{k, v}], partial}], keys: [{k, name, color}]
-function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'avg', height = 180, hint = 'Touch a bar to read it'}) {
+function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'avg', height = 180}) {
   const W = Math.max(300, box.clientWidth || 340), H = height, padL = 34, padR = 4, padT = 8, padB = 18, n = cols.length;
   const tot = (c) => c.segs.reduce((s, x) => s + x.v, 0);
   const max = Math.max(1e-9, ...cols.map(tot), avg || 0), step = niceStep(max), top = Math.ceil(max / step) * step;
@@ -486,7 +486,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'a
   if (avg) g += `<line class="avgline" x1="${padL}" x2="${W - padR}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}"/>`;   // labelled in the legend below
   g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
   const legend = (keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');
-  box.innerHTML = `<div class="readout num"><span>${esc(hint)}</span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Bar chart">${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
+  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Bar chart">${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
   const svgEl = $('svg', box), hl = $('.hl', box), ro = $('.readout', box);
   const show = (e) => {
     const r = svgEl.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W, i = Math.floor((px - padL) / bw);
@@ -523,7 +523,7 @@ function trendLine(box, allPts, {fmt, yfmt = fmt, color = 's1', invert = false, 
   }
   g += `<path class="ln faint k-${color}" d="${path(pts.map((p) => p.y))}"/><path class="ln k-${color}" d="${path(avg)}"/>`;
   g += `<line class="xh" y1="${padT}" y2="${H - padB}" visibility="hidden"/><circle class="xdot k-${color}" r="5" visibility="hidden"/>`;
-  box.innerHTML = `<div class="readout num"><span>Touch the chart to read a month</span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Monthly trend">${g}</svg></div>
+  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Monthly trend">${g}</svg></div>
     <div class="legend small"><span><i class="sw ln-sw k-${color}"></i>${esc(rollName)}</span><span><i class="sw ln-sw faint k-${color}"></i>Each month</span></div>`;
   const svgEl = $('svg', box), xh = $('.xh', box), dot = $('.xdot', box), ro = $('.readout', box);
   const show = (e) => {
@@ -547,7 +547,7 @@ function dayLine(box, pts, {fmt, height = 150, color = 'walk'}) {
   g += `<text class="yl" x="${padL}" y="${H - 4}">${esc(pts[0].tick)}</text><text class="yl" x="${W - padR}" y="${H - 4}" text-anchor="end">${esc(pts[n - 1].tick)}</text>`;
   g += `<path class="ln k-${color}" d="${pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.y).toFixed(1)}`).join('')}"/>`;
   g += `<line class="xh" y1="${padT}" y2="${H - padB}" visibility="hidden"/><circle class="xdot k-${color}" r="5" visibility="hidden"/>`;
-  box.innerHTML = `<div class="readout num"><span>Touch the chart to read a day</span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Running total">${g}</svg></div>`;
+  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Running total">${g}</svg></div>`;
   const svgEl = $('svg', box), xh = $('.xh', box), dot = $('.xdot', box), ro = $('.readout', box);
   const show = (e) => {
     const r = svgEl.getBoundingClientRect(), i = Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width * W - padL) / (W - padL - padR) * (n - 1))));
@@ -586,7 +586,7 @@ function energyChart(box, cols, {height = 190, weight = null} = {}) {   // weigh
     w += cols.map((c, i) => (c.weight == null ? '' : `<circle class="wdot" cx="${X(i).toFixed(1)}" cy="${WY(c.weight).toFixed(1)}" r="3"/>`)).join('') + `<path class="ln k-s3" d="${d}"/>`;
     w += `<rect class="hl" x="0" y="0" width="${bw.toFixed(1)}" height="${WH}" visibility="hidden"/>`;
   }
-  box.innerHTML = `<div class="readout num"><span>Touch a day to read it</span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Calories eaten and burned">${g}</svg>
+  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Calories eaten and burned">${g}</svg>
       ${WH ? `<div class="wpanel-label small muted">Weight${weight.unit ? ' (' + esc(weight.unit) + ')' : ''}</div><svg class="wpanel" viewBox="0 0 ${W} ${WH}" width="${W}" height="${WH}" role="img" aria-label="Weight">${w}</svg>` : ''}</div>
     <div class="legend small"><span><i class="sw k-s1"></i>Eaten</span><span><i class="sw ln-sw k-run"></i>Burned</span><span><i class="sw dash"></i>Goal</span>${WH ? '<span><i class="sw ln-sw k-s3"></i>Weight trend</span><span><i class="sw wsw"></i>Weigh-ins</span>' : ''}</div>`;
   const svgs = $$('svg', box), hls = $$('.hl', box), ro = $('.readout', box), f = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
@@ -611,7 +611,7 @@ function weightChart(box, pts, {fmt, axis = fmt, height = 170} = {}) {
   let d = '', pen = false; pts.forEach((p, i) => { if (p.t == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.t).toFixed(1)}`; pen = true; });
   g += pts.map((p, i) => (p.w == null ? '' : `<circle class="wdot" cx="${X(i).toFixed(1)}" cy="${Y(p.w).toFixed(1)}" r="3.5"/>`)).join('') + `<path class="ln k-s3" d="${d}"/>`;
   g += `<line class="xh" y1="${padT}" y2="${H - padB}" visibility="hidden"/>`;
-  box.innerHTML = `<div class="readout num"><span>Touch to read a day</span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Weight and trend">${g}</svg></div>
+  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Weight and trend">${g}</svg></div>
     <div class="legend small"><span><i class="sw ln-sw k-s3"></i>Trend</span><span><i class="sw wsw"></i>Weigh-ins</span></div>`;
   const svgEl = $('svg', box), xh = $('.xh', box), ro = $('.readout', box);
   const show = (e) => {
@@ -641,6 +641,12 @@ function loadChart(box, days) {
   const b = $$('.badge', box); b[0].classList.add('s1'); b[1].classList.add('s2'); b[2].classList.add('s3');
 }
 
+// an AI request that failed: the reason stays next to the button (a toast is easy to miss while you wait)
+function aiError(btn, msg) {
+  let p = btn.parentNode.querySelector('.ai-err');
+  if (!p) { p = document.createElement('p'); p.className = 'small warn-text ai-err'; p.setAttribute('role', 'alert'); btn.after(p); }
+  p.textContent = msg;
+}
 // ---------- AI consent (2026-10-11): coach notes, weekly reviews and food photos send data to the AI service ----------
 const aiExplain = () => `<p>Kinetta can write a short <b>coach note</b> on each new workout, a <b>weekly review</b> on Sundays, <b>estimate the food in a photo</b>, <b>review your eating</b> and give <b>feedback on your recipes</b>.</p>
   <p class="small muted">To do that, the workout's numbers and your recent training, your food log, the recipe, or the photo, are sent to ${esc(App.me.ai_provider || 'an AI service')}, which writes the text. Nothing is sent while this is off, and you can turn it off any time under Me.</p>`;

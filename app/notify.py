@@ -5,7 +5,7 @@ person turns them on (browsers, and the app added to an iPhone's home screen on 
 - A notification row stores only who did what to which of your things; the words are put together when the list is
   read, so a renamed activity or a deleted comment shows correctly (deleted things take their notifications with them).
 - Web Push needs a key pair for this server (VAPID). It's made on first use and kept in server_keys (no SQL login can
-  read it). The push message holds the same short text as the list, so lock screens show "Sam cheered your Morning Run".
+  read it). The push message holds the same short text as the list, so lock screens show "Sam sent cheers on your Morning Run".
 - Push is sent from a background thread after the change is saved; a subscription the browser has dropped (404/410)
   is deleted.
 """
@@ -59,7 +59,7 @@ def _words(r):
     who, act = r['name'], r['activity'] or 'activity'
     if r['kind'] == 'friend_request': return f'{who} wants to be friends', '/me/friends'
     if r['kind'] == 'friend_accepted': return f'{who} accepted your friend request', '/activity'
-    if r['kind'] == 'cheer': return f'{who} cheered your {act}', f"/activity/{r['activity_id']}"
+    if r['kind'] == 'cheer': return f'{who} sent cheers on your {act}', f"/activity/{r['activity_id']}"
     if r['kind'] == 'comment':
         snip = (r['comment'] or '').strip()
         return f'{who} commented on your {act}' + (f': "{snip[:80]}{"…" if len(snip) > 80 else ""}"' if snip else ''), f"/activity/{r['activity_id']}"

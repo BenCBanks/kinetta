@@ -4,7 +4,7 @@
 'use strict';
 
 // The quick appreciation button. Its name lives only here, so it can be renamed in one place.
-const CHEER = {verb: 'Cheer', done: 'Cheered', one: 'cheer', many: 'cheers', title: 'Cheers'};
+const CHEER = {verb: 'Cheers', done: 'Cheers sent', many: 'cheers', title: 'Cheers'};   // 'Cheers' everywhere (2026-10-12)
 const VIS = {me: 'Only me', friends: 'Friends', everyone: 'Everyone on this Kinetta'};
 const VIS_SHORT = {me: 'Only me', friends: 'Friends', everyone: 'Everyone'};
 const DETAIL_NAMES = {map: 'Map', heart_rate: 'Heart rate', pace: 'Pace and speed', splits: 'Splits and laps', elevation: 'Elevation',
@@ -128,7 +128,7 @@ function sharedCharts(box, a) {
 function socialBlock(box, aid, s) {
   if (!box) return;
   const names = s.cheers.map((c) => c.name);
-  const who = names.length ? `<p class="small cheer-who"><b>${esc(plural(names.length, CHEER.one, CHEER.many))}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</p>` : '';
+  const who = names.length ? `<p class="small cheer-who"><b>${esc(CHEER.title)}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</p>` : '';
   box.innerHTML = `<div class="card social"><h2>${esc(CHEER.title)} and comments</h2>
     <button class="ghost wide cheer${s.just ? ' just' : ''}" aria-pressed="${s.cheered}">${svg('cheer')}<span>${esc(s.cheered ? CHEER.done : CHEER.verb)}</span></button>${who}
     <div class="comments">${s.comments.map((c) => `<div class="comment"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small>
@@ -377,7 +377,7 @@ async function pushCard(box, r) {
     ${on ? `<div class="checks one" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${r.push[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>
       <button class="ghost wide" id="np-off">Turn off on this device</button>`
     : Notification.permission === 'denied' ? '<p class="small muted">Notifications are blocked for Kinetta in this browser\'s settings. Allow them there, then come back.</p>'
-    : `<p class="small muted">Get a notification on this device when someone sends a friend request, gives a ${esc(CHEER.one)}, comments, or shares a dish.</p>
+    : `<p class="small muted">Get a notification on this device when someone sends a friend request, sends ${esc(CHEER.many)}, comments, or shares a dish.</p>
       <button class="primary wide" id="np-on">${svg('heart')}Turn on</button>`}</div>`;
   const b = $('#np-on', box);
   if (b) b.onclick = async () => {

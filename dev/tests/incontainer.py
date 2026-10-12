@@ -12,6 +12,7 @@ def fake_model(ctx, system=None):
         return '```json\n' + json.dumps({"headline": "Steady fortnight.", "going_well": ["Logged most days.", "Good breakfasts."],
                                          "try_next": ["More protein on rest days."], "watch": None, "extra": "ignored"}) + '\n```'
     return json.dumps({"summary": "About 440 kcal a portion.", "ideas": [{"change": "<b>Less oil</b>", "effect": "-30 kcal"}], "note": None})
+real_gemini = coach._gemini
 coach._gemini = fake_model
 n = 0
 def ck(cond, m):
@@ -128,5 +129,25 @@ with db.connect() as c:
 ck(old1 not in ids and old2 not in ids and left == 0, 'old dishes deleted')
 ck(rec is not None, 'its saved recipe stays')
 api_dishes.recipe_delete(rec['id'], user={'id': uid})
+
+# the coach retries a busy model, then uses the lighter one (2026-10-12: Google answered 503 "high demand" at busy times)
+import io, os, time, urllib.error, urllib.request
+asked, real_open, real_sleep = [], urllib.request.urlopen, time.sleep
+def busy_then_ok(req, timeout=None):
+    model = req.full_url.split('/models/')[1].split(':')[0]; asked.append(model)
+    if len(asked) < 3: raise urllib.error.HTTPError(req.full_url, 503, 'busy', {}, io.BytesIO(b'{}'))
+    return io.BytesIO(json.dumps({'candidates': [{'content': {'parts': [{'text': 'ok'}]}}]}).encode())
+urllib.request.urlopen, time.sleep = busy_then_ok, (lambda s: None)
+os.environ.setdefault('GEMINI_API_KEY', 'placeholder')
+try:
+    ck(real_gemini({'q': 1}, 'x') == 'ok' and len(asked) == 3 and asked[0] == asked[1] != asked[2], f'busy model: retried, then the fallback {asked}')
+    def bad(req, timeout=None):
+        asked.append(1); raise urllib.error.HTTPError(req.full_url, 400, 'bad', {}, io.BytesIO(b'{}'))
+    asked.clear(); urllib.request.urlopen = bad
+    try: real_gemini({'q': 1}, 'x'); said = None
+    except ValueError as e: said = str(e)
+    ck(said and '(400)' in said and len(asked) == 1, f'a 400 is not retried {said} {asked}')
+finally:
+    urllib.request.urlopen, time.sleep = real_open, real_sleep
 
 print(f'in the container (AI + push): {n} checks passed')
