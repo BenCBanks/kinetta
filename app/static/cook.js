@@ -44,8 +44,8 @@ function drawDish(el, d) {
   };
   const ing = (it) => `<span class="ig-n">${esc(it.name)}</span><span class="ig-g num">${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</span><b class="num r">${r0(it.kcal)}</b>`;
   const shared = mine ? d.shared_with || [] : [];
-  const bySv = d.serving === 'one', n = d.servings || 1;
-  const sums = has ? `<p class="dish-sum num"><b>${r0(t.kcal)} kcal</b> · ${MACROS.map(([k, nm]) => `${r0(t[k])} g ${nm.toLowerCase()}`).join(' · ')}${bySv && n > 1 ? `<br><span class="muted">${r0(t.kcal / n)} kcal a serving</span>` : ''}${typed ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
+  const bySv = d.serving === 'one';
+  const sums = has ? `<p class="dish-sum num"><b>${r0(t.kcal)} kcal</b> · ${MACROS.map(([k, nm]) => `${r0(t[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${mine ? `<button class="icon-btn" id="dk-help" aria-label="How dishes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
     ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the dish" aria-label="Dish name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
@@ -53,8 +53,7 @@ function drawDish(el, d) {
     ${d.items.length ? `<div class="card ing-card"><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
     ${mine && has ? `<div class="card serve measure"><div class="seg wide m-seg" role="group" aria-label="How it's measured">
         <button type="button" data-sv="one" aria-pressed="${bySv}">By servings</button><button type="button" data-sv="portion" aria-pressed="${!bySv}">By weight</button></div>
-      ${bySv ? `<div class="m-row"><span class="m-lab">Makes</span><div class="mini-step" role="group" aria-label="Servings the dish makes"><button type="button" class="icon-btn" data-ms="-1" aria-label="Fewer servings">${svg('minus')}</button>
-          <b class="num" id="dk-n">${n}</b><button type="button" class="icon-btn" data-ms="1" aria-label="More servings">${svg('plus')}</button></div><span class="muted">serving${n === 1 ? '' : 's'}</span></div>`
+      ${bySv ? `<p class="small muted m-note">The whole dish is one serving. Had more? Say so when you log it.</p>`
         : `<form class="m-row" id="dk-weigh"><label class="m-lab" for="dk-w">Total weight</label><span class="gfield"><input id="dk-w" name="g" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
           value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole dish in grams"><span>g</span></span></form>
           ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
@@ -93,11 +92,6 @@ function drawDish(el, d) {
   nm.onchange = saveName;
   nm.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); nm.blur(); } };
   wireSeg(el, 'sv', (v) => { if (v !== d.serving) patch({serving: v}); });
-  let ms = n, msT = null;     // Makes N servings: saved a moment after the last tap
-  $$('[data-ms]', el).forEach((b) => b.onclick = () => {
-    ms = Math.max(1, Math.min(50, ms + +b.dataset.ms)); $('#dk-n', el).textContent = ms;
-    clearTimeout(msT); msT = setTimeout(() => patch({servings: ms}), 500);
-  });
   const wf = $('#dk-weigh', el);
   if (wf) {      // digits only; saved when you leave the box. Typing what the ingredients add up to = not weighed
     wf.g.oninput = () => { wf.g.value = wf.g.value.replace(/\D/g, ''); };
@@ -153,12 +147,12 @@ function foodToDish(d, f, set) {
 // Log a dish (Add food > Saved Dishes, or a friend's dish). One question only, the way the dish is measured (Ben,
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
 function dishLogSheet(d, w, done) {
-  const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one', per = d.servings || 1;
+  const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one', per = 1;     // by servings: the whole dish is one serving
   const vals = (k) => Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, (t[x] || 0) * k]));
   const half = (x) => (x === 0.5 ? '½' : String(x).replace('.5', '½'));
   sheet(d.name, `<form class="form" id="dl">
     ${bySv ? `<div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
-        <span><b class="num" id="dl-n">1</b><small id="dl-u">serving${per > 1 ? ` of ${per}` : ''}</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div>`
+        <span><b class="num" id="dl-n">1</b><small id="dl-u">serving</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div>`
       : wt ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="The whole dish is ${Math.round(wt)}" aria-label="Your portion in grams"><span>g</span></span></label>`
       : '<p class="callout warn">This dish is measured by weight but has no weight yet. Edit it and type its total weight, or switch it to servings.</p>'}
     <div class="portion-out" aria-live="polite"></div>
@@ -170,7 +164,7 @@ function dishLogSheet(d, w, done) {
     const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k)) : ''; };
     if (bySv) $$('[data-st]', f).forEach((x) => x.onclick = () => {
       n = Math.max(0.5, Math.min(20, n + 0.5 * +x.dataset.st));
-      $('#dl-n', f).textContent = half(n); $('#dl-u', f).textContent = (n > 1 ? 'servings' : 'serving') + (per > 1 ? ` of ${per}` : ''); show();
+      $('#dl-n', f).textContent = half(n); $('#dl-u', f).textContent = n > 1 ? 'servings' : 'serving'; show();
     });
     else if (f.g) f.g.oninput = show;
     show();
@@ -282,7 +276,7 @@ function cookSteps(d) {
   const added = d.items.length > 0 || d.known.kcal != null;
   const steps = [
     [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it the way you\'d text it, or tap + to scan a barcode or photograph the label.'],
-    [added, 'Say how it\'s measured', 'By servings (a smoothie makes 1, a pot of chili makes 4) or by weight (type the cooked weight if you weighed it).'],
+    [added, 'Say how it\'s measured', 'By servings (the whole dish is one serving, like a smoothie; log 2 if you had two) or by weight (a pot of chili: you log grams).'],
     [false, 'Log it when you eat it', 'Add food > Saved Dishes, any day. It stays saved until you delete it.'],
   ];
   const now = added ? 2 : 0;
