@@ -202,6 +202,9 @@ const sportMark = (s) => `<span class="sp ${esc(s)}" aria-hidden="true">${svg(s)
 
 // ---------- toast + sheet ----------
 let toastT;
+// Focus a box only where there's a real keyboard: on phones a focused box pops up the on-screen keyboard and covers
+// the choices around it, so there the box waits for a tap.
+function softFocus(el) { if (el && !matchMedia('(pointer: coarse)').matches) el.focus(); }
 function toast(msg, undo) {
   let t = $('#toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
