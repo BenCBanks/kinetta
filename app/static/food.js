@@ -269,8 +269,7 @@ const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name
   <div class="r"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><small class="muted">kcal</small></div></button>`;
 function tSearch(body, where, close) {
   body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search foods, brands…" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
-  const inp = $('input', body), out = $('#ts-r', body);
-  if (!matchMedia('(pointer: coarse)').matches) inp.focus();   // phones: no keyboard until you tap the box, so the photo and barcode options stay in view
+  const inp = $('input', body), out = $('#ts-r', body); softFocus(inp);
   let timer, seq = 0, all = [];
   const draw = (groups) => {
     all = []; let html = '';
@@ -347,7 +346,7 @@ function tQuick(body, where, close) {
   body.innerHTML = `<form class="form" id="tq"><label>Name<input name="name" placeholder="e.g. Restaurant salad" maxlength="200"></label>${macroInputs()}
     <p class="small muted">Leave calories blank to work them out from the macros.</p>
     <div class="actions"><button class="primary">Add</button></div></form>`;
-  const f = $('#tq', body); f.name.focus();
+  const f = $('#tq', body); softFocus(f.name);
   f.onsubmit = async (e) => {
     e.preventDefault(); const n = (x) => (x.value.trim() === '' ? 0 : parseFloat(x.value) || 0);
     const it = {name: f.name.value.trim() || 'Quick add', amount: 1, unit: 'serving', protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: f.fiber_g.value ? n(f.fiber_g) : null, source: 'quick'};
