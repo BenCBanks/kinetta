@@ -668,6 +668,23 @@ MIGRATIONS = [
       ADD COLUMN eaten_share real NOT NULL DEFAULT 0 CHECK (eaten_share >= 0);
     UPDATE dishes SET meal = CASE name WHEN 'Breakfast' THEN 'breakfast' WHEN 'Lunch' THEN 'lunch' ELSE 'dinner' END;
     """,
+    # 32 (2026-10-12): dishes, round three (api_dishes.py). A dish is simply saved: no cooking / leftovers / finished, no
+    #   pans in the app (the table stays). serving: 'one' (a smoothie: logged as whole servings) or 'portion' (grams or
+    #   "1 of N"; servings remembers N). Each saved recipe that no dish still points at becomes a dish; dishes cooked from
+    #   the same recipe keep only one (a shared one first, then the newest). The recipes table stays (nothing reads it any more).
+    """
+    ALTER TABLE dishes ADD COLUMN serving text NOT NULL DEFAULT 'portion' CHECK (serving IN ('one', 'portion')),
+      ADD COLUMN servings smallint CHECK (servings BETWEEN 1 AND 50);
+    INSERT INTO dishes (user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, ai_note, ai_note_at, recipe_updated, created, updated)
+      SELECT r.user_id, r.name, r.items, r.known_kcal, r.known_protein_g, r.known_carbs_g, r.known_fat_g, r.ai_note, r.ai_note_at,
+             coalesce(r.ai_note_at, r.updated), r.created, r.updated
+      FROM recipes r WHERE NOT EXISTS (SELECT 1 FROM dishes d WHERE d.recipe_id = r.id);
+    DELETE FROM dishes d USING dishes n
+      WHERE d.recipe_id IS NOT NULL AND n.recipe_id = d.recipe_id
+        AND (EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = n.id), n.updated, n.id)
+          > (EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = d.id), d.updated, d.id);
+    UPDATE dishes SET done_at = NULL, eaten_g = 0, eaten_share = 0;
+    """,
 ]
 
 

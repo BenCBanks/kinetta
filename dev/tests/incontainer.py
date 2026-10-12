@@ -113,23 +113,18 @@ ck(notify._vapid() is not None and len(notify._vapid()[1]) > 80, 'server push ke
 with db.connect() as c:
     c.execute('DELETE FROM notifications WHERE id = %s', (nid,)); c.execute('DELETE FROM push_subscriptions WHERE user_id = %s', (uid,))
     c.execute('UPDATE profile SET ai_ok = false'); c.execute('DELETE FROM ai_requests')
-# --- dishes not saved are cleared away: left cooking 5+ days, or leftovers older than that; saved recipes stay ---
-old1 = api_dishes.dish_add(api_dishes.DishIn(name='Test forgotten stew'), user={'id': uid})['id']
+# --- 2026-10-12: a dish is kept until deleted, however old; one opened and left empty for a day is cleared away ---
+old1 = api_dishes.dish_add(api_dishes.DishIn(name='Test old stew'), user={'id': uid})['id']
 api_dishes.item_add(old1, api_dishes.ItemIn(name='Beans', grams=500, kcal=500), user={'id': uid})
-old2 = api_dishes.dish_add(api_dishes.DishIn(name='Test old leftovers'), user={'id': uid})['id']
-api_dishes.item_add(old2, api_dishes.ItemIn(name='Rice', grams=500, kcal=600), user={'id': uid})
-api_dishes.recipe_save(old2, user={'id': uid})
-api_dishes.finish(old2, api_dishes.FinishIn(leftovers=True), user={'id': uid})
+empty = api_dishes.dish_add(api_dishes.DishIn(), user={'id': uid})['id']
 with db.connect() as c:
-    c.execute("UPDATE dishes SET updated = now() - interval '6 days' WHERE id = %s", (old1,))
-    c.execute("UPDATE dishes SET done_at = now() - interval '6 days' WHERE id = %s", (old2,))
+    c.execute("UPDATE dishes SET updated = now() - interval '60 days' WHERE id = %s", (old1,))
+    c.execute("UPDATE dishes SET updated = now() - interval '2 days' WHERE id = %s", (empty,))
 ids = [d['id'] for d in api_dishes.dishes(user={'id': uid})]
 with db.connect() as c:
-    left = c.execute('SELECT count(*) AS n FROM dishes WHERE id IN (%s, %s)', (old1, old2)).fetchone()['n']
-    rec = c.execute("SELECT id FROM recipes WHERE user_id = %s AND name = 'Test old leftovers'", (uid,)).fetchone()
-ck(old1 not in ids and old2 not in ids and left == 0, 'old dishes deleted')
-ck(rec is not None, 'its saved recipe stays')
-api_dishes.recipe_delete(rec['id'], user={'id': uid})
+    gone = c.execute('SELECT count(*) AS n FROM dishes WHERE id = %s', (empty,)).fetchone()['n'] == 0
+ck(old1 in ids and gone, 'old dish kept, empty one cleared')
+api_dishes.dish_delete(old1, user={'id': uid})
 
 # the coach retries a busy model, then uses the lighter one (2026-10-12: Google answered 503 "high demand" at busy times)
 import io, os, time, urllib.error, urllib.request

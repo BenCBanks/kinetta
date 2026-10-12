@@ -234,9 +234,9 @@ const macroInputs = (e = {}) => `<div class="mac4">
 function addSheet(day, meal) {
   sheet('Add food', `<div class="ways"><button class="way" id="as-photo">${svg('camera')}<b>Take a photo</b><small>AI estimates the calories</small></button>
       <button class="way" id="as-scan">${svg('barcode')}<b>Scan a barcode</b><small>packaged food</small></button>
-      <button class="way wide" id="as-dish">${svg('pot')}<b>Create or edit</b><small>a dish you're cooking, or a saved recipe</small></button></div>
+      <button class="way wide" id="as-dish">${svg('pot')}<b>Create or edit a dish</b><small>a smoothie, a pot of chili, a family recipe</small></button></div>
     <h3 class="ways-or">Or search and enter manually</h3>
-    <div class="seg wide" role="tablist">${[['search', 'Search'], ['recent', 'Recent'], ['saved', 'Saved dishes'], ['quick', 'Quick']]
+    <div class="seg wide" role="tablist">${[['search', 'Search'], ['recent', 'Recent'], ['saved', 'Saved Dishes'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div class="two mealpick"><label>Meal<select id="as-meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
     <label>Day<span class="daypick dayfield">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></label></div><div id="as-body"></div>`, (b, close) => {
@@ -253,7 +253,7 @@ function addSheet(day, meal) {
       if (App.me.coach && !App.me.ai_ok) aiSheet(() => photoSheet(w.day, w.meal)); else photoSheet(w.day, w.meal);
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
-    $('#as-dish', b).onclick = () => { const w = where(); close(); dishSheet(w.day, w.meal); };
+    $('#as-dish', b).onclick = () => { close(); dishSheet(); };
     show('search');
   });
 }
@@ -306,62 +306,63 @@ async function tRecent(body, where, close) {
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
-// Saved dishes (2026-10-12; was two tabs, Mine and Meals): saved meals, saved recipes and your own foods in one list.
-// Each opens a sheet to say how much (servings or grams) before it's logged.
+// Saved Dishes (2026-10-12; was two tabs, Mine and Meals): your dishes, dishes friends shared, saved meals and your own
+// foods in one list. Each opens a sheet to say how much before it's logged (dishes: dishLogSheet in cook.js).
 async function tSaved(body, where, close) {
   body.innerHTML = skel(1);
   try {
-    const [meals, recipes, foods] = await Promise.all([api('/api/food/meals'), api('/api/dishes/recipes').catch(() => []), api('/api/food/foods')]);
-    const row = (kind, i, name, sub, kcal) => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
-      <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">kcal</small></div></button>`;
-    const list = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
-    body.innerHTML = `${meals.length ? `<h3 class="ghead">Meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, list(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
-      ${recipes.length ? `<h3 class="ghead">Recipes</h3><div class="results">${recipes.map((r, i) => row('rec', i, r.name, list(r.items), r.totals.kcal)).join('')}</div>` : ''}
+    const [dishes, meals, foods] = await Promise.all([api('/api/dishes').catch(() => []), api('/api/food/meals'), api('/api/food/foods')]);
+    dishes.splice(0, dishes.length, ...dishes.filter((d) => d.items.length || d.known.kcal != null));     // nothing in it yet: nothing to log
+    const mine = dishes.filter((d) => d.mine !== false), theirs = dishes.filter((d) => d.mine === false);
+    const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
+      <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
+    const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
+      d.totals.kcal, d.serving === 'one' ? 'kcal' : 'kcal total');
+    body.innerHTML = `${mine.length ? `<h3 class="ghead">Dishes</h3><div class="results">${mine.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
+      ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
+      ${meals.length ? `<h3 class="ghead">Meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead">My foods</h3><div class="results">${foods.map(foodRow).join('')}</div>
-      <button class="ghost wide" id="tm-new">+ Create a food</button>
+      <div class="btncol"><button class="ghost wide" id="tm-dish">+ Create a dish</button><button class="ghost wide" id="tm-new">+ Create a food</button></div>
       ${meals.length ? '' : '<p class="small muted">Save a meal from the "…" button on any meal in your log, and it shows up here.</p>'}`;
     const again = () => tSaved(body, where, close);
     $('#tm-new', body).onclick = () => foodEditor(null, again);
+    $('#tm-dish', body).onclick = () => { close(); dishSheet(); };
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
-    $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet('meal', meals[+x.dataset.meal], where(), close, again));
-    $$('[data-rec]', body).forEach((x) => x.onclick = () => savedSheet('recipe', recipes[+x.dataset.rec], where(), close, again));
+    $$('[data-dish]', body).forEach((x) => x.onclick = () => dishLogSheet(dishes[+x.dataset.dish], where(), (editing) => close()));
+    $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet(meals[+x.dataset.meal], where(), close, again));
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
-// How much of a saved meal or recipe: grams (when its weight is known) or servings. A saved meal is 1 serving as saved
-// ("½" or "2" scale every food in it); a recipe is the whole pot, so it's "I had 1 of 4".
-function savedSheet(kind, m, w, closeParent, after) {
-  const meal = kind === 'meal', T = m.totals;
-  const weight = meal ? (m.items.every((it) => it.unit === 'g') ? m.items.reduce((a, it) => a + it.amount, 0) : null) : m.weight_g;
+// How much of a saved meal: grams (when every food in it is in grams) or servings. A saved meal is 1 serving as saved
+// ("½" or "2" scale every food in it).
+function savedSheet(m, w, closeParent, after) {
+  const T = m.totals, weight = m.items.every((it) => it.unit === 'g') ? m.items.reduce((a, it) => a + it.amount, 0) : null;
   sheet(m.name, `<form class="form" id="sv">
-    ${meal ? `<p class="small muted">${esc(m.items.map((x) => x.name).join(', '))}</p>` : ''}
+    <p class="small muted">${esc(m.items.map((x) => x.name).join(', '))}</p>
     ${weight ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="${Math.round(weight)}" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
-    <div class="share-line">${weight ? '<span class="muted">or</span>' : ''}${meal ? `<input name="n" inputmode="decimal" value="1" aria-label="Servings"><span>servings</span>`
-      : `<span>I had</span><input name="n" inputmode="decimal" value="1" aria-label="How many servings you had"><span>of</span><input name="of" inputmode="decimal" placeholder="4" aria-label="Servings in the whole recipe"><span>servings</span>`}</div>
+    <div class="share-line">${weight ? '<span class="muted">or</span>' : ''}<input name="n" inputmode="decimal" value="1" aria-label="Servings"><span>servings</span></div>
     <div class="portion-out" aria-live="polite"></div>
-    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${meal && App.me.coach ? `<button type="button" class="ghost" id="sv-ai" aria-label="Coach's take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''}<span class="spacer"></span>
+    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${App.me.coach ? `<button type="button" class="ghost" id="sv-ai" aria-label="Coach's take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''}<span class="spacer"></span>
       <button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     const f = $('#sv', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
-    let mode = meal ? 'n' : weight ? 'g' : 'n';
-    const factor = () => {      // the share of the saved meal/recipe being logged
+    let mode = 'n';
+    const factor = () => {      // the share of the saved meal being logged
       if (mode === 'g') { const g = num(f.g); return g > 0 && weight ? g / weight : null; }
-      if (meal) { const n = num(f.n); return n > 0 ? n : null; }
-      const n = num(f.n), of = num(f.of); return n > 0 && of > 0 && n <= of ? n / of : null;
+      const n = num(f.n); return n > 0 ? n : null;
     };
     const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((x) => x[0])].map((x) => [x, (T[x] || 0) * k]))) : ''; };
     const byN = () => { mode = 'n'; const k = factor(); if (f.g) f.g.value = k ? Math.round(weight * k) : ''; show(); };
     if (f.g) f.g.oninput = () => { mode = 'g'; show(); };
-    f.n.oninput = byN; if (f.of) f.of.oninput = byN; byN();
+    f.n.oninput = byN; byN();
     f.onsubmit = async (e) => {
       e.preventDefault(); const k = factor();
-      if (!k) { toast(meal ? 'How many servings?' : weight ? 'Type your portion in grams, or how many servings you had' : 'Type how many servings the recipe makes, and how many you had'); return; }
+      if (!k) { toast('How many servings?'); return; }
       const sc = (v) => (v == null ? null : v * k);
-      const items = meal ? m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}))
-        : [{...w, name: m.name, amount: mode === 'g' ? num(f.g) : num(f.n), unit: mode === 'g' ? 'g' : `of ${num(f.of)} servings`, ...Object.fromEntries(['kcal', ...MACROS.map((x) => x[0])].map((x) => [x, sc(T[x] || 0)])), fiber_g: sc(T.fiber_g), source: 'recipe', ref: {recipe_id: m.id}}];
+      const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}));
       try { await addEntries(items); close(); closeParent(); toast(`Added ${m.name}`); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
-      if (!confirm(meal ? `Delete the saved meal ${m.name}?` : `Delete the recipe ${m.name}? Food you logged from it stays in your food log.`)) return;
-      try { await api(meal ? `/api/food/meals/${m.id}` : `/api/dishes/recipes/${m.id}`, {method: 'DELETE'}); close(); toast('Deleted'); after(); } catch (x) { toast(x.message); }
+      if (!confirm(`Delete the saved meal ${m.name}?`)) return;
+      try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Deleted'); after(); } catch (x) { toast(x.message); }
     };
     const ai = $('#sv-ai', b); if (ai) ai.onclick = () => mealCoach(m);
   });

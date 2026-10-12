@@ -248,7 +248,7 @@ footer img { width: 124px; height: auto; }
 footer p + p { margin-top: 8px; }
 footer a { color: var(--ink2); }
 @media (max-width: 640px) { footer .wrap { grid-template-columns: 1fr; } }
-.compare.first { margin-top: 0; }
+.compare.first { margin-top: 0; } .compare.solo { grid-template-columns: minmax(0, 760px); justify-content: center; }
 /* the comparison table on a phone: all three columns fit, the small print under each feature is left out */
 @media (max-width: 560px) {
   table.cmp { min-width: 0; font-size: 14.5px; }

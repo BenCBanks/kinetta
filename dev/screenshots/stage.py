@@ -1,7 +1,7 @@
 # Made-up social + cooking state for the homepage screenshots, on top of dev/demo/seed.py (a throwaway install only).
 # Adds a friend, "Jordan", with a few weeks of rides and walks (the demo routes, two days later and an hour earlier, so
 # the newest activity in the feed is Jordan's), shares some of Alex's runs with friends, cheers and comments both ways,
-# a waiting friend request from "Sam", a pan, a dish shared with Jordan and a dish with leftovers. Alex also ran this
+# a waiting friend request from "Sam", saved dishes (a soup, a traybake shared with Jordan, a smoothie). Alex also ran this
 # morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
@@ -67,21 +67,25 @@ alex('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Thanks! Legs
 jordan('POST', f"/api/activities/{mine[2]['id']}/cheer")
 for a in jordan('GET', '/api/activities?limit=4')[:3]: alex('POST', f"/api/activities/{a['id']}/cheer")
 
-for d in alex('GET', '/api/dishes'): alex('DELETE', f"/api/dishes/{d['id']}")
-for r in alex('GET', '/api/dishes/recipes'): alex('DELETE', f"/api/dishes/recipes/{r['id']}")
-pan = alex('POST', '/api/dishes/pans', {'name': 'Roasting tray', 'grams': 1150})
-soup = alex('POST', '/api/dishes', {'name': 'Lentil and tomato soup', 'meal': 'lunch'})
+for d in alex('GET', '/api/dishes'):
+    if d.get('mine') is not False: alex('DELETE', f"/api/dishes/{d['id']}")
+soup = alex('POST', '/api/dishes', {'name': 'Lentil and tomato soup'})
 alex('PATCH', f"/api/dishes/{soup['id']}", {'known_kcal': 1450, 'known_protein_g': 82, 'known_carbs_g': 208, 'known_fat_g': 31, 'cooked_g': 2100})
 alex('POST', f"/api/dishes/{soup['id']}/portion", {'grams': 420, 'meal': 'lunch', 'day': str(dt.date.today() - dt.timedelta(days=1))})
-alex('POST', f"/api/dishes/{soup['id']}/finish", {'leftovers': True})              # yesterday's soup: leftovers
-tray = alex('POST', '/api/dishes', {'name': 'Chicken and veg traybake', 'meal': 'dinner'})
+smoothie = alex('POST', '/api/dishes', {'name': 'Berry protein smoothie'})
+for n, g, p in [('Banana', 120, {'kcal': 89, 'protein_g': 1.1, 'carbs_g': 23, 'fat_g': .3, 'fiber_g': 2.6}),
+                ('Frozen mixed berries', 150, {'kcal': 50, 'protein_g': .7, 'carbs_g': 12, 'fat_g': .3, 'fiber_g': 3}),
+                ('Whey protein', 30, {'kcal': 400, 'protein_g': 80, 'carbs_g': 8, 'fat_g': 6}),
+                ('Milk, 2%', 250, {'kcal': 50, 'protein_g': 3.3, 'carbs_g': 4.8, 'fat_g': 2})]:
+    alex('POST', f"/api/dishes/{smoothie['id']}/items", {'name': n, 'grams': g, 'per100': p})
+alex('PATCH', f"/api/dishes/{smoothie['id']}", {'serving': 'one'})
+tray = alex('POST', '/api/dishes', {'name': 'Chicken and veg traybake'})
 for n, g, p in [('Chicken breast, raw', 600, {'kcal': 120, 'protein_g': 22.5, 'carbs_g': 0, 'fat_g': 2.6}),
                 ('Sweet potato, raw', 500, {'kcal': 86, 'protein_g': 1.6, 'carbs_g': 20, 'fat_g': .1, 'fiber_g': 3}),
                 ('Carrots, raw', 250, {'kcal': 41, 'protein_g': .9, 'carbs_g': 9.6, 'fat_g': .2, 'fiber_g': 2.8}),
                 ('Red onion, raw', 150, {'kcal': 40, 'protein_g': 1.1, 'carbs_g': 9.3, 'fat_g': .1, 'fiber_g': 1.7}),
                 ('Olive oil', 27, {'kcal': 884, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 100})]:
     alex('POST', f"/api/dishes/{tray['id']}/items", {'name': n, 'grams': g, 'per100': p})
-alex('PATCH', f"/api/dishes/{tray['id']}", {'gross_g': 2550, 'pan_id': pan['id']})
+alex('PATCH', f"/api/dishes/{tray['id']}", {'cooked_g': 1400})                 # weighed after roasting
 alex('POST', f"/api/dishes/{tray['id']}/share", {'login': 'jordan'})            # eating together: Jordan logs a portion too
-alex('POST', f"/api/dishes/{tray['id']}/recipe")                                 # saved, so Cooking offers it again
 print('staged: tray', tray['id'], 'soup', soup['id'])
