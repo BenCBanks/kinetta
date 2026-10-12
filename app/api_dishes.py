@@ -1,9 +1,15 @@
 """Cooking mode (2026-10-11): build a dish while you cook, weigh it, then log your portion; the rest stays as leftovers.
 
 A dish is a list of ingredients (each with its own per-100 g values, so its amount can change) or a total typed in from
-a recipe (known_*, which wins over the ingredients' sum). Once cooked, the whole dish is weighed (cooked_g, without the
-pan: pans remembers the person's empty pans). A portion of P grams is logged as an ordinary food entry with the dish's
-totals x P / cooked_g, and adds to eaten_g; the leftovers are cooked_g - eaten_g, offered again for 5 days.
+a recipe (known_*, which wins over the ingredients' sum). Its weight is the ingredients added up, unless the cooked dish
+was weighed (cooked_g, without the pan: pans remembers the person's empty pans). A portion of P grams is logged as an
+ordinary food entry with the dish's totals x P / weight, and adds to eaten_g. A portion can also be a share of the dish
+("1 of 4"): with a weight that's just grams; without one (a typed-in total only) it adds to eaten_share instead.
+
+2026-10-12: a dish is cooked for a meal (meal), and stays open until the cook finishes it (finish): either it keeps its
+leftovers, offered for LEFTOVER_DAYS more, or it's deleted. Dishes aren't kept otherwise (_tidy deletes finished ones and
+ones left untouched for LEFTOVER_DAYS); the food log keeps every portion. To keep one, the cook saves it as a recipe
+(recipes), which follows later changes to that dish and can be cooked again (a new dish with the same ingredients).
 
 Every query is limited to user['id'], with one exception (2026-10-11): the cook can share a dish with friends
 (dish_shares). They see it (_seen) and can log their own portion from it, which comes off the same leftovers; only the
@@ -28,6 +34,8 @@ MAX_ITEMS = 60
 MAX_PANS = 20
 SLACK = 1.05            # a portion may be 5 % more than what's left: kitchen scales and leftovers in the pan disagree
 LEFTOVER_DAYS = 5
+MAX_RECIPES = 200
+DEFAULT_NAMES = {'breakfast': 'Breakfast', 'lunch': 'Lunch', 'dinner': 'Dinner', 'snacks': 'Snacks'}   # a dish not named yet
 
 
 # ---------- "100 g chicken" -> 100 g + "chicken" (no AI: the person then picks a match from /api/food/search) ----------
@@ -136,19 +144,35 @@ def _totals(d):
     return out
 
 
+def _weight(d):
+    """The whole dish in grams: as weighed, else the ingredients added up; None for a typed-in total that wasn't weighed."""
+    if d['cooked_g']: return d['cooked_g']
+    g = sum(i.get('grams') or 0 for i in d['items'])
+    return round(g, 1) if g > 0 else None
+
+
+def _left_share(d):
+    w = _weight(d)
+    return max(0.0, 1 - d['eaten_share'] - (d['eaten_g'] / w if w else 0))
+
+
 def _out(d):
-    totals, cooked = _totals(d), d['cooked_g']
-    left = max(0.0, round(cooked - d['eaten_g'], 1)) if cooked else None
-    status = 'cooking' if d['done_at'] is None else ('leftovers' if left and left >= 1 else 'finished')
-    return {'id': d['id'], 'name': d['name'], 'items': d['items'],
+    totals, weight, share = _totals(d), _weight(d), _left_share(d)
+    left = round(weight * share, 1) if weight else None
+    some_left = left >= 1 if weight else share >= 0.01
+    status = 'cooking' if d['done_at'] is None else ('leftovers' if some_left else 'finished')
+    return {'id': d['id'], 'name': d['name'], 'meal': d['meal'], 'items': d['items'],
             'known': {k: d[f'known_{k}'] for k in KNOWN}, 'totals': totals,
-            'cooked_g': cooked, 'eaten_g': round(d['eaten_g'], 1), 'left_g': left,
-            'per_100g': {k: _r(v * 100 / cooked) if v is not None else None for k, v in totals.items()} if cooked else None,
+            'cooked_g': d['cooked_g'], 'weight_g': weight, 'weighed': d['cooked_g'] is not None,
+            'eaten_g': round(d['eaten_g'], 1), 'left_g': left, 'left_share': round(share, 3),
+            'eaten': d['eaten_g'] > 0 or d['eaten_share'] > 0,
+            'per_100g': {k: _r(v * 100 / weight) if v is not None else None for k, v in totals.items()} if weight else None,
+            'recipe_id': d['recipe_id'],
             'status': status, 'created': d['created'], 'updated': d['updated'], 'done_at': d['done_at'],
             'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['recipe_updated'] > d['ai_note_at']} if d.get('ai_note') else None}
 
 
-COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, eaten_g, created, updated, done_at, ai_note, ai_note_at, recipe_updated'
+COLS = 'id, user_id, name, meal, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, eaten_g, eaten_share, created, updated, done_at, ai_note, ai_note_at, recipe_updated, recipe_id'
 
 
 def _seen(c, uid, did, lock=False):
@@ -182,7 +206,15 @@ def _get(c, uid, did, lock=False):
 
 def _save_items(c, uid, did, items):
     c.execute('UPDATE dishes SET items = %s, updated = now(), recipe_updated = now() WHERE id = %s AND user_id = %s', (json.dumps(items), did, uid))
+    sync_recipe(c, uid, did)
     return _get(c, uid, did)
+
+
+def sync_recipe(c, uid, did):
+    """A dish saved as a recipe (or cooked from one) keeps that recipe up to date: the latest version is the one saved."""
+    c.execute("""UPDATE recipes r SET name = d.name, items = d.items, known_kcal = d.known_kcal, known_protein_g = d.known_protein_g,
+                   known_carbs_g = d.known_carbs_g, known_fat_g = d.known_fat_g, ai_note = d.ai_note, ai_note_at = d.ai_note_at, updated = now()
+                 FROM dishes d WHERE d.id = %s AND d.user_id = %s AND r.id = d.recipe_id AND r.user_id = d.user_id""", (did, uid))
 
 
 def _today(c, uid):
@@ -220,39 +252,60 @@ def pan_delete(pid: int, user=Depends(current_user)):
 
 
 # ---------- dishes ----------
+def _empty(d):
+    """Opened (still its default name) but nothing added: kept off the list, and Cooking reopens it (see dish_add)."""
+    return d['done_at'] is None and not d['items'] and d['cooked_g'] is None and d['known_kcal'] is None and d['name'] in DEFAULT_NAMES.values()
+
+
+def _expired(d, now):
+    """Finished, leftovers older than LEFTOVER_DAYS, or left cooking and untouched that long."""
+    o, days = _out(d), dt.timedelta(days=LEFTOVER_DAYS)
+    if o['status'] == 'finished': return True
+    if o['status'] == 'leftovers': return d['done_at'] < now - days
+    return d['updated'] < now - days
+
+
 @router.get('')
 def dishes(user=Depends(current_user)):
-    """Dishes still in use: still cooking, or with leftovers from the last few days. Newest first."""
+    """Dishes still in use: cooking, or with leftovers from the last few days (yours, or shared by a friend). Newest first.
+    Your own dishes that are done with are deleted here: a dish is only kept as a saved recipe."""
     with db.connect() as c:
-        # a dish you opened (still its default name) but never added anything to stays off the list (Cooking reopens it, see dish_add)
-        rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE ((user_id = %(u)s AND NOT (done_at IS NULL AND items = '[]'::jsonb AND cooked_g IS NULL AND known_kcal IS NULL AND name IN ('Breakfast', 'Lunch', 'Dinner')))
+        rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE user_id = %(u)s
                                  OR (EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s)
                         AND EXISTS (SELECT 1 FROM friendships f WHERE f.status = 'accepted'
-                          AND ((f.requester = dishes.user_id AND f.addressee = %(u)s) OR (f.addressee = dishes.user_id AND f.requester = %(u)s)))))
-                               AND (done_at IS NULL OR (cooked_g - eaten_g >= 1 AND created > now() - make_interval(days => %(days)s)))
-                             ORDER BY created DESC, id DESC LIMIT 50""", {'u': user['id'], 'days': LEFTOVER_DAYS}).fetchall()
-        return [_view(c, user['id'], d) for d in rows]
+                          AND ((f.requester = dishes.user_id AND f.addressee = %(u)s) OR (f.addressee = dishes.user_id AND f.requester = %(u)s))))
+                             ORDER BY created DESC, id DESC LIMIT 200""", {'u': user['id']}).fetchall()
+        now, out, gone = dt.datetime.now(dt.timezone.utc), [], []
+        for d in rows:
+            if _expired(d, now):
+                if d['user_id'] == user['id']: gone.append(d['id'])
+            elif not (d['user_id'] == user['id'] and _empty(d)) and len(out) < 50:
+                out.append(_view(c, user['id'], d))
+        if gone: c.execute('DELETE FROM dishes WHERE user_id = %s AND id = ANY(%s)', (user['id'], gone))
+        return out
 
 
 class DishIn(BaseModel):
     name: str | None = Field(None, max_length=80)
+    meal: str | None = Field(None, pattern='^(' + '|'.join(MEALS) + ')$')
 
 
-def _default_name(now):
-    return 'Breakfast' if now.hour < 11 else 'Lunch' if now.hour < 16 else 'Dinner'
+def _default_meal(now):
+    return 'breakfast' if now.hour < 11 else 'lunch' if now.hour < 16 else 'dinner'
 
 
 @router.post('')
 def dish_add(body: DishIn, user=Depends(current_user)):
     with db.connect() as c:
         # tapping Cooking twice shouldn't leave a row of empty dishes: reopen the empty one you already have
-        empty = c.execute("""SELECT id FROM dishes WHERE user_id = %s AND done_at IS NULL AND items = '[]'::jsonb AND cooked_g IS NULL AND known_kcal IS NULL AND name IN ('Breakfast', 'Lunch', 'Dinner')
-                             ORDER BY created DESC LIMIT 1""", (user['id'],)).fetchone()
+        meal = body.meal or _default_meal(_today(c, user['id']))
+        empty = c.execute("""SELECT id FROM dishes WHERE user_id = %s AND done_at IS NULL AND items = '[]'::jsonb AND cooked_g IS NULL AND known_kcal IS NULL AND name = ANY(%s)
+                             ORDER BY created DESC LIMIT 1""", (user['id'], list(DEFAULT_NAMES.values()))).fetchone()
         if empty and not (body.name or '').strip():
-            c.execute('UPDATE dishes SET created = now(), updated = now() WHERE id = %s', (empty['id'],))
+            c.execute('UPDATE dishes SET created = now(), updated = now(), meal = %s, name = %s WHERE id = %s', (meal, DEFAULT_NAMES[meal], empty['id']))
             return _view(c, user['id'], _get(c, user['id'], empty['id']))
-        name = (body.name or '').strip() or _default_name(_today(c, user['id']))
-        did = c.execute('INSERT INTO dishes (user_id, name) VALUES (%s, %s) RETURNING id', (user['id'], name)).fetchone()['id']
+        name = (body.name or '').strip() or DEFAULT_NAMES[meal]
+        did = c.execute('INSERT INTO dishes (user_id, name, meal) VALUES (%s, %s, %s) RETURNING id', (user['id'], name, meal)).fetchone()['id']
         return _view(c, user['id'], _get(c, user['id'], did))
 
 
@@ -271,7 +324,8 @@ class DishEdit(BaseModel):
     known_protein_g: float | None = Field(None, ge=0, le=5000)
     known_carbs_g: float | None = Field(None, ge=0, le=5000)
     known_fat_g: float | None = Field(None, ge=0, le=5000)
-    done: bool | None = None                                  # true = finished cooking; false = back to cooking
+    meal: str | None = Field(None, pattern='^(' + '|'.join(MEALS) + ')$')    # renames a dish still called after its meal
+    done: bool | None = None                                  # older phones: true = finished, nothing left; false = back to cooking
 
 
 @router.patch('/{did:int}')
@@ -283,6 +337,9 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         if 'name' in v:
             if not (v['name'] or '').strip(): raise HTTPException(400, 'The dish needs a name')
             sets['name'] = v['name'].strip()
+        if v.get('meal'):
+            sets['meal'] = v['meal']
+            if 'name' not in sets and d['name'] in DEFAULT_NAMES.values(): sets['name'] = DEFAULT_NAMES[v['meal']]
         if v.get('gross_g') is not None:
             if 'cooked_g' in v: raise HTTPException(400, 'Send cooked_g or gross_g, not both')
             pan = 0
@@ -299,12 +356,35 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         if set(sets) & {'cooked_g', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
         if v.get('done') is not None:
             sets['done_at'] = (d['done_at'] or dt.datetime.now(dt.timezone.utc)) if v['done'] else None
-            if not v['done'] and d['eaten_g'] > 0: raise HTTPException(400, 'Portions are already logged from this dish')
-            if v['done'] and d['cooked_g']: sets['eaten_g'] = max(d['eaten_g'], d['cooked_g'])   # "no leftovers left": it leaves the list
+            if not v['done'] and (d['eaten_g'] > 0 or 0 < d['eaten_share'] < 1): raise HTTPException(400, 'Portions are already logged from this dish')
+            if not v['done']: sets['eaten_share'] = 0
+            if v['done']: sets['eaten_share'] = max(d['eaten_share'], 1)     # "nothing left": it leaves the list
         if sets:
             c.execute(f"UPDATE dishes SET {', '.join(f'{k} = %s' for k in sets)}, updated = now() WHERE id = %s AND user_id = %s",
                       (*sets.values(), did, user['id']))
+            if set(sets) & {'name', *(f'known_{k}' for k in KNOWN)}: sync_recipe(c, user['id'], did)
         return _view(c, user['id'], _get(c, user['id'], did))
+
+
+class FinishIn(BaseModel):
+    leftovers: bool = False         # keep what's left, on the list for LEFTOVER_DAYS; otherwise the dish is deleted
+    save: bool = False              # save it as a recipe first (if it isn't already)
+
+
+@router.post('/{did:int}/finish')
+def finish(did: int, body: FinishIn, user=Depends(current_user)):
+    """Done cooking: the dish leaves the list (kept only while it has leftovers). Portions stay in the food log."""
+    with db.connect() as c:
+        d = _get(c, user['id'], did, lock=True)
+        rid = d['recipe_id']
+        if body.save and not rid: rid = _save_recipe(c, user['id'], d)
+        o = _out(d)
+        some_left = (o['left_g'] or 0) >= 1 if o['weight_g'] else o['left_share'] >= 0.01
+        if body.leftovers and some_left:
+            c.execute('UPDATE dishes SET done_at = coalesce(done_at, now()), updated = now() WHERE id = %s', (did,))
+            return {'kept': True, 'recipe_id': rid, 'dish': _view(c, user['id'], _get(c, user['id'], did))}
+        c.execute('DELETE FROM dishes WHERE id = %s AND user_id = %s', (did, user['id']))
+        return {'kept': False, 'recipe_id': rid}
 
 
 @router.delete('/{did:int}')
@@ -389,32 +469,39 @@ def item_delete(did: int, iid: str, user=Depends(current_user)):
 
 # ---------- log a portion ----------
 class PortionIn(BaseModel):
-    grams: float = Field(gt=0, le=20000)
+    grams: float | None = Field(None, gt=0, le=20000)
+    share: float | None = Field(None, gt=0, le=1)      # or: this much of the whole dish, like 0.25 for "1 of 4"
     meal: str = Field(pattern='^(' + '|'.join(MEALS) + ')$')
     day: dt.date | None = None          # default: today where the person is
 
 
 @router.post('/{did:int}/portion')
 def portion(did: int, body: PortionIn, user=Depends(current_user)):
+    if (body.grams is None) == (body.share is None): raise HTTPException(400, 'Send grams or share')
     with db.connect() as c:
         d = _seen(c, user['id'], did, lock=True)     # locked: two portions at once can't both take the last of it
-        if not d['cooked_g']: raise HTTPException(400, 'Weigh the cooked dish first')
         if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, "Add the ingredients or the dish's total calories first")
-        left = max(0.0, d['cooked_g'] - d['eaten_g'])
-        if body.grams > left * SLACK + 0.5:
-            raise HTTPException(400, f"Only {left:.0f} g of {d['name']} is left - check the weight of your portion")
-        totals, f = _totals(d), body.grams / d['cooked_g']
+        weight, share_left = _weight(d), _left_share(d)
+        if body.grams is not None and not weight: raise HTTPException(400, 'Weigh the cooked dish first, or log a share of it')
+        grams = body.grams if body.grams is not None else (body.share * weight if weight else None)
+        f = grams / weight if grams is not None else body.share
+        if f > share_left * SLACK + (0.5 / weight if weight else 0.01):
+            raise HTTPException(400, f"Only {share_left * weight:.0f} g of {d['name']} is left - check the weight of your portion" if weight
+                                else f"Only {share_left * 100:.0f}% of {d['name']} is left")
+        totals = _totals(d)
         vals = {k: _r(v * f) if v is not None else None for k, v in totals.items()}
         day = body.day or _today(c, user['id']).date()
         pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (user['id'], day)).fetchone()['p']
-        ref = {'dish_id': did, 'cooked_g': d['cooked_g'], 'dish_kcal': totals['kcal']}
+        ref = {'dish_id': did, 'weight_g': weight, 'dish_kcal': totals['kcal']}
+        # grams when the dish has a weight; otherwise "0.25 dish" (unit 'dish' moves eaten_share, see api_food._dish_grams)
+        amount, unit = (round(grams, 1), 'g') if grams is not None else (round(f, 3), 'dish')
         entry = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position)
-                             VALUES (%s, %s, %s, %s, %s, 'g', %s, %s, %s, %s, %s, 'dish', %s, %s)
+                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'dish', %s, %s)
                              RETURNING id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref""",
-                          (user['id'], day, body.meal, d['name'], round(body.grams, 1), vals['kcal'], vals['protein_g'], vals['carbs_g'],
+                          (user['id'], day, body.meal, d['name'], amount, unit, vals['kcal'], vals['protein_g'], vals['carbs_g'],
                            vals['fat_g'], vals['fiber_g'], json.dumps(ref), pos)).fetchone()
-        c.execute("""UPDATE dishes SET eaten_g = eaten_g + %s, done_at = coalesce(done_at, now()), updated = now()
-                     WHERE id = %s""", (round(body.grams, 1), did))        # _seen above checked it's theirs or shared with them
+        c.execute(f"UPDATE dishes SET {'eaten_g' if unit == 'g' else 'eaten_share'} = {'eaten_g' if unit == 'g' else 'eaten_share'} + %s, updated = now() WHERE id = %s",
+                  (amount, did))        # _seen above checked it's theirs or shared with them
         return {'entry': entry, 'dish': _view(c, user['id'], _seen(c, user['id'], did))}
 
 
@@ -450,4 +537,77 @@ def unshare(did: int, login: str, user=Depends(current_user)):
         t = c.execute('SELECT id FROM users WHERE login = %s', (login.strip().lower(),)).fetchone()
         if not t or (d['user_id'] != user['id'] and t['id'] != user['id']): raise HTTPException(404, 'Not found')
         c.execute('DELETE FROM dish_shares WHERE dish_id = %s AND user_id = %s', (did, t['id']))
+    return {'ok': True}
+
+
+# ---------- saved recipes (2026-10-12): a dish the cook chose to keep, to cook again ----------
+def _save_recipe(c, uid, d):
+    if c.execute('SELECT count(*) AS n FROM recipes WHERE user_id = %s', (uid,)).fetchone()['n'] >= MAX_RECIPES:
+        raise HTTPException(400, f'You can save up to {MAX_RECIPES} recipes - delete one first')
+    rid = c.execute("""INSERT INTO recipes (user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, ai_note, ai_note_at, cooked)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (uid, d['name'], json.dumps(d['items']), d['known_kcal'], d['known_protein_g'], d['known_carbs_g'], d['known_fat_g'],
+                     d['ai_note'], d['ai_note_at'], d['created'])).fetchone()['id']
+    c.execute('UPDATE dishes SET recipe_id = %s WHERE id = %s AND user_id = %s', (rid, d['id'], uid))
+    return rid
+
+
+def _recipe_out(r):
+    t = _totals(r)
+    return {'id': r['id'], 'name': r['name'], 'items': [i['name'] for i in r['items']], 'totals': t,
+            'weight_g': round(sum(i.get('grams') or 0 for i in r['items']), 1) or None,
+            'updated': r['updated'], 'cooked': r['cooked']}
+
+
+RCOLS = 'id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, ai_note, ai_note_at, updated, cooked'
+
+
+@router.get('/recipes')
+def recipes(user=Depends(current_user)):
+    """Saved recipes, the ones cooked most recently first."""
+    with db.connect() as c:
+        rows = c.execute(f'SELECT {RCOLS} FROM recipes WHERE user_id = %s ORDER BY coalesce(cooked, updated) DESC, id DESC', (user['id'],)).fetchall()
+        return [_recipe_out(r) for r in rows]
+
+
+@router.post('/{did:int}/recipe')
+def recipe_save(did: int, user=Depends(current_user)):
+    """Save this dish as a recipe (already saved: nothing changes)."""
+    with db.connect() as c:
+        d = _get(c, user['id'], did, lock=True)
+        if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, 'Add what goes in first')
+        if not d['recipe_id']: _save_recipe(c, user['id'], d)
+        return _view(c, user['id'], _get(c, user['id'], did))
+
+
+@router.delete('/{did:int}/recipe')
+def recipe_unsave(did: int, user=Depends(current_user)):
+    """Stop saving this dish: its recipe is deleted (the dish itself stays until it's finished)."""
+    with db.connect() as c:
+        d = _get(c, user['id'], did, lock=True)
+        if d['recipe_id']: c.execute('DELETE FROM recipes WHERE id = %s AND user_id = %s', (d['recipe_id'], user['id']))
+        return _view(c, user['id'], _get(c, user['id'], did))
+
+
+@router.post('/recipes/{rid:int}/cook')
+def recipe_cook(rid: int, body: DishIn, user=Depends(current_user)):
+    """Cook it again: a new dish with the recipe's ingredients, linked to it so changes are saved back."""
+    with db.connect() as c:
+        r = c.execute(f'SELECT {RCOLS} FROM recipes WHERE id = %s AND user_id = %s', (rid, user['id'])).fetchone()
+        if not r: raise HTTPException(404, 'Not found')
+        meal = body.meal or _default_meal(_today(c, user['id']))
+        items = [{**i, 'id': secrets.token_hex(4)} for i in r['items']]
+        did = c.execute("""INSERT INTO dishes (user_id, name, meal, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, recipe_id,
+                             ai_note, ai_note_at, recipe_updated) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, coalesce(%s, now())) RETURNING id""",
+                        (user['id'], r['name'], meal, json.dumps(items), r['known_kcal'], r['known_protein_g'], r['known_carbs_g'], r['known_fat_g'],
+                         rid, r['ai_note'], r['ai_note_at'], r['ai_note_at'])).fetchone()['id']
+        c.execute('UPDATE recipes SET cooked = now() WHERE id = %s', (rid,))
+        return _view(c, user['id'], _get(c, user['id'], did))
+
+
+@router.delete('/recipes/{rid:int}')
+def recipe_delete(rid: int, user=Depends(current_user)):
+    with db.connect() as c:
+        if not c.execute('DELETE FROM recipes WHERE id = %s AND user_id = %s RETURNING id', (rid, user['id'])).fetchone():
+            raise HTTPException(404, 'Not found')
     return {'ok': True}

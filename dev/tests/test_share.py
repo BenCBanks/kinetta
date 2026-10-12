@@ -25,7 +25,8 @@ ck(c.get(f'/api/dishes/{did}')[0] == 404, 'others still 404')
 for m, p, body in [('patch', f'/api/dishes/{did}', {'name': 'x'}), ('post', f'/api/dishes/{did}/items', {'name': 'x', 'grams': 1, 'kcal': 1}),
                    ('delete', f'/api/dishes/{did}', None), ('post', f'/api/dishes/{did}/share', {'login': 'zz_test_cook'})]:
     st = (getattr(b, m)(p, body) if body is not None else getattr(b, m)(p))[0]; ck(st == 404, f'friend cannot {m} {p}: {st}')
-s, _ = b.post(f'/api/dishes/{did}/portion', {'grams': 100, 'meal': 'dinner'}); ck(s == 400, 'not weighed yet')
+ck(b.get(f'/api/dishes/{did}')[1]['weight_g'] == 800, 'friend sees the ingredients added up before it is weighed')
+ck(b.post(f'/api/dishes/{did}/finish', {})[0] == 404 and b.post(f'/api/dishes/{did}/recipe')[0] == 404, 'only the cook finishes or saves it')
 a.patch(f'/api/dishes/{did}', {'cooked_g': 1000})
 s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 250, 'meal': 'dinner'}); ck(s == 200 and r['entry']['kcal'] == 200 and r['dish']['left_g'] == 750, f'friend portion {r}')
 day = b.get('/api/food/day')[1]; ck(any(e['source'] == 'dish' and e['kcal'] == 200 for e in day['entries']), 'in friend food log')

@@ -359,10 +359,10 @@ def social(aid: int, user=Depends(current_user)):
 def cheer(aid: int, user=Depends(current_user)):
     with db.connect() as c:
         owner = can_see(c, user['id'], aid)
-        if owner == user['id']: raise HTTPException(400, "You can't cheer your own activity")
-        if c.execute('INSERT INTO cheers (activity_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (aid, user['id'])).fetchone():
+        # cheering your own activity is allowed (2026-10-12); it just doesn't notify you
+        if c.execute('INSERT INTO cheers (activity_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (aid, user['id'])).fetchone() and owner != user['id']:
             notify.add(c, owner, 'cheer', user['id'], activity_id=aid)
-        return _social(c, aid, user['id'], None)
+        return _social(c, aid, user['id'], owner)
 
 
 @router.delete('/activities/{aid}/cheer')

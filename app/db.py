@@ -643,6 +643,31 @@ MIGRATIONS = [
     """
     ALTER TABLE plan_marks ADD COLUMN done boolean NOT NULL DEFAULT true;
     """,
+    # 31 (2026-10-12): cooking, round two (api_dishes.py). recipes: dishes the person chose to save, to cook again (a dish
+    #   isn't kept otherwise: once finished, or its leftovers are 5 days old, it's deleted; the food log keeps the portions).
+    #   dishes.meal: the meal it's cooked for. dishes.recipe_id: the saved recipe it came from or was saved as (changes to
+    #   the dish update it). dishes.eaten_share: portions logged as a share of a dish that has no weight (a typed-in total).
+    """
+    CREATE TABLE recipes (
+      id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id   bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name      text NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+      items     jsonb NOT NULL DEFAULT '[]',
+      known_kcal real, known_protein_g real, known_carbs_g real, known_fat_g real,
+      ai_note   text, ai_note_at timestamptz,
+      created   timestamptz NOT NULL DEFAULT now(),
+      updated   timestamptz NOT NULL DEFAULT now(),
+      cooked    timestamptz);
+    CREATE INDEX recipes_user ON recipes (user_id, updated DESC);
+    ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON recipes FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON recipes FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON recipes TO fit_readers;
+    ALTER TABLE dishes ADD COLUMN meal text NOT NULL DEFAULT 'dinner' CHECK (meal IN ('breakfast', 'lunch', 'dinner', 'snacks')),
+      ADD COLUMN recipe_id bigint REFERENCES recipes(id) ON DELETE SET NULL,
+      ADD COLUMN eaten_share real NOT NULL DEFAULT 0 CHECK (eaten_share >= 0);
+    UPDATE dishes SET meal = CASE name WHEN 'Breakfast' THEN 'breakfast' WHEN 'Lunch' THEN 'lunch' ELSE 'dinner' END;
+    """,
 ]
 
 

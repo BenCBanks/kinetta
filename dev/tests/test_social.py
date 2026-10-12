@@ -128,7 +128,11 @@ check(st.q('GET', '/api/feed/friends') == [], 'non-friend feed empty')
 check(pe.q('GET', '/api/feed/friends') == [], 'pending feed empty')
 
 # --- cheers + comments ---
-alex.q('POST', f'/api/activities/{a1}/cheer', want=400)
+# you can cheer your own activity (2026-10-12): it counts, shows as cheered in your list, and doesn't notify you
+r = alex.q('POST', f'/api/activities/{a1}/cheer'); check(r['cheered'] and r['mine'] and len(r['cheers']) == 1, 'cheer your own')
+check(any(x['id'] == a1 and x['cheered'] and x['cheers'] == 1 for x in alex.q('GET', '/api/activities?limit=100')), 'own list says cheered')
+check(not any(i['kind'] == 'cheer' and i['who']['login'] == 'alex' for i in alex.q('GET', '/api/notifications')['items']), 'no note to yourself')
+alex.q('DELETE', f'/api/activities/{a1}/cheer')
 r = fr.q('POST', f'/api/activities/{a1}/cheer'); check(r['cheered'] and r['cheers'][0]['login'] == 'zz_test_friend', 'cheered, who')
 fr.q('POST', f'/api/activities/{a1}/cheer')
 check(len(alex.q('GET', f'/api/activities/{a1}/social')['cheers']) == 1, 'one cheer per person')
