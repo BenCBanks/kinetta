@@ -415,7 +415,7 @@ def current(user=Depends(current_user)):
     for wk in weeks:
         o = _out_week(wk, U)
         end = wk['start'] + dt.timedelta(days=6)
-        o['done'] = round(sum(r['m'] or 0 for d, r in by_day.items() if wk['start'] <= d <= end) / per, 1)
+        ran_m = sum(r['m'] or 0 for d, r in by_day.items() if wk['start'] <= d <= end)
         pairs = list(zip(o['workouts'], wk['workouts']))
         for w, raw in pairs:
             r = by_day.get(raw['day'])
@@ -430,6 +430,11 @@ def current(user=Depends(current_user)):
                 w['status'] = ('today' if raw['day'] == today else 'before' if raw['day'] < created else
                                'missed' if raw['day'] < today else 'upcoming')
             if raw['day'] == today: today_w = w
+        # 2026-10-12 (Ben: ticking runs off changed nothing on the chart): a workout ticked off by hand with no recorded run
+        # that day counts its planned distance; recorded runs count what was run
+        ticked = sum(raw['dist'] or 0 for w, raw in pairs if w.get('by_hand') and w['status'] == 'done' and raw['day'] not in by_day)
+        o['done'] = round(ran_m / per + ticked, 1)
+        o['all_done'] = bool(o['workouts']) and all(w['status'] == 'done' for w in o['workouts'])
         if wk['start'] <= today <= end: this_week = o['n']
         out.append(o)
     nxt = next((w for wk in out for w in wk['workouts'] if w['day'] > today.isoformat() and w['status'] != 'done'), None)
@@ -439,8 +444,8 @@ def current(user=Depends(current_user)):
     due = [w for wk in out for w in wk['workouts'] if w['status'] in ('done', 'missed')]
     done_w = [w for wk in out for w in wk['workouts'] if w['status'] == 'done']
     progress = {'workouts_due': len(due), 'workouts_done': len(done_w),
-                'planned_so_far': round(sum(w['dist'] or 0 for w in due), 1), 'done_so_far': round(sum(wk['done'] for wk in out if wk['start'] <= today.isoformat()), 1),
-                'weeks_done': sum(1 for wk in out if (dt.date.fromisoformat(wk['start']) + dt.timedelta(days=6)) < today),
+                'planned_so_far': round(sum(w['dist'] or 0 for w in due), 1), 'done_so_far': round(sum(wk['done'] for wk in out), 1),
+                'weeks_done': sum(1 for wk in out if wk['all_done']),       # every workout in it done (run or ticked off)
                 'total_workouts': sum(len(wk['workouts']) for wk in out), 'total_distance': round(sum(wk['planned'] for wk in out), 1)}
     pace_out = {k: ([fmt_pace(x, U) for x in v_] if isinstance(v_, tuple) else fmt_pace(v_, U)) for k, v_ in P.items()}
     R = RACES[p['race']]

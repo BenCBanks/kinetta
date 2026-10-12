@@ -65,6 +65,15 @@ check('not done after clearing (short run)', week1()[d2]['status'] != 'done', we
 ahead = max(w['day'] for wk in p.get('/api/plans/current')[1]['weeks'][-2:] for w in wk['workouts'])
 check('tick off a future day', p.post('/api/plans/current/marks', {'day': ahead})[0] == 200)
 check('future day shows done', next(w for wk in p.get('/api/plans/current')[1]['weeks'] for w in wk['workouts'] if w['day'] == ahead)['status'] == 'done')
+# ticking off counts on the chart and in Progress so far (2026-10-12, Ben: the bars didn't change)
+D0 = p.get('/api/plans/current')[1]; wk = D0['weeks'][-3]
+for w in wk['workouts']: p.post('/api/plans/current/marks', {'day': w['day']})
+D1 = p.get('/api/plans/current')[1]; wk1 = next(x for x in D1['weeks'] if x['n'] == wk['n'])
+check('a ticked-off week fills its bar with the planned distance', abs(wk1['done'] - wk1['planned']) < 0.11 and wk1['all_done'], (wk1['done'], wk1['planned']))
+check('distance so far goes up by it', abs(D1['progress']['done_so_far'] - D0['progress']['done_so_far'] - (wk1['planned'] - wk['done'])) < 0.11, (D0['progress'], D1['progress']))
+check('a week with every workout done counts as done', D1['progress']['weeks_done'] == D0['progress']['weeks_done'] + 1, D1['progress'])
+for w in wk['workouts']: p.delete(f"/api/plans/current/marks/{w['day']}")
+check('clearing takes it back off', next(x for x in p.get('/api/plans/current')[1]['weeks'] if x['n'] == wk['n'])['done'] == wk['done'])
 
 # calorie-burn goals, daily and weekly
 s, r = p.post('/api/goals', {'period': 'day', 'metric': 'calories', 'target': 600})

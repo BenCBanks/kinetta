@@ -131,7 +131,7 @@ function planOverview(box, d) {
     <div class="card"><h2>Progress so far</h2>
       <div class="stats3">${stat('Workouts', `${pr.workouts_done || 0}/${pr.workouts_due || 0}`)}${stat('Distance', `${pr.done_so_far || 0}`, `/${pr.planned_so_far || 0} ${U}`)}${stat('Weeks done', `${pr.weeks_done || 0}/${p.weeks}`)}</div>
       <div id="pl-chart"></div>
-      <p class="small muted">${pr.workouts_due ? 'Light bars are planned, solid bars are what you ran. A run at least the planned distance ticks that day off by itself.' : 'Your progress shows here once the plan starts - every run you record counts.'}</p></div>
+      <p class="small muted">${pr.workouts_due ? 'Light bars are planned, solid bars are done: what you ran, plus the planned distance of workouts you tick off by hand. A run at least the planned distance ticks that day off by itself.' : 'Your progress shows here once the plan starts - every run you record counts.'}</p></div>
     <div class="card"><h2>${cur.n === d.this_week ? 'This week' : `Week ${cur.n}`}<span class="muted small">${esc(cur.phase)} · ${cur.done} of ${cur.planned} ${esc(U)}</span></h2>
       ${cur.workouts.map((x) => workoutRow(x, U)).join('')}<p class="small muted">Days not listed are rest days. Tap a workout for details.</p></div>
     <div class="card"><h2>About this plan</h2><p class="small">${esc(d.level_desc || '')}</p>
@@ -178,7 +178,7 @@ function planChart(box, d) {
     if (i === 0 || i === n - 1 || w.n === d.this_week || (n > 10 ? w.n % 4 === 0 : true)) g += `<text class="yl" x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle">${w.n}</text>`;
   });
   box.innerHTML = `<div class="chartbox pchart"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Planned and completed distance per week">${g}</svg></div>
-    <div class="legend small"><span><i class="sw pc-plan-sw"></i>Planned</span><span><i class="sw pc-done-sw"></i>Ran</span><span class="muted">week numbers below</span></div>`;
+    <div class="legend small"><span><i class="sw pc-plan-sw"></i>Planned</span><span><i class="sw pc-done-sw"></i>Done</span><span class="muted">week numbers below</span></div>`;
 }
 
 // ---------- choosing a plan ----------
