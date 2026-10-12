@@ -58,7 +58,8 @@ function workoutSheet(w, U) {
     const set = async (btn, on) => {
       btn.disabled = true;
       try {
-        await api('/api/plans/current/marks', json('POST', {day: w.day, done: on}));
+        // unticking a day ticked by hand with no run just clears the tick; with a run it has to say "not done"
+        await api(on || w.activity_id ? '/api/plans/current/marks' : '/api/plans/current/marks/' + w.day, on || w.activity_id ? json('POST', {day: w.day, done: on}) : {method: 'DELETE'});
         invalidate('/api/plans'); close(); toast(on ? 'Workout ticked off' : 'Tick removed'); render();
       } catch (x) { toast(x.message); btn.disabled = false; }
     };
