@@ -25,7 +25,9 @@ const SHOTS = [
 (async () => {
   const browser = await chromium.launch(), errors = [];
   for (const scheme of ['light', 'dark']) {
-    const ctx = await browser.newContext({viewport: {width: 360, height: 779}, deviceScaleFactor: 2, colorScheme: scheme});
+    // the browser keeps the server's time zone (the workflow sets TZ), or a run near midnight UTC shows an empty week
+    const ctx = await browser.newContext({viewport: {width: 360, height: 779}, deviceScaleFactor: 2, colorScheme: scheme,
+      timezoneId: process.env.TZ || 'America/New_York'});
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
