@@ -186,17 +186,21 @@ async function planSetup(box, existing) {
   const o = await api('/api/plans/options');
   const S = existing ? {race: existing.race, level: existing.level, weeks: existing.weeks, runs: existing.runs, long_day: existing.long_day, race_day: existing.race_day, goal_s: existing.goal_s}
     : {race: 'half', level: o.suggest_level === 'first' ? 'beginner' : o.suggest_level, weeks: null, runs: null, long_day: 6, race_day: '', goal_s: null};
-  const U = o.unit;
+  const UN = o.unit;   // 'mi' or 'km' for this plan's words (U is the app's unit helper)
   const race = () => o.races.find((r) => r.key === S.race);
   const level = () => race().levels.find((l) => l.key === S.level) || race().levels[0];
   const fixLevel = () => { if (!race().levels.some((l) => l.key === S.level)) S.level = race().levels.find((l) => l.key === o.suggest_level) ? o.suggest_level : 'beginner'; };
-  const goalText = (s) => (s ? dur(s) : '');
-  const parseGoal = (t) => {   // "3:15" = h:mm for half/marathon, mm:ss for 5K/10K; "1:45:00" always h:mm:ss
-    const p = t.trim().split(':').map(Number); if (!t.trim() || p.some((x) => !isFinite(x))) return null;
-    if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2];
-    if (p.length === 2) return ['half', 'marathon'].includes(S.race) ? p[0] * 3600 + p[1] * 60 : p[0] * 60 + p[1];
-    return p.length === 1 ? p[0] * 60 : null;
+  // Goal finish time (2026-10-12, Ben: "total time or pace?"): hours, minutes and seconds boxes for the whole race, with
+  // the pace it means shown underneath, instead of one box that read "3:15" differently by race
+  const RACE_M = {'5k': 5000, '10k': 10000, half: 21097.5, marathon: 42195};
+  const hms = (t) => (t ? [Math.floor(t / 3600), Math.floor(t % 3600 / 60), t % 60] : ['', '', '']);
+  const readGoal = (f) => {
+    const [h, m, sec] = ['gh', 'gm', 'gs'].map((k) => f[k].value.trim());
+    if (!h && !m && !sec) return null;
+    const t = (+h || 0) * 3600 + (+m || 0) * 60 + (+sec || 0);
+    return t >= 600 ? t : null;     // under 10 minutes isn't a race time yet (still typing)
   };
+  const paceLine = (t) => (t ? `That's <b>${esc(U.pace(t / RACE_M[S.race] * 1000))}${esc(U.pu())}</b> for the whole ${esc(race().name)}.` : `Leave it empty to train from your current fitness${race().predicted_s ? ` (predicted ${esc(dur(race().predicted_s))})` : ''}.`);
   const step = (n, t) => `<h2 class="step"><span class="stepn">${n}</span>${esc(t)}</h2>`;
   let timer, seq = 0;
   const draw = () => {
@@ -209,15 +213,18 @@ async function planSetup(box, existing) {
       <div class="card">${step(1, 'Pick your race')}<div class="chips wrap">${o.races.map((r) => `<button class="chip" data-race="${r.key}" aria-pressed="${r.key === S.race}">${esc(r.name)}</button>`).join('')}</div>
         ${R.predicted_s ? `<p class="small muted">Your predicted ${esc(R.name)} time today: <b>${esc(dur(R.predicted_s))}</b></p>` : ''}</div>
       <div class="card">${step(2, 'Choose your level')}${R.levels.map((l) => `<button class="lvl" data-level="${l.key}" aria-pressed="${l.key === S.level}"><span class="lvl-top"><b>${esc(l.name)}</b>${l.key === o.suggest_level ? '<span class="badge">suggested for you</span>' : ''}</span><small>${esc(l.desc)}</small>
-          <small class="muted">${l.key === 'first' ? '3 run/walk sessions a week · 9 weeks' : `${l.runs[0] === l.runs[1] ? l.runs[0] : `${l.runs[0]}-${l.runs[1]}`} runs a week · up to ${l.peak_week} ${U} a week · longest run ${l.longest} ${U}`}${l.quality ? ` · ${l.quality} hard day${l.quality > 1 ? 's' : ''} a week` : ''}</small></button>`).join('')}
-        <p class="small muted">You've averaged ${esc(o.recent_weekly)} ${U} a week over the last 4 weeks.</p></div>
+          <small class="muted">${l.key === 'first' ? '3 run/walk sessions a week · 9 weeks' : `${l.runs[0] === l.runs[1] ? l.runs[0] : `${l.runs[0]}-${l.runs[1]}`} runs a week · up to ${l.peak_week} ${UN} a week · longest run ${l.longest} ${UN}`}${l.quality ? ` · ${l.quality} hard day${l.quality > 1 ? 's' : ''} a week` : ''}</small></button>`).join('')}
+        <p class="small muted">You've averaged ${esc(o.recent_weekly)} ${UN} a week over the last 4 weeks.</p></div>
       <div class="card">${step(3, 'Length and days')}
         ${first ? '<p class="small">The first-timer plan is 9 weeks, 3 sessions a week.</p>' : `<h3 class="ghead">Plan length</h3><div class="chips wrap">${R.weeks.map((w) => `<button class="chip" data-weeks="${w}" aria-pressed="${w === S.weeks}">${w} weeks</button>`).join('')}</div>
         <h3 class="ghead">Runs a week</h3><div class="chips wrap">${Array.from({length: L.runs[1] - L.runs[0] + 1}, (_, i) => L.runs[0] + i).map((x) => `<button class="chip" data-runs="${x}" aria-pressed="${x === S.runs}">${x} runs</button>`).join('')}</div>`}
         <h3 class="ghead">Long run on</h3><div class="seg full" role="group" aria-label="Long run day"><button data-ld="5" aria-pressed="${S.long_day === 5}">Saturday</button><button data-ld="6" aria-pressed="${S.long_day === 6}">Sunday</button></div></div>
-      <div class="card">${step(4, 'Race date and goal')}<p class="small muted">Both optional. Without a date the plan starts ${[0, 4, 5, 6].includes(new Date(o.today + 'T12:00').getDay()) ? 'next Monday' : 'this Monday'}; with one, it's counted back from race day.</p>
-        <form class="form" id="ps-f"><label>Race date<input type="date" name="race_day" value="${esc(S.race_day || '')}" min="${esc(o.today)}"></label>
-        <label>Goal time<input name="goal" inputmode="numeric" placeholder="${['half', 'marathon'].includes(S.race) ? 'e.g. 1:55 or 3:45' : 'e.g. 24:30'}" value="${esc(goalText(S.goal_s))}"></label></form></div>
+      <div class="card">${step(4, 'Race date and goal')}<p class="small muted">Both optional.</p>
+        <form class="form" id="ps-f"><label>Race date<input type="date" class="datefield" name="race_day" value="${esc(S.race_day || '')}" min="${esc(o.today)}"></label>
+        <p class="small muted ps-note">${S.race_day ? "The plan is counted back from race day." : `Without a date the plan starts ${[0, 4, 5, 6].includes(new Date(o.today + 'T12:00').getDay()) ? 'next Monday' : 'this Monday'}.`}${S.race_day ? ' <button type="button" class="linkbtn" id="ps-nodate">No race date</button>' : ''}</p>
+        <fieldset class="goaltime"><legend>Goal finish time</legend>
+          <div class="hms">${['gh', 'gm', 'gs'].map((k, i) => `<label><input name="${k}" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="${['0', '00', '00'][i]}" value="${hms(S.goal_s)[i] === '' ? '' : String(hms(S.goal_s)[i]).padStart(i ? 2 : 1, '0')}" aria-label="${['Hours', 'Minutes', 'Seconds'][i]}"><span>${['hours', 'minutes', 'seconds'][i]}</span></label>`).join('')}</div>
+          <p class="small muted" id="ps-pace">${paceLine(S.goal_s)}</p></fieldset></form></div>
       <div class="card" id="ps-prev">${skel(1)}</div>
       <div class="startbar"><button class="primary" id="ps-go">${existing ? 'Replace my plan' : 'Start this plan'}</button></div>`;
     $$('[data-race]', box).forEach((b) => b.onclick = () => { S.race = b.dataset.race; S.goal_s = null; draw(); });
@@ -226,8 +233,13 @@ async function planSetup(box, existing) {
     $$('[data-runs]', box).forEach((b) => b.onclick = () => { S.runs = +b.dataset.runs; draw(); });
     $$('[data-ld]', box).forEach((b) => b.onclick = () => { S.long_day = +b.dataset.ld; draw(); });
     const f = $('#ps-f', box);
-    f.race_day.onchange = () => { S.race_day = f.race_day.value; preview(); };
-    f.goal.oninput = () => { clearTimeout(timer); timer = setTimeout(() => { S.goal_s = parseGoal(f.goal.value); preview(); }, 500); };
+    f.race_day.onchange = () => { S.race_day = f.race_day.value; draw(); };
+    const nd = $('#ps-nodate', box); if (nd) nd.onclick = () => { S.race_day = ''; draw(); };
+    $$('.hms input', f).forEach((inp) => inp.oninput = () => {
+      inp.value = inp.value.replace(/\D/g, '').slice(0, 2);
+      S.goal_s = readGoal(f); $('#ps-pace', box).innerHTML = paceLine(S.goal_s);
+      clearTimeout(timer); timer = setTimeout(preview, 500);
+    });
     f.onsubmit = (e) => e.preventDefault();
     $('#ps-go', box).onclick = async () => {
       const b = $('#ps-go', box); b.disabled = true; b.textContent = 'Building your plan…';
@@ -244,10 +256,10 @@ async function planSetup(box, existing) {
       if (my !== seq || !pv.isConnected) return;
       const s = r.summary;
       pv.innerHTML = `${step(5, 'Your plan')}<p><b>${esc(race().name)} · ${esc(level().name)} · ${s.weeks} weeks</b><br><span class="muted">${esc(pday(r.start_day))} → race ${esc(pday(r.race_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}</span></p>
-        ${S.level === 'first' ? '' : `<div class="stats3 big">${stat('Week 1', s.first_week, U)}${stat('Biggest week', s.peak_week, U)}${stat('Longest run', s.longest, U)}</div>`}
+        ${S.level === 'first' ? '' : `<div class="stats3 big">${stat('Week 1', s.first_week, UN)}${stat('Biggest week', s.peak_week, UN)}${stat('Longest run', s.longest, UN)}</div>`}
         ${r.warning ? `<div class="callout warn">${esc(r.warning)}</div>` : ''}
-        <h3 class="ghead">Week 1</h3>${r.weeks[0].workouts.map((w) => workoutRow(w, U)).join('')}`;
-      wireWorkouts(pv, {plan: {unit: U}, weeks: r.weeks});
+        <h3 class="ghead">Week 1</h3>${r.weeks[0].workouts.map((w) => workoutRow(w, UN)).join('')}`;
+      wireWorkouts(pv, {plan: {unit: UN}, weeks: r.weeks});
       go_.disabled = false; go_.textContent = `${existing ? 'Replace with' : 'Start'} this ${s.weeks}-week plan`;
     } catch (x) { if (my === seq && pv.isConnected) { pv.innerHTML = `${step(5, 'Your plan')}<p class="err">${esc(x.message)}</p>`; go_.disabled = true; } }
   };

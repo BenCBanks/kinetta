@@ -51,26 +51,41 @@ function scaleFood(f, amount, unit) {
 // ---------- day page ----------
 // the energy-balance breakdown stays open or closed the way you left it (on this phone)
 const bdOpen = () => { try { return localStorage.getItem('fit.bd') === '1'; } catch (e) { return false; } };
+// Nutrition (2026-10-12 redesign, Ben: "like you did the Progress tab"): one row of small buttons. View ▾ holds the food
+// log and the progress views (each a short page instead of one long scroll); beside it, the day (log) or the time range.
+const NLOG = [['log', 'Food log', 'What you ate, day by day', 'food', 'c-green']];
+const NPROG = [['overview', 'Overview', 'Averages, insights and your coach', 'sparkle', 'c-purple'],
+  ['energy', 'Calories & weight', 'Eaten vs burned, and your running deficit', 'flame', 'c-orange'],
+  ['macros', 'Protein & macros', 'Protein, carbs and fat, and your top foods', 'progress', 'c-red'],
+  ['weight', 'Weight', 'Log a weigh-in and see your trend', 'scale', 'c-purple'],
+  ['needs', 'Calorie needs', 'What you burn, and your daily target', 'target', 'c-berry'],
+  ['weeks', 'Week by week', 'Every week in one table', 'calendar', 'c-blue']];
+const NMORE = [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']];
+const NRANGED = ['overview', 'energy', 'macros'];
+function nHead(el, view, filters) {
+  const v = [...NLOG, ...NPROG].find((m) => m[0] === view);
+  el.innerHTML = `<div class="top"><h1>Nutrition</h1><div class="acts">${bellBtn()}</div></div>
+    <div class="pbar nbar">${pillBtn('n-view', v[3], v[1], 'View')}${filters}</div><div id="n-body"></div>`;
+  $('#n-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your log</h3>${pickRows(NLOG, view)}<h3 class="ghead">Progress</h3>${pickRows(NPROG, view)}<h3 class="ghead">More</h3>${pickRows(NMORE, view)}`,
+    (k) => (k === 'import' ? go('/food/import') : go(k === 'log' ? '/food' : `/food?view=${k}`, {replace: true})));
+  return $('#n-body', el);
+}
 route(/^\/food$/, 'food', async (el) => {
-  const q = new URLSearchParams(location.search), day = q.get('d') || isoDay(new Date()), view = q.get('view') === 'trends' ? 'trends' : 'log';
-  const head = `<div class="top"><h1>Nutrition</h1><div class="acts">${bellBtn()}</div></div><div class="seg nview" role="group" aria-label="Nutrition view"><button data-nv="log" aria-pressed="${view === 'log'}">${svg('food')} Log</button><button data-nv="trends" aria-pressed="${view === 'trends'}">${svg('progress')} Progress</button></div>`;
-  const wireView = () => $$('[data-nv]', el).forEach((b) => b.onclick = () => go(b.dataset.nv === 'trends' ? '/food?view=trends' : `/food${q.get('d') ? '?d=' + q.get('d') : ''}`, {replace: true}));
-  if (view === 'trends') { el.innerHTML = head + '<div id="nt"></div>'; wireView(); await nutritionTrends($('#nt', el), q); return; }
-  el.innerHTML = `${head}
-    <div class="daybar"><button class="icon-btn" id="fd-prev" aria-label="Previous day">${svg('back')}</button>
-      <label class="ghost daypick">${svg('calendar')}${esc(dayLabel(day))}<input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
-      <button class="icon-btn" id="fd-next" aria-label="Next day">${svg('chev')}</button></div>
-    ${dayLabel(day) === 'Today' ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}
-    <div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
+  const q = new URLSearchParams(location.search), v0 = q.get('view') || 'log';
+  const view = v0 === 'trends' ? 'overview' : [...NLOG, ...NPROG].some((m) => m[0] === v0) ? v0 : 'log';   // "trends": the old address
+  if (view !== 'log') return nutritionView(el, view, q);
+  const day = q.get('d') || isoDay(new Date()), today = isoDay(new Date());
+  const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
+      <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
+  body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
     <div id="fd-again"></div><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
-  wireView();
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
   // tap the date: a calendar to jump to any day, to log it or fix it
   const dp = $('#fd-date', el);
   dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
-  dp.onchange = () => { if (dp.value) go(dp.value === isoDay(new Date()) ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
+  dp.onchange = () => { if (dp.value) go(dp.value === today ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
   $('#fq-add', el).onclick = () => addSheet(day, guessMeal());
   logAgain($('#fd-again', el), day);
   await load(`/api/food/day?d=${day}`, (D) => drawDay(el, D), {maxAge: 5000});
@@ -125,27 +140,27 @@ function drawDay(el, D) {
     : G.custom != null ? `Goal set for this day${G.default ? ` (your usual is ${r0(G.default)})` : ''}.`
     : G.extra ? `Your daily target ${r0(G.default)} + ${r0(G.extra)} for ${today ? "today's" : "this day's"} extra training.` : 'Your daily target.';
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
-  $('#fd-sum', el).innerHTML = `<div class="card tcard">
+  // one card (2026-10-12 redesign): calories, macros, then the day's balance, with how it adds up folded underneath
+  $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
       <div class="tc3 ringrow"><div><small>Eaten</small><b class="num">${r0(eaten)}</b><small>kcal</small></div>
         <div role="img" aria-label="${r0(eaten)} of ${goal == null ? 'no goal' : r0(goal)} kcal${left != null ? `, ${r0(Math.abs(left))} ${left < 0 ? 'over' : 'left'}` : ''}">${ring(eaten, goal, 'kcal')}</div>
         <button class="tc-goal" id="fd-goal" aria-label="Set the calorie goal for this day"><small>Goal ${svg('edit')}</small><b class="num">${goal == null ? 'Set' : r0(goal)}</b></button></div>
-      <p class="small muted">${esc(goalNote)}</p></div>
-    <div class="card balance"><h2>Energy balance<span class="muted small">estimate</span></h2>
-      ${B.deficit == null ? '<p class="small muted">Log food to see your deficit for this day.</p>'
-        : `<div class="brow big ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}"><span>${B.deficit >= 0 ? 'Deficit' : 'Surplus'}${sofar}</span><b class="num">${r0(Math.abs(B.deficit))}<i> kcal</i></b></div>
-          ${B.partly ? '<p class="small muted">Looks only partly logged, so this day is left out of your averages and totals. Add the rest and it counts.</p>' : ''}`}
-      <details class="bd"${bdOpen() ? ' open' : ''}><summary>How it adds up</summary>
-      ${row('Resting burn (BMR)', r0(B.bmr), '', B.bmr_exact ? 'your body at rest' : 'rough guess · <a href="/me">add height & age</a>')}
-      ${row('Everyday activity', r0(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=trends">change</a>`)}
-      ${B.items.length ? B.items.map((a) => row(`<a href="/activity/${a.id}"><span class="exi sp ${esc(a.sport)}">${svg(a.sport)}</span>${esc(a.name)}</a>`, r0(a.kcal) + (a.estimated ? '*' : ''), 'ex', a.distance_m ? `${U.dist(a.distance_m, 1)} ${U.du()}` : '')).join('')
-                       : row('Exercise', '0', 'ex', 'no workouts this day')}
-      <button class="linkbtn addwk" data-addact data-day="${esc(D.day)}">+ Add a workout</button>
-      ${row(today ? 'Burned by end of day' : 'Total burned', r0(B.day_burn), 'sum', today ? 'estimate for the whole day' : '')}
-      ${row('Eaten' + sofar, '− ' + r0(eaten))}</details>
-      ${G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
-      <a class="small more-link" href="/food?view=trends">Running total & progress ›</a></div>
-    <div class="card macros"><h2>Macros${!t.protein_target ? '<button class="linkbtn" id="fd-targets">Set targets</button>' : ''}</h2>
-      ${MACROS.map(([k, n]) => { const tg = t[k.replace('_g', '_target')]; return `<div class="mrow"><span>${n}</span><div class="track"><div class="bar m-${k}" data-w="${tg ? Math.min(1, T[k] / tg).toFixed(3) : (T[k] ? 1 : 0)}"></div></div><b class="num">${r0(T[k])}${tg ? `<i>/${r0(tg)}g</i>` : 'g'}</b></div>`; }).join('')}</div>`;
+      <p class="small muted tc-note">${esc(goalNote)}</p>
+      <div class="tc-macros">${MACROS.map(([k, n]) => { const tg = t[k.replace('_g', '_target')]; return `<div class="mrow"><span>${n}</span><div class="track"><div class="bar m-${k}" data-w="${tg ? Math.min(1, T[k] / tg).toFixed(3) : (T[k] ? 1 : 0)}"></div></div><b class="num">${r0(T[k])}${tg ? `<i>/${r0(tg)}g</i>` : 'g'}</b></div>`; }).join('')}
+        ${!t.protein_target ? '<button class="linkbtn" id="fd-targets">Set macro targets</button>' : ''}</div>
+      ${B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>'
+        : `<details class="bd tc-bal"${bdOpen() ? ' open' : ''}><summary><span>${B.deficit >= 0 ? 'Deficit' : 'Surplus'}${sofar}<small class="muted"> · estimate</small></span>
+            <b class="num ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}">${r0(Math.abs(B.deficit))}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
+        ${B.partly ? '<p class="small muted">Looks only partly logged, so this day is left out of your averages and totals. Add the rest and it counts.</p>' : ''}
+        ${row('Resting burn (BMR)', r0(B.bmr), '', B.bmr_exact ? 'your body at rest' : 'rough guess · <a href="/me">add height & age</a>')}
+        ${row('Everyday activity', r0(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=needs">change</a>`)}
+        ${B.items.length ? B.items.map((a) => row(`<a href="/activity/${a.id}"><span class="exi sp ${esc(a.sport)}">${svg(a.sport)}</span>${esc(a.name)}</a>`, r0(a.kcal) + (a.estimated ? '*' : ''), 'ex', a.distance_m ? `${U.dist(a.distance_m, 1)} ${U.du()}` : '')).join('')
+                         : row('Exercise', '0', 'ex', 'no workouts this day')}
+        <button class="linkbtn addwk" data-addact data-day="${esc(D.day)}">+ Add a workout</button>
+        ${row(today ? 'Burned by end of day' : 'Total burned', r0(B.day_burn), 'sum', today ? 'estimate for the whole day' : '')}
+        ${row('Eaten' + sofar, '− ' + r0(eaten))}
+        ${G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
+        <a class="small more-link" href="/food?view=energy">Running total ›</a></details>`}</div>`;
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
   const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
   $('#fd-goal', el).onclick = () => goalSheet(D);
@@ -639,32 +654,32 @@ function targetsSheet() {
 }
 
 // ---------- weight trend + food trends ----------
-route(/^\/food\/weight$/, 'food', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Progress')}</div><h1>Weight</h1>${skel(2)}`;
-  wireBack(el, '/food?view=trends');
-  await load('/api/food/weights?days=365', (W) => {
+// the weigh-ins and the trend (2026-10-12: part of Nutrition > Weight, under the box to log one)
+function weightHistory(box) {
+  load('/api/food/weights?days=365', (W) => {
+    if (!box.isConnected) return;
     const pts = W.points, wt = (kg) => `${U.weight(kg)} ${imp() ? 'lb' : 'kg'}`;
-    el.innerHTML = `<div class="top">${backBtn('Progress')}</div><h1>Weight</h1>
-      <div class="card"><div class="bigstat">${stat('Trend', W.trend_kg ? U.weight(W.trend_kg) : '–', imp() ? 'lb' : 'kg')}${stat('Per week', W.rate_kg_per_week == null ? '–' : (W.rate_kg_per_week > 0 ? '+' : '') + U.weight(W.rate_kg_per_week), imp() ? 'lb' : 'kg')}</div>
+    box.innerHTML = pts.length ? `<div class="card"><div class="bigstat">${stat('Trend', W.trend_kg ? U.weight(W.trend_kg) : '–', imp() ? 'lb' : 'kg')}${stat('Per week', W.rate_kg_per_week == null ? '–' : (W.rate_kg_per_week > 0 ? '+' : '') + U.weight(W.rate_kg_per_week), imp() ? 'lb' : 'kg')}</div>
         <div id="w-chart"></div><p class="small muted">The trend smooths out day-to-day water swings; it's the number to watch.</p></div>
-      <div class="card"><h2>Weigh-ins</h2>${pts.length ? [...pts].reverse().slice(0, 60).map((p) => `<div class="row"><span>${esc(new Date(p.day + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}))}</span>
-        <span class="num">${wt(p.kg)} <small class="muted">trend ${U.weight(p.trend)}</small> <button class="linkbtn danger" data-del="${p.day}" aria-label="Delete weigh-in">×</button></span></div>`).join('') : '<p class="muted">Log your weight on Nutrition &gt; Progress.</p>'}</div>`;
-    wireBack(el, '/food?view=trends');
-    $$('[data-del]', el).forEach((b) => b.onclick = async () => { try { await api(`/api/food/weights/${b.dataset.del}`, {method: 'DELETE'}); invalidate('/api/food'); render(); } catch (x) { toast(x.message); } });
+      <div class="card"><h2>Weigh-ins</h2>${[...pts].reverse().slice(0, 60).map((p) => `<div class="row"><span>${esc(new Date(p.day + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}))}</span>
+        <span class="num">${wt(p.kg)} <small class="muted">trend ${U.weight(p.trend)}</small> <button class="linkbtn danger" data-del="${p.day}" aria-label="Delete weigh-in">×</button></span></div>`).join('')}</div>`
+      : '<div class="card empty"><b>No weigh-ins yet</b>Log one above. Kinetta smooths out the daily ups and downs into a trend.</div>';
+    $$('[data-del]', box).forEach((b) => b.onclick = async () => { try { await api(`/api/food/weights/${b.dataset.del}`, {method: 'DELETE'}); invalidate('/api/food'); render(); } catch (x) { toast(x.message); } });
     if (pts.length) requestAnimationFrame(() => {
       const xs = pts.map((p) => new Date(p.day + 'T12:00') / 864e5);
-      dotChart($('#w-chart', el), pts.map((p, i) => ({x: xs[i], y: imp() ? p.kg * 2.20462 : p.kg, id: i})), {yfmt: (v) => v.toFixed(1),
+      dotChart($('#w-chart', box), pts.map((p, i) => ({x: xs[i], y: imp() ? p.kg * 2.20462 : p.kg, id: i})), {yfmt: (v) => v.toFixed(1),
         trend: pts.length > 1 ? {start: imp() ? pts[0].trend * 2.20462 : pts[0].trend, end: imp() ? pts[pts.length - 1].trend * 2.20462 : pts[pts.length - 1].trend} : null});
     });
   });
-});
-route(/^\/food\/trends$/, 'food', async () => go('/food?view=trends', {replace: true}));   // old address
+}
+route(/^\/food\/weight$/, 'food', async () => go('/food?view=weight', {replace: true}));   // old address
+route(/^\/food\/trends$/, 'food', async () => go('/food?view=overview', {replace: true}));   // old address
 
 // ---------- Add past days (2026-10-09): paste / CSV / one day -> preview -> save ----------
 route(/^\/food\/import$/, 'food', async (el) => {
   const lb = imp(), wu = lb ? 'lb' : 'kg', today = isoDay(new Date());
   const wshow = (kg) => (kg == null ? '–' : (lb ? kg * 2.20462 : kg).toFixed(1));
-  el.innerHTML = `<div class="top">${backBtn('Progress')}</div><h1>Add past days</h1>
+  el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>Add past days</h1>
     <p class="muted">Bring in history from another app or a spreadsheet: weight, calories eaten, macros, and calories burned or your deficit. Imported burned numbers are used instead of this app's estimate for those days.</p>
     <div class="card"><h2>From a spreadsheet or another app</h2>
       <p class="small muted">First row = column names. Recognized: <b>Date</b>, <b>Weight</b> (${wu} unless the column says kg/lb), <b>Calories</b>, <b>Protein</b>, <b>Carbs</b>, <b>Fat</b>, <b>Fiber</b>, <b>Burned</b> (or Expenditure/TDEE), <b>Deficit</b>. Any order; other columns are ignored. Several rows per day (e.g. one per meal) are added up.</p>
@@ -680,7 +695,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
       <div class="gridbar"><label>From<input type="date" id="hg-start" max="${today}"></label><label class="tog"><input type="checkbox" id="hg-mac"> Show macros</label></div>
       <div id="hg"></div></div>
     <div id="hi-sum"></div>`;
-  wireBack(el, '/food?view=trends');
+  wireBack(el, '/food?view=overview');
   const f = $('#hi-f', el), box = $('#hi-prev', el), file = $('#hi-file', el);
   $('#hi-pick', el).onclick = () => file.click();
   file.onchange = async () => { const fl = file.files && file.files[0]; if (!fl) return; if (fl.size > 2e6) { toast('That file is over 2 MB'); return; } f.text.value = await fl.text(); f.requestSubmit(); };
@@ -708,7 +723,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
       <div class="actions"><button class="primary" id="hi-go">Import ${P.rows.length} days</button></div>`;
     $('#hi-go', box).onclick = async (ev) => {
       ev.target.disabled = true; ev.target.textContent = 'Importing…';
-      try { await saveRows(P.rows.map(({food_logged_here, weight_replaces, ...r}) => r)); box.innerHTML = '<p class="small">Imported. See it on Nutrition &gt; Progress (pick a longer range or "Since…").</p>'; f.reset(); }
+      try { await saveRows(P.rows.map(({food_logged_here, weight_replaces, ...r}) => r)); box.innerHTML = '<p class="small">Imported. See it under Nutrition &gt; Overview (pick a longer time range, or a start date).</p>'; f.reset(); }
       catch (x) { toast(x.message); ev.target.disabled = false; ev.target.textContent = `Import ${P.rows.length} days`; }
     };
   };
@@ -774,7 +789,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
   drawSum();
 });
 
-// ---------- Nutrition > Trends (2026-10-09): one range, stat tiles, insights, charts ----------
+// ---------- Nutrition > progress views (2026-10-09; split into views 2026-10-12): one range, tiles, insights, charts ----------
 const ACTIVITY_LEVELS = [[1.2, 'Mostly sitting', 'desk job, little walking'], [1.3, 'Some walking & standing', 'errands, light chores, kids'], [1.45, 'On my feet a lot', 'retail, nursing, active job']];
 function energyCard(box) {
   // daily needs = BMR x everyday activity (no exercise); workouts are added only on the days they happen
@@ -816,11 +831,11 @@ function weeksCard(box) {
     const col = (k) => shown.map((w, i) => { const d = new Date(w.week + 'T12:00'), prev = shown[i - 1] && new Date(shown[i - 1].week + 'T12:00');
       return {label: 'Week of ' + d.toLocaleDateString([], {month: 'short', day: 'numeric'}), tick: !prev || prev.getMonth() !== d.getMonth() ? d.toLocaleDateString([], {month: 'short'}) : '', partial: w.partial, segs: [{k: k.k, v: w[k.f] || 0}]}; });
     const wt = (kg) => (kg == null ? '–' : U.weight(kg));
-    box.innerHTML = `      <div class="card"><details><summary>Week by week</summary><div class="tblwrap"><table class="tbl yrs"><thead><tr><th>Week of</th><th class="r">Days</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th><th class="r">Exercise</th><th class="r">${U.du()}</th><th class="r">Weight</th></tr></thead><tbody>
+    box.innerHTML = `<div class="card"><div class="tblwrap"><table class="tbl yrs"><thead><tr><th>Week of</th><th class="r">Days</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th><th class="r">Exercise</th><th class="r">${U.du()}</th><th class="r">Weight</th></tr></thead><tbody>
         ${[...shown].reverse().map((w) => `<tr${w.partial ? ' class="cur"' : ''}><td>${esc(new Date(w.week + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}))}</td><td class="r num">${w.days_logged}${w.partial ? '' : '/7'}</td>
           <td class="r num"><b>${w.kcal == null ? '–' : r0(w.kcal)}</b></td><td class="r num">${w.protein_g == null ? '–' : r0(w.protein_g)}</td><td class="r num">${w.carbs_g == null ? '–' : r0(w.carbs_g)}</td><td class="r num">${w.fat_g == null ? '–' : r0(w.fat_g)}</td>
           <td class="r num">${r0(w.exercise_per_day)}</td><td class="r num">${U.dist(w.distance_m, 0)}</td><td class="r num">${wt(w.trend_kg)}</td></tr>`).join('')}</tbody></table></div>
-        <p class="small muted">Per day on logged days · exercise = kcal burned per day · ${U.du()} = run + ride + walk · weight = trend at the end of the week.</p></details></div>`;
+        <p class="small muted">Per day on logged days · exercise = kcal burned per day · ${U.du()} = run + ride + walk · weight = trend at the end of the week.</p></div>`;
   });
 }
 const NRANGES = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '1 year']];
@@ -832,7 +847,7 @@ function weightCard(box) {
   const draw = () => {
     if (!box.isConnected) return;
     const isToday = day === today, had = W.points.find((p) => p.day === day), r = W.rate_kg_per_week;
-    box.innerHTML = `<div class="card wcard"><h2>${isToday ? "Log today's weight" : `Log weight for ${esc(dayLabel(day))}`}<a class="more" href="/food/weight">History ›</a></h2>
+    box.innerHTML = `<div class="card wcard"><h2>${isToday ? "Log today's weight" : `Log weight for ${esc(dayLabel(day))}`}</h2>
       ${had ? `<p class="wdone">${svg('check')} Logged: <b class="num">${esc(U.weight(had.kg))} ${unit}</b>${isToday ? ' today' : ''}</p>` : ''}
       <form class="wform"><label class="wfield"><input name="w" inputmode="decimal" placeholder="e.g. ${imp() ? '165.4' : '75.0'}" value="${had ? U.weight(had.kg) : ''}" aria-label="Your weight ${isToday ? 'today' : 'on ' + esc(dayLabel(day))} in ${unit}" enterkeyhint="done"><span>${unit}</span></label>
         <button class="${had ? 'ghost' : 'primary'}">${had ? 'Update' : 'Log weight'}</button></form>
@@ -855,41 +870,46 @@ function weightCard(box) {
   load('/api/food/weights?days=3650', (w) => { W = w; draw(); }).catch(() => {});
 }
 
-async function nutritionTrends(root, q) {
-  // range: 7/30/90/365 days, or "since" = from a start date the person picks (e.g. the start of a diet); remembered on this phone
+async function nutritionView(el, view, q) {
+  // range (overview, energy, macros): 7/30/90/365 days, or "since" = from a start date the person picks (e.g. the start
+  // of a diet); remembered on this phone
   let r = q.get('r'); if (!r) { try { r = localStorage.getItem('fit.nrange'); } catch (e) { /* none */ } }
   if (r !== 'since' && !NRANGES.some((x) => String(x[0]) === r)) r = '30';
-  const save = (v) => { try { localStorage.setItem('fit.nrange', v); } catch (e) { /* none */ } go(`/food?view=trends&r=${v}`, {replace: true}); };
-  const startSheet = (cur) => sheet('Count from', `<form class="form" id="ds"><label>Start date<input type="date" name="since" value="${esc(cur || '')}" max="${isoDay(new Date())}"></label>
+  const ranged = NRANGED.includes(view);
+  const root = nHead(el, view, ranged ? pillBtn('n-range', 'calendar', r === 'since' ? 'Since…' : NRANGES.find((x) => String(x[0]) === r)[1], 'Time range') : '');
+  const save = (v) => { try { localStorage.setItem('fit.nrange', v); } catch (e) { /* none */ } go(`/food?view=${view}&r=${v}`, {replace: true}); };
+  const startSheet = (cur) => sheet('Count from', `<form class="form" id="ds"><label>Start date<input type="date" class="datefield" name="since" value="${esc(cur || '')}" max="${isoDay(new Date())}"></label>
       <p class="small muted">For example the day you started your diet. Trends, the running deficit and the averages then cover everything since that day.</p>
       <div class="actions"><button class="primary">Use this date</button></div></form>`, (b, close) => {
     $('#ds', b).onsubmit = async (e) => { e.preventDefault(); const v = $('#ds', b).since.value; if (!v) return;
       try { await api('/api/food/deficit/start', json('PUT', {since: v})); close(); invalidate('/api/food'); save('since'); } catch (x) { toast(x.message); } };
   });
-  root.innerHTML = `<div class="chips nrange" role="group" aria-label="Time range">${NRANGES.map(([d, n]) => `<button class="chip" data-r="${d}" aria-pressed="${String(d) === r}">${n}</button>`).join('')}
-      <button class="chip" data-r="since" aria-pressed="${r === 'since'}" id="nt-since">Since…</button></div>
-    <div id="nt-weight"></div><div id="nt-coach"></div><div id="nt-body">${skel(3)}</div><div id="nt-energy"></div><div id="nt-weeks"></div>
-    <a class="ghost addpast" href="/food/import">${svg('upload')}<span>Add past days<small>weight, calories or deficits from before</small></span></a>`;
-  weightCard($('#nt-weight', root)); energyCard($('#nt-energy', root)); weeksCard($('#nt-weeks', root)); dietCoach($('#nt-coach', root));
+  if (view === 'weight') { root.innerHTML = '<div id="nt-weight"></div><div id="nt-whist"></div>'; weightCard($('#nt-weight', root)); weightHistory($('#nt-whist', root)); return; }
+  if (view === 'needs') { energyCard(root); return; }
+  if (view === 'weeks') { weeksCard(root); return; }
   let since = null;
-  $$('.nrange .chip', root).forEach((b) => b.onclick = () => (b.dataset.r === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(b.dataset.r)));
+  $('#n-range', el).onclick = () => pickSheet('Time range', pickRows([...NRANGES.map(([d, n]) => [String(d), n]),
+    ['since', since ? `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'})}` : 'Since a date…', since ? 'Tap again to change the date' : 'For example the day you started a diet']], r),
+    (k) => (k === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(k)));
+  root.innerHTML = `<div id="nt-body">${skel(3)}</div>${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;   // the numbers first, then the coach
+  if (view === 'overview') dietCoach($('#nt-coach', root));
   const url = r === 'since' ? '/api/food/insights?days=30&since=' : `/api/food/insights?days=${r}`;
   if (r === 'since') {   // need the saved start date first
     const I0 = await api('/api/food/insights?days=7').catch(() => null); since = I0 && I0.deficit_start;
-    if (!since) { $('#nt-body', root).innerHTML = '<div class="card empty"><b>Pick a start date</b>Tap "Since…" to choose the day to count from.</div>'; startSheet(null); return; }
+    if (!since) { $('#nt-body', root).innerHTML = '<div class="card empty"><b>Pick a start date</b>Tap the time range button to choose the day to count from.</div>'; startSheet(null); return; }
   }
   await load(r === 'since' ? url + since : url, (I) => {
     since = I.deficit_start || since;
-    const sb = $('#nt-since', root); if (sb && since) sb.textContent = `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'})}${r === 'since' ? ' ✎' : ''}`;
-    drawTrends($('#nt-body', root), I, I.summary.days);
+    const rb = $('#n-range span', el); if (rb && r === 'since' && since) rb.textContent = `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'})}`;
+    drawTrends($('#nt-body', root), I, I.summary.days, view);
   });
 }
-function drawTrends(box, I, days) {
+function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   if (!box || !box.isConnected) return;
   const S = I.summary, T = I.targets, lb = imp(), wu = lb ? 'lb' : 'kg', wconv = (kg) => (lb ? kg * 2.20462 : kg);
   const past = I.rows.filter((r) => !r.today);
-  if (!I.rows.some((r) => r.eaten != null)) { box.innerHTML = '<div class="card empty"><b>Nothing logged in this range</b>Log food on the Log tab, or <a href="/food/import">add your past days</a> from another app or a spreadsheet.</div>'; return; }
-  const tile = (label, value, unit, sub, cls = '') => `<div class="ntile ${cls}"><small>${esc(label)}</small><b class="num">${value}<i>${esc(unit)}</i></b>${sub ? `<span>${sub}</span>` : ''}</div>`;
+  if (!I.rows.some((r) => r.eaten != null)) { box.innerHTML = '<div class="card empty"><b>Nothing logged in this range</b>Log food in your food log, or <a href="/food/import">add your past days</a> from another app or a spreadsheet.</div>'; return; }
+  const tile = (label, value, unit, sub, cls = '', href = '') => `<${href ? `a href="${href}"` : 'div'} class="ntile ${cls}"><small>${esc(label)}</small><b class="num">${value}<i>${esc(unit)}</i></b>${sub ? `<span>${sub}</span>` : ''}</${href ? 'a' : 'div'}>`;
   const sgn = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
   const weekly = days > 90;   // a year of daily bars is too thin: average by week
   const dlabel = (d, o) => new Date(d + 'T12:00').toLocaleDateString([], o);
@@ -910,33 +930,35 @@ function drawTrends(box, I, days) {
   const pDef = S.predicted_kg, pTr = S.trend_change_kg;
   const kcalP = (S.avg_protein_g || 0) * 4, kcalC = (S.avg_carbs_g || 0) * 4, kcalF = (S.avg_fat_g || 0) * 9, kcalM = kcalP + kcalC + kcalF || 1;
   const pct = (v) => Math.round(v / kcalM * 100);
-  box.innerHTML = `<div class="ntiles">
+  const html = {overview: `<div class="ntiles">
       ${tile('Avg eaten / day', S.avg_eaten == null ? '–' : r0(S.avg_eaten), 'kcal', S.avg_goal ? `goal ${r0(S.avg_goal)}` : '')}
       ${tile('Avg deficit / day', S.avg_deficit == null ? '–' : r0(Math.abs(S.avg_deficit)), 'kcal', S.avg_deficit == null ? 'no full days logged' : S.avg_deficit >= 0 ? 'deficit' : 'surplus', S.avg_deficit == null ? '' : S.avg_deficit >= 0 ? 'good' : 'bad')}
       ${S.logged ? tile('Total deficit', r0(Math.abs(S.total_deficit)), 'kcal', `≈ ${wconv(Math.abs(pDef)).toFixed(1)} ${wu} ${pDef <= 0 ? 'lost' : 'gained'}`, S.total_deficit >= 0 ? 'good' : 'bad')
         : tile('Total deficit', '–', '', 'counts fully logged days')}
-      ${tile('Weight trend', pTr == null ? '–' : sgn(pTr) + wconv(Math.abs(pTr)).toFixed(1), pTr == null ? '' : wu, pTr == null ? 'log weight to see it' : 'over these days')}
+      ${tile('Weight trend', pTr == null ? '–' : sgn(pTr) + wconv(Math.abs(pTr)).toFixed(1), pTr == null ? '' : wu, pTr == null ? 'log weight to see it' : 'over these days', '', '/food?view=weight')}
       ${tile('Avg protein', S.avg_protein_g == null ? '–' : r0(S.avg_protein_g), 'g', T.protein_target ? `target ${r0(T.protein_target)} g` : '')}
       ${tile('Days logged', S.logged, `/ ${S.past_days}`, S.past_days ? `${Math.round(S.logged / S.past_days * 100)}%` : '')}</div>
-    ${I.insights.length ? `<div class="card"><h2>Insights</h2>${I.insights.map(([k, t]) => `<div class="insight"><span class="dot ${k === 'good' ? 'good' : k === 'warn' ? 'warn' : 'info'}"></span><div><span>${esc(t)}</span></div></div>`).join('')}</div>` : ''}
-    <div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
+    ${I.insights.length ? `<div class="card"><h2>Insights</h2>${I.insights.map(([k, t]) => `<div class="insight"><span class="dot ${k === 'good' ? 'good' : k === 'warn' ? 'warn' : 'info'}"></span><div><span>${esc(t)}</span></div></div>`).join('')}</div>` : ''}`,
+    energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
       <p class="small muted">Burned = your daily needs (${r0(S.tdee)} kcal: BMR × everyday activity) + that day's workouts. Bars below the orange line are a deficit.</p></div>
     <div class="card"><h2>Running deficit</h2><div id="nt-cum"></div>
-      <p class="small muted">Adds up each fully logged day's deficit. 3,500 kcal ≈ 1 lb of fat.</p></div>
-    <div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-protein"></div></div>
+      <p class="small muted">Adds up each fully logged day's deficit. 3,500 kcal ≈ 1 lb of fat.</p></div>`,
+    macros: `<div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-protein"></div></div>
     <div class="card"><h2>Where your calories come from</h2>
       ${S.avg_protein_g != null ? `<div class="split" role="img" aria-label="Protein ${pct(kcalP)}%, carbs ${pct(kcalC)}%, fat ${pct(kcalF)}%"><i class="m-protein_g" data-w="${(kcalP / kcalM).toFixed(3)}"></i><i class="m-carbs_g" data-w="${(kcalC / kcalM).toFixed(3)}"></i><i class="m-fat_g" data-w="${(kcalF / kcalM).toFixed(3)}"></i></div>
       <div class="legend small"><span><i class="sw m-protein_g"></i>Protein ${pct(kcalP)}% · ${r0(S.avg_protein_g)} g</span><span><i class="sw m-carbs_g"></i>Carbs ${pct(kcalC)}% · ${r0(S.avg_carbs_g)} g</span><span><i class="sw m-fat_g"></i>Fat ${pct(kcalF)}% · ${r0(S.avg_fat_g)} g</span></div>` : ''}
       <h3 class="sub">By meal</h3>${Object.entries(S.meals || {}).map(([m, v]) => `<div class="mrow mealrow"><span>${esc(MEAL_NAMES[m])}</span><div class="track"><div class="bar meal-bar" data-w="${(v / 100).toFixed(3)}"></div></div><b class="num">${v}%</b></div>`).join('')}</div>
-    ${I.top_foods.length ? `<div class="card"><h2>Top foods by calories</h2>${I.top_foods.map((f) => `<div class="mrow topf"><span title="${esc(f.name)}">${esc(f.name)}</span><div class="track"><div class="bar meal-bar" data-w="${(f.kcal / I.top_foods[0].kcal).toFixed(3)}"></div></div><b class="num">${r0(f.kcal)}<i> · ${f.n}×</i></b></div>`).join('')}</div>` : ''}`;
+    ${I.top_foods.length ? `<div class="card"><h2>Top foods by calories</h2>${I.top_foods.map((f) => `<div class="mrow topf"><span title="${esc(f.name)}">${esc(f.name)}</span><div class="track"><div class="bar meal-bar" data-w="${(f.kcal / I.top_foods[0].kcal).toFixed(3)}"></div></div><b class="num">${r0(f.kcal)}<i> · ${f.n}×</i></b></div>`).join('')}</div>` : ''}`};
+  box.innerHTML = html[part];
   requestAnimationFrame(() => {
+    if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, partial: c.partial, segs: [{k: 's3', v: c.protein_g || 0}]})),
+      {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150});
+    if (part !== 'energy') return;
     energyChart($('#nt-energychart', box), cols, {weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
     const cum = S.logged ? past.filter((r) => r.eaten != null) : [];   // no fully logged day yet: nothing to add up
     dayLine($('#nt-cum', box), cum.map((r) => ({y: r.total, tick: dlabel(r.day, {month: 'short', day: 'numeric'}), label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}),
       sub: r.counted ? `Day <b>${r0(Math.abs(r.deficit))}</b> ${r.deficit >= 0 ? 'deficit' : 'surplus'}` : 'partly logged, not counted'})),
       {fmt: (v, short) => (short ? (Math.abs(v) >= 10000 ? (v / 1000).toFixed(1) + 'k' : r0(v)) : `${r0(Math.abs(v))} kcal ${v >= 0 ? 'deficit' : 'surplus'}`)});
-    periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, partial: c.partial, segs: [{k: 's3', v: c.protein_g || 0}]})),
-      {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150});
   });
 }
 

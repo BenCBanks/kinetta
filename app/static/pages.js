@@ -1049,7 +1049,7 @@ route(/^\/me$/, 'me', async (el) => {
     <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
       ${row('a', 'href="/me/goals"', 'target', 'c-berry', 'Goals')}
       ${row('button', 'id="m-targets"', 'food', 'c-green', 'Nutrition targets')}
-      ${row('a', 'href="/food/weight"', 'scale', 'c-purple', 'Weight trend')}</div>
+      ${row('a', 'href="/food?view=weight"', 'scale', 'c-purple', 'Weight trend')}</div>
     <h2 class="sec-head">Settings</h2>
     <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
