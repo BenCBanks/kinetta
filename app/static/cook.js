@@ -91,7 +91,8 @@ function drawDish(el, d) {
 
     ${mine || d.items.length ? `<h2 class="sec-head">Ingredients${d.items.length ? ` <span class="count">${d.items.length}</span>` : ''}</h2>
     <div class="card">${mine ? `${chatLog(d)}<form class="addline" id="dk-add"><input name="t" placeholder="What went in?" aria-label="What went in, in your own words, like 2 apples or a tablespoon of olive oil"
-        autocomplete="off" enterkeyhint="send" maxlength="600" required><button class="primary sm">${svg('plus')}Add</button></form>
+        autocomplete="off" enterkeyhint="send" maxlength="600" required><button type="button" class="icon-btn lbl-btn" id="dk-label" aria-label="Add from a photo of the nutrition label">${svg('camera')}</button><button class="primary sm" aria-label="Add">${svg('plus')}<span class="al-t">Add</span></button></form>
+      <input type="file" accept="image/*" id="dk-label-file" hidden>
       <div id="dk-match"></div>` : ''}
       <div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="fe sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="fe">${ing(it)}</div>`)).join('')}</div>
       ${mine ? `<button class="linkbtn" id="dk-known">${typed ? 'Change the total you typed in' : 'I already know the total'}</button>` : ''}</div>` : ''}
@@ -132,6 +133,7 @@ function drawDish(el, d) {
     $('#dk-help', el).onclick = () => sheet('How cooking works', cookSteps(d));
     swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
     chatBox(el, d, set);
+    labelButton(el, d, set);
     $('#dk-share', el).onclick = () => shareDishSheet(d, set);
     $('#dk-finish', el).onclick = () => finishSheet(d);
     $('#dk-rename', el).onclick = () => renameSheet(d, set);
@@ -241,6 +243,53 @@ function swipeRows(el, onRemove) {
     $('.sw-del', sw).onclick = () => onRemove($('.sw-del', sw).dataset.del);
   });
 }
+// Add from a photo of the nutrition label (2026-10-12): the AI reads the label, then you say how much went in
+function labelButton(el, d, set) {
+  const btn = $('#dk-label', el), file = $('#dk-label-file', el);
+  if (!btn) return;
+  btn.onclick = () => { if (App.me.coach && !App.me.ai_ok) aiSheet(() => file.click()); else file.click(); };
+  file.onchange = async () => {
+    const fl = file.files && file.files[0]; file.value = ''; if (!fl) return;
+    let photo; try { photo = await shrinkPhoto(fl, 1600); } catch (e) { toast("That photo couldn't be opened"); return; }
+    sheet('Nutrition label', `<div id="lb-box"><p class="small muted center">${svg('sparkle')} Reading the label…</p></div>`, async (b, close) => {
+      const box = $('#lb-box', b);
+      let L;
+      try { L = await api('/api/food/label', json('POST', {image: photo})); }
+      catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p><div class="actions"><button class="primary" id="lb-again">Try another photo</button></div>`;
+        $('#lb-again', b).onclick = () => { close(); file.click(); }; return; }
+      const S = L.per_serving, pkg = L.package_g;
+      box.innerHTML = `<form class="form" id="lb">
+        <label>Name<input name="name" maxlength="200" value="${esc([L.brand, L.name].filter(Boolean).join(' '))}"></label>
+        <p class="small muted">Per serving (${esc(L.serving.label)}): ${r0(S.kcal)} kcal · ${r1(S.protein_g)} g protein · ${r1(S.carbs_g)} g carbs · ${r1(S.fat_g)} g fat${L.servings ? ` · ${r1(L.servings)} servings in the package` : ''}</p>
+        <label>How much went in<span class="gfield"><input name="g" inputmode="decimal" value="${Math.round(pkg || L.serving.g)}" aria-label="How much went in, in grams"><span>g</span></span></label>
+        <div class="share-line"><span class="muted">or</span><input name="n" inputmode="decimal" value="${pkg ? '' : 1}" placeholder="1" aria-label="Servings"><span>servings</span>
+          ${pkg ? `<button type="button" class="linkbtn" id="lb-all">The whole package (${gfmt(pkg)})</button>` : ''}</div>
+        <div class="portion-out" aria-live="polite"></div>
+        <label class="check"><input type="checkbox" name="save"> <span>Also save it to My foods</span></label>
+        <div class="actions"><button class="primary">Add to the dish</button></div></form>`;
+      const f = $('#lb', b), out = $('.portion-out', f), num = (x) => +x.value.replace(',', '.');
+      const show = () => { const g = num(f.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, (L.per100[k] || 0) * g / 100]))) : ''; };
+      f.g.oninput = () => { f.n.value = ''; show(); };
+      f.n.oninput = () => { const n = num(f.n); if (n > 0) f.g.value = Math.round(n * L.serving.g); show(); };
+      const all = $('#lb-all', b); if (all) all.onclick = () => { f.g.value = Math.round(pkg); f.n.value = ''; show(); };
+      show();
+      f.onsubmit = async (e) => {
+        e.preventDefault(); const g = num(f.g), name = f.name.value.trim() || L.name;
+        if (!(g > 0 && g < 20000)) { toast('How much went in, in grams?'); return; }
+        const sb = $('button.primary', f); sb.disabled = true;
+        try {
+          set(await api(`/api/dishes/${d.id}/items`, json('POST', {name, grams: g, per100: L.per100, source: 'label'})));
+          if (f.save.checked) {
+            await api('/api/food/foods', json('POST', {name: L.name, brand: L.brand, barcode: null, serving_label: L.serving.label, serving_g: L.serving.g,
+              kcal: S.kcal, protein_g: S.protein_g, carbs_g: S.carbs_g, fat_g: S.fat_g, fiber_g: S.fiber_g, favorite: false}));
+            invalidate('/api/food/foods');
+          }
+          close(); toast(`Added ${name}: ${gfmt(g)}${f.save.checked ? ', saved to My foods' : ''}`);
+        } catch (x) { toast(x.message); sb.disabled = false; }
+      };
+    });
+  };
+}
 // remove an ingredient, with Undo (it goes back at the end of the list)
 async function removeItem(d, it, set) {
   if (!it) return;
@@ -343,7 +392,7 @@ function chatLog(d) {
   const bubble = (m, i) => m.who === 'me' ? `<p class="cmsg me">${esc(m.text)}</p>`
     : `<div class="cmsg ai${m.wait ? ' wait' : ''}">${m.wait ? '<span class="dots" aria-label="Working it out"><i></i><i></i><i></i></span>' : esc(m.text)}
         ${m.added && m.added.length && !m.undone ? `<button type="button" class="linkbtn" data-undo="${i}">Undo</button>` : ''}</div>`;
-  return `<div class="cchat" id="dk-chat" aria-live="polite">${first ? `<div class="cmsg ai">Tell me what goes in as you cook, like you'd text a friend: “2 apples”, “a splash of olive oil and 3 cloves of garlic”, “make the rice 200 g”.</div>` : ''}
+  return `<div class="cchat" id="dk-chat" aria-live="polite">${first ? `<div class="cmsg ai">Tell me what goes in as you cook, like you'd text a friend: “2 apples”, “a box of penne”, “make the rice 200 g”. Or tap the camera to read a nutrition label.</div>` : ''}
     ${log.slice(-8).map((m, k) => bubble(m, log.length - Math.min(log.length, 8) + k)).join('')}</div>`;
 }
 function chatBox(el, d, set) {
