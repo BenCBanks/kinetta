@@ -55,24 +55,20 @@ function drawDish(el, d) {
 
     ${(mine && App.me.coach && (d.items.length || typed)) || d.review ? `<div class="card ai coach-card" id="dk-ai">${recipeReview(d, mine)}</div>` : ''}
 
-    <h2 class="sec-head">Weigh and serve</h2>
-    <div class="card serve">${weighed ? `<div class="kv"><span>Cooked weight</span><b class="num">${gfmt(d.cooked_g)}${mine ? ' <button class="linkbtn" id="dk-reweigh">Change</button>' : ''}</b></div>
+    <h2 class="sec-head">${weighed ? 'Serve' : 'Weigh the dish'}</h2>
+    <div class="card serve">${weighed ? `<div class="kvs"><div class="kv"><span>Cooked weight</span><b class="num">${gfmt(d.cooked_g)}${mine ? ' <button class="linkbtn" id="dk-reweigh">Change</button>' : ''}</b></div>
         ${d.eaten_g ? `<div class="kv"><span>Served so far</span><b class="num">${gfmt(d.eaten_g)}</b></div>` : ''}
-        <div class="kv"><span>Left</span><b class="num">${gfmt(d.left_g)}</b></div>
+        <div class="kv"><span>Left</span><b class="num">${gfmt(d.left_g)}</b></div></div>
         <form class="form" id="dk-portion"><label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="e.g. 380" required aria-label="Your portion in grams"><span>g</span></span></label>
           <div class="seg wide meal4" role="group" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([m, n]) => `<button type="button" data-meal="${m}" aria-pressed="${m === guessMeal()}">${n}</button>`).join('')}</div>
           <div class="portion-out" aria-live="polite"></div>
           <button class="primary wide">Log my portion${new URLSearchParams(location.search).get('d') ? ` for ${esc(dayLabel(new URLSearchParams(location.search).get('d')))}` : ''}</button></form>`
       : !mine ? `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't weighed the finished dish yet. Once it's weighed, weigh your plate here and your share is logged.</p>`
-      : `<p class="small muted">When it's cooked, weigh the whole dish. In its pan is fine: pick the pan and its weight comes off.</p>
-        <form class="form" id="dk-weigh"><label>Whole dish<span class="gfield"><input name="g" inputmode="decimal" placeholder="e.g. 1600" required aria-label="Weight of the whole dish in grams"><span>g</span></span></label>
-          <label>Weighed in<select name="pan"><option value="">Nothing (just the food)</option></select></label>
-          <button type="button" class="linkbtn" id="dk-pan">+ Add a pan</button>
-          <button class="primary wide">Save the weight</button></form>`}</div>
-    ${mine ? `<h2 class="sec-head">Eating together</h2><div class="card share-dish">
-      ${shared.length ? `<div class="avs">${shared.map((p) => avatar(p)).join('')}<span>Shared with ${esc(shared.map((p) => p.name.split(' ')[0]).join(', '))}</span></div>`
-        : '<p class="small muted">Share the dish with a friend and they can log their own portion from it. What they take comes off the leftovers.</p>'}
-      <button class="ghost wide" id="dk-share">${svg('people')}${shared.length ? 'Change who it\'s shared with' : 'Share with a friend'}</button></div>` : ''}`;
+      : `<form id="dk-weigh"><div class="addline"><span class="gfield"><input name="g" inputmode="decimal" placeholder="Whole dish, e.g. 1600" required aria-label="Weight of the whole dish in grams"><span>g</span></span><button class="primary">Save</button></div>
+          <div class="pan-row"><span class="muted">Weighed in</span><select name="pan" aria-label="Weighed in a pan"><option value="">No pan</option></select><button type="button" class="linkbtn" id="dk-pan">+ Pan</button></div></form>`}</div>
+    ${mine ? `<button class="card tap share-row" id="dk-share">${shared.length ? `<span class="avs">${shared.map((p) => avatar(p)).join('')}</span>` : `<span class="ri">${svg('people')}</span>`}
+      <span class="grow"><b>${shared.length ? `Shared with ${esc(shared.map((p) => p.name.split(' ')[0]).join(', '))}` : 'Share with a friend'}</b>
+      <small class="muted">${shared.length ? 'Tap to change' : 'They log their own plate from it'}</small></span>${svg('chev')}</button>` : ''}`;
   wireBack(el, '/food' + location.search);
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set) : sharedMenu(d));
   [$('#dk-known', el), $('#dk-known2', el)].forEach((b) => { if (b) b.onclick = () => knownSheet(d, set); });
@@ -81,7 +77,7 @@ function drawDish(el, d) {
   const rb = $('#dk-review', el);
   if (rb) rb.onclick = async () => {
     if (!App.me.ai_ok) { aiSheet(() => rb.click()); return; }
-    rb.disabled = true; const was = rb.innerHTML; rb.textContent = 'Reading the recipe…';
+    rb.disabled = true; const was = rb.innerHTML; rb.textContent = 'Reading…';
     try { const r = await api(`/api/dishes/${d.id}/review`, json('POST', {})); set({...d, review: {...r, changed_since: false}}); }
     catch (x) { toast(x.message); rb.disabled = false; rb.innerHTML = was; }
   };
@@ -110,7 +106,7 @@ function drawDish(el, d) {
     };
   } else if (mine) {
     const f = $('#dk-weigh', el);
-    const pans = (list) => { f.pan.innerHTML = '<option value="">Nothing (just the food)</option>' + list.map((p) => `<option value="${p.id}">${esc(p.name)} (${gfmt(p.grams)})</option>`).join(''); };
+    const pans = (list) => { f.pan.innerHTML = '<option value="">No pan</option>' + list.map((p) => `<option value="${p.id}">${esc(p.name)} (${gfmt(p.grams)})</option>`).join(''); };
     load('/api/dishes/pans', pans).catch(() => {});
     $('#dk-pan', el).onclick = () => panSheet((list) => pans(list));
     f.onsubmit = async (e) => {
@@ -136,8 +132,8 @@ function cookSteps(d) {
 // AI feedback on the recipe (food_coach.py): kept on the dish, so friends it's shared with see it too
 function recipeReview(d, mine) {
   const R = d.review;
-  if (!R) return `<h2>Coach's take</h2><p>Feedback on this recipe from your coach: calories and protein per portion, and a few tweaks to make it work harder for your training.</p>
-    <button class="primary wide" id="dk-review">${svg('sparkle')}Get feedback on this recipe</button>`;
+  if (!R) return `<div class="cc-ask"><span class="grow"><b>Coach's take</b><small class="muted">Calories per portion and easy tweaks</small></span>
+    <button class="ghost sm tint" id="dk-review">${svg('sparkle')}Ask</button></div>`;
   return `<h2>Coach's take<span class="muted small">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</span></h2>
     ${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
     ${R.ideas ? `<h3 class="ghead">Ideas</h3><ul class="ai-list">${R.ideas.map((i) => `<li>${svg('sparkle')}<span><b>${esc(i.change)}</b>${i.effect ? ` <span class="muted">${esc(i.effect)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}

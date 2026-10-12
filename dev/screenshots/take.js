@@ -17,7 +17,7 @@ const SHOTS = [
   ['heatmap', '/progress/heatmap'],
   ['food', '/food'],
   ['cook', 'DISH'],
-  ['serve', 'DISH', {to: 'Weigh and serve', portion: '380'}],
+  ['serve', 'DISH', {to: 'Serve', portion: '380'}],
   ['friends', '/me/friends'],
   ['dietcoach', '/food?view=trends'],
   ['recipecoach', 'DISH', {to: "Coach's take"}],
