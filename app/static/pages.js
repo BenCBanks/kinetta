@@ -201,9 +201,9 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 // Mine is only yours, with filters and search. The Feed itself is in social.js.
 const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'mine'}">Feed</button><button data-whose="mine" aria-pressed="${cur === 'mine'}">Mine</button></div>`;
 const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () => go('/activity' + (b.dataset.whose ? '?view=' + b.dataset.whose : ''), {replace: true}));
-// the bell (2026-10-12: on Today, Activity and Nutrition, not only behind the Me tab), with the unread count
+// the bell (2026-10-12: on Today, Activity, Progress and Nutrition), with the unread count; it opens the list only
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
-  return `<a class="icon-btn bell" href="/me/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
+  return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
 const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
     ${friends ? `<a class="icon-btn" href="/me/friends" aria-label="Find friends">${svg('search')}</a>` : ''}
     ${bellBtn()}<button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>`;
@@ -673,28 +673,47 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   });
 });
 
-// ---------- Progress (2026-10-11): three views, one sport choice, the deeper views in a list ----------
-// Ben: "way too many pills". The tab now has one segmented control (Totals | Fitness | Records) and one sport button
-// in the header that every view follows (remembered on this phone). Year over year, Calendar, Routes, Heatmap and the
-// training plan open from the "More" list as their own pages.
-const PVIEWS = [['totals', 'Totals'], ['fitness', 'Fitness'], ['records', 'Records']];
+// ---------- Progress (2026-10-12 redesign): one row of small buttons ----------
+// Ben: "too many random tabs at the top". Earlier (2026-10-11) the tab had a Totals | Fitness | Records control, a
+// sport button, a Weeks | Months | Years row and a "More" list at the bottom. Now every view (the three main ones and
+// the deeper ones) is in one View menu, and the filters that view uses sit beside it in a single row: View, Sport,
+// then the period (Totals) or the years (Fitness, Year over year). The sport is remembered on this phone.
 const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
+const PVIEWS = [['totals', 'Totals', 'Distance by week, month and year', 'progress', 'c-red'],
+  ['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
   ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-berry'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
+const PPERIODS = [['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']];
 function pSport(q) {
   let s = q.get('sport'); if (!s) try { s = localStorage.getItem('fit.psport'); } catch (e) { /* no storage */ }
   return PSPORTS.some((p) => p[0] === s) ? s : 'run';
 }
-const sportBtn = (cur) => { const k = cur || 'all', n = PSPORTS.find((p) => p[0] === k)[1];   // the sport this view shows
-  return `<button type="button" class="range-btn sport-btn" id="p-sport" aria-label="Sport: ${esc(n)}. Change">${svg(k === 'all' ? 'activity' : k)}<span>${esc(n)}</span>${svg('down')}</button>`; };
+const pillBtn = (id, ico, name, label) => `<button type="button" class="range-btn" id="${id}" aria-label="${esc(label)}: ${esc(name)}. Change">${ico ? svg(ico) : ''}<span>${esc(name)}</span>${svg('down')}</button>`;
+const sportBtn = (cur) => { const k = cur || 'all'; return pillBtn('p-sport', k === 'all' ? 'activity' : k, PSPORTS.find((p) => p[0] === k)[1], 'Sport'); };
+// a sheet listing choices, the current one ticked; pick(key) is called with the chosen one
+const pickRows = (rows, cur) => `<div class="pick-list">${rows.map(([k, n, d, ic, c]) => `<button type="button" class="row-link" data-pk="${k}">${ic ? `<span class="ri ${c}">${svg(ic)}</span>` : ''}
+  <span class="grow"><span>${esc(n)}</span>${d ? `<small class="muted">${esc(d)}</small>` : ''}</span>${k === cur ? `<span class="tick">${svg('check')}</span>` : ''}</button>`).join('')}</div>`;
+function pickSheet(title, html, pick) {
+  sheet(title, html, (sb, close) => $$('[data-pk]', sb).forEach((x) => x.onclick = () => { close(); pick(x.dataset.pk); }));
+}
 function wireSport(el, cur) {
   const b = $('#p-sport', el); if (!b) return;
-  b.onclick = () => sheet('Sport', `<div class="pick-list">${PSPORTS.map(([k, n]) => `<button type="button" class="row-link" data-ps="${k}"><span class="ri c-grey">${svg(k === 'all' ? 'activity' : k)}</span><span class="grow">${esc(n)}</span>${k === cur ? `<span class="tick">${svg('check')}</span>` : ''}</button>`).join('')}</div>`, (sb, close) => {
-    $$('[data-ps]', sb).forEach((x) => x.onclick = () => {
-      try { localStorage.setItem('fit.psport', x.dataset.ps); } catch (e) { /* no storage */ }
-      const u = new URLSearchParams(location.search); u.set('sport', x.dataset.ps); close(); go(location.pathname + '?' + u.toString(), {replace: true});
-    });
+  b.onclick = () => pickSheet('Sport', pickRows(PSPORTS.map(([k, n]) => [k, n, '', k === 'all' ? 'activity' : k, 'c-grey']), cur), (k) => {
+    try { localStorage.setItem('fit.psport', k); } catch (e) { /* no storage */ }
+    const u = new URLSearchParams(location.search); u.set('sport', k); go(location.pathname + '?' + u.toString(), {replace: true});
+  });
+}
+// the header every Progress view shares: title + bell, then View and the filters this view uses
+function pHead(el, view, filters) {
+  const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
+  el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
+    <div class="pbar">${pillBtn('p-view', v[3], view === 'trends' ? 'Yearly' : v[1], 'View')}${filters}</div><div id="p-body">${skel(2)}</div>`;
+  $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
+    if (k === 'plan') return go('/plan');
+    const keep = new URLSearchParams(); const s = new URLSearchParams(location.search).get('sport'); if (s) keep.set('sport', s);
+    if (PVIEWS.some((m) => m[0] === k)) { if (k !== 'totals') keep.set('view', k); go('/progress' + (keep.toString() ? '?' + keep : ''), {replace: true}); }
+    else go(`/progress/${k}${keep.toString() ? '?' + keep : ''}`, {replace: true});
   });
 }
 // each view takes the sports it can show: the shared choice, mapped to the nearest one it has
@@ -704,33 +723,31 @@ route(/^\/progress$/, 'progress', async (el) => {
   if (v0 === 'plan') return go('/plan', {replace: true});
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
   const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
-  el.innerHTML = `<div class="top"><h1>Progress</h1>${view === 'fitness' ? '' : `<div class="acts">${sportBtn(forView(sport, view))}</div>`}</div>
-    <div class="seg wide three" role="group" aria-label="View">${PVIEWS.map(([k, n]) => `<button data-v="${k}" aria-pressed="${k === view}">${n}</button>`).join('')}</div>
-    <div id="p-body">${skel(2)}</div>
-    <h2 class="sec-head">More</h2><div class="card list">${PMORE.map(([k, n, d, ic, c]) => `<a class="row-link" href="${k === 'plan' ? '/plan' : '/progress/' + k}"><span class="ri ${c}">${svg(ic)}</span>
-      <span class="grow"><span>${esc(n)}</span><small class="muted">${esc(d)}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`;
-  $$('[data-v]', el).forEach((b) => b.onclick = () => { const u = new URLSearchParams(location.search); u.set('view', b.dataset.v); go('/progress?' + u.toString(), {replace: true}); });
+  const period = PPERIODS.some((p) => p[0] === q.get('period')) ? q.get('period') : 'week';
+  pHead(el, view, view === 'fitness' ? '<span class="rng" id="p-rng"></span>'
+    : sportBtn(forView(sport, view)) + (view === 'totals' ? pillBtn('p-period', '', PPERIODS.find((p) => p[0] === period)[1], 'Show by') : ''));
   wireSport(el, sport);
-  q.set('sport', forView(sport, view));
+  const pb = $('#p-period', el);
+  if (pb) pb.onclick = () => pickSheet('Show by', pickRows(PPERIODS, period), (k) => { const u = new URLSearchParams(location.search); u.set('period', k); go('/progress?' + u.toString(), {replace: true}); });
+  q.set('sport', forView(sport, view)); q.set('period', period);
   await ({totals: pMileage, fitness: pFitness, records: pRecords}[view])($('#p-body', el), q);
 });
 route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, view) => {
   const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
-  const name = PMORE.find((m) => m[0] === view)[1];
-  el.innerHTML = `<div class="top">${backBtn('Progress')}${withSport ? `<div class="acts">${sportBtn(forView(sport, view))}</div>` : ''}</div><h1>${esc(name)}</h1><div id="p-body">${skel(2)}</div>`;
-  wireBack(el, '/progress'); wireSport(el, sport);
+  pHead(el, view, (withSport ? sportBtn(forView(sport, view)) : '') + (view === 'trends' ? '<span class="rng" id="p-rng"></span>' : ''));
+  wireSport(el, sport);
   q.set('sport', forView(sport, view));
   await ({trends: pTrends, calendar: pCalendar, routes: pRoutes, heatmap: pHeatmap}[view])($('#p-body', el), q);
 });
 async function pFitness(body, q) {
   const R = getRange(q), nowY = new Date().getFullYear();
   const days = R.from ? Math.min(3650, Math.ceil((Date.now() - new Date(R.from, 0, 1)) / 864e5) + 1) : 3650;
-  // predictions first, then the date range (2026-10-12): the range changes the charts below it, not the predictions
-  body.innerHTML = `<div id="fi-pred">${skel(1)}</div><div class="rng"></div><div id="fi-body">${skel(1)}</div>`;
+  // the years button (in the row at the top since the 2026-10-12 redesign) changes the charts, not the predictions
+  body.innerHTML = `<div id="fi-pred">${skel(1)}</div><div id="fi-body">${skel(1)}</div>`;
   await load(`/api/fitness?days=${days}`, (f0) => {
     const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
     const f = {...f0, days: f0.days.filter((d) => inRange(R, +d.d.slice(0, 4)))};
-    rangeBar($('.rng', body), R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
+    rangeBar($('#p-rng'), R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
     const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0}, b = f.basis;
     pbox.innerHTML = f.predictions.length ? `<div class="card"><h2>Race predictions</h2><div class="pred">${f.predictions.map((p) => `<div><small class="muted">${esc(p.label)}</small><b class="num">${dur(p.seconds)}</b><small class="muted num">${U.pace(p.seconds / p.distance_m * 1000)}${U.pu()}</small></div>`).join('')}</div>
         <p class="small muted">From your best efforts of the last 90 days (fastest: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a>, ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}). Half and full marathon times allow for your weekly mileage: they get faster as it grows.</p></div>`
@@ -823,11 +840,8 @@ function monthSeries(firstYm, get) {   // every month from firstYm to this month
 }
 async function pMileage(body, q) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
-  const nav = (o) => { const u = new URLSearchParams(location.search); u.set('view', 'totals'); u.set('period', o.period || period); go('/progress?' + u.toString(), {replace: true}); };
   const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
-  body.innerHTML = `<div class="seg wide three period" role="group" aria-label="Period">${[['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']].map(([k, n]) => `<button data-p="${k}" aria-pressed="${k === period}">${n}</button>`).join('')}</div>
-    <div id="m-body">${skel(2)}</div>`;
-  $$('[data-p]', body).forEach((b) => b.onclick = () => nav({period: b.dataset.p}));
+  body.innerHTML = `<div id="m-body">${skel(2)}</div>`;   // Weeks / Months / Years: the button in the row at the top
   await load(`/api/progress/volume?period=${period}`, (r) => {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
@@ -871,7 +885,7 @@ async function pMileage(body, q) {
 async function pTrends(body, q) {
   const sport = q.get('sport') || 'run', foot = sport !== 'ride';
   const R = getRange(q);
-  body.innerHTML = `<div class="rng"></div><div id="g-body">${skel(3)}</div>`;
+  body.innerHTML = `<div id="g-body">${skel(3)}</div>`;
   await load(`/api/progress/trends?sport=${sport}`, (r) => {
     const box = $('#g-body', body); if (!box) return;
     const noun = {run: 'runs', ride: 'rides', walk: 'walks'}[sport], one = noun.slice(0, -1);
@@ -889,7 +903,7 @@ async function pTrends(body, q) {
     const series = monthSeries(r.months[0].m, (ym) => { const [y, m] = ym.split('-').map(Number), row = M[ym]; return {ym, ...derive(row ? [row] : [], weeksIn(y, m))}; });
     // by year
     const years = {}; for (const p of series) { const y = p.d.getFullYear(); (years[y] = years[y] || []).push(p); }
-    rangeBar($('.rng', body), R, +r.months[0].m.slice(0, 4));
+    rangeBar($('#p-rng'), R, +r.months[0].m.slice(0, 4));
     const yrows = Object.keys(years).filter((y) => inRange(R, +y)).sort().reverse().map((y) => ({y, ...derive(years[y].map((p) => M[p.ym]).filter(Boolean), years[y].reduce((a, p) => a + p.weeks, 0))}));
     const pace = (v) => (v ? U.pace(v) : '–'), spd = (v) => (v ? U.speed(v) : '–');
     const cy = yrows[0], ly = yrows[1];
@@ -994,7 +1008,7 @@ route(/^\/me$/, 'me', async (el) => {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div class="profile">${avatar(me, 'lg')}<div><h1>${esc(me.name)}</h1><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
-    <div class="card list">${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
+    <div class="card list">${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/friends"', 'people', 'c-berry', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}</div>
     <div class="card list">${row('a', 'href="/me/import"', 'upload', 'c-blue', 'Upload activities')}
@@ -1009,6 +1023,7 @@ route(/^\/me$/, 'me', async (el) => {
     <h2 class="sec-head">Settings</h2>
     <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
+      ${row('a', 'href="/me/notifications"', 'bell', 'c-grey', 'Notification settings')}
       ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
     <h2 class="sec-head">Account</h2>
     <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}

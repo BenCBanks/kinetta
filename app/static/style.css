@@ -110,13 +110,12 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .sheet .seg.wide button { min-width: 0; min-height: 36px; padding: 6px 4px; font-size: 13px; }
 .seg.wide.actlvl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; margin-bottom: 8px; }
 .actlvl button { white-space: normal; font-size: 12px; min-height: 42px; padding: 4px 6px; }
-/* Progress: three views, then the period inside Totals */
-.seg.wide.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; margin-bottom: 14px; }
-.seg.wide.three button { min-width: 0; }
-.sport-btn svg:first-child { color: var(--accent); }
-.seg.wide.three.period { display: inline-grid; width: auto; background: none; padding: 0; gap: 6px; margin: 0 0 12px; }
-.seg.three.period button { min-height: 30px; padding: 4px 14px; border-radius: 999px; font-size: 13px; background: var(--card); box-shadow: var(--shadow); }
-.seg.three.period button[aria-pressed="true"] { background: var(--accent2); color: var(--accent); box-shadow: none; }
+/* Progress (2026-10-12): one row of small buttons - View, then the filters that view uses */
+.pbar { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 16px 10px; margin: 0 -16px 4px; }
+.pbar::-webkit-scrollbar { display: none; }
+.pbar .rng { margin: 0; flex: none; } .pbar .range-btn { flex: none; padding: 6px 10px; gap: 5px; }
+.pbar .rng .range-btn > svg:first-child { display: none; }   /* the years button: no calendar icon here, so the row fits */
+.pbar .range-btn:first-child svg:first-child, .pbar #p-sport svg:first-child { color: var(--accent); }
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 16px 12px; margin: 0 -16px; }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex: none; min-height: 34px; padding: 6px 14px; border-radius: 999px; border: 0; background: var(--card); box-shadow: var(--shadow);
