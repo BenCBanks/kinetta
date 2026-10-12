@@ -44,6 +44,11 @@ def _update(job, **kw):
                          WHERE id = %s""", (json.dumps([msg]), job))
 
 
+def cancel(job, why):
+    """An upload that never finished arriving: the job ends as failed, with the reason."""
+    _update(job, status='failed', message=f'upload stopped: {why}', finished=dt.datetime.now(dt.timezone.utc))
+
+
 def submit(job, user_id, paths):
     """paths: files already saved on disk (uploads); deleted after import unless they live in the inbox."""
     _pool.submit(_run, job, user_id, paths)
@@ -82,6 +87,9 @@ def _run(job, user_id, paths):
         finally:
             for p in paths:
                 if '/uploads/' in p and os.path.isfile(p): os.remove(p)
+            for d in {os.path.dirname(p) for p in paths if '/uploads/' in p}:
+                try: os.rmdir(d)      # the job's upload folder, now empty
+                except OSError: pass
 
 
 def _dir_items(d):
@@ -96,16 +104,28 @@ def _dir_items(d):
     return out
 
 
+ZIP_TOTAL = 64 * 1024 ** 3        # everything in one export, unpacked (the biggest real Strava exports are a few GB)
+
+
+def _zip_read(z, name, cap=parsers.MAX_FILE):
+    """One file out of the zip, never more than cap bytes in memory (the sizes in a zip's header can lie)."""
+    with z.open(name) as f:
+        data = f.read(cap + 1)
+    if len(data) > cap: raise parsers.ParseError(f'{name} unpacks to more than {cap // 1024 ** 2} MB - not a workout file')
+    return data
+
+
 def _zip_items(path, user_id):
     z = zipfile.ZipFile(path)
+    if sum(i.file_size for i in z.infolist()) > ZIP_TOTAL: raise ValueError('That zip unpacks to more than 64 GB - not an export')
     names = z.namelist()
     csvname = next((n for n in names if n.rsplit('/', 1)[-1] == 'activities.csv'), None)
     if csvname:
         prefix = csvname[: -len('activities.csv')]
-        gear_csv = {k: z.read(prefix + k) for k in ('shoes.csv', 'bikes.csv') if prefix + k in names}
+        gear_csv = {k: _zip_read(z, prefix + k) for k in ('shoes.csv', 'bikes.csv') if prefix + k in names}
         _import_gear(user_id, gear_csv)
-        return _strava_items(lambda n: z.read(prefix + n), lambda: z.read(csvname), names, prefix)
-    return [(n, (lambda n=n: z.read(n)), {}) for n in names if n.lower().endswith(EXTS) and not n.startswith('__MACOSX')]
+        return _strava_items(lambda n: _zip_read(z, prefix + n), lambda: _zip_read(z, csvname), names, prefix)
+    return [(n, (lambda n=n: _zip_read(z, n)), {}) for n in names if n.lower().endswith(EXTS) and not n.startswith('__MACOSX')]
 
 
 def _num(v):

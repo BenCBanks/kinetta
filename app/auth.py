@@ -1,5 +1,5 @@
 """Passwords (argon2), login sessions (random token in an HttpOnly cookie, only its hash stored)."""
-import hashlib, secrets, time
+import hashlib, os, secrets, time
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from fastapi import Request, HTTPException
@@ -19,17 +19,29 @@ def check_pw(stored, pw):
     try: return ph.verify(stored or _DUMMY, pw) and bool(stored)
     except (VerifyMismatchError, InvalidHashError): return False
 
-def _h(token): return hashlib.sha256(token.encode()).hexdigest()
+def token_hash(token):
+    """How login, invite and connection tokens are stored: only this hash, never the token itself."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+_h = token_hash
 
 # Brute-force brakes (15 minutes): 8 wrong passwords for one account from one place, 30 from one place in total,
 # 50 for one account from everywhere (stops guessing from many addresses; phones already logged in are not affected).
 WINDOW, PER_PAIR, PER_IP, PER_LOGIN = 900, 8, 30, 50
 
 
+# 2026-10-12 review: CF-Connecting-IP is trusted only when the server says it sits behind Cloudflare
+# (KINETTA_TRUST_CLOUDFLARE=1). Without Cloudflare in front, anyone could send that header and look like a new visitor
+# on every guess.
+TRUST_CF = os.environ.get('KINETTA_TRUST_CLOUDFLARE', '').strip().lower() in ('1', 'true', 'yes')
+
+
 def client_ip(request):
-    """The visitor's real address. Through a Cloudflare Tunnel, Cloudflare puts it in CF-Connecting-IP (visitors can't
-    fake that one, unlike X-Forwarded-For); otherwise the address uvicorn got from the local proxy."""
-    return (request.headers.get('cf-connecting-ip') or (request.client.host if request.client else '')).strip()[:64]
+    """The visitor's real address: Cloudflare's CF-Connecting-IP behind a Cloudflare Tunnel (visitors can't fake that
+    one there), otherwise the address uvicorn got (a proxy's X-Forwarded-For counts only from FORWARDED_ALLOW_IPS)."""
+    cf = request.headers.get('cf-connecting-ip') if TRUST_CF else None
+    return (cf or (request.client.host if request.client else '')).strip()[:64]
 
 
 def _recent(key, now):

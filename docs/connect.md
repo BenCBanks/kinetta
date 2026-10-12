@@ -40,7 +40,10 @@ your router. You need a domain that uses Cloudflare (a free account is enough).
 2. Put it in your `.env` file (copy `.env.example` to `.env` first):
    ```
    CLOUDFLARE_TUNNEL_TOKEN=eyJ...
+   KINETTA_TRUST_CLOUDFLARE=1
    ```
+   The second line lets Kinetta read each visitor's real address from Cloudflare, so the limits on password guessing
+   work per visitor. Only set it when Cloudflare is in front: otherwise anyone could fake that address.
 3. Back in Cloudflare, add a **Public hostname**: your subdomain and domain, service type **HTTP**, URL **`app:8000`**.
 4. Start Kinetta with the tunnel:
    ```sh
@@ -63,6 +66,16 @@ kinetta.example.com {
     reverse_proxy localhost:8790
 }
 ```
+
+So that Kinetta sees each visitor's real address (for the limits on password guessing), let only Caddy reach it and
+believe the address Caddy passes on. In `.env`:
+
+```
+KINETTA_PORT=127.0.0.1:8790
+FORWARDED_ALLOW_IPS=*
+```
+
+(`*` is safe only because the first line keeps everyone but this computer away from port 8790.)
 
 ## D. Just trying it out (home Wi-Fi)
 

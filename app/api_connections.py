@@ -11,7 +11,6 @@ Garmin (and others) through intervals.icu: athlete id + API key (Settings > Deve
 """
 import base64
 import datetime as dt
-import hashlib
 import json
 import secrets
 import threading
@@ -20,13 +19,14 @@ import urllib.error
 import urllib.request
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from . import activities, coach, db, parsers
+from . import activities, auth, coach, db, parsers
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
-_h = lambda t: hashlib.sha256(t.encode()).hexdigest()
+_h = auth.token_hash
 
 
 @router.get('/connections')
@@ -120,10 +120,26 @@ async def ingest_apple(request: Request):
         con = c.execute("SELECT user_id FROM connections WHERE kind = 'apple' AND token_hash = %s", (_h(token),)).fetchone()
     if not con: raise HTTPException(401, 'Unknown token')
     uid = con['user_id']
-    try: body = json.loads(await request.body())
+    # 2026-10-12 review: capped in size and count, and the work runs in a worker thread, so one big upload can't stall
+    # everyone else's requests (this function is async: anything slow in it blocks the whole server)
+    raw, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > APPLE_MAX: raise HTTPException(413, 'Too much at once - send fewer days per upload')
+        raw.append(chunk)
+    try: body = json.loads(b''.join(raw))
     except ValueError: raise HTTPException(400, 'Body must be JSON')
     data = body.get('data') if isinstance(body, dict) else None
-    data = data or {}
+    data = data if isinstance(data, dict) else {}
+    if len(data.get('workouts') or []) > APPLE_WORKOUTS: raise HTTPException(413, f'Up to {APPLE_WORKOUTS} workouts per upload')
+    return await run_in_threadpool(_ingest_apple, uid, data)
+
+
+APPLE_MAX = 100 * 1024 ** 2         # one upload (routes with heart rate are about 1 MB a workout)
+APPLE_WORKOUTS = 500
+
+
+def _ingest_apple(uid, data):
     added, dup, failed, weights, new_ids = 0, 0, 0, 0, []
     for w in data.get('workouts') or []:
         try:
@@ -181,47 +197,68 @@ def intervals_connect(body: IntervalsIn, user=Depends(current_user)):
     return {'ok': True}
 
 
+SYNC_EVERY = 120        # seconds between Sync now taps that start a sync (2026-10-12 review: taps piled up work)
+_last_tap = {}
+
+
 @router.post('/connections/intervals/sync')
 def intervals_sync_now(user=Depends(current_user)):
+    now = time.time()
+    if now - _last_tap.get(user['id'], 0) < SYNC_EVERY or _user_lock(user['id']).locked():
+        return {'ok': True, 'already': True}      # one is running or just ran: nothing new to fetch yet
+    _last_tap[user['id']] = now
     threading.Thread(target=sync_intervals, args=(user['id'],), daemon=True).start()
     return {'ok': True}
 
 
-_sync_lock = threading.Lock()
+_locks, _locks_guard = {}, threading.Lock()
+
+
+def _user_lock(uid):
+    """One sync per person at a time; different people's syncs run side by side (it was one lock for everyone)."""
+    with _locks_guard: return _locks.setdefault(uid, threading.Lock())
 
 
 def sync_intervals(uid, days=14):
-    with _sync_lock:
+    lock = _user_lock(uid)
+    if not lock.acquire(blocking=False): return     # already syncing this person
+    try:
+        _sync_intervals(uid, days)
+    finally:
+        lock.release()
+
+
+def _sync_intervals(uid, days):
+    with db.connect() as c:
+        con = c.execute("SELECT settings FROM connections WHERE user_id = %s AND kind = 'intervals'", (uid,)).fetchone()
+    if not con: return
+    s = con['settings']
+    oldest = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+    added, dup, failed, new_ids = 0, 0, 0, []
+    try:
+        acts = _icu(f"/api/v1/athlete/{s['athlete_id']}/activities?oldest={oldest}&newest={dt.date.today().isoformat()}", s['api_key'])
+    except Exception as e:
         with db.connect() as c:
-            con = c.execute("SELECT settings FROM connections WHERE user_id = %s AND kind = 'intervals'", (uid,)).fetchone()
-        if not con: return
-        s = con['settings']
-        oldest = (dt.date.today() - dt.timedelta(days=days)).isoformat()
-        added, dup, failed, new_ids = 0, 0, 0, []
+            c.execute("UPDATE connections SET status = %s WHERE user_id = %s AND kind = 'intervals'", (f'sync failed: {e}', uid))
+        return
+    for a in acts or []:
         try:
-            acts = _icu(f"/api/v1/athlete/{s['athlete_id']}/activities?oldest={oldest}&newest={dt.date.today().isoformat()}", s['api_key'])
+            raw = None
+            for path in (f"/api/v1/activity/{a['id']}/file", f"/api/v1/activity/{a['id']}/fit-file"):   # original upload first
+                try: raw = _icu(path, s['api_key'], raw=True); break
+                except urllib.error.HTTPError: continue
+            if not raw: failed += 1; continue
+            name = 'activity.fit.gz' if raw[:2] == b'\x1f\x8b' else 'activity.fit'
+            parsed = parsers.read(name, raw)
+            res, aid = activities.store(uid, parsed, {'source_id': str(a['id'])}, raw=raw, ext='.fit' + ('.gz' if name.endswith('.gz') else ''), source='garmin')
+            if res == 'added': added += 1; new_ids.append(aid)
+            else: dup += 1
         except Exception as e:
-            with db.connect() as c:
-                c.execute("UPDATE connections SET status = %s WHERE user_id = %s AND kind = 'intervals'", (f'sync failed: {e}', uid))
-            return
-        for a in acts or []:
-            try:
-                raw = None
-                for path in (f"/api/v1/activity/{a['id']}/file", f"/api/v1/activity/{a['id']}/fit-file"):   # original upload first
-                    try: raw = _icu(path, s['api_key'], raw=True); break
-                    except urllib.error.HTTPError: continue
-                if not raw: failed += 1; continue
-                name = 'activity.fit.gz' if raw[:2] == b'\x1f\x8b' else 'activity.fit'
-                parsed = parsers.read(name, raw)
-                res, aid = activities.store(uid, parsed, {'source_id': str(a['id'])}, raw=raw, ext='.fit' + ('.gz' if name.endswith('.gz') else ''), source='garmin')
-                if res == 'added': added += 1; new_ids.append(aid)
-                else: dup += 1
-            except Exception as e:
-                failed += 1; print('intervals activity failed', a.get('id'), e, flush=True)
-        with db.connect() as c:
-            c.execute("UPDATE connections SET status = %s, last_sync = now(), last_count = %s WHERE user_id = %s AND kind = 'intervals'",
-                      (f'{added} new, {dup} already here' + (f', {failed} failed' if failed else ''), added, uid))
-        coach.after_import(uid, new_ids)
+            failed += 1; print('intervals activity failed', a.get('id'), e, flush=True)
+    with db.connect() as c:
+        c.execute("UPDATE connections SET status = %s, last_sync = now(), last_count = %s WHERE user_id = %s AND kind = 'intervals'",
+                  (f'{added} new, {dup} already here' + (f', {failed} failed' if failed else ''), added, uid))
+    coach.after_import(uid, new_ids)
 
 
 def scheduler():

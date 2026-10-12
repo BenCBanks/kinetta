@@ -5,6 +5,7 @@ import json
 import math
 import os
 import re
+import shutil
 import secrets
 from zoneinfo import ZoneInfo
 
@@ -54,18 +55,23 @@ async def upload(request: Request, files: list[UploadFile], user=Depends(current
     job = importer.new_job(user['id'], names[0] if len(names) == 1 else f'{names[0]} and {len(names) - 1} more file{"s" if len(names) > 2 else ""}')
     d = os.path.join(DATA, 'uploads', str(user['id']), str(job)); os.makedirs(d, exist_ok=True)
     paths, total = [], 0
-    for f in files:
-        name = re.sub(r'[^A-Za-z0-9._-]', '_', os.path.basename(f.filename or 'file'))[:120] or 'file'
-        p = os.path.join(d, name)
-        with open(p, 'wb') as out:
-            while chunk := await f.read(1024 * 1024):
-                total += len(chunk)
-                if total > UPLOAD_MAX: raise HTTPException(413, 'Upload too large - use the server inbox for huge exports')
-                out.write(chunk)
-        if not name.lower().endswith(importer.EXTS + ('.zip',)):
-            os.remove(p); continue
-        paths.append(p)
-    if not paths: raise HTTPException(400, 'No FIT, GPX, TCX or ZIP files in the upload')
+    try:
+        for f in files:
+            name = re.sub(r'[^A-Za-z0-9._-]', '_', os.path.basename(f.filename or 'file'))[:120] or 'file'
+            p = os.path.join(d, name)
+            with open(p, 'wb') as out:
+                while chunk := await f.read(1024 * 1024):
+                    total += len(chunk)
+                    if total > UPLOAD_MAX: raise HTTPException(413, 'Upload too large - use the server inbox for huge exports')
+                    out.write(chunk)
+            if not name.lower().endswith(importer.EXTS + ('.zip',)):
+                os.remove(p); continue
+            paths.append(p)
+        if not paths: raise HTTPException(400, 'No FIT, GPX, TCX or ZIP files in the upload')
+    except BaseException as e:      # too big, cut off, or nothing to import: no half-saved files left behind (2026-10-12)
+        shutil.rmtree(d, ignore_errors=True)
+        importer.cancel(job, e.detail if isinstance(e, HTTPException) else 'upload interrupted')
+        raise
     importer.submit(job, user['id'], paths)
     return {'job': job}
 
@@ -543,6 +549,8 @@ def _gear_save(c, uid, body, gid=None):
     if body.is_default:
         c.execute('UPDATE gear SET is_default = false WHERE user_id = %s AND kind = %s', (uid, body.kind))
     vals = body.model_dump()
+    if c.execute('SELECT 1 FROM gear WHERE user_id = %s AND name = %s AND id IS DISTINCT FROM %s', (uid, body.name, gid)).fetchone():
+        raise HTTPException(409, 'You already have gear with that name')      # adding or renaming (2026-10-12: renaming gave a 500)
     if gid is None:
         return c.execute(f"INSERT INTO gear (user_id, {', '.join(vals)}) VALUES (%s, {', '.join(['%s'] * len(vals))}) RETURNING id",
                          (uid, *vals.values())).fetchone()['id']
@@ -555,8 +563,6 @@ def _gear_save(c, uid, body, gid=None):
 @router.post('/gear')
 def gear_add(body: GearIn, user=Depends(current_user)):
     with db.connect() as c:
-        if c.execute('SELECT 1 FROM gear WHERE user_id = %s AND name = %s', (user['id'], body.name)).fetchone():
-            raise HTTPException(409, 'You already have gear with that name')
         return {'id': _gear_save(c, user['id'], body)}
 
 
@@ -615,7 +621,7 @@ def goal_delete(gid: int, user=Depends(current_user)):
 
 @router.post('/activities/{aid}/coach')
 def coach_note(aid: int, user=Depends(current_user)):
-    try: return {'note': coach.note(user['id'], aid, on_demand=True)}
+    try: return {'note': coach.note(user['id'], aid)}
     except ValueError as e: raise HTTPException(400, str(e))
 
 

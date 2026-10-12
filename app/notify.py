@@ -10,6 +10,7 @@ person turns them on (browsers, and the app added to an iPhone's home screen on 
   is deleted.
 """
 import json
+from urllib.parse import urlsplit
 import os
 import threading
 
@@ -133,6 +134,20 @@ def push_key(user=Depends(current_user)):
     return {'key': k[1]}
 
 
+# Where a phone's notifications may be delivered (2026-10-12 review): only the real push services. Any other https
+# address would have the server send requests wherever a logged-in person pointed it, even inside the house network.
+PUSH_HOSTS = ('fcm.googleapis.com', 'android.googleapis.com', 'push.apple.com', 'updates.push.services.mozilla.com',
+              'push.services.mozilla.com', 'notify.windows.com')
+
+
+def push_host_ok(url):
+    try: u = urlsplit(url)
+    except ValueError: return False
+    host = (u.hostname or '').lower()
+    return (u.scheme == 'https' and u.port in (None, 443) and not u.username and not u.password
+            and any(host == h or host.endswith('.' + h) for h in PUSH_HOSTS))
+
+
 class SubIn(BaseModel):
     endpoint: str = Field(min_length=10, max_length=1000, pattern=r'^https://')
     keys: dict
@@ -140,6 +155,7 @@ class SubIn(BaseModel):
 
 @router.post('/push/subscribe')
 def subscribe(body: SubIn, user=Depends(current_user)):
+    if not push_host_ok(body.endpoint): raise HTTPException(400, "That isn't a phone notification service this server sends to")
     p256, auth = body.keys.get('p256dh'), body.keys.get('auth')
     if not (isinstance(p256, str) and isinstance(auth, str) and 20 <= len(p256) <= 200 and 8 <= len(auth) <= 100):
         raise HTTPException(400, 'Not a push subscription')
@@ -207,6 +223,7 @@ def push(nid, send=None):
     data = json.dumps({'title': 'Kinetta', 'body': text, 'url': link, 'badge': badge, 'tag': f"{r['kind']}-{nid}"})
     sent, gone = 0, []
     for s in subs:
+        if not send and not push_host_ok(s['endpoint']): gone.append(s['id']); continue    # saved before the check: dropped
         info = {'endpoint': s['endpoint'], 'keys': {'p256dh': s['p256dh'], 'auth': s['auth']}}
         try:
             if send: send(info, data)

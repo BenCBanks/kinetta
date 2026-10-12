@@ -6,7 +6,6 @@ username and password. Admins can also add someone with a first password, reset 
 Changing your own password needs the current one and signs out every other phone/browser of that person.
 """
 import datetime as dt
-import hashlib
 import os
 import re
 import secrets
@@ -214,7 +213,7 @@ def setup(body: NewAccountIn, request: Request, response: Response):
     return {'ok': True}
 
 
-def _hash(token): return hashlib.sha256(token.encode()).hexdigest()
+_hash = auth.token_hash
 
 
 class InviteIn(BaseModel):
