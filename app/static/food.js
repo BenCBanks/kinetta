@@ -269,7 +269,8 @@ const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name
   <div class="r"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><small class="muted">kcal</small></div></button>`;
 function tSearch(body, where, close) {
   body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search foods, brands…" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
-  const inp = $('input', body), out = $('#ts-r', body); inp.focus();
+  const inp = $('input', body), out = $('#ts-r', body);
+  if (!matchMedia('(pointer: coarse)').matches) inp.focus();   // phones: no keyboard until you tap the box, so the photo and barcode options stay in view
   let timer, seq = 0, all = [];
   const draw = (groups) => {
     all = []; let html = '';
