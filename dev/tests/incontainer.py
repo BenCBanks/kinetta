@@ -165,4 +165,20 @@ try:
 finally:
     urllib.request.urlopen, time.sleep = real_open, real_sleep
 
+# packaged amounts are looked up first (2026-10-12): misspelled package words count, everyday words don't
+ck(all(cook_chat.packaged(t) for t in ['one bx of pene', '2 packges of ramen', 'a botle of soy sauce', '1 can of tomatos', 'a jar of sauce']), 'package words, misspelled too')
+ck(not any(cook_chat.packaged(t) for t in ['chicken in a pan', '2 apples', 'a pinch of salt', '3 cups of pasta', 'a banana']), 'everyday words are not packages')
+ck(cook_chat.package_grams('14.5 ONZ') == 411.1 and cook_chat.package_grams('16 oz/454 g') == 454 and cook_chat.package_grams('1 LB') == 453.6, 'package weights')
+seen = []
+real_web, real_usda = cook_chat._web_product, cook_chat._usda_products
+cook_chat._web_product = lambda t: (seen.append(('web', t)), {'source': 'web: Test shop', 'brand': None, 'name': 'Test protein penne', 'package_g': 411,
+                                                              'per100': {'kcal': 339, 'protein_g': 18, 'carbs_g': 68, 'fat_g': 2, 'fiber_g': 9}})[1]
+cook_chat._usda_products = lambda q: (seen.append(('usda', q)), [])[1]
+try:
+    refs = cook_chat.product_refs('one bx of bettr goods protien pene pasta')
+    ck('Test protein penne | package 411 g' in refs and ('usda', 'bettr goods protien pene pasta') in seen, f'reference products for the model {seen}')
+    seen.clear(); ck(cook_chat.product_refs('2 apples') == '' and not seen, 'no lookup for loose food')
+finally:
+    cook_chat._web_product, cook_chat._usda_products = real_web, real_usda
+
 print(f'in the container (AI + push): {n} checks passed')
