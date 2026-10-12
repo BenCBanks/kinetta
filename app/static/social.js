@@ -354,21 +354,31 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   };
 });
 
-// ---------- Me > Notifications (2026-10-11, notify.py): the list, and phone notifications (Web Push) ----------
+// ---------- Notifications (2026-10-11, notify.py) ----------
+// 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
+// (/me/notifications). /notifications lights no tab (it opens from several).
 const PUSH_NAMES = {friends: 'Friend requests', cheers: CHEER.title, comments: 'Comments', dishes: 'Shared dishes'};
 const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', report: 'lock'};
-route(/^\/me\/notifications$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notifications</h1><div id="nt-push"></div><div id="nt-list">${skel(2)}</div>`;
-  wireBack(el, '/me');
+route(/^\/notifications$/, null, async (el) => {
+  el.innerHTML = `<div class="top">${backBtn()}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
+  wireBack(el, '/today');
   await load('/api/notifications', (r) => {
     const list = $('#nt-list', el); if (!list) return;
     list.innerHTML = r.items.length ? `<div class="card list notes">${r.items.map((n) => `<a class="note${n.read ? '' : ' unread'}" href="${esc(n.link)}">
         <span class="note-av">${avatar(n.who)}<span class="note-k">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
         <span class="grow"><span class="note-t">${esc(n.text)}</span><small class="muted">${esc(when(n.created))}</small></span></a>`).join('')}</div>`
       : `<div class="card empty"><b>Nothing yet</b>Friend requests, ${esc(CHEER.many)}, comments and shared dishes show up here.</div>`;
-    pushCard($('#nt-push', el), r);
     if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
     if (r.unread) api('/api/notifications/read', json('POST', {})).then(() => { App.me.notifications = 0; Social.badge(); invalidate('/api/notifications'); }).catch(() => {});
+  }, {maxAge: 0});
+});
+route(/^\/me\/notifications$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notification settings</h1><div id="nt-push">${skel(1)}</div>`;
+  wireBack(el, '/me');
+  await load('/api/notifications', (r) => {
+    const box = $('#nt-push', el); if (!box) return;
+    if (!r.push_ready) { box.innerHTML = '<div class="card"><h2>Phone notifications</h2><p class="small muted">This server isn\'t set up to send phone notifications. You still see everything under the bell.</p></div>'; return; }
+    pushCard(box, r);
   }, {maxAge: 0});
 });
 const pushable = () => !Native.on && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -378,9 +388,9 @@ async function pushCard(box, r) {
   const ios = /iPhone|iPad/.test(navigator.userAgent);
   if (!r.push_ready) { box.innerHTML = ''; return; }
   if (!pushable()) {
-    box.innerHTML = `<div class="card"><h2>Phone notifications</h2><p class="small muted">${Native.on ? 'Coming to the iPhone app with its App Store version. Until then, you see them here.'
+    box.innerHTML = `<div class="card"><h2>Phone notifications</h2><p class="small muted">${Native.on ? 'Coming to the iPhone app with its App Store version. Until then, you see them under the bell.'
       : ios ? 'On iPhone, add Kinetta to your Home Screen first (Share › Add to Home Screen), open it from there, then turn them on here.'
-      : "This browser can't show notifications. You still see them here."}</p></div>`;
+      : "This browser can't show notifications. You still see them under the bell."}</p></div>`;
     return;
   }
   const sub = await pushSub(), on = !!sub && Notification.permission === 'granted';
