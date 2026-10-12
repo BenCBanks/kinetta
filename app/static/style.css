@@ -208,6 +208,8 @@ button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0
 .c-purple { --c: var(--row); } .c-red { --c: var(--alert); } .c-grey { --c: var(--tx3); } .c-ink { --c: var(--tx); }
 .chev { flex: none; display: inline-flex; color: var(--tx3); } .chev svg { width: 18px; height: 18px; }
 .empty { padding: 26px 16px; text-align: center; color: var(--tx3); }
+.empty-cta { margin: 16px auto 0; max-width: 320px; } .empty .btncol + .btncol { margin: 10px auto 0; max-width: 320px; }
+.empty-cta a, .empty .btncol a { display: grid; place-items: center; min-height: 44px; text-decoration: none; }
 .empty b { display: block; color: var(--tx); font-size: 17px; margin-bottom: 6px; letter-spacing: -.01em; }
 .empty .primary { margin-top: 4px; }
 .soon { display: inline-block; margin-top: 10px; padding: 3px 10px; border-radius: 999px; background: var(--card2); color: var(--tx2); font-size: 13px; font-weight: 600; }
@@ -330,8 +332,10 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .fmap .mini { position: absolute; inset: 0; width: auto; height: auto; border-radius: 0; background: none; }
 .fmap .mini svg { width: 70%; height: 80%; }
 .fmap.ready .mini { display: none; }
-.fmap.leaflet-container .leaflet-control-attribution { font-size: 9px; padding: 0 4px; background: color-mix(in srgb, var(--card) 70%, transparent); color: var(--tx3); }
-.fmap .leaflet-control-attribution a { color: inherit; }
+/* the map credit, small on every map (2026-10-12): OpenStreetMap asks for it, it needn't shout */
+.leaflet-container .leaflet-control-attribution { font-size: 9px; line-height: 1.5; padding: 0 5px; border-radius: 6px 0 0 0;
+  background: color-mix(in srgb, var(--card) 70%, transparent); color: var(--tx3); }
+.leaflet-container .leaflet-control-attribution a { color: inherit; }
 .mini { width: 68px; height: 68px; border-radius: 10px; background: var(--card2); display: grid; place-items: center; }
 .mini svg { width: 60px; height: 60px; } .mini path { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke: var(--other); }
 .mini path.run { stroke: var(--run); } .mini path.ride { stroke: var(--ride); } .mini path.walk { stroke: var(--walk); } .mini path.hike { stroke: var(--hike); }
@@ -649,6 +653,17 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
   box-shadow: var(--shadow); color: var(--tx); text-align: left; transition: transform .1s; }
 .way svg { width: 26px; height: 26px; color: var(--accent); } .way b { font-size: 15px; } .way small { color: var(--tx3); font-size: 12px; }
 .way:active { transform: scale(.97); }
+.again-h { margin: 0 2px 8px; } .again-h .muted { font-weight: 600; text-transform: none; letter-spacing: 0; }
+.chips.again { padding-bottom: 14px; } .chips.again .chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.chips.again .chip svg { width: 14px; height: 14px; color: var(--accent); flex: none; } .chips.again .chip small { color: var(--tx3); }
+.ways.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.ways.three .way { align-items: center; justify-content: center; min-height: 0; padding: 12px 6px; gap: 6px; } .ways.three .way svg { width: 24px; height: 24px; }
+.where { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; font-size: 15px; }
+.pill-sel { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--card);
+  box-shadow: var(--shadow); font-weight: 650; color: var(--tx); }
+.pill-sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; min-height: 34px; padding: 0 18px 0 0; font-weight: 650; width: auto; box-shadow: none; }
+.pill-sel > svg { width: 14px; height: 14px; color: var(--tx3); transform: rotate(90deg); position: absolute; right: 12px; pointer-events: none; }
+.pill-sel.daypick > svg { position: static; transform: none; color: var(--accent); }
 .ways-or { font-size: 12px; color: var(--tx3); font-weight: 700; margin: 14px 0 8px; text-transform: uppercase; letter-spacing: .06em; }
 .ntiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
 .ntile { background: var(--card); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; box-shadow: var(--shadow); }
@@ -745,7 +760,8 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 
 /* ---------- notifications (2026-10-11) ---------- */
 .icon-btn.bell { position: relative; }
-.bell-dot { position: absolute; top: 9px; right: 10px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--card); }
+.bell-dot { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff;
+  font: 700 11px/18px var(--numf); text-align: center; box-shadow: 0 0 0 2px var(--bg); }
 .notes { padding: 4px 8px; }
 .note { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 14px; color: inherit; position: relative; }
 .note + .note::before { content: ''; position: absolute; top: 0; left: 64px; right: 8px; border-top: 1px solid var(--line); }

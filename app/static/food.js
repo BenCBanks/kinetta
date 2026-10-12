@@ -52,7 +52,7 @@ function scaleFood(f, amount, unit) {
 const bdOpen = () => { try { return localStorage.getItem('fit.bd') === '1'; } catch (e) { return false; } };
 route(/^\/food$/, 'food', async (el) => {
   const q = new URLSearchParams(location.search), day = q.get('d') || isoDay(new Date()), view = q.get('view') === 'trends' ? 'trends' : 'log';
-  const head = `<div class="top"><h1>Nutrition</h1></div><div class="seg nview" role="group" aria-label="Nutrition view"><button data-nv="log" aria-pressed="${view === 'log'}">${svg('food')} Log</button><button data-nv="trends" aria-pressed="${view === 'trends'}">${svg('progress')} Progress</button></div>`;
+  const head = `<div class="top"><h1>Nutrition</h1><div class="acts">${bellBtn()}</div></div><div class="seg nview" role="group" aria-label="Nutrition view"><button data-nv="log" aria-pressed="${view === 'log'}">${svg('food')} Log</button><button data-nv="trends" aria-pressed="${view === 'trends'}">${svg('progress')} Progress</button></div>`;
   const wireView = () => $$('[data-nv]', el).forEach((b) => b.onclick = () => go(b.dataset.nv === 'trends' ? '/food?view=trends' : `/food${q.get('d') ? '?d=' + q.get('d') : ''}`, {replace: true}));
   if (view === 'trends') { el.innerHTML = head + '<div id="nt"></div>'; wireView(); await nutritionTrends($('#nt', el), q); return; }
   el.innerHTML = `${head}
@@ -61,7 +61,7 @@ route(/^\/food$/, 'food', async (el) => {
       <button class="icon-btn" id="fd-next" aria-label="Next day">${svg('chev')}</button></div>
     ${dayLabel(day) === 'Today' ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}
     <div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
+    <div id="fd-again"></div><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
   wireView();
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
@@ -71,9 +71,44 @@ route(/^\/food$/, 'food', async (el) => {
   dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
   dp.onchange = () => { if (dp.value) go(dp.value === isoDay(new Date()) ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
   $('#fq-add', el).onclick = () => addSheet(day, guessMeal());
+  logAgain($('#fd-again', el), day);
   await load(`/api/food/day?d=${day}`, (D) => drawDay(el, D), {maxAge: 5000});
 });
 
+// Log again (2026-10-12, Ben): your usual foods as one-tap chips under Add food, the ones you have at this time of day
+// first. A tap logs your usual amount to the meal for now; the toast offers Undo.
+function logAgain(box, day) {
+  load('/api/food/usual', (rows) => {
+    if (!box.isConnected) return;
+    const meal = guessMeal(), list = [...rows].sort((a, b) => (b.meal === meal) - (a.meal === meal)).slice(0, 8);
+    if (!list.length) { firstFood(box, day); return; }
+    box.innerHTML = `<h3 class="ghead again-h">Log again <span class="muted">· to ${esc(MEAL_NAMES[meal].toLowerCase())}</span></h3>
+      <div class="chips again">${list.map((r, i) => `<button class="chip" data-ag="${i}" aria-label="Log ${esc(r.name)} (${esc(fmtAmount(r))}) to ${esc(MEAL_NAMES[meal])}">${svg('plus')}${esc(r.name)} <small class="num">${r0(r.kcal)}</small></button>`).join('')}</div>`;
+    $$('[data-ag]', box).forEach((b) => b.onclick = async () => {
+      const r = list[+b.dataset.ag]; b.disabled = true;
+      try {
+        const res = await addEntries([{day, meal, name: r.name, brand: r.brand, amount: r.amount, unit: r.unit, kcal: r.kcal, protein_g: r.protein_g, carbs_g: r.carbs_g,
+          fat_g: r.fat_g, fiber_g: r.fiber_g, source: r.source === 'dish' ? 'dish' : 'recent', ref: r.ref || null}]);
+        toast(`Added ${r.name} to ${MEAL_NAMES[meal].toLowerCase()}`, res.ids ? () => api(`/api/food/entries/${res.ids[0]}`, {method: 'DELETE', body: '{}'}).then(refresh).catch((x) => toast(x.message)) : null);
+      } catch (x) { toast(x.message); b.disabled = false; }
+    });
+  }, {maxAge: 60000}).catch(() => {});
+}
+// someone who has never logged food (2026-10-12): three steps instead of a page of zeros
+function firstFood(box, day) {
+  box.innerHTML = '';
+  api('/api/food/recent').then((rows) => {
+    if (rows.length || !box.isConnected) return;
+    const step = (id, ico, c, label, sub) => `<button class="row-link" id="${id}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></button>`;
+    box.innerHTML = `<h2 class="sec-head">Start your food log</h2><div class="card list first-food">
+      ${step('ff-goal', 'target', 'c-berry', 'Set your daily targets', 'Calories and protein to aim for. Workouts add to them.')}
+      ${step('ff-log', 'search', 'c-green', 'Log something you ate', 'Search, scan a barcode or snap a photo.')}
+      ${step('ff-dish', 'pot', 'c-orange', 'Save a dish you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
+    $('#ff-goal', box).onclick = () => targetsSheet();
+    $('#ff-log', box).onclick = () => addSheet(day, guessMeal());
+    $('#ff-dish', box).onclick = () => dishSheet();
+  }).catch(() => {});
+}
 function ring(v, target, label) {
   const pct = target ? Math.min(1.25, v / target) : 0, R = 34, C = 2 * Math.PI * R;
   const over = target && v > target * 1.05;
@@ -232,14 +267,16 @@ const macroInputs = (e = {}) => `<div class="mac4">
 
 // ---------- add: search / recent / my foods / meals / quick ----------
 function addSheet(day, meal) {
-  sheet('Add food', `<div class="ways"><button class="way" id="as-photo">${svg('camera')}<b>Take a photo</b><small>AI estimates the calories</small></button>
-      <button class="way" id="as-scan">${svg('barcode')}<b>Scan a barcode</b><small>packaged food</small></button>
-      <button class="way wide" id="as-dish">${svg('pot')}<b>Create or edit a dish</b><small>a smoothie, a pot of chili, a family recipe</small></button></div>
-    <h3 class="ways-or">Or search and enter manually</h3>
-    <div class="seg wide" role="tablist">${[['search', 'Search'], ['recent', 'Recent'], ['saved', 'Saved Dishes'], ['quick', 'Quick']]
+  // 2026-10-12 (Ben: too crowded): where it goes on one line, the three ways as small tiles, and Recent first
+  sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
+      <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
+      <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
+    <div class="ways three"><button class="way" id="as-photo">${svg('camera')}<b>Photo</b></button>
+      <button class="way" id="as-scan">${svg('barcode')}<b>Barcode</b></button>
+      <button class="way" id="as-dish">${svg('pot')}<b>Dish</b></button></div>
+    <div class="seg wide" role="tablist">${[['recent', 'Recent'], ['saved', 'Saved Dishes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
-    <div class="two mealpick"><label>Meal<select id="as-meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-    <label>Day<span class="daypick dayfield">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></label></div><div id="as-body"></div>`, (b, close) => {
+    <div id="as-body"></div>`, (b, close) => {
     const dp = $('#as-day', b);     // a short label ("Today", "Sat, Oct 10") over the native picker: the full date field didn't fit
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
     dp.onchange = () => { if (dp.value) $('#as-dayl', b).textContent = dayLabel(dp.value); };
@@ -254,7 +291,7 @@ function addSheet(day, meal) {
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
     $('#as-dish', b).onclick = () => { close(); dishSheet(); };
-    show('search');
+    show('recent');
   });
 }
 const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
@@ -296,7 +333,8 @@ async function tRecent(body, where, close) {
     const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd" data-q="${i}" aria-label="Log ${esc(f.name)} now (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
     body.innerHTML = (usual.length ? `<h3 class="ghead">Your usuals <small class="muted">· + logs your usual amount</small></h3><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>` : '')
       + (rows.length ? `<h3 class="ghead">Recent</h3><div class="results">${rows.map((_, j) => foodRow(foods[usual.length + j], usual.length + j)).join('')}</div>` : '')
-      || '<p class="small muted">Foods you log show up here for one-tap re-logging.</p>';
+      || '<p class="small muted">Nothing logged yet. Foods you log show up here, ready to log again in one tap.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>';
+    const ts = $('#tr-search', body); if (ts) ts.onclick = () => $('.sheet [data-t=search]').click();
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;

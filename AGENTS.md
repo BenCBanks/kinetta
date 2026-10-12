@@ -65,7 +65,7 @@ docker compose -p kinettatest down -v                             # remove it, d
 
 ## Where it's heading (the maintainer's plan, October 2026)
 1. **Hosted beta**: testers ask to join at `/beta`; the admin invites them from Me > People. Done.
-2. **Before more testers**: a privacy policy page, delete-my-account in the app (Apple requires it), data export.
+2. **Before more testers**: a privacy policy page, delete-my-account in the app (Apple requires it), data export. Done: Me > Your data (the iPhone app downloads through a one-time link opened in Safari).
 3. **iPhone app**: a Capacitor shell around `app/static/`, reading workouts (and weight, resting heart rate, sleep)
    from Apple Health and sending them to the server. That makes uploads automatic: Garmin, Apple Watch, Coros, Wahoo
    and others all write to Apple Health. The maintainer has no Mac, so builds and TestFlight uploads run on GitHub

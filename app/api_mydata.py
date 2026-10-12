@@ -10,6 +10,7 @@ import csv
 import io
 import json
 import os
+import secrets
 import tempfile
 import time
 import zipfile
@@ -108,8 +109,7 @@ def _write_export(uid, path):
                     z.write(full, 'files/' + os.path.relpath(full, base))
 
 
-@router.get('/api/account/export')
-def export(user=Depends(current_user)):
+def _send_export(user):
     now = time.time()
     if now - _last_export.get(user['id'], 0) < 300: raise HTTPException(429, 'You just downloaded your data - try again in 5 minutes')
     _last_export[user['id']] = now
@@ -120,6 +120,33 @@ def export(user=Depends(current_user)):
         os.unlink(path); _last_export.pop(user['id'], None); raise
     return FileResponse(path, media_type='application/zip', filename=f"kinetta-{user['login']}-{time.strftime('%Y-%m-%d')}.zip",
                         background=BackgroundTask(os.unlink, path), headers={'Cache-Control': 'no-store'})
+
+
+@router.get('/api/account/export')
+def export(user=Depends(current_user)):
+    return _send_export(user)
+
+
+# The iPhone app (2026-10-12): its web view can't save a download, so it asks for a one-time link and opens it in Safari,
+# which saves the zip to Files. The link works once, for 5 minutes, and only for the person who asked (kept in memory:
+# the server runs as one process).
+_links = {}
+
+
+@router.post('/api/account/export-link')
+def export_link(user=Depends(current_user)):
+    now = time.time()
+    for k in [k for k, (_, _, t) in _links.items() if t < now]: del _links[k]
+    key = secrets.token_urlsafe(32)
+    _links[key] = (user['id'], user['login'], now + 300)
+    return {'path': f'/api/account/export/{key}'}
+
+
+@router.get('/api/account/export/{key}')
+def export_by_link(key: str):
+    uid, login, until = _links.pop(key, (None, None, 0))
+    if not uid or until < time.time(): raise HTTPException(404, 'This download link has expired - ask for a new one in the app')
+    return _send_export({'id': uid, 'login': login})
 
 
 class DeleteIn(BaseModel):

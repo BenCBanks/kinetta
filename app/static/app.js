@@ -366,7 +366,8 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
       L.circleMarker(pts[pts.length - 1], {radius: 6, color: '#fff', weight: 2, fillColor: '#B3261E', fillOpacity: 1}).addTo(map);
     }
   }
-  L.control.zoom({position: 'bottomright'}).addTo(map);
+  map.attributionControl.setPrefix(false);      // no "Leaflet" credit; phones pinch to zoom, so +/- only with a mouse (2026-10-12)
+  if (!matchMedia('(pointer: coarse)').matches) L.control.zoom({position: 'bottomright'}).addTo(map);
   return {map, L};
 }
 function feedMaps(box) {   // Strava-style map on each feed card, built when it scrolls near the screen

@@ -77,6 +77,9 @@ const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 // ---------- Today ----------
 // A new person's first steps, until their first workout arrives: automatic syncing first, so testers don't have to
 // upload files every week; the Home Screen tip only on an iPhone browser that isn't already the Home Screen app.
+// the next step for someone with nothing here yet (2026-10-12): an empty page says what to do, with the button for it
+const startCta = () => `<div class="btncol empty-cta">${Native.on ? '<a class="primary" href="/me/health">Connect Apple Health</a>' : '<a class="primary" href="/me/connections">Connect your watch</a>'}
+  <a class="ghost" href="/me/import">Upload files or your Strava export</a></div>`;
 function getStarted() {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
@@ -93,7 +96,7 @@ route(/^\/today$/, 'today', async (el) => {
   const first = App.me.name.split(' ')[0];
   const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', timeZone: tz()});
   el.innerHTML = `<div class="top"><div><div class="eyebrow">${esc(day)}</div><h1>Hi, ${esc(first)}</h1></div>
-    <div class="acts"><a class="icon-btn bell" href="/me/notifications" aria-label="Notifications">${svg('bell')}<span class="bell-dot"${App.me.notifications ? '' : ' hidden'}></span></a><button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
+    <div class="acts">${bellBtn()}<button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
     <div id="t-week">${skel(1)}</div><div id="t-plan"></div><div id="t-food"></div><div id="t-goals"></div><div id="t-review"></div><div id="t-last"></div><div id="t-form"></div>`;
   planCard($('#t-plan', el)).catch(() => {});
   todayFoodCard($('#t-food', el)).catch(() => {});
@@ -198,9 +201,12 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 // Mine is only yours, with filters and search. The Feed itself is in social.js.
 const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'mine'}">Feed</button><button data-whose="mine" aria-pressed="${cur === 'mine'}">Mine</button></div>`;
 const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () => go('/activity' + (b.dataset.whose ? '?view=' + b.dataset.whose : ''), {replace: true}));
+// the bell (2026-10-12: on Today, Activity and Nutrition, not only behind the Me tab), with the unread count
+const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
+  return `<a class="icon-btn bell" href="/me/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
 const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
     ${friends ? `<a class="icon-btn" href="/me/friends" aria-label="Find friends">${svg('search')}</a>` : ''}
-    <button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>`;
+    ${bellBtn()}<button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>`;
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
   if (q.get('view') !== 'mine') return homeFeed(el);
@@ -219,7 +225,7 @@ route(/^\/activity$/, 'activity', async (el) => {
   let items = [];
   const draw = (rows) => {
     items = rows;
-    list.innerHTML = rows.length ? rows.map((x) => postCard(x)).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : 'Upload FIT, GPX or TCX files, or your whole Strava export.'}</div>`;
+    list.innerHTML = rows.length ? rows.map((x) => postCard(x)).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : `Workouts from your watch arrive here on their own.${startCta()}`}</div>`;
     more.hidden = rows.length < 25 || rows.length % 25 !== 0;
     feedMaps(list); wireCheers(list);
   };
@@ -821,7 +827,7 @@ async function pMileage(body, q) {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
     const by = {}; for (const x of r.rows) { const o = by[x.p] = by[x.p] || {}; o[x.s] = x; }
-    if (!r.rows.length) { box.innerHTML = '<div class="card empty"><b>No activities yet</b>Upload some and your mileage shows up here.</div>'; return; }
+    if (!r.rows.length) { box.innerHTML = `<div class="card empty"><b>No activities yet</b>Your mileage by week, month and year shows up here.${startCta()}</div>`; return; }
     // every period from the first activity to today
     const today = new Date(r.today + 'T12:00'), first = new Date(r.rows[0].p + 'T12:00'), all = [];
     const start = (d) => { const x = new Date(d); if (period === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); else if (period === 'month') x.setDate(1); else { x.setMonth(0); x.setDate(1); } return x; };
@@ -864,7 +870,7 @@ async function pTrends(body, q) {
   await load(`/api/progress/trends?sport=${sport}`, (r) => {
     const box = $('#g-body', body); if (!box) return;
     const noun = {run: 'runs', ride: 'rides', walk: 'walks'}[sport], one = noun.slice(0, -1);
-    if (!r.months.length) { box.innerHTML = `<div class="card empty"><b>No ${noun} yet</b>Upload some and your trends show up here.</div>`; return; }
+    if (!r.months.length) { box.innerHTML = `<div class="card empty"><b>No ${noun} yet</b>Your pace and distance trends show up here.${startCta()}</div>`; return; }
     const today = new Date(r.today + 'T12:00'), M = {}; for (const m of r.months) M[m.m] = m;
     const N = (v) => Number(v || 0);
     const weeksIn = (y, m) => { const days = new Date(y, m, 0).getDate(); return (y === today.getFullYear() && m === today.getMonth() + 1 ? today.getDate() : days) / 7; };
@@ -972,7 +978,7 @@ async function pHeatmap(body, q) {
   const sport = q.get('sport') || '';
   body.innerHTML = '<div class="map tall" id="h-map"></div>';
   const lines = await api(`/api/heatmap${sport ? '?sport=' + sport : ''}`);
-  if (!lines.length) { $('#h-map', body).outerHTML = '<div class="card empty"><b>Nothing to map yet</b>Activities with GPS show up here.</div>'; return; }
+  if (!lines.length) { $('#h-map', body).outerHTML = `<div class="card empty"><b>Nothing to map yet</b>Every route you've done, on one map.${startCta()}</div>`; return; }
   await mapInto($('#h-map', body), lines, {heat: true});
 }
 
@@ -1015,7 +1021,12 @@ route(/^\/me$/, 'me', async (el) => {
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');
   $('#m-pw', el).onclick = () => passwordSheet();
-  $('#m-export', el).onclick = () => toast('Preparing your download - this can take a minute');
+  $('#m-export', el).onclick = async (e) => {
+    if (!Native.on) { toast('Preparing your download - this can take a minute'); return; }
+    e.preventDefault();        // the app can't save downloads: a one-time link opens in Safari, which saves it to Files
+    try { const r = await api('/api/account/export-link', json('POST', {})); window.open(Native.base + r.path, '_blank'); toast('Opening Safari to download your data'); }
+    catch (x) { toast(x.message); }
+  };
   $('#m-del', el).onclick = () => deleteSheet();
   $$('[data-ai]', el).forEach((b) => b.onclick = async () => {
     const on = b.dataset.ai === '1'; if (on === !!me.ai_ok) return;
