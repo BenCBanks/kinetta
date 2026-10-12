@@ -13,6 +13,7 @@ def fake_model(ctx, system=None):
                                          "try_next": ["More protein on rest days."], "watch": None, "extra": "ignored"}) + '\n```'
     return json.dumps({"summary": "About 440 kcal a portion.", "ideas": [{"change": "<b>Less oil</b>", "effect": "-30 kcal"}], "note": None})
 real_gemini = coach._gemini
+real_food_ask = food_photo.ask
 coach._gemini = fake_model
 n = 0
 def ck(cond, m):
@@ -147,6 +148,20 @@ try:
     try: real_gemini({'q': 1}, 'x'); said = None
     except ValueError as e: said = str(e)
     ck(said and '(400)' in said and len(asked) == 1, f'a 400 is not retried {said} {asked}')
+finally:
+    urllib.request.urlopen, time.sleep = real_open, real_sleep
+# the food estimator (photos, ingredients typed in a dish) does the same: busy twice, then the second model answers
+asked.clear()
+def food_busy(req, timeout=None):
+    model = req.full_url.split('/models/')[1].split(':')[0]; asked.append(model)
+    if len(asked) < 3: raise urllib.error.HTTPError(req.full_url, 503, 'busy', {}, io.BytesIO(b'{}'))
+    return io.BytesIO(json.dumps({'candidates': [{'content': {'parts': [{'text': '{"reply": "ok"}'}]}}]}).encode())
+urllib.request.urlopen, time.sleep = food_busy, (lambda s: None)
+try:
+    out, _, model = real_food_ask([{'text': 'x'}], {'type': 'object', 'properties': {'reply': {'type': 'string'}}}, 'test')
+    ck(out == {'reply': 'ok'} and len(asked) == 3 and asked[0] == asked[1] != asked[2] == model, f'food estimator: retried, then the second model {asked}')
+    asked.clear(); urllib.request.urlopen = bad
+    ck(refused(lambda: real_food_ask([{'text': 'x'}], {'type': 'object'}, 'test'), 502) and len(asked) == 1, 'food estimator: a 400 is not retried')
 finally:
     urllib.request.urlopen, time.sleep = real_open, real_sleep
 
