@@ -90,9 +90,32 @@ class ParseIn(BaseModel):
     text: str = Field(min_length=1, max_length=200)
 
 
+# typical weights of one piece, so "2 apples" can start at a weight (the person can change it) - 2026-10-12
+EACH = {'apple': 180, 'banana': 120, 'orange': 140, 'pear': 180, 'peach': 150, 'lemon': 85, 'lime': 65, 'avocado': 150,
+        'egg': 50, 'onion': 150, 'red onion': 150, 'shallot': 40, 'garlic': 5, 'carrot': 60, 'potato': 210, 'sweet potato': 130,
+        'tomato': 120, 'cherry tomato': 15, 'bell pepper': 120, 'pepper': 120, 'zucchini': 200, 'courgette': 200,
+        'cucumber': 300, 'celery': 40, 'mushroom': 18, 'chicken breast': 200, 'chicken thigh': 110, 'sausage': 75,
+        'tortilla': 45, 'bagel': 100, 'slice of bread': 35, 'bread': 35, 'chili': 15, 'jalapeno': 15, 'date': 7, 'kiwi': 75}
+SPOON = {'tbsp': 14, 'tsp': 5, 'cup': 200, 'pinch': 0.4, 'clove': 5, 'slice': 30, 'handful': 30}
+
+
+def _singular(q):
+    words = q.split()
+    w = words[-1] if words else ''
+    if len(w) > 3 and not w.endswith(('ss', 'us', 'is')):
+        w = w[:-3] + 'y' if w.endswith('ies') else w[:-2] if w.endswith(('oes', 'ches', 'shes')) else w[:-1] if w.endswith('s') else w
+    return ' '.join(words[:-1] + [w])
+
+
 @router.post('/parse')
 def parse(body: ParseIn, user=Depends(current_user)):
-    return {'text': body.text.strip(), **parse_line(body.text)}
+    """The amount and food, plus 'search' (singular: 'apples' finds 'Apple') and 'guess_g' (a typical weight for
+    '2 apples' or '1 tbsp', when the grams aren't said)."""
+    p = parse_line(body.text)
+    search = _singular(p['query'])
+    each = EACH.get(search) if not p['unit'] else SPOON.get(p['unit'])
+    guess = round(p['amount'] * each, 1) if (p['amount'] and each and not p['grams']) else None
+    return {'text': body.text.strip(), **p, 'search': search, 'guess_g': guess}
 
 
 # ---------- a dish as the app sees it ----------

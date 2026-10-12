@@ -12,6 +12,8 @@ def check(name, cond, extra=''):
 p = person('zz_test_days')
 today = dt.date.fromisoformat(p.get('/api/food/day')[1]['day'])
 d1, d2, d3 = (today - dt.timedelta(days=k) for k in (3, 2, 1))
+for k in range(8):     # a clean week, also when this runs again on the same database
+    for e in p.get(f'/api/food/day?d={today - dt.timedelta(days=k)}')[1]['entries']: p.delete(f"/api/food/entries/{e['id']}")
 check('goal set', p.put('/api/food/targets', {'kcal_target': 2000})[0] == 200)
 food = lambda day, kcal, name: p.post('/api/food/entries', [{'day': day.isoformat(), 'meal': 'dinner', 'name': name, 'kcal': kcal}])
 # d1 full day, d2 one snack (under 40% of the 2,000 goal), d3 nothing

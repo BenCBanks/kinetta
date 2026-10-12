@@ -23,7 +23,7 @@ from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
 DAILY_LIMIT = 40
-_used = {}          # (user_id, date) -> count; resets with the app, good enough for a cost brake
+_used = {}          # (user_id, kind, date) -> count; resets with the app, good enough for a cost brake
 
 PROMPT = """You estimate food for a calorie and macro tracker. {what}
 List each separate food or drink as its own item with a realistic portion. Count cooking fats, sauces, dressings and
@@ -57,6 +57,33 @@ def _num(v, hi):
     return round(min(max(v, 0.0), hi), 1)
 
 
+def ask(parts, schema, label, timeout=45):
+    """One Gemini Flash-Lite call that answers in JSON (schema). Returns (answer, raw response, model); 502 if it fails."""
+    model = os.environ.get('GEMINI_FOOD_MODEL', 'gemini-3.1-flash-lite')
+    req = urllib.request.Request(
+        f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+        json.dumps({'contents': [{'parts': parts}],
+                    'generationConfig': {'responseMimeType': 'application/json', 'responseSchema': schema, 'temperature': 0.2}}).encode(),
+        {'Content-Type': 'application/json', 'x-goog-api-key': os.environ.get('GEMINI_API_KEY', '')})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r: data = json.load(r)
+        return json.loads(data['candidates'][0]['content']['parts'][-1]['text']), data, model
+    except urllib.error.HTTPError as e:
+        print(f'{label}: gemini HTTP', e.code, e.read()[:300], flush=True)
+        raise HTTPException(502, 'The food estimator is busy - try again in a minute')
+    except Exception as e:
+        print(f'{label}: failed', repr(e)[:300], flush=True)
+        raise HTTPException(502, "Couldn't get an estimate - try again")
+
+
+def brake(user_id, limit=DAILY_LIMIT, kind='photo', what='estimates'):
+    """A per-person daily cost brake, kept in memory (resets with the app: good enough)."""
+    k = (user_id, kind, dt.date.today())
+    if _used.get(k, 0) >= limit: raise HTTPException(429, f'That is {limit} {what} today - try again tomorrow')
+    _used[k] = _used.get(k, 0) + 1
+    for old in [x for x in _used if x[2] < dt.date.today()]: _used.pop(old, None)
+
+
 @router.post('/photo')
 def photo(body: PhotoIn, user=Depends(current_user)):
     if coach.enabled() and not coach.allowed(user['id']): raise HTTPException(403, coach.OFF)
@@ -69,31 +96,14 @@ def photo(body: PhotoIn, user=Depends(current_user)):
         except (binascii.Error, ValueError): raise HTTPException(400, "That photo couldn't be read")
         if not img.startswith(b'\xff\xd8') or len(img) > 4_000_000: raise HTTPException(400, 'Send a JPEG photo under 4 MB')
     if not img and not note: raise HTTPException(400, 'Add a photo or a description')
-    k = (user['id'], dt.date.today())
-    if _used.get(k, 0) >= DAILY_LIMIT: raise HTTPException(429, f'That is {DAILY_LIMIT} estimates today - try again tomorrow')
-    _used[k] = _used.get(k, 0) + 1
-    for old in [x for x in _used if x[1] < dt.date.today()]: _used.pop(old, None)
+    brake(user['id'])
 
     what = ('Look at the photo.' if img else 'There is no photo; use the description.') + \
            (f' The person describes the meal as: """{note}""". Trust their description for what the foods are, how they were '
             f'cooked and how much; use the photo for anything they did not mention.' if note else '')
     parts = [{'text': PROMPT.format(what=what)}]
     if img: parts.append({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}})
-    model = os.environ.get('GEMINI_FOOD_MODEL', 'gemini-3.1-flash-lite')
-    req = urllib.request.Request(
-        f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
-        json.dumps({'contents': [{'parts': parts}],
-                    'generationConfig': {'responseMimeType': 'application/json', 'responseSchema': SCHEMA, 'temperature': 0.2}}).encode(),
-        {'Content-Type': 'application/json', 'x-goog-api-key': key})
-    try:
-        with urllib.request.urlopen(req, timeout=45) as r: data = json.load(r)
-        out = json.loads(data['candidates'][0]['content']['parts'][-1]['text'])
-    except urllib.error.HTTPError as e:
-        print('food photo: gemini HTTP', e.code, e.read()[:300], flush=True)
-        raise HTTPException(502, 'The food estimator is busy - try again in a minute')
-    except Exception as e:
-        print('food photo: failed', repr(e)[:300], flush=True)
-        raise HTTPException(502, "Couldn't get an estimate - try again")
+    out, data, model = ask(parts, SCHEMA, 'food photo')
     items = []
     for it in (out.get('items') or [])[:30]:
         name = ' '.join(str(it.get('name') or 'Food').split())[:80]
