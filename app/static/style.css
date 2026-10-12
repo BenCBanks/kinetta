@@ -407,6 +407,7 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .readout { position: sticky; top: calc(env(safe-area-inset-top) + 6px); z-index: 5; display: flex; gap: 14px; flex-wrap: wrap; padding: 9px 14px; margin: 0 -4px 6px;
   border-radius: 12px; background: color-mix(in srgb, var(--card2) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); font-size: 14px; min-height: 40px; }
 .readout span { color: var(--tx3); } .readout b { color: var(--tx); } .readout .sw { margin-right: 4px; vertical-align: middle; }
+.readout:has(> span:only-child:empty) { visibility: hidden; }   /* nothing touched yet: keep the space, so the chart does not jump */
 .readout .ro-edit { margin-left: auto; font-weight: 600; color: var(--accent); text-decoration: none; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; color: var(--tx2); font-size: 13px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -623,7 +624,8 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .wcard .wfield { position: relative; display: block; } .wcard .wfield input { width: 100%; padding-right: 44px; font-size: 18px; }
 .wcard .wfield span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--tx3); font-weight: 600; pointer-events: none; }
 .wdone { display: flex; align-items: center; gap: 6px; color: var(--good); margin: 0 0 10px; } .wdone svg { width: 18px; height: 18px; } .wdone b { color: var(--tx); }
-.wcard #fd-wtrend { margin-top: 10px; }
+.wfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.wfoot .daypick { display: inline-flex; align-items: center; gap: 6px; padding: 0; }
 .mac4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .mac4 label:first-child { grid-column: 1 / -1; }
 .mac4 input { padding: 8px 12px; }
 .mealpick { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin: 12px 0; }
@@ -886,3 +888,14 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .rr-cook { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; background: none; border: 0; padding: 10px 0; color: var(--tx); font: inherit; cursor: pointer; }
 .rr-cook b { font-size: 15px; } .rr-cook small { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recipe-row .icon-btn { color: var(--tx3); }
+/* 2026-10-12: Create a dish in Add food; swipe an ingredient left to remove it; Need help? on a dish */
+.way.wide { grid-column: 1 / -1; min-height: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; }
+.way.wide svg { grid-row: span 2; } .way.wide b, .way.wide small { text-align: left; }
+.swipe { position: relative; overflow: hidden; } .swipe + .swipe { border-top: 1px solid var(--line); }
+.swipe .fe { border-top: 0; position: relative; z-index: 1; background: var(--card); touch-action: pan-y; transition: transform .2s ease; }
+.sw-del { position: absolute; top: 0; right: 0; bottom: 0; width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 0; border-radius: 10px; background: var(--alert); color: #fff; font-weight: 650; font-size: 13px; }
+.sw-del svg { width: 18px; height: 18px; }
+.help-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; min-height: 36px; margin: -6px 0 10px; }
+.help-link svg { width: 18px; height: 18px; }
+.sheet .cook-steps { margin: 0; }

@@ -19,7 +19,7 @@ const SHOTS = [
   ['cook', 'DISH'],
   ['serve', 'DISH', {to: 'Log', portion: '380'}],
   ['friends', '/me/friends'],
-  ['dietcoach', '/food?view=trends'],
+  ['dietcoach', '/food?view=trends', {to: "Coach's take"}],
   ['recipecoach', 'DISH', {to: "Coach's take"}],
 ];
 (async () => {

@@ -12,7 +12,7 @@ function headline(a) {
 }
 // One card for every activity in a list (2026-10-11 redesign, Strava-style): who and when, the name, three numbers, the
 // map edge to edge, then cheers and comments. `who` adds the person (the Feed); without it the sport leads (Mine, Today).
-// The card is a link; the footer sits outside it so the Cheer button is a real button.
+// The card is a link; the footer sits outside it so the Cheers button is a real button.
 function postCard(a, {who = false} = {}) {
   const theirs = !!a.owner, href = theirs ? `/activity/friends/${a.id}` : `/activity/${a.id}`;
   const kind = a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? a.sport_label : SPORT_NAMES[a.sport];
@@ -43,7 +43,7 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
   if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
   return st.slice(0, 3).join('');
 }
-// Cheer straight from a feed card: the count changes at once and goes back if the server says no
+// Cheers straight from a feed card: the count changes at once and goes back if the server says no
 function wireCheers(box) {
   $$('[data-cheer]', box).forEach((b) => b.onclick = async () => {
     const on = b.getAttribute('aria-pressed') !== 'true', id = b.dataset.cheer;
@@ -74,7 +74,7 @@ function getStarted() {
       : step('/me/connections', 'watch', 'c-ink', 'Connect your watch', 'Garmin or Apple Watch: new workouts arrive on their own.')}
     ${step('/me/import', 'upload', 'c-blue', 'Bring in your history', 'Your Strava export, or FIT, GPX and TCX files.')}
     ${step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or snap a photo.')}
-    ${step('/me/friends', 'me', 'c-berry', 'Find your friends', 'See each other\'s runs and rides, and cheer them on.')}
+    ${step('/me/friends', 'me', 'c-berry', 'Find your friends', 'See each other\'s runs and rides, and send cheers.')}
     ${ios && !home && !Native.on ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : ''}</div>`;
 }
 route(/^\/today$/, 'today', async (el) => {

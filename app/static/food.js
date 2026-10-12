@@ -52,7 +52,7 @@ function scaleFood(f, amount, unit) {
 const bdOpen = () => { try { return localStorage.getItem('fit.bd') === '1'; } catch (e) { return false; } };
 route(/^\/food$/, 'food', async (el) => {
   const q = new URLSearchParams(location.search), day = q.get('d') || isoDay(new Date()), view = q.get('view') === 'trends' ? 'trends' : 'log';
-  const head = `<div class="top"><h1>Nutrition</h1></div><div class="seg nview" role="group" aria-label="Nutrition view"><button data-nv="log" aria-pressed="${view === 'log'}">${svg('food')} Log</button><button data-nv="trends" aria-pressed="${view === 'trends'}">${svg('progress')} Trends</button></div>`;
+  const head = `<div class="top"><h1>Nutrition</h1></div><div class="seg nview" role="group" aria-label="Nutrition view"><button data-nv="log" aria-pressed="${view === 'log'}">${svg('food')} Log</button><button data-nv="trends" aria-pressed="${view === 'trends'}">${svg('progress')} Progress</button></div>`;
   const wireView = () => $$('[data-nv]', el).forEach((b) => b.onclick = () => go(b.dataset.nv === 'trends' ? '/food?view=trends' : `/food${q.get('d') ? '?d=' + q.get('d') : ''}`, {replace: true}));
   if (view === 'trends') { el.innerHTML = head + '<div id="nt"></div>'; wireView(); await nutritionTrends($('#nt', el), q); return; }
   el.innerHTML = `${head}
@@ -60,10 +60,8 @@ route(/^\/food$/, 'food', async (el) => {
       <label class="ghost daypick">${svg('calendar')}${esc(dayLabel(day))}<input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <button class="icon-btn" id="fd-next" aria-label="Next day">${svg('chev')}</button></div>
     ${dayLabel(day) === 'Today' ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}
-    <div class="quick">
-      <button class="primary" id="fq-add">${svg('search')} Add food</button>
-      <button class="ghost" id="fq-cook">${svg('pot')} Cooking</button></div>
-    <div id="fd-dishes"></div><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div><div id="fd-weight"></div>`;
+    <div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
+    <div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
   wireView();
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
@@ -73,8 +71,6 @@ route(/^\/food$/, 'food', async (el) => {
   dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
   dp.onchange = () => { if (dp.value) go(dp.value === isoDay(new Date()) ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
   $('#fq-add', el).onclick = () => addSheet(day, guessMeal());
-  $('#fq-cook', el).onclick = (e) => startCooking(e.currentTarget);
-  dishStrip($('#fd-dishes', el), day);
   await load(`/api/food/day?d=${day}`, (D) => drawDay(el, D), {maxAge: 5000});
 });
 
@@ -111,7 +107,7 @@ function drawDay(el, D) {
       ${row(today ? 'Burned by end of day' : 'Total burned', r0(B.day_burn), 'sum', today ? 'estimate for the whole day' : '')}
       ${row('Eaten' + sofar, '− ' + r0(eaten))}</details>
       ${G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
-      <a class="small more-link" href="/food?view=trends">Running total & trends ›</a></div>
+      <a class="small more-link" href="/food?view=trends">Running total & progress ›</a></div>
     <div class="card macros"><h2>Macros${!t.protein_target ? '<button class="linkbtn" id="fd-targets">Set targets</button>' : ''}</h2>
       ${MACROS.map(([k, n]) => { const tg = t[k.replace('_g', '_target')]; return `<div class="mrow"><span>${n}</span><div class="track"><div class="bar m-${k}" data-w="${tg ? Math.min(1, T[k] / tg).toFixed(3) : (T[k] ? 1 : 0)}"></div></div><b class="num">${r0(T[k])}${tg ? `<i>/${r0(tg)}g</i>` : 'g'}</b></div>`; }).join('')}</div>`;
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
@@ -144,26 +140,6 @@ function drawDay(el, D) {
     } catch (x) { toast(x.message); b.disabled = false; }
   });
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => copyDay(addDays(D.day, -1), D.day);
-  const isToday = dayLabel(D.day) === 'Today', unit = imp() ? 'lb' : 'kg';
-  $('#fd-weight', el).innerHTML = `<div class="card wcard"><h2>${isToday ? "Log today's weight" : `Log weight for ${esc(dayLabel(D.day))}`}<a class="more" href="/food/weight">Trend ›</a></h2>
-    ${D.weight_kg ? `<p class="wdone">${svg('check')} Logged: <b class="num">${esc(U.weight(D.weight_kg))} ${unit}</b>${isToday ? ' today' : ''}</p>` : `<p class="small muted">Weigh yourself ${isToday ? 'this morning' : 'that morning'} after the bathroom, before eating, so days compare fairly.</p>`}
-    <form class="wform"><label class="wfield"><input name="w" inputmode="decimal" placeholder="e.g. ${imp() ? '165.4' : '75.0'}" value="${D.weight_kg ? U.weight(D.weight_kg) : ''}" aria-label="Your weight ${isToday ? 'today' : 'on ' + esc(dayLabel(D.day))} in ${unit}" enterkeyhint="done"><span>${unit}</span></label>
-    <button class="${D.weight_kg ? 'ghost' : 'primary'}">${D.weight_kg ? 'Update' : 'Log weight'}</button></form>
-    <p class="small muted" id="fd-wtrend"></p></div>`;
-  load('/api/food/weights?days=90', (W) => {
-    const p = $('#fd-wtrend', el); if (!p || !W.trend_kg) return;
-    const r = W.rate_kg_per_week;
-    p.textContent = `Trend: ${U.weight(W.trend_kg)} ${unit}${r != null ? ` · ${r > 0 ? '+' : r < 0 ? '−' : ''}${U.weight(Math.abs(r))} ${unit} a week` : ''}. The trend smooths daily ups and downs from water and salt.`;
-  });
-  $('.wform', el).onsubmit = async (e) => {
-    e.preventDefault(); const v = parseFloat(e.target.w.value); if (!(v > 0)) return;
-    const kg = imp() ? v / 2.20462 : v;
-    try {
-      const r = await sendOrQueue('/api/food/weights', 'PUT', {day: D.day, kg}, `weight ${U.weight(kg)}`);
-      if (r.queued) { patchDay(D.day, (d) => { d.weight_kg = kg; }); render(); toast('Weight saved on this phone - it sends when you are back online'); }
-      else { refresh(); toast(`Weight logged: ${U.weight(kg)} ${imp() ? 'lb' : 'kg'}`); }
-    } catch (x) { toast(x.message); }
-  };
 }
 const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit}`);
 const refresh = () => { invalidate('/api/food'); render(); };
@@ -257,7 +233,8 @@ const macroInputs = (e = {}) => `<div class="mac4">
 // ---------- add: search / recent / my foods / meals / quick ----------
 function addSheet(day, meal) {
   sheet('Add food', `<div class="ways"><button class="way" id="as-photo">${svg('camera')}<b>Take a photo</b><small>AI estimates the calories</small></button>
-      <button class="way" id="as-scan">${svg('barcode')}<b>Scan a barcode</b><small>packaged food</small></button></div>
+      <button class="way" id="as-scan">${svg('barcode')}<b>Scan a barcode</b><small>packaged food</small></button>
+      <button class="way wide" id="as-dish">${svg('pot')}<b>Create a dish</b><small>cooking at home, or a saved recipe</small></button></div>
     <h3 class="ways-or">Or search and enter manually</h3>
     <div class="seg wide" role="tablist">${[['search', 'Search'], ['recent', 'Recent'], ['mine', 'Mine'], ['meals', 'Meals'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
@@ -273,6 +250,7 @@ function addSheet(day, meal) {
       if (App.me.coach && !App.me.ai_ok) aiSheet(() => photoSheet(w.day, w.meal)); else photoSheet(w.day, w.meal);
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
+    $('#as-dish', b).onclick = () => { const w = where(); close(); dishSheet(w.day, w.meal); };
     show('search');
   });
 }
@@ -551,16 +529,16 @@ function targetsSheet() {
 
 // ---------- weight trend + food trends ----------
 route(/^\/food\/weight$/, 'food', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>Weight</h1>${skel(2)}`;
-  wireBack(el, '/food');
+  el.innerHTML = `<div class="top">${backBtn('Progress')}</div><h1>Weight</h1>${skel(2)}`;
+  wireBack(el, '/food?view=trends');
   await load('/api/food/weights?days=365', (W) => {
     const pts = W.points, wt = (kg) => `${U.weight(kg)} ${imp() ? 'lb' : 'kg'}`;
-    el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>Weight</h1>
+    el.innerHTML = `<div class="top">${backBtn('Progress')}</div><h1>Weight</h1>
       <div class="card"><div class="bigstat">${stat('Trend', W.trend_kg ? U.weight(W.trend_kg) : '–', imp() ? 'lb' : 'kg')}${stat('Per week', W.rate_kg_per_week == null ? '–' : (W.rate_kg_per_week > 0 ? '+' : '') + U.weight(W.rate_kg_per_week), imp() ? 'lb' : 'kg')}</div>
         <div id="w-chart"></div><p class="small muted">The trend smooths out day-to-day water swings; it's the number to watch.</p></div>
       <div class="card"><h2>Weigh-ins</h2>${pts.length ? [...pts].reverse().slice(0, 60).map((p) => `<div class="row"><span>${esc(new Date(p.day + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}))}</span>
-        <span class="num">${wt(p.kg)} <small class="muted">trend ${U.weight(p.trend)}</small> <button class="linkbtn danger" data-del="${p.day}" aria-label="Delete weigh-in">×</button></span></div>`).join('') : '<p class="muted">Log your weight on the Food page.</p>'}</div>`;
-    wireBack(el, '/food');
+        <span class="num">${wt(p.kg)} <small class="muted">trend ${U.weight(p.trend)}</small> <button class="linkbtn danger" data-del="${p.day}" aria-label="Delete weigh-in">×</button></span></div>`).join('') : '<p class="muted">Log your weight on Nutrition &gt; Progress.</p>'}</div>`;
+    wireBack(el, '/food?view=trends');
     $$('[data-del]', el).forEach((b) => b.onclick = async () => { try { await api(`/api/food/weights/${b.dataset.del}`, {method: 'DELETE'}); invalidate('/api/food'); render(); } catch (x) { toast(x.message); } });
     if (pts.length) requestAnimationFrame(() => {
       const xs = pts.map((p) => new Date(p.day + 'T12:00') / 864e5);
@@ -575,7 +553,7 @@ route(/^\/food\/trends$/, 'food', async () => go('/food?view=trends', {replace: 
 route(/^\/food\/import$/, 'food', async (el) => {
   const lb = imp(), wu = lb ? 'lb' : 'kg', today = isoDay(new Date());
   const wshow = (kg) => (kg == null ? '–' : (lb ? kg * 2.20462 : kg).toFixed(1));
-  el.innerHTML = `<div class="top">${backBtn('Trends')}</div><h1>Add past days</h1>
+  el.innerHTML = `<div class="top">${backBtn('Progress')}</div><h1>Add past days</h1>
     <p class="muted">Bring in history from another app or a spreadsheet: weight, calories eaten, macros, and calories burned or your deficit. Imported burned numbers are used instead of this app's estimate for those days.</p>
     <div class="card"><h2>From a spreadsheet or another app</h2>
       <p class="small muted">First row = column names. Recognized: <b>Date</b>, <b>Weight</b> (${wu} unless the column says kg/lb), <b>Calories</b>, <b>Protein</b>, <b>Carbs</b>, <b>Fat</b>, <b>Fiber</b>, <b>Burned</b> (or Expenditure/TDEE), <b>Deficit</b>. Any order; other columns are ignored. Several rows per day (e.g. one per meal) are added up.</p>
@@ -619,7 +597,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
       <div class="actions"><button class="primary" id="hi-go">Import ${P.rows.length} days</button></div>`;
     $('#hi-go', box).onclick = async (ev) => {
       ev.target.disabled = true; ev.target.textContent = 'Importing…';
-      try { await saveRows(P.rows.map(({food_logged_here, weight_replaces, ...r}) => r)); box.innerHTML = '<p class="small">Imported. See it on Nutrition &gt; Trends (pick a longer range or "Since…").</p>'; f.reset(); }
+      try { await saveRows(P.rows.map(({food_logged_here, weight_replaces, ...r}) => r)); box.innerHTML = '<p class="small">Imported. See it on Nutrition &gt; Progress (pick a longer range or "Since…").</p>'; f.reset(); }
       catch (x) { toast(x.message); ev.target.disabled = false; ev.target.textContent = `Import ${P.rows.length} days`; }
     };
   };
@@ -735,6 +713,37 @@ function weeksCard(box) {
   });
 }
 const NRANGES = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '1 year']];
+// Log your weight (2026-10-12: moved here from the Log view). Any day up to today, so old weigh-ins can be added too.
+let wcDay = null;   // the day picked for a weigh-in stays picked after saving, to add several old ones in a row
+function weightCard(box) {
+  const unit = imp() ? 'lb' : 'kg', today = isoDay(new Date());
+  let day = wcDay && wcDay < today ? wcDay : today, W = {points: []};
+  const draw = () => {
+    if (!box.isConnected) return;
+    const isToday = day === today, had = W.points.find((p) => p.day === day), r = W.rate_kg_per_week;
+    box.innerHTML = `<div class="card wcard"><h2>${isToday ? "Log today's weight" : `Log weight for ${esc(dayLabel(day))}`}<a class="more" href="/food/weight">History ›</a></h2>
+      ${had ? `<p class="wdone">${svg('check')} Logged: <b class="num">${esc(U.weight(had.kg))} ${unit}</b>${isToday ? ' today' : ''}</p>` : ''}
+      <form class="wform"><label class="wfield"><input name="w" inputmode="decimal" placeholder="e.g. ${imp() ? '165.4' : '75.0'}" value="${had ? U.weight(had.kg) : ''}" aria-label="Your weight ${isToday ? 'today' : 'on ' + esc(dayLabel(day))} in ${unit}" enterkeyhint="done"><span>${unit}</span></label>
+        <button class="${had ? 'ghost' : 'primary'}">${had ? 'Update' : 'Log weight'}</button></form>
+      <div class="wfoot"><label class="linkbtn daypick">${svg('calendar')}<span>${isToday ? 'A different day' : esc(dayLabel(day))}</span><input type="date" name="wday" value="${esc(day)}" max="${today}" aria-label="The day you weighed yourself"></label>
+        ${W.trend_kg ? `<span class="small muted num">Trend ${U.weight(W.trend_kg)} ${unit}${r != null ? ` · ${r > 0 ? '+' : r < 0 ? '−' : ''}${U.weight(Math.abs(r))} a week` : ''}</span>` : ''}</div></div>`;
+    const dp = $('[name=wday]', box);
+    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
+    dp.onchange = () => { if (dp.value && dp.value <= today) { day = wcDay = dp.value; draw(); } };
+    $('.wform', box).onsubmit = async (e) => {
+      e.preventDefault(); const v = parseFloat(e.target.w.value.replace(',', '.')); if (!(v > 0)) return;
+      const kg = imp() ? v / 2.20462 : v;
+      try {
+        const q = await sendOrQueue('/api/food/weights', 'PUT', {day, kg}, `weight ${U.weight(kg)}`);
+        toast(q.queued ? 'Weight saved on this phone - it sends when you are back online' : `Weight logged${day === today ? '' : ` for ${dayLabel(day)}`}: ${U.weight(kg)} ${unit}`);
+        if (!q.queued) { invalidate('/api/food'); render(); }
+      } catch (x) { toast(x.message); }
+    };
+  };
+  draw();
+  load('/api/food/weights?days=3650', (w) => { W = w; draw(); }).catch(() => {});
+}
+
 async function nutritionTrends(root, q) {
   // range: 7/30/90/365 days, or "since" = from a start date the person picks (e.g. the start of a diet); remembered on this phone
   let r = q.get('r'); if (!r) { try { r = localStorage.getItem('fit.nrange'); } catch (e) { /* none */ } }
@@ -748,9 +757,9 @@ async function nutritionTrends(root, q) {
   });
   root.innerHTML = `<div class="chips nrange" role="group" aria-label="Time range">${NRANGES.map(([d, n]) => `<button class="chip" data-r="${d}" aria-pressed="${String(d) === r}">${n}</button>`).join('')}
       <button class="chip" data-r="since" aria-pressed="${r === 'since'}" id="nt-since">Since…</button></div>
-    <div id="nt-coach"></div><div id="nt-body">${skel(3)}</div><div id="nt-energy"></div><div id="nt-weeks"></div>
+    <div id="nt-weight"></div><div id="nt-coach"></div><div id="nt-body">${skel(3)}</div><div id="nt-energy"></div><div id="nt-weeks"></div>
     <a class="ghost addpast" href="/food/import">${svg('upload')}<span>Add past days<small>weight, calories or deficits from before</small></span></a>`;
-  energyCard($('#nt-energy', root)); weeksCard($('#nt-weeks', root)); dietCoach($('#nt-coach', root));
+  weightCard($('#nt-weight', root)); energyCard($('#nt-energy', root)); weeksCard($('#nt-weeks', root)); dietCoach($('#nt-coach', root));
   let since = null;
   $$('.nrange .chip', root).forEach((b) => b.onclick = () => (b.dataset.r === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(b.dataset.r)));
   const url = r === 'since' ? '/api/food/insights?days=30&since=' : `/api/food/insights?days=${r}`;
@@ -816,7 +825,7 @@ function drawTrends(box, I, days) {
       sub: r.counted ? `Day <b>${r0(Math.abs(r.deficit))}</b> ${r.deficit >= 0 ? 'deficit' : 'surplus'}` : 'partly logged, not counted'})),
       {fmt: (v, short) => (short ? (Math.abs(v) >= 10000 ? (v / 1000).toFixed(1) + 'k' : r0(v)) : `${r0(Math.abs(v))} kcal ${v >= 0 ? 'deficit' : 'surplus'}`)});
     periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, partial: c.partial, segs: [{k: 's3', v: c.protein_g || 0}]})),
-      {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150, hint: 'Touch a bar to read it'});
+      {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150});
   });
 }
 
@@ -843,7 +852,7 @@ function dietCoach(box) {
       if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
       b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';
       try { const fresh = await api('/api/food/review', json('POST', {})); App.cache.set('/api/food/review', {data: {...r, enabled: true, latest: fresh}, at: Date.now()}); dietCoach(box); }
-      catch (x) { toast(x.message); b.disabled = false; b.innerHTML = was; }
+      catch (x) { b.disabled = false; b.innerHTML = was; aiError(b, x.message); }
     };
   }).catch(() => {});
 }

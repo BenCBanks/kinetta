@@ -60,20 +60,28 @@ def health_ok(c, user_id):
 
 
 def _gemini(ctx, system=None):
-    """Gemini generateContent over HTTPS (key in a header, never in the URL)."""
-    import urllib.error, urllib.request
-    model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
-    body = {'systemInstruction': {'parts': [{'text': system or SYSTEM}]},
-            'contents': [{'role': 'user', 'parts': [{'text': json.dumps(ctx, default=str)}]}],
-            'generationConfig': {'maxOutputTokens': 2000, 'temperature': 0.6}}
-    req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', json.dumps(body).encode(),
-                                 {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
-    try:
-        with urllib.request.urlopen(req, timeout=60) as r: d = json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        raise ValueError(f'The coach is unavailable right now ({e.code}).')
-    except (urllib.error.URLError, TimeoutError):
-        raise ValueError("Couldn't reach the coach - check the server's internet connection.")
+    """Gemini generateContent over HTTPS (key in a header, never in the URL). When the main model is busy (Google answers
+    429/5xx or times out, which happens at busy times), it tries once more and then the lighter model (GEMINI_FALLBACK_MODEL)."""
+    import time, urllib.error, urllib.request
+    main = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
+    body = json.dumps({'systemInstruction': {'parts': [{'text': system or SYSTEM}]},
+                       'contents': [{'role': 'user', 'parts': [{'text': json.dumps(ctx, default=str)}]}],
+                       'generationConfig': {'maxOutputTokens': 2000, 'temperature': 0.6}}).encode()
+    tries = [main, main, os.environ.get('GEMINI_FALLBACK_MODEL', 'gemini-3.1-flash-lite')]
+    for n, model in enumerate(tries):
+        req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', body,
+                                     {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
+        last = n == len(tries) - 1
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r: d = json.loads(r.read())
+            break
+        except urllib.error.HTTPError as e:
+            print(f'coach: gemini {model} HTTP {e.code}', flush=True)
+            if last or (e.code != 429 and e.code < 500): raise ValueError(f'The coach is unavailable right now ({e.code}) - try again in a minute.')
+        except (urllib.error.URLError, TimeoutError) as e:
+            print(f'coach: gemini {model} failed {type(e).__name__}', flush=True)
+            if last: raise ValueError("Couldn't reach the coach - try again in a minute.")
+        time.sleep(2)
     cands = d.get('candidates') or []
     if not cands: raise ValueError('The coach declined to comment on this one.')
     return ''.join(p.get('text', '') for p in (cands[0].get('content') or {}).get('parts', [])).strip()

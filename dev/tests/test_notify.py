@@ -36,7 +36,7 @@ aid = a['id']; n1.put(f'/api/activities/{aid}/sharing', {'visibility': 'friends'
 n1.post('/api/notifications/read')
 n2.post(f'/api/activities/{aid}/cheer'); n2.delete(f'/api/activities/{aid}/cheer'); n2.post(f'/api/activities/{aid}/cheer')
 r = notes(n1); ck([i['kind'] for i in r['items'] if not i['read']] == ['cheer'], f'one cheer {r["items"][:3]}')
-ck(r['items'][0]['link'] == f'/activity/{aid}' and 'cheered your' in r['items'][0]['text'], 'cheer text')
+ck(r['items'][0]['link'] == f'/activity/{aid}' and 'sent cheers on your' in r['items'][0]['text'], 'cheer text')
 s, cm = n2.post(f'/api/activities/{aid}/comments', {'text': 'Nice pace <b>today</b>!'})
 r = notes(n1); ck(r['items'][0]['kind'] == 'comment' and r['items'][0]['text'].endswith(': "Nice pace <b>today</b>!"'), f'comment {r["items"][0]}')
 n1.post(f'/api/activities/{aid}/comments', {'text': 'Thanks'})
