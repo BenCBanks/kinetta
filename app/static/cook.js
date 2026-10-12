@@ -37,7 +37,7 @@ function drawDish(el, d) {
   const t = d.totals, weighed = d.cooked_g != null, typed = d.known.kcal != null, mine = d.mine !== false;
   const set = (fresh) => { App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh); };
   const ing = (it) => `<div><b>${esc(it.name)}</b><small class="muted num">${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</small></div>
-    <div class="r"><b class="num">${r0(it.kcal)}</b><small class="muted num">${r0(it.protein_g)}P ${r0(it.carbs_g)}C ${r0(it.fat_g)}F</small></div>`;
+    <div class="r"><b class="num">${r0(it.kcal)}</b><small class="muted">kcal</small></div>`;
   const shared = mine ? d.shared_with || [] : [];
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts"><button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button></div></div>
     <div class="eyebrow">${mine ? (d.status === 'cooking' ? 'Cooking' : d.status === 'leftovers' ? 'Leftovers' : 'Finished') : `From ${esc(d.owner.name)}`}</div>
@@ -281,9 +281,14 @@ function typeSheet(name, grams, done) {
 }
 function itemSheet(d, it, set) {
   sheet(it.name, `<form class="form" id="it"><label>Weight<span class="gfield"><input name="g" inputmode="decimal" value="${Math.round(it.grams * 10) / 10}" required><span>g</span></span></label>
-    <p class="small muted">${r0(it.per100 && it.per100.kcal)} kcal per 100 g</p>
+    <div id="it-nut">${nutGrid(it)}</div>
+    <p class="small muted">${it.per100 && it.per100.kcal != null ? `${r0(it.per100.kcal)} kcal per 100 g. ` : ''}Change the weight and the numbers follow.</p>
     <div class="actions"><button type="button" class="ghost danger" id="it-del">Remove</button><button class="primary">Save</button></div></form>`, (b, close) => {
     const f = $('#it', b);
+    f.g.oninput = () => {   // the numbers above follow the weight as you type
+      const g = +f.g.value.replace(',', '.'), k = it.grams > 0 ? g / it.grams : 0;
+      if (g > 0 && k) $('#it-nut', b).innerHTML = nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, it[x] * k])));
+    };
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try { set(await api(`/api/dishes/${d.id}/items/${it.id}`, json('PATCH', {grams: +f.g.value.replace(',', '.')}))); close(); } catch (x) { toast(x.message); btn.disabled = false; }

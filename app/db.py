@@ -639,6 +639,10 @@ MIGRATIONS = [
     ALTER TABLE goals ADD CONSTRAINT goals_period_check CHECK (period IN ('day', 'week', 'month', 'year')),
       ADD CONSTRAINT goals_metric_check CHECK (metric IN ('distance', 'time', 'elevation', 'count', 'calories'));
     """,
+    # 30 (2026-10-12): a tick by hand can also say "not done" (overrides a run that would tick the workout off)
+    """
+    ALTER TABLE plan_marks ADD COLUMN done boolean NOT NULL DEFAULT true;
+    """,
 ]
 
 

@@ -5,6 +5,9 @@ const MEAL_NAMES = {breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', sn
 const MACROS = [['protein_g', 'Protein', 'P'], ['carbs_g', 'Carbs', 'C'], ['fat_g', 'Fat', 'F']];
 const r0 = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
 const r1 = (v) => (v == null ? '–' : (Math.round(v * 10) / 10).toString());
+// a food's numbers in full, shown when you tap it (rows show calories only; 2026-10-12: "1P 50C 1F" meant nothing)
+const nutGrid = (v) => `<div class="nut"><span><b class="num">${r0(v.kcal)}</b><small>Calories</small></span>${MACROS.map(([k, n]) =>
+  `<span><b class="num">${r1(v[k])} g</b><small>${n}</small></span>`).join('')}</div>`;
 const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
 const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}); };
@@ -122,7 +125,7 @@ function drawDay(el, D) {
       ${lm ? `<button class="same" data-same="${m}"><span><small class="muted">Same as ${esc(dayLabel(lm.day))}</small><b>${esc(lm.items.map((i) => i.name).join(', '))}</b></span><span class="r"><b class="num">${r0(lm.kcal)}</b><small class="muted">Log ${svg('plus')}</small></span></button>` : ''}</section>`;
     return `<section class="card meal"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => `<button class="fe${e.pending ? ' pending' : ''}" data-id="${e.id}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
-        <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted num">${r0(e.protein_g)}P ${r0(e.carbs_g)}C ${r0(e.fat_g)}F</small></div></button>`).join('')}
+        <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`).join('')}
       <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="${MEAL_NAMES[m]} options">${svg('more')}</button>` : ''}</div></section>`;
   }).join('') + (D.entries.length ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
   $$('[data-add]', el).forEach((b) => b.onclick = () => addSheet(D.day, b.dataset.add));
@@ -198,7 +201,7 @@ function mealMenu(D, meal) {
 // ---------- edit an entry ----------
 function entrySheet(e, day) {
   const ref = e.ref;
-  sheet('Edit food', `<form class="form" id="es">
+  sheet('Edit food', `<div id="es-nut">${nutGrid(e)}</div><form class="form" id="es">
     <label>Name<input name="name" value="${esc(e.name)}" maxlength="200"></label>
     <div class="two"><label>Amount<input name="amount" inputmode="decimal" value="${r1(e.amount)}"></label>
       <label>Unit<select name="unit">${unitOptions(ref, e.unit)}</select></label></div>
@@ -215,6 +218,7 @@ function entrySheet(e, day) {
       if (ref) v = scaleFood(ref, a, f.unit.value);
       else if (e.amount > 0 && f.unit.value === e.unit) { const k = a / e.amount; v = {kcal: e.kcal * k, protein_g: e.protein_g * k, carbs_g: e.carbs_g * k, fat_g: e.fat_g * k, fiber_g: e.fiber_g == null ? null : e.fiber_g * k}; }
       if (v) for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) if (f[k]) f[k].value = v[k] == null ? '' : r1(v[k]);
+      if (v) $('#es-nut', b).innerHTML = nutGrid(v);
     };
     f.amount.oninput = rescale; f.unit.onchange = rescale;
     f.onsubmit = async (ev) => {
@@ -335,7 +339,7 @@ async function tMeals(body, where, close) {
   body.innerHTML = skel(1);
   try {
     const meals = await api('/api/food/meals');
-    body.innerHTML = meals.length ? `<div class="results">${meals.map((m, i) => `<div class="fe"><div><b>${esc(m.name)}</b><small class="muted">${m.items.length} items · ${r0(m.totals.protein_g)}P ${r0(m.totals.carbs_g)}C ${r0(m.totals.fat_g)}F</small></div>
+    body.innerHTML = meals.length ? `<div class="results">${meals.map((m, i) => `<div class="fe"><div><b>${esc(m.name)}</b><small class="muted">${m.items.length} items · ${r0(m.totals.kcal)} kcal</small></div>
       <div class="r"><b class="num">${r0(m.totals.kcal)}</b><button class="linkbtn" data-log="${i}">Log</button>${App.me.coach ? ` <button class="linkbtn" data-ai="${i}" aria-label="Coach's take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''} <button class="linkbtn danger" data-del="${i}">Delete</button></div></div>`).join('')}</div>`
       : '<p class="small muted">Save a meal from the "…" button on any meal to log it again in one tap.</p>';
     $$('[data-log]', body).forEach((x) => x.onclick = async () => {

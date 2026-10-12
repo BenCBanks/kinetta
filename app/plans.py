@@ -9,9 +9,9 @@ long runs, a mid-week long run for advanced marathoners; couch-to-5K style run/w
   - paces come from current running fitness (Daniels VDOT, same as Progress > Fitness) and update as you get fitter;
     a goal time sets the race-pace sessions. Without any fast runs yet, workouts are described by effort only.
 Only the plan settings are stored (training_plans); the weeks are rebuilt from them, so the schedule never drifts.
-Completion (2026-10-12): a run logged that day (any source); a run on a rest day ticks off the nearest open workout in
-the same week (up to 3 days before, or the next day), since people swap days; or a workout ticked off by hand
-(plan_marks), e.g. a treadmill run with no watch."""
+Completion (2026-10-12, revised the same day): a run that day (any source) at least the planned distance (a 2%
+allowance for GPS); a run-walk (timed, no distance) counts with any run. Runs on other days never tick off a workout.
+Ticks by hand (plan_marks) work on any workout day, past or future, and win over the runs: done, or "not done"."""
 import datetime as dt
 import math
 from zoneinfo import ZoneInfo
@@ -404,7 +404,7 @@ def current(user=Depends(current_user)):
         runs = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sum(distance_m) AS m, min(id) AS id, count(*) AS n
                             FROM activities WHERE user_id = %s AND sport = 'run' AND start_time >= %s::date - 1
                             GROUP BY 1""", (tz, user['id'], p['start_day'])).fetchall()
-        marks = {r['day'] for r in c.execute('SELECT day FROM plan_marks WHERE plan_id = %s AND user_id = %s', (p['id'], user['id'])).fetchall()}
+        marks = {r['day']: r['done'] for r in c.execute('SELECT day, done FROM plan_marks WHERE plan_id = %s AND user_id = %s', (p['id'], user['id'])).fetchall()}
         pred = run_predictions(c, user['id'], [(RACES[p['race']]['m'], p['race'])])
     P = paces(v, p['goal_s'], RACES[p['race']]['m'])
     weeks = build(p, P)
@@ -417,21 +417,16 @@ def current(user=Depends(current_user)):
         end = wk['start'] + dt.timedelta(days=6)
         o['done'] = round(sum(r['m'] or 0 for d, r in by_day.items() if wk['start'] <= d <= end) / per, 1)
         pairs = list(zip(o['workouts'], wk['workouts']))
-        def done(w, r): w['status'] = 'done'; w['actual'] = round((r['m'] or 0) / per, 1); w['activity_id'] = r['id']
         for w, raw in pairs:
-            if raw['day'] in by_day: done(w, by_day[raw['day']])
-        # a run on a rest day counts for the nearest open workout that week (people swap days): one up to 3 days
-        # earlier (made up late) or the next day's (run early)
-        planned = {raw['day'] for _, raw in pairs}
-        for d in sorted(x for x in by_day if wk['start'] <= x <= end and x not in planned):
-            near = [(abs((raw['day'] - d).days), raw['day'], i) for i, (w, raw) in enumerate(pairs)
-                    if 'status' not in w and raw['day'] not in marks and -3 <= (raw['day'] - d).days <= 1]
-            if near:
-                w = pairs[min(near)[2]][0]; done(w, by_day[d]); w['ran_on'] = d.isoformat()
-        for w, raw in pairs:
-            if 'status' in w: pass
-            elif raw['day'] in marks: w['status'] = 'done'; w['by_hand'] = True
-            else:
+            r = by_day.get(raw['day'])
+            if r: w['actual'] = round((r['m'] or 0) / per, 1); w['activity_id'] = r['id']
+            enough = r and (not raw['dist'] or (r['m'] or 0) / per >= raw['dist'] * 0.98)
+            if r and not enough: w['short'] = True
+            if raw['day'] in marks:
+                w['by_hand'] = True
+                if marks[raw['day']]: w['status'] = 'done'
+            elif enough: w['status'] = 'done'
+            if 'status' not in w:
                 w['status'] = ('today' if raw['day'] == today else 'before' if raw['day'] < created else
                                'missed' if raw['day'] < today else 'upcoming')
             if raw['day'] == today: today_w = w
@@ -460,23 +455,24 @@ def current(user=Depends(current_user)):
 
 class MarkIn(BaseModel):
     day: dt.date
+    done: bool = True
 
 
 def _plan_day(c, uid, day):
-    """The active plan, if `day` is one of its workouts and not in the future."""
+    """The active plan, if `day` is one of its workouts."""
     p = c.execute('SELECT * FROM training_plans WHERE user_id = %s AND active', (uid,)).fetchone()
     if not p: raise HTTPException(404, 'No training plan')
-    if day > _ctx(c, uid)[2]: raise HTTPException(400, "You can't tick off a workout before its day")
     if not any(w['day'] == day for wk in build(p, paces(None)) for w in wk['workouts']): raise HTTPException(400, 'No workout that day')
     return p
 
 
 @router.post('/current/marks')
 def mark(b: MarkIn, user=Depends(current_user)):
-    """Tick off a workout by hand (done without a recorded run)."""
+    """Tick a workout off by hand (done without a recorded run), or untick it (done=false: not done, even with a run)."""
     with db.connect() as c:
         p = _plan_day(c, user['id'], b.day)
-        c.execute('INSERT INTO plan_marks (user_id, plan_id, day) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING', (user['id'], p['id'], b.day))
+        c.execute("""INSERT INTO plan_marks (user_id, plan_id, day, done) VALUES (%s, %s, %s, %s)
+                     ON CONFLICT (plan_id, day) DO UPDATE SET done = EXCLUDED.done, created = now()""", (user['id'], p['id'], b.day, b.done))
     return {'ok': True}
 
 

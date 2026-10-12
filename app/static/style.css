@@ -779,6 +779,9 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .dh-w { text-align: right; } .dh-w b { font-size: 22px; }
 .dh-mac { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .dh-mac b { display: block; font: 700 17px var(--numf); }
+.nut { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 14px 0; margin-bottom: 8px; border-bottom: 1px solid var(--line); text-align: center; }
+.nut b { display: block; font: 700 18px var(--numf); }
+.nut small { display: block; color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
 .dish-hero p { margin-top: 12px; } .dish-hero p .linkbtn { min-height: 0; padding: 0; }
 .addline { display: flex; gap: 8px; align-items: center; }
 .addline input { flex: 1; background: var(--card2); border-color: transparent; border-radius: 999px; padding-left: 16px; }
