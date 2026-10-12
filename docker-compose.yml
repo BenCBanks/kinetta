@@ -1,0 +1,92 @@
+# Kinetta - start it with:   docker compose up -d
+# then open http://<this computer's address>:8790 and create your account (the first account is the admin).
+# Settings are optional: copy .env.example to .env and edit it. How to reach Kinetta from your phone: docs/connect.md
+name: kinetta
+
+x-image: &image
+  image: ghcr.io/bencbanks/kinetta:${KINETTA_VERSION:-latest}
+  build: .
+
+services:
+  # makes up the database passwords on the very first start and keeps them in the "secrets" volume
+  firstrun:
+    <<: *image
+    command: ["python", "-m", "app.firstrun"]
+    volumes:
+      - secrets:/run/kinetta
+    restart: "no"
+
+  db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: fit
+      POSTGRES_PASSWORD_FILE: /run/kinetta/db_password
+      TZ: ${TZ:-UTC}
+    volumes:
+      - db:/var/lib/postgresql/data
+      - secrets:/run/kinetta:ro
+    depends_on:
+      firstrun:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fit"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    <<: *image
+    ports:
+      - "${KINETTA_PORT:-8790}:8000"
+    environment:
+      FIT_DB_HOST: db
+      FIT_APP_PASSWORD_FILE: /run/kinetta/app_password
+      POSTGRES_PASSWORD_FILE: /run/kinetta/db_password
+      TZ: ${TZ:-UTC}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      FDC_API_KEY: ${FDC_API_KEY:-}
+      KINETTA_PUBLIC_URL: ${KINETTA_PUBLIC_URL:-}
+      KINETTA_BETA_SIGNUP: ${KINETTA_BETA_SIGNUP:-}
+    volumes:
+      - data:/data
+      - secrets:/run/kinetta:ro
+    networks:
+      - default
+      - public
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:   # access logs hold visitors' IP addresses: keep them short
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  # Optional: a public https address through Cloudflare, without opening your router (docs/connect.md).
+  # Start with:  docker compose --profile tunnel up -d
+  # It sits on its own network with only the app, so it can't reach the database.
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.2
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    networks:
+      - public
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - app
+    profiles: ["tunnel"]
+    restart: unless-stopped
+
+networks:
+  default:
+  public:     # the app + the optional tunnel only
+
+volumes:
+  db:
+  data:
+  secrets:
