@@ -73,24 +73,33 @@ def _ordered(schema):
 
 
 def ask(parts, schema, label, timeout=45):
-    """One Gemini Flash-Lite call that answers in JSON (schema). Returns (answer, raw response, model); 502 if it fails."""
+    """One Gemini call that answers in JSON (schema). Returns (answer, raw response, model); 502 if it fails.
+    Google sometimes answers 429/5xx ("high demand") or is slow: then it tries once more, and then a second model
+    (GEMINI_FOOD_FALLBACK_MODEL), before giving up (2026-10-12: an ingredient typed in a dish failed on a busy model)."""
+    import time
     parts = [*parts, {'text': ROUNDING}]
-    model = os.environ.get('GEMINI_FOOD_MODEL', 'gemini-3.1-flash-lite')
-    req = urllib.request.Request(
-        f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
-        json.dumps({'contents': [{'parts': parts}],
-                    'generationConfig': {'responseMimeType': 'application/json', 'responseSchema': _ordered(schema), 'temperature': 0.2,
-                                         'maxOutputTokens': MAX_OUTPUT_TOKENS}}).encode(),
-        {'Content-Type': 'application/json', 'x-goog-api-key': os.environ.get('GEMINI_API_KEY', '')})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r: data = json.load(r)
-        return json.loads(data['candidates'][0]['content']['parts'][-1]['text']), data, model
-    except urllib.error.HTTPError as e:
-        print(f'{label}: gemini HTTP', e.code, e.read()[:300], flush=True)
-        raise HTTPException(502, 'The food estimator is busy - try again in a minute')
-    except Exception as e:
-        print(f'{label}: failed', repr(e)[:300], flush=True)
-        raise HTTPException(502, "Couldn't get an estimate - try again")
+    main = os.environ.get('GEMINI_FOOD_MODEL', 'gemini-3.1-flash-lite')
+    body = json.dumps({'contents': [{'parts': parts}],
+                       'generationConfig': {'responseMimeType': 'application/json', 'responseSchema': _ordered(schema), 'temperature': 0.2,
+                                            'maxOutputTokens': MAX_OUTPUT_TOKENS}}).encode()
+    tries = [main, main, os.environ.get('GEMINI_FOOD_FALLBACK_MODEL', 'gemini-3.8-flash')]
+    for n, model in enumerate(tries):
+        last = n == len(tries) - 1
+        req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', body,
+                                     {'Content-Type': 'application/json', 'x-goog-api-key': os.environ.get('GEMINI_API_KEY', '')})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r: data = json.load(r)
+            return json.loads(data['candidates'][0]['content']['parts'][-1]['text']), data, model
+        except urllib.error.HTTPError as e:
+            print(f'{label}: gemini {model} HTTP', e.code, e.read()[:300], flush=True)
+            if last or (e.code != 429 and e.code < 500): raise HTTPException(502, 'The food estimator is busy - try again in a minute')
+        except (urllib.error.URLError, TimeoutError) as e:
+            print(f'{label}: gemini {model} failed', repr(e)[:300], flush=True)
+            if last: raise HTTPException(502, "Couldn't reach the food estimator - try again in a minute")
+        except Exception as e:      # an answer that isn't the JSON asked for
+            print(f'{label}: failed', repr(e)[:300], flush=True)
+            raise HTTPException(502, "Couldn't get an estimate - try again")
+        time.sleep(2)
 
 
 def brake(user_id, limit=DAILY_LIMIT, kind='photo', what='estimates'):
