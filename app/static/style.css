@@ -758,7 +758,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .shell h1.dish-name { margin: 2px 2px 14px; font-size: 24px; letter-spacing: -.025em; overflow-wrap: anywhere; }
 .dish-name ~ .sec-head { font-size: 17px; margin-top: 20px; }
 .cook-steps { list-style: none; margin: 0 0 12px; padding: 6px 16px; }
-.cook-steps li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; color: var(--tx3); }
+.cook-steps li { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; color: var(--tx3); }
 .cook-steps li + li { border-top: 1px solid var(--line); }
 .cook-steps li > div { display: grid; gap: 1px; min-width: 0; }
 .cook-steps b { font-size: 15px; font-weight: 650; } .cook-steps small { font-size: 13px; line-height: 1.35; }
@@ -777,8 +777,9 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .dish-hero p { margin-top: 12px; } .dish-hero p .linkbtn { min-height: 0; padding: 0; }
 .addline { display: flex; gap: 8px; align-items: center; }
 .addline input { flex: 1; background: var(--card2); border-color: transparent; border-radius: 999px; padding-left: 16px; }
-.addline .primary { min-height: 46px; padding: 0 18px; border-radius: 999px; }
-.addline input { min-height: 46px; }
+.addline .primary { min-height: 44px; padding: 0 18px; border-radius: 999px; }
+.addline input { min-height: 44px; }
+.addline .gfield { flex: 1; min-width: 0; } .addline .gfield input { width: 100%; background: var(--card2); border-color: transparent; border-radius: 999px; padding-left: 16px; }
 .match { margin: 12px 0 4px; padding: 12px; border-radius: var(--r2); background: var(--card2); }
 .match .mres .fe:first-of-type, .match .ghead + .fe { border-top: 0; }
 .match .ghead { margin-top: 10px; } .match .qadd { width: 36px; height: 36px; }
@@ -789,8 +790,24 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .portion-out { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 28px; }
 .portion-out b { font: 800 24px var(--numf); letter-spacing: -.02em; } .portion-out span { font-size: 14px; }
 .dish-row .av { width: 34px; height: 34px; font-size: 13px; }
-.share-dish .avs { display: flex; align-items: center; gap: 6px; } .share-dish .avs .av { width: 32px; height: 32px; font-size: 12px; margin-right: -12px; box-shadow: 0 0 0 2px var(--card); }
-.share-dish .avs > span:not(.av) { margin-left: 18px; font-weight: 600; } .share-dish .ghost.wide { margin-top: 12px; }
+/* 2026-10-12: tighter cooking screen. One big button (Log my portion); everything else is a row or a small pill */
+.card.tap.share-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 12px 14px 12px 16px; border: 0; text-align: left; font: inherit; }
+.share-row .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .share-row b { font-size: 15px; font-weight: 650; } .share-row small { font-size: 13px; }
+.share-row > svg { width: 18px; height: 18px; color: var(--tx3); flex: none; }
+.share-row .ri { background: var(--accent2); color: var(--accent); }
+.share-row .avs { display: flex; padding-right: 10px; } .share-row .avs .av { width: 30px; height: 30px; font-size: 12px; margin-right: -10px; box-shadow: 0 0 0 2px var(--card); }
+.cc-ask { display: flex; align-items: center; gap: 12px; } .cc-ask .grow { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.cc-ask b { font-size: 15px; font-weight: 650; } .cc-ask small { font-size: 13px; }
+.ghost.tint { background: var(--accent2); color: var(--accent); } .ghost.sm svg { width: 16px; height: 16px; }
+.dish-name ~ .card:not(.cook-steps) { padding: 14px 16px; }
+.serve .kvs { margin-bottom: 6px; } .serve .kv { padding: 8px 0; font-size: 14px; }
+.serve .gfield input, .match .gfield input { min-height: 44px; font-size: 17px; }
+.serve .seg.meal4 button { min-height: 34px; }
+.serve .primary.wide { margin-top: 4px; }
+#dk-portion { gap: 10px; }
+.pan-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; }
+.pan-row select { flex: 1; min-height: 38px; padding: 6px 12px; border-radius: 999px; font-size: 16px; background: var(--card2); border-color: transparent; }
+.pan-row .linkbtn { min-height: 38px; padding: 0 4px; font-size: 14px; white-space: nowrap; }
 .serve .kv b .linkbtn { min-height: 0; padding: 0 0 0 8px; font-size: 14px; }
 
 /* ---------- admin: invites + beta ---------- */
