@@ -13,14 +13,20 @@ Cheap first, AI only when needed:
 The cook's own dish only (api_dishes._get checks user_id). Nothing about the person is sent: just the dish's
 ingredient names and amounts and their message.
 """
+import difflib
+import json
 import os
 import re
 import secrets
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from . import api_dishes as D, coach, db, food_photo
+from . import api_dishes as D, api_food, coach, db, food_photo
 from .auth import current_user
 
 router = APIRouter(prefix='/api/dishes')
@@ -117,6 +123,7 @@ The dish so far (id | ingredient | grams):
 
 Their message: \"\"\"{text}\"\"\"
 
+{refs}
 Turn it into actions:
 - "add" for each ingredient they put in. Keep their amount. Turn household amounts into grams with typical sizes
   (an apple ~180 g, an egg ~50 g, a tbsp of oil ~13.5 g, a cup of cooked rice ~160 g, a splash of oil ~5 g, a pinch ~0.4 g).
@@ -124,10 +131,18 @@ Turn it into actions:
   (raw / dry / as bought) unless they say it's cooked or canned.
 - "change" when they correct an ingredient already in the dish: its id and the new total grams.
 - "remove" when they took something out or added it by mistake: its id.
+They often type fast: read through misspellings and shorthand ("brocoli", "chiken brest", "bx", "tbs") and name the
+food correctly spelled.
 name: short and plain, singular, capitalised ("Apple", "Olive oil", "Chicken thigh, skinless"). amount: their amount as
 words ("2 medium", "1 tbsp", "200 g").
 reply: one short, friendly sentence saying what you did and any size you assumed, e.g. "Added 2 medium apples (about 360 g)."
 If the message isn't about food going into this dish, return no actions and say what you can help with."""
+
+REFS = """Real products that may match what they typed (looked up for you; per 100 g as sold):
+{lines}
+If one is the product they mean, use its package weight and its numbers. If none is the same brand, the closest one is a
+good guide to the package size, and say which size you assumed in the reply so they can check the box.
+"""
 
 SCHEMA = {
     'type': 'OBJECT',
@@ -147,10 +162,104 @@ def _n(v):
     except (TypeError, ValueError): return None
 
 
+# ---------- real products (2026-10-12): "a box of bettergoods protein penne" should use the real box, not a guess ----------
+# A packaged amount ("a box of", "a can of"...) is looked up first: USDA's database of branded foods (free, lists the
+# package weight), and a Google search by the AI (like asking ChatGPT; limited on the free plan). What's found is
+# handed to the model as reference, so it uses a real package size and label instead of its memory.
+PACKAGES = ('box', 'bag', 'can', 'tin', 'jar', 'package', 'pack', 'packet', 'carton', 'bottle', 'container', 'pouch', 'tub')
+SHORT = {'bx', 'bxs', 'pkg', 'pkgs', 'pk', 'pkt', 'btl', 'ctn', 'cntr'}     # how people shorten them in a hurry
+_WORD = re.compile(r"[a-z]+", re.I)
+
+
+def _package_word(w):
+    """'box', 'boxes', 'packge', 'botle', 'bx' -> True. Misspellings count; short everyday words ('in', 'pan') don't."""
+    w = w.lower()
+    if w in SHORT or w in PACKAGES or (w.endswith('es') and w[:-2] in PACKAGES) or (w.endswith('s') and w[:-1] in PACKAGES): return True
+    return len(w) >= 5 and bool(difflib.get_close_matches(w, PACKAGES, n=1, cutoff=0.8))
+
+
+def packaged(text):
+    return any(_package_word(w) for w in _WORD.findall(text))
+
+
+_FILLER = re.compile(r'\b(a|an|one|two|three|half|of|the|whole|full|\d+(\.\d+)?)\b', re.I)
+_web_off_until = [0.0]       # Google said no to web search: don't ask again until then
+
+
+def package_grams(s):
+    """'14.5 oz/411 g', '14.5 ONZ', '1 LB', '340 g' -> grams."""
+    s = (s or '').lower()
+    m = re.search(r'(\d+(?:\.\d+)?)\s*(?:g|grm|gram|grams)\b', s)
+    if m: return float(m[1])
+    m = re.search(r'(\d+(?:\.\d+)?)\s*(oz|onz|ounce|ounces|lb|lbs|pound|pounds|kg)\b', s)
+    if not m: return None
+    return round(float(m[1]) * {'oz': 28.35, 'onz': 28.35, 'ounce': 28.35, 'ounces': 28.35, 'kg': 1000}.get(m[2], 453.6), 1)
+
+
+def _usda_products(q):
+    key = os.environ.get('FDC_API_KEY') or 'DEMO_KEY'
+    def fetch():
+        d = api_food._get('https://api.nal.usda.gov/fdc/v1/foods/search?' + urllib.parse.urlencode(
+            {'query': q, 'pageSize': 8, 'dataType': 'Branded', 'api_key': key}), timeout=8)
+        return d.get('foods') or []
+    try: raw = api_food._cached('usda-pkg:' + q.lower(), fetch)
+    except Exception: return []
+    out = []
+    for f in raw:
+        food = api_food._fdc_food(f)
+        if food: out.append({**food, 'package_g': package_grams(f.get('packageWeight') or '')})
+    return out[:5]
+
+
+def _web_product(text):
+    """Google search through Gemini (grounding), like asking ChatGPT. The free plan allows a small number a day; when
+    Google says no (429), it waits a while before asking again, and the USDA lookup still works."""
+    if not os.environ.get('GEMINI_API_KEY') or time.time() < _web_off_until[0]: return None
+    prompt = ('The person is in the United States and may misspell words: work out the product they mean, search the web for it '
+              '(a US product, from a US shop), and read its package size and its nutrition label. Answer JSON only, no other text: '
+              '{"name": product name with brand, "package_g": grams in the package, "per100": {"kcal": n, "protein_g": n, "carbs_g": n, '
+              '"fat_g": n, "fiber_g": n}, "source": the shop or site}. Food: ' + text)
+    model = os.environ.get('GEMINI_SEARCH_MODEL', 'gemini-3.8-flash')
+    req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+                                 json.dumps({'contents': [{'parts': [{'text': prompt}]}], 'tools': [{'google_search': {}}],
+                                             'generationConfig': {'temperature': 0.1}}).encode(),
+                                 {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
+    try:
+        with urllib.request.urlopen(req, timeout=25) as r: d = json.load(r)
+        t = ''.join(p.get('text', '') for p in d['candidates'][0]['content']['parts'])
+        x = json.loads(t[t.index('{'):t.rindex('}') + 1])
+        per = api_food._sane({k: _n((x.get('per100') or {}).get(k)) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')})
+        if not per: return None
+        print('cook chat: web lookup found a product', flush=True)
+        return {'source': 'web: ' + str(x.get('source') or '')[:60], 'brand': None, 'name': str(x.get('name') or '')[:120], 'per100': per,
+                'package_g': _n(x.get('package_g'))}
+    except urllib.error.HTTPError as e:
+        print('cook chat: web lookup HTTP', e.code, flush=True)
+        # busy or over the plan's search allowance: rest a while (a key without web search at all: a long while)
+        if e.code in (429, 403, 400): _web_off_until[0] = time.time() + (15 * 60 if e.code == 429 else 6 * 3600)
+    except Exception as e:
+        print('cook chat: web lookup failed', type(e).__name__, flush=True)
+    return None
+
+
+def product_refs(text):
+    """Reference products for a packaged amount, as prompt lines ('' when there's nothing to look up)."""
+    if not packaged(text): return ''
+    q = ' '.join(w for w in _FILLER.sub(' ', text).split() if not _package_word(w))
+    if len(q) < 3: return ''
+    found = ([w] if (w := _web_product(text)) else []) + _usda_products(q)
+    if not found: return ''
+    line = lambda f: (f"{f.get('brand') or ''} | {f['name']} | package {f['package_g']:g} g | " if f.get('package_g') else f"{f.get('brand') or ''} | {f['name']} | package size unknown | ") + \
+        ' '.join(f"{k} {f['per100'][k]:g}" for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g') if f['per100'].get(k) is not None) + \
+        (f" ({f['source']})" if str(f.get('source', '')).startswith('web') else '')
+    return REFS.format(lines='\n'.join(line(f) for f in found[:6]))
+
+
 def ai_actions(text, items):
-    """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent."""
+    """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent (and, for a packaged
+    amount, the product words to USDA / a web search)."""
     lines = '\n'.join(f"{i['id']} | {i['name']} | {i['grams']:g}" for i in items) or '(nothing yet)'
-    out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text)}], SCHEMA, 'cook chat', timeout=45)
+    out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text))}], SCHEMA, 'cook chat', timeout=45)
     u = data.get('usageMetadata', {})
     print(f"cook chat: model {model} actions {len(out.get('actions') or [])} tokens in {u.get('promptTokenCount')} "
           f"out {u.get('candidatesTokenCount')}", flush=True)
