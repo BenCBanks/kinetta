@@ -39,7 +39,8 @@ function scaleFood(f, amount, unit) {
   const out = {};
   for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) {
     let v = null;
-    if (unit === 'g' && f.per100 && f.per100[k] != null) v = f.per100[k] * amount / 100;
+    if (f._unit && !f.per100 && f.per_serving) v = f.per_serving[k] == null ? null : f.per_serving[k] * amount;    // a recent food: per the unit it was logged in
+    else if (unit === 'g' && f.per100 && f.per100[k] != null) v = f.per100[k] * amount / 100;
     else if (unit !== 'g' && f.per_serving && f.per_serving[k] != null) v = f.per_serving[k] * amount;
     else if (unit !== 'g' && f.per100 && f.per100[k] != null) v = f.per100[k] * (f.serving && f.serving.g ? f.serving.g : 100) / 100 * amount;
     out[k] = v == null ? (k === 'fiber_g' ? null : 0) : Math.round(v * 10) / 10;
@@ -258,11 +259,14 @@ function entrySheet(e, day) {
     };
   });
 }
-function unitOptions(ref, cur) {
+function unitList(ref, cur) {      // [[key, label]]: servings, grams when the food has per-100 g values, and the unit it was logged in
   const opts = [['serving', ref && ref.serving ? `serving (${ref.serving.label})` : 'serving']];
   if (!ref || ref.per100) opts.push(['g', 'grams']);
   if (cur && !opts.some(([k]) => k === cur)) opts.push([cur, cur]);
-  return opts.map(([k, n]) => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  return opts;
+}
+function unitOptions(ref, cur) {
+  return unitList(ref, cur).map(([k, n]) => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(n)}</option>`).join('');
 }
 const macroInputs = (e = {}) => `<div class="mac4">
   <label>Calories<input name="kcal" inputmode="decimal" value="${e.kcal != null ? r1(e.kcal) : ''}"></label>
@@ -365,10 +369,11 @@ async function tSaved(body, where, close) {
     body.innerHTML = `${mine.length ? `<h3 class="ghead">Dishes</h3><div class="results">${mine.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
-      <h3 class="ghead">My foods</h3><div class="results">${foods.map(foodRow).join('')}</div>
+      <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><div class="results">${foods.map(foodRow).join('')}</div>
       <div class="btncol"><button class="ghost wide" id="tm-dish">+ New dish</button></div>
 `;
     const again = () => tSaved(body, where, close);
+    $('#tm-food', body).onclick = () => foodEditor(null, again);
     $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
     $$('[data-dish]', body).forEach((x) => x.onclick = () => dishLogSheet(dishes[+x.dataset.dish], where(), (editing) => close()));
@@ -433,8 +438,10 @@ function amountSheet(f, w, closeParent, onEditFood) {
   const startUnit = last ? last.unit : f._unit || 'serving', startAmt = last ? last.amount : 1;
   const nm = f.name && f.name !== 'Unnamed product' ? f.name : '', br = f.brand || '';
   const title = br && nm && !nm.toLowerCase().includes(br.toLowerCase().split(',')[0].trim()) ? `${br.split(',')[0].trim()} ${nm}` : nm || br || 'Food';
-  const sub = f.serving && f.serving.label ? `1 serving = ${f.serving.label}${f.serving.g && !/\d\s*g\b/.test(f.serving.label) ? ` (${r1(f.serving.g)} g)` : ''}` : '';
-  const units = [...unitOptions(f.per100 || f.per_serving ? f : null, startUnit).matchAll(/value="([^"]*)"/g)].map((m) => m[1]);
+  // a recent food without a database entry only knows the unit it was logged in: no made-up serving size, no other units
+  const plain = f._unit && !f.per100;
+  const sub = !plain && f.serving && f.serving.label ? `1 serving = ${f.serving.label}${f.serving.g && !/\d\s*g\b/.test(f.serving.label) ? ` (${r1(f.serving.g)} g)` : ''}` : '';
+  const units = plain ? [startUnit] : unitList(f.per100 || f.per_serving ? f : null, startUnit).map(([k]) => k);
   const uName = (u) => (u === 'serving' ? 'Servings' : u === 'g' ? 'Grams' : u.charAt(0).toUpperCase() + u.slice(1));
   sheet(title, `<form class="form" id="am">
     ${sub ? `<p class="am-sub">${esc(sub)}</p>` : ''}
@@ -451,7 +458,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
     fm.amount.oninput = calc; calc();
     $$('[data-step]', fm).forEach((x) => x.onclick = () => {      // ½ a serving at a time, or 10 g
       const st = fm.unit.value === 'g' ? 10 : 0.5, a = (parseFloat(fm.amount.value) || 0) + st * +x.dataset.step;
-      fm.amount.value = r1(Math.max(st, a)); calc();
+      if (a > 0) { fm.amount.value = r1(a); calc(); }     // minus never goes to zero (or up)
     });
     $$('[data-unit]', fm).forEach((x) => x.onclick = () => {
       const u = x.dataset.unit, was = fm.unit.value; if (u === was) return;
@@ -467,7 +474,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
       e.preventDefault(); const a = parseFloat(fm.amount.value); if (!(a > 0)) { toast('Enter an amount'); return; }
       const v = calc();
       const ref = {source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
-      try { await addEntries([{...w, name: f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}]);
+      try { await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}]);
         close(); closeParent(); toast(`Added ${title}`); } catch (x) { toast(x.message); }
     };
   });

@@ -241,7 +241,7 @@ def dish_add(body: DishIn, user=Depends(current_user)):
             return _view(c, user['id'], _get(c, user['id'], empty['id']))
         if c.execute('SELECT count(*) AS n FROM dishes WHERE user_id = %s', (user['id'],)).fetchone()['n'] >= MAX_DISHES:
             raise HTTPException(400, f'You can keep up to {MAX_DISHES} dishes - delete one first')
-        # new dishes are measured by servings, 1 to start (2026-10-12): the simplest to log; a pot switches to weight or more servings
+        # new dishes are measured by servings (the whole dish is one serving): the simplest to log; a pot switches to weight
         did = c.execute("INSERT INTO dishes (user_id, name, serving, servings) VALUES (%s, %s, 'one', 1) RETURNING id", (user['id'], name or NEW_NAME)).fetchone()['id']
         return _view(c, user['id'], _get(c, user['id'], did))
 
