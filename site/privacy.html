@@ -10,53 +10,46 @@
 <link rel="apple-touch-icon" href="assets/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Figtree:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/site.css?v=2">
 <style>
-:root {
-  --bg: #F4F1EC; --paper: #FBFAF7; --ink: #1E2522; --ink2: #4A524E; --ink3: #6D7571; --line: #DFDAD1;
-  --berry: #C0283D; --spruce: #2F6F5E;
-  --display: "Sora", "Segoe UI", system-ui, sans-serif;
-  --body: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #121716; --paper: #1A201E; --ink: #EEF2F0; --ink2: #BFC7C3; --ink3: #939D99; --line: #2C3533;
-  --berry: #EF5868; --spruce: #6CC3A8; color-scheme: dark; } }
-:root[data-theme="dark"] {
-  --bg: #121716; --paper: #1A201E; --ink: #EEF2F0; --ink2: #BFC7C3; --ink3: #939D99; --line: #2C3533;
-  --berry: #EF5868; --spruce: #6CC3A8; color-scheme: dark; }
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.65 var(--body); }
-a { color: var(--spruce); }
-:focus-visible { outline: 3px solid var(--berry); outline-offset: 3px; border-radius: 4px; }
-.wrap { max-width: 760px; margin: 0 auto; padding-inline: 20px; }
-header { padding-block: 22px; } header .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-header img { width: 135px; height: auto; display: block; } header a.back { color: var(--ink2); text-decoration: none; font-weight: 500; font-size: 15px; }
-h1, h2 { font-family: var(--display); font-weight: 600; line-height: 1.15; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
-h1 { font-size: clamp(32px, 5vw, 44px); margin-top: 24px; }
-h2 { font-size: 22px; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); }
-p, ul { margin: 14px 0 0; color: var(--ink2); max-width: 68ch; } ul { padding-left: 1.2em; } li + li { margin-top: 6px; }
-b { color: var(--ink); }
-.date { color: var(--ink3); font-size: 15px; margin-top: 10px; }
-.short { margin-top: 28px; background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 24px 26px; }
-.short h2 { border: 0; padding: 0; margin: 0; font-size: 19px; }
-.short ul { margin-top: 12px; }
-.tablewrap { overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
-table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 15.5px; }
-th, td { text-align: left; vertical-align: top; padding: 11px 16px; border-top: 1px solid var(--line); color: var(--ink2); }
-thead th { border-top: 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); font-weight: 500; }
-td:first-child { color: var(--ink); font-weight: 600; }
-footer { margin-top: 64px; border-top: 1px solid var(--line); padding-block: 28px 48px; color: var(--ink3); font-size: 14.5px; }
+/* the policy's own text styles; header, footer and colours come from site.css */
+main.policy { max-width: 800px; margin: 0 auto; padding: 0 20px 24px; line-height: 1.65; }
+.policy a { color: var(--spruce); }
+.policy h1 { font-size: clamp(32px, 5vw, 44px); margin-top: 24px; }
+.policy h2 { font-size: 22px; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); }
+.policy p, .policy ul { margin: 14px 0 0; color: var(--ink2); max-width: 68ch; } .policy ul { padding-left: 1.2em; } .policy li + li { margin-top: 6px; }
+.policy b { color: var(--ink); }
+.policy .date { color: var(--ink3); font-size: 15px; margin-top: 10px; }
+.policy .short { margin-top: 28px; background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 24px 26px; }
+.policy .short h2 { border: 0; padding: 0; margin: 0; font-size: 19px; }
+.policy .short ul { margin-top: 12px; }
+.policy .tablewrap { overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.policy table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 15.5px; }
+.policy th, .policy td { text-align: left; vertical-align: top; padding: 11px 16px; border-top: 1px solid var(--line); color: var(--ink2); }
+.policy thead th { border-top: 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); font-weight: 500; }
+.policy td:first-child { color: var(--ink); font-weight: 600; }
+.policy .privacy { margin-top: 8px; }
 </style>
 </head>
 <body>
-<header><div class="wrap">
-  <a href="/" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Kinetta" width="135" height="22"></picture></a>
-  <a class="back" href="/">← kinetta.app</a>
-</div></header>
-<main class="wrap">
-  <h1>Privacy policy</h1>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Kinetta" width="132" height="21"></picture></a>
+    <nav class="tabs" aria-label="Pages"><a href="training">Training</a><a href="food">Food</a><a href="friends">Friends</a><a href="compare">Compare</a><a href="privacy" aria-current="page">Privacy</a></nav>
+    <a class="btn solid sm" href="https://login.kinetta.app/beta">Join the beta</a>
+  </div>
+</header>
+<main class="policy">
+  <section class="pagehead" aria-labelledby="priv-h"><span class="eyebrow">Private by design</span><h1 id="priv-h">Your numbers <em>stay yours.</em></h1></section>
+  <div class="privacy">
+        <div class="card"><h3>Not for sale</h3><p>No ads. No tracking. Never sold.</p></div>
+        <div class="card"><h3>Private per person</h3><p>Only you see your data.</p></div>
+        <div class="card"><h3>AI is opt-in</h3><p>Off until you turn it on.</p></div>
+      </div>
+  <p class="honest"><b>Honest note:</b> beta data sits on a server Ben Banks runs and can read. Want full control? <a href="self-host">Host it yourself</a>.</p>
+
+  <h2 id="policy">Privacy policy</h2>
   <p class="date">Last updated October 11, 2026 (friends and sharing; friend search; AI feedback on food; notifications)</p>
 
   <section class="short" aria-labelledby="short-h">
@@ -139,6 +132,15 @@ footer { margin-top: 64px; border-top: 1px solid var(--line); padding-block: 28p
   <h2>Questions</h2>
   <p>During the beta, ask the person who invited you, or use the app's account tools above. For questions about the software itself, open an issue on <a href="https://github.com/BenCBanks/kinetta/issues">GitHub</a>; please don't put personal details there.</p>
 </main>
-<footer><div class="wrap">© 2026 Ben Banks · <a href="/">kinetta.app</a></div></footer>
+<footer>
+  <div class="wrap">
+    <picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Kinetta" width="124" height="20"></picture>
+    <div>
+      <p><a href="training">Training</a> · <a href="food">Food</a> · <a href="friends">Friends</a> · <a href="compare">Compare</a> · <a href="self-host">Host it yourself</a> · <a href="privacy">Privacy policy</a> · <a href="https://github.com/BenCBanks/kinetta">GitHub</a></p>
+      <p>Free for personal use under the <a href="https://github.com/BenCBanks/kinetta/blob/main/LICENSE">PolyForm Noncommercial License</a>; commercial licenses on request.</p>
+      <p>© 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.</p>
+    </div>
+  </div>
+</footer>
 </body>
 </html>
