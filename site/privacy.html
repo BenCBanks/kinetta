@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=8">
+<link rel="stylesheet" href="assets/site.css?v=9">
 <style>
 /* the policy's own text styles; header, footer and colours come from site.css */
 main.policy { max-width: 800px; margin: 0 auto; padding: 0 20px 24px; line-height: 1.65; }
@@ -33,6 +33,7 @@ main.policy { max-width: 800px; margin: 0 auto; padding: 0 20px 24px; line-heigh
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 <header class="top">
   <div class="wrap">
     <a class="logo" href="./" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg" alt="Kinetta" width="132" height="21"></picture></a>
@@ -40,23 +41,23 @@ main.policy { max-width: 800px; margin: 0 auto; padding: 0 20px 24px; line-heigh
     <a class="btn solid sm" href="https://login.kinetta.app/beta">Join the beta</a>
   </div>
 </header>
-<main class="policy">
+<main id="main" class="policy">
   <section class="pagehead" aria-labelledby="priv-h"><span class="eyebrow">Private by design</span><h1 id="priv-h">Your numbers <em>stay yours.</em></h1></section>
   <div class="privacy">
         <div class="card"><h3>Not for sale</h3><p>No ads. No tracking. Never sold.</p></div>
-        <div class="card"><h3>Private per person</h3><p>Only you see your data.</p></div>
+        <div class="card"><h3>Private per person</h3><p>Private by default. You choose which activities to share.</p></div>
         <div class="card"><h3>AI is opt-in</h3><p>Off until you turn it on.</p></div>
       </div>
   <p class="honest"><b>Honest note:</b> beta data sits on a server Ben Banks runs and can read. Want full control? <a href="self-host">Host it yourself</a>.</p>
 
   <h2 id="policy">Privacy policy</h2>
-  <p class="date">Last updated October 13, 2026 (lifting)</p>
+  <p class="date">Last updated October 13, 2026</p>
 
   <section class="short" aria-labelledby="short-h">
     <h2 id="short-h">The short version</h2>
     <ul>
       <li>Your workouts, food log and health numbers are <b>yours</b>. Other Kinetta users see an activity only if you choose to share it, and your food log and health numbers are never shared.</li>
-      <li><b>No ads, no tracking, no selling or sharing your data.</b></li>
+      <li><b>No ads, no tracking and no selling your data. Activity sharing is your choice.</b></li>
       <li>AI features send data to an AI service <b>only if you turn them on</b>.</li>
       <li>You can <b>download</b> everything, or <b>delete</b> your account and all of it, from the app at any time.</li>
     </ul>
@@ -85,7 +86,7 @@ main.policy { max-width: 800px; margin: 0 auto; padding: 0 20px 24px; line-heigh
   <p>Your location is collected only as part of the activities you record or upload. Kinetta doesn't track where you are otherwise. Food photos you use for estimates are sent to the AI service and are not stored.</p>
 
   <h2>Apple Health</h2>
-  <p>If you use the Kinetta iPhone app and allow it, Kinetta <b>reads</b> your workouts from Apple Health, with their heart rate, routes, distance and active calories. It never writes anything to Apple Health. These workouts are sent to your Kinetta account and treated like your other activities: private to you, never used for advertising, and never sold or shared.</p>
+  <p>If you use the Kinetta iPhone app and allow it, Kinetta <b>reads</b> your workouts from Apple Health, with their heart rate, routes, distance and active calories. It never writes anything to Apple Health. These workouts are sent to your Kinetta account and treated like your other activities: private by default, never used for advertising or sold, and shared with other users only when you choose to share an activity.</p>
   <p>Kit, the AI coach, uses workouts from Apple Health only if you separately agree to that in the app (Me → Apple Health). You can change what Kinetta may read at any time in the iPhone's Settings → Health → Data Access &amp; Devices.</p>
 
   <h2>Who else sees it</h2>
@@ -104,7 +105,7 @@ main.policy { max-width: 800px; margin: 0 auto; padding: 0 20px 24px; line-heigh
   <h2>Where it's kept, and for how long</h2>
   <ul>
     <li>On a server in the United States, until you delete it.</li>
-    <li>Encrypted backups are made every night and kept for up to 30 days, so deleted data disappears from backups within 30 days too.</li>
+    <li>Nightly database backups are stored locally, with the newest 14 database backup files retained by the nightly cleanup. These local copies are not separately encrypted. Extra copies made before updates may be kept longer. Deleted records can remain in backups until those copies are removed. Encrypted off-site backups are not active yet.</li>
     <li>Server logs that include IP addresses are trimmed automatically and kept only briefly.</li>
     <li>Beta requests are kept until we invite you or you ask us to remove them. Once you have an account, your request is deleted along with it.</li>
   </ul>

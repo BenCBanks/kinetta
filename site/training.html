@@ -22,9 +22,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=8">
+<link rel="stylesheet" href="assets/site.css?v=9">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-people" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/></g></symbol>
@@ -45,12 +46,22 @@
   </div>
 </header>
 
-<main>
+<main id="main">
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Training</span>
       <h1>Runs, rides, walks <em>and lifting.</em></h1>
-      <p class="lede">Workouts come in from Garmin, Apple Watch or your Strava history. Lifting is logged set by set.</p>
+      <p class="lede">Import watch files or your Strava history, or connect a supported source. Lifting is logged set by set.</p>
+    </div>
+  </section>
+  <section class="band" aria-labelledby="import-h">
+    <div class="wrap">
+      <div class="head"><span class="eyebrow">Bring your history</span><h2 id="import-h">Start with the workouts you already have.</h2><p>File imports work in the web beta. Automatic updates depend on the source you connect.</p></div>
+      <div class="steps">
+        <div class="step"><h3>Watch files and Strava history</h3><p>Upload FIT, GPX or TCX files, or your own Strava history export, from Me → Import.</p></div>
+        <div class="step"><h3>Connected sources</h3><p>Set up intervals.icu or Health Auto Export from Me → Watch connections. Direct Garmin Connect access is not available yet.</p></div>
+        <div class="step"><h3>Apple Health on iPhone</h3><p>TestFlight access is being prepared. In the iPhone app, authorize Apple Health to import history and sync when you open or return to Kinetta. Background sync is not available yet.</p></div>
+      </div>
     </div>
   </section>
   <section class="band" id="what" aria-labelledby="what-h">
@@ -59,7 +70,7 @@
       <div class="shots three">
         <div class="shot"><figure>
           <div class="frame"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A 2.97 mile morning run: a map of the loop, distance, moving time and pace" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Your activities</h3><p>From Garmin, Apple Watch or Strava.</p></figcaption>
+          <figcaption><h3>Your activities</h3><p>FIT, GPX and TCX files, Strava history, or a connected source.</p></figcaption>
         </figure></div>
         <div class="shot"><figure>
           <div class="frame"><picture><source srcset="assets/shots/dark-progress.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-progress.webp" alt="Weekly running miles over the last months as bars, with the average week as a dashed line" loading="lazy" width="786" height="1704"></picture></div>
@@ -139,6 +150,6 @@
     </div>
   </div>
 </footer>
-<script src="assets/zoom.js?v=1" defer></script>
+<script src="assets/zoom.js?v=2" defer></script>
 </body>
 </html>

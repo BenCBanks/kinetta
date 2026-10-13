@@ -3,7 +3,15 @@
 (() => {
   'use strict';
   const frames = (sec) => [...sec.querySelectorAll('.frame img')];
-  let dlg, strip, count;
+  let dlg, strip, count, trigger;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  for (const img of frames(document)) {
+    img.tabIndex = 0;
+    img.setAttribute('role', 'button');
+    img.setAttribute('aria-haspopup', 'dialog');
+    img.setAttribute('aria-label', 'Enlarge screenshot: ' + img.alt);
+  }
 
   function build() {
     dlg = document.createElement('dialog');
@@ -19,21 +27,37 @@
     dlg.querySelector('.next').onclick = () => step(1);
     strip.addEventListener('click', (e) => { if (e.target.tagName === 'IMG') dlg.close(); });
     strip.addEventListener('scroll', () => show(at()), {passive: true});
-    dlg.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') step(1); if (e.key === 'ArrowLeft') step(-1); });
-    dlg.addEventListener('close', () => { document.documentElement.style.overflow = ''; strip.innerHTML = ''; });
+    dlg.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault(); step(e.key === 'ArrowRight' ? 1 : -1);
+      }
+    });
+    dlg.addEventListener('close', () => {
+      document.documentElement.style.overflow = ''; strip.innerHTML = '';
+      trigger?.focus({preventScroll: true});
+    });
   }
   const at = () => Math.round(strip.scrollLeft / strip.clientWidth);
   const n = () => strip.children.length;
-  function show(i) { count.textContent = n() > 1 ? `${i + 1} of ${n()}` : ''; }
-  function step(d) { const i = Math.max(0, Math.min(n() - 1, at() + d)); strip.scrollTo({left: i * strip.clientWidth, behavior: 'smooth'}); }
+  function show(i) {
+    count.textContent = `${i + 1} of ${n()}`;
+    dlg.querySelector('.prev').disabled = i === 0;
+    dlg.querySelector('.next').disabled = i === n() - 1;
+  }
+  function step(d) {
+    const i = Math.max(0, Math.min(n() - 1, at() + d));
+    strip.scrollTo({left: i * strip.clientWidth, behavior: reducedMotion.matches ? 'instant' : 'smooth'});
+  }
 
   function open(img) {
     if (!dlg) build();
+    trigger = img; trigger.focus({preventScroll: true});
     const sec = img.closest('section') || document.body, list = frames(sec), i = list.indexOf(img);
     strip.innerHTML = '';
     for (const x of list) {
       const slide = document.createElement('div'), big = document.createElement('img');
       slide.className = 'slide';
+      big.loading = x === img ? 'eager' : 'lazy';
       big.src = x.currentSrc || x.src;     // the light or dark picture, whichever the page is showing
       big.alt = x.alt; big.width = 786; big.height = 1704;
       slide.append(big); strip.append(slide);
@@ -48,5 +72,11 @@
   document.addEventListener('click', (e) => {
     const img = e.target.closest('.frame img');
     if (img && !img.closest('.zoom')) { e.preventDefault(); open(img); }
+  });
+  document.addEventListener('keydown', (e) => {
+    const img = e.target.closest('.frame img');
+    if (img && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault(); open(img);
+    }
   });
 })();
