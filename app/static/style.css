@@ -601,7 +601,7 @@ a.ntile { color: inherit; text-decoration: none; }
 .ring { position: relative; width: 96px; height: 96px; } .ring svg { width: 96px; height: 96px; }
 .ring .rb { fill: none; stroke: var(--card2); stroke-width: 10; } .ring .rf { fill: none; stroke: var(--prog); stroke-width: 10; stroke-linecap: round; }
 .ring.over .rf { stroke: var(--warn); }
-.ring > div { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.ring > div { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; }   /* "LEFT" under the number, centred */
 .ring b { font: 800 20px/1.05 var(--numf); letter-spacing: -.02em; } .ring small { color: var(--tx3); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .fsum { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; }
 .fmac { display: grid; gap: 8px; } .krow { display: flex; justify-content: space-between; font-weight: 600; }
@@ -1088,3 +1088,11 @@ body.ph-open { overflow: hidden; }
 .comment .c-acts .linkbtn { min-height: 32px; padding: 0; font-size: 13px; }
 .comment .c-hd b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } .comment .c-hd small { white-space: nowrap; }
 .tcard .tc-bal .brow small { display: block; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; }
+/* Describe or snap (2026-10-12): the quick-log chat in a sheet */
+.ways.three .way b { text-align: center; line-height: 1.15; }
+.ql-chat { min-height: 60px; }
+.ql-img { display: block; max-width: 180px; max-height: 180px; border-radius: 12px; margin: -3px -7px; }
+.cmsg.me:has(.ql-img) { padding: 6px; background: transparent; }
+.cmsg.ai i { font-style: normal; color: var(--tx2); }
+.sheet .ql-composer { position: sticky; bottom: calc(env(safe-area-inset-bottom) + 6px); margin-top: 12px; }
+#ql-items .actions { margin-bottom: 4px; }
