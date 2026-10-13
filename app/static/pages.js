@@ -692,7 +692,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
 const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
 const PVIEWS = [['totals', 'Totals', 'Distance by week, month and year', 'progress', 'c-red'],
   ['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
-  ['lifting', 'Lifting', 'Every exercise: last time, bests and history', 'workout', 'c-berry']];
+  ['lifting', 'Lifting', 'Every exercise, your bests and its history', 'workout', 'c-berry']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
   ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-berry'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];

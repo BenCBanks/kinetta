@@ -63,6 +63,8 @@ ck(a.post('/api/lifts/start', {})[1] == {'id': live['id'], 'resumed': True}, 'se
 s, L = a.get(f"/api/activities/{live['id']}/lifts")
 ck(L['open'] and [e['name'] for e in L['exercises']] == ['Bench press', 'Plank'] and not any(x['done'] for e in L['exercises'] for x in e['sets']), 'copied as plan')
 ck(len(L['exercises'][0]['sets']) == 3, 'copied only the done sets')
+ck(all(x['reps'] is None and x['kg'] is None for x in L['exercises'][0]['sets']), 'copied sets are blank: the phone shows that day\'s numbers in grey')
+ck(L['exercises'][0]['last']['activity_id'] == two['id'], 'grey numbers come from the copied session')
 ck(any(x['id'] == live['id'] and x['lift_open'] for x in a.get('/api/lifts/sessions')[1]), 'open session listed')
 sets = L['exercises'][0]['sets']; sets[1]['done'] = True
 s, r = a.put(f"/api/activities/{live['id']}/lifts", {'exercises': [{'exercise_id': bench['id'], 'sets': sets}], 'finish': True})

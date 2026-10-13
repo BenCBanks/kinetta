@@ -275,7 +275,7 @@ def save_lifts(aid: int, body: LiftsIn, user=Depends(current_user)):
 
 # ---------- starting a session ----------
 class StartIn(BaseModel):
-    copy_from: int | None = None          # a past session: its exercises and sets come along as the plan (not done yet)
+    copy_from: int | None = None          # a past session: its exercises and number of sets come along, blank (not done yet)
 
 
 @router.post('/lifts/start')
@@ -303,7 +303,7 @@ def start(body: StartIn, user=Depends(current_user)):
             with c.cursor() as cur:
                 cur.executemany("""INSERT INTO lift_sets (user_id, activity_id, exercise_id, pos, n, reps, kg, secs, warmup, done)
                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, false)""",
-                                [(uid, aid, p['exercise_id'], p['pos'], p['n'], p['reps'], p['kg'], p['secs'], p['warmup']) for p in plan])
+                                [(uid, aid, p['exercise_id'], p['pos'], p['n'], None, None, None, p['warmup']) for p in plan])   # blank: the phone shows that day's numbers in grey
     return {'id': aid, 'resumed': False}
 
 

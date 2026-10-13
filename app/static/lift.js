@@ -1,4 +1,4 @@
-// Kinetta phone app — lifting (2026-10-13): log a strength session set by set, with what you did last time beside every
+// Kinetta phone app — lifting (2026-10-13): log a strength session set by set, with the previous session's numbers beside every
 // set, and look back at any exercise later (records, a chart, every session). Weights are kg on the server; lb or kg here.
 'use strict';
 
@@ -40,7 +40,7 @@ function startLiftSheet() {
       recent = (await api('/api/lifts/sessions?limit=30')).filter((s) => s.exercises && s.exercises.length && !s.lift_open && !seen.has(s.name) && seen.add(s.name)).slice(0, 5);
     } catch (e) { /* offline: an empty one still works */ }
     $('#sl-body', b).innerHTML = `<button class="primary wide" id="sl-new">${svg('workout')}Start an empty session</button>
-      ${recent.length ? `<h3 class="ghead">Or repeat one</h3><p class="small muted sl-hint">Its exercises and weights come along. Tick each set as you do it.</p>
+      ${recent.length ? `<h3 class="ghead">Or repeat one</h3><p class="small muted sl-hint">Its exercises come along, with that day's numbers in grey beside each set.</p>
       <div class="pick-list">${recent.map((s) => `<button type="button" class="row-link" data-copy="${s.id}"><span class="grow"><span>${esc(s.name)}</span>
         <small class="muted">${esc(shortDay(s.start_time))} · ${esc(s.exercises.slice(0, 3).join(', '))}${s.exercises.length > 3 ? ` +${s.exercises.length - 3}` : ''}</small></span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>` : ''}
       <button class="ghost wide" id="sl-past">Log one you did earlier</button>`;
@@ -58,7 +58,7 @@ function startLiftSheet() {
 function addActivityMenu(day) {
   if (day) return addActivitySheet(day);
   pickSheet('Add', `<div class="pick-list">
-    <button type="button" class="row-link" data-pk="lift"><span class="ri c-berry">${svg('workout')}</span><span class="grow"><span>Start lifting</span><small class="muted">Log sets as you go, with last time beside each one</small></span></button>
+    <button type="button" class="row-link" data-pk="lift"><span class="ri c-berry">${svg('workout')}</span><span class="grow"><span>Start lifting</span><small class="muted">Log sets as you go, with your previous numbers beside each one</small></span></button>
     <button type="button" class="row-link" data-pk="hand"><span class="ri c-blue">${svg('plus')}</span><span class="grow"><span>Add an activity by hand</span><small class="muted">A class, a treadmill run, anything without a file</small></span></button>
     <button type="button" class="row-link" data-pk="upload"><span class="ri c-ink">${svg('upload')}</span><span class="grow"><span>Upload files</span><small class="muted">FIT, GPX, TCX or your Strava export</small></span></button></div>`,
   (k) => (k === 'lift' ? startLiftSheet() : k === 'hand' ? addActivitySheet() : go('/me/import')));
@@ -85,24 +85,26 @@ function liftLogger(el, aid, data) {
   let saveT = null, saving = false, again = false, gone = false;
   el.innerHTML = `<div class="top">${backBtn('Activity')}<div class="acts"><span class="lift-save small muted" id="lf-save" aria-live="polite"></span>
       ${S.open ? '<button class="primary sm" id="lf-finish">Finish</button>' : '<button class="primary sm" id="lf-done">Done</button>'}</div></div>
-    ${S.open ? `<div class="lift-clock card"><div><small>Session</small><b class="num" id="lf-time">0:00</b></div><div><small>Since last set</small><b class="num" id="lf-rest">–</b></div></div>` : ''}
+    ${S.open ? `<div class="lift-clock card"><span>Session <b class="num" id="lf-time">0:00</b></span><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>` : ''}
     <div id="lf-list"></div>
     <button class="primary wide lift-add" id="lf-add">${svg('plus')}Add exercise</button>
-    <p class="small muted center lift-foot">${S.open ? 'Ticked sets count. Untick or leave a set blank to skip it.' : 'Changes save as you go.'}</p>`;
+    <p class="small muted center lift-foot">${S.open ? "Tick each set when you've done it. Only ticked sets are saved." : 'Every set with numbers in it is saved.'}</p>`;
   wireBack(el, `/activity/${aid}`);
   const list = $('#lf-list', el);
 
-  // clock: the session's time and the time since the last ticked set (a rest timer that needs no setting up)
+  // the session's time, and Rest: time since the last ticked set (shown once a set is ticked; nothing to set up)
   if (S.open) {
     const t0 = new Date(S.start).getTime(), tick = () => {
       if (!el.isConnected) { clearInterval(iv); return; }
       $('#lf-time', el).textContent = dur(Math.max(0, (Date.now() - t0) / 1000));
-      $('#lf-rest', el).textContent = S.lastTick ? dur((Date.now() - S.lastTick) / 1000) : '–';
+      $('#lf-restbox', el).hidden = !S.lastTick;
+      if (S.lastTick) $('#lf-rest', el).textContent = dur((Date.now() - S.lastTick) / 1000);
     };
     const iv = setInterval(tick, 1000); tick();
   }
 
-  const body = () => ({exercises: S.ex.map((e) => ({exercise_id: e.exercise_id, sets: e.sets.map((s) => ({reps: s.reps ?? null, kg: s.kg ?? null, secs: s.secs ?? null, warmup: !!s.warmup, done: !!s.done}))}))});
+  const filled = (x) => x.reps != null || x.secs != null;
+  const body = () => ({exercises: S.ex.map((e) => ({exercise_id: e.exercise_id, sets: e.sets.map((s) => ({reps: s.reps ?? null, kg: s.kg ?? null, secs: s.secs ?? null, warmup: !!s.warmup, done: S.open ? !!s.done : filled(s)}))}))});
   const status = (t) => { const s = $('#lf-save', el); if (s) s.textContent = t; };
   async function save(finish = false) {
     clearTimeout(saveT); saveT = null;
@@ -114,9 +116,12 @@ function liftLogger(el, aid, data) {
       store.set(key, {unsent: false, data: r});
       invalidate(`/api/activities/${aid}`); invalidate('/api/activities?'); invalidate('/api/lifts'); App.cache.delete('feed:home');
       // records and last time come back from the server: shown without disturbing what's being typed
-      r.exercises.forEach((e, i) => { const mine = S.ex[i]; if (mine && mine.exercise_id === e.exercise_id) { mine.last = e.last; mine.sessions_before = e.sessions_before;
+      let moved = false;
+      r.exercises.forEach((e, i) => { const mine = S.ex[i]; if (mine && mine.exercise_id === e.exercise_id) {
+        moved = moved || (mine.last && mine.last.activity_id) !== (e.last && e.last.activity_id);
+        mine.last = e.last; mine.sessions_before = e.sessions_before;
         mine.sets.forEach((s, j) => { s.pr = (e.sets[j] || {}).pr; }); } });
-      if (!again) { status('Saved'); marks(); }
+      if (!again) { status('Saved'); if (moved && !list.contains(document.activeElement)) draw(); else marks(); }   // the server knows best which session came before
       return r;
     } catch (x) {
       status(x.offline ? 'Kept on this phone' : 'Not saved');
@@ -134,40 +139,49 @@ function liftLogger(el, aid, data) {
   addEventListener('popstate', () => { flush(); gone = true; }, {once: true});
 
   function draw() {
-    list.innerHTML = S.ex.length ? S.ex.map(exCard).join('') : `<div class="card empty"><b>No exercises yet</b>Add the first one: what you did last time shows beside every set.</div>`;
+    list.innerHTML = S.ex.length ? S.ex.map(exCard).join('') : `<div class="card empty"><b>No exercises yet</b>Add one. Your numbers from the previous session show beside each set.</div>`;
     wire();
   }
+  // the columns: set number, the previous session's set (its date on top), the boxes, and the tick in a live session
+  const cols = (e) => ['n', ...(e.last ? ['prev'] : []), ...(e.kind === 'time' ? ['secs'] : hasWeight(e) ? ['kg', 'reps'] : ['reps']), ...(S.open ? ['tick'] : [])];
+  const T = '\u2009×\u2009';   // thin spaces: "200 × 5" fits the narrow column
+  const prevText = (e, p) => (!p ? '' : e.kind === 'time' ? `${p.secs || 0} s` : p.kg && e.kind === 'body' ? `+${toW(p.kg)}${T}${p.reps || 0}` : p.kg ? `${toW(p.kg)}${T}${p.reps || 0}` : `${p.reps || 0}`);
   function exCard(e, i) {
-    const last = e.last ? `<p class="lift-last"><span class="muted">Last time</span> <span class="num">${esc(setsText(e.last.sets, e.kind)) || '–'}</span> <span class="muted">· ${esc(shortDay(e.last.start_time))}</span></p>`
-      : `<p class="lift-last muted">${e.sessions_before ? '' : 'First time - it shows here next time'}</p>`;
-    const head = e.kind === 'time' ? ['Seconds'] : !hasWeight(e) ? ['Reps'] : e.kind === 'body' ? [`+${wUnit()}`, 'Reps'] : [wUnit(), 'Reps'];
+    const c = cols(e), name = {n: 'Set', prev: e.last ? shortDay(e.last.start_time) : '', kg: e.kind === 'body' ? `+${wUnit()}` : wUnit(), reps: 'Reps', secs: 'Seconds', tick: ''};
     return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>
         <button class="icon-btn" data-exmenu aria-label="More for ${esc(e.name)}">${svg('more')}</button></div>
-      ${e.note ? `<p class="lift-note small">${esc(e.note)}</p>` : ''}${last}
-      <div class="lift-grid k-${esc(e.kind === 'time' || !hasWeight(e) ? 'one' : 'two')}" role="group" aria-label="${esc(e.name)} sets"><span class="lh">Set</span>${head.map((h) => `<span class="lh">${esc(h)}</span>`).join('')}<span class="lh lh-tick">Done</span>
+      ${e.note ? `<p class="lift-note small">${esc(e.note)}</p>` : ''}
+      <div class="lift-sets c${c.length}${e.last ? ' has-prev' : ''}" role="group" aria-label="${esc(e.name)} sets">
+        <div class="lift-row lh">${c.map((k) => `<span class="lh-${k}">${esc(name[k])}</span>`).join('')}</div>
         ${e.sets.map((s, j) => setRow(e, s, j)).join('')}</div>
+      ${i === 0 && !hintSeen() ? '<p class="lift-hint small muted">Tap a set number to mark a warm-up or delete the set.</p>' : ''}
       <button class="ghost wide lift-addset" data-addset>${svg('plus')}Add set</button></section>`;
   }
   function setRow(e, s, j) {
-    const prev = e.last && e.last.sets.filter((x) => !x.warmup)[j - e.sets.slice(0, j).filter((x) => x.warmup).length];   // last time's set at this place
-    const ph = (k) => (prev && prev[k] != null ? (k === 'kg' ? toW(prev[k]) : prev[k]) : '');
+    const p = e.last && e.last.sets[j];                                 // the previous session's set at this place
+    const above = e.sets[j - 1];
+    const ph = (k) => { const src = p || above; return src && src[k] != null ? (k === 'kg' ? toW(src[k]) : String(src[k])) : ''; };
     const v = (k) => (s[k] == null ? '' : k === 'kg' ? toW(s[k]) : s[k]);
-    const num = (k, mode, label) => `<input class="lift-in" data-k="${k}" inputmode="${mode}" enterkeyhint="next" autocomplete="off" value="${esc(v(k))}" placeholder="${esc(ph(k))}" aria-label="Set ${j + 1} ${label}">`;
-    const cells = e.kind === 'time' ? num('secs', 'numeric', 'seconds') : (hasWeight(e) ? num('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()) : '') + num('reps', 'numeric', 'reps');
+    const box = (k, mode, label) => `<input class="lift-in" data-j="${j}" data-k="${k}" inputmode="${mode}" enterkeyhint="next" autocomplete="off" value="${esc(v(k))}" placeholder="${esc(ph(k))}" aria-label="Set ${j + 1} ${label}">`;
+    const cell = {
+      n: `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}${s.warmup ? ', warm-up' : ''}: warm-up or delete">${s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length}</button>`,
+      prev: p ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}">${esc(prevText(e, p))}</button>` : '<span class="lift-prev none">–</span>',
+      kg: box('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()), reps: box('reps', 'numeric', 'reps'), secs: box('secs', 'numeric', 'seconds'),
+      tick: `<button type="button" class="lift-tick" data-tick="${j}" aria-pressed="${!!s.done}" aria-label="Set ${j + 1} done">${svg('check')}</button>`,
+    };
     const pr = (s.pr || []).map((k) => PR_NAMES[k]).join(', ');
-    return `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}${s.warmup ? ', warm-up' : ''}: options">${s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length}</button>
-      ${cells.replace(/<input /g, `<input data-j="${j}" `)}<button type="button" class="lift-tick" data-tick="${j}" aria-pressed="${!!s.done}" aria-label="Set ${j + 1} done">${svg('check')}</button>
-      ${pr ? `<span class="lift-pr" data-pr="${j}">${svg('trophy')} New record: ${esc(pr)}</span>` : ''}`;
+    return `<div class="lift-row${s.done && S.open ? ' done' : ''}" data-row="${j}">${cols(e).map((k) => cell[k]).join('')}
+      ${pr ? `<span class="lift-pr">${svg('trophy')} New record: ${esc(pr)}</span>` : ''}</div>`;
   }
-  // records and last time, after a save, without redrawing the inputs
+  // records, after a save, without redrawing the boxes being typed in
   function marks() {
     S.ex.forEach((e, i) => {
       const card = $(`.lift-ex[data-i="${i}"]`, list); if (!card) return;
       $$('.lift-pr', card).forEach((x) => x.remove());
       e.sets.forEach((s, j) => {
         if (!(s.pr || []).length) return;
-        const t = $(`[data-tick="${j}"]`, card);
-        t.insertAdjacentHTML('afterend', `<span class="lift-pr" data-pr="${j}">${svg('trophy')} New record: ${esc(s.pr.map((k) => PR_NAMES[k]).join(', '))}</span>`);
+        const row = $(`[data-row="${j}"]`, card);
+        if (row) row.insertAdjacentHTML('beforeend', `<span class="lift-pr">${svg('trophy')} New record: ${esc(s.pr.map((k) => PR_NAMES[k]).join(', '))}</span>`);
       });
     });
   }
@@ -184,16 +198,20 @@ function liftLogger(el, aid, data) {
       });
       $$('[data-tick]', card).forEach((b) => b.onclick = () => {
         const j = +b.dataset.tick, s = e.sets[j], on = !s.done;
-        if (on) {   // a blank box takes last time's number (the grey one) when the set is ticked
+        if (on) {   // a blank box takes its grey number (the previous session's) when the set is ticked
           for (const inp of $$(`.lift-in[data-j="${j}"]`, card)) if (inp.value.trim() === '' && inp.placeholder) { inp.value = inp.placeholder; inp.oninput(); }
           if (e.kind === 'time' ? !s.secs : !s.reps) { toast(e.kind === 'time' ? 'Type the seconds first' : 'Type the reps first'); $(`.lift-in[data-j="${j}"][data-k="${e.kind === 'time' ? 'secs' : 'reps'}"]`, card).focus(); return; }
           S.lastTick = Date.now();
         }
-        s.done = on; b.setAttribute('aria-pressed', String(on)); save();
+        s.done = on; b.setAttribute('aria-pressed', String(on)); b.closest('.lift-row').classList.toggle('done', on); save();
+      });
+      $$('[data-prev]', card).forEach((b) => b.onclick = () => {   // the previous session's set, copied into the boxes
+        const j = +b.dataset.prev, p = e.last.sets[j];
+        for (const inp of $$(`.lift-in[data-j="${j}"]`, card)) { const k = inp.dataset.k; inp.value = p[k] == null ? '' : k === 'kg' ? toW(p[k]) : p[k]; inp.oninput(); }
       });
       $('[data-addset]', card).onclick = () => {
         const prev = e.sets[e.sets.length - 1];
-        e.sets.push(prev ? {reps: prev.reps, kg: prev.kg, secs: prev.secs, warmup: false, done: !S.open} : {reps: null, kg: null, secs: null, warmup: false, done: false});
+        e.sets.push({reps: null, kg: null, secs: null, warmup: false, done: false});   // blank; the grey numbers show what to type
         draw(); later();
         const row = $$(`.lift-ex[data-i="${i}"] .lift-in[data-j="${e.sets.length - 1}"]`, list)[0]; if (row) row.focus({preventScroll: true});
       };
@@ -203,12 +221,10 @@ function liftLogger(el, aid, data) {
   }
   function setMenu(e, j) {
     const s = e.sets[j];
-    pickSheet(`${e.name}: set ${j + 1}`, `<div class="pick-list">
-      <button type="button" class="row-link" data-pk="wu"><span class="grow"><span>${s.warmup ? 'Not a warm-up' : 'Mark as warm-up'}</span><small class="muted">Warm-ups never count towards records</small></span></button>
-      <button type="button" class="row-link" data-pk="dup"><span class="grow"><span>Copy this set below</span></span></button>
-      <button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Delete this set</span></span></button></div>`, (k) => {
-      if (k === 'wu') s.warmup = !s.warmup;
-      if (k === 'dup') e.sets.splice(j + 1, 0, {...s, done: false, pr: null});
+    try { localStorage.setItem('fit.lift.hint', '1'); } catch (x) { /* no storage */ }
+    pickSheet(`${e.name}: set ${j + 1}`, pickRows([['normal', 'Normal set', ''], ['wu', 'Warm-up', 'Never counts towards your records']], s.warmup ? 'wu' : 'normal')
+      + '<div class="pick-list"><button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Delete this set</span></span></button></div>', (k) => {
+      if (k === 'normal' || k === 'wu') s.warmup = k === 'wu';
       if (k === 'del') e.sets.splice(j, 1);
       draw(); save();
     });
@@ -236,11 +252,13 @@ function liftLogger(el, aid, data) {
     });
   }
   $('#lf-add', el).onclick = () => exercisePicker(S.ex.map((e) => e.exercise_id), async (ex) => {
-    // a new exercise starts from last time: the same sets, waiting to be ticked
+    // a new exercise gets as many blank sets as the previous session had, its numbers in grey
     let last = null, before = 0;
-    try { const h = await api(`/api/lifts/exercises/${ex.id}`); last = h.sessions[0] || null; before = h.sessions.length; } catch (x) { /* offline: start blank */ }
-    // (a session logged afterwards: last time's sets count as done straight away - change what was different)
-    const sets = last ? last.sets.map((s) => ({reps: s.reps, kg: s.kg, secs: s.secs, warmup: s.warmup, done: !S.open})) : [{reps: null, kg: null, secs: null, warmup: false, done: false}];
+    try {   // the latest session before this one (a session logged afterwards may be older than others)
+      const h = await api(`/api/lifts/exercises/${ex.id}`), earlier = h.sessions.filter((x) => new Date(x.start_time) < new Date(S.start));
+      last = earlier[0] || null; before = earlier.length;
+    } catch (x) { /* offline: start blank */ }
+    const sets = (last ? last.sets : [{}]).map((s) => ({reps: null, kg: null, secs: null, warmup: !!s.warmup, done: false}));
     S.ex.push({exercise_id: ex.id, name: ex.name, kind: ex.kind, muscle: ex.muscle, note: ex.note, last, sessions_before: before, sets});
     draw(); save();
     const card = $$('.lift-ex', list).at(-1); if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -263,6 +281,8 @@ function liftLogger(el, aid, data) {
   draw();
   if (store.get(key) && store.get(key).unsent) save();     // a copy from earlier that never reached the server
 }
+
+const hintSeen = () => { try { return !!localStorage.getItem('fit.lift.hint'); } catch (x) { return true; } };
 
 function noteSheet(e, after) {
   sheet('Note for next time', `<form class="form" id="nt"><textarea name="note" maxlength="500" rows="3" placeholder="e.g. seat on 4, narrow grip">${esc(e.note || '')}</textarea>
@@ -403,7 +423,7 @@ async function fillLiftCard(el, a) {
     box.innerHTML = `<h2>${r.open ? 'Lifting now' : 'Exercises'}<a class="more" href="/lift/${a.id}">${r.open ? 'Carry on ›' : 'Edit'}</a></h2>
       ${r.exercises.map((e) => { const prs = e.sets.filter((s) => (s.pr || []).length).flatMap((s) => s.pr);
         return `<a class="row-link ls-row" href="/lift/ex/${e.exercise_id}"><span class="grow"><b>${esc(e.name)}</b><small class="num">${esc(setsText(e.sets, e.kind)) || '<span class="muted">nothing ticked</span>'}</small>
-          ${e.last ? `<small class="muted">Last time: ${esc(setsText(e.last.sets, e.kind))}</small>` : ''}</span>
+          ${e.last ? `<small class="muted">${esc(shortDay(e.last.start_time))}: ${esc(setsText(e.last.sets, e.kind))}</small>` : ''}</span>
           ${prs.length ? `<span class="badge pr">${svg('trophy')} ${esc([...new Set(prs)].map((k) => PR_NAMES[k]).join(', '))}</span>` : `<span class="chev">${svg('chev')}</span>`}</a>`; }).join('')}`;
   } catch (x) { box.remove(); }
 }
