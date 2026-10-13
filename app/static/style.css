@@ -271,11 +271,15 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
   animation: sk 1.2s linear infinite; border-radius: 10px; }
 @keyframes sk { to { background-position: -200% 0; } }
 .sk.line { height: 14px; margin: 10px 0; } .sk.big { height: 30px; width: 50%; } .sk.block { height: 180px; border-radius: var(--r); margin-bottom: 12px; }
-.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 16px); transform: translate(-50%, 16px) scale(.98); opacity: 0;
-  z-index: 50; max-width: calc(100% - 32px); padding: 13px 18px; border-radius: 999px; background: var(--ink); color: var(--onink); font-weight: 600; font-size: 14px;
-  display: flex; gap: 14px; align-items: center; box-shadow: var(--lift); transition: opacity .2s, transform .2s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
-.toast.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-.toast button { border: 0; background: none; color: inherit; font-weight: 800; text-decoration: underline; min-height: 32px; }
+/* little notices (2026-10-13, Ben: "poorly formatted, black isn't good"): the full width of the screen (a left: 50% box
+   could only use half, so short messages wrapped), the card colour with an accent edge, and Undo as a real button */
+.toast { position: fixed; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 14px); width: fit-content; max-width: 520px; margin: 0 auto;
+  transform: translateY(14px); opacity: 0; z-index: 50; padding: 12px 12px 12px 16px; border-radius: 16px; background: var(--card); color: var(--tx);
+  border: 1px solid var(--line); border-left: 4px solid var(--good); font-weight: 600; font-size: 14.5px; line-height: 1.35;
+  display: flex; gap: 12px; align-items: center; box-shadow: var(--lift); transition: opacity .2s, transform .2s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
+.toast span { flex: 1; min-width: 0; padding: 2px 0; }
+.toast.on { opacity: 1; transform: none; pointer-events: auto; }
+.toast button { flex: none; border: 0; border-radius: 999px; padding: 6px 14px; min-height: 34px; background: var(--accent2); color: var(--accent); font-weight: 750; font-size: 14px; }
 .netbar { position: fixed; left: 50%; transform: translateX(-50%); top: max(8px, env(safe-area-inset-top)); z-index: 60; max-width: calc(100% - 24px);
   padding: 6px 14px; border-radius: 999px; background: var(--ink); color: var(--onink); font-size: 12px; font-weight: 600; box-shadow: var(--lift); }
 
@@ -622,11 +626,15 @@ a.ntile { color: inherit; text-decoration: none; }
 .tcard small { display: inline-flex; align-items: center; gap: 4px; }
 .tcard b { font: 800 28px/1.05 var(--numf); letter-spacing: -.03em; }
 .tcard .over b, .tcard .over small { color: var(--alert); }
-.tcard .ringrow > div:first-child { align-items: flex-start; } .tcard .ringrow > div:nth-child(2) { align-items: center; }
-.tcard .ringrow .ring, .tcard .ringrow .ring svg { width: 104px; height: 104px; }
-.tcard .ringrow .ring b { font-size: 21px; }
-.tc-goal { align-items: flex-start; text-align: left; background: var(--card2); border: 0; border-radius: var(--r2); padding: 8px 12px; min-height: 60px; }
-.tc-goal small svg { width: 13px; height: 13px; } .tc-goal b { color: var(--tx); font-size: 22px; }
+/* the circle centred across the top of the card, Eaten and Goal side by side under it (2026-10-13, Ben) */
+.tcard .ringrow { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "ring ring" "eaten goal"; gap: 14px 10px; }
+.tcard .ringrow > div:first-child { grid-area: eaten; } .tcard .ringrow > div:nth-child(2) { grid-area: ring; align-items: center; }
+.tcard .ringrow > div:first-child, .tc-goal { align-items: center; justify-content: center; text-align: center; padding: 8px 12px; min-height: 64px; border-radius: var(--r2); }
+.tcard .ringrow > div:first-child { background: none; border: 1px solid var(--line); }
+.tcard .ringrow .ring, .tcard .ringrow .ring svg { width: 132px; height: 132px; }
+.tcard .ringrow .ring b { font-size: 26px; }
+.tc-goal { background: var(--card2); border: 0; }
+.tc-goal small svg { width: 13px; height: 13px; } .tc-goal b { color: var(--tx); font-size: 24px; } .tcard .ringrow > div:first-child b { font-size: 24px; }
 .gbar { height: 10px; border-radius: 999px; background: var(--card2); overflow: hidden; margin: 14px 0 8px; }
 .gbar .gfill { height: 100%; width: calc(var(--w, 0) * 100%); background: var(--prog); border-radius: 999px; }
 .gbar.over .gfill { background: var(--alert); }
@@ -1094,5 +1102,7 @@ body.ph-open { overflow: hidden; }
 .ql-img { display: block; max-width: 180px; max-height: 180px; border-radius: 12px; margin: -3px -7px; }
 .cmsg.me:has(.ql-img) { padding: 6px; background: transparent; }
 .cmsg.ai i { font-style: normal; color: var(--tx2); }
-.sheet .ql-composer { position: sticky; bottom: calc(env(safe-area-inset-bottom) + 6px); margin-top: 12px; }
+/* not sticky (2026-10-13: it slid over the first message on iPhone); the sheet lifts above the keyboard instead */
+.sheet .ql-composer { position: static; margin: 22px 0 4px; }
+.ql-chat { gap: 12px; }
 #ql-items .actions { margin-bottom: 4px; }

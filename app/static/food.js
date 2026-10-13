@@ -541,6 +541,7 @@ function describeSheet(day, meal) {
       <button class="icon-btn send" aria-label="Estimate">${svg('send')}</button></form>
     <input type="file" accept="image/*" id="ql-file" hidden>`, (b, close) => {
     const chat = $('#ql-chat', b), items = $('#ql-items', b), f = $('#ql-f', b), file = $('#ql-file', b), input = $('#ql-t', b);
+    input.focus();   // ready to type (Ben): this runs inside the tap that opened it, so iOS shows the keyboard at once
     const dp = $('#ql-day', b);
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
     dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); };
