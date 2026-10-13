@@ -50,7 +50,7 @@ Only use the numbers given. Practical, not cheerleading. No medical claims.\n"""
 
 def _ask(ctx, system):
     text = coach._gemini(ctx, system) if coach.provider() == 'gemini' else coach._claude(ctx, system)
-    if not text: raise ValueError('The coach returned an empty answer.')
+    if not text: raise ValueError('Kit returned an empty answer.')
     return _parse(text)
 
 
@@ -73,7 +73,7 @@ def _parse(text):
 def _check(c, user_id, kind, health=False):
     """Consent and the daily limit. Each request is written down (ai_requests) before the model is asked, under a lock
     on the person's profile row, so parallel requests or asking again can't get past the limit."""
-    if not coach.enabled(): raise HTTPException(400, 'The coach is not switched on yet (needs an AI key on the server).')
+    if not coach.enabled(): raise HTTPException(400, 'Kit is not switched on yet (needs an AI key on the server).')
     if not coach.allowed(user_id): raise HTTPException(400, coach.OFF)
     if health and not coach.health_ok(c, user_id): raise HTTPException(400, coach.HEALTH_NO)
     c.execute('SELECT 1 FROM profile WHERE user_id = %s FOR UPDATE', (user_id,))
@@ -122,7 +122,7 @@ def diet_review_get(user=Depends(current_user)):
 
 @router.post('/food/review')
 def diet_review(user=Depends(current_user)):
-    if not coach.enabled(): raise HTTPException(400, 'The coach is not switched on yet (needs an AI key on the server).')
+    if not coach.enabled(): raise HTTPException(400, 'Kit is not switched on yet (needs an AI key on the server).')
     if not coach.allowed(user['id']): raise HTTPException(400, coach.OFF)      # before reading anything
     with db.connect() as c:
         ctx = _diet_context(c, user['id'])

@@ -54,7 +54,7 @@ const bdOpen = () => { try { return localStorage.getItem('fit.bd') === '1'; } ca
 // Nutrition (2026-10-12 redesign, Ben: "like you did the Progress tab"): one row of small buttons. View ▾ holds the food
 // log and the progress views (each a short page instead of one long scroll); beside it, the day (log) or the time range.
 const NLOG = [['log', 'Food log', 'What you ate, day by day', 'food', 'c-green']];
-const NPROG = [['overview', 'Overview', 'Averages, insights and your coach', 'sparkle', 'c-purple'],
+const NPROG = [['overview', 'Overview', 'Averages, insights and Kit', 'sparkle', 'c-purple'],
   ['energy', 'Calories & weight', 'Eaten vs burned, and your running deficit', 'flame', 'c-orange'],
   ['macros', 'Protein & macros', 'Protein, carbs and fat, and your top foods', 'progress', 'c-red'],
   ['weight', 'Weight', 'Log a weigh-in and see your trend', 'scale', 'c-purple'],
@@ -398,7 +398,7 @@ function savedSheet(m, w, closeParent, after) {
     ${weight ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="${Math.round(weight)}" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
     <div class="share-line">${weight ? '<span class="muted">or</span>' : ''}<input name="n" inputmode="decimal" value="1" aria-label="Servings"><span>servings</span></div>
     <div class="portion-out" aria-live="polite"></div>
-    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${App.me.coach ? `<button type="button" class="ghost" id="sv-ai" aria-label="Coach's take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''}<span class="spacer"></span>
+    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${App.me.coach ? `<button type="button" class="ghost" id="sv-ai" aria-label="Kit’s take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''}<span class="spacer"></span>
       <button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     const f = $('#sv', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
     let mode = 'n';
@@ -980,13 +980,13 @@ function dietCoach(box) {
     const L = r.latest, when = L ? new Date(L.day + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
     const list = (xs, ico) => (xs && xs.length ? `<ul class="ai-list">${xs.map((x) => `<li>${svg(ico)}<span>${esc(x)}</span></li>`).join('')}</ul>` : '');
     box.innerHTML = L ? `<div class="card ai coach-card">${coachMessage('diet',
-      [L.headline, L.text, L.going_well, L.try_next, L.watch], "Coach's take",
+      [L.headline, L.text, L.going_well, L.try_next, L.watch], "Kit’s take",
       `${L.headline ? `<p class="ai-head">${esc(L.headline)}</p>` : ''}${L.text ? `<p>${esc(L.text)}</p>` : ''}
         ${L.going_well ? `<h3 class="ghead">Going well</h3>${list(L.going_well, 'check')}` : ''}
         ${L.try_next ? `<h3 class="ghead">Try this week</h3>${list(L.try_next, 'sparkle')}` : ''}
         ${L.watch ? `<div class="callout warn">${esc(L.watch)}</div>` : ''}
         <button class="linkbtn" id="dc-go">${svg('sparkle')}Review again</button>`, when)}</div>`
-      : `<div class="card ai coach-card"><h2>Coach's take</h2><p>A short review of your last two weeks of eating: what's going well, and two or three things to try next, from your own log.</p>
+      : `<div class="card ai coach-card"><h2>Kit’s take</h2><p>A short review of your last two weeks of eating: what's going well, and two or three things to try next, from your own log.</p>
         <button class="primary wide" id="dc-go">${svg('sparkle')}Review my eating</button></div>`;
     const b = $('#dc-go', box);
     b.onclick = async () => {
@@ -1000,14 +1000,14 @@ function dietCoach(box) {
 
 // AI feedback on a saved meal (food_coach.py): kept on the meal; opens over the Add food sheet
 function mealCoach(m) {
-  sheet(`Coach's take: ${m.name}`, `<div class="card ai coach-card" id="mc-box"></div>`, (b) => {
+  sheet(`Kit’s take: ${m.name}`, `<div class="card ai coach-card" id="mc-box"></div>`, (b) => {
     const box = $('#mc-box', b);
     const draw = (R) => {
-      box.innerHTML = R ? coachMessage('meal:' + m.id, [R.summary, R.text, R.ideas, R.note], "Coach's take", `${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
+      box.innerHTML = R ? coachMessage('meal:' + m.id, [R.summary, R.text, R.ideas, R.note], "Kit’s take", `${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
         ${R.ideas ? `<h3 class="ghead">Ideas</h3><ul class="ai-list">${R.ideas.map((i) => `<li>${svg('sparkle')}<span><b>${esc(i.change)}</b>${i.effect ? ` <span class="muted">${esc(i.effect)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
         ${R.note ? `<div class="callout warn">${esc(R.note)}</div>` : ''}
         <p class="small muted">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</p><button class="linkbtn" id="mc-go">${svg('sparkle')}Ask again</button>`)
-        : `<p>Feedback on this meal from your coach: how it fits your day, and a few tweaks with what each one changes.</p><button class="primary wide" id="mc-go">${svg('sparkle')}Get feedback</button>`;
+        : `<p>Feedback on this meal from Kit: how it fits your day, and a few tweaks with what each one changes.</p><button class="primary wide" id="mc-go">${svg('sparkle')}Get feedback</button>`;
       const g = $('#mc-go', box);
       g.onclick = async () => {
         if (!App.me.ai_ok) { aiSheet(() => g.click()); return; }

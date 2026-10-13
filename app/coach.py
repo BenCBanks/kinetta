@@ -56,7 +56,7 @@ def allowed(user_id):
 OFF = 'AI features are off for you - turn them on under Me > AI features.'
 
 
-HEALTH_NO = 'The coach needs your OK to read workouts from Apple Health first: Me > Apple Health.'
+HEALTH_NO = 'Kit needs your OK to read workouts from Apple Health first: Me > Apple Health.'
 
 
 def health_ok(c, user_id):
@@ -84,13 +84,13 @@ def _gemini(ctx, system=None):
             break
         except urllib.error.HTTPError as e:
             print(f'coach: gemini {model} HTTP {e.code}', flush=True)
-            if last or (e.code != 429 and e.code < 500): raise ValueError(f'The coach is unavailable right now ({e.code}) - try again in a minute.')
+            if last or (e.code != 429 and e.code < 500): raise ValueError(f'Kit is unavailable right now ({e.code}) - try again in a minute.')
         except (urllib.error.URLError, TimeoutError) as e:
             print(f'coach: gemini {model} failed {type(e).__name__}', flush=True)
-            if last: raise ValueError("Couldn't reach the coach - try again in a minute.")
+            if last: raise ValueError("Couldn't reach Kit - try again in a minute.")
         time.sleep(2)
     cands = d.get('candidates') or []
-    if not cands: raise ValueError('The coach declined to comment on this one.')
+    if not cands: raise ValueError('Kit declined to comment on this one.')
     return ''.join(p.get('text', '') for p in (cands[0].get('content') or {}).get('parts', [])).strip()
 
 
@@ -171,7 +171,7 @@ def _week_context(c, user_id, week_start):
 
 def week_review(user_id, week_start=None):
     """Writes (or rewrites) the review for the week starting Monday week_start (default: this week)."""
-    if not enabled(): raise ValueError('The coach is not switched on yet (needs an AI key on the server).')
+    if not enabled(): raise ValueError('Kit is not switched on yet (needs an AI key on the server).')
     if not allowed(user_id): raise ValueError(OFF)
     if week_start is None:
         today = dt.date.today(); week_start = today - dt.timedelta(days=today.weekday())
@@ -180,7 +180,7 @@ def week_review(user_id, week_start=None):
         ctx = _week_context(c, user_id, week_start)
     if not ctx['activities'] and not ctx['food_days']: raise ValueError('Nothing logged this week yet.')
     text = _gemini(ctx, WEEK_SYSTEM) if provider() == 'gemini' else _claude(ctx, WEEK_SYSTEM)
-    if not text: raise ValueError('The coach returned an empty review.')
+    if not text: raise ValueError('Kit returned an empty review.')
     with db.connect() as c:
         c.execute("""INSERT INTO coach_notes (user_id, kind, period_start, text) VALUES (%s, 'week', %s, %s)
                      ON CONFLICT (user_id, kind, period_start) DO UPDATE SET text = excluded.text, created = now()""", (user_id, week_start, text))
@@ -205,17 +205,17 @@ def weekly_scheduler():
 
 def note(user_id, aid):
     """Writes activities.ai_note; returns the text (or raises ValueError with a friendly message)."""
-    if not enabled(): raise ValueError('The coach is not switched on yet (needs an AI key on the server).')
+    if not enabled(): raise ValueError('Kit is not switched on yet (needs an AI key on the server).')
     if not allowed(user_id): raise ValueError(OFF)
     with db.connect() as c:
         if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         # every note counts, the ones written after an import too (2026-10-12 review: imports could run up the bill)
         n = c.execute("""SELECT count(*) AS n FROM activities WHERE user_id = %s AND ai_note_at > now() - interval '1 day'""", (user_id,)).fetchone()['n']
-        if n >= DAILY_LIMIT: raise ValueError('Daily limit for coach notes reached - try again tomorrow.')
+        if n >= DAILY_LIMIT: raise ValueError('Daily limit for Kit’s notes reached - try again tomorrow.')
         ctx = _context(c, user_id, aid)
     if not ctx: raise ValueError('Activity not found')
     text = _gemini(ctx) if provider() == 'gemini' else _claude(ctx)
-    if not text: raise ValueError('The coach returned an empty note.')
+    if not text: raise ValueError('Kit returned an empty note.')
     with db.connect() as c:
         c.execute('UPDATE activities SET ai_note = %s, ai_note_at = now() WHERE id = %s AND user_id = %s', (text, aid, user_id))
     return text
@@ -230,13 +230,13 @@ def _claude(ctx, system=None):
             betas=['server-side-fallback-2026-07-01'], fallbacks='default',
             messages=[{'role': 'user', 'content': json.dumps(ctx, default=str)}])
     except anthropic.RateLimitError:
-        raise ValueError('The coach is busy - try again in a minute.')
+        raise ValueError('Kit is busy - try again in a minute.')
     except anthropic.APIStatusError as e:
-        raise ValueError(f'The coach is unavailable right now ({e.status_code}).')
+        raise ValueError(f'Kit is unavailable right now ({e.status_code}).')
     except anthropic.APIConnectionError:
-        raise ValueError("Couldn't reach the coach - check the server's internet connection.")
+        raise ValueError("Couldn't reach Kit - check the server's internet connection.")
     if r.stop_reason == 'refusal':
-        raise ValueError('The coach declined to comment on this one.')
+        raise ValueError('Kit declined to comment on this one.')
     return ''.join(b.text for b in r.content if b.type == 'text').strip()
 
 

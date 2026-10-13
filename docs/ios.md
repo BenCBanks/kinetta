@@ -21,8 +21,8 @@ can be signed and uploaded automatically.
   the app sends new workouts whenever it's opened or brought back to the front. Failed ranges stay queued for the next sync, including a failed past-year import. The Apple Health screen shows the latest attempt and any error. Connecting is specific to your account and server; logging out stops sync and clears that connection. Each workout is sent with Apple
   Health's own id for it, so a workout sent twice is stored once. A workout that's already in Kinetta from somewhere
   else (a Garmin file, a Strava export) isn't added again either.
-- **AI coach consent.** The coach reads Apple Health workouts only after you tick "Let the AI coach read my Apple
-  Health workouts". Until then the coach is off for anyone with Apple Health workouts (Apple's rules require consent
+- **Kit AI consent.** Kit reads Apple Health workouts only after you tick "Let Kit read my Apple
+  Health workouts". Until then Kit is off for anyone with Apple Health workouts (Apple's rules require consent
   before health data goes to an AI service).
 
 ## The plan (roadmap step 3)

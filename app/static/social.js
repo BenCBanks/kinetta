@@ -295,7 +295,7 @@ function shareFields(box, aid, s) {
   let vis = s.visibility, usual = false;
   box.innerHTML = `<h3 class="ghead">Who can see it</h3>${visSeg(vis)}<p class="small muted vis-note"></p>
     <details class="sh-more"><summary>What they see</summary><div class="checks">${detailChecks(s.details)}</div>
-      <p class="small muted">Splits and laps are shared only with pace. Private notes and coach notes are never shared.</p>
+      <p class="small muted">Splits and laps are shared only with pace. Private notes and Kit’s notes are never shared.</p>
       ${s.custom ? '<button type="button" class="linkbtn" id="sh-usual">Use my usual details</button>' : ''}</details>
     ${s.visibility !== 'me' ? `<a class="small" href="/activity/friends/${aid}" data-close>See what they see ›</a>` : ''}`;
   const note = $('.vis-note', box);
@@ -409,7 +409,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   box.innerHTML = `<div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
       <p class="small muted">Activities you already have keep their setting. You can change it on each activity.</p></div>
     <div class="card"><h2>What others see</h2><form class="checks" id="sh-d">${detailChecks(s.details)}</form>
-      <p class="small muted">Distance, time and the type of activity are always shown to the people who can see it. Splits and laps are shared only with pace. Private notes and coach notes are never shared. You can choose differently on each activity.</p></div>
+      <p class="small muted">Distance, time and the type of activity are always shown to the people who can see it. Splits and laps are shared only with pace. Private notes and Kit’s notes are never shared. You can choose differently on each activity.</p></div>
     <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
       <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
     <div class="card"><h2>Hide the start and end of your route</h2>

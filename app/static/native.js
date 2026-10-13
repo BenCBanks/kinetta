@@ -148,9 +148,9 @@ route(/^\/me\/health$/, 'me', async (el) => {
         <button class="ghost wide" id="h-settings">Change what Kinetta can read</button>
         <button class="ghost wide danger" id="h-off">Stop syncing</button>`
       : '<button class="primary wide" id="h-on">Connect Apple Health</button>'}</div>
-    <div class="card"><h2>AI coach</h2>
-      <p class="small">The coach writes notes about your training using an AI service. It reads your Apple Health workouts only if you say yes. Until then the coach stays off for you.</p>
-      <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let the AI coach read my Apple Health workouts</label></div>`;
+    <div class="card"><h2>Kit, your AI coach</h2>
+      <p class="small">Kit writes notes about your training using an AI service. It reads your Apple Health workouts only if you say yes. Until then Kit stays off for you.</p>
+      <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health workouts</label></div>`;
   const err = $('.err', box);
   const busy = async (b, label, fn) => {
     const was = b.textContent; b.disabled = true; b.textContent = label; err.textContent = '';
@@ -167,7 +167,7 @@ route(/^\/me\/health$/, 'me', async (el) => {
   };
   $('#h-ai', box).onchange = async (e) => {
     const v = e.target.checked;
-    try { await api('/api/profile', json('PUT', {health_ai_ok: v})); App.me.health_ai_ok = v; toast(v ? 'The coach can read your Apple Health workouts' : 'The coach won\'t read your Apple Health workouts'); }
+    try { await api('/api/profile', json('PUT', {health_ai_ok: v})); App.me.health_ai_ok = v; toast(v ? 'Kit can read your Apple Health workouts' : 'Kit won\'t read your Apple Health workouts'); }
     catch (x) { e.target.checked = !v; toast(x.message); }
   };
 });
