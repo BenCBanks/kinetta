@@ -101,7 +101,7 @@ def to_activity(w):
 
 def _known(uid, wid):
     with db.connect() as c:
-        r = c.execute("SELECT id FROM activities WHERE user_id = %s AND source = 'healthkit' AND source_id = %s", (uid, wid)).fetchone()
+        r = c.execute("SELECT id FROM activities WHERE user_id = %s AND source IN ('healthkit', 'lift') AND source_id = %s", (uid, wid)).fetchone()
     return r['id'] if r else None
 
 

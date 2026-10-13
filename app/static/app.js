@@ -56,6 +56,7 @@ const KEEP = [/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|f
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* full or blocked: offline copies are a bonus */ } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) { /* blocked */ } },
 };
 function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, data}); }
 function kept(path) { const v = store.get('fit.c:' + path); return v && (!App.me || v.who === App.me.login) ? v.data : null; }
@@ -448,7 +449,7 @@ function chartStack(box, x, rows, {xfmt, onIndex} = {}) {
 }
 
 // simple dot chart over dates with a trend line (matched routes, PR history, VO2max)
-function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null, best = null, height = 150}) {
+function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null, best = null, height = 150, line = false}) {   // line: join the dots (pts oldest first)
   const W = Math.max(300, box.clientWidth || 340), H = height, padL = 40, padR = 8, padB = 18;
   if (pts.length < 1) { box.innerHTML = '<p class="muted">Not enough data yet.</p>'; return; }
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
@@ -462,6 +463,7 @@ function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null,
   const dfmt = (d) => { const t = new Date(d * 864e5); return span <= 120 ? t.toLocaleDateString([], {month: 'short', day: 'numeric'}) : t.toLocaleDateString([], {month: 'short'}) + " '" + String(t.getFullYear()).slice(2); };
   g += `<text class="yl" x="${padL}" y="${H - 3}">${esc(dfmt(x0))}</text><text class="yl" x="${W - padR}" y="${H - 3}" text-anchor="end">${esc(dfmt(x1))}</text>`;
   if (trend) g += `<line class="trendline" x1="${X(xs[0]).toFixed(1)}" y1="${Y(trend.start).toFixed(1)}" x2="${X(xs[xs.length - 1]).toFixed(1)}" y2="${Y(trend.end).toFixed(1)}"/>`;
+  if (line) g += `<polyline class="dotline" points="${pts.map((p) => `${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ')}"/>`;
   pts.forEach((p) => { g += `<circle class="dotp${p.id === best ? ' best' : ''}${p.id === current ? ' cur' : ''}" cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="${p.id === current || p.id === best ? 6 : 4.5}"/>`; });
   box.innerHTML = `<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Trend chart">${g}</svg></div>`;
 }
@@ -648,7 +650,7 @@ function aiSheet(after) {   // ask once; after() runs when they turn it on
 const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=2" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=2" alt="Kinetta" width="210" height="34"></picture>`;
 function showLogin(msg = '') {
   root.innerHTML = `<div class="login"><form novalidate>
-    <div>${BRAND}<p>Your runs, rides, walks and food — private to you.</p></div>
+    <div>${BRAND}<p>Your runs, rides, walks and food, private to you.</p></div>
     ${Native.on ? `<label${(Native.base || Native.server) === Native.server ? ' hidden' : ''} id="l-server">Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
     <label>Username<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
@@ -720,7 +722,7 @@ async function showJoin(token) {
     return;
   }
   showNewAccount({title: 'Join Kinetta', button: 'Create my account',
-    intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account — your activities and food log are private to you.`,
+    intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Your activities and food log are private to you.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
 // "Join the beta" (public waitlist, only when the server has KINETTA_BETA_SIGNUP=1): no account yet, an admin invites them
@@ -729,7 +731,7 @@ async function showBeta() {
   try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }
   if (!open) { history.replaceState(null, '', '/'); return showLogin(); }
   root.innerHTML = `<div class="login"><form novalidate>
-    <div>${BRAND}<h1>Join the beta</h1><p>Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers — tell us a little about you and we'll send you an invite link.</p></div>
+    <div>${BRAND}<h1>Join the beta</h1><p>Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers. Tell us a little about you and we'll send you an invite link.</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
     <label>Email<input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label>
     <label>Your phone<select name="phone" required><option value="">Choose…</option><option value="iphone">iPhone</option><option value="android">Android</option><option value="other">Something else</option></select></label>
@@ -764,7 +766,7 @@ async function showWelcome() {
   if (location.pathname === '/beta') return showBeta();
   if (!setup.needed) return showLogin();
   showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account',
-    intro: "This is a brand-new Kinetta. Create your account first — you'll be its admin and can invite your people next.",
+    intro: "This is a brand-new Kinetta. Create your account first. You'll be its admin and can invite your people next.",
     send: (body) => api('/api/setup', json('POST', body))});
 }
 async function start() {

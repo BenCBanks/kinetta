@@ -1,7 +1,8 @@
 # Made-up social + cooking state for the homepage screenshots, on top of dev/demo/seed.py (a throwaway install only).
 # Adds a friend, "Jordan", with a few weeks of rides and walks (the demo routes, two days later and an hour earlier, so
 # the newest activity in the feed is Jordan's), shares some of Alex's runs with friends, cheers and comments both ways,
-# a waiting friend request from "Sam", photos on a few activities, saved dishes (a soup, a traybake shared with Jordan, a smoothie). Alex also ran this
+# a waiting friend request from "Sam", photos on a few activities, saved dishes (a soup, a traybake shared with Jordan, a smoothie), four weeks of
+# lifting (the same session twice a week, a little heavier each week, in round pounds). Alex also ran this
 # morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
@@ -94,4 +95,17 @@ for n, g, p in [('Chicken breast, raw', 600, {'kcal': 120, 'protein_g': 22.5, 'c
     alex('POST', f"/api/dishes/{tray['id']}/items", {'name': n, 'grams': g, 'per100': p})
 alex('PATCH', f"/api/dishes/{tray['id']}", {'serving': 'portion', 'cooked_g': 1400})   # by weight: weighed after roasting
 alex('POST', f"/api/dishes/{tray['id']}/share", {'login': 'jordan'})            # eating together: Jordan logs a portion too
+# lifting (2026-10-13, api_lifts.py): "Strength A", a little heavier each week (pounds, as an imperial lifter types them)
+lb = lambda x: x / 2.20462262
+ex = {n: alex('POST', '/api/lifts/exercises', {'name': n})['id'] for n in ('Squat', 'Bench press', 'Barbell row', 'Pull-up', 'Plank')}
+for w, days_ago in enumerate((24, 17, 10, 3)):
+    s = alex('POST', '/api/activities/manual', {'sport': 'workout', 'name': 'Strength A', 'duration_s': 3300,
+                                               'start': f"{dt.date.today() - dt.timedelta(days=days_ago)}T18:00"})
+    alex('PUT', f"/api/activities/{s['id']}/lifts", {'exercises': [
+        {'exercise_id': ex['Squat'], 'sets': [{'reps': 8, 'kg': lb(95), 'warmup': True}] + [{'reps': 5, 'kg': lb(185 + 5 * w)}] * 3},
+        {'exercise_id': ex['Bench press'], 'sets': [{'reps': 5, 'kg': lb(145 + 5 * (w // 2))}] * 3},
+        {'exercise_id': ex['Barbell row'], 'sets': [{'reps': 8, 'kg': lb(115 + 5 * w)}] * 3},
+        {'exercise_id': ex['Pull-up'], 'sets': [{'reps': 7 + w}, {'reps': 6 + w}]},
+        {'exercise_id': ex['Plank'], 'sets': [{'secs': 45 + 15 * w}]}]})
+alex('PATCH', f"/api/lifts/exercises/{ex['Squat']}", {'note': 'Safety pins on 6'})
 print('staged: tray', tray['id'], 'soup', soup['id'])

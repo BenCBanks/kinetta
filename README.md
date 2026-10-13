@@ -6,7 +6,7 @@
 </p>
 
 <p align="center"><b>Your workouts and your food, in one app.</b><br>
-Activity tracking + food and health: runs, rides, walks, training plans, calories and macros. Private, and free to run on your own home server for personal use.</p>
+Activity tracking + food and health: runs, rides, walks, lifting, training plans, calories and macros. Private, and free to run on your own home server for personal use.</p>
 
 <p align="center"><a href="https://login.kinetta.app/beta">Join the hosted beta</a> · or run your own (below)</p>
 
@@ -26,6 +26,7 @@ control, each person's data is private to them, and nothing is sold, shared or u
 - Matched routes: the same loop recognised automatically, with your pace on it over time
 - Personal records, race predictions, a fitness/fatigue/form chart, goals, gear mileage and a heatmap
 - Training plans for 5K, 10K, half marathon and marathon, from first-timer to advanced
+- Lifting: log exercises, sets, reps and weight as you go, with last time beside every set; records and a history for each exercise
 
 **Food**
 - Search (USDA + Open Food Facts), barcode scanning, quick add, your own foods, meals and recipes
@@ -37,7 +38,7 @@ control, each person's data is private to them, and nothing is sold, shared or u
 - Invite someone with a link: they pick their own username and password
 - Works on any phone as an app on the home screen, also offline for logging food
 - Optional AI coach notes (your own Gemini or Claude key; off by default)
-- Optional read-only SQL access to your own data, if you like digging into numbers
+- Optional read-only SQL access to your own data (including every lifting set), if you like digging into numbers
 
 ## Install it
 

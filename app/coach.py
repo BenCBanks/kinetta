@@ -20,12 +20,19 @@ DAILY_LIMIT = 30
 _client = None
 _lock = threading.Lock()
 
-SYSTEM = """You are a friendly, expert endurance coach writing a short note about one workout for the athlete who did it.
+# How every AI text in Kinetta should read (2026-10-13, Ben: nothing that people can spot as AI-written). Added to each
+# prompt that writes words for people to read (coach notes, weekly reviews, food and recipe feedback).
+STYLE = """Write like a knowledgeable friend sending a short text: plain, everyday words, most important point first.
+No praise openers ("Great job", "Nice work", "Awesome"), no exclamation marks, no em dashes, no emojis. No filler such as
+"overall", "it's worth noting", "keep up the good work", "remember to", "consistency is key", "not just X but Y".
+Say each thing once, with the number that shows it."""
+
+SYSTEM = """You are an expert endurance and strength coach writing a short note about one workout for the athlete who did it.
 You get the workout's numbers and their recent training as JSON. Write 3-5 sentences of plain text (no headings, no lists,
 no emojis): what stood out (compare with their own recent history, matched-route history and records when given), one
 thing to watch, and a concrete suggestion for the next session. Use the athlete's units (given as "units"). Only use the
 numbers provided; if something important is missing (for example no heart rate), say so briefly instead of guessing.
-Never give medical diagnoses; suggest seeing a professional only for clear warning signs."""
+Never give medical diagnoses; suggest seeing a professional only for clear warning signs.\n""" + STYLE
 
 
 def provider():
@@ -116,23 +123,27 @@ def _context(c, user_id, aid):
                              (SELECT min(p.elapsed_s) FROM best_efforts p WHERE p.user_id = b.user_id AND p.sport = b.sport
                                 AND p.distance_m = b.distance_m AND p.start_time < b.start_time) AS previous_best_s
                            FROM best_efforts b WHERE b.activity_id = %s AND b.user_id = %s ORDER BY b.distance_m""", (aid, user_id)).fetchall()
+    from .api_lifts import coach_text
+    lifting = coach_text(c, user_id, aid)     # strength sessions: the sets, and last time's (2026-10-13)
     a = {k: v for k, v in a.items() if v is not None}
+    if lifting: a['lifting_sets'] = lifting
     splits = a.pop('splits_mi', None) if p.get('units', 'imperial') == 'imperial' else a.pop('splits_km', None)
     a.pop('splits_km', None); a.pop('splits_mi', None)
     return {'units': p.get('units', 'imperial'), 'athlete': {k: v for k, v in p.items() if v is not None and k != 'units'},
             'workout': a, 'splits': splits, 'best_efforts_in_this_workout': efforts, 'same_sport_last_6_weeks': recent,
             'weekly_totals_all_sports': weeks, 'same_route_history': route,
             'notes': 'distance_m metres, *_s seconds, gap_s_per_km = grade-adjusted pace in seconds per km, effort = TRIMP, '
-                     'decoupling = % heart-rate drift first vs second half, zones = seconds in HR zones 1-5'}
+                     'decoupling = % heart-rate drift first vs second half, zones = seconds in HR zones 1-5, '
+                     'lifting_sets = reps @ weight in kg for each set (warm-ups left out), compare with last time'}
 
 
-WEEK_SYSTEM = """You are a friendly, expert endurance and nutrition coach writing a weekly review for one athlete.
+WEEK_SYSTEM = """You are an expert endurance and nutrition coach writing a weekly review for one athlete.
 You get their week as JSON (activities, totals vs the previous 4 weeks, fitness/fatigue, records, food totals and targets
 if they log food, weight trend). Keep it SHORT: at most 4 sentences, about 70 words, plain text, no lists or headings.
 Sentence 1 is a one-line summary of the week (it is shown on its own as a headline). Then the one thing that matters most
 (an improvement, or something to watch such as a load jump, too little easy running, or eating far off target), and
 1-2 concrete suggestions for next week.
-Use their units. Only use the numbers given; say so briefly when data is missing. No medical diagnoses."""
+Use their units. Only use the numbers given; say so briefly when data is missing. No medical diagnoses.\n""" + STYLE
 
 
 def _week_context(c, user_id, week_start):

@@ -720,6 +720,53 @@ MIGRATIONS = [
         EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
       END LOOP; END $$;
     """,
+    # 35 (2026-10-13): lifting (api_lifts.py). exercises: each person's own list - the common ones are added the first
+    #   time they're used, so every set points at a row that can be renamed without losing its history. note: something
+    #   to remember for next time ("seat on 4"). kind: 'weight' (reps x weight), 'body' (reps, weight added optional),
+    #   'time' (seconds). lift_sets: one row per set, in the order done: pos = the exercise's place in the session, n =
+    #   the set's number within it. done = ticked off; sets copied from last time stay planned (not done) until ticked
+    #   and never count in history. activities.lift_open: a session being logged right now (its time keeps running).
+    """
+    CREATE TABLE exercises (
+      id      bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name    citext NOT NULL,
+      kind    text NOT NULL DEFAULT 'weight' CHECK (kind IN ('weight', 'body', 'time')),
+      muscle  text,
+      note    text,
+      created timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (user_id, name));
+    CREATE TABLE lift_sets (
+      id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      activity_id bigint NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      exercise_id bigint NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+      pos         smallint NOT NULL,
+      n           smallint NOT NULL,
+      reps        smallint CHECK (reps BETWEEN 0 AND 1000),
+      kg          real CHECK (kg BETWEEN 0 AND 1000),
+      secs        int CHECK (secs BETWEEN 0 AND 86400),
+      warmup      boolean NOT NULL DEFAULT false,
+      done        boolean NOT NULL DEFAULT true);
+    CREATE INDEX lift_sets_activity ON lift_sets (activity_id, pos, n);
+    CREATE INDEX lift_sets_exercise ON lift_sets (user_id, exercise_id);
+    ALTER TABLE activities ADD COLUMN lift_open boolean NOT NULL DEFAULT false;
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['exercises', 'lift_sets'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP; END $$;
+    CREATE VIEW v_lift_sets WITH (security_invoker = true) AS
+      SELECT u.login::text AS person, (a.start_time AT TIME ZONE a.tz)::date AS day, a.name AS session, e.name::text AS exercise,
+        s.n AS set_no, s.reps, round(s.kg::numeric, 1) AS kg, round((s.kg * 2.20462)::numeric, 1) AS lb, s.secs, s.warmup,
+        CASE WHEN s.reps BETWEEN 1 AND 12 AND s.kg > 0 THEN round((s.kg * (1 + s.reps / 30.0))::numeric, 1) END AS est_1rm_kg,
+        a.id AS activity_id
+      FROM lift_sets s JOIN exercises e ON e.id = s.exercise_id JOIN activities a ON a.id = s.activity_id JOIN users u ON u.id = s.user_id
+      WHERE s.done;
+    GRANT SELECT ON v_lift_sets TO fit_readers;
+    """,
 ]
 
 

@@ -1,6 +1,6 @@
 # Working on Kinetta: instructions for AI coding agents (Claude Code, Codex, and others)
 
-Kinetta is "your workouts and your food, in one app": activity tracking (runs, rides, walks, training plans, routes) plus
+Kinetta is "your workouts and your food, in one app": activity tracking (runs, rides, walks, lifting, training plans, routes) plus
 food and health (calories, macros, barcode and photo logging, weight), with each person's data private to them.
 The maintainer, Ben Banks, isn't a developer: write PR descriptions and summaries in plain language, say what you
 tested and what you didn't, and explain any choice he has to make.
@@ -20,7 +20,7 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 | Path | What |
 |---|---|
 | `app/` | FastAPI server (Python 3.12). `main.py` wires the routers; `api_*.py` are the endpoints; `db.py` has the schema |
-| `app/static/` | The phone app: plain JavaScript, no build step (`app.js` core + charts, `pages.js`, `food.js`, `plan.js`, `social.js`, `cook.js`, `native.js` iPhone-app-only parts, `style.css`) |
+| `app/static/` | The phone app: plain JavaScript, no build step (`app.js` core + charts, `pages.js`, `food.js`, `plan.js`, `social.js`, `cook.js`, `lift.js` lifting, `native.js` iPhone-app-only parts, `style.css`) |
 | `mobile/` | The iPhone app: a Capacitor shell around `app/static` plus Apple Health (see `mobile/README.md`, `docs/ios.md`); built on a macOS runner by `.github/workflows/ios.yml` |
 | `site/` | The kinetta.app website: one page per tab (`index` Home, `training`, `food`, `friends`, `compare`, `privacy`, `self-host`), shared styles in `assets/site.css`. The header and footer are copied on every page: change them on all of them |
 | `docs/` | Public guides (connecting phones, SQL access) |

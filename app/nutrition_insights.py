@@ -93,26 +93,25 @@ def _insights(C, S, tg, top, ctx, raw_w):
     out, n = [], len(C)
     lb = lambda kg: f'{abs(kg) * 2.20462:.1f} lb'
     if S['past_days'] and n / S['past_days'] < 0.7:
-        out.append(('info', f"You logged {n} of the last {S['past_days']} days. Logging every day makes the deficit and calorie-needs numbers much more accurate."))
+        out.append(('info', f"Logged {n} of the last {S['past_days']} days. The deficit and calorie needs get more accurate with each full day."))
     if n < 3: return out
     if S['avg_goal']:
         diff = S['avg_eaten'] - S['avg_goal']
         out.append(('good' if abs(diff) <= S['avg_goal'] * .05 else 'warn' if diff > 0 else 'info',
-                    f"You averaged {S['avg_eaten']:,} kcal a day against a goal of {S['avg_goal']:,} - "
-                    + ('right on target.' if abs(diff) <= S['avg_goal'] * .05 else f"{abs(diff):,} {'over' if diff > 0 else 'under'}.")))
+                    f"Average {S['avg_eaten']:,} kcal a day, "
+                    + ('on your goal.' if abs(diff) <= S['avg_goal'] * .05 else f"{abs(diff):,} {'over' if diff > 0 else 'under'} your {S['avg_goal']:,} goal.")))
         hit = sum(1 for r in C if r['goal'] and abs(r['eaten'] - r['goal']) <= r['goal'] * .1)
         out.append(('info', f"Within 10% of your goal on {hit} of {n} days."))
     if S['trend_change_kg'] is not None and n >= 7:
-        out.append(('info', f"Your deficit adds up to about {lb(S['predicted_kg'])} {'lost' if S['predicted_kg'] <= 0 else 'gained'}; "
-                            f"the scale trend is {'down' if S['trend_change_kg'] <= 0 else 'up'} {lb(S['trend_change_kg'])} over the same days."
-                            + (" They agree well." if abs(S['predicted_kg'] - S['trend_change_kg']) < 0.6 else
-                               " Water and salt swing the scale; the gap usually closes over a few weeks.")))
+        out.append(('info', f"Your deficit predicts {lb(S['predicted_kg'])} {'lost' if S['predicted_kg'] <= 0 else 'gained'}; "
+                            f"the scale trend is {'down' if S['trend_change_kg'] <= 0 else 'up'} {lb(S['trend_change_kg'])}."
+                            + (" They match." if abs(S['predicted_kg'] - S['trend_change_kg']) < 0.6 else " Water weight usually explains a gap like this.")))
     if tg.get('protein_target'):
         hit = sum(1 for r in C if (r['protein_g'] or 0) >= tg['protein_target'] * .95)
-        out.append(('good' if hit >= n * .7 else 'warn', f"Protein target ({tg['protein_target']:.0f} g) hit on {hit} of {n} days; "
-                                                         f"you average {S['avg_protein_g']:.0f} g ({S['avg_protein_g'] / ctx['kg']:.1f} g per kg of body weight)."))
+        out.append(('good' if hit >= n * .7 else 'warn', f"Protein goal ({tg['protein_target']:.0f} g) hit on {hit} of {n} days. "
+                                                         f"Average {S['avg_protein_g']:.0f} g ({S['avg_protein_g'] / ctx['kg']:.1f} g per kg)."))
     else:
-        out.append(('info', f"You average {S['avg_protein_g']:.0f} g of protein a day ({S['avg_protein_g'] / ctx['kg']:.1f} g per kg). "
+        out.append(('info', f"Protein: {S['avg_protein_g']:.0f} g a day ({S['avg_protein_g'] / ctx['kg']:.1f} g per kg). "
                             "Active people usually aim for 1.6-2.2 g per kg."))
     wk = [r['eaten'] for r in C if dt.date.fromisoformat(r['day']).weekday() >= 5]
     wd = [r['eaten'] for r in C if dt.date.fromisoformat(r['day']).weekday() < 5]
@@ -123,7 +122,7 @@ def _insights(C, S, tg, top, ctx, raw_w):
     if len(tr) >= 3 and len(rs) >= 3 and abs(sum(tr) / len(tr) - sum(rs) / len(rs)) >= 100:
         diff = sum(tr) / len(tr) - sum(rs) / len(rs)
         out.append(('info', f"On bigger training days you eat {abs(diff):,.0f} kcal {'more' if diff >= 0 else 'less'} than on other days."
-                            + (" Fueling up for the work - good." if diff > 100 else " Consider eating a little more around hard sessions." if diff < -100 else "")))
+                            + (" Try eating a little more around hard sessions." if diff < -100 else "")))
     if S['meals']:
         m, p = max(S['meals'].items(), key=lambda x: x[1])
         if p >= 40: out.append(('info', f"{m.capitalize()} is {p}% of your calories."))

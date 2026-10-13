@@ -585,12 +585,12 @@ function scanSheet(day, meal, onFound) {
     <form class="wform" id="sc-f"><input name="code" inputmode="numeric" placeholder="or type the number" aria-label="Barcode number"><button class="ghost">Look up</button></form>`, async (b, close) => {
     const v = $('#sc-v', b), msg = $('#sc-msg', b);
     const found = async (code) => {
-      stop(); msg.textContent = `Found ${code} — looking it up…`;
+      stop(); msg.textContent = `Found ${code}. Looking it up…`;
       try { const f = await api(`/api/food/barcode/${code}`); close(); if (onFound) onFound(f); else amountSheet(f, {day, meal}, () => {}); }
       catch (x) { msg.textContent = x.message; if (x.status === 404) { const go2 = confirm(`${x.message}. Create it now?`); if (go2) { close(); foodEditor({name: '', barcode: code, serving: {label: '1 serving'}}, null); } } }
     };
     $('#sc-f', b).onsubmit = (e) => { e.preventDefault(); const c = e.target.code.value.replace(/\D/g, ''); if (c.length >= 6) found(c); };
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'Camera not available here — type the number instead.'; return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'No camera here. Type the number instead.'; return; }
     try {
       if ('BarcodeDetector' in window) {
         const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}});
@@ -605,7 +605,7 @@ function scanSheet(day, meal, onFound) {
         stop = () => { try { reader.reset(); } catch (e) { /* */ } };
         reader.decodeFromVideoDevice(null, v, (res) => { if (res) found(res.getText()); });
       }
-    } catch (e) { msg.textContent = 'Camera blocked — allow camera access, or type the number.'; }
+    } catch (e) { msg.textContent = 'Camera blocked. Allow camera access, or type the number.'; }
   });
   // stop the camera when the sheet closes
   const obs = new MutationObserver(() => { if (!$('#sc-v')) { stop(); obs.disconnect(); } });
