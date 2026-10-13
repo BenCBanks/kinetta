@@ -6,7 +6,7 @@
 
 /* ---------- tokens ---------- */
 :root {
-  --bg: #F6F5F1; --card: #FFFFFF; --card2: #F1EFEA; --tx: #111514; --tx2: #474E4B; --tx3: #6F7672; --line: #E8E6E0;
+  --bg: #EFEDE7; --card: #FFFFFF; --card2: #F1EFEA; --tx: #111514; --tx2: #474E4B; --tx3: #6F7672; --line: #E8E6E0;
   --accent: #C8283F; --accent2: #FBEAED; --ontx: #FFFFFF;               /* berry: links, selection, the active tab */
   --ink: #111514; --onink: #FFFFFF;                                      /* toasts */
   --btn: #C8283F; --onbtn: #FFFFFF;                                      /* main buttons and selected pills */
@@ -335,10 +335,11 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .stats3.big .stat b { font-size: 22px; }
 /* solid colour tiles for headline numbers (2026-10-13): white text on the tile colours */
 .stats3.tiles { gap: 8px; }
-.stats3.tiles .stat { border-radius: 18px; padding: 12px 12px 14px; background: var(--tile1); color: #fff; }
-.stats3.tiles .stat:nth-child(2) { background: var(--tile2); } .stats3.tiles .stat:nth-child(3) { background: var(--tile3); }
-.stats3.tiles .stat small { color: rgba(255,255,255,.88); letter-spacing: .03em; }
-.stats3.tiles .stat b { font-size: 24px; margin-top: 6px; } .stats3.tiles .stat b i { color: rgba(255,255,255,.85); }
+/* pale tiles with a coloured label (2026-10-13, Ben: the solid ones were too strong) */
+.stats3.tiles .stat { --c: var(--tile1); border-radius: 18px; padding: 12px 12px 14px; background: color-mix(in srgb, var(--c) 10%, var(--card)); border: 1px solid color-mix(in srgb, var(--c) 18%, transparent); }
+.stats3.tiles .stat:nth-child(2) { --c: var(--tile2); } .stats3.tiles .stat:nth-child(3) { --c: var(--tile3); }
+.stats3.tiles .stat small { color: color-mix(in srgb, var(--c) 80%, var(--tx)); letter-spacing: .03em; }
+.stats3.tiles .stat b { font-size: 24px; margin-top: 6px; color: var(--tx); }
 .hero-num { font: 800 46px/1 var(--numf); letter-spacing: -.04em; margin-top: 4px; }
 .hero-num i { font: 600 17px var(--font); font-style: normal; color: var(--tx3); margin-left: 5px; letter-spacing: 0; }
 .hero-sub { margin: 6px 0 0; color: var(--tx2); font-weight: 500; }
@@ -514,30 +515,27 @@ tr.muted td { color: var(--tx3); }
 .ichip-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ichip-row small { display: block; font-size: 12px; font-weight: 650; color: var(--tx3); line-height: 1.2; }
 .ichip-row b { display: block; font: 800 19px/1.2 var(--numf); letter-spacing: -.02em; white-space: nowrap; }
-.ichip { flex: none; width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; background: var(--c, var(--tx3)); color: #fff; }
+/* softer (2026-10-13, Ben picked option A): a pale tint of the colour behind a coloured icon */
+.ichip { flex: none; width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; background: color-mix(in srgb, var(--c, var(--tx3)) 14%, var(--card)); color: var(--c, var(--tx3)); }
 .ichip svg { width: 20px; height: 20px; stroke-width: 2.2; }
 .wk-ring { position: relative; flex: none; width: 132px; height: 132px; }
 .wk-ring svg { width: 132px; height: 132px; transform: rotate(-90deg); }
-.wk-ring .rb { fill: none; stroke: var(--card2); stroke-width: 20; }
-.wk-ring .rf { fill: none; stroke: var(--run); stroke-width: 20; stroke-linecap: round; }
+.wk-ring .rb { fill: none; stroke: color-mix(in srgb, var(--run) 14%, var(--card)); stroke-width: 12; }
+.wk-ring .rf { fill: none; stroke: var(--run); stroke-width: 12; stroke-linecap: round; }
 .wk-ring > div { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; }
 .wk-ring b { font: 800 26px/1 var(--numf); letter-spacing: -.03em; }
 .wk-ring small { margin-top: 3px; font-size: 11px; font-weight: 650; color: var(--tx3); max-width: 70px; line-height: 1.25; }
 .wstrip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 18px; }
+/* a bar chart of the week (2026-10-13, Ben): each day's miles as a rounded bar, the number on top, a flat stub on a day off */
 .wd { display: grid; justify-items: center; gap: 5px; }
-button.wd { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
 .wd small { font-size: 11px; font-weight: 700; color: var(--tx3); padding: 2px 7px; border-radius: 999px; }
 .wd.today small { background: var(--btn); color: var(--onbtn); }
-.wv { display: block; height: 15px; font-size: 11px; font-weight: 700; color: var(--tx2); white-space: nowrap; visibility: hidden; }
-.wd[aria-pressed="true"] .wv { visibility: visible; }
-.wbar { width: 100%; max-width: 28px; height: 68px; display: flex; align-items: flex-end; justify-content: center; border-radius: 999px; background: var(--card2); overflow: hidden; }
-.sp-fill { --h: 0; display: block; width: 100%; height: calc(var(--h) * 100%); min-height: 28px; background: var(--other); border-radius: 999px; }
+.wv { display: block; font-size: 11.5px; line-height: 15px; font-weight: 750; color: var(--tx2); white-space: nowrap; }
+.wbar { width: 100%; max-width: 26px; height: 102px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; }
+.sp-fill { --h: 0; display: block; width: 100%; height: calc(var(--h) * 82px); min-height: 10px; background: var(--other); border-radius: 8px; }
 .sp-fill.run { background: var(--run); } .sp-fill.ride { background: var(--ride); } .sp-fill.walk { background: var(--walk); } .sp-fill.hike { background: var(--hike); }
 .sp-fill.swim { background: var(--swim); } .sp-fill.workout { background: var(--workout); } .sp-fill.row { background: var(--row); }
-.wd[aria-pressed="true"] .sp-fill { filter: brightness(1.1); }
-.wd[aria-pressed="true"]:not(.today) small { color: var(--tx); }
-.wdot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); margin-bottom: 8px; }
-.wbar .wdot { display: none; }   /* the empty capsule says "nothing that day" */
+.wd.none .wbar::after { content: ""; width: 100%; height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--tx3) 18%, transparent); }
 
 .card .status-word { display: grid; gap: 2px; margin: 0 0 14px; }
 .status-word b { font-size: 22px; font-weight: 800; letter-spacing: -.02em; color: var(--tx); }
