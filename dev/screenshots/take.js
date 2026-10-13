@@ -11,7 +11,7 @@ const SHOTS = [
   ['feed', '/activity'],
   ['activity', 'RUN'],
   ['similar', 'RUN', {to: 'Similar efforts'}],
-  ['coach', 'COACH', {to: 'Coach'}],
+  ['coach', 'COACH', {to: 'Kit'}],
   ['route', 'ROUTE'],
   ['progress', '/progress'],
   ['fitness', '/progress?view=fitness'],
@@ -21,8 +21,8 @@ const SHOTS = [
   ['cook', 'DISH'],
   ['serve', '/food', {logDish: 'Chicken and veg traybake', portion: '380'}],
   ['friends', '/me/friends'],
-  ['dietcoach', '/food?view=overview', {to: "Coach's take"}],
-  ['recipecoach', 'DISH', {to: "Coach's take"}],
+  ['dietcoach', '/food?view=overview', {to: "Kit’s take"}],
+  ['recipecoach', 'DISH', {to: "Kit’s take"}],
   ['photos', 'LATEST', {sel: '.d-title'}],
   ['describe', '/food', {describe: ['I had a hot dog from Costco and a Diet Coke', 'make it two hot dogs']}],
   // lifting (2026-10-13): last; the logger starts a session from the latest one (a live session would change Today)
@@ -118,7 +118,7 @@ function chrome(dark) {
       }
       if (opt.sel) await page.evaluate((q) => { const e = document.querySelector(q); if (e) window.scrollTo(0, e.getBoundingClientRect().top + scrollY - 70); }, opt.sel);
       if (opt.to) await page.evaluate((t) => {
-        const h = [...document.querySelectorAll('.card > h2, h2.sec-head')].find((x) => x.textContent.trim().startsWith(t));
+        const h = [...document.querySelectorAll('.card > h2, .coach-heading h2, h2.sec-head')].find((x) => x.textContent.trim().startsWith(t));
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);

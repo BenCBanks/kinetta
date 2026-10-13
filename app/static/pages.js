@@ -119,16 +119,16 @@ route(/^\/today$/, 'today', async (el) => {
       catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
     }
     if (!wk) {
-      box.innerHTML = `<div class="card ai review-card"><div class="review-head"><h2>Weekly review</h2></div>
-        <p class="small muted">Your coach writes a short review every Sunday evening.</p>
+      box.innerHTML = `<div class="card ai review-card"><div class="review-head"><h2>Kit’s weekly review</h2></div>
+        <p class="small muted">Kit writes a short review every Sunday evening.</p>
         ${r.enabled ? '<button class="linkbtn" id="t-rev">Review this week now</button>' : ''}</div>`;
       const b0 = $('#t-rev', box); if (b0) b0.onclick = () => reviewNow(b0);
       return;
     }
     const first = (r.latest.text.trim().match(/^[\s\S]*?[.!?](?=\s|$)/) || [r.latest.text])[0].trim();
-    box.innerHTML = `<div class="card ai review-card">${coachMessage('week:' + wk, r.latest.text, 'Weekly review',
+    box.innerHTML = `<div class="card ai review-card">${coachMessage('week:' + wk, r.latest.text, 'Kit’s weekly review',
       `<p class="review-line">${esc(first)}</p><button class="linkbtn" id="t-review-open">Read review</button>`, 'Week of ' + when)}</div>`;
-    $('#t-review-open', box).onclick = () => sheet('Weekly review', `<p class="small muted">Week of ${esc(when)}</p>
+    $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', `<p class="small muted">Week of ${esc(when)}</p>
         <p class="review-text">${esc(r.latest.text)}</p>
         <div class="btnrow${r.enabled ? '' : ' one'}">${r.enabled ? '<button class="ghost" id="rv-now">Review this week now</button>' : ''}<button class="ghost" id="rv-hide">Hide review</button></div>`, (sb, close) => {
       $('#rv-hide', sb).onclick = () => { close(); $('[data-coach-toggle]', box).click(); };
@@ -318,8 +318,8 @@ function drawDetail(el, a) {
     overview: `${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
-      ${a.ai_note ? `<div class="card ai">${coachMessage('activity:' + a.id, a.ai_note, 'Coach', `<p>${esc(a.ai_note)}</p>`)}</div>`
-        : App.me.coach ? `<div class="card"><h2>Coach</h2><p class="small muted">A short note on this workout from your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Get coach note' : 'Turn on AI coach'}</button></div>` : ''}
+      ${a.ai_note ? `<div class="card ai">${coachMessage('activity:' + a.id, a.ai_note, 'Kit', `<p>${esc(a.ai_note)}</p>`)}</div>`
+        : App.me.coach ? `<div class="card"><h2>Kit</h2><p class="small muted">A short note on this workout from Kit, your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Ask Kit' : 'Turn on Kit'}</button></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
       ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
@@ -362,7 +362,7 @@ function drawDetail(el, a) {
     if (!App.me.ai_ok) { aiSheet(() => drawDetail(el, a)); return; }
     cb.disabled = true; cb.textContent = 'Thinking…';
     try { const r = await api(`/api/activities/${a.id}/coach`, json('POST', {})); a.ai_note = r.note; showCoach('activity:' + a.id); App.cache.delete(`/api/activities/${a.id}`); drawDetail(el, a); }
-    catch (x) { toast(x.message); cb.disabled = false; cb.textContent = 'Get coach note'; }
+    catch (x) { toast(x.message); cb.disabled = false; cb.textContent = 'Ask Kit'; }
   };
   let marker = null, pts = null, mapObj = null;
   if (a.line) lazy($('#d-map', el), async () => {

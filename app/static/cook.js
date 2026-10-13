@@ -287,9 +287,9 @@ function cookSteps(d) {
 // AI feedback on the recipe (food_coach.py): kept on the dish, so friends it's shared with see it too
 function recipeReview(d, mine) {
   const R = d.review;
-  if (!R) return `<div class="cc-ask"><span class="grow"><b>Coach's take</b><small class="muted">Calories per portion and easy tweaks</small></span>
+  if (!R) return `<div class="cc-ask"><span class="grow"><b>Kit’s take</b><small class="muted">Calories per portion and easy tweaks</small></span>
     <button class="ghost sm tint" id="dk-review">${svg('sparkle')}Ask</button></div>`;
-  return coachMessage('recipe:' + d.id, [R.summary, R.text, R.ideas, R.note], "Coach's take", `
+  return coachMessage('recipe:' + d.id, [R.summary, R.text, R.ideas, R.note], "Kit’s take", `
     ${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
     ${R.ideas ? `<h3 class="ghead">Ideas</h3><ul class="ai-list">${R.ideas.map((i) => `<li>${svg('sparkle')}<span><b>${esc(i.change)}</b>${i.effect ? ` <span class="muted">${esc(i.effect)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
     ${R.note ? `<div class="callout warn">${esc(R.note)}</div>` : ''}
