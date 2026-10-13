@@ -71,6 +71,20 @@ s, r = a.put(f"/api/activities/{live['id']}/lifts", {'exercises': [{'exercise_id
 ck(s == 200 and not r['open'], 'finish closes it')
 ck(a.get(f"/api/activities/{live['id']}")[1]['name'].endswith('Lift'), 'named "... Lift"')
 
+# added by hand afterwards (2026-10-13 form): the kind is kept; lifting gets "… Lift" and can repeat a past session's sets
+s, yg = a.post('/api/activities/manual', {'sport': 'workout', 'sport_label': 'Yoga', 'start': '2026-10-05T07:00', 'duration_s': 1800})
+ck(s == 200 and a.get(f"/api/activities/{yg['id']}")[1]['sport_label'] == 'Yoga', 'kind kept on a hand-added activity')
+s, hl = a.post('/api/activities/manual', {'sport': 'workout', 'sport_label': 'Strength Training', 'start': '2026-10-06T18:00', 'duration_s': 2700, 'copy_from': two['id']})
+d = a.get(f"/api/activities/{hl['id']}")[1]
+ck(s == 200 and d['name'].endswith('Lift'), f"hand-added lifting named like a session {d['name']}")
+s, r = a.get(f"/api/activities/{hl['id']}/lifts")
+ck([e['name'] for e in r['exercises']] == ['Bench press', 'Plank'] and len(r['exercises'][0]['sets']) == 3, f"repeated session's sets came along {r['exercises']}")
+ck(all(not x['done'] and x['reps'] is None and x['kg'] is None for e in r['exercises'] for x in e['sets']), 'repeated sets start blank')
+cnt = len(b.get('/api/activities?limit=100')[1])
+ck(b.post('/api/activities/manual', {'sport': 'workout', 'sport_label': 'Strength Training', 'start': '2026-10-06T18:00', 'duration_s': 600, 'copy_from': two['id']})[0] == 404, "can't repeat someone else's session")
+ck(len(b.get('/api/activities?limit=100')[1]) == cnt, 'and no activity was made')
+a.delete(f"/api/activities/{yg['id']}"); a.delete(f"/api/activities/{hl['id']}")
+
 # privacy: another person can't read, change or use any of it
 ck(b.get(f"/api/activities/{two['id']}/lifts")[0] == 404, 'other person: no sets')
 ck(b.put(f"/api/activities/{two['id']}/lifts", {'exercises': []})[0] == 404, 'other person: no changes')

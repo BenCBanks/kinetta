@@ -154,7 +154,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .shot figcaption p { color: var(--ink2); font-size: 15.5px; margin-top: 6px; }
 @media (max-width: 900px) {
   .shots { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(260px, 72vw); overflow-x: auto;
-    scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; }
+    scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; }
   .shot { scroll-snap-align: start; }
 }
 
@@ -179,8 +179,9 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .pcard h4 { font: 600 19px/1.2 var(--display); margin: 0; letter-spacing: -0.01em; }
 .pcard p { color: var(--ink2); font-size: 15.5px; }
 @media (max-width: 900px) {
-  .pcards { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(260px, 72vw); overflow-x: auto;
-    scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; }
+  /* .four too (2026-10-13): its four columns used to win here, so on a phone each shot was ~70 px wide */
+  .pcards, .pcards.four { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(260px, 72vw); overflow-x: auto;
+    scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; }
   .pcard { scroll-snap-align: start; }
 }
 .compare { margin-top: 72px; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px; align-items: start; }
@@ -260,3 +261,23 @@ footer a { color: var(--ink2); }
   .cmp td small { display: none; } .cmp tfoot td small { display: block; }
   .cmp .yes, .cmp .paid { white-space: normal; }
 }
+
+/* tap a screenshot to see it full size (2026-10-13, zoom.js): swipe sideways through the others in that section */
+.frame img { cursor: zoom-in; }
+.zoom { position: fixed; inset: 0; z-index: 100; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0;
+  background: rgba(10, 14, 12, .94); color: #fff; }
+.zoom::backdrop { background: transparent; }
+.zoom .strip { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior: contain; }
+.zoom .strip::-webkit-scrollbar { display: none; }
+.zoom .slide { flex: 0 0 100%; height: 100%; overflow-y: auto; scroll-snap-align: center; display: grid; place-items: start center;
+  padding: calc(env(safe-area-inset-top) + 64px) 16px calc(env(safe-area-inset-bottom) + 24px); }
+.zoom .slide img { width: min(100%, 430px, calc((100dvh - 96px) * 786 / 1704)); height: auto; border-radius: 28px; cursor: zoom-out; }
+@media (max-width: 560px) { .zoom .slide img { width: 100%; } }    /* a phone: full width, scroll down for the rest */
+.zoom .bar { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 12px) 16px 12px; pointer-events: none; }
+.zoom .bar > * { pointer-events: auto; }
+.zoom .count { font: 500 14px var(--body, system-ui); opacity: .8; }
+.zoom button { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.16); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
+.zoom .nav { position: absolute; top: 50%; margin-top: -22px; }
+.zoom .prev { left: 16px; } .zoom .next { right: 16px; }
+@media (hover: none) { .zoom .nav { display: none; } }   /* swipe instead */

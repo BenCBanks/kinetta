@@ -82,6 +82,19 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .check input { width: 22px; height: 22px; min-height: 0; flex: none; }
 .form { display: grid; gap: 12px; }
 .form .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+/* drop-downs with a chevron (2026-10-13, Add an activity) */
+.selbox { position: relative; display: block; min-width: 0; }
+.selbox select { appearance: none; -webkit-appearance: none; padding-right: 34px; color: var(--tx); text-overflow: ellipsis; }
+.selbox > svg { position: absolute; right: 12px; top: 50%; width: 16px; height: 16px; margin-top: -8px; transform: rotate(90deg); color: var(--tx3); pointer-events: none; }
+.hand { gap: 14px; }
+.hand .dur { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
+.hand #ma-lift p { margin: 6px 2px 0; }
+/* an iPhone's date box is wider than its space unless told otherwise (it pushed the whole sheet sideways) */
+.hand input[type=date] { -webkit-appearance: none; appearance: none; display: block; text-align: left; }
+.hand input[type=date]::-webkit-date-and-time-value { text-align: left; }
+.hand details.more { border-top: 1px solid var(--line); padding-top: 4px; }
+.hand details.more > summary { font-size: 15px; gap: 6px; flex-wrap: wrap; } .hand details.more > summary .muted { font-weight: 500; font-size: 13px; }
+.hand details.more > .form { margin-top: 8px; }
 .form .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; } .form .actions .spacer { display: none; }
 .form .actions > button, .form .actions > a { flex: 1 1 0; min-height: 42px; }
 .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; } .btnrow > * { min-height: 42px; }
@@ -289,7 +302,7 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 /* ---------- sheet (bottom dialog) ---------- */
 .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.36); display: flex; align-items: flex-end; justify-content: center; animation: fade .18s ease-out; }
 @keyframes fade { from { opacity: 0; } }
-.sheet { width: 100%; max-width: 640px; max-height: 92dvh; overflow: auto; background: var(--bg); border-radius: 28px 28px 0 0;
+.sheet { width: 100%; max-width: 640px; max-height: 92dvh; overflow: auto; overflow-x: hidden; background: var(--bg); border-radius: 28px 28px 0 0;
   padding: 8px 18px calc(env(safe-area-inset-bottom) + 20px); overscroll-behavior: contain; animation: rise .26s cubic-bezier(.2, .8, .2, 1); }
 @keyframes rise { from { transform: translateY(40px); opacity: .6; } }
 .sheet .grab { position: relative; width: 38px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--tx3) 45%, transparent); margin: 4px auto 12px; }

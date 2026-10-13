@@ -1464,32 +1464,84 @@ route(/^\/me\/goals$/, 'me', async (el) => {
 // ---------- add an activity by hand (2026-10-09) ----------
 // Any element with data-addact opens it; data-day="YYYY-MM-DD" presets the date (e.g. from Nutrition).
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-addact]'); if (b) { e.preventDefault(); addActivityMenu(b.dataset.day); } });
+// What it was: a drop-down by group (2026-10-13, Ben: chips and typed durations were fiddly, and lifting needs its own choices).
+// [sport, shown name, kind saved as sport_label]; the kind shows on the activity ("Yoga", "Treadmill")
+const HAND_KINDS = [
+  ['Cardio', [['run', 'Run'], ['run', 'Treadmill run', 'Treadmill'], ['ride', 'Ride'], ['ride', 'Indoor ride', 'Indoor Cycling'], ['walk', 'Walk'],
+    ['hike', 'Hike'], ['swim', 'Swim'], ['row', 'Rowing machine', 'Indoor Rowing'], ['row', 'Row (on water)'], ['ski', 'Ski']]],
+  ['Gym and classes', [['workout', 'Lifting', 'Strength Training'], ['workout', 'HIIT', 'HIIT'], ['ride', 'Spin class', 'Spin Class'],
+    ['workout', 'Yoga', 'Yoga'], ['workout', 'Pilates', 'Pilates'], ['workout', 'Other workout']]],
+  ['Other', [['other', 'A sport or game', 'Sport'], ['other', 'Something else']]],
+];
+const LIFT_KIND = '1.0';
 function addActivitySheet(day, preset) {   // preset 'workout': a lifting session logged afterwards (lift.js)
-  const now = new Date(), d0 = day || isoDay(now), t0 = day && day !== isoDay(now) ? '08:00' : `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes() / 5) * 5).padStart(2, '0')}`;
-  const sports = ['run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
-  sheet('Add an activity', `<form class="form" id="ma">
-    <div class="chips sportpick" role="group" aria-label="Sport">${sports.map((sp, i) => `<button type="button" class="chip" data-sp="${sp}" aria-pressed="${preset ? sp === preset : i === 0}">${esc(SPORT_NAMES[sp])}</button>`).join('')}</div>
-    <label>Name <span class="muted">(optional)</span><input name="name" maxlength="200" placeholder="e.g. Spin class"></label>
-    <div class="two"><label>Date<input type="date" name="day" value="${esc(d0)}" max="${isoDay(now)}" required></label><label>Start time<input type="time" name="time" value="${t0}" required></label></div>
-    <div class="two"><label>Duration<input name="dur" inputmode="numeric" placeholder="45 or 1:05:00" required></label><label>Distance (${U.du()}) <span class="muted">optional</span><input name="dist" inputmode="decimal"></label></div>
-    <div class="two"><label>Calories <span class="muted">optional</span><input name="kcal" inputmode="numeric" placeholder="from your watch/machine"></label><label>Avg heart rate <span class="muted">optional</span><input name="hr" inputmode="numeric"></label></div>
-    <label>Notes <span class="muted">(optional)</span><textarea name="desc" rows="2"></textarea></label>
-    <p class="small muted">Duration: minutes (45) or h:mm:ss (1:05:00). Leave calories blank and they're estimated from distance or time and your weight.</p>
-    <div class="actions"><button class="primary">Save activity</button></div></form>`, (b, close) => {
-    const f = $('#ma', b); let sport = preset || 'run';
-    if (preset === 'workout') f.name.value = 'Lifting';
-    $$('.sportpick .chip', b).forEach((c) => c.onclick = () => { sport = c.dataset.sp; $$('.sportpick .chip', b).forEach((x) => x.setAttribute('aria-pressed', x === c)); });
+  const now = new Date(), today = isoDay(now), d0 = day || today;
+  const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(t)}</option>`;
+  const sel = (name, label, opts, extra = '') => `<label>${label}<span class="selbox"><select name="${name}"${extra}>${opts}</select>${svg('chev')}</span></label>`;
+  // the last five weeks by name, then "Earlier…" for a calendar
+  const days = Array.from({length: 35}, (_, i) => { const d = new Date(now); d.setDate(d.getDate() - i); return isoDay(d); });
+  const dayName = (iso, i) => (i === 0 ? 'Today' : i === 1 ? 'Yesterday' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: i < 7 ? 'long' : 'short', month: 'short', day: 'numeric'}));
+  const early = !days.includes(d0);
+  // start time in quarter hours: now (rounded down) today, 8 AM on another day
+  const q0 = d0 === today ? Math.floor((now.getHours() * 60 + now.getMinutes()) / 15) * 15 : 480;
+  const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const times = Array.from({length: 96}, (_, i) => opt(hm(i * 15), new Date(2000, 0, 1, 0, i * 15).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}), i * 15 === q0)).join('');
+  const kinds = HAND_KINDS.map(([g, list], gi) => `<optgroup label="${esc(g)}">${list.map(([, n], i) => opt(`${gi}.${i}`, n, preset ? `${gi}.${i}` === LIFT_KIND : gi + i === 0)).join('')}</optgroup>`).join('');
+  const nums = (to, pick, step = 1) => Array.from({length: Math.floor(to / step) + 1}, (_, i) => opt(i * step, String(i * step), i * step === pick)).join('');   // the label says the unit
+  sheet('Add an activity', `<form class="form hand" id="ma">
+    ${sel('kind', 'What did you do?', kinds)}
+    <div id="ma-lift" hidden>${sel('copy', 'Exercises', opt('', 'Add them next', true))}<p class="small muted" id="ma-lift-hint">You'll put in each set on the next screen.</p></div>
+    <div class="two">${sel('day', 'Day', days.map((d, i) => opt(d, dayName(d, i), d === d0)).join('') + opt('', 'Earlier…', early))}${sel('time', 'Start time', times)}</div>
+    <label id="ma-cal"${early ? '' : ' hidden'}>Date<input type="date" name="date" value="${esc(early ? d0 : '')}" max="${today}"></label>
+    <div class="dur">${sel('h', 'Hours', nums(12, 0))}${sel('m', 'Minutes', nums(59, 30))}<span class="dur-s">${sel('s', 'Seconds', nums(55, 0, 5))}</span></div>
+    <label id="ma-dist">Distance (${U.du()}) <input name="dist" inputmode="decimal" placeholder="Optional"></label>
+    <details class="more"><summary>More details <span class="muted">(name, calories, heart rate, notes)</span></summary><div class="form">
+      <label>Name<input name="name" maxlength="200" placeholder="e.g. Spin class"></label>
+      <div class="two"><label>Calories<input name="kcal" inputmode="numeric" placeholder="From your watch"></label><label>Avg heart rate<input name="hr" inputmode="numeric" placeholder="bpm"></label></div>
+      <label>Notes<textarea name="desc" rows="2"></textarea></label>
+      <p class="small muted">Leave calories blank and they're worked out from the time, distance and your weight.</p></div></details>
+    <div class="actions"><button class="primary" id="ma-go">Save activity</button></div></form>`, (b, close) => {
+    const f = $('#ma', b);
+    const kind = () => { const [g, i] = f.kind.value.split('.').map(Number); return HAND_KINDS[g][1][i]; };
+    let recent = null;
+    async function loadRecent() {   // lifting: repeat a past session's exercises and sets
+      if (recent) return;
+      recent = [];
+      try { const seen = new Set(); recent = (await api('/api/lifts/sessions?limit=30')).filter((s) => s.exercises && s.exercises.length && !s.lift_open && !seen.has(s.name) && seen.add(s.name)).slice(0, 8); }
+      catch (e) { /* offline: they can still add exercises next */ }
+      if (!f.isConnected || !recent.length) return;
+      f.copy.innerHTML = opt('', 'Add them next', true) + `<optgroup label="Same as">${recent.map((s) => opt(s.id, `${s.name} · ${new Date(s.start_time).toLocaleDateString([], {month: 'short', day: 'numeric'})}`)).join('')}</optgroup>`;
+    }
+    const show = () => {
+      const [sport, , label] = kind(), lift = label === 'Strength Training';
+      $('#ma-lift', b).hidden = !lift;
+      $('#ma-dist', b).hidden = sport === 'workout' || sport === 'other';
+      $('.dur-s', b).hidden = !['run', 'walk', 'hike', 'swim', 'row', 'ride', 'ski'].includes(sport);   // seconds matter for a pace
+      $('#ma-go', b).textContent = lift ? 'Next: the sets' : 'Save activity';
+      f.name.placeholder = `e.g. ${kind()[1]}`;
+      if (lift) loadRecent();
+    };
+    const hint = () => {
+      const s = recent && recent.find((x) => String(x.id) === f.copy.value);
+      $('#ma-lift-hint', b).textContent = s ? `${s.exercises.join(', ')}. The same sets come along, with that day's numbers beside each one.` : "You'll put in each set on the next screen.";
+    };
+    f.kind.onchange = show; f.copy.onchange = hint;
+    f.day.onchange = () => { $('#ma-cal', b).hidden = !!f.day.value; if (!f.day.value) f.date.focus(); };
+    show();
     f.onsubmit = async (e) => {
       e.preventDefault();
-      const dv = f.dur.value.trim(), parts = dv.split(':').map(Number);
-      const secs = parts.some(isNaN) ? NaN : parts.length === 1 ? parts[0] * 60 : parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0] * 3600 + parts[1] * 60 + parts[2];
-      if (!(secs > 0)) { toast('Enter a duration, e.g. 45 or 1:05:00'); f.dur.focus(); return; }
+      const secs = +f.h.value * 3600 + +f.m.value * 60 + ($('.dur-s', b).hidden ? 0 : +f.s.value);
+      if (!(secs > 0)) { toast('How long was it? Pick the hours and minutes.'); f.m.focus(); return; }
+      const date = f.day.value || f.date.value;
+      if (!date) { toast('Pick the date'); f.date.focus(); return; }
+      const [sport, name, label] = kind(), lift = label === 'Strength Training';
       const n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value.replace(/,/g, '')));
-      const dist = n(f.dist);
-      const body = {sport, name: f.name.value.trim() || null, start: `${f.day.value}T${f.time.value}`, duration_s: secs,
-        distance_m: dist == null ? null : dist * (imp() ? MI : 1000), calories: n(f.kcal), avg_hr: n(f.hr), description: f.desc.value.trim() || null};
-      const btn = $('button.primary', f); btn.disabled = true;
-      try { const r = await api('/api/activities/manual', json('POST', body)); invalidate('/api/'); close(); toast('Activity saved'); go(preset === 'workout' ? `/lift/${r.id}` : `/activity/${r.id}`); }
+      const dist = $('#ma-dist', b).hidden ? null : n(f.dist);
+      const body = {sport, sport_label: label || null, name: f.name.value.trim() || null, start: `${date}T${f.time.value}`, duration_s: secs,
+        distance_m: dist == null ? null : dist * (imp() ? MI : 1000), calories: n(f.kcal), avg_hr: n(f.hr), description: f.desc.value.trim() || null,
+        copy_from: lift && f.copy.value ? +f.copy.value : null};
+      const btn = $('#ma-go', b); btn.disabled = true;
+      try { const r = await api('/api/activities/manual', json('POST', body)); invalidate('/api/'); close(); toast(lift ? 'Saved. Now the sets.' : 'Activity saved'); go(lift ? `/lift/${r.id}` : `/activity/${r.id}`); }
       catch (x) { toast(x.message); btn.disabled = false; }
     };
   });
