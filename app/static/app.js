@@ -226,7 +226,7 @@ function sheet(title, html, onMount) {
   const s = document.createElement('div'); s.className = 'scrim';
   s.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
     <header><h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button></header><div class="sbody">${html}</div></div>`;
-  const close = () => { s.remove(); document.removeEventListener('keydown', onKey); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); if (prev && prev.isConnected && prev.focus) prev.focus(); };
+  const close = () => { s.remove(); document.removeEventListener('keydown', onKey); unfit(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); if (prev && prev.isConnected && prev.focus) prev.focus(); };
   const onKey = (e) => {
     if ([...document.querySelectorAll('.scrim')].at(-1) !== s) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); }
@@ -262,6 +262,16 @@ function sheet(title, html, onMount) {
   sh.addEventListener('mousedown', (e) => { if (e.target.closest('.grab, header') && !e.target.closest('button')) my = e.clientY; });
   addEventListener('mousemove', (e) => { if (my != null && e.clientY - my > 0) sh.style.transform = `translateY(${e.clientY - my}px)`; });
   addEventListener('mouseup', (e) => { if (my != null) { settle(e.clientY - my > 90); my = null; } });
+  // the keyboard (2026-10-13, Ben): iOS slides it over the page, so the sheet would sit under it. Lift the sheet by the
+  // keyboard's height and keep it inside what is still visible, so a text box being typed in stays in view.
+  const vv = window.visualViewport;
+  const fit = () => {
+    const kb = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+    s.style.paddingBottom = kb > 80 ? kb + 'px' : '';
+    sh.style.maxHeight = kb > 80 ? `${Math.round(vv.height - 8)}px` : '';
+  };
+  const unfit = () => { if (vv) { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); } };
+  if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
   document.addEventListener('keydown', onKey);
   document.body.append(s); document.body.classList.add('has-sheet');
   // phones: a text box waits for a tap (a focused box pops up the keyboard over the sheet); buttons still take focus
