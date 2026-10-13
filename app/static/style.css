@@ -673,6 +673,26 @@ a.ntile { color: inherit; text-decoration: none; }
 .tcard .ringrow .ring b { font-size: 34px; }
 .tc-goal { background: var(--card); border: 0; box-shadow: var(--shadow); }
 .tc-goal small svg { width: 13px; height: 13px; } .tc-goal b { color: var(--tx); font-size: 24px; } .tcard .ringrow > div:first-child b { font-size: 24px; }
+/* option D (2026-10-13, Ben): the calorie ring on the left, a small ring per macro stacked on the right, Eaten and Goal under
+   both; colours as in the macro charts (protein blue, carbs yellow, fat orange) */
+.tcard .ringrow { grid-template-areas: "ring mr" "eaten goal"; align-items: center; }
+.tcard .ringrow .ring, .tcard .ringrow .ring svg { width: 150px; height: 150px; }
+.tcard .ringrow .ring b { font-size: 32px; }
+.tcard .ringrow .tc-mrings { grid-area: mr; flex-direction: column; display: grid; gap: 10px; align-content: center; }
+.mring { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mring.m-protein_g { --c: var(--s1); } .mring.m-carbs_g { --c: var(--s4); } .mring.m-fat_g { --c: var(--s2); }
+.mr-c { position: relative; width: 54px; height: 54px; flex: none; } .mr-c svg { width: 54px; height: 54px; display: block; }
+.mr-c .rb { fill: none; stroke: color-mix(in srgb, var(--c) 20%, var(--card)); stroke-width: 6.5; }
+.mr-c .rf { fill: none; stroke: var(--c); stroke-width: 6.5; stroke-linecap: round; }
+.mr-c .rf2 { fill: none; stroke: color-mix(in srgb, var(--c) 55%, #000); stroke-width: 6.5; stroke-linecap: round; }
+.mr-c > div { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; }
+.tcard .mr-c b { font: 800 14px/1 var(--numf); letter-spacing: -.02em; }
+.tcard .mr-c small { color: var(--tx3); font-size: 7.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; margin-top: 1px; }
+.mr-t { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.2; }
+.tcard .mr-t small { color: var(--tx3); font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+.mr-t span { font-size: 14px; font-weight: 700; white-space: nowrap; } .mr-t i { font-style: normal; font-size: 12px; color: var(--tx3); }
+.tcard .mring.over .mr-c b, .tcard .mring.over .mr-c small { color: var(--warn); }
+.tc-settg { display: block; margin: 8px auto 0; min-height: 36px; }
 .gbar { height: 10px; border-radius: 999px; background: var(--card2); overflow: hidden; margin: 14px 0 8px; }
 .gbar .gfill { height: 100%; width: calc(var(--w, 0) * 100%); background: var(--prog); border-radius: 999px; }
 .gbar.over .gfill { background: var(--alert); }
