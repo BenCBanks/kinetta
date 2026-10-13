@@ -78,7 +78,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
   body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <div id="fd-again"></div><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
+    <div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -87,29 +87,9 @@ route(/^\/food$/, 'food', async (el) => {
   dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
   dp.onchange = () => { if (dp.value) go(dp.value === today ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
   $('#fq-add', el).onclick = () => addSheet(day, guessMeal());
-  logAgain($('#fd-again', el), day);
   await load(`/api/food/day?d=${day}`, (D) => drawDay(el, D), {maxAge: 5000});
 });
 
-// Log again (2026-10-12, Ben): your usual foods as one-tap chips under Add food, the ones you have at this time of day
-// first. A tap logs your usual amount to the meal for now; the toast offers Undo.
-function logAgain(box, day) {
-  load('/api/food/usual', (rows) => {
-    if (!box.isConnected) return;
-    const meal = guessMeal(), list = [...rows].sort((a, b) => (b.meal === meal) - (a.meal === meal)).slice(0, 8);
-    if (!list.length) { firstFood(box, day); return; }
-    box.innerHTML = `<h3 class="ghead again-h">Log again <span class="muted">· to ${esc(MEAL_NAMES[meal].toLowerCase())}</span></h3>
-      <div class="chips again">${list.map((r, i) => `<button class="chip" data-ag="${i}" aria-label="Log ${esc(r.name)} (${esc(fmtAmount(r))}) to ${esc(MEAL_NAMES[meal])}">${svg('plus')}${esc(r.name)} <small class="num">${r0(r.kcal)}</small></button>`).join('')}</div>`;
-    $$('[data-ag]', box).forEach((b) => b.onclick = async () => {
-      const r = list[+b.dataset.ag]; b.disabled = true;
-      try {
-        const res = await addEntries([{day, meal, name: r.name, brand: r.brand, amount: r.amount, unit: r.unit, kcal: r.kcal, protein_g: r.protein_g, carbs_g: r.carbs_g,
-          fat_g: r.fat_g, fiber_g: r.fiber_g, source: r.source === 'dish' ? 'dish' : 'recent', ref: r.ref || null}]);
-        toast(`Added ${r.name} to ${MEAL_NAMES[meal].toLowerCase()}`, res.ids ? () => api(`/api/food/entries/${res.ids[0]}`, {method: 'DELETE', body: '{}'}).then(refresh).catch((x) => toast(x.message)) : null);
-      } catch (x) { toast(x.message); b.disabled = false; }
-    });
-  }, {maxAge: 60000}).catch(() => {});
-}
 // someone who has never logged food (2026-10-12): three steps instead of a page of zeros
 function firstFood(box, day) {
   box.innerHTML = '';
@@ -139,6 +119,8 @@ function drawDay(el, D) {
   const goalNote = goal == null ? 'No calorie goal yet - tap Goal to set one.'
     : G.custom != null ? `Goal set for this day${G.default ? ` (your usual is ${r0(G.default)})` : ''}.`
     : G.extra ? `Your daily target ${r0(G.default)} + ${r0(G.extra)} for ${today ? "today's" : "this day's"} extra training.` : '';
+  // signs (2026-10-13, Ben): what you eat counts up (+), what you burn counts down (−), so the deficit comes out negative
+  const neg = (v) => (Math.round(v) ? '−' : '') + r0(Math.abs(v)), pos = (v) => (Math.round(v) ? '+' : '') + r0(v);
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
   // one card (2026-10-12 redesign): calories, macros, then the day's balance, with how it adds up folded underneath
   $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
@@ -150,15 +132,15 @@ function drawDay(el, D) {
         ${!t.protein_target ? '<button class="linkbtn" id="fd-targets">Set macro targets</button>' : ''}</div>
       ${B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>'
         : `<details class="bd tc-bal"${bdOpen() ? ' open' : ''}><summary><span>${B.deficit >= 0 ? 'Deficit' : 'Surplus'}${sofar}<small class="muted"> · estimate</small></span>
-            <b class="num ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}">${r0(Math.abs(B.deficit))}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
+            <b class="num ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}">${B.deficit >= 0 ? neg(B.deficit) : pos(-B.deficit)}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
         ${B.partly ? '<p class="small muted">Looks only partly logged, so this day is left out of your averages and totals. Add the rest and it counts.</p>' : ''}
-        ${row('Resting burn (BMR)', r0(B.bmr), '', B.bmr_exact ? 'your body at rest' : 'rough guess · <a href="/me">add height & age</a>')}
-        ${row('Everyday activity', r0(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=needs">change</a>`)}
-        ${B.items.length ? B.items.map((a) => row(`<a href="/activity/${a.id}"><span class="exi sp ${esc(a.sport)}">${svg(a.sport)}</span>${esc(a.name)}</a>`, r0(a.kcal) + (a.estimated ? '*' : ''), 'ex', a.distance_m ? `${U.dist(a.distance_m, 1)} ${U.du()}` : '')).join('')
+        ${row('Resting burn (BMR)', neg(B.bmr), '', B.bmr_exact ? 'your body at rest' : 'rough guess · <a href="/me">add height & age</a>')}
+        ${row('Everyday activity', neg(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=needs">change</a>`)}
+        ${B.items.length ? B.items.map((a) => row(`<a href="/activity/${a.id}"><span class="exi sp ${esc(a.sport)}">${svg(a.sport)}</span>${esc(a.name)}</a>`, neg(a.kcal) + (a.estimated ? '*' : ''), 'ex', a.distance_m ? `${U.dist(a.distance_m, 1)} ${U.du()}` : '')).join('')
                          : row('Exercise', '0', 'ex', 'no workouts this day')}
         <button class="linkbtn addwk" data-addact data-day="${esc(D.day)}">+ Add a workout</button>
-        ${row(today ? 'Burned by end of day' : 'Total burned', r0(B.day_burn), 'sum', today ? 'estimate for the whole day' : '')}
-        ${row('Eaten' + sofar, '− ' + r0(eaten))}
+        ${row(today ? 'Burned by end of day' : 'Total burned', neg(B.day_burn), 'sum', today ? 'estimate for the whole day' : '')}
+        ${row('Eaten' + sofar, pos(eaten))}
         ${G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
         <a class="small more-link" href="/food?view=energy">Running total ›</a></details>`}</div>`;
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
