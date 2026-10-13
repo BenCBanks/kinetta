@@ -104,7 +104,7 @@ function drawDish(el, d) {
   if (rb) rb.onclick = async () => {
     if (!App.me.ai_ok) { aiSheet(() => rb.click()); return; }
     rb.disabled = true; const was = rb.innerHTML; rb.textContent = 'Reading…';
-    try { const r = await api(`/api/dishes/${d.id}/review`, json('POST', {})); set({...d, review: {...r, changed_since: false}}); }
+    try { const r = await api(`/api/dishes/${d.id}/review`, json('POST', {})); showCoach('recipe:' + d.id); set({...d, review: {...r, changed_since: false}}); }
     catch (x) { rb.disabled = false; rb.innerHTML = was; aiError(rb, x.message); }
   };
 }
@@ -289,11 +289,11 @@ function recipeReview(d, mine) {
   const R = d.review;
   if (!R) return `<div class="cc-ask"><span class="grow"><b>Coach's take</b><small class="muted">Calories per portion and easy tweaks</small></span>
     <button class="ghost sm tint" id="dk-review">${svg('sparkle')}Ask</button></div>`;
-  return `<h2>Coach's take<span class="muted small">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</span></h2>
+  return coachMessage('recipe:' + d.id, [R.summary, R.text, R.ideas, R.note], "Coach's take", `
     ${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
     ${R.ideas ? `<h3 class="ghead">Ideas</h3><ul class="ai-list">${R.ideas.map((i) => `<li>${svg('sparkle')}<span><b>${esc(i.change)}</b>${i.effect ? ` <span class="muted">${esc(i.effect)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
     ${R.note ? `<div class="callout warn">${esc(R.note)}</div>` : ''}
-    ${mine && App.me.coach ? `<button class="linkbtn" id="dk-review">${svg('sparkle')}${R.changed_since ? 'The recipe changed - ask again' : 'Ask again'}</button>` : ''}`;
+    ${mine && App.me.coach ? `<button class="linkbtn" id="dk-review">${svg('sparkle')}${R.changed_since ? 'The recipe changed - ask again' : 'Ask again'}</button>` : ''}`, new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}));
 }
 // who the dish is shared with: friends only, one tap each
 function shareDishSheet(d, set) {

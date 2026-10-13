@@ -979,19 +979,20 @@ function dietCoach(box) {
     if (!box.isConnected) return;
     const L = r.latest, when = L ? new Date(L.day + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
     const list = (xs, ico) => (xs && xs.length ? `<ul class="ai-list">${xs.map((x) => `<li>${svg(ico)}<span>${esc(x)}</span></li>`).join('')}</ul>` : '');
-    box.innerHTML = L ? `<div class="card ai coach-card"><h2>Coach's take<span class="muted small">${esc(when)}</span></h2>
-        ${L.headline ? `<p class="ai-head">${esc(L.headline)}</p>` : ''}${L.text ? `<p>${esc(L.text)}</p>` : ''}
+    box.innerHTML = L ? `<div class="card ai coach-card">${coachMessage('diet',
+      [L.headline, L.text, L.going_well, L.try_next, L.watch], "Coach's take",
+      `${L.headline ? `<p class="ai-head">${esc(L.headline)}</p>` : ''}${L.text ? `<p>${esc(L.text)}</p>` : ''}
         ${L.going_well ? `<h3 class="ghead">Going well</h3>${list(L.going_well, 'check')}` : ''}
         ${L.try_next ? `<h3 class="ghead">Try this week</h3>${list(L.try_next, 'sparkle')}` : ''}
         ${L.watch ? `<div class="callout warn">${esc(L.watch)}</div>` : ''}
-        <button class="linkbtn" id="dc-go">${svg('sparkle')}Review again</button></div>`
+        <button class="linkbtn" id="dc-go">${svg('sparkle')}Review again</button>`, when)}</div>`
       : `<div class="card ai coach-card"><h2>Coach's take</h2><p>A short review of your last two weeks of eating: what's going well, and two or three things to try next, from your own log.</p>
         <button class="primary wide" id="dc-go">${svg('sparkle')}Review my eating</button></div>`;
     const b = $('#dc-go', box);
     b.onclick = async () => {
       if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
       b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';
-      try { const fresh = await api('/api/food/review', json('POST', {})); App.cache.set('/api/food/review', {data: {...r, enabled: true, latest: fresh}, at: Date.now()}); dietCoach(box); }
+      try { const fresh = await api('/api/food/review', json('POST', {})); showCoach('diet'); App.cache.set('/api/food/review', {data: {...r, enabled: true, latest: fresh}, at: Date.now()}); dietCoach(box); }
       catch (x) { b.disabled = false; b.innerHTML = was; aiError(b, x.message); }
     };
   }).catch(() => {});
@@ -1002,16 +1003,16 @@ function mealCoach(m) {
   sheet(`Coach's take: ${m.name}`, `<div class="card ai coach-card" id="mc-box"></div>`, (b) => {
     const box = $('#mc-box', b);
     const draw = (R) => {
-      box.innerHTML = R ? `${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
+      box.innerHTML = R ? coachMessage('meal:' + m.id, [R.summary, R.text, R.ideas, R.note], "Coach's take", `${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
         ${R.ideas ? `<h3 class="ghead">Ideas</h3><ul class="ai-list">${R.ideas.map((i) => `<li>${svg('sparkle')}<span><b>${esc(i.change)}</b>${i.effect ? ` <span class="muted">${esc(i.effect)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
         ${R.note ? `<div class="callout warn">${esc(R.note)}</div>` : ''}
-        <p class="small muted">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</p><button class="linkbtn" id="mc-go">${svg('sparkle')}Ask again</button>`
+        <p class="small muted">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</p><button class="linkbtn" id="mc-go">${svg('sparkle')}Ask again</button>`)
         : `<p>Feedback on this meal from your coach: how it fits your day, and a few tweaks with what each one changes.</p><button class="primary wide" id="mc-go">${svg('sparkle')}Get feedback</button>`;
       const g = $('#mc-go', box);
       g.onclick = async () => {
         if (!App.me.ai_ok) { aiSheet(() => g.click()); return; }
         g.disabled = true; const was = g.innerHTML; g.textContent = 'Reading the meal…';
-        try { m.review = await api(`/api/food/meals/${m.id}/review`, json('POST', {})); invalidate('/api/food/meals'); draw(m.review); }
+        try { m.review = await api(`/api/food/meals/${m.id}/review`, json('POST', {})); showCoach('meal:' + m.id); invalidate('/api/food/meals'); draw(m.review); }
         catch (x) { toast(x.message); g.disabled = false; g.innerHTML = was; }
       };
     };
