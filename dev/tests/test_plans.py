@@ -88,6 +88,8 @@ for g in p.get('/api/goals')[1]: p.delete(f"/api/goals/{g['id']}")
 F = p.get('/api/fitness?days=60')[1]
 P = F['predictions']
 if P: check('predictions slow down with distance', all(P[i]['seconds'] / P[i]['distance_m'] < P[i + 1]['seconds'] / P[i + 1]['distance_m'] for i in range(len(P) - 1)), P)
+# each prediction carries your best ever at that distance (None if you never ran that far), which the green tile compares against
+if P: check('predictions carry the best at each distance', all('best_s' in x for x in P) and all(x['best_s'] is None or x['best_s'] > 0 for x in P), P)
 
 for a in p.get('/api/activities?limit=20')[1]:
     if a['name'] == 'zz plan run': p.delete(f"/api/activities/{a['id']}")

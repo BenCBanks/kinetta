@@ -160,9 +160,23 @@ route(/^\/today$/, 'today', async (el) => {
       const days = s.week_days || [], maxT = Math.max(1, ...days.map((x) => x.moving_s || 0)), maxD = Math.max(1, ...days.map((x) => x.distance_m || 0));
       // the bars speak for themselves (Ben 2026-10-11): no caption, no numbers; tap a bar to see that day
       const dayName = (d) => new Date(d + 'T12:00').toLocaleDateString([], {weekday: 'long'});
-      $('#t-week', el).innerHTML = `<div class="card week-summary"><h2>This week<a class="more" href="/progress?view=totals">Totals ›</a></h2>
-        <a class="wk-link" href="/progress?view=totals"><div class="hero-num num">${esc(U.dist(t.d, 1))}<i>${esc(U.du())}</i></div>
-        <p class="hero-sub">${esc(dur(t.t, true))} · ${t.n} activit${t.n === 1 ? 'y' : 'ies'}${t.e ? ` · ${esc(U.elev(t.e))} ${esc(U.eu())} climb` : ''}</p></a>
+      // the ring (2026-10-13): this week against a usual week, the same average Progress shows (complete weeks, last 12 months);
+      // by distance, or by time for someone whose workouts have no distance
+      const cur = ymd(monday), past = s.weeks.filter((w) => w.week < cur), firstWk = past.length ? past[0].week : cur;
+      const nWk = Math.min(52, Math.max(1, Math.round((new Date(cur + 'T12:00') - new Date(firstWk + 'T12:00')) / 6048e5)));
+      const sum = (f) => past.filter((w) => w.week >= ymd(new Date(new Date(cur + 'T12:00') - nWk * 6048e5))).reduce((a, w) => a + (w[f] || 0), 0);
+      const byDist = sum('distance_m') > 0, usual = (byDist ? sum('distance_m') : sum('moving_s')) / nWk, now = byDist ? t.d : t.t;
+      const pct = usual > 0 ? now / usual : 0, C = 2 * Math.PI * 52;
+      const ring = past.length && usual > 0 ? `<div class="wk-ring" role="img" aria-label="${Math.round(pct * 100)}% of a usual week (${esc(byDist ? `${U.dist(usual, 1)} ${U.du()}` : dur(usual, true))})">
+          <svg viewBox="0 0 132 132" aria-hidden="true"><circle class="rb" cx="66" cy="66" r="52"/>${pct > 0 ? `<circle class="rf" cx="66" cy="66" r="52" stroke-dasharray="${(Math.min(1, pct) * C).toFixed(1)} ${C.toFixed(1)}"/>` : ''}</svg>
+          <div><b class="num">${Math.round(pct * 100)}%</b><small>of a usual week</small></div></div>` : '';
+      const chip = (cls, ic, label, v) => `<div class="ichip-row"><span class="ichip ${cls}">${svg(ic)}</span><span><small>${label}</small><b class="num">${v}</b></span></div>`;
+      $('#t-week', el).innerHTML = `<div class="card week-summary"><h2>This week<a class="more pill-more" href="/progress?view=totals">Totals</a></h2>
+        <a class="wk-link wk-top" href="/progress?view=totals"><div class="wk-chips">
+          ${chip('c-orange', 'dist', 'Distance', `${esc(U.dist(t.d, 1))} ${esc(U.du())}`)}
+          ${chip('c-blue', 'clock', 'Time', esc(dur(t.t, true)))}
+          ${t.e ? chip('c-green', 'climb', 'Climb', `${esc(U.elev(t.e))} ${esc(U.eu())}`) : chip('c-green', 'activity', 'Activities', String(t.n))}
+        </div>${ring}</a>
         ${days.length ? `<div class="wstrip" role="group" aria-label="Each day this week">${days.map((x) => {
           const val = x.distance_m ? `${U.dist(x.distance_m, 1)} ${U.du()}` : x.moving_s ? `${Math.round(x.moving_s / 60)} min` : '';
           const bar = `<span class="wv num" aria-hidden="true">${esc(val)}</span><div class="wbar">${val ? `<span class="sp-fill ${esc(x.sport || '')}" data-h="${Math.max(.08, x.distance_m ? x.distance_m / maxD : (x.moving_s || 0) / maxT * .5).toFixed(3)}"></span>` : '<span class="wdot"></span>'}</div><small>${'MTWTFSS'[(new Date(x.d + 'T12:00').getDay() + 6) % 7]}</small>`;
@@ -182,7 +196,7 @@ route(/^\/today$/, 'today', async (el) => {
       const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
       $('#t-form', el).innerHTML = `<a class="card tap" href="/progress?view=fitness"><h2>Fitness & freshness<span class="more">More ›</span></h2>
         <p class="status-word ${k}"><b>${esc(word)}</b><span>${esc(tip)}</span></p>
-        <div class="stats3">${stat('Fitness', Math.round(last.fitness))}${stat('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? stat('Run score', f.vdot_now) : ''}</div>
+        <div class="stats3 tiles">${stat('Fitness', Math.round(last.fitness))}${stat('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? stat('Run score', f.vdot_now) : ''}</div>
         ${f.ramp_7d > 8 ? '<div class="callout warn">Your training load jumped this week. Watch for niggles.</div>' : ''}</a>`;
     }),
     load('/api/goals', (g) => {
@@ -761,7 +775,11 @@ async function pFitness(body, q) {
     const f = {...f0, days: f0.days.filter((d) => inRange(R, +d.d.slice(0, 4)))};
     rangeBar($('#p-rng'), R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
     const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0}, b = f.basis;
-    pbox.innerHTML = f.predictions.length ? `<div class="card"><h2>Race predictions</h2><div class="pred">${f.predictions.map((p) => `<div><small class="muted">${esc(p.label)}</small><b class="num">${dur(p.seconds)}</b><small class="muted num">${U.pace(p.seconds / p.distance_m * 1000)}${U.pu()}</small></div>`).join('')}</div>
+    pbox.innerHTML = f.predictions.length ? `<div class="card"><h2>Race predictions</h2><div class="pred">${f.predictions.map((p) => {
+      // green means something (2026-10-13, Ben): the prediction beats your best ever at that distance
+      const pr = p.best_s && p.seconds < p.best_s - 1;
+      return `<div${pr ? ' class="pr"' : ''}><small class="muted">${esc(p.label)}</small><b class="num">${dur(p.seconds)}</b><small class="muted num">${U.pace(p.seconds / p.distance_m * 1000)}${U.pu()}</small>
+        <small class="pbest">${p.best_s ? `${pr ? 'Beats your best,' : 'Your best:'} ${esc(dur(p.best_s))}` : 'Not raced yet'}</small></div>`; }).join('')}</div>
         <p class="small muted">From your best efforts of the last 90 days (fastest: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a>, ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}). Half and full marathon times allow for your weekly mileage: they get faster as it grows.</p></div>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>';
     box.innerHTML = `<div class="card"><h2>Running fitness</h2>${f.vdot_months.length ? `<div class="bigstat">${stat('VDOT now', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>

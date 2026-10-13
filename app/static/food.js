@@ -108,8 +108,10 @@ function firstFood(box, day) {
 function ring(v, target, label) {
   const pct = target ? Math.min(1.25, v / target) : 0, R = 34, C = 2 * Math.PI * R;
   const over = target && v > target * 1.05;
+  // a white dot marks where the eaten part ends (2026-10-13)
+  const a = Math.min(pct, 1) * 2 * Math.PI - Math.PI / 2, knob = pct > .04 && pct < 1 ? `<circle class="rk" cx="${(40 + R * Math.cos(a)).toFixed(1)}" cy="${(40 + R * Math.sin(a)).toFixed(1)}" r="2.6"/>` : '';
   return `<div class="ring${over ? ' over' : ''}"><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="${R}" class="rb"/>
-    ${pct > 0 ? `<circle cx="40" cy="40" r="${R}" class="rf" stroke-dasharray="${(Math.min(pct, 1) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 40 40)"/>` : ''}</svg>
+    ${pct > 0 ? `<circle cx="40" cy="40" r="${R}" class="rf" stroke-dasharray="${(Math.min(pct, 1) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 40 40)"/>` : ''}${knob}</svg>
     <div><b class="num">${r0(target ? Math.abs(target - v) : v)}</b><small>${target ? (v > target ? 'over' : 'left') : label}</small></div></div>`;
 }
 function drawDay(el, D) {
@@ -150,9 +152,9 @@ function drawDay(el, D) {
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
     const lm = (D.last_meals || {})[m];
-    if (!list.length) return `<section class="card meal empty-meal"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
+    if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
       ${lm ? `<button class="same" data-same="${m}"><span><small class="muted">Same as ${esc(dayLabel(lm.day))}</small><b>${esc(lm.items.map((i) => i.name).join(', '))}</b></span><span class="r"><b class="num">${r0(lm.kcal)}</b><small class="muted">Log ${svg('plus')}</small></span></button>` : ''}</section>`;
-    return `<section class="card meal"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
+    return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => `<button class="fe${e.pending ? ' pending' : ''}" data-id="${e.id}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`).join('')}
       <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('edit')}Edit</button>` : ''}</div></section>`;
