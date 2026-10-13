@@ -3,6 +3,7 @@ import os, time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware import gzip as _gzip
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -70,7 +71,16 @@ async def guard(request: Request, call_next):
     if request.url.scheme == 'https': r.headers['Strict-Transport-Security'] = 'max-age=31536000'
     # photos say for themselves how long phones may keep them (api_photos.py: private, and the address changes with the photo)
     if request.url.path.startswith('/api/') and 'cache-control' not in r.headers: r.headers['Cache-Control'] = 'no-store'
+    # the app's own files carry their version in the address (?v=), so a phone may keep each one for good (2026-10-13)
+    if request.url.path.startswith('/static/') and request.query_params.get('v') and r.status_code == 200:
+        r.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     return r
+
+
+# Compressed answers (2026-10-13): the app's code and data shrink to about a quarter. Photos and zip downloads are
+# compressed already, so they're sent as they are (the setting is read by Starlette on every response).
+_gzip.DEFAULT_EXCLUDED_CONTENT_TYPES = ('text/event-stream', 'image/', 'application/zip', 'application/octet-stream')
+app.add_middleware(_gzip.GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 
 # Only the iPhone app may read answers across sites, and never with cookies (it sends its token in a header).

@@ -650,7 +650,7 @@ function aiSheet(after) {   // ask once; after() runs when they turn it on
 const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=2" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=2" alt="Kinetta" width="210" height="34"></picture>`;
 function showLogin(msg = '') {
   root.innerHTML = `<div class="login"><form novalidate>
-    <div>${BRAND}<p>Your runs, rides, walks and food — private to you.</p></div>
+    <div>${BRAND}<p>Your runs, rides, walks and food, private to you.</p></div>
     ${Native.on ? `<label${(Native.base || Native.server) === Native.server ? ' hidden' : ''} id="l-server">Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
     <label>Username<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
@@ -722,7 +722,7 @@ async function showJoin(token) {
     return;
   }
   showNewAccount({title: 'Join Kinetta', button: 'Create my account',
-    intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account — your activities and food log are private to you.`,
+    intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Your activities and food log are private to you.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
 // "Join the beta" (public waitlist, only when the server has KINETTA_BETA_SIGNUP=1): no account yet, an admin invites them
@@ -731,7 +731,7 @@ async function showBeta() {
   try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }
   if (!open) { history.replaceState(null, '', '/'); return showLogin(); }
   root.innerHTML = `<div class="login"><form novalidate>
-    <div>${BRAND}<h1>Join the beta</h1><p>Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers — tell us a little about you and we'll send you an invite link.</p></div>
+    <div>${BRAND}<h1>Join the beta</h1><p>Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers. Tell us a little about you and we'll send you an invite link.</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
     <label>Email<input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label>
     <label>Your phone<select name="phone" required><option value="">Choose…</option><option value="iphone">iPhone</option><option value="android">Android</option><option value="other">Something else</option></select></label>
@@ -766,7 +766,7 @@ async function showWelcome() {
   if (location.pathname === '/beta') return showBeta();
   if (!setup.needed) return showLogin();
   showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account',
-    intro: "This is a brand-new Kinetta. Create your account first — you'll be its admin and can invite your people next.",
+    intro: "This is a brand-new Kinetta. Create your account first. You'll be its admin and can invite your people next.",
     send: (body) => api('/api/setup', json('POST', body))});
 }
 async function start() {

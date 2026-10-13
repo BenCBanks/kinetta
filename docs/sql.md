@@ -47,10 +47,12 @@ Imperial and metric units included, one row per thing, and a `person` column:
 | `v_best_efforts` | best efforts (400 m to marathon) with `all_time_rank` |
 | `v_food_days` | calories and macros per day |
 | `v_weights` | weigh-ins |
+| `v_lift_sets` | every lifting set: day, session, exercise, reps, kg and lb, seconds, warm-up, estimated one-rep max |
 
 The raw tables are there too: `activities`, `activity_streams` (per-second arrays), `best_efforts`, `routes`, `gear`,
-`goals`, `food_entries`, `custom_foods`, `saved_meals`, `weights`.
+`goals`, `food_entries`, `custom_foods`, `saved_meals`, `weights`, `exercises`, `lift_sets`.
 
 ```sql
 SELECT week, miles, hours FROM v_weekly WHERE sport = 'run' ORDER BY week DESC LIMIT 12;
+SELECT day, max(est_1rm_kg) FROM v_lift_sets WHERE exercise = 'Squat' AND NOT warmup GROUP BY day ORDER BY day;
 ```

@@ -54,6 +54,16 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Personal heatmap of everywhere you've been
 - [x] Weekly AI review (short; one-line summary on Today, full text in a sheet)
 
+## Lifting (2026-10-13, `api_lifts.py` + `static/lift.js`)
+- [x] Start a session from + (empty, or repeat a past one: its exercises and weights come along as planned sets to tick)
+- [x] Per set: weight (lb/kg) and reps, seconds for holds, warm-up flag; last time's numbers shown grey in each box and beside the exercise
+- [x] Session clock and time since the last set (a rest timer with nothing to set up); saves after every change, kept on the phone offline
+- [x] Records per exercise: heaviest set, estimated one-rep max (Epley, 1-12 reps), most reps, longest hold, biggest session; marked on the set
+- [x] Exercise page: records, a chart of the estimated 1RM per session, every session's sets, a note for next time ("seat on 4")
+- [x] Progress > Lifting: recent sessions and every exercise with its best; feed cards show sets, weight lifted and the exercises
+- [x] A watch strength workout (Apple Health, file, intervals.icu) that overlaps a logged session joins it (heart rate, calories) instead of doubling
+- [x] Log a past session by hand, then add its sets; the AI coach note reads the sets and last time's; SQL view `v_lift_sets`
+
 ## Food
 - [x] Log by search (USDA + Open Food Facts), barcode, quick add (cal/P/C/F), custom foods, saved meals, recipes
 - [x] Photo (+ optional description) -> AI estimate (Gemini Flash-Lite, ~$0.001/photo on your own key) -> check -> logged

@@ -25,7 +25,12 @@ const SHOTS = [
   ['recipecoach', 'DISH', {to: "Coach's take"}],
   ['photos', 'LATEST', {sel: '.d-title'}],
   ['describe', '/food', {describe: ['I had a hot dog from Costco and a Diet Coke', 'make it two hot dogs']}],
+  // lifting (2026-10-13): last; the logger starts a session from the latest one (a live session would change Today)
+  ['liftex', 'SQUAT'],
+  ['lift', '/today', {lift: true}],
 ];
+// ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
+const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const W = 393, H = 852, TOP = 59, BOTTOM = 34;
 // "Describe or snap" needs the AI: the shot shows a made-up answer instead (nothing is sent anywhere)
 const SAMPLE = (note) => { const n = /two/.test(note || '') ? 2 : 1;   // the correction changes the answer, like the real thing
@@ -78,9 +83,11 @@ function chrome(dark) {
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
       return {LATEST: '/activity/' + acts[0].id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
-        DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || '')};
+        DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
+        SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
     for (const [name, path, opt = {}] of SHOTS) {
+      if (ONLY && !ONLY.includes(name)) continue;
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
       await page.waitForFunction(() => !document.querySelector('.leaflet-container') || document.querySelector('.leaflet-tile-loaded'), null, {timeout: 8000}).catch(() => {});
@@ -94,6 +101,20 @@ function chrome(dark) {
         await page.click('#as-photo');
         for (const t of opt.describe) { await page.fill('#ql-t', t); await page.click('#ql-f .send'); await page.waitForTimeout(500); }
         await page.evaluate(() => { const s = document.querySelector('.sheet'); s.scrollTop = 0; });
+      }
+      if (opt.lift) {       // Start lifting > repeat the latest session; the first exercise's sets ticked, the second's first set
+        const id = await page.evaluate(async () => {
+          const last = (await (await fetch('/api/lifts/sessions?limit=1')).json())[0];
+          const r = await (await fetch('/api/lifts/start', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({copy_from: last.id})})).json();
+          go('/lift/' + r.id); return r.id;
+        });
+        await page.waitForSelector('.lift-ex');
+        const first = page.locator('.lift-ex').first();
+        await first.locator('[data-tick="0"]').click();
+        for (const j of [1, 2, 3]) { await first.locator(`.lift-in[data-j="${j}"][data-k="kg"]`).fill('205'); await first.locator(`[data-tick="${j}"]`).click(); }
+        await page.locator('.lift-ex').nth(1).locator('[data-tick="0"]').click();
+        await page.waitForTimeout(1500);
+        await page.evaluate((x) => { window.__liftId = x; }, id);
       }
       if (opt.sel) await page.evaluate((q) => { const e = document.querySelector(q); if (e) window.scrollTo(0, e.getBoundingClientRect().top + scrollY - 70); }, opt.sel);
       if (opt.to) await page.evaluate((t) => {

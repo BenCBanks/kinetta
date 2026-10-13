@@ -126,12 +126,12 @@ function planOverview(box, d) {
         <p class="small muted">Race day ${esc(pday(p.race_day, {weekday: 'short', month: 'long', day: 'numeric', year: 'numeric'}))}</p></div>
         <div class="ph-ring" role="img" aria-label="${Math.round(weekPct * 100)}% of the plan done">${pring(weekPct)}</div></div>
       <p class="ph-week">${d.this_week ? `Week ${d.this_week} of ${p.weeks} · ${esc(cur.phase)}` : started ? 'Plan finished' : `Starts ${esc(pday(p.start_day, {weekday: 'long', month: 'short', day: 'numeric'}))}`}</p>
-      <div class="stats3">${stat(d.days_to_race >= 0 ? 'Days to go' : 'Finished', d.days_to_race >= 0 ? d.days_to_race : '✓')}${stat('Predicted', fmtT(d.predicted_s))}${stat('Goal', p.goal_s ? fmtT(p.goal_s) : 'none')}</div></div>
+      <div class="stats3">${stat(d.days_to_race >= 0 ? 'Days to go' : 'Finished', d.days_to_race >= 0 ? d.days_to_race : '✓')}${stat('Predicted', fmtT(d.predicted_s))}${p.goal_s ? stat('Goal', fmtT(p.goal_s)) : ''}</div></div>
     ${w || n ? `<div class="card"><h2>${w ? 'Today' : started ? 'Next workout' : 'Your first workout'}</h2>${workoutRow(w || n, U)}</div>` : ''}
     <div class="card"><h2>Progress so far</h2>
       <div class="stats3">${stat('Workouts', `${pr.workouts_done || 0}/${pr.workouts_due || 0}`)}${stat('Distance', `${pr.done_so_far || 0}`, `/${pr.planned_so_far || 0} ${U}`)}${stat('Weeks done', `${pr.weeks_done || 0}/${p.weeks}`)}</div>
       <div id="pl-chart"></div>
-      <p class="small muted">${pr.workouts_due ? 'Light bars are planned, solid bars are done: what you ran, plus the planned distance of workouts you tick off by hand. A run at least the planned distance ticks that day off by itself.' : 'Your progress shows here once the plan starts - every run you record counts.'}</p></div>
+      <p class="small muted">${pr.workouts_due ? 'A run of at least the planned distance ticks its day off by itself.' : 'Your progress shows here once the plan starts - every run you record counts.'}</p></div>
     <div class="card"><h2>${cur.n === d.this_week ? 'This week' : `Week ${cur.n}`}<span class="muted small">${esc(cur.phase)} · ${cur.done} of ${cur.planned} ${esc(U)}</span></h2>
       ${cur.workouts.map((x) => workoutRow(x, U)).join('')}<p class="small muted">Days not listed are rest days. Tap a workout for details.</p></div>
     <div class="card"><h2>About this plan</h2><p class="small">${esc(d.level_desc || '')}</p>
@@ -147,7 +147,7 @@ function planOverview(box, d) {
         paceRow(p.goal_s ? 'Goal race pace' : 'Predicted race pace', p.goal_s ? pc.goal : pc[goalKey], p.goal_s ? `for your ${fmtT(p.goal_s)} goal` : 'from your current fitness')
         + '<p class="small muted">From your best recent run; they update as you get faster. In heat, on hills or on tired legs, go by feel.</p>'
         : '<p class="small">No fast runs recorded yet, so go by feel:</p><ul class="small"><li><b>Easy</b>: you can talk in full sentences.</li><li><b>Tempo</b>: comfortably hard, a few words at a time.</li><li><b>Intervals</b>: hard but controlled, like a 5K race.</li></ul>'}</div>
-    <div class="card"><h2>All weeks</h2>${d.weeks.map((wk) => `<details class="pweek"${wk.n === cur.n ? ' open' : ''}><summary><span><b>Week ${wk.n}</b> · ${esc(wk.phase)}<small class="muted"> · ${esc(pday(wk.start, {month: 'short', day: 'numeric'}))}</small></span><span class="small num">${wk.done ? `${wk.done} / ` : ''}${wk.planned} ${esc(U)}</span></summary>${wk.workouts.map((x) => workoutRow(x, U)).join('')}</details>`).join('')}</div>
+    <div class="card"><h2>All weeks</h2>${d.weeks.map((wk) => `<details class="pweek"><summary><span><b>Week ${wk.n}</b> · ${esc(wk.phase)}<small class="muted"> · ${esc(pday(wk.start, {month: 'short', day: 'numeric'}))}</small></span><span class="small num">${wk.done ? `${wk.done} / ` : ''}${wk.planned} ${esc(U)}</span></summary>${wk.workouts.map((x) => workoutRow(x, U)).join('')}</details>`).join('')}</div>
     <div class="card"><h2>Manage plan</h2>
       <div class="btncol"><a class="ghost" href="/plan?new=1">Change race, level or days</a>
       <button class="ghost" id="pl-restart">Restart from week 1</button>
@@ -178,7 +178,7 @@ function planChart(box, d) {
     if (i === 0 || i === n - 1 || w.n === d.this_week || (n > 10 ? w.n % 4 === 0 : true)) g += `<text class="yl" x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle">${w.n}</text>`;
   });
   box.innerHTML = `<div class="chartbox pchart"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Planned and completed distance per week">${g}</svg></div>
-    <div class="legend small"><span><i class="sw pc-plan-sw"></i>Planned</span><span><i class="sw pc-done-sw"></i>Done</span><span class="muted">week numbers below</span></div>`;
+    <div class="legend small"><span><i class="sw pc-plan-sw"></i>Planned</span><span><i class="sw pc-done-sw"></i>Done</span></div>`;
 }
 
 // ---------- choosing a plan ----------

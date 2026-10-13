@@ -118,7 +118,7 @@ route(/^\/me\/health$/, 'me', async (el) => {
     const was = b.textContent; b.disabled = true; b.textContent = label; err.textContent = '';
     try { await fn(); } catch (x) { err.textContent = x.message || String(x); } finally { b.disabled = false; b.textContent = was; }
   };
-  const done = (s) => { toast(s ? (s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} added` : 'Up to date — no new workouts') : 'Nothing to sync'); render(); };
+  const done = (s) => { toast(s ? (s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} added` : 'Up to date') : 'Nothing to sync'); render(); };
   const on = $('#h-on', box); if (on) on.onclick = () => busy(on, 'Asking…', async () => { await Native.connectHealth(); done(await Native.syncHealth()); });
   const sy = $('#h-sync', box); if (sy) sy.onclick = () => busy(sy, 'Syncing…', async () => done(await Native.syncHealth()));
   const yr = $('#h-year', box); if (yr) yr.onclick = () => busy(yr, 'Bringing in the past year…', async () => done(await Native.syncHealth({days: 365})));

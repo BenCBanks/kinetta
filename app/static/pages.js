@@ -183,7 +183,7 @@ route(/^\/today$/, 'today', async (el) => {
       $('#t-form', el).innerHTML = `<a class="card tap" href="/progress?view=fitness"><h2>Fitness & freshness<span class="more">More ›</span></h2>
         <p class="status-word ${k}"><b>${esc(word)}</b><span>${esc(tip)}</span></p>
         <div class="stats3">${stat('Fitness', Math.round(last.fitness))}${stat('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? stat('Run score', f.vdot_now) : ''}</div>
-        ${f.ramp_7d > 8 ? '<div class="callout warn">Your training load jumped quickly this week — watch for niggles.</div>' : ''}</a>`;
+        ${f.ramp_7d > 8 ? '<div class="callout warn">Your training load jumped this week. Watch for niggles.</div>' : ''}</a>`;
     }),
     load('/api/goals', (g) => {
       $('#t-goals', el).innerHTML = g.length ? `<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>${g.map(goalRow).join('')}</div>` : '';
@@ -261,7 +261,7 @@ function insights(a) {
   if (a.decoupling != null) {
     const d = a.decoupling;
     out.push([d < 5 ? 'good' : d < 10 ? '' : 'warn', `Heart-rate drift ${d.toFixed(1)}%`,
-      d < 5 ? 'Your heart rate held steady for the pace — a sign of good aerobic fitness for this effort.' :
+      d < 5 ? 'Your heart rate held steady for the pace: good aerobic fitness for this effort.' :
       d < 10 ? 'Some drift in the second half: normal for long or warm efforts.' : 'Big drift: heat, dehydration, fatigue or starting too fast.']);
   }
   if (a.zones) {
@@ -663,7 +663,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
     const perMonth = t ? t.slope_per_day * 30 : null;
     let headline = '';
     if (t && Math.abs(perMonth) >= 1) headline = `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${foot ? Math.round(Math.abs(imp() ? perMonth * MI / 1000 : perMonth)) + ' s' + U.pu() : ''} per month on this route.`;
-    if (e && t) { const effUp = e.slope_per_day > 0; headline += effUp ? ' Your pace per heartbeat is improving — you\'re fitter at the same effort.' : ' Pace per heartbeat is slipping — could be heat, fatigue or easier days.'; }
+    if (e && t) { const effUp = e.slope_per_day > 0; headline += effUp ? ' Your pace per heartbeat is improving: you\'re fitter at the same effort.' : ' Pace per heartbeat is slipping. Heat, fatigue or easier days can do that.'; }
     const best = acts.find((a) => a.id === r.fastest_id);
     el.innerHTML = `<div class="top">${backBtn()}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
       <div class="card"><h1>${esc(r.name)}</h1><p class="muted">${acts.length} times · ${SPORT_NAMES[r.sport] || 'Activity'} · first ${esc(fdate(acts[0].start_time, {month: 'short', year: 'numeric'}))}</p>
@@ -1047,7 +1047,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('a', 'href="/me/friends"', 'people', 'c-berry', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}</div>
     <div class="card list">${row('a', 'href="/me/import"', 'upload', 'c-blue', 'Upload activities')}
-      ${row('button', 'data-addact', 'plus', 'c-blue', 'Add an activity by hand')}
+      ${row('button', 'data-addact', 'plus', 'c-blue', 'Add an activity')}
       ${Native.on ? row('a', 'href="/me/health"', 'heart', 'c-red', 'Apple Health') : ''}
       ${row('a', 'href="/me/connections"', 'watch', 'c-ink', 'Watch connections')}
       ${row('a', 'href="/me/gear"', 'shoe', 'c-orange', 'Shoes & bikes')}</div>
@@ -1344,10 +1344,10 @@ route(/^\/me\/import$/, 'me', async (el) => {
     const total = [...files].reduce((s, f) => s + f.size, 0);
     xhr.upload.onprogress = (e) => { const p = e.lengthComputable ? e.loaded / e.total : 0; $('#u-bar', el).style.setProperty('--w', p); $('#u-text', el).textContent = `Uploading ${(e.loaded / 1048576).toFixed(1)} of ${(total / 1048576).toFixed(1)} MB…`; };
     xhr.onload = () => {
-      if (xhr.status === 200) { $('#u-text', el).textContent = 'Uploaded — processing below.'; invalidate('/api/'); poll(); }
+      if (xhr.status === 200) { $('#u-text', el).textContent = 'Uploaded. Processing below.'; invalidate('/api/'); poll(); }
       else { let m = 'Upload failed'; try { m = JSON.parse(xhr.responseText).detail || m; } catch (e) { /* */ } $('#u-text', el).textContent = m; }
     };
-    xhr.onerror = () => { $('#u-text', el).textContent = 'Upload failed — check your connection and try again.'; };
+    xhr.onerror = () => { $('#u-text', el).textContent = 'Upload failed. Check your connection and try again.'; };
     xhr.send(fd);
   };
   input.onchange = () => send(input.files);
@@ -1378,21 +1378,21 @@ route(/^\/me\/connections$/, 'me', async (el) => {
   $('#c-body', el).innerHTML = `<div class="card"><h2>Garmin (through intervals.icu)</h2>
       <p class="small">intervals.icu is a free site with an official Garmin link. Connect Garmin there once, then paste your athlete ID and API key (intervals.icu → Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
       <form class="form" id="c-icu"><div class="two"><label>Athlete ID<input name="athlete_id" placeholder="i123456" autocapitalize="none" value="${esc(C.intervals ? C.intervals.athlete_id : '')}"></label>
-      <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved — paste to change' : ''}"></label></div>
+      <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved (paste to change)' : ''}"></label></div>
       <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="primary">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>
     <div class="card"><h2>Apple Watch (Health Auto Export)</h2>
       <p class="small">In the iPhone app <b>Health Auto Export</b> (Premium), add an automation: <b>REST API</b>, format <b>JSON</b>, data <b>Workouts</b> (and optionally <b>Body Mass</b>), with the address and header below.</p>${st('apple')}
       <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="primary" id="c-apple">${C.apple ? 'Make a new secret' : 'Create my upload link'}</button></div></div>`;
   $('#c-icu', el).onsubmit = async (e) => {
     e.preventDefault(); const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your API key'); return; }
-    try { await api('/api/connections/intervals', json('POST', {athlete_id: f.athlete_id.value.trim(), api_key: f.api_key.value.trim()})); toast('Connected — first sync running'); render(); } catch (x) { toast(x.message); }
+    try { await api('/api/connections/intervals', json('POST', {athlete_id: f.athlete_id.value.trim(), api_key: f.api_key.value.trim()})); toast('Connected. First sync running'); render(); } catch (x) { toast(x.message); }
   };
   const sy = $('#c-icu-sync', el); if (sy) sy.onclick = async () => { try { await api('/api/connections/intervals/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
   $('#c-apple', el).onclick = async () => {
     if (C.apple && !confirm('Make a new secret? The old one stops working.')) return;
     try {
       const r = await api('/api/connections/apple', json('POST', {}));
-      $('#c-apple-out', el).innerHTML = `<div class="callout"><div><p class="small">Copy these into Health Auto Export now — the secret is shown only once.</p>
+      $('#c-apple-out', el).innerHTML = `<div class="callout"><div><p class="small">Copy these into Health Auto Export now. The secret is shown only once.</p>
         <p class="small"><b>URL</b><br><code>${esc((Native.base || location.origin) + r.url)}</code></p><p class="small"><b>Header</b> Authorization<br><b>Value</b> <code>Bearer ${esc(r.token)}</code></p></div></div>`;
     } catch (x) { toast(x.message); }
   };

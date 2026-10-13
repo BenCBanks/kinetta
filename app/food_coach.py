@@ -21,7 +21,7 @@ DAYS = 14
 DAILY_LIMIT = 20            # diet reviews + recipe feedback per person per day
 AGAIN_AFTER = 10            # minutes before the same review can be written again
 
-DIET_SYSTEM = """You are a warm, practical registered-dietitian-style coach for someone who also trains (running, cycling,
+DIET_SYSTEM = """You are a practical registered-dietitian-style coach for someone who also trains (running, cycling,
 walking). You get their last two weeks of food log as JSON: daily totals, their targets, calories burned (resting +
 workouts, an estimate), the foods they eat most, how calories split across meals, and their weight trend.
 Answer with JSON only, no code fences:
@@ -33,9 +33,10 @@ Answer with JSON only, no code fences:
    gap between logged and burned that the weight trend doesn't show) - or null}
 Use their units (given as "units"; kcal and grams for food). Only use the numbers given; if days are missing or partly
 logged, say so instead of guessing. Never shame, never suggest very low calorie diets, no medical diagnoses; suggest a
-doctor or dietitian only for clear warning signs."""
+doctor or dietitian only for clear warning signs.
+""" + coach.STYLE
 
-RECIPE_SYSTEM = """You are a friendly chef and sports-nutrition coach. You get one home-cooked dish as JSON: its
+RECIPE_SYSTEM = """You are a chef and sports-nutrition coach. You get one home-cooked dish as JSON: its
 ingredients with weights and nutrition, the whole dish's totals, its cooked weight and a typical portion if known.
 Several people may read your answer, so don't refer to anyone's personal goals. Answer with JSON only, no code fences:
 {"summary": 1-2 sentences on the dish as a meal for someone who trains: calories and protein per typical portion (work it
@@ -44,7 +45,7 @@ Several people may read your answer, so don't refer to anyone's personal goals. 
    dish, with rough numbers per portion when you can (max 20 words)} - for example a swap that adds protein, cuts fat
    without losing flavour, or adds fibre and vegetables,
  "note": one short line if an ingredient's numbers look wrong (for example oil weighed as far too much or too little), or null}
-Only use the numbers given. Keep it encouraging and practical. No medical claims."""
+Only use the numbers given. Practical, not cheerleading. No medical claims.\n""" + coach.STYLE
 
 
 def _ask(ctx, system):
@@ -174,7 +175,7 @@ def recipe_review(did: int, user=Depends(current_user)):
 
 
 # ---------- a saved meal (2026-10-11) ----------
-MEAL_SYSTEM = """You are a friendly sports-nutrition coach. You get one meal someone saved to log again (its foods with amounts
+MEAL_SYSTEM = """You are a sports-nutrition coach. You get one meal someone saved to log again (its foods with amounts
 and nutrition, the meal's totals, which meal of the day it usually is, and their daily targets) as JSON. Answer with JSON
 only, no code fences:
 {"summary": 1-2 sentences on this meal for someone who trains: its calories and protein against their day, and what it
@@ -183,7 +184,7 @@ only, no code fences:
    with rough numbers (max 20 words)} - for example more protein, more fibre or vegetables, or fewer calories without
    losing what makes it work,
  "note": one short line if a food's numbers look wrong, or null}
-Only use the numbers given. Keep it encouraging and practical. No medical claims."""
+Only use the numbers given. Practical, not cheerleading. No medical claims.\n""" + coach.STYLE
 
 
 @router.post('/food/meals/{mid:int}/review')
