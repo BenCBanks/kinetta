@@ -220,7 +220,10 @@ def push(nid, send=None):
         subs = c.execute('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = %s', (r['user_id'],)).fetchall()
         badge = unread(c, r['user_id'])
     text, link = _words(r)
-    data = json.dumps({'title': 'Kinetta', 'body': text, 'url': link, 'badge': badge, 'tag': f"{r['kind']}-{nid}"})
+    # what happened is the title (2026-10-13, Ben): the phone already shows Kinetta's name and icon, so "Kinetta" as the
+    # title only repeated it. A comment's words go underneath.
+    title, _, said = text.partition(': "') if r['kind'] == 'comment' else (text, '', '')
+    data = json.dumps({'title': title, 'body': ('"' + said) if said else '', 'url': link, 'badge': badge, 'tag': f"{r['kind']}-{nid}"})
     sent, gone = 0, []
     for s in subs:
         if not send and not push_host_ok(s['endpoint']): gone.append(s['id']); continue    # saved before the check: dropped

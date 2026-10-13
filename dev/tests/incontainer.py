@@ -104,7 +104,7 @@ with db.connect() as c:
     c.execute("INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (%s, 'https://push.example/alex', 'k', 'a')", (uid,))
     nid = c.execute("INSERT INTO notifications (user_id, kind, actor_id, dish_id) VALUES (%s, 'dish_shared', %s, %s) RETURNING id", (uid, jid, tray)).fetchone()['id']
 ck(notify.push(nid, send=lambda info, data: sent.append((info, json.loads(data)))) == 1, 'pushed once')
-ck(sent[0][0]['endpoint'] == 'https://push.example/alex' and sent[0][1]['body'] == 'Jordan Lee shared Chicken and veg traybake with you'
+ck(sent[0][0]['endpoint'] == 'https://push.example/alex' and sent[0][1]['title'] == 'Jordan Lee shared Chicken and veg traybake with you' and sent[0][1]['body'] == ''
    and sent[0][1]['url'] == f'/food/cook/{tray}', f'payload {sent[0][1]}')
 notify.settings(notify.PrefsIn(dishes=False), user={'id': uid})
 ck(notify.push(nid, send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'turned off: not pushed')
