@@ -1053,20 +1053,28 @@ body.ph-open { overflow: hidden; }
 #ql-items .actions { margin-bottom: 4px; }
 
 /* ---------- Lifting (2026-10-13, lift.js) ---------- */
-.lift-clock { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 16px; }
-.lift-clock small { display: block; color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
-.lift-clock b { font: 700 24px/1.15 var(--numf); letter-spacing: -.02em; }
+.lift-clock { display: flex; gap: 22px; padding: 10px 16px; font-size: 13px; font-weight: 650; color: var(--tx3); text-transform: uppercase; letter-spacing: .05em; }
+.lift-clock b { font: 700 20px/1.15 var(--numf); letter-spacing: -.02em; color: var(--tx); text-transform: none; margin-left: 6px; }
 .lift-save { min-width: 0; white-space: nowrap; }
 .lift-ex { padding-bottom: 12px; }
 .lift-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 2px; }
 .lift-name { font-size: 18px; font-weight: 750; color: var(--tx); letter-spacing: -.015em; min-height: 40px; display: flex; align-items: center; }
 .lift-hd .icon-btn { background: var(--card2); box-shadow: none; flex: none; }
-.lift-note { margin: 0 0 4px; padding: 6px 10px; border-radius: 10px; background: var(--card2); color: var(--tx2); }
-.lift-last { margin: 2px 0 10px; font-size: 14px; }
-.lift-grid { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) 48px; gap: 8px; align-items: center; }
-.lift-grid.k-time { grid-template-columns: 40px minmax(0, 1fr) 48px; }
-.lift-grid .lh { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--tx3); text-align: center; }
-.lift-grid .lh:first-child { text-align: left; } .lift-grid .lh-tick { text-align: center; }
+.lift-note { margin: 0 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--card2); color: var(--tx2); }
+/* one row per set (2026-10-13): set number | the previous session's set | boxes | tick; a done set's row turns green */
+.lift-sets { display: grid; gap: 6px; margin-top: 6px; }
+.lift-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px; margin: 0 -4px; border-radius: 14px; transition: background-color .15s; }
+.lift-row > * { flex: 1 1 0; min-width: 0; }
+.lift-row > .lift-n, .lift-row > .lh-n { flex: 0 0 38px; } .lift-row > .lift-tick, .lift-row > .lh-tick { flex: 0 0 46px; }
+.lift-row > .lift-prev, .lift-row > .lh-prev { flex: 1.1 1 0; }
+.lift-row.done { background: color-mix(in srgb, var(--prog) 13%, transparent); }
+.lift-row.lh { padding-top: 0; padding-bottom: 0; }
+.lift-row.lh span { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--tx3); text-align: center; white-space: nowrap; overflow: hidden; }
+.lift-row.lh .lh-n { text-align: left; }
+.lift-prev { height: 44px; border: 0; border-radius: 12px; background: none; color: var(--tx3); font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0; letter-spacing: -.01em; }
+button.lift-prev:active { background: var(--card2); }
+.lift-prev.none { display: grid; place-items: center; }
+.lift-hint { margin: 8px 0 0; }
 .lift-n { height: 44px; border: 0; border-radius: 12px; background: var(--card2); font: 700 15px var(--numf); color: var(--tx2); }
 .lift-n.wu { color: var(--warn); }
 .lift-in { text-align: center; font: 650 18px var(--numf); min-height: 44px; padding: 6px 4px; background: var(--card2); border-color: transparent; }
@@ -1076,7 +1084,8 @@ body.ph-open { overflow: hidden; }
 .lift-tick svg { width: 22px; height: 22px; stroke-width: 3; }
 .lift-tick[aria-pressed="true"] { background: var(--prog); border-color: var(--prog); color: #fff; }
 .lift-tick:active { transform: scale(.92); }
-.lift-pr { grid-column: 2 / -1; display: inline-flex; align-items: center; gap: 5px; margin: -2px 0 2px; font-size: 12.5px; font-weight: 700;
+.lift-row > .lift-pr { flex: 1 0 100%; padding-left: 44px; }
+.lift-pr { display: inline-flex; align-items: center; gap: 5px; margin: -2px 0 2px; font-size: 12.5px; font-weight: 700;
   color: color-mix(in srgb, var(--gold) 55%, var(--tx)); }
 .lift-pr svg { width: 14px; height: 14px; }
 .lift-addset { margin-top: 10px; min-height: 40px; }
