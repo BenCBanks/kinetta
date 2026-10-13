@@ -146,6 +146,7 @@ def detail(aid: int, user=Depends(current_user)):
 class ActivityEdit(BaseModel):
     name: str | None = Field(None, max_length=200)
     sport: str | None = Field(None, pattern='^(run|ride|walk|hike|swim|row|ski|workout|other)$')
+    sport_label: str | None = Field(None, max_length=60)    # the kind ("Yoga"); '' clears it (2026-10-13)
     description: str | None = Field(None, max_length=10000)
     private_note: str | None = Field(None, max_length=10000)
     commute: bool | None = None
@@ -157,7 +158,7 @@ class ActivityEdit(BaseModel):
 def edit(aid: int, body: ActivityEdit, user=Depends(current_user)):
     sets, args = [], []
     with db.connect() as c:
-        a = c.execute('SELECT sport FROM activities WHERE id = %s AND user_id = %s', (aid, user['id'])).fetchone()
+        a = c.execute('SELECT sport, sport_label, auto_name, start_time, tz FROM activities WHERE id = %s AND user_id = %s', (aid, user['id'])).fetchone()
         if not a: raise HTTPException(404, 'Not found')
         if body.gear_id is not None:
             if not c.execute('SELECT 1 FROM gear WHERE id = %s AND user_id = %s', (body.gear_id, user['id'])).fetchone():
@@ -170,6 +171,12 @@ def edit(aid: int, body: ActivityEdit, user=Depends(current_user)):
             v = getattr(body, k)
             if v is not None:
                 sets.append(f'{k} = %s'); args.append(v.strip() or None if isinstance(v, str) and k != 'sport' else v)
+        if body.sport_label is not None:
+            sets.append('sport_label = %s'); args.append(body.sport_label.strip() or None)
+        # a name nobody typed follows the new kind ("Lunch Workout" becomes "Lunch Yoga"); a typed name is left alone
+        kind = (body.sport or a['sport'], a['sport_label'] if body.sport_label is None else body.sport_label.strip() or None)
+        if body.name is None and a['auto_name'] and kind != (a['sport'], a['sport_label']):
+            sets.append('name = %s'); args.append(activities.default_name(a['start_time'], a['tz'] or db.DEFAULT_TZ, *kind))
         if sets:
             c.execute(f"UPDATE activities SET {', '.join(sets)}, updated = now() WHERE id = %s AND user_id = %s", (*args, aid, user['id']))
         sport_changed = body.sport and body.sport != a['sport']
