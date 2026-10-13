@@ -2,8 +2,8 @@
 /* Layout: one long page that runs like a lap - hero with the track, the word, what it does (phones), privacy,
    install, people - every section a straight, the track oval returns as the section marker. */
 :root {
-  --bg: #F4F1EC; --paper: #FBFAF7; --ink: #1E2522; --ink2: #4A524E; --ink3: #6D7571; --line: #DFDAD1;
-  --berry: #C0283D; --spruce: #2F6F5E; --code: #1E2522; --codetx: #EEF2F0;
+  --bg: #F4F1EC; --paper: #FBFAF7; --ink: #1E2522; --ink2: #4A524E; --ink3: #626B66; --line: #DFDAD1;
+  --berry-solid: #C0283D; --berry: #C0283D; --spruce: #2F6F5E; --code: #1E2522; --codetx: #EEF2F0;
   --display: "Sora", "Segoe UI", system-ui, sans-serif;
   --body: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -32,14 +32,15 @@ p { margin: 0; }
 header.top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 header.top .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 24px; padding-block: 12px; }
+header.top .logo { display: flex; align-items: center; min-height: 44px; }
 header.top .logo img { width: 132px; height: auto; }
-nav.tabs { display: flex; justify-content: center; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+nav.tabs { display: flex; justify-content: flex-start; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 nav.tabs::-webkit-scrollbar { display: none; }
-nav.tabs a { flex: none; padding: 8px 14px; border-radius: 999px; text-decoration: none; color: var(--ink2); font-weight: 500; font-size: 15px; }
+nav.tabs a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; flex: none; padding: 8px 14px; border-radius: 999px; text-decoration: none; color: var(--ink2); font-weight: 500; font-size: 15px; }
 nav.tabs a:hover { color: var(--ink); }
 nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in srgb, var(--berry) 11%, transparent); font-weight: 600; }
-.btn.sm { min-height: 40px; padding: 0 18px; font-size: 15px; }
-@media (max-width: 760px) {
+.btn.sm { min-height: 44px; padding: 0 18px; font-size: 15px; }
+@media (max-width: 960px) {
   header.top .wrap { grid-template-columns: minmax(0, 1fr) auto; padding-block: 10px 0; }
   nav.tabs { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; margin-inline: -20px; padding: 0 14px 8px; }
   nav.tabs a { padding: 7px 12px; font-size: 14.5px; }
@@ -86,13 +87,13 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
 .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 22px; border-radius: 999px;
   font: 600 16px/1 var(--body); text-decoration: none; border: 1.5px solid var(--ink); }
-.btn.solid { background: var(--berry); color: #fff; }
+.btn.solid { background: var(--berry-solid); color: #fff; }
 .btn.line { color: var(--ink); }
 .btn:hover { transform: translateY(-1px); } .btn { transition: transform .15s; }
 /* Food page (2026-10-13, Ben: lead with saying what you ate): the chat itself, as little bubbles under the headline */
 .says { display: grid; gap: 6px; margin-top: 22px; max-width: 30rem; }
 .says p { margin: 0; padding: 8px 13px; border-radius: 16px; font-size: 15px; line-height: 1.35; max-width: 85%; }
-.says .me { justify-self: end; background: var(--berry); color: #fff; border-bottom-right-radius: 5px; }
+.says .me { justify-self: end; background: var(--berry-solid); color: #fff; border-bottom-right-radius: 5px; }
 .says .ai { justify-self: start; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
 .food-hero h1 { font-size: clamp(38px, 5.6vw, 66px); }
 .hero .note { margin-top: 18px; font-size: 14px; color: var(--ink3); }
@@ -294,3 +295,13 @@ footer a { color: var(--ink2); }
 .zoom .nav { position: absolute; top: 50%; margin-top: -22px; }
 .zoom .prev { left: 16px; } .zoom .next { right: 16px; }
 @media (hover: none) { .zoom .nav { display: none; } }   /* swipe instead */
+
+/* Keep keyboard focus and in-page headings visible below the sticky navigation. */
+html { scroll-padding-top: 130px; }
+@media (min-width: 961px) { html { scroll-padding-top: 85px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+
+.skip-link { position: fixed; top: 12px; left: 12px; z-index: 110; padding: 12px 18px; background: var(--paper); color: var(--ink); transform: translateY(-160%); }
+.skip-link:focus { transform: none; }
+@media (min-width: 961px) { nav.tabs { justify-content: center; } }
+.zoom button:disabled { opacity: .35; }
