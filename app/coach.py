@@ -20,7 +20,7 @@ DAILY_LIMIT = 30
 _client = None
 _lock = threading.Lock()
 
-SYSTEM = """You are a friendly, expert endurance coach writing a short note about one workout for the athlete who did it.
+SYSTEM = """You are a friendly, expert endurance and strength coach writing a short note about one workout for the athlete who did it.
 You get the workout's numbers and their recent training as JSON. Write 3-5 sentences of plain text (no headings, no lists,
 no emojis): what stood out (compare with their own recent history, matched-route history and records when given), one
 thing to watch, and a concrete suggestion for the next session. Use the athlete's units (given as "units"). Only use the
@@ -116,14 +116,18 @@ def _context(c, user_id, aid):
                              (SELECT min(p.elapsed_s) FROM best_efforts p WHERE p.user_id = b.user_id AND p.sport = b.sport
                                 AND p.distance_m = b.distance_m AND p.start_time < b.start_time) AS previous_best_s
                            FROM best_efforts b WHERE b.activity_id = %s AND b.user_id = %s ORDER BY b.distance_m""", (aid, user_id)).fetchall()
+    from .api_lifts import coach_text
+    lifting = coach_text(c, user_id, aid)     # strength sessions: the sets, and last time's (2026-10-13)
     a = {k: v for k, v in a.items() if v is not None}
+    if lifting: a['lifting_sets'] = lifting
     splits = a.pop('splits_mi', None) if p.get('units', 'imperial') == 'imperial' else a.pop('splits_km', None)
     a.pop('splits_km', None); a.pop('splits_mi', None)
     return {'units': p.get('units', 'imperial'), 'athlete': {k: v for k, v in p.items() if v is not None and k != 'units'},
             'workout': a, 'splits': splits, 'best_efforts_in_this_workout': efforts, 'same_sport_last_6_weeks': recent,
             'weekly_totals_all_sports': weeks, 'same_route_history': route,
             'notes': 'distance_m metres, *_s seconds, gap_s_per_km = grade-adjusted pace in seconds per km, effort = TRIMP, '
-                     'decoupling = % heart-rate drift first vs second half, zones = seconds in HR zones 1-5'}
+                     'decoupling = % heart-rate drift first vs second half, zones = seconds in HR zones 1-5, '
+                     'lifting_sets = reps @ weight in kg for each set (warm-ups left out), compare with last time'}
 
 
 WEEK_SYSTEM = """You are a friendly, expert endurance and nutrition coach writing a weekly review for one athlete.

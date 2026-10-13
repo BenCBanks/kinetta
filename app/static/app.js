@@ -56,6 +56,7 @@ const KEEP = [/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|f
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* full or blocked: offline copies are a bonus */ } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) { /* blocked */ } },
 };
 function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, data}); }
 function kept(path) { const v = store.get('fit.c:' + path); return v && (!App.me || v.who === App.me.login) ? v.data : null; }
@@ -448,7 +449,7 @@ function chartStack(box, x, rows, {xfmt, onIndex} = {}) {
 }
 
 // simple dot chart over dates with a trend line (matched routes, PR history, VO2max)
-function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null, best = null, height = 150}) {
+function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null, best = null, height = 150, line = false}) {   // line: join the dots (pts oldest first)
   const W = Math.max(300, box.clientWidth || 340), H = height, padL = 40, padR = 8, padB = 18;
   if (pts.length < 1) { box.innerHTML = '<p class="muted">Not enough data yet.</p>'; return; }
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
@@ -462,6 +463,7 @@ function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null,
   const dfmt = (d) => { const t = new Date(d * 864e5); return span <= 120 ? t.toLocaleDateString([], {month: 'short', day: 'numeric'}) : t.toLocaleDateString([], {month: 'short'}) + " '" + String(t.getFullYear()).slice(2); };
   g += `<text class="yl" x="${padL}" y="${H - 3}">${esc(dfmt(x0))}</text><text class="yl" x="${W - padR}" y="${H - 3}" text-anchor="end">${esc(dfmt(x1))}</text>`;
   if (trend) g += `<line class="trendline" x1="${X(xs[0]).toFixed(1)}" y1="${Y(trend.start).toFixed(1)}" x2="${X(xs[xs.length - 1]).toFixed(1)}" y2="${Y(trend.end).toFixed(1)}"/>`;
+  if (line) g += `<polyline class="dotline" points="${pts.map((p) => `${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ')}"/>`;
   pts.forEach((p) => { g += `<circle class="dotp${p.id === best ? ' best' : ''}${p.id === current ? ' cur' : ''}" cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="${p.id === current || p.id === best ? 6 : 4.5}"/>`; });
   box.innerHTML = `<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Trend chart">${g}</svg></div>`;
 }

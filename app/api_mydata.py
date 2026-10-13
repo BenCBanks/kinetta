@@ -61,6 +61,9 @@ TABLES = {
                      'created', r.created, 'status', r.status) FROM reports r JOIN users u ON u.id = r.person WHERE r.reporter = %s""",
     'cheers_given': "SELECT to_jsonb(t)" + DROP + " FROM cheers t WHERE user_id = %s ORDER BY created",
     # photos (2026-10-12, api_photos.py): the list here, the pictures themselves in photos/
+    # lifting (2026-10-13, api_lifts.py): your exercises, and every set with the session (activity) it was in
+    'exercises': "SELECT to_jsonb(t)" + DROP + " FROM exercises t WHERE user_id = %s ORDER BY id",
+    'lift_sets': "SELECT to_jsonb(t)" + DROP + " - 'id' FROM lift_sets t WHERE user_id = %s ORDER BY activity_id, pos, n",
     'activity_photos': "SELECT to_jsonb(t)" + DROP + " - 'img' - 'thumb' FROM activity_photos t WHERE user_id = %s ORDER BY id",
     'comments_written': "SELECT to_jsonb(t)" + DROP + " FROM comments t WHERE user_id = %s ORDER BY created",
     'ai_food_requests': "SELECT to_jsonb(t)" + DROP + " FROM ai_requests t WHERE user_id = %s ORDER BY created",   # when you asked for AI food feedback

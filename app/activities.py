@@ -79,7 +79,16 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
             sha, path = save_file(user_id, raw, ext or '')
             hit = c.execute('SELECT id FROM activities WHERE user_id = %s AND file_sha256 = %s', (user_id, sha)).fetchone()
             if hit: return 'duplicate', hit['id']
-        dup = find_duplicate(c, user_id, start, summ.get('distance_m'))
+        if sport == 'workout' and source != 'lift':   # a watch's strength workout during a session logged in Kinetta (2026-10-13)
+            from . import api_lifts
+            secs = summ.get('elapsed_s') or meta.get('elapsed_s') or 0
+            sess = parsed.get('session') or {}
+            numbers = {k: num(summ.get(k)) or num(meta.get(k)) or num(sess.get(k)) for k in ('moving_s', 'avg_hr', 'max_hr', 'calories', 'effort')}
+            numbers.update(device=parsed.get('device'), source_id=meta.get('source_id'), file_sha256=sha, file_path=path,
+                           zones=json.dumps(summ['zones']) if summ.get('zones') else None)
+            merged = api_lifts.merge_watch(c, user_id, start, start + dt.timedelta(seconds=float(secs)), numbers)
+            if merged: return 'updated', merged
+        dup = None if source == 'lift' else find_duplicate(c, user_id, start, summ.get('distance_m'))   # a session started here is always new
         if dup:
             if meta.get('name') and dup['auto_name']:   # e.g. Garmin copy first, then Strava export brings the real title
                 c.execute("""UPDATE activities SET name = %s, auto_name = false, description = coalesce(description, %s),

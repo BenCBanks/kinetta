@@ -5,6 +5,8 @@
 const stat = (label, v, u = '') => `<div class="stat"><small>${esc(label)}</small><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b></div>`;
 function headline(a) {
   const r = rate(a);
+  if (a.lifts && !a.distance_m) return stat('Time', dur(a.moving_s || a.elapsed_s)) + stat('Sets', a.lifts.sets)
+    + (a.lifts.volume ? stat('Lifted', Math.round(imp() ? a.lifts.volume * LB : a.lifts.volume).toLocaleString(), wUnit()) : stat('Exercises', a.lifts.exercises));
   const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', dur(a.moving_s || a.elapsed_s));
   const third = a.distance_m ? stat('Time', dur(a.moving_s || a.elapsed_s)) :
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
@@ -30,7 +32,7 @@ function postCard(a, {who = false} = {}) {
        <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`);
   return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
-    <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
+    <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
     ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}${postPhotos(a)}</a>
     <div class="post-ft">${foot}</div></article>`;
 }
@@ -102,8 +104,9 @@ route(/^\/today$/, 'today', async (el) => {
   const first = App.me.name.split(' ')[0];
   const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', timeZone: tz()});
   el.innerHTML = `<div class="top"><div><div class="eyebrow">${esc(day)}</div><h1>Hi, ${esc(first)}</h1></div>
-    <div class="acts">${bellBtn()}<button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>
-    <div id="t-week">${skel(1)}</div><div id="t-plan"></div><div id="t-food"></div><div id="t-goals"></div><div id="t-review"></div><div id="t-last"></div><div id="t-form"></div>`;
+    <div class="acts">${bellBtn()}<button class="icon-btn" data-addact aria-label="Add">${svg('plus')}</button></div></div>
+    <div id="t-lift"></div><div id="t-week">${skel(1)}</div><div id="t-plan"></div><div id="t-food"></div><div id="t-goals"></div><div id="t-review"></div><div id="t-last"></div><div id="t-form"></div>`;
+  liftNowCard($('#t-lift', el));
   planCard($('#t-plan', el)).catch(() => {});
   todayFoodCard($('#t-food', el)).catch(() => {});
   load('/api/coach/week', (r) => {
@@ -212,7 +215,7 @@ const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
 const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
     ${friends ? `<a class="icon-btn" href="/me/friends" aria-label="Find friends">${svg('search')}</a>` : ''}
-    ${bellBtn()}<button class="icon-btn" data-addact aria-label="Add an activity by hand">${svg('plus')}</button><a class="icon-btn" href="/me/import" aria-label="Upload activities">${svg('upload')}</a></div></div>`;
+    ${bellBtn()}<button class="icon-btn" data-addact aria-label="Add">${svg('plus')}</button></div></div>`;
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
   if (q.get('view') !== 'mine') return homeFeed(el);
@@ -308,12 +311,12 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
 const DTABS = [['overview', 'Overview'], ['splits', 'Splits'], ['charts', 'Charts'], ['efforts', 'Efforts']];
 function drawDetail(el, a) {
   const r = rate(a);
-  const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m ? stat(r.label, r.v, r.u) : '');
+  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m ? stat(r.label, r.v, r.u) : '');
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
   const pane = {
-    overview: `${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
+    overview: `${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
       ${a.ai_note ? `<div class="card ai"><h2>Coach</h2><p>${esc(a.ai_note)}</p></div>`
@@ -336,7 +339,7 @@ function drawDetail(el, a) {
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       <div class="hero">${hero}</div><div id="d-photos"></div><div class="cpile"></div></div>
-    <div class="seg wide dtabs" role="tablist" aria-label="Sections">${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
+    <div class="seg wide dtabs" role="tablist" aria-label="Sections"${DTABS.filter(([k]) => has(k)).length < 2 ? ' hidden' : ''}>${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
     ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
   let drawCharts = null;
   const want = new URLSearchParams(location.search).get('tab');
@@ -354,6 +357,7 @@ function drawDetail(el, a) {
   $('#d-send', el).onclick = () => shareOut(a);
   ownSocial(el, a);
   photoStrip($('#d-photos', el), a, true);
+  if (a.lifts) fillLiftCard(el, a);
   const cb = $('#d-coach', el);
   if (cb) cb.onclick = async () => {
     if (!App.me.ai_ok) { aiSheet(() => drawDetail(el, a)); return; }
@@ -687,7 +691,8 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
 // then the period (Totals) or the years (Fitness, Year over year). The sport is remembered on this phone.
 const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
 const PVIEWS = [['totals', 'Totals', 'Distance by week, month and year', 'progress', 'c-red'],
-  ['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple']];
+  ['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
+  ['lifting', 'Lifting', 'Every exercise: last time, bests and history', 'workout', 'c-berry']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
   ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-berry'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
@@ -731,13 +736,13 @@ route(/^\/progress$/, 'progress', async (el) => {
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
   const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
   const period = PPERIODS.some((p) => p[0] === q.get('period')) ? q.get('period') : 'week';
-  pHead(el, view, view === 'fitness' ? '<span class="rng" id="p-rng"></span>'
+  pHead(el, view, view === 'lifting' ? '' : view === 'fitness' ? '<span class="rng" id="p-rng"></span>'
     : sportBtn(forView(sport, view)) + (view === 'totals' ? pillBtn('p-period', '', PPERIODS.find((p) => p[0] === period)[1], 'Show by') : ''));
   wireSport(el, sport);
   const pb = $('#p-period', el);
   if (pb) pb.onclick = () => pickSheet('Show by', pickRows(PPERIODS, period), (k) => { const u = new URLSearchParams(location.search); u.set('period', k); go('/progress?' + u.toString(), {replace: true}); });
   q.set('sport', forView(sport, view)); q.set('period', period);
-  await ({totals: pMileage, fitness: pFitness, records: pRecords}[view])($('#p-body', el), q);
+  await ({totals: pMileage, fitness: pFitness, records: pRecords, lifting: pLifting}[view])($('#p-body', el), q);
 });
 route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, view) => {
   const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
@@ -1458,12 +1463,12 @@ route(/^\/me\/goals$/, 'me', async (el) => {
 
 // ---------- add an activity by hand (2026-10-09) ----------
 // Any element with data-addact opens it; data-day="YYYY-MM-DD" presets the date (e.g. from Nutrition).
-document.addEventListener('click', (e) => { const b = e.target.closest('[data-addact]'); if (b) { e.preventDefault(); addActivitySheet(b.dataset.day); } });
-function addActivitySheet(day) {
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-addact]'); if (b) { e.preventDefault(); addActivityMenu(b.dataset.day); } });
+function addActivitySheet(day, preset) {   // preset 'workout': a lifting session logged afterwards (lift.js)
   const now = new Date(), d0 = day || isoDay(now), t0 = day && day !== isoDay(now) ? '08:00' : `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes() / 5) * 5).padStart(2, '0')}`;
   const sports = ['run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
   sheet('Add an activity', `<form class="form" id="ma">
-    <div class="chips sportpick" role="group" aria-label="Sport">${sports.map((sp, i) => `<button type="button" class="chip" data-sp="${sp}" aria-pressed="${i === 0}">${esc(SPORT_NAMES[sp])}</button>`).join('')}</div>
+    <div class="chips sportpick" role="group" aria-label="Sport">${sports.map((sp, i) => `<button type="button" class="chip" data-sp="${sp}" aria-pressed="${preset ? sp === preset : i === 0}">${esc(SPORT_NAMES[sp])}</button>`).join('')}</div>
     <label>Name <span class="muted">(optional)</span><input name="name" maxlength="200" placeholder="e.g. Spin class"></label>
     <div class="two"><label>Date<input type="date" name="day" value="${esc(d0)}" max="${isoDay(now)}" required></label><label>Start time<input type="time" name="time" value="${t0}" required></label></div>
     <div class="two"><label>Duration<input name="dur" inputmode="numeric" placeholder="45 or 1:05:00" required></label><label>Distance (${U.du()}) <span class="muted">optional</span><input name="dist" inputmode="decimal"></label></div>
@@ -1471,7 +1476,8 @@ function addActivitySheet(day) {
     <label>Notes <span class="muted">(optional)</span><textarea name="desc" rows="2"></textarea></label>
     <p class="small muted">Duration: minutes (45) or h:mm:ss (1:05:00). Leave calories blank and they're estimated from distance or time and your weight.</p>
     <div class="actions"><button class="primary">Save activity</button></div></form>`, (b, close) => {
-    const f = $('#ma', b); let sport = 'run';
+    const f = $('#ma', b); let sport = preset || 'run';
+    if (preset === 'workout') f.name.value = 'Lifting';
     $$('.sportpick .chip', b).forEach((c) => c.onclick = () => { sport = c.dataset.sp; $$('.sportpick .chip', b).forEach((x) => x.setAttribute('aria-pressed', x === c)); });
     f.onsubmit = async (e) => {
       e.preventDefault();
@@ -1483,7 +1489,7 @@ function addActivitySheet(day) {
       const body = {sport, name: f.name.value.trim() || null, start: `${f.day.value}T${f.time.value}`, duration_s: secs,
         distance_m: dist == null ? null : dist * (imp() ? MI : 1000), calories: n(f.kcal), avg_hr: n(f.hr), description: f.desc.value.trim() || null};
       const btn = $('button.primary', f); btn.disabled = true;
-      try { const r = await api('/api/activities/manual', json('POST', body)); invalidate('/api/'); close(); toast('Activity saved'); go(`/activity/${r.id}`); }
+      try { const r = await api('/api/activities/manual', json('POST', body)); invalidate('/api/'); close(); toast('Activity saved'); go(preset === 'workout' ? `/lift/${r.id}` : `/activity/${r.id}`); }
       catch (x) { toast(x.message); btn.disabled = false; }
     };
   });

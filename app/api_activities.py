@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from . import activities, analysis, coach, db, importer, plans
+from .api_lifts import FEED_SQL as LIFTS_SQL
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
@@ -102,7 +103,7 @@ def feed(before: str | None = None, sport: str | None = None, q: str | None = No
                       AND p.start_time < b.start_time AND p.elapsed_s <= b.elapsed_s)) AS prs,
                  a.visibility, (SELECT count(*) FROM cheers ch WHERE ch.activity_id = a.id) AS cheers,
                  EXISTS (SELECT 1 FROM cheers ch WHERE ch.activity_id = a.id AND ch.user_id = a.user_id) AS cheered,
-                 (SELECT count(*) FROM comments cm WHERE cm.activity_id = a.id) AS comments, {PHOTOS_SQL}
+                 (SELECT count(*) FROM comments cm WHERE cm.activity_id = a.id) AS comments, {PHOTOS_SQL}, {LIFTS_SQL}
               FROM activities a WHERE a.user_id = %s"""
     args = [PREVIEW_TOL, user['id']]
     if before: sql += ' AND a.start_time < %s'; args.append(before)
@@ -131,7 +132,7 @@ def _rank_efforts(c, uid, aid):
 def detail(aid: int, user=Depends(current_user)):
     with db.connect() as c:
         a = c.execute(f"""SELECT a.*, g.name AS gear_name, r.name AS route_name,
-                           (SELECT count(*) FROM activities x WHERE x.route_id = a.route_id) AS route_count, {PHOTOS_SQL}
+                           (SELECT count(*) FROM activities x WHERE x.route_id = a.route_id) AS route_count, {PHOTOS_SQL}, {LIFTS_SQL}
                          FROM activities a LEFT JOIN gear g ON g.id = a.gear_id LEFT JOIN routes r ON r.id = a.route_id
                          WHERE a.id = %s AND a.user_id = %s""", (aid, user['id'])).fetchone()
         if not a: raise HTTPException(404, 'Not found')
