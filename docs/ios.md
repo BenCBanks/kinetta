@@ -14,7 +14,7 @@ below are done, every new version on `main` is signed and uploaded to TestFlight
 - **Me > Apple Health.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
   permission sheet. Kinetta only reads; it never writes to Apple Health.
 - **Sync.** The first sync brings in the last 30 days ("Also bring in the past year" goes further back). After that,
-  the app sends new workouts whenever it's opened or brought back to the front. Each workout is sent with Apple
+  the app sends new workouts whenever it's opened or brought back to the front. Failed ranges stay queued for the next sync, including a failed past-year import. The Apple Health screen shows the latest attempt and any error. Connecting is specific to your account and server; logging out stops sync and clears that connection. Each workout is sent with Apple
   Health's own id for it, so a workout sent twice is stored once. A workout that's already in Kinetta from somewhere
   else (a Garmin file, a Strava export) isn't added again either.
 - **AI coach consent.** The coach reads Apple Health workouts only after you tick "Let the AI coach read my Apple

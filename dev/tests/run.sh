@@ -16,6 +16,9 @@ echo "== syntax"
 python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
 for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
+echo "== native sync recovery (stand-in HealthKit, no health data)"
+node dev/tests/test_native_sync.js
+
 echo "== API"
 cd dev/tests
 for t in test_cooking test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts; do python3 "$t.py"; done
