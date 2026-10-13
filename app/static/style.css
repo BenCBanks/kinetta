@@ -675,9 +675,6 @@ a.ntile { color: inherit; text-decoration: none; }
   box-shadow: var(--shadow); color: var(--tx); text-align: left; transition: transform .1s; }
 .way svg { width: 26px; height: 26px; color: var(--accent); } .way b { font-size: 15px; } .way small { color: var(--tx3); font-size: 12px; }
 .way:active { transform: scale(.97); }
-.again-h { margin: 0 2px 8px; } .again-h .muted { font-weight: 600; text-transform: none; letter-spacing: 0; }
-.chips.again { padding-bottom: 14px; } .chips.again .chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.chips.again .chip svg { width: 14px; height: 14px; color: var(--accent); flex: none; } .chips.again .chip small { color: var(--tx3); }
 #ts-f { margin-top: 14px; }
 /* Home Screen app (2026-10-12): the page runs under the iPhone's status bar (black-translucent), so the map reaches the
    top; a soft shade keeps the white clock and battery readable on light pages */
