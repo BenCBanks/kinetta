@@ -518,7 +518,7 @@ function describeSheet(day, meal) {
   sheet('What did you eat?', `<div class="where ql-where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="ql-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="ql-dayl">${esc(dayLabel(day))}</span><input id="ql-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai">Tell me what you had, snap a photo, or both. For example: <i>"a hot dog and a Diet Coke from Costco"</i>.</p></div>
+    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai ql-tip">Tell me what you had, snap a photo, or both. For example: <i>"a hot dog and a Diet Coke from Costco"</i>.</p></div>
     <div id="ql-items"></div>
     <form class="composer ql-composer" id="ql-f"><button type="button" class="icon-btn" id="ql-cam" aria-label="Add a photo">${svg('camera')}</button>
       <input name="t" id="ql-t" placeholder="What did you eat?" aria-label="What you ate, in your own words" autocomplete="off" enterkeyhint="send" maxlength="400">
@@ -531,7 +531,8 @@ function describeSheet(day, meal) {
     dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); };
     const said = [];
     let photo = null, busy = false;
-    const say = (html, who) => { chat.insertAdjacentHTML('beforeend', `<p class="cmsg ${who}">${html}</p>`); chat.lastElementChild.scrollIntoView({block: 'nearest'}); return chat.lastElementChild; };
+    // the opening tip goes once you've said something or added a photo (2026-10-13, Ben): by then you know how it works
+    const say = (html, who) => { $('.ql-tip', chat)?.remove(); chat.insertAdjacentHTML('beforeend', `<p class="cmsg ${who}">${html}</p>`); chat.lastElementChild.scrollIntoView({block: 'nearest'}); return chat.lastElementChild; };
     $('#ql-cam', b).onclick = () => file.click();
     file.onchange = async () => {
       const fl = file.files && file.files[0]; file.value = ''; if (!fl) return;
@@ -545,7 +546,7 @@ function describeSheet(day, meal) {
       if (!t && !photo) { toast('Say what you had, or add a photo'); return; }
       if (!t && said.length && !photo) return;
       if (t) { said.push(t); say(esc(t), 'me'); }
-      input.value = ''; input.placeholder = 'Anything to change? e.g. "make it two"';
+      input.value = ''; input.placeholder = 'Anything to change?';
       busy = true; const wait = say('<span class="dots"><i></i><i></i><i></i></span>', 'ai');
       try {
         const r = await api('/api/food/photo', json('POST', {image: photo, note: said.join('\n') || null}));

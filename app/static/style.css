@@ -1108,7 +1108,9 @@ body.ph-open { overflow: hidden; }
 /* not sticky (2026-10-13: it slid over the first message on iPhone); the sheet lifts above the keyboard instead */
 .sheet .ql-composer { position: static; margin: 22px 0 4px; }
 .ql-chat { gap: 12px; }
-#ql-items .actions { margin-bottom: 4px; }
+/* the total on the left, Add on the right, so the button never sits on the total (2026-10-13) */
+#ql-items .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 2px 4px; }
+#ql-items .actions .primary { flex: none; margin: 0; padding: 0 22px; min-height: 46px; }
 
 /* ---------- Lifting (2026-10-13, lift.js) ---------- */
 .lift-clock { display: flex; gap: 22px; padding: 10px 16px; font-size: 13px; font-weight: 650; color: var(--tx3); text-transform: uppercase; letter-spacing: .05em; }
