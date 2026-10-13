@@ -147,8 +147,9 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 @media (min-width: 901px) { .shots.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .shot, .shot figure, .shot .frame { min-width: 0; }
 .shot figure { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-.shot .frame { border-radius: 26px; padding: 7px; background: var(--ink); }
-.shot .frame img { border-radius: 20px; aspect-ratio: 720 / 1300; object-fit: cover; object-position: top; width: 100%; height: auto; }
+/* 2026-10-13: iPhone-sized shots (786 x 1704) with the status bar and Dynamic Island; the frame's corners follow the phone's */
+.shot .frame { border-radius: 16% / 8.6%; padding: 2.4%; background: var(--ink); }
+.shot .frame img { border-radius: 13.8% / 7.6%; aspect-ratio: 786 / 1420; object-fit: cover; object-position: top; width: 100%; height: auto; }
 .shot h3 { font-size: 19px; }
 .shot figcaption p { color: var(--ink2); font-size: 15.5px; margin-top: 6px; }
 @media (max-width: 900px) {
@@ -163,8 +164,9 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .spot .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
 /* 2026-10-12 (Ben): the two phones side by side, level and centred (the second used to sit 48 px lower) */
 .spot .pair { justify-content: center; }
-.frame { border-radius: 26px; padding: 7px; background: var(--ink); min-width: 0; }
-.frame img { border-radius: 20px; width: 100%; height: auto; aspect-ratio: 720 / 1300; object-fit: cover; object-position: top; }
+.spot .pair .credit { grid-column: 1 / -1; margin: 0; font-size: 12.5px; color: var(--ink2); text-align: center; }   /* photo credits under the phones */
+.frame { border-radius: 16% / 8.6%; padding: 2.4%; background: var(--ink); min-width: 0; }
+.frame img { border-radius: 13.8% / 7.6%; width: 100%; height: auto; aspect-ratio: 786 / 1420; object-fit: cover; object-position: top; }
 .spot h3 { font-size: clamp(26px, 3vw, 34px); margin-top: 14px; }
 .spot p { color: var(--ink2); font-size: 18px; margin-top: 14px; max-width: 44ch; }
 .spot ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink2); }
@@ -172,6 +174,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .spot li svg { width: 26px; height: 16px; margin-top: 5px; color: var(--berry); }
 @media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; } .spot .pair { max-width: 520px; margin: 0 auto; width: 100%; } }
 .pcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 22px; }
+.pcards.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .pcard { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .pcard h4 { font: 600 19px/1.2 var(--display); margin: 0; letter-spacing: -0.01em; }
 .pcard p { color: var(--ink2); font-size: 15.5px; }

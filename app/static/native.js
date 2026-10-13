@@ -13,6 +13,9 @@ const Native = (() => {
   // the server and login token live in the app's own settings (Capacitor Preferences), which iOS doesn't clear the way it
   // can clear a web view's storage when the phone runs low on space
   N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); })().catch(() => {}) : Promise.resolve();
+  // no ↑ ↓ ✓ bar above the keyboard (2026-10-13, Ben): every text box here has its own send / save button. Only the app can
+  // hide it (@capacitor/keyboard); Safari and the Home Screen version always show it.
+  if (on && P.Keyboard) P.Keyboard.setAccessoryBarVisible({isVisible: false}).catch(() => {});
   N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   N.login = async (server, login, password) => {

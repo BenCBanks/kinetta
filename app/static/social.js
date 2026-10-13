@@ -17,7 +17,6 @@ Object.assign(IC, {
   people: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/>',
 });
 const trimName = (m) => (!m ? 'Off' : imp() ? {200: '⅛ mi', 400: '¼ mi', 800: '½ mi'}[m] : `${m} m`);
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 // the number on the Me tab: unread notifications (or friend requests waiting, if more); checked at most once a minute
 const Social = {

@@ -1,7 +1,7 @@
 # Made-up social + cooking state for the homepage screenshots, on top of dev/demo/seed.py (a throwaway install only).
 # Adds a friend, "Jordan", with a few weeks of rides and walks (the demo routes, two days later and an hour earlier, so
 # the newest activity in the feed is Jordan's), shares some of Alex's runs with friends, cheers and comments both ways,
-# a waiting friend request from "Sam", saved dishes (a soup, a traybake shared with Jordan, a smoothie). Alex also ran this
+# a waiting friend request from "Sam", photos on a few activities, saved dishes (a soup, a traybake shared with Jordan, a smoothie). Alex also ran this
 # morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
@@ -66,6 +66,12 @@ jordan('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Strong fin
 alex('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Thanks! Legs felt great today.'})
 jordan('POST', f"/api/activities/{mine[2]['id']}/cheer")
 for a in jordan('GET', '/api/activities?limit=4')[:3]: alex('POST', f"/api/activities/{a['id']}/cheer")
+# photos on activities (2026-10-13): Freedom Park and the Little Sugar Creek Greenway, where the demo routes run (dev/demo/photos, credits in its README)
+PH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'demo', 'photos')
+def photo(q, aid, name):
+    q('POST', f'/api/activities/{aid}/photos', {'image': 'data:image/jpeg;base64,' + __import__('base64').b64encode(open(os.path.join(PH, name + '.jpg'), 'rb').read()).decode()})
+for name in ('freedom-park-lake', 'freedom-park-bridge'): photo(alex, mine[0]['id'], name)
+photo(jordan, jordan('GET', '/api/activities?limit=1')[0]['id'], 'sugar-creek-greenway')
 
 for d in alex('GET', '/api/dishes'):
     if d.get('mine') is not False: alex('DELETE', f"/api/dishes/{d['id']}")
