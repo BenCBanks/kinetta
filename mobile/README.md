@@ -37,4 +37,6 @@ people with the app need an app update to see it.
 
 ## Not yet
 
-Signing, TestFlight and background sync: see [docs/ios.md](../docs/ios.md).
+Background sync and real-device acceptance are still needed. Signing and upload are implemented conditionally in
+GitHub Actions; missing Apple secrets skip the upload. See [docs/ios.md](../docs/ios.md) for setup and
+[beta readiness](../docs/beta-readiness.md) for owner steps and approval gates.

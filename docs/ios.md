@@ -4,8 +4,12 @@ The iPhone app is the same Kinetta you use in Safari, inside a real app, so it c
 Watch, Coros, Wahoo, Strava and most other apps write their workouts to Apple Health, so once you connect it, your
 workouts show up in Kinetta without uploading files.
 
-It isn't on the App Store or TestFlight yet, but everything on the code side is ready: once the Apple Developer steps
-below are done, every new version on `main` is signed and uploaded to TestFlight by GitHub Actions on its own.
+For the owner steps, remaining engineering work and approval prospects, start with [External beta readiness](beta-readiness.md).
+
+The build and conditional signing/upload workflow exist. A green unsigned build is not proof of a TestFlight upload:
+check that signing and upload actually ran, then verify the processed build in App Store Connect. Background sync and
+real-device acceptance remain separate readiness gates. Once the Apple setup below is complete, app changes on `main`
+can be signed and uploaded automatically.
 
 ## What the app does today
 
