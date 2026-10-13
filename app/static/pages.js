@@ -476,13 +476,18 @@ function similarHtml(a) {
 }
 
 function editActivity(a) {
-  const sports = ['run', 'ride', 'walk', 'hike', 'swim', 'row', 'ski', 'workout', 'other'];
+  // the same grouped kinds as Add an activity (2026-10-13, Ben: Edit only had the nine sports); a kind from an import that
+  // isn't in the list (Strava's "Trail Run") stays as the first choice
+  const kinds = HAND_KINDS.flatMap(([, list], gi) => list.map(([sp, , lb], i) => ({v: `${gi}.${i}`, sp, lb: lb || null})));
+  const cur = kinds.find((k) => k.sp === a.sport && k.lb === (a.sport_label || null)) || (!a.sport_label && kinds.find((k) => k.sp === a.sport && !k.lb));
+  const keep = cur ? '' : `<option value="keep" selected>${esc(a.sport_label || SPORT_NAMES[a.sport] || 'Activity')}</option>`;
+  const kindOpts = keep + HAND_KINDS.map(([g, list], gi) => `<optgroup label="${esc(g)}">${list.map(([, n], i) => `<option value="${gi}.${i}"${cur && cur.v === `${gi}.${i}` ? ' selected' : ''}>${esc(n)}</option>`).join('')}</optgroup>`).join('');
   sheet('Edit activity', `<form class="form" id="e-form">
     <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
-    <label>Sport<select name="sport">${sports.map((s) => `<option value="${s}"${s === a.sport ? ' selected' : ''}>${SPORT_NAMES[s]}</option>`).join('')}</select></label>
+    <label>What did you do?<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
     <label>Description<textarea name="description" maxlength="10000">${esc(a.description || '')}</textarea></label>
     <label>Private note (only you)<textarea name="private_note" maxlength="10000">${esc(a.private_note || '')}</textarea></label>
-    <label>Gear<select name="gear"><option value="">None</option></select></label>
+    <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
     <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
     <div id="e-share" class="e-share"><p class="small muted">Loading sharing…</p></div>
     <div class="actions"><button type="button" class="ghost danger" id="e-del">Delete</button><span class="spacer"></span>
@@ -495,7 +500,10 @@ function editActivity(a) {
     api('/api/gear').then((gear) => { f.gear.insertAdjacentHTML('beforeend', gear.filter((g) => !g.retired || g.id === a.gear_id).map((g) => `<option value="${g.id}"${g.id === a.gear_id ? ' selected' : ''}>${esc(g.name)}</option>`).join('')); }).catch(() => {});
     f.onsubmit = async (e) => {
       e.preventDefault();
-      const body2 = {name: f.name.value, sport: f.sport.value, description: f.description.value, private_note: f.private_note.value, commute: f.commute.checked};
+      const k = kinds.find((x) => x.v === f.kind.value);
+      const body2 = {description: f.description.value, private_note: f.private_note.value, commute: f.commute.checked};
+      if (k) { body2.sport = k.sp; body2.sport_label = k.lb || ''; }
+      if (f.name.value !== a.name) body2.name = f.name.value;   // left alone, a name nobody typed follows the kind ("Lunch Yoga")
       if (f.gear.value) body2.gear_id = +f.gear.value; else body2.clear_gear = true;
       const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'Saving…';
       try {

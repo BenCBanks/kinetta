@@ -26,9 +26,13 @@ def num(v, as_int=False):
     return int(round(v)) if as_int else v
 
 
-def default_name(start, tz, sport):
+def default_name(start, tz, sport, label=None):
     h = start.astimezone(ZoneInfo(tz)).hour
     part = 'Morning' if 5 <= h < 11 else 'Lunch' if 11 <= h < 14 else 'Afternoon' if 14 <= h < 18 else 'Evening' if 18 <= h < 22 else 'Night'
+    # a workout or other activity is named after its kind when there is one (2026-10-13, Ben): "Lunch Yoga", not "Lunch Workout"
+    label = (label or '').strip()
+    if sport in ('workout', 'other') and label and label != 'Strength Training' and len(label) <= 24:
+        return f"{part} {label}"
     return f"{part} {({'run': 'Run', 'ride': 'Ride', 'walk': 'Walk', 'hike': 'Hike', 'swim': 'Swim', 'row': 'Row', 'ski': 'Ski',
                       'workout': 'Workout'}).get(sport, 'Activity')}"
 
@@ -96,7 +100,7 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
                              WHERE id = %s""", (meta['name'], meta.get('description'), meta.get('private_note'), meta.get('strava_id'), dup['id']))
                 return 'updated', dup['id']
             return 'duplicate', dup['id']
-        name = meta.get('name') or default_name(start, tz, sport)
+        name = meta.get('name') or default_name(start, tz, sport, meta.get('sport_label'))
         gear_id = gear_for(c, user_id, sport, meta.get('gear'))
         row = dict(user_id=user_id, sport=sport, sub_sport=parsed.get('sub_sport'), sport_label=meta.get('sport_label'), name=name, auto_name=not meta.get('name'),
                    description=meta.get('description'), private_note=meta.get('private_note'), commute=bool(meta.get('commute')),
