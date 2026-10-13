@@ -135,9 +135,8 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
 .spot.rev { grid-template-columns: minmax(0, 1.25fr) minmax(0, .85fr); } .spot.rev > div:first-child { order: 2; }
 @media (max-width: 860px) { .spot.rev { grid-template-columns: 1fr; } .spot.rev > div:first-child { order: 0; } }
 #friends .spot, #cooking .spot { margin-bottom: 0; }
-.sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 22px; }
-.sum { gap: 6px; } .sum div { padding: 9px 11px; } @media (min-width: 1000px) { .sum { flex-wrap: nowrap; } }
-@media (min-width: 861px) { .sum { gap: 4px; } .sum div { padding: 8px 10px; } .sum b { font-size: 19px; } .sum small { font-size: 10px; letter-spacing: .05em; white-space: nowrap; } .sum i { font-size: 18px; } }   /* one line beside the bigger phones */
+.sum { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: center; gap: 8px 10px; margin-top: 22px; max-width: 30rem; }
+/* two even rows, full size (2026-10-13, Ben: one squeezed line was cramped): 2,400 ÷ 1,600 × / 380 = 570 */
 .sum div { display: grid; padding: 10px 14px; border-radius: 14px; background: var(--paper); border: 1px solid var(--line); min-width: 0; }
 .sum div.hi { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .sum small { font-size: 12px; color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; } .sum div.hi small { color: var(--bg); opacity: .7; }
