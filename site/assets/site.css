@@ -94,7 +94,7 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
 .stage { position: relative; display: grid; place-items: center; }
 .track { position: absolute; left: 50%; top: 50%; width: min(135%, calc(100vw - 24px)); transform: translate(-50%, -50%); color: var(--line); pointer-events: none; overflow: visible; }
 .track .runner { fill: var(--berry); }
-.phone { width: min(300px, 78vw); margin-inline: auto; border-radius: 40px; padding: 10px; background: var(--ink);
+.phone { width: min(340px, 82vw); margin-inline: auto; border-radius: 40px; padding: 10px; background: var(--ink);
   box-shadow: 0 30px 60px -30px rgba(30, 37, 34, .45); position: relative; z-index: 1; }
 .phone img { border-radius: 31px; width: 100%; height: auto; min-width: 0; aspect-ratio: 720 / 1558; object-fit: cover; object-position: top; }
 @media (max-width: 860px) {
@@ -126,10 +126,12 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
 @media (max-width: 900px) { .hl .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .hl .wrap { grid-template-columns: 1fr; gap: 12px; } .hcard { padding: 18px; } }
 .spot-h { font-size: clamp(32px, 4.4vw, 50px); margin-top: 14px; }
-.spot.rev { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); } .spot.rev > div:first-child { order: 2; }
+.spot.rev { grid-template-columns: minmax(0, 1.25fr) minmax(0, .85fr); } .spot.rev > div:first-child { order: 2; }
 @media (max-width: 860px) { .spot.rev { grid-template-columns: 1fr; } .spot.rev > div:first-child { order: 0; } }
 #friends .spot, #cooking .spot { margin-bottom: 0; }
 .sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 22px; }
+.sum { gap: 6px; } .sum div { padding: 9px 11px; } @media (min-width: 1000px) { .sum { flex-wrap: nowrap; } }
+@media (min-width: 861px) { .sum { gap: 4px; } .sum div { padding: 8px 10px; } .sum b { font-size: 19px; } .sum small { font-size: 10px; letter-spacing: .05em; white-space: nowrap; } .sum i { font-size: 18px; } }   /* one line beside the bigger phones */
 .sum div { display: grid; padding: 10px 14px; border-radius: 14px; background: var(--paper); border: 1px solid var(--line); min-width: 0; }
 .sum div.hi { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .sum small { font-size: 12px; color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; } .sum div.hi small { color: var(--bg); opacity: .7; }
@@ -153,14 +155,15 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .shot h3 { font-size: 19px; }
 .shot figcaption p { color: var(--ink2); font-size: 15.5px; margin-top: 6px; }
 @media (max-width: 900px) {
-  .shots { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(260px, 72vw); overflow-x: auto;
+  .shots { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(300px, 80vw); overflow-x: auto;
     scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; }
   .shot { scroll-snap-align: start; }
 }
 
 
 /* premium: included, not upsold */
-.spot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 56px; align-items: center; margin-bottom: 72px; }
+/* the phones get the wider column (2026-10-13, Ben: too small to read) */
+.spot { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.25fr); gap: 48px; align-items: center; margin-bottom: 72px; }
 .spot .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
 /* 2026-10-12 (Ben): the two phones side by side, level and centred (the second used to sit 48 px lower) */
 .spot .pair { justify-content: center; }
@@ -172,15 +175,20 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .spot ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink2); }
 .spot li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; }
 .spot li svg { width: 26px; height: 16px; margin-top: 5px; color: var(--berry); }
-@media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; } .spot .pair { max-width: 520px; margin: 0 auto; width: 100%; } }
+/* on a phone the two shots scroll sideways at a readable size instead of sitting side by side at half size */
+@media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; }
+  .spot .pair { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(300px, 80vw); justify-content: start; overflow-x: auto;
+    scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; }
+  .spot .pair > .frame { scroll-snap-align: start; grid-row: 1; } .spot .pair .credit { grid-row: 2; grid-column: 1 / span 2; text-align: left; } }
 .pcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 22px; }
-.pcards.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* four shots: two by two, so each is about as wide as a real phone and its text is readable (2026-10-13, Ben) */
+.pcards.four { grid-template-columns: repeat(2, minmax(0, 340px)); justify-content: center; gap: 48px 72px; }
 .pcard { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .pcard h4 { font: 600 19px/1.2 var(--display); margin: 0; letter-spacing: -0.01em; }
 .pcard p { color: var(--ink2); font-size: 15.5px; }
 @media (max-width: 900px) {
   /* .four too (2026-10-13): its four columns used to win here, so on a phone each shot was ~70 px wide */
-  .pcards, .pcards.four { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(260px, 72vw); overflow-x: auto;
+  .pcards, .pcards.four { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(300px, 80vw); overflow-x: auto;
     scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; }
   .pcard { scroll-snap-align: start; }
 }
