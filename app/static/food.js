@@ -704,7 +704,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
       <div id="hi-prev"></div></div>
     <div class="card"><h2>Enter day by day</h2>
       <p class="small muted">Type what you have for each day; leave the rest blank. Burned fills itself in from Eaten + Deficit. Clearing a box and saving removes that imported number.</p>
-      <div class="gridbar"><label>From<input type="date" id="hg-start" max="${today}"></label><label class="tog"><input type="checkbox" id="hg-mac"> Show macros</label></div>
+      <div class="gridbar"><label>From<input type="date" id="hg-start" max="${today}"></label><label class="gtog"><input type="checkbox" id="hg-mac"> Show macros</label></div>
       <div id="hg"></div></div>
     <div id="hi-sum"></div>`;
   wireBack(el, '/food?view=overview');

@@ -466,19 +466,6 @@ function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null,
   box.innerHTML = `<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Trend chart">${g}</svg></div>`;
 }
 
-// bars per week etc.
-function barChart(box, items, {fmt, height = 120}) {
-  const W = Math.max(300, box.clientWidth || 340), H = height, padB = 16, n = items.length;
-  const max = Math.max(...items.map((i) => i.v), 1e-9), bw = W / n;
-  let g = '';
-  items.forEach((it, i) => {
-    const h = it.v / max * (H - padB - 14);
-    g += `<rect class="bar-r${it.cur ? ' cur' : ''}" x="${(i * bw + bw * .15).toFixed(1)}" y="${(H - padB - h).toFixed(1)}" width="${(bw * .7).toFixed(1)}" height="${Math.max(h, it.v ? 2 : 0).toFixed(1)}" rx="2"><title>${esc(it.label)}: ${esc(fmt(it.v))}</title></rect>`;
-    if (it.tick) g += `<text class="yl" x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle">${esc(it.tick)}</text>`;
-  });
-  g += `<text class="yl" x="2" y="10">${esc(fmt(max))}</text>`;
-  box.innerHTML = `<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Bar chart">${g}</svg></div>`;
-}
 
 // ---------- progress charts (2026-10-09): one readout line above each chart, touch/hover to read ----------
 const niceStep = (max, n = 4) => { const raw = max / n, p = 10 ** Math.floor(Math.log10(raw || 1)), m = raw / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
@@ -616,29 +603,6 @@ function energyChart(box, cols, {height = 190, weight = null} = {}) {   // weigh
     ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span><span>Burned <b>${f(c.burned)}</b></span>${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${c.counted === false && c.eaten != null && !c.partial ? '<span>Partly logged, not counted</span>' : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}${c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : ''}`;
   };
   svgs.forEach((sv) => { sv.addEventListener('pointerdown', show); sv.addEventListener('pointermove', show); });
-}
-// weigh-ins (dots) + smoothed trend (line). pts: [{label, tick, w, t}] one per day (w may be null)
-function weightChart(box, pts, {fmt, axis = fmt, height = 170} = {}) {
-  const W = Math.max(300, box.clientWidth || 340), H = height, padL = 40, padR = 6, padT = 8, padB = 18, n = pts.length;
-  const vals = pts.flatMap((p) => [p.w, p.t]).filter((v) => v != null);
-  if (pts.filter((p) => p.w != null).length < 2) { box.innerHTML = '<p class="muted small">Log your weight a few times and the chart appears.</p>'; return; }
-  let lo = Math.min(...vals), hi = Math.max(...vals); const pad = Math.max(.3, (hi - lo) * .15); lo -= pad; hi += pad;
-  const X = (i) => padL + (n === 1 ? 0 : i / (n - 1)) * (W - padL - padR), Y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
-  let g = '';
-  for (const v of [hi - pad, (hi + lo) / 2, lo + pad]) g += `<line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="yl" x="${padL - 4}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${esc(axis(v))}</text>`;
-  pts.forEach((p, i) => { if (p.tick) g += `<text class="yl" x="${X(i).toFixed(1)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${esc(p.tick)}</text>`; });
-  let d = '', pen = false; pts.forEach((p, i) => { if (p.t == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.t).toFixed(1)}`; pen = true; });
-  g += pts.map((p, i) => (p.w == null ? '' : `<circle class="wdot" cx="${X(i).toFixed(1)}" cy="${Y(p.w).toFixed(1)}" r="3.5"/>`)).join('') + `<path class="ln k-s3" d="${d}"/>`;
-  g += `<line class="xh" y1="${padT}" y2="${H - padB}" visibility="hidden"/>`;
-  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Weight and trend">${g}</svg></div>
-    <div class="legend small"><span><i class="sw ln-sw k-s3"></i>Trend</span><span><i class="sw wsw"></i>Weigh-ins</span></div>`;
-  const svgEl = $('svg', box), xh = $('.xh', box), ro = $('.readout', box);
-  const show = (e) => {
-    const r = svgEl.getBoundingClientRect(), i = Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width * W - padL) / (W - padL - padR) * (n - 1))));
-    xh.setAttribute('x1', X(i)); xh.setAttribute('x2', X(i)); xh.setAttribute('visibility', 'visible');
-    ro.innerHTML = `<span>${esc(pts[i].label)}</span><span>Weighed <b>${pts[i].w == null ? '–' : esc(fmt(pts[i].w))}</b></span><span>Trend <b>${pts[i].t == null ? '–' : esc(fmt(pts[i].t))}</b></span>`;
-  };
-  svgEl.addEventListener('pointerdown', show); svgEl.addEventListener('pointermove', show);
 }
 
 // fitness / fatigue / form lines

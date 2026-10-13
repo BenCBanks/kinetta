@@ -18,3 +18,15 @@ docker compose -p kinettademo down -v
 
 Route shapes in `routes.json` come from OpenStreetMap routing: © OpenStreetMap contributors, available under the
 [Open Database License](https://www.openstreetmap.org/copyright).
+
+`photos/` holds three photos of Freedom Park and the Little Sugar Creek Greenway (where the demo routes run), from
+Wikimedia Commons, used as activity photos in the screenshots (`dev/screenshots/stage.py` adds them). They keep their own
+licenses, not Kinetta's:
+
+| File | Photo | By | License |
+|---|---|---|---|
+| `freedom-park-lake.jpg` | [Freedom Park, Charlotte](https://commons.wikimedia.org/wiki/File:Freedom_Park,_Charlotte_-_panoramio.jpg) | James Willamor | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
+| `freedom-park-bridge.jpg` | [Freedom Park, Charlotte](https://commons.wikimedia.org/wiki/File:Freedom_Park,_Charlotte_-_panoramio_-_James_Willamor.jpg) | James Willamor | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
+| `sugar-creek-greenway.jpg` | [Little Sugar Creek Greenway near 18th St](https://commons.wikimedia.org/wiki/File:Little_Sugar_Creek_Greenway_near_18th_St_Late_March_2024.jpg) | City Dweller 2 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
+
+All three are the 960 px wide versions Commons serves, otherwise unchanged.

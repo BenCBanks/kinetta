@@ -194,7 +194,10 @@ button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0
 .gs-sub { display: block; font-size: 13px; margin-top: 2px; }   /* Today > Get started: one line under each step */
 .row-link > :first-child { min-width: 0; }
 .row-link .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .row-link .grow small { font-size: 13px; }
-.row-link .val { display: inline-flex; align-items: center; gap: 6px; color: var(--tx3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.row-link .val { display: block; flex: 0 1 auto; color: var(--tx3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.row-link .val .badge { vertical-align: middle; }
+/* a row with a value: the label keeps its one line and the value shortens with "…" (2026-10-13: "Body & heart rate" wrapped) */
+.row-link:has(> .val) > .grow { min-width: max-content; }
 .row-link.static:active { opacity: 1; }
 .card.tap.row-link { display: flex; padding: 12px 16px; border-top: 0; }
 /* the row icon: a small rounded square in a soft colour (Me list) */
@@ -427,7 +430,7 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 .chartbox .ln.s1 { stroke: var(--s1); } .chartbox .ln.s2 { stroke: var(--s2); opacity: .8; } .chartbox .ln.s3 { stroke: var(--s3); }
 .chartbox .bar-seg { stroke: none; } .chartbox .bar-seg.partial { opacity: .55; }
 .chartbox .avgline { stroke: var(--tx2); stroke-width: 1.5; stroke-dasharray: 4 4; }
-.chartbox .avgl { font-size: 11px; font-weight: 600; fill: var(--tx2); paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
+
 .chartbox .hl { fill: var(--tx); opacity: .06; }
 .chartbox .ln.faint { stroke-width: 1.25; opacity: .35; }
 .chartbox .xdot { stroke: var(--card); stroke-width: 2; }
@@ -493,7 +496,7 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .wd[aria-pressed="true"] .sp-fill { filter: brightness(1.1); }
 .wd[aria-pressed="true"]:not(.today) small { color: var(--tx); }
 .wdot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); margin-bottom: 8px; }
-.wcap { margin: 10px 0 0; }
+
 .card .status-word { display: grid; gap: 2px; margin: 0 0 14px; }
 .status-word b { font-size: 22px; font-weight: 800; letter-spacing: -.02em; color: var(--tx); }
 .status-word.good b { color: var(--good); } .status-word.warn b { color: var(--warn); }
@@ -506,7 +509,7 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .review-head b, .review-card h2 { font-size: 17px; }
 .review-line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--tx2); }
 .review-card > .linkbtn { justify-self: start; padding: 0; min-height: 32px; }
-.review-text.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+
 .review-text { white-space: pre-wrap; margin: 4px 0; }
 .card.tap.review-min, .review-min { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 0; text-align: left; font: inherit; color: inherit; min-height: 52px; }
 .tfood > a { display: block; color: inherit; } .tfood .actions { margin-top: 8px; }
@@ -517,22 +520,11 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .bigstat .stat b { font-size: 24px; }
 .pred { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .pred div { background: var(--card2); border-radius: var(--r2); padding: 12px 14px; } .pred b { display: block; font: 700 21px var(--numf); }
-.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.cal .dow { font-size: 11px; color: var(--tx3); text-align: center; font-weight: 700; }
-.cal .day { aspect-ratio: 1; border-radius: 10px; background: var(--card2); display: grid; place-items: center; position: relative; font-size: 12px; color: var(--tx3); }
-.cal .day.out { background: transparent; } .cal .day.today { outline: 2px solid var(--accent); }
-.cal .day .blob { --s: .4; position: absolute; width: calc(var(--s) * 80%); aspect-ratio: 1; border-radius: 50%; background: var(--c, var(--prog)); opacity: .9; }
-.cal .day span { position: relative; z-index: 1; } .cal .day.has span { color: #fff; font-weight: 700; }
-.frow { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
-.rng { margin: 4px 0 12px; } .frow .rng { min-width: 0; margin: 0; }
+
+.rng { margin: 4px 0 12px; }
 .range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 12px; border: 0; border-radius: 999px;
   background: var(--card); box-shadow: var(--shadow); color: var(--tx); font-weight: 600; font-size: 14px; white-space: nowrap; }
 .range-btn svg { width: 16px; height: 16px; flex: none; color: var(--tx3); } .range-btn span { overflow: hidden; text-overflow: ellipsis; }
-.rangebar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; }
-.rangebar .chips { margin: 0; padding-bottom: 2px; flex: 1 1 auto; }
-.rangebar .ry { display: flex; gap: 8px; align-items: center; }
-.rangebar .ry label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tx2); font-weight: 600; }
-.rangebar select { min-height: 38px; padding: 4px 10px; border-radius: 12px; }
 
 /* Calendar (2026-10-11): workouts + food, day by day */
 .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -566,18 +558,14 @@ button.wd { background: none; border: 0; padding: 0; font: inherit; color: inher
 .drop.over { border-color: var(--accent); background: var(--accent2); }
 .prog { height: 8px; border-radius: 4px; background: var(--card2); overflow: hidden; } .prog .bar { height: 8px; border-radius: 4px; }
 .job { padding: 12px 0; border-top: 1px solid var(--line); } .job:first-child { border-top: 0; } .job small { color: var(--tx3); display: block; }
-.addpast { display: flex; align-items: center; justify-content: flex-start; gap: 12px; margin: 4px 0 12px; padding: 12px 16px; min-height: 52px; text-align: left; }
-.addpast svg { width: 18px; height: 18px; } .addpast span { display: grid; } .addpast small { font-weight: 500; color: var(--tx2); font-size: 12px; }
+
 #hi-pick { display: inline-flex; align-items: center; gap: 8px; } #hi-pick svg { width: 18px; height: 18px; }
 #hi-prev .tbl { font-size: 13px; }
 
 /* ---------- Nutrition ---------- */
-.nview { display: grid; grid-template-columns: 1fr 1fr; width: 100%; margin-bottom: 14px; }
-.nview button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; font-size: 15px; }
-.nview svg { width: 18px; height: 18px; }
+
 .nrange { margin-bottom: 4px; }
-.daybar { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px; margin-bottom: 12px; }
-.daybar .ghost { min-height: 38px; font-size: 14.5px; background: var(--card); box-shadow: var(--shadow); border-radius: 999px; padding: 6px; }
+
 .daypick { position: relative; cursor: pointer; } .daypick svg { width: 16px; height: 16px; color: var(--accent); }
 .daypick input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
 .backtoday { margin: -6px 0 10px; }
@@ -607,9 +595,8 @@ a.ntile { color: inherit; text-decoration: none; }
 .ring.over .rf { stroke: var(--warn); }
 .ring > div { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; }   /* "LEFT" under the number, centred */
 .ring b { font: 800 20px/1.05 var(--numf); letter-spacing: -.02em; } .ring small { color: var(--tx3); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.fsum { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; }
-.fmac { display: grid; gap: 8px; } .krow { display: flex; justify-content: space-between; font-weight: 600; }
-.krow i, .mrow i { font-style: normal; color: var(--tx3); font-weight: 500; font-size: 12px; }
+
+.mrow i { font-style: normal; color: var(--tx3); font-weight: 500; font-size: 12px; }
 .mrow { display: grid; grid-template-columns: 56px minmax(12px, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
 .mrow b { text-align: right; } .mrow .track { height: 8px; border-radius: 4px; background: var(--card2); overflow: hidden; } .mrow .bar { height: 8px; }
 .mrow.mealrow { grid-template-columns: 84px minmax(12px, 1fr) 44px; font-size: 14px; margin: 6px 0; }
@@ -647,12 +634,10 @@ a.ntile { color: inherit; text-decoration: none; }
 .balance .brow.big { border-top: 0; font-size: 17px; font-weight: 750; padding: 2px 0 6px; }
 .balance .brow.big b { font: 800 28px var(--numf); letter-spacing: -.03em; } .balance .brow.big i { font-size: 13px; font-style: normal; color: var(--tx3); }
 .balance .brow.good b { color: var(--good); } .balance .brow.bad b { color: var(--alert); }
-.balance .more-link, .dstrip .more-link { display: inline-block; margin-top: 8px; }
+.balance .more-link { display: inline-block; margin-top: 8px; }
 .balance details.bd { margin-top: 4px; } .balance details.bd > summary { font-size: 14px; }
 .balance .addwk { display: inline-block; margin: 2px 0 6px; }
-.dstrip .stat.good b { color: var(--good); } .dstrip .stat.bad b { color: var(--alert); }
-.exday .exn { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.exday .exi { display: inline-flex; width: auto; height: auto; padding: 0; background: none; color: var(--c); flex: none; } .exday .exi svg { width: 18px; height: 18px; }
+
 .meal { padding-top: 12px; padding-bottom: 6px; }
 .meal h2 span { font-weight: 600; color: var(--tx3); font-size: 15px; }
 .empty-meal { padding: 4px 16px; } .empty-meal > h2 { margin: 0; min-height: 48px; }
@@ -681,7 +666,7 @@ a.ntile { color: inherit; text-decoration: none; }
 .wfoot .daypick { display: inline-flex; align-items: center; gap: 6px; padding: 0; }
 .mac4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .mac4 label:first-child { grid-column: 1 / -1; }
 .mac4 input { padding: 8px 12px; }
-.mealpick { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin: 12px 0; }
+
 .results { margin-top: 8px; }
 .macpreview { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; background: var(--card); border-radius: var(--r2); padding: 14px 6px; }
 .macpreview b { display: block; font: 750 21px var(--numf); } .macpreview small { color: var(--tx3); font-size: 12px; }
@@ -712,7 +697,7 @@ a.ntile { color: inherit; text-decoration: none; }
 .pill-sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; min-height: 34px; padding: 0 18px 0 0; font-weight: 650; width: auto; box-shadow: none; }
 .pill-sel > svg { width: 14px; height: 14px; color: var(--tx3); transform: rotate(90deg); position: absolute; right: 12px; pointer-events: none; }
 .pill-sel.daypick > svg { position: static; transform: none; color: var(--accent); }
-.ways-or { font-size: 12px; color: var(--tx3); font-weight: 700; margin: 14px 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+
 .ntiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
 .ntile { background: var(--card); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; box-shadow: var(--shadow); }
 .ntile small { color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
@@ -726,15 +711,12 @@ a.ntile { color: inherit; text-decoration: none; }
 .needs-eq > div { flex: 1; background: var(--card2); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
 .needs-eq > div.hi { background: var(--prog2); } .needs-eq small { font-size: 11px; color: var(--tx3); font-weight: 600; } .needs-eq b { font: 750 20px var(--numf); }
 .needs-eq > span { color: var(--tx3); font-weight: 700; }
-.row-form { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin: 8px 0; } .row-form label { flex: 1; min-width: 160px; }
+
 .scan { position: relative; border-radius: var(--r); overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
 .scan video { width: 100%; height: 100%; object-fit: cover; }
 .scanbox { position: absolute; inset: 30% 12%; border: 3px solid rgba(255,255,255,.85); border-radius: 14px; }
-.ph-pick { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 130px; border: 2px dashed var(--line);
-  border-radius: var(--r); background: var(--card); color: var(--tx2); font-weight: 600; }
-.ph-pick svg { width: 28px; height: 28px; }
+
 #ph-prev { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; } #ph-prev[hidden] { display: none; }
-#ph-prev img { width: 100%; max-height: 240px; object-fit: cover; border-radius: var(--r2); } #ph-prev.small-prev img { max-height: 110px; }
 #ph-items .actions { align-items: center; justify-content: space-between; }
 #ph-items .pitem { padding: 12px 14px; margin-bottom: 8px; }
 .pitem .check { gap: 8px; } .pname { min-height: 40px; }
@@ -748,7 +730,7 @@ a.ntile { color: inherit; text-decoration: none; }
 /* day-by-day history grid */
 .gridbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 8px 0; }
 .gridbar label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--tx2); }
-.gridbar input[type=date] { min-height: 40px; } .gridbar .tog input { width: 20px; height: 20px; min-height: 0; }
+.gridbar input[type=date] { min-height: 40px; } .gridbar .gtog input { flex: none; width: 20px; height: 20px; min-height: 0; padding: 0; }   /* not .tog: that is the on/off switch */
 .hgrid { overflow-x: auto; margin: 0 -4px; }
 .hrow { display: grid; grid-template-columns: 44px repeat(4, minmax(58px, 1fr)); gap: 4px; align-items: center; padding: 2px 4px; min-width: 300px; }
 .hgrid.macros .hrow { grid-template-columns: 44px repeat(7, minmax(58px, 1fr)); min-width: 520px; }
@@ -846,9 +828,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .coach-card > .linkbtn { padding: 0; margin-top: 6px; }
 
 /* ---------- cooking mode (cook.js) ---------- */
-.card.tap.dish-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
-.dish-row .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .dish-row b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dish-row small { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .shell h1.dish-name { margin: 2px 2px 14px; font-size: 24px; letter-spacing: -.025em; overflow-wrap: anywhere; }
 .dish-name ~ .sec-head { font-size: 17px; margin-top: 20px; }
 .cook-steps { list-style: none; margin: 0 0 12px; padding: 6px 16px; }
@@ -860,33 +840,21 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .cook-steps li.now { color: var(--tx2); } .cook-steps li.now b { color: var(--tx); }
 .cook-steps li.now .stepn { background: var(--btn); color: var(--onbtn); }
 .cook-steps li.done .stepn { background: var(--prog2); color: var(--prog); } .cook-steps li.done b { color: var(--tx2); }
-.dish-hero { background: linear-gradient(150deg, color-mix(in srgb, var(--run) 12%, var(--card)), var(--card) 65%); }
-.dh-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
-.dh-top small, .dh-mac small { display: block; color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
-.dh-top b { display: block; font: 800 34px/1 var(--numf); letter-spacing: -.04em; margin-top: 4px; }
-.dh-top b i { font: 600 16px var(--font); font-style: normal; color: var(--tx3); margin-left: 5px; letter-spacing: 0; }
-.dh-w { text-align: right; } .dh-w b { font-size: 22px; }
-.dh-mac { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
-.dh-mac b { display: block; font: 700 17px var(--numf); }
+
 .nut { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 14px 0; margin-bottom: 8px; border-bottom: 1px solid var(--line); text-align: center; }
 .nut b { display: block; font: 700 18px var(--numf); }
 .nut small { display: block; color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
-.dish-hero p { margin-top: 12px; } .dish-hero p .linkbtn { min-height: 0; padding: 0; }
-.addline { display: flex; gap: 8px; align-items: center; }
-.addline input { flex: 1; background: var(--card2); border-color: transparent; border-radius: 999px; padding-left: 16px; }
-.addline .primary { min-height: 40px; padding: 0 16px; border-radius: 999px; }
-.addline input { min-height: 40px; }
-.addline .gfield { flex: 1; min-width: 0; } .addline .gfield input { width: 100%; background: var(--card2); border-color: transparent; border-radius: 999px; padding-left: 16px; }
+
 .match { margin: 12px 0 4px; padding: 12px; border-radius: var(--r2); background: var(--card2); }
 .match .mres .fe:first-of-type, .match .ghead + .fe { border-top: 0; }
 .match .ghead { margin-top: 10px; } .match .qadd { width: 36px; height: 36px; }
 .gfield { position: relative; display: block; } .gfield input { padding-right: 40px; font-size: 18px; }
 .gfield > span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--tx3); font-weight: 600; pointer-events: none; }
 .ing-list { margin-top: 6px; }
-.seg.wide.meal4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; } .meal4 button { min-width: 0; padding: 6px 2px; font-size: 13px; }
+
 .portion-out:empty { display: none; } .portion-out .nut { padding: 6px 0; margin: 0; border-bottom: 0; }
 .portion-out .warn-text { display: block; font-size: 14px; text-align: center; }
-.dish-row .av { width: 34px; height: 34px; font-size: 13px; }
+
 /* 2026-10-12: tighter cooking screen. One big button (Log my portion); everything else is a row or a small pill */
 .card.tap.share-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 12px 14px 12px 16px; border: 0; text-align: left; font: inherit; }
 .share-row .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .share-row b { font-size: 15px; font-weight: 650; } .share-row small { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -897,32 +865,20 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .cc-ask b { font-size: 15px; font-weight: 650; } .cc-ask small { font-size: 13px; }
 .ghost.tint { background: var(--accent2); color: var(--accent); } .ghost.sm svg { width: 16px; height: 16px; }
 .dish-name ~ .card:not(.cook-steps) { padding: 14px 16px; }
-.serve .kvs { margin-bottom: 6px; } .serve .kv { padding: 8px 0; font-size: 14px; }
-.serve .gfield input, .match .gfield input { min-height: 40px; padding-block: 6px; font-size: 16px; }
-.serve .seg.meal4 button { min-height: 34px; }
-.serve .primary.wide { margin-top: 4px; }
+.match .gfield input { min-height: 40px; padding-block: 6px; font-size: 16px; }
 /* 2026-10-12, round three: the name edited in place, a one-line weight, one serving vs a portion, the log sheet stepper */
 .dish-name-in { display: block; width: 100%; margin: 2px 0 14px; padding: 6px 10px; min-height: 48px; border-radius: 12px; border: 1px solid transparent;
   background: transparent; font: 800 26px/1.15 var(--font); letter-spacing: -.03em; color: var(--tx); resize: none; overflow: hidden; }
 .dish-name-in::placeholder { color: var(--tx3); font-weight: 700; }
 .dish-name-in:hover { border-color: var(--line); } .dish-name-in:focus { background: var(--card); }
 .dish-name-in ~ .sec-head { font-size: 17px; margin-top: 20px; } .dish-name-in ~ .card:not(.cook-steps) { padding: 14px 16px; }
-.add-title { display: block; margin: 0 2px 10px; font-size: 15px; font-weight: 650; color: var(--tx); }
-.serve .sv-note { margin: 8px 2px 0; }
-.wt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.wt-row label { font-weight: 650; font-size: 15px; }
-.wt-row .gfield { width: 128px; flex: none; } .wt-row .gfield input { min-height: 40px; padding: 6px 34px 6px 12px; text-align: right; font: 700 17px var(--numf);
-  background: var(--card2); border-color: transparent; }
-.wt-row .gfield > span { right: 12px; }
+
 .wt-reset { display: block; margin: 6px 0 0 auto; min-height: 32px; padding: 0; font-size: 14px; }
 .stepper { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 6px 0; }
 .stepper span { min-width: 92px; text-align: center; } .stepper b { display: block; font: 800 40px/1 var(--numf); }
 .stepper small { display: block; color: var(--tx3); font-size: 13px; font-weight: 600; margin-top: 4px; }
 .sheet .stepper .icon-btn { width: 48px; height: 48px; } .sheet .stepper .icon-btn svg { width: 22px; height: 22px; }
-.card.list .dish-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
-.card.list .dish-row:first-child { border-top: 0; }
-.dish-row .r { flex: none; font-weight: 700; } .dish-row .r small { font-weight: 500; color: var(--tx3); }
-.dish-row > svg { width: 16px; height: 16px; color: var(--tx3); flex: none; }
+
 #dl .actions > #dl-edit { flex: 0 0 auto; padding: 0 16px; } #dl-edit svg { width: 16px; height: 16px; margin-right: 6px; }
 
 /* ---------- admin: invites + beta ---------- */
@@ -947,7 +903,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 }
 @media (max-width: 380px) {
   .stats3 { gap: 6px; } .stat b { font-size: 18px; } .hero .stat b { font-size: 21px; }
-  .fsum { grid-template-columns: 80px minmax(0, 1fr); gap: 8px; } .ring, .ring svg { width: 80px; height: 80px; }
+  .ring, .ring svg { width: 80px; height: 80px; }
   .shell h1 { font-size: 27px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -975,12 +931,9 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .cmsg .dots i { animation: none; } }
 
 /* cooking, round two (2026-10-12): the meal it's for, a portion as a share, save-as-recipe switch, Finish, saved recipes */
-.dish-for { display: grid; gap: 6px; margin: 4px 0 14px; } .dish-for small { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
-.dish-for .seg button { min-height: 36px; padding-inline: 4px; }
-.serve .seg.full { margin-bottom: 4px; } .serve .seg.full button { min-height: 36px; }
+
 .share-line { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--tx2); flex-wrap: wrap; }
 .share-line input { width: 54px; min-height: 40px; padding: 6px 8px; text-align: center; font-size: 16px; }
-.serve [hidden] { display: none !important; }
 .portion-out .small { display: block; text-align: center; margin-top: 6px; }
 .tog { flex: none; width: 46px; height: 28px; border-radius: 999px; background: var(--card2); box-shadow: inset 0 0 0 1px var(--line); position: relative; transition: background .2s; }
 .tog::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s; }
@@ -999,19 +952,15 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .sw-del { position: absolute; z-index: 2; top: 4px; right: 0; bottom: 4px; width: 0; overflow: hidden; white-space: nowrap; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 2px; padding: 0; border: 0; border-radius: 10px; background: var(--alert); color: #fff; font-weight: 650; font-size: 13px; transition: width .2s ease; }
 .sw-del svg { width: 18px; height: 18px; }
-.help-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; min-height: 36px; margin: -6px 0 10px; }
-.help-link svg { width: 18px; height: 18px; }
+
 .sheet .cook-steps { margin: 0; }
 /* 2026-10-12, round 2: pencil to rename a dish; Add food's day as a short label; four Add food tabs */
-.dish-name { display: flex; align-items: center; gap: 8px; } .dish-name .dn-edit { flex: none; width: 34px; height: 34px; box-shadow: none; background: var(--card2); }
-.dish-name .dn-edit svg { width: 16px; height: 16px; color: var(--accent); }
-.mealpick .dayfield { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: var(--r2); border: 1px solid var(--line); background: var(--card); color: var(--tx); font-weight: 600; white-space: nowrap; overflow: hidden; }
+.dish-name { display: flex; align-items: center; gap: 8px; }
+
 .sheet .seg.wide:has(> :nth-child(4):last-child) { display: flex; } .sheet .seg.wide:has(> :nth-child(4):last-child) button { flex: 1 1 auto; white-space: nowrap; }
 /* 2026-10-12: add an ingredient from a photo of its nutrition label */
-.addline .lbl-btn { flex: none; width: 40px; height: 40px; min-height: 40px; box-shadow: none; background: var(--card2); color: var(--accent); }
-.addline .lbl-btn svg { width: 20px; height: 20px; }
+
 #lb .share-line .linkbtn { padding: 0; min-height: 36px; }
-@media (max-width: 359px) { .addline .al-t { display: none; } .addline .primary { width: 40px; padding: 0; justify-content: center; } }
 
 /* ---------- dish page, round four (2026-10-12): laid out like a chat ---------- */
 .top .primary.sm { min-height: 38px; padding: 0 16px; border-radius: 999px; font-size: 15px; }
@@ -1029,8 +978,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .measure .m-seg + .m-row { border-top: 0; }
 .m-row .gfield { width: 120px; flex: none; } .m-row .gfield input { min-height: 38px; padding: 6px 32px 6px 12px; text-align: right; font: 700 16px var(--numf);
   background: var(--card2); border-color: transparent; } .m-row .gfield > span { right: 12px; }
-.mini-step { display: flex; align-items: center; gap: 10px; } .mini-step b { font: 800 18px var(--numf); min-width: 22px; text-align: center; }
-.mini-step .icon-btn { width: 32px; height: 32px; background: var(--card2); box-shadow: none; } .mini-step .icon-btn svg { width: 16px; height: 16px; }
+
 .measure .wt-reset { margin: 0 0 8px auto; }
 .dish-name-in ~ .cchat { margin-top: 6px; }
 .composer { position: sticky; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 10px); z-index: 6; display: flex; align-items: center; gap: 8px;
