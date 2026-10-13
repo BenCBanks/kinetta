@@ -114,6 +114,16 @@ function ring(v, target, label) {
     ${pct > 0 ? `<circle cx="40" cy="40" r="${R}" class="rf" stroke-dasharray="${(Math.min(pct, 1) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 40 40)"/>` : ''}${knob}</svg>
     <div><b class="num">${r0(target ? Math.abs(target - v) : v)}</b><small>${target ? (v > target ? 'over' : 'left') : label}</small></div></div>`;
 }
+// a small ring per macro beside the calorie ring (2026-10-13, Ben picked option D): grams left in the middle (like the calorie ring), a darker
+// second lap once over the target; with no target the ring stays empty and the middle shows grams eaten
+function macroRing(k, name, v, tg) {
+  const R = 20, C = 2 * Math.PI * R, p = tg ? v / tg : 0, over = tg && v > tg * 1.02;
+  const arc = (x, cls) => `<circle cx="24" cy="24" r="${R}" class="${cls}" stroke-dasharray="${(Math.min(x, 1) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 24 24)"/>`;
+  return `<div class="mring m-${k}${over ? ' over' : ''}${tg ? '' : ' none'}" role="img" aria-label="${name} ${r0(v)} g${tg ? ` of ${r0(tg)}, ${r0(Math.abs(tg - v))} ${v > tg ? 'over' : 'left'}` : ', no target'}">
+    <div class="mr-c"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${R}" class="rb"/>${p > 0 ? arc(p, 'rf') : ''}${p > 1 ? arc(p - 1, 'rf2') : ''}</svg>
+      <div><b class="num">${r0(tg ? Math.abs(tg - v) : v)}</b><small>${tg ? (v > tg ? 'over' : 'left') : 'eaten'}</small></div></div>
+    <div class="mr-t"><small>${name}</small><span class="num">${tg ? `${r0(v)} of ${r0(tg)} g` : `${r0(v)} g`}</span>${tg ? '' : '<i>no target</i>'}</div></div>`;
+}
 function drawDay(el, D) {
   App.mealHours = D.meal_hours || App.mealHours;
   const t = D.targets || {}, T = D.totals, B = D.burned || {kcal: 0, n: 0, items: []}, G = D.goal || {}, today = dayLabel(D.day) === 'Today';
@@ -128,10 +138,10 @@ function drawDay(el, D) {
   $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
       <div class="tc3 ringrow"><div><small>Eaten</small><b class="num">${r0(eaten)}</b><small>kcal</small></div>
         <div role="img" aria-label="${r0(eaten)} of ${goal == null ? 'no goal' : r0(goal)} kcal${left != null ? `, ${r0(Math.abs(left))} ${left < 0 ? 'over' : 'left'}` : ''}">${ring(eaten, goal, 'kcal')}</div>
-        <button class="tc-goal" id="fd-goal" aria-label="Set the calorie goal for this day"><small>Goal ${svg('edit')}</small><b class="num">${goal == null ? 'Set' : r0(goal)}</b></button></div>
+        <button class="tc-goal" id="fd-goal" aria-label="Set the calorie goal for this day"><small>Goal ${svg('edit')}</small><b class="num">${goal == null ? 'Set' : r0(goal)}</b></button>
+        <div class="tc-mrings">${MACROS.map(([k, n]) => macroRing(k, n, T[k] || 0, t[k.replace('_g', '_target')])).join('')}</div></div>
       ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
-      <div class="tc-macros">${MACROS.map(([k, n]) => { const tg = t[k.replace('_g', '_target')]; return `<div class="mrow"><span>${n}</span><div class="track"><div class="bar m-${k}" data-w="${tg ? Math.min(1, T[k] / tg).toFixed(3) : (T[k] ? 1 : 0)}"></div></div><b class="num">${r0(T[k])}${tg ? `<i>/${r0(tg)}g</i>` : 'g'}</b></div>`; }).join('')}
-        ${!t.protein_target ? '<button class="linkbtn" id="fd-targets">Set macro targets</button>' : ''}</div>
+      ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
       ${B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>'
         : `<details class="bd tc-bal"${bdOpen() ? ' open' : ''}><summary><span>${B.deficit >= 0 ? 'Deficit' : 'Surplus'}${sofar}<small class="muted"> · estimate</small></span>
             <b class="num ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}">${B.deficit >= 0 ? neg(B.deficit) : pos(-B.deficit)}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
