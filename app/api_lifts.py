@@ -369,7 +369,8 @@ def merge_watch(c, uid, start, end, numbers):
     watch's numbers go onto the logged session instead of making a second activity. Returns its id, or None."""
     hit = c.execute("""SELECT id, start_time FROM activities WHERE user_id = %s AND source = 'lift'
                        AND start_time < %s AND start_time + make_interval(secs => coalesce(elapsed_s, 0)) > %s
-                       ORDER BY start_time DESC LIMIT 1""", (uid, end + dt.timedelta(minutes=15), start - dt.timedelta(minutes=15))).fetchone()
+                       ORDER BY lift_open DESC, abs(extract(epoch FROM start_time - %s)) LIMIT 1""",
+                    (uid, end + dt.timedelta(minutes=15), start - dt.timedelta(minutes=15), start)).fetchone()   # the one being logged, else the nearest
     if not hit: return None
     keep = {k: v for k, v in numbers.items() if v is not None}
     first = min(start, hit['start_time'])

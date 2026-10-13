@@ -357,7 +357,7 @@ function drawExercise(el, h) {
   wireBack(el, '/progress?view=lifting');
   if (pts.length > 1) {
     const top = pts.reduce((b, p) => (p.y > b.y ? p : b), pts[0]);
-    requestAnimationFrame(() => dotChart($('#lx-chart', el), [...pts].reverse(), {yfmt: (v) => (kind === 'time' ? `${Math.round(v)} s` : String(Math.round(v * 10) / 10)), best: top.id, line: true}));
+    requestAnimationFrame(() => dotChart($('#lx-chart', el), [...pts].reverse(), {yfmt: (v) => (kind === 'time' ? `${Math.round(v)} s` : String(Math.round(v))), best: top.id, line: true}));
   }
   $('#lx-note', el).onclick = () => noteSheet(e, () => { invalidate('/api/lifts'); render(); });
   $('#lx-edit', el).onclick = () => sheet('Edit exercise', `<form class="form" id="lx-f"><label>Name<input name="name" maxlength="80" value="${esc(e.name)}" required></label>

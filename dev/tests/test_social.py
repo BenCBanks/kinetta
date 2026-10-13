@@ -58,8 +58,9 @@ check(sh['default'] == 'me' and sh['trim_m'] == 400 and sh['details'] == {'map':
       'elevation': True, 'calories': False, 'description': True, 'device': True}, f'safe defaults {sh}')
 alex.q('PUT', '/api/sharing', {'trim_m': 300}, want=400)
 alex.q('PUT', '/api/sharing', {'details': {'password': True}}, want=400)
-feed = alex.q('GET', '/api/activities?limit=6')
-a1, a2, a3 = feed[3]['id'], feed[4]['id'], feed[5]['id']   # the newest few carry the demo's cheers and comments
+feed = alex.q('GET', '/api/activities?limit=20')
+# the newest few carry the demo's cheers and comments: the first three with a map and nothing on them yet
+a1, a2, a3 = [x['id'] for x in feed if x['line'] and not x['cheers'] and not x['comments']][:3]
 check(all(s.q('GET', f'/api/shared/{a1}', want=404) for s in (fr, st, pe)), 'private by default: nobody sees it')
 alex.q('PUT', f'/api/activities/{a1}/sharing', {'visibility': 'friends'})
 alex.q('PUT', f'/api/activities/{a2}/sharing', {'visibility': 'everyone'})

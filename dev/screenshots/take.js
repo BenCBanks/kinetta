@@ -114,7 +114,7 @@ function chrome(dark) {
         for (const j of [1, 2, 3]) { await first.locator(`.lift-in[data-j="${j}"][data-k="kg"]`).fill('205'); await first.locator(`[data-tick="${j}"]`).click(); }
         await page.locator('.lift-ex').nth(1).locator('[data-tick="0"]').click();
         await page.waitForTimeout(1500);
-        await page.evaluate((x) => { window.__liftId = x; }, id);
+        await page.evaluate((x) => { document.activeElement.blur(); window.scrollTo(0, 0); window.__liftId = x; }, id);
       }
       if (opt.sel) await page.evaluate((q) => { const e = document.querySelector(q); if (e) window.scrollTo(0, e.getBoundingClientRect().top + scrollY - 70); }, opt.sel);
       if (opt.to) await page.evaluate((t) => {
@@ -124,6 +124,7 @@ function chrome(dark) {
       await page.waitForTimeout(700);
       await page.evaluate(chrome, scheme === 'dark');
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+      if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));   // gone before the next pass's Today and feed
     }
     await ctx.close();
   }
