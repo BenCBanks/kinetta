@@ -27,8 +27,9 @@ days = {w['day'] for w in week}
 check('plan starts this Monday', D['plan']['start_day'] == monday.isoformat(), D['plan'])
 check('no run yet today', D['today_run'] is None)
 
-# a run today: shows on the Today card; ticks off today's workout when it's long enough
-s, r = p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': f'{today}T07:00', 'duration_s': 3300,
+# a run today: shows on the Today card; ticks off today's workout when it's long enough. Dated at midnight so the test also
+# passes in the early hours (a run at 7 AM would still be in the future then, and the server refuses those).
+s, r = p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': f'{today}T00:00', 'duration_s': 3300,
                                          'distance_m': 6.1 * 1609.344, 'calories': 650})
 check('run added', s == 200, r)
 D = p.get('/api/plans/current')[1]

@@ -129,7 +129,7 @@ function ring(v, target, label) {
   const pct = target ? Math.min(1.25, v / target) : 0, R = 34, C = 2 * Math.PI * R;
   const over = target && v > target * 1.05;
   return `<div class="ring${over ? ' over' : ''}"><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="${R}" class="rb"/>
-    <circle cx="40" cy="40" r="${R}" class="rf" stroke-dasharray="${(Math.min(pct, 1) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 40 40)"/></svg>
+    ${pct > 0 ? `<circle cx="40" cy="40" r="${R}" class="rf" stroke-dasharray="${(Math.min(pct, 1) * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 40 40)"/>` : ''}</svg>
     <div><b class="num">${r0(target ? Math.abs(target - v) : v)}</b><small>${target ? (v > target ? 'over' : 'left') : label}</small></div></div>`;
 }
 function drawDay(el, D) {
@@ -138,14 +138,14 @@ function drawDay(el, D) {
   const eaten = T.kcal, goal = G.kcal, left = goal != null ? goal - eaten : null, sofar = today ? ' so far' : '';
   const goalNote = goal == null ? 'No calorie goal yet - tap Goal to set one.'
     : G.custom != null ? `Goal set for this day${G.default ? ` (your usual is ${r0(G.default)})` : ''}.`
-    : G.extra ? `Your daily target ${r0(G.default)} + ${r0(G.extra)} for ${today ? "today's" : "this day's"} extra training.` : 'Your daily target.';
+    : G.extra ? `Your daily target ${r0(G.default)} + ${r0(G.extra)} for ${today ? "today's" : "this day's"} extra training.` : '';
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
   // one card (2026-10-12 redesign): calories, macros, then the day's balance, with how it adds up folded underneath
   $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
       <div class="tc3 ringrow"><div><small>Eaten</small><b class="num">${r0(eaten)}</b><small>kcal</small></div>
         <div role="img" aria-label="${r0(eaten)} of ${goal == null ? 'no goal' : r0(goal)} kcal${left != null ? `, ${r0(Math.abs(left))} ${left < 0 ? 'over' : 'left'}` : ''}">${ring(eaten, goal, 'kcal')}</div>
         <button class="tc-goal" id="fd-goal" aria-label="Set the calorie goal for this day"><small>Goal ${svg('edit')}</small><b class="num">${goal == null ? 'Set' : r0(goal)}</b></button></div>
-      <p class="small muted tc-note">${esc(goalNote)}</p>
+      ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       <div class="tc-macros">${MACROS.map(([k, n]) => { const tg = t[k.replace('_g', '_target')]; return `<div class="mrow"><span>${n}</span><div class="track"><div class="bar m-${k}" data-w="${tg ? Math.min(1, T[k] / tg).toFixed(3) : (T[k] ? 1 : 0)}"></div></div><b class="num">${r0(T[k])}${tg ? `<i>/${r0(tg)}g</i>` : 'g'}</b></div>`; }).join('')}
         ${!t.protein_target ? '<button class="linkbtn" id="fd-targets">Set macro targets</button>' : ''}</div>
       ${B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>'
@@ -296,9 +296,9 @@ function addSheet(day, meal) {
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways three"><button class="way" id="as-photo">${svg('camera')}<b>Photo</b></button>
+    <div class="ways three"><button class="way" id="as-photo">${svg('sparkle')}<b>Describe or snap</b></button>
       <button class="way" id="as-scan">${svg('barcode')}<b>Barcode</b></button>
-      <button class="way" id="as-dish">${svg('pot')}<b>New dish</b></button></div>
+      <button class="way" id="as-dish">${svg('pot')}<b>Cook a meal</b></button></div>
     <div class="seg wide" role="tablist">${[['recent', 'Recent'], ['saved', 'Saved Dishes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
@@ -310,9 +310,9 @@ function addSheet(day, meal) {
     const tabs = {search: tSearch, recent: tRecent, saved: tSaved, quick: tQuick};
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
-    $('#as-photo', b).onclick = () => {   // photos go to the AI service, so it needs the person's OK first
+    $('#as-photo', b).onclick = () => {   // words and photos go to the AI service, so it needs the person's OK first
       const w = where(); close();
-      if (App.me.coach && !App.me.ai_ok) aiSheet(() => photoSheet(w.day, w.meal)); else photoSheet(w.day, w.meal);
+      if (App.me.coach && !App.me.ai_ok) aiSheet(() => describeSheet(w.day, w.meal)); else describeSheet(w.day, w.meal);
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
     $('#as-dish', b).onclick = (e) => { close(); newDish(e.currentTarget); };     // a saved dish is logged from Saved Dishes
@@ -385,7 +385,7 @@ async function tSaved(body, where, close) {
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><div class="results">${foods.map(foodRow).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-dish">+ New dish</button></div>
+      <div class="btncol"><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
 `;
     const again = () => tSaved(body, where, close);
     $('#tm-food', body).onclick = () => foodEditor(null, again);
@@ -527,40 +527,51 @@ async function shrinkPhoto(file, max = 1280) {
     return c.toDataURL('image/jpeg', 0.82);
   } finally { URL.revokeObjectURL(url); }
 }
-function photoSheet(day, meal) {
-  sheet('Log from a photo', `<form class="form" id="ph">
-    <input type="file" accept="image/*" id="ph-file" hidden>
-    <button type="button" class="ghost ph-pick" id="ph-pick">${svg('upload')}<span>Take or choose a photo</span></button>
-    <div id="ph-prev" hidden><img id="ph-img" alt="Your meal photo"><button type="button" class="linkbtn" id="ph-change">Change photo</button></div>
-    <label>Describe it <span class="muted">(optional, makes it more accurate)</span><textarea name="note" maxlength="600" placeholder="e.g. 2 eggs fried in butter, 1 slice sourdough, half an avocado, black coffee"></textarea></label>
-    <div class="two"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-    <label>Day<input name="day" type="date" value="${esc(day)}"></label></div>
-    <div class="actions"><button class="primary" id="ph-go">Estimate</button></div></form><div id="ph-items"></div>`, (b, close) => {
-    const f = $('#ph', b), file = $('#ph-file', b), box = $('#ph-items', b), go_ = $('#ph-go', b);
-    let photo = null;
-    const pick = () => file.click();
-    $('#ph-pick', b).onclick = pick; $('#ph-change', b).onclick = pick;
+// Describe or snap (2026-10-12, Ben: "I had a hotdog from Costco and a Diet Coke" should be quick): a small chat. Say what
+// you had, add a photo if you like (or only a photo), check the estimate, send a correction ("make it two"), then log it.
+// Each estimate sends everything said so far (later lines correct earlier ones) plus the photo; nothing is stored.
+function describeSheet(day, meal) {
+  sheet('What did you eat?', `<div class="where ql-where"><span class="muted">Adding to</span>
+      <span class="pill-sel"><select id="ql-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
+      <span class="pill-sel daypick">${svg('calendar')}<span id="ql-dayl">${esc(dayLabel(day))}</span><input id="ql-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
+    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai">Tell me what you had, snap a photo, or both. For example: <i>"a hot dog and a Diet Coke from Costco"</i>.</p></div>
+    <div id="ql-items"></div>
+    <form class="composer ql-composer" id="ql-f"><button type="button" class="icon-btn" id="ql-cam" aria-label="Add a photo">${svg('camera')}</button>
+      <input name="t" id="ql-t" placeholder="What did you eat?" aria-label="What you ate, in your own words" autocomplete="off" enterkeyhint="send" maxlength="400">
+      <button class="icon-btn send" aria-label="Estimate">${svg('send')}</button></form>
+    <input type="file" accept="image/*" id="ql-file" hidden>`, (b, close) => {
+    const chat = $('#ql-chat', b), items = $('#ql-items', b), f = $('#ql-f', b), file = $('#ql-file', b), input = $('#ql-t', b);
+    const dp = $('#ql-day', b);
+    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
+    dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); };
+    const said = [];
+    let photo = null, busy = false;
+    const say = (html, who) => { chat.insertAdjacentHTML('beforeend', `<p class="cmsg ${who}">${html}</p>`); chat.lastElementChild.scrollIntoView({block: 'nearest'}); return chat.lastElementChild; };
+    $('#ql-cam', b).onclick = () => file.click();
     file.onchange = async () => {
-      const fl = file.files && file.files[0]; if (!fl) return;
+      const fl = file.files && file.files[0]; file.value = ''; if (!fl) return;
       try { photo = await shrinkPhoto(fl); } catch (e) { toast("That photo couldn't be opened"); return; }
-      $('#ph-img', b).src = photo; $('#ph-prev', b).hidden = false; $('#ph-pick', b).hidden = true;
+      say(`<img class="ql-img" src="${photo}" alt="Your photo">`, 'me');
+      if (!input.value.trim()) { input.placeholder = 'Add a few words, or tap send'; }
     };
     f.onsubmit = async (e) => {
-      e.preventDefault();
-      const note = f.note.value.trim();
-      if (!photo && !note) { toast('Add a photo or a description'); return; }
-      go_.disabled = true; go_.textContent = 'Looking…'; box.innerHTML = `<p class="small muted">${photo ? 'Looking at your photo…' : 'Working it out…'}</p>`;
+      e.preventDefault(); if (busy) return;
+      const t = input.value.trim();
+      if (!t && !photo) { toast('Say what you had, or add a photo'); return; }
+      if (!t && said.length && !photo) return;
+      if (t) { said.push(t); say(esc(t), 'me'); }
+      input.value = ''; input.placeholder = 'Anything to change? e.g. "make it two"';
+      busy = true; const wait = say('<span class="dots"><i></i><i></i><i></i></span>', 'ai');
       try {
-        const r = await api('/api/food/photo', json('POST', {image: photo, note: note || null}));
-        if (!r.items.length) { box.innerHTML = '<p class="err">No food found - add a description and try again.</p>'; return; }
-        reviewItems(box, r.items.map((it) => ({...it, name: it.amount ? `${it.name} (${it.amount})` : it.name})), {
-          intro: `<p class="small muted">${r.notes ? esc(r.notes) + ' ' : ''}Check the numbers and change anything before adding.</p>`,
-          add: async (items) => { await addEntries(items.map((it) => ({...it, day: f.day.value, meal: f.meal.value, source: 'photo'}))); close(); },
+        const r = await api('/api/food/photo', json('POST', {image: photo, note: said.join('\n') || null}));
+        if (!r.items.length) { wait.textContent = 'I couldn\'t find any food in that. Say a bit more about what you had?'; items.innerHTML = ''; return; }
+        const tot = r.items.reduce((x, it) => x + (it.kcal || 0), 0);
+        wait.innerHTML = `${r.items.length === 1 ? 'That looks like' : `${r.items.length} things, about`} <b>${r0(tot)} kcal</b>${r.items.length === 1 ? ` (${esc(r.items[0].name)})` : ''}.${r.notes ? ` <span class="muted">${esc(r.notes)}</span>` : ''} Check below, or tell me what to change.`;
+        reviewItems(items, r.items.map((it) => ({...it, name: it.amount ? `${it.name} (${it.amount})` : it.name})), {
+          add: async (list) => { await addEntries(list.map((it) => ({...it, day: dp.value, meal: $('#ql-meal', b).value, source: 'photo'}))); close(); },
         });
-        $('#ph-prev', b).classList.add('small-prev');                       // make room for the list
-        requestAnimationFrame(() => box.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}));
-      } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
-      finally { go_.disabled = false; go_.textContent = 'Estimate again'; }
+      } catch (x) { wait.textContent = x.message; }
+      finally { busy = false; }
     };
   });
 }

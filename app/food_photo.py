@@ -48,7 +48,7 @@ SCHEMA = {
 
 class PhotoIn(BaseModel):
     image: str | None = Field(None, max_length=6_000_000)    # base64 JPEG (data: URL prefix allowed)
-    note: str | None = Field(None, max_length=600)
+    note: str | None = Field(None, max_length=1500)        # the person's words; several lines = a short chat (Describe or snap)
 
 
 def _num(v, hi):
@@ -126,7 +126,9 @@ def photo(body: PhotoIn, user=Depends(current_user)):
 
     what = ('Look at the photo.' if img else 'There is no photo; use the description.') + \
            (f' The person describes the meal as: """{note}""". Trust their description for what the foods are, how they were '
-            f'cooked and how much; use the photo for anything they did not mention.' if note else '')
+            f'cooked and how much; use the photo for anything they did not mention.' if note else '') + \
+           (' The description is several messages in order: later ones correct or add to earlier ones (e.g. "make it two" '
+            'means two of the item just discussed), so list the meal as it stands after the last message.' if '\n' in note else '')
     parts = [{'text': PROMPT.format(what=what)}]
     if img: parts.append({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}})
     out, data, model = ask(parts, SCHEMA, 'food photo')

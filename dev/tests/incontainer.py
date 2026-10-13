@@ -199,6 +199,22 @@ try:
 finally:
     food_photo.ask = was_ask
 
+# Describe or snap (2026-10-12): words alone are enough; several lines = a chat where later lines correct earlier ones
+seen_parts = []
+def words_ask(parts, schema, label, timeout=45):
+    seen_parts.append(parts)
+    return {'items': [{'name': 'Hot dog', 'amount': '2', 'kcal': 1100, 'protein_g': 40, 'carbs_g': 90, 'fat_g': 60}], 'notes': 'Costco hot dogs'}, {}, 'stand-in'
+food_photo.ask = words_ask
+try:
+    r = food_photo.photo(food_photo.PhotoIn(note='a hot dog from Costco and a Diet Coke'), user={'id': uid})
+    ck(r['items'][0]['name'] == 'Hot dog' and len(seen_parts[-1]) == 1 and 'no photo' in seen_parts[-1][0]['text'], 'words only: estimated without a photo')
+    ck('later ones correct' not in seen_parts[-1][0]['text'], 'one message: no correction note')
+    food_photo.photo(food_photo.PhotoIn(note='a hot dog from Costco and a Diet Coke\nmake it two hot dogs'), user={'id': uid})
+    ck('later ones correct' in seen_parts[-1][0]['text'] and 'make it two' in seen_parts[-1][0]['text'], 'a correction: sent with the earlier words, marked as a correction')
+    ck(refused(lambda: food_photo.photo(food_photo.PhotoIn(), user={'id': uid}), 400), 'nothing said, no photo: refused')
+finally:
+    food_photo.ask = was_ask
+
 # --- 2026-10-12 server review: unpacking limits, and the coach's daily limit counts automatic notes ---
 import gzip as _gz, io as _io, zipfile as _zf
 from app import importer, parsers
