@@ -191,6 +191,9 @@ Object.assign(IC, {   // 2026-10-11 redesign: Me list icons, feed footers
   ruler: '<path d="M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/>', logout: '<path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/>',
   pot: '<path d="M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM2 10h2M20 10h2M9 6c0-1 1-1 1-2M14 6c0-1 1-1 1-2"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>',
+  // icon chips (2026-10-13): distance, time and climb beside Today's numbers
+  dist: '<path d="M4 19c4 0 5-3 8-7s4-7 8-7"/><circle cx="20" cy="5" r="1.5"/>', clock: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>',
+  climb: '<path d="M3 20l6-10 4 6 3-4 5 8z"/>',
 });
 // a person's round initials, in one of six colours picked from their username (same person, same colour everywhere)
 function avatar(p, cls = '') {
@@ -485,7 +488,9 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'a
       if (!sg.v) return;
       const h = Y(0) - Y(sg.v), last = j === c.segs.length - 1 || c.segs.slice(j + 1).every((z) => !z.v);
       const hh = Math.max(1, h - (last ? 0 : 1.5));   // 1.5px surface gap between stacked segments
-      g += last && hh > 4 ? `<path class="bar-seg k-${sg.k}${c.partial ? ' partial' : ''}" d="M${x.toFixed(1)},${(y).toFixed(1)}v${(-hh + 3).toFixed(1)}q0,-3 3,-3h${(w - 6).toFixed(1)}q3,0 3,3v${(hh - 3).toFixed(1)}z"/>`
+      // round-topped bars (2026-10-13): the top corners as round as the bar is wide, up to 8 px
+      const r = Math.min(8, w / 2, hh - 1);
+      g += last && hh > 4 ? `<path class="bar-seg k-${sg.k}${c.partial ? ' partial' : ''}" d="M${x.toFixed(1)},${(y).toFixed(1)}v${(-hh + r).toFixed(1)}a${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${r.toFixed(1)},${(-r).toFixed(1)}h${(w - 2 * r).toFixed(1)}a${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${r.toFixed(1)},${r.toFixed(1)}v${(hh - r).toFixed(1)}z"/>`
                           : `<rect class="bar-seg k-${sg.k}${c.partial ? ' partial' : ''}" x="${x.toFixed(1)}" y="${(y - hh).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}"/>`;
       y -= h;
     });

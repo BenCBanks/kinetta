@@ -382,8 +382,12 @@ def fitness(days: int = 365, user=Depends(current_user)):
     # each race from its best-suited effort, slowed for long races on low mileage (2026-10-12, plans.run_predictions)
     with db.connect() as c:
         preds = plans.run_predictions(c, user['id'], ((5000, '5K'), (10000, '10K'), (21097.5, 'Half marathon'), (42195, 'Marathon'))) if current else []
+        # your all-time best at each race distance (2026-10-13): the tile turns green when the prediction beats it
+        bests = {r['label']: r['s'] for r in c.execute("""SELECT label, min(elapsed_s) AS s FROM best_efforts WHERE user_id = %s
+            AND sport = 'run' AND label = ANY(%s) GROUP BY 1""", (user['id'], [p['label'] for p in preds])).fetchall()}
     for p in preds:
         f = p.pop('from'); p['from'] = {'label': f['label'], 'activity_id': f['activity_id']}
+        p['best_s'] = bests.get(p['label'])
     months = {}
     for e in effs: months[e['m']] = max(months.get(e['m'], 0), e['vdot'])
     ramp = None
