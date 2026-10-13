@@ -112,18 +112,10 @@ route(/^\/today$/, 'today', async (el) => {
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
     if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
-    // Hide (inside the review) folds it to one line until the next week's review (remembered on this phone)
     const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
-    let hidden = false; try { hidden = !!wk && localStorage.getItem('fit.review.hidden') === wk; } catch (e) { /* no storage */ }
-    if (hidden) {
-      box.innerHTML = `<button class="card tap review-min" id="t-show"><span>Weekly review <span class="muted small">week of ${esc(when)} · hidden</span></span><span class="linkbtn">Show</span></button>`;
-      $('#t-show', box).onclick = () => { try { localStorage.removeItem('fit.review.hidden'); } catch (e) { /* none */ } render(); };
-      return;
-    }
-    // compact (2026-10-11): the first sentence as a one-line headline; tap for the full review, "Review now" and Hide
     async function reviewNow(btn, close) {
       btn.disabled = true; btn.textContent = 'Thinking…';
-      try { await api('/api/coach/week', json('POST', {})); invalidate('/api/coach'); if (close) close(); render(); }
+      try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
       catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
     }
     if (!wk) {
@@ -134,13 +126,12 @@ route(/^\/today$/, 'today', async (el) => {
       return;
     }
     const first = (r.latest.text.trim().match(/^[\s\S]*?[.!?](?=\s|$)/) || [r.latest.text])[0].trim();
-    box.innerHTML = `<button class="card tap ai review-card" id="t-review-open">
-      <span class="review-head"><b>Weekly review</b><span class="muted small">Week of ${esc(when)}</span></span>
-      <span class="review-line">${esc(first)}</span><span class="linkbtn">Read</span></button>`;
+    box.innerHTML = `<div class="card ai review-card">${coachMessage('week:' + wk, r.latest.text, 'Weekly review',
+      `<p class="review-line">${esc(first)}</p><button class="linkbtn" id="t-review-open">Read review</button>`, 'Week of ' + when)}</div>`;
     $('#t-review-open', box).onclick = () => sheet('Weekly review', `<p class="small muted">Week of ${esc(when)}</p>
         <p class="review-text">${esc(r.latest.text)}</p>
-        <div class="btnrow${r.enabled ? '' : ' one'}">${r.enabled ? '<button class="ghost" id="rv-now">Review this week now</button>' : ''}<button class="ghost" id="rv-hide">Hide until next week</button></div>`, (sb, close) => {
-      $('#rv-hide', sb).onclick = () => { try { localStorage.setItem('fit.review.hidden', wk); } catch (e) { /* none */ } close(); render(); };
+        <div class="btnrow${r.enabled ? '' : ' one'}">${r.enabled ? '<button class="ghost" id="rv-now">Review this week now</button>' : ''}<button class="ghost" id="rv-hide">Hide review</button></div>`, (sb, close) => {
+      $('#rv-hide', sb).onclick = () => { close(); $('[data-coach-toggle]', box).click(); };
       const n = $('#rv-now', sb); if (n) n.onclick = () => reviewNow(n, close);
     });
   }).catch(() => {});
@@ -327,7 +318,7 @@ function drawDetail(el, a) {
     overview: `${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
-      ${a.ai_note ? `<div class="card ai"><h2>Coach</h2><p>${esc(a.ai_note)}</p></div>`
+      ${a.ai_note ? `<div class="card ai">${coachMessage('activity:' + a.id, a.ai_note, 'Coach', `<p>${esc(a.ai_note)}</p>`)}</div>`
         : App.me.coach ? `<div class="card"><h2>Coach</h2><p class="small muted">A short note on this workout from your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Get coach note' : 'Turn on AI coach'}</button></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
       ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}`,
@@ -370,7 +361,7 @@ function drawDetail(el, a) {
   if (cb) cb.onclick = async () => {
     if (!App.me.ai_ok) { aiSheet(() => drawDetail(el, a)); return; }
     cb.disabled = true; cb.textContent = 'Thinking…';
-    try { const r = await api(`/api/activities/${a.id}/coach`, json('POST', {})); a.ai_note = r.note; App.cache.delete(`/api/activities/${a.id}`); drawDetail(el, a); }
+    try { const r = await api(`/api/activities/${a.id}/coach`, json('POST', {})); a.ai_note = r.note; showCoach('activity:' + a.id); App.cache.delete(`/api/activities/${a.id}`); drawDetail(el, a); }
     catch (x) { toast(x.message); cb.disabled = false; cb.textContent = 'Get coach note'; }
   };
   let marker = null, pts = null, mapObj = null;
@@ -1359,7 +1350,8 @@ route(/^\/me\/import$/, 'me', async (el) => {
   const send = (files) => {
     if (!files.length) return;
     const fd = new FormData(); for (const f of files) fd.append('files', f, f.name);
-    const xhr = new XMLHttpRequest(); xhr.open('POST', '/api/import');
+    const xhr = new XMLHttpRequest(); xhr.open('POST', Native.base + '/api/import');
+    for (const [k, v] of Object.entries(Native.headers())) xhr.setRequestHeader(k, v);
     $('#u-prog', el).hidden = false;
     const total = [...files].reduce((s, f) => s + f.size, 0);
     xhr.upload.onprogress = (e) => { const p = e.lengthComputable ? e.loaded / e.total : 0; $('#u-bar', el).style.setProperty('--w', p); $('#u-text', el).textContent = `Uploading ${(e.loaded / 1048576).toFixed(1)} of ${(total / 1048576).toFixed(1)} MB…`; };

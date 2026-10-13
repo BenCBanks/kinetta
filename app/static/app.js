@@ -8,6 +8,17 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<
 const root = $('#app');
 const col = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';   // real colour for SVG attributes
 const App = {me: null, cache: new Map(), pages: [], scroll: {}};
+// A quick tap can prefetch and open the same page before either request finishes.
+const pendingReads = new Map();
+const readOwner = () => JSON.stringify([Native.base, Native.token, App.me && App.me.id]);
+function readOnce(path) {
+  const key = JSON.stringify([readOwner(), path]);
+  if (!pendingReads.has(key)) {
+    const p = api(path).finally(() => { if (pendingReads.get(key) === p) pendingReads.delete(key); });
+    pendingReads.set(key, p);
+  }
+  return pendingReads.get(key);
+}
 
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
@@ -30,20 +41,23 @@ const json = (method, body) => ({method, body: JSON.stringify(body)});
 // Calls render(data) at once with cached data (if any), then again with fresh data when it arrives.
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
 async function load(path, render, {maxAge = 15000} = {}) {
+  const owner = readOwner();
   let hit = App.cache.get(path);
   // the phone's saved copy shows at once (fresh data replaces it a moment later), except yesterday's "today" food log
   if (!hit) { const k = kept(path); if (k && !(k.day && !path.includes('d=') && k.day !== isoDay(new Date()))) { hit = {data: k, at: 0}; App.cache.set(path, hit); } }
   if (hit) render(hit.data, true);
   if (hit && Date.now() - hit.at < maxAge) return hit.data;
   let data;
-  try { data = await api(path); }
+  try { data = await readOnce(path); }
   catch (e) {
+    if (owner !== readOwner()) return null;
     if (!e.offline) throw e;
     netState(true);
     if (hit) return hit.data;
     const k = kept(path); if (!k) throw e;
     App.cache.set(path, {data: k, at: 0}); render(k, true); return k;
   }
+  if (owner !== readOwner()) return null;
   netState(false);
   App.cache.set(path, {data, at: Date.now()}); keep(path, data);
   if (!hit || JSON.stringify(hit.data) !== JSON.stringify(data)) render(data, false);
@@ -61,6 +75,33 @@ const store = {
 function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, data}); }
 function kept(path) { const v = store.get('fit.c:' + path); return v && (!App.me || v.who === App.me.login) ? v.data : null; }
 function forgetKept() { try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
+
+// Fold a generated note without redrawing the page, map or inputs. Remember only its fingerprint on this device.
+function coachKey(key) { return 'fit.coach.hidden:' + JSON.stringify([Native.base || location.origin, App.me.id, key]); }
+function coachVersion(message) {
+  let h = 2166136261;
+  // Database JSON may return object fields in a different order after a reload.
+  const text = JSON.stringify(message, (key, value) => value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.keys(value).sort().map((k) => [k, value[k]])) : value);
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+}
+function showCoach(key) { store.del(coachKey(key)); }
+function coachMessage(key, message, title, body, meta = '') {
+  const saved = coachKey(key), version = coachVersion(message), hidden = store.get(saved) === version;
+  const id = 'coach-' + coachVersion(saved);
+  return `<div class="coach-message" data-coach-key="${esc(saved)}" data-coach-version="${version}">
+    <div class="coach-heading"><div><h2>${esc(title)}</h2>${meta ? `<span class="small muted">${esc(meta)}</span>` : ''}</div>
+      <button type="button" class="linkbtn" data-coach-toggle aria-expanded="${!hidden}" aria-controls="${id}">${hidden ? 'Show' : 'Hide'}</button></div>
+    <div class="coach-body" id="${id}"${hidden ? ' hidden' : ''}>${body}</div></div>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-coach-toggle]'); if (!b) return;
+  const card = b.closest('[data-coach-key]'), body = card.querySelector('.coach-body');
+  body.hidden = !body.hidden;
+  if (body.hidden) store.set(card.dataset.coachKey, card.dataset.coachVersion); else store.del(card.dataset.coachKey);
+  b.textContent = body.hidden ? 'Show' : 'Hide'; b.setAttribute('aria-expanded', String(!body.hidden));
+});
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12));
 // change a day of the food log in every copy (screen cache + phone copy), e.g. to show an item saved offline
 function patchDay(day, fn) {
@@ -109,8 +150,16 @@ function netbar() {
 addEventListener('online', () => { netState(false); Q.flush(); });
 addEventListener('offline', () => netState(true));
 setInterval(() => { if (Q.mine().length) Q.flush(); }, 30000);
-const invalidate = (prefix) => { for (const k of App.cache.keys()) if (k.startsWith(prefix)) App.cache.delete(k); };
-const prefetch = (path) => { if (!App.cache.has(path)) api(path).then((data) => App.cache.set(path, {data, at: Date.now()})).catch(() => {}); };
+const invalidate = (prefix) => {
+  for (const k of App.cache.keys()) if (k.startsWith(prefix)) App.cache.delete(k);
+  for (const k of pendingReads.keys()) if (JSON.parse(k)[1].startsWith(prefix)) pendingReads.delete(k);
+};
+const prefetch = (path) => {
+  const owner = readOwner();
+  if (!App.cache.has(path)) readOnce(path).then((data) => {
+    if (owner === readOwner()) App.cache.set(path, {data, at: Date.now()});
+  }).catch(() => {});
+};
 
 // ---------- units + formatting ----------
 const MI = 1609.344;
@@ -230,7 +279,7 @@ function sheet(title, html, onMount) {
   const s = document.createElement('div'); s.className = 'scrim';
   s.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
     <header><h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button></header><div class="sbody">${html}</div></div>`;
-  const close = () => { s.remove(); document.removeEventListener('keydown', onKey); unfit(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); if (prev && prev.isConnected && prev.focus) prev.focus(); };
+  const close = () => { s.remove(); document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); if (prev && prev.isConnected && prev.focus) prev.focus(); };
   const onKey = (e) => {
     if ([...document.querySelectorAll('.scrim')].at(-1) !== s) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); }
@@ -264,8 +313,9 @@ function sheet(title, html, onMount) {
   sh.addEventListener('touchcancel', () => { if (dragging) settle(false); ty = null; dragging = false; });
   let my = null;
   sh.addEventListener('mousedown', (e) => { if (e.target.closest('.grab, header') && !e.target.closest('button')) my = e.clientY; });
-  addEventListener('mousemove', (e) => { if (my != null && e.clientY - my > 0) sh.style.transform = `translateY(${e.clientY - my}px)`; });
-  addEventListener('mouseup', (e) => { if (my != null) { settle(e.clientY - my > 90); my = null; } });
+  const onMove = (e) => { if (my != null && e.clientY - my > 0) sh.style.transform = `translateY(${e.clientY - my}px)`; };
+  const onUp = (e) => { if (my != null) { settle(e.clientY - my > 90); my = null; } };
+  addEventListener('mousemove', onMove); addEventListener('mouseup', onUp);
   // the keyboard (2026-10-13, Ben): iOS slides it over the page, so the sheet would sit under it. Lift the sheet by the
   // keyboard's height and keep it inside what is still visible, so a text box being typed in stays in view.
   const vv = window.visualViewport;
@@ -301,12 +351,13 @@ function render() {
   const m = path.match(page.re) || [];
   root.innerHTML = `<main class="shell" id="page"></main><nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
     `<a href="/${t}" data-tab="${t}"${t === page.tab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
+  cleanViews();
   const el = $('#page');
   const key = location.pathname + location.search;
   if (App.lastPath !== location.pathname) { el.classList.add('enter'); App.lastPath = location.pathname; }
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
-    requestAnimationFrame(() => window.scrollTo(0, App.scroll[key] || 0));
+    requestAnimationFrame(() => { if (el.isConnected && key === location.pathname + location.search) window.scrollTo(0, App.scroll[key] || 0); });
   });
 }
 function showError(el, e) {
@@ -359,6 +410,10 @@ function miniRoute(line, sport) {
 
 // ---------- maps (Leaflet, loaded only when a map is on screen) ----------
 let leafletP;
+const viewResources = new Map();
+function cleanViews() {
+  for (const [el, clean] of viewResources) if (!el.isConnected) { clean(); viewResources.delete(el); }
+}
 function loadLeaflet() {   // (not "leaflet": leaflet.js overwrites window.leaflet)
   if (!leafletP) leafletP = new Promise((res, rej) => {
     const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = '/static/vendor/leaflet.css'; document.head.append(css);
@@ -368,10 +423,14 @@ function loadLeaflet() {   // (not "leaflet": leaflet.js overwrites window.leafl
 }
 async function mapInto(el, lines, {sport = 'run', heat = false, still = false, ends = true} = {}) {   // ends: start/finish dots
   const L = await loadLeaflet();
+  cleanViews();
+  if (!el.isConnected) return null;   // navigation may finish before Leaflet loads
+  if (viewResources.has(el)) { viewResources.get(el)(); viewResources.delete(el); }
   const map = L.map(el, still   // still = feed preview: a picture of the route, taps go to the card's link
     ? {zoomControl: false, attributionControl: true, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false,
        boxZoom: false, keyboard: false, tap: false, zoomSnap: 0.25}
     : {zoomControl: false, attributionControl: true, scrollWheelZoom: heat, tap: true});
+  viewResources.set(el, () => map.remove());
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
     attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
   const color = getComputedStyle(document.documentElement).getPropertyValue(`--${heat ? 'run' : sport}`).trim() || '#E0582B';
@@ -400,7 +459,10 @@ function feedMaps(box) {   // Strava-style map on each feed card, built when it 
   }
 }
 function lazy(el, fn) {   // run fn when el scrolls into view
-  const io = new IntersectionObserver((ents) => { if (ents.some((e) => e.isIntersecting)) { io.disconnect(); fn(); } }, {rootMargin: '200px'});
+  cleanViews();
+  if (!el || !el.isConnected) return;
+  const io = new IntersectionObserver((ents) => { if (ents.some((e) => e.isIntersecting)) { io.disconnect(); viewResources.delete(el); if (el.isConnected) fn(); } }, {rootMargin: '200px'});
+  viewResources.set(el, () => io.disconnect());
   io.observe(el);
 }
 

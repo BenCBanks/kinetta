@@ -18,6 +18,7 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_native_sync.js
+node dev/tests/test_ui_state.js
 
 echo "== API"
 cd dev/tests
