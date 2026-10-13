@@ -7,6 +7,9 @@ const wUnit = () => (imp() ? 'lb' : 'kg');
 const toW = (kg) => (kg == null ? '' : String(Math.round((imp() ? kg * LB : kg) * 10) / 10));       // kg -> the number shown
 const fromW = (v) => { const x = parseFloat(String(v).replace(',', '.')); return isFinite(x) && x >= 0 ? (imp() ? x / LB : x) : null; };
 const KINDS = [['weight', 'Weight × reps'], ['body', 'Bodyweight reps'], ['time', 'Timed hold']];
+// a bodyweight exercise (push-ups, pull-ups) is just reps; it gets a weight box only once it has weight on it (a vest or a
+// belt), from its ••• menu, or when last time had some (2026-10-13, Ben: an LB box made no sense for push-ups)
+const hasWeight = (e) => e.kind === 'weight' || (e.kind === 'body' && (e.addWeight || e.sets.some((s) => s.kg) || !!(e.last && e.last.sets.some((s) => s.kg))));
 const PR_NAMES = {heaviest: 'Heaviest', e1rm: 'Best 1RM', reps: 'Most reps', secs: 'Longest'};
 
 // "3 × 8 @ 135 lb", or "135 × 8, 145 × 6" when the sets differ; warm-ups and planned sets left out
@@ -137,11 +140,11 @@ function liftLogger(el, aid, data) {
   function exCard(e, i) {
     const last = e.last ? `<p class="lift-last"><span class="muted">Last time</span> <span class="num">${esc(setsText(e.last.sets, e.kind)) || '–'}</span> <span class="muted">· ${esc(shortDay(e.last.start_time))}</span></p>`
       : `<p class="lift-last muted">${e.sessions_before ? '' : 'First time - it shows here next time'}</p>`;
-    const head = e.kind === 'time' ? ['Seconds'] : e.kind === 'body' ? [`+${wUnit()}`, 'Reps'] : [wUnit(), 'Reps'];
+    const head = e.kind === 'time' ? ['Seconds'] : !hasWeight(e) ? ['Reps'] : e.kind === 'body' ? [`+${wUnit()}`, 'Reps'] : [wUnit(), 'Reps'];
     return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>
         <button class="icon-btn" data-exmenu aria-label="More for ${esc(e.name)}">${svg('more')}</button></div>
       ${e.note ? `<p class="lift-note small">${esc(e.note)}</p>` : ''}${last}
-      <div class="lift-grid k-${esc(e.kind)}" role="group" aria-label="${esc(e.name)} sets"><span class="lh">Set</span>${head.map((h) => `<span class="lh">${esc(h)}</span>`).join('')}<span class="lh lh-tick">Done</span>
+      <div class="lift-grid k-${esc(e.kind === 'time' || !hasWeight(e) ? 'one' : 'two')}" role="group" aria-label="${esc(e.name)} sets"><span class="lh">Set</span>${head.map((h) => `<span class="lh">${esc(h)}</span>`).join('')}<span class="lh lh-tick">Done</span>
         ${e.sets.map((s, j) => setRow(e, s, j)).join('')}</div>
       <button class="ghost wide lift-addset" data-addset>${svg('plus')}Add set</button></section>`;
   }
@@ -150,7 +153,7 @@ function liftLogger(el, aid, data) {
     const ph = (k) => (prev && prev[k] != null ? (k === 'kg' ? toW(prev[k]) : prev[k]) : '');
     const v = (k) => (s[k] == null ? '' : k === 'kg' ? toW(s[k]) : s[k]);
     const num = (k, mode, label) => `<input class="lift-in" data-k="${k}" inputmode="${mode}" enterkeyhint="next" autocomplete="off" value="${esc(v(k))}" placeholder="${esc(ph(k))}" aria-label="Set ${j + 1} ${label}">`;
-    const cells = e.kind === 'time' ? num('secs', 'numeric', 'seconds') : num('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()) + num('reps', 'numeric', 'reps');
+    const cells = e.kind === 'time' ? num('secs', 'numeric', 'seconds') : (hasWeight(e) ? num('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()) : '') + num('reps', 'numeric', 'reps');
     const pr = (s.pr || []).map((k) => PR_NAMES[k]).join(', ');
     return `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}${s.warmup ? ', warm-up' : ''}: options">${s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length}</button>
       ${cells.replace(/<input /g, `<input data-j="${j}" `)}<button type="button" class="lift-tick" data-tick="${j}" aria-pressed="${!!s.done}" aria-label="Set ${j + 1} done">${svg('check')}</button>
@@ -214,12 +217,16 @@ function liftLogger(el, aid, data) {
     const e = S.ex[i];
     pickSheet(e.name, `<div class="pick-list">
       <button type="button" class="row-link" data-pk="note"><span class="grow"><span>${e.note ? 'Edit note' : 'Add a note for next time'}</span><small class="muted">${e.note ? esc(e.note) : 'e.g. seat on 4, narrow grip'}</small></span></button>
+      ${e.kind === 'body' ? (hasWeight(e) ? '<button type="button" class="row-link" data-pk="nowt"><span class="grow"><span>No added weight</span><small class="muted">Back to reps only</small></span></button>'
+        : '<button type="button" class="row-link" data-pk="wt"><span class="grow"><span>Add weight</span><small class="muted">A weighted vest or a dip belt</small></span></button>') : ''}
       <button type="button" class="row-link" data-pk="hist"><span class="grow"><span>History and records</span></span></button>
       ${i > 0 ? '<button type="button" class="row-link" data-pk="up"><span class="grow"><span>Move up</span></span></button>' : ''}
       ${i < S.ex.length - 1 ? '<button type="button" class="row-link" data-pk="down"><span class="grow"><span>Move down</span></span></button>' : ''}
       <button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Remove from this session</span></span></button></div>`, (k) => {
       if (k === 'hist') { flush(); return go(`/lift/ex/${e.exercise_id}`); }
       if (k === 'note') return noteSheet(e, () => { draw(); });
+      if (k === 'wt') { e.addWeight = true; return draw(); }
+      if (k === 'nowt') { e.addWeight = false; e.sets.forEach((s) => { s.kg = null; }); }
       if (k === 'up' || k === 'down') { const t = k === 'up' ? i - 1 : i + 1; [S.ex[i], S.ex[t]] = [S.ex[t], S.ex[i]]; }
       if (k === 'del') {
         const gone = S.ex.splice(i, 1)[0];
@@ -296,7 +303,7 @@ function exercisePicker(skip, pick) {
         invalidate('/api/lifts'); close(); pick(ex);
       } catch (x) { toast(x.message); }
     };
-    const newKind = (name) => pickSheet(`How is ${name} measured?`, pickRows(KINDS.map(([k, n]) => [k, n, k === 'weight' ? 'Most lifts: a weight, lifted a number of times' : k === 'body' ? 'Push-ups, pull-ups: reps, extra weight optional' : 'Planks and holds: seconds'])), (k) => choose(name, null, k));
+    const newKind = (name) => pickSheet(`How is ${name} measured?`, pickRows(KINDS.map(([k, n]) => [k, n, k === 'weight' ? 'Most lifts: a weight, lifted a number of times' : k === 'body' ? 'Push-ups, pull-ups: reps (you can add weight later)' : 'Planks and holds: seconds'])), (k) => choose(name, null, k));
     q.oninput = draw; draw();
   });
 }

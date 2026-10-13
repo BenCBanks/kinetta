@@ -1064,7 +1064,7 @@ body.ph-open { overflow: hidden; }
 .lift-note { margin: 0 0 4px; padding: 6px 10px; border-radius: 10px; background: var(--card2); color: var(--tx2); }
 .lift-last { margin: 2px 0 10px; font-size: 14px; }
 .lift-grid { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) 48px; gap: 8px; align-items: center; }
-.lift-grid.k-time { grid-template-columns: 40px minmax(0, 1fr) 48px; }
+.lift-grid.k-one { grid-template-columns: 40px minmax(0, 1fr) 48px; }
 .lift-grid .lh { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--tx3); text-align: center; }
 .lift-grid .lh:first-child { text-align: left; } .lift-grid .lh-tick { text-align: center; }
 .lift-n { height: 44px; border: 0; border-radius: 12px; background: var(--card2); font: 700 15px var(--numf); color: var(--tx2); }
