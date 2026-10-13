@@ -89,6 +89,12 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
 .btn.solid { background: var(--berry); color: #fff; }
 .btn.line { color: var(--ink); }
 .btn:hover { transform: translateY(-1px); } .btn { transition: transform .15s; }
+/* Food page (2026-10-13, Ben: lead with saying what you ate): the chat itself, as little bubbles under the headline */
+.says { display: grid; gap: 6px; margin-top: 22px; max-width: 30rem; }
+.says p { margin: 0; padding: 8px 13px; border-radius: 16px; font-size: 15px; line-height: 1.35; max-width: 85%; }
+.says .me { justify-self: end; background: var(--berry); color: #fff; border-bottom-right-radius: 5px; }
+.says .ai { justify-self: start; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+.food-hero h1 { font-size: clamp(38px, 5.6vw, 66px); }
 .hero .note { margin-top: 18px; font-size: 14px; color: var(--ink3); }
 /* the whole oval sits behind the phone, inside the screen at every width (the runner never leaves the picture) */
 .stage { position: relative; display: grid; place-items: center; }

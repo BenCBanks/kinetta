@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=6">
+<link rel="stylesheet" href="assets/site.css?v=7">
 </head>
 <body>
 
@@ -46,11 +46,25 @@
 </header>
 
 <main>
-  <section class="pagehead">
+  <section class="hero food-hero">
     <div class="wrap">
-      <span class="eyebrow">Food and health</span>
-      <h1>Log what you eat <em>in seconds.</em></h1>
-      <p class="lede">Search, scan a barcode, snap a photo or just say what you ate. Your workouts are counted in.</p>
+      <div>
+        <span class="eyebrow">Food and health</span>
+        <h1>Just say what you ate. <em>We'll do the counting.</em></h1>
+        <p class="lede">Type it like a text message. Kinetta works out the calories, protein, carbs and fat, and you fix anything in plain words.</p>
+        <div class="says" aria-label="Example">
+          <p class="me">a hot dog and a Diet Coke from Costco</p>
+          <p class="ai">2 things, about <b>550 kcal</b>. Check below, or tell me what to change.</p>
+          <p class="me">make it two hot dogs</p>
+          <p class="ai">Now about <b>1,100 kcal</b>. Ready to add to dinner.</p>
+        </div>
+        <p class="note">Or snap a photo, scan a barcode or search. Your workouts are counted in.</p>
+      </div>
+      <div class="stage">
+        <div class="phone">
+          <picture><source srcset="assets/shots/dark-describe.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-describe.webp" alt="What did you eat?: 'I had a hot dog from Costco and a Diet Coke', an estimate of 550 kcal, then 'make it two hot dogs' and an updated estimate of 1,100 kcal ready to add to dinner" width="786" height="1704"></picture>
+        </div>
+      </div>
     </div>
   </section>
   <section class="band" aria-labelledby="meet-h">
@@ -89,13 +103,11 @@
   </section>
   <section class="band" aria-labelledby="fc-h">
     <div class="wrap">
-      <div class="head"><span class="eyebrow">Logging and feedback</span><h2 id="fc-h">Quick to log, with honest feedback.</h2></div>
-      <div class="pcards four">
+      <div class="head"><span class="eyebrow">Logging and feedback</span><h2 id="fc-h">Your day at a glance, with honest feedback.</h2></div>
+      <div class="pcards">
         <div class="pcard">
           <div class="frame"><picture><source srcset="assets/shots/dark-food.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-food.webp" alt="The food log: a ring for calories left, a small ring each for protein, carbs and fat, and the day's deficit" loading="lazy" width="786" height="1704"></picture></div>
           <h4>Your day at a glance</h4><p>Calories and macros as rings, and your deficit.</p></div>
-        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-describe.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-describe.webp" alt="Describe or snap: 'I had a hot dog from Costco and a Diet Coke', an estimate, then 'make it two hot dogs' and an updated estimate ready to log" loading="lazy" width="786" height="1704"></picture></div>
-          <h4>Just say what you ate</h4><p>"A hot dog and a Diet Coke." Fix it in a word, then log it.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-dietcoach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-dietcoach.webp" alt="The coach's take on two weeks of eating: what's going well, and three specific things to try this week" loading="lazy" width="786" height="1704"></picture></div>
           <h4>A review of your eating</h4><p>What's working, and what to try next.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-recipecoach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-recipecoach.webp" alt="Feedback on a chicken and vegetable traybake: calories and protein per portion, and three tweaks with what each one changes" loading="lazy" width="786" height="1704"></picture></div>
