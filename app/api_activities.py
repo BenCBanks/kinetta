@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from . import activities, analysis, coach, db, importer, plans
-from .api_lifts import FEED_SQL as LIFTS_SQL
+from .api_lifts import FEED_SQL as LIFTS_SQL, plan_of as lift_plan, copy_into as copy_lift
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
@@ -189,6 +189,8 @@ class ManualIn(BaseModel):
     avg_hr: float | None = Field(None, ge=30, le=240)
     ascent_m: float | None = Field(None, ge=0, le=20000)
     description: str | None = Field(None, max_length=10000)
+    sport_label: str | None = Field(None, max_length=60)    # the kind picked on the phone, e.g. "Yoga" or "Treadmill" (2026-10-13)
+    copy_from: int | None = None                             # lifting: a past session whose exercises and sets come along
 
 
 @router.post('/activities/manual')
@@ -199,14 +201,23 @@ def add_manual(body: ManualIn, user=Depends(current_user)):
         tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
     start = body.start if body.start.tzinfo else body.start.replace(tzinfo=ZoneInfo(tz))
     if start > dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1): raise HTTPException(400, 'That start time is in the future')
-    meta = {'sport': body.sport, 'name': (body.name or '').strip() or None, 'start': start, 'elapsed_s': body.duration_s, 'moving_s': body.duration_s,
+    lifting = (body.sport_label or '').strip() == 'Strength Training'
+    plan = lift_plan(user['id'], body.copy_from) if lifting and body.copy_from else []
+    meta = {'sport': body.sport, 'sport_label': (body.sport_label or '').strip() or None,
+            'name': (body.name or '').strip() or None, 'start': start, 'elapsed_s': body.duration_s, 'moving_s': body.duration_s,
             'distance_m': body.distance_m or None, 'calories': body.calories, 'avg_hr': body.avg_hr, 'ascent_m': body.ascent_m,
             'description': (body.description or '').strip() or None}
     parsed = {'sport': body.sport, 'sub_sport': None, 'start': start, 'device': None, 'laps': [],
               'session': {'elapsed_s': body.duration_s, 'moving_s': body.duration_s, 'distance_m': body.distance_m},
               'streams': {k: [] for k in ('t',) + parsers.STREAMS}}
     res, aid = activities.store(user['id'], parsed, meta, source='manual')
-    if res == 'duplicate': raise HTTPException(409, 'You already have an activity at that time with that distance')
+    if res == 'duplicate': raise HTTPException(409, 'You already have an activity starting at that time')
+    if lifting and res == 'added':
+        if not meta['name']:     # "Morning Lift", like a session started in the app (still an automatic name)
+            with db.connect() as c:
+                c.execute('UPDATE activities SET name = %s WHERE id = %s AND user_id = %s',
+                          (activities.default_name(start, tz, 'workout').replace('Workout', 'Lift'), aid, user['id']))
+        copy_lift(user['id'], aid, plan)
     return {'ok': True, 'id': aid}
 
 

@@ -286,11 +286,7 @@ def start(body: StartIn, user=Depends(current_user)):
         hit = c.execute("""SELECT id FROM activities WHERE user_id = %s AND lift_open AND start_time > now() - %s
                            ORDER BY start_time DESC LIMIT 1""", (uid, OPEN_FOR)).fetchone()
         if hit: return {'id': hit['id'], 'resumed': True}
-        plan = []
-        if body.copy_from:
-            src = _session(c, uid, body.copy_from)
-            plan = c.execute("""SELECT exercise_id, pos, n, reps, kg, secs, warmup FROM lift_sets
-                                WHERE activity_id = %s AND user_id = %s AND done ORDER BY pos, n""", (src['id'], uid)).fetchall()
+        plan = _plan(c, uid, body.copy_from) if body.copy_from else []
     now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
     meta = {'sport': 'workout', 'sport_label': 'Strength Training', 'start': now, 'elapsed_s': 60, 'moving_s': 60}
     parsed = {'sport': 'workout', 'sub_sport': None, 'start': now, 'device': None, 'laps': [],
@@ -299,12 +295,32 @@ def start(body: StartIn, user=Depends(current_user)):
     if res != 'added': return {'id': aid, 'resumed': True}     # a workout already started this minute: log onto that one
     with db.connect() as c:
         c.execute("UPDATE activities SET lift_open = true, name = %s WHERE id = %s AND user_id = %s", (_name(c, uid, now), aid, uid))
-        if plan:
-            with c.cursor() as cur:
-                cur.executemany("""INSERT INTO lift_sets (user_id, activity_id, exercise_id, pos, n, reps, kg, secs, warmup, done)
-                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, false)""",
-                                [(uid, aid, p['exercise_id'], p['pos'], p['n'], None, None, None, p['warmup']) for p in plan])   # blank: the phone shows that day's numbers in grey
+        _copy_plan(c, uid, aid, plan)
     return {'id': aid, 'resumed': False}
+
+
+def _plan(c, uid, src_id):
+    """A past session's sets (exercise, order, warm-up or not), to repeat it."""
+    src = _session(c, uid, src_id)
+    return c.execute("""SELECT exercise_id, pos, n, warmup FROM lift_sets
+                        WHERE activity_id = %s AND user_id = %s AND done ORDER BY pos, n""", (src['id'], uid)).fetchall()
+
+
+def _copy_plan(c, uid, aid, plan):
+    if not plan: return
+    with c.cursor() as cur:
+        cur.executemany("""INSERT INTO lift_sets (user_id, activity_id, exercise_id, pos, n, reps, kg, secs, warmup, done)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, false)""",
+                        [(uid, aid, p['exercise_id'], p['pos'], p['n'], None, None, None, p['warmup']) for p in plan])   # blank: the phone shows that day's numbers in grey
+
+
+def plan_of(uid, src_id):
+    """Logging a session afterwards by hand (api_activities.add_manual): the chosen past session's sets (404 if not theirs)."""
+    with db.connect() as c: return _plan(c, uid, src_id)
+
+
+def copy_into(uid, aid, plan):
+    with db.connect() as c: _copy_plan(c, uid, aid, plan)
 
 
 def _name(c, uid, t):
