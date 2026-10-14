@@ -18,7 +18,7 @@ can be signed and uploaded automatically.
 - **Me > Apple Health.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
   permission sheet. Kinetta only reads; it never writes to Apple Health.
 - **Sync.** The first sync brings in the last 30 days ("Also bring in the past year" goes further back). After that,
-  the app sends new workouts whenever it's opened or brought back to the front. Failed ranges stay queued for the next sync, including a failed past-year import. The Apple Health screen shows the latest attempt and any error. Connecting is specific to your account and server; logging out stops sync and clears that connection. Each workout is sent with Apple
+  the app sends new workouts whenever it's opened or brought back to the front. The native background component also watches HealthKit changes, saves pending workout IDs and retries unacknowledged uploads independently of the web view. iOS decides when it can run; delivery can be delayed while locked or after force-quitting. This implementation still requires a Mac build and signed physical-device acceptance before release. Failed ranges stay queued for the next sync, including a failed past-year import. The Apple Health screen shows the latest attempt and any error. Connecting is specific to your account and server; logging out stops sync and clears that connection. Each workout is sent with Apple
   Health's own id for it, so a workout sent twice is stored once. A workout that's already in Kinetta from somewhere
   else (a Garmin file, a Strava export) isn't added again either.
 - **Kit AI consent.** Kit reads Apple Health workouts only after you tick "Let Kit read my Apple
@@ -34,8 +34,7 @@ can be signed and uploaded automatically.
    Apple's checks: a privacy manifest (`mobile/ios/App/App/PrivacyInfo.xcprivacy`), the "no special encryption"
    answer, the Apple Health permission texts, the 1024-pixel icon, delete-my-account in the app and the privacy policy
    at https://kinetta.app/privacy.
-3. **Background sync**: new workouts arrive even when the app isn't opened (HealthKit background delivery; needs a
-   small piece of our own Swift code and one more Apple capability).
+3. **Background sync**: native observer, anchored reads and a durable per-account queue are implemented in the development branch; release requires a Mac build and the physical-device checklist below.
 4. **More from Apple Health**: weight, resting heart rate and sleep.
 5. **App Store**: screenshots and a demo account for Apple's reviewers (see "Before outside testers" below).
 6. **Android** (Health Connect) after that. The Health plugin already supports it.
@@ -56,7 +55,7 @@ Do these in order. Nothing here costs money except the membership.
    - Bundle ID: **Explicit**, `com.kinetta.app`
      (if Apple says it's taken, pick another, such as `com.kinetta.ios`, and tell me: it's set in
      `mobile/capacitor.config.json` and the Xcode project)
-   - Capabilities: tick **HealthKit** only. Leave "Clinical Health Records" unticked. (Background delivery comes later.)
+   - Capabilities: tick **HealthKit** and enable **Background Delivery** within it for a build containing the native sync component. Leave "Clinical Health Records" unticked. Regenerate the signing profile if needed.
 4. **Create the app in App Store Connect.** **Apps > + > New App**:
    - Platform: iOS. Name: `Kinetta` (must be unique on the App Store; try "Kinetta: Workouts & Food" if it's taken).
    - Primary language: English (U.S.). Bundle ID: the one from step 3. SKU: `kinetta-ios`. User access: Full Access.
@@ -114,3 +113,23 @@ Still to do when you submit:
 ## For developers
 
 See [mobile/README.md](../mobile/README.md).
+
+## Background sync device acceptance
+
+Use a signed build whose provisioning profile includes `com.apple.developer.healthkit.background-delivery`. Record the app build, iOS version and sanitized pass/fail results; never publish workout routes, tokens or tester identities. Simulator and stand-in tests do not satisfy this checklist.
+
+1. Connect with access denied, then change access in Health settings and retry. Empty reads must not be presented as proof of permission.
+2. Import initial history while unlocked; replay it through both foreground and native uploads and verify one activity per HealthKit UUID.
+3. Record a new workout while Kinetta is inactive. Let iOS deliver it; confirm available route and heart-rate details. Record actual timing without promising instant uploads.
+4. Lock the phone during a read; unlock and reopen. Pending IDs remain, failed reads retry, and no incomplete route is silently confirmed as complete.
+5. Disconnect the network during upload; terminate/relaunch the process and reconnect. Pending state survives, and a lost acknowledgement followed by retry does not double-count.
+6. Force-quit and record another workout; reopen to catch up. Check the on-screen explanation of iOS delivery limits.
+7. Expire the login token. Uploads pause with a sign-in error while IDs remain queued. Reauthenticate and explicitly reconnect; history catches up without duplicates.
+8. Switch accounts and servers during reads/uploads. Logout cancels native work; no old pending workout reaches the new account or server; the new account needs explicit Health consent.
+9. Stop syncing and relaunch. No Health observer/uploads resume. Previously imported activities stay on the server.
+10. Interrupt a large import with a background time expiry. Next activation resumes pending work; one failed item does not discard other items.
+11. Compare Nutrition, Today, activity details and the Apple Health screen in light/dark mode. Pending/error text and foreground Sync now remain usable.
+
+HealthKit read access is private: denied access can look like an empty result. Kinetta cannot prove authorization merely from a successful empty query. If a queued workout was deleted from Health or access revoked, its reference remains pending with a readable error; disconnect/reconnect resets that queue without deleting server activities.
+
+References: [Apple observer queries](https://developer.apple.com/documentation/healthkit/hkobserverquery), [executing observer queries](https://developer.apple.com/documentation/healthkit/executing-observer-queries), and [background delivery entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.healthkit.background-delivery).

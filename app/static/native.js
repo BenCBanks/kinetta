@@ -6,7 +6,7 @@
 'use strict';
 const Native = (() => {
   const C = window.Capacitor, on = !!(C && C.isNativePlatform && C.isNativePlatform());
-  const P = on ? C.Plugins : {}, prefs = P.Preferences, health = P.HealthPlugin;
+  const P = on ? C.Plugins : {}, prefs = P.Preferences, health = P.HealthPlugin, background = P.KinettaHealthSync;
   const get = async (key) => (await prefs.get({key})).value;
   const put = (key, value) => (value == null ? prefs.remove({key}) : prefs.set({key, value: String(value)}));
   const N = {on, base: '', token: null, server: 'https://login.kinetta.app'};
@@ -49,6 +49,19 @@ const Native = (() => {
   let generation = 0;
   N.healthOn = async () => on && !!owner() && (await get('health.owner')) === owner() && (await get('health.on')) === '1';
   N.healthStatus = async () => { try { return await N.healthOn() ? JSON.parse(await get('health.status')) : null; } catch (e) { return null; } };
+  N.backgroundStatus = async () => {
+    if (!background || !(await N.healthOn())) return null;
+    try { return await background.status({owner: owner()}); }
+    catch (e) { return {enabled: false, error: 'Background sync status is unavailable. Open Kinetta to sync.'}; }
+  };
+  N.enableBackground = async () => {
+    const account = owner(), token = N.token, base = N.base, version = generation;
+    if (background && await N.healthOn()) {
+      if (account !== owner() || token !== N.token || version !== generation) return;
+      try { await background.connect({server: base, owner: account, token}); }
+      catch (e) { /* Native status retains the background error; keep foreground recovery available. */ }
+    }
+  };
   N.connectHealth = async () => {
     const account = owner(), version = generation;
     if (!(await health.isHealthAvailable()).available) throw new Error("Apple Health isn't available on this device.");
@@ -56,9 +69,12 @@ const Native = (() => {
     if (!account || account !== owner() || version !== generation) throw new Error('Log in before connecting Apple Health.');
     await put('health.owner', owner());
     await put('health.on', '1');
+    await N.enableBackground();
   };
   N.disconnectHealth = async () => {
     generation++; N.lastAuto = 0;
+    // Native uploads must stop before a login can replace the selected account/server.
+    if (background) await background.disconnect();
     // Finish the current request before replacing its account/server; later batches stop at the guard below.
     if (N.syncing) await N.syncing.catch(() => {});
     for (const key of ['health.on', 'health.owner', 'health.last', 'health.retryFrom', 'health.status']) await put(key, null);
@@ -81,6 +97,7 @@ const Native = (() => {
     const sum = {added: 0, duplicates: 0, failed: 0};
     guard(); await put('health.retryFrom', from);
     try {
+      if (background) { await N.enableBackground(); guard(); await background.retry().catch(() => {}); }
       for (let a = from; a < to; a += 7 * DAY) {
         guard();
         const r = await health.queryWorkouts({startDate: new Date(a).toISOString(), endDate: new Date(Math.min(a + 7 * DAY, to)).toISOString(),
@@ -132,17 +149,19 @@ route(/^\/me\/health$/, 'me', async (el) => {
     box.innerHTML = `<div class="card"><p>Apple Health works in the Kinetta iPhone app. In a browser, use <a href="/me/connections">Watch connections</a> instead.</p></div>`;
     return;
   }
-  const [isOn, st] = [await Native.healthOn(), await Native.healthStatus()];
+  const [isOn, st, bg] = await Promise.all([Native.healthOn(), Native.healthStatus(), Native.backgroundStatus()]);
   const ai = !!App.me.health_ai_ok;
   box.innerHTML = `<div class="card">
       <h2>${isOn ? 'Connected' : 'Bring in your workouts'}</h2>
       <p>Kinetta reads from Apple Health:</p>
       <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories</li><li><b>Heart rate</b> during workouts</li><li><b>Routes</b> of outdoor workouts</li></ul>
-      <p class="small muted">Sync runs when you open Kinetta or return to it. Keep your phone unlocked until the first import finishes. Background sync is not available yet.</p>
+      <p class="small muted">${bg?.enabled ? 'iOS can sync new workouts in the background. Delivery timing depends on iOS; locked phones and force-quitting can delay it. Open Kinetta to catch up.' : 'Sync runs when you open Kinetta or return to it.'} Keep your phone unlocked until the first import finishes.</p>
       <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Kinetta only reads; it never changes your Health data.</p>
       <p class="small muted">Workouts go only to your Kinetta server${Native.base ? ` (${esc(Native.base.replace(/^https?:\/\//, ''))})` : ''} and are private to you.</p>
       ${isOn ? `<p class="small">${st ? `Last ${st.error ? 'attempt' : 'sync'} ${esc(when(st.at))}: ${st.added} new, ${st.duplicates} already here${st.failed ? `, ${st.failed} couldn't be read` : ''}.` : 'Not synced yet.'}</p>` : ''}
       <p class="err" role="alert">${esc(st?.error || '')}</p>
+      ${bg && (bg.enabled || bg.pending > 0) ? `<p class="small">Background: ${bg.pending ? `${bg.pending} workout${bg.pending > 1 ? 's' : ''} waiting` : 'No workouts waiting'}${bg.lastSuccess ? ` · last upload ${esc(when(bg.lastSuccess))}` : ''}.</p>` : ''}
+      ${bg?.error ? `<p class="err" role="alert">${esc(bg.error)}</p>` : ''}
       ${isOn ? `<button class="primary wide" id="h-sync">Sync now</button>
         <button class="ghost wide" id="h-year">Also bring in the past year</button>
         <button class="ghost wide" id="h-settings">Change what Kinetta can read</button>
@@ -161,9 +180,9 @@ route(/^\/me\/health$/, 'me', async (el) => {
   const sy = $('#h-sync', box); if (sy) sy.onclick = () => busy(sy, 'Syncing…', async () => done(await Native.syncHealth()));
   const yr = $('#h-year', box); if (yr) yr.onclick = () => busy(yr, 'Bringing in the past year…', async () => done(await Native.syncHealth({days: 365})));
   const se = $('#h-settings', box); if (se) se.onclick = () => Native.openHealthSettings();
-  const off = $('#h-off', box); if (off) off.onclick = async () => {
+  const off = $('#h-off', box); if (off) off.onclick = () => {
     if (!confirm('Stop syncing? Workouts already here stay. To remove Kinetta\'s access completely, use the Health app\'s settings.')) return;
-    await Native.disconnectHealth(); render();
+    return busy(off, 'Stopping…', async () => { await Native.disconnectHealth(); render(); });
   };
   $('#h-ai', box).onchange = async (e) => {
     const v = e.target.checked;

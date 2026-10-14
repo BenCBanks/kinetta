@@ -70,6 +70,10 @@ docker compose -p kinettatest down -v                             # remove it, d
   (390 px), light and dark, with no console errors.
 
 ## Where it's heading (the maintainer's plan, October 2026)
+
+Read `ROADMAP.md` and its linked requirements before choosing follow-up work. It is the current ordered queue;
+the historical outline below gives context. `docs/requirements.md` explains the issue format. Keep implementation,
+verification, merge and release status distinct, and follow the owner's current authorization for external actions.
 1. **Hosted beta**: testers ask to join at `/beta`; the admin invites them from Me > People. Done.
 2. **Before more testers**: a privacy policy page, delete-my-account in the app (Apple requires it), data export. Done: Me > Your data (the iPhone app downloads through a one-time link opened in Safari).
 3. **iPhone app**: a Capacitor shell around `app/static/`, reading workouts (and weight, resting heart rate, sleep)
