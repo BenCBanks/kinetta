@@ -87,16 +87,16 @@ const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 // the next step for someone with nothing here yet (2026-10-12): an empty page says what to do, with the button for it
 const startCta = () => `<div class="btncol empty-cta">${Native.on ? '<a class="primary" href="/me/health">Connect Apple Health</a>' : '<a class="primary" href="/me/connections">Connect your watch</a>'}
   <a class="ghost" href="/me/import">Upload files or your Strava export</a></div>`;
-function getStarted() {
+function getStarted(healthConnected = false, hasHistory = false) {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
   const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  return `<h2 class="sec-head">Get started</h2><div class="card list">
-    ${Native.on ? step('/me/health', 'heart', 'c-red', 'Connect Apple Health', 'Workouts from your watch arrive on their own.')
+  return `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">
+    ${Native.on ? healthConnected ? '' : step('/me/health', 'heart', 'c-red', 'Connect Apple Health', 'Choose what to share. You can keep using Kinetta while workouts import.')
       : step('/me/connections', 'watch', 'c-ink', 'Connect your watch', 'Garmin or Apple Watch: new workouts arrive on their own.')}
-    ${step('/me/import', 'upload', 'c-blue', 'Bring in your history', 'Your Strava export, or FIT, GPX and TCX files.')}
-    ${step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or snap a photo.')}
-    ${step('/me/friends', 'me', 'c-brand', 'Find your friends', 'See each other\'s runs and rides, and send cheers.')}
+    ${!hasHistory ? step('/me/import', 'upload', 'c-blue', 'Bring in your history', 'Your Strava export, or FIT, GPX and TCX files.') : ''}
+    ${!hasHistory ? step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or enter known nutrition.') : ''}
+    ${!hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', 'See each other\'s runs and rides, and send cheers.') : ''}
     ${ios && !home && !Native.on ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : ''}</div>`;
 }
 route(/^\/today$/, 'today', async (el) => {
@@ -106,7 +106,12 @@ route(/^\/today$/, 'today', async (el) => {
   el.innerHTML = `<div class="brand-line"><a class="wordmark" href="/today">Kinetta</a><a class="icon-btn" href="/me" aria-label="My profile">${svg('me')}</a></div>
     <div class="today-head"><div class="today-date-row"><div class="eyebrow">${esc(day)}</div><div class="acts">${bellBtn()}<button class="icon-btn" data-addact aria-label="Add activity">${svg('plus')}</button></div></div>
       <div class="today-greeting-row"><h1>${esc(greeting)}</h1><div id="t-review"></div></div></div>
-    <div id="t-lift"></div><div id="t-plan"></div><div id="t-food"></div><div id="t-week">${skel(1)}</div><div id="t-last"></div><div id="t-goals"></div><div id="t-form"></div>`;
+    <div id="t-setup"></div><div id="t-lift"></div><div id="t-plan"></div><div id="t-food"></div><div id="t-week">${skel(1)}</div><div id="t-last"></div>
+    <section class="today-discover" aria-label="Make today yours"><h2>Make today yours</h2><div class="today-actions">
+      <a href="/food?add=1">${svg('food')}<b>Log food</b><small>Search, scan or type it in</small></a>
+      <a href="/plan">${svg('target')}<b>Training plan</b><small>Start or continue</small></a>
+      <a href="/me/explore">${svg('help')}<b>Explore Kinetta</b><small>Tools & how-to guides</small></a></div></section>
+    <div id="t-goals"></div><div id="t-form"></div>`;
   liftNowCard($('#t-lift', el));
   planCard($('#t-plan', el)).catch(() => {});
   todayFoodCard($('#t-food', el)).catch(() => {});
@@ -130,8 +135,13 @@ route(/^\/today$/, 'today', async (el) => {
   }).catch(() => {});
   const [feed, st, fit, goals] = await Promise.all([
     load('/api/activities?limit=3', (d) => {
-      $('#t-last', el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` :
-        getStarted();
+      $('#t-last', el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
+      Promise.resolve(Native.on ? Native.healthOn() : false).catch(() => false).then((connected) => {
+        if (!el.isConnected) return;
+        const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
+        $('#t-setup', el).innerHTML = (!d.length || Native.on && !connected ? getStarted(connected, !!d.length) : '') +
+          (missing.length ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+      });
     }),
     load('/api/stats', (s) => {
       const wk = s.weeks.filter((w) => w.week === s.weeks.reduce((m, x) => (x.week > m ? x.week : m), ''));
@@ -296,7 +306,7 @@ function drawDetail(el, a) {
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
       ${a.ai_note ? `<div class="card ai">${coachMessage('activity:' + a.id, a.ai_note, 'Kit', `<p>${esc(a.ai_note)}</p>`)}</div>`
-        : App.me.coach ? `<div class="card"><h2>Kit</h2><p class="small muted">A short note on this workout from Kit, your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Ask Kit' : 'Turn on Kit'}</button></div>` : ''}
+        : aiCan('coach') ? `<div class="card"><h2>Kit</h2><p class="small muted">A short note on this workout from Kit, your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Ask Kit' : 'Turn on Kit'}</button></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
       ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
@@ -1017,7 +1027,8 @@ route(/^\/me$/, 'me', async (el) => {
   el.innerHTML = `<div class="profile"><button type="button" class="av-edit" id="m-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'lg')}<span class="av-cam">${svg('camera')}</span></button><div><a href="${profileHref(me)}" aria-label="View my profile"><h1>${esc(me.name)}</h1></a><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
     <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
-      ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}</div>
+      ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
+      ${row('a', 'href="/me/explore"', 'help', 'c-green', 'Explore Kinetta', 'Features & how-to guide')}</div>
     <div class="card list">${row('a', 'href="/me/import"', 'upload', 'c-blue', 'Upload activities')}
       ${row('button', 'data-addact', 'plus', 'c-blue', 'Add an activity')}
       ${Native.on ? row('a', 'href="/me/health"', 'heart', 'c-red', 'Apple Health') : ''}
@@ -1037,7 +1048,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       ${me.is_admin ? row('a', 'href="/me/people"', 'people', 'c-ink', 'People', 'Invite, reset, remove') : ''}</div>
-    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Training notes and food estimates.</p><button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools ? '<a class="ghost wide" href="/me/kit">Ask Kit</a>' : ''}
+    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Optional training notes and food estimates. AI consent is separate from access.</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? '<a class="ghost wide" href="/me/kit">Ask Kit</a>' : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
@@ -1069,6 +1080,9 @@ route(/^\/me$/, 'me', async (el) => {
     try { await api('/api/profile', json('PUT', {units: me.units})); } catch (x) { me.units = prev; render(); toast('Could not save: ' + x.message); }
   });
   $('#m-body', el).onclick = () => bodySheet();
+  if (new URLSearchParams(location.search).get('setup') === 'body') {
+    history.replaceState(null, '', '/me'); bodySheet();
+  }
   $('#logout', el).onclick = async () => {
     const n = Q.mine().length;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
@@ -1085,7 +1099,7 @@ function bodySheet() {
   sheet('Body, heart rate & time zone', `<form class="form" id="m-form">
         <div class="two"><label>Max heart rate<input name="max_hr" inputmode="numeric" value="${esc(me.max_hr || '')}" placeholder="auto"></label>
         <label>Resting heart rate<input name="rest_hr" inputmode="numeric" value="${esc(me.rest_hr || '')}" placeholder="60"></label></div>
-        <div class="two"><label>Sex (for effort score)<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
+        <div class="two"><label>Sex (for calorie & effort estimates)<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
         <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}"></label></div>
         <div class="two"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" inputmode="decimal" value="${esc(U.weight(me.weight_kg))}"></label>
         <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" value="${esc(me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '')}" placeholder="${imp() ? '5 10' : '178'}"></label></div>

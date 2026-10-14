@@ -1,0 +1,65 @@
+// A permanent, searchable guide with real destinations, for new and established members.
+'use strict';
+const FEATURE_GUIDE = [
+  ['Set up', 'Personal estimates', 'Weight, height, sex and birth year improve calorie-needs estimates. Heart-rate settings inform zones and effort. These details stay private.', '/me?setup=body', 'Add the details you are comfortable sharing, choose your everyday activity level, then save. You can change them any time.', 'body bmr calories age heart rate'],
+  ['Set up', 'Apple Health', 'Choose which Health categories Kinetta may read. Sync is optional, read-only and separate from AI consent.', '/me/health', 'Connect in the iPhone app, select categories and tap Done. Your first import runs separately. Manage switches in Health → profile → Apps → Kinetta.', 'watch permissions gps workouts connect'],
+  ['Set up', 'Watch connections', 'Connect an existing supported source for automatic activity imports.', '/me/connections', 'Open Watch connections and follow the instructions for your source. Garmin maps need a source or original file that contains GPS; Garmin does not pass its GPS routes to Apple Health.', 'garmin intervals apple export sync'],
+  ['Set up', 'Bring in activity history', 'Import original FIT, GPX or TCX files, or a Strava export. Existing activity duplicates are detected.', '/me/import', 'Choose the files or export and wait for the import summary. Imported activities start private.', 'upload files strava gpx fit tcx'],
+  ['Food', 'Log food without AI', 'Search USDA and Open Food Facts, scan a barcode, pick a usual food, or type the numbers yourself.', '/food?add=1', 'Tap Add food. Choose Search for database results, Your usuals for repeat foods, or Quick for known calories and macros. Check the portion before adding.', 'manual free calories protein barcode usuals'],
+  ['Food', 'My meals', 'Create, find, edit and reuse meals. Ingredients and portions use stored nutrition; AI is optional.', '/food/meals', 'Open a meal to log a portion. Use its Edit button to change ingredients or serving settings. Create a meal using food search, barcodes or known totals.', 'saved recipes cook meals library ingredients servings'],
+  ['Food', 'Meal portions & sharing', 'Log a whole serving, half a serving or a plate weighed in grams. Share a meal with approved friends.', '/food/meals', 'Set a meal to By servings or By weight. For grams, enter the cooked total weight once. The meal options menu lets you share; friends log their own portion.', 'recipe family pot grams share'],
+  ['Food', 'Nutrition targets', 'Set your calorie and macro targets and see what remains each day.', '/food', 'Open the calorie target from Nutrition, or Me → Nutrition targets. Logged workouts are accounted for in the daily view.', 'goals protein carbs fat fiber'],
+  ['Food', 'Weight trend', 'Record weigh-ins and follow the trend instead of a single day’s fluctuation.', '/food?view=weight', 'Add a weigh-in in your chosen units. Open the trend to see changes over time.', 'scale kg lb body mass'],
+  ['Food', 'Calories & weight', 'Compare logged intake, estimated expenditure and weight over time. Estimates depend on your body settings and recorded data.', '/food?view=energy', 'Choose a date range in Nutrition → More → Calories & weight. Unlogged days are missing information, not proof of zero intake.', 'deficit burn energy bmr'],
+  ['Food', 'Protein & macros', 'See your protein, carbohydrate and fat trends, plus the foods contributing most.', '/food?view=macros', 'Open Nutrition → More → Protein & macros and choose your date range.', 'averages nutrients carbs fat'],
+  ['Food', 'Calorie needs', 'Understand how body settings, everyday movement and workouts contribute to your estimated needs.', '/food?view=needs', 'Review Nutrition → More → Calorie needs, then adjust body settings or targets if needed.', 'bmr expenditure metabolism settings'],
+  ['Food', 'Food overview & weekly totals', 'Review averages and daily consistency, or compare week-by-week totals.', '/food?view=weeks', 'Nutrition → Overview shows trends; More → Week by week shows the table.', 'history trends averages table'],
+  ['Food', 'Import earlier food and weight', 'Bring in past calorie totals and weigh-ins from another app.', '/food/import', 'Use Nutrition → More → Add past days and follow its file instructions.', 'csv migration past days'],
+  ['Training', 'Training plans', 'Build an ordinary training-engine plan from 5K to marathon. You do not need AI to enroll or follow it.', '/plan', 'Choose a distance, experience level, race date and available days. Review the schedule before enrolling; open it here again for your next workout.', 'race marathon half 5k 10k calendar'],
+  ['Training', 'Log strength workouts', 'Record exercises, sets, reps and weight, with your previous session nearby.', '/activity', 'Use Add activity → Strength workout. Your active session also appears on Today.', 'gym lifting strength sets reps weights'],
+  ['Training', 'Lifting history & records', 'Find every exercise, your best sets and previous sessions.', '/progress?view=lifting', 'Open Progress → More → Lifting, then choose an exercise.', 'gym personal best exercise strength'],
+  ['Training', 'Activity details', 'Inspect maps, photos, splits, heart rate, elevation, effort and recorded metrics when your source provides them.', '/activity?tab=mine', 'Open My activities and select a workout. Swipe from the map to photos. The map is first whenever GPS is present.', 'pace gps photos gallery splits zones metrics'],
+  ['Progress', 'Weekly, monthly & yearly totals', 'Compare distance, time and climbing across sports and periods.', '/progress', 'Use Progress → Totals, select a sport and period, then open a bar or row for detail.', 'stats distance duration elevation'],
+  ['Progress', 'Fitness & freshness', 'See training-load estimates, fatigue, freshness and available race predictions.', '/progress?view=fitness', 'Choose Fitness in Progress. Missing heart-rate or activity history can limit estimates; these are training indicators, not medical measurements.', 'fatigue form race prediction run score load'],
+  ['Progress', 'Personal records', 'Find your best recorded efforts at common distances.', '/progress?view=records', 'Open Records in Progress, choose a sport and distance, then inspect the matching activities.', 'pr pb fastest best'],
+  ['Progress', 'Calendar', 'See training and logged nutrition by day.', '/progress/calendar', 'Use Progress → More → Calendar, then select a day.', 'schedule dates history'],
+  ['Progress', 'Routes & comparable efforts', 'Find repeated routes and compare similar efforts over time.', '/progress/routes', 'Choose a route to inspect its history. Individual activities also link to similar efforts when available.', 'same loop matched pace comparison'],
+  ['Progress', 'Heatmap', 'See where your recorded GPS activities have taken you.', '/progress/heatmap', 'Use Progress → More → Heatmap and select the sport or area you want to see.', 'map routes gps places'],
+  ['Progress', 'Year-over-year trends', 'Compare recorded pace, heart rate and distance between years.', '/progress/trends', 'Use Progress → More → Year over year and choose your sport and years.', 'annual comparisons improvement'],
+  ['People', 'Friends & people search', 'Find members, send requests and see approved friends’ shared activities.', '/me/friends', 'Search by name or username. Mutual approval makes you friends; each activity’s sharing setting still applies.', 'social users find add people'],
+  ['People', 'Cheers & comments', 'Encourage friends and talk about their activities.', '/activity', 'Open Friends feed. Tap Cheers to react; double-tap Cheers to see who reacted. Open the comments to reply.', 'kudos likes cheer social'],
+  ['People', 'Your public profile', 'Edit your name, picture and bio. Other members see activity summaries according to your sharing and block settings.', '/me', 'Use Edit profile in Me. Your body settings, weight and food history are separate and private.', 'avatar biography name identity'],
+  ['People', 'Sharing & map privacy', 'Choose who can see activities and which recorded details are included.', '/me/sharing', 'Review sharing defaults before publishing activities. Shared maps have their start and end trimmed by the server.', 'privacy visibility everyone friends me gps'],
+  ['Tools', 'Shoes & bikes', 'Track gear mileage, retire equipment or delete an old item while preserving its activities.', '/me/gear', 'Open Me → Gear, choose an item and use its edit or delete controls.', 'equipment cycling running replacement'],
+  ['Tools', 'Goals', 'Set distance, time or other supported activity goals and follow progress.', '/me/goals', 'Open Me → Goals to add or update a target. Active goals also appear on Today.', 'targets motivation weekly monthly'],
+  ['Tools', 'Notifications', 'Control which supported notifications you receive.', '/me/notifications', 'Choose notification types in Me. Phone delivery also needs the device/browser permission.', 'push alerts reminders'],
+  ['Tools', 'Units & time zone', 'Choose miles/pounds or kilometres/kilograms, and keep daily totals on your local day.', '/me?setup=body', 'Set units in Me and the time zone in Body & heart rate. Day boundaries follow that setting.', 'imperial metric midnight date'],
+  ['Tools', 'Your data', 'Download your records or delete your account from Me.', '/me', 'Open Your data. Downloads may open Safari on iPhone. Account deletion requires your password and removes your account data.', 'export zip delete account privacy'],
+  ['Optional AI', 'Food estimates & nutrition labels', 'With AI access and consent, describe or photograph food, or read a nutrition label. Review every estimate before saving.', '/food?add=1', 'AI is optional and may require access under a future plan. Use database search, barcode scanning or Quick without it. Describe or snap currently estimates nutrition; it does not guarantee a USDA lookup.', 'photo snap camera ai calories estimate', 'food'],
+  ['Optional AI', 'Kit training & nutrition reviews', 'With access and consent, request saved-workout notes and available weekly, nutrition or recipe reviews.', '/me', 'Manage AI consent in Me. Health-derived workouts need their own additional consent. Saved records stay readable; enabling access does not give consent.', 'coach weekly review ai analysis', 'coach'],
+];
+function aiCan(feature) {
+  const access = App.me?.ai_access?.[feature];
+  return !!App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
+}
+route(/^\/me\/explore$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Explore Kinetta</h1>
+    <p>Your guide to the everyday tools and the less obvious ones. Come back any time.</p>
+    <form class="searchbox guide-search" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" aria-label="Search features" placeholder="Try weight, meals, maps or plans" autocomplete="off"></form>
+    <div class="guide-categories" role="group" aria-label="Feature categories"></div><p class="small muted" id="guide-count" role="status"></p><div id="guide-results"></div>`;
+  wireBack(el, '/me');
+  let category = 'All';
+  const cats = ['All', ...new Set(FEATURE_GUIDE.map((f) => f[0]))];
+  $('.guide-categories', el).innerHTML = cats.map((c) => `<button class="pill" data-guide-category="${esc(c)}" aria-pressed="${c === category}">${esc(c)}</button>`).join('');
+  const draw = () => {
+    const words = $('input', el).value.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const rows = FEATURE_GUIDE.filter((f) => (category === 'All' || f[0] === category) && words.every((w) => f.join(' ').toLowerCase().includes(w)));
+    $('#guide-count', el).textContent = `${rows.length} feature${rows.length === 1 ? '' : 's'}`;
+    $('#guide-results', el).innerHTML = rows.length ? rows.map(([group,title,desc,href,how,,feature]) => `<article class="card feature-guide-card"><div class="eyebrow">${esc(group)}${feature && !aiCan(feature) ? ' · optional access & consent' : ''}</div>
+      <h2>${esc(title)}</h2><p>${esc(desc)}</p><details><summary>How to use it</summary><p>${esc(how)}</p></details><a class="guide-open" href="${href}">Open ${esc(title)} ${svg('chev')}</a></article>`).join('') : '<div class="card empty">No features match. Try a shorter search or choose All.</div>';
+  };
+  $('form', el).onsubmit = (e) => { e.preventDefault(); $('input', el).blur(); };
+  $('input', el).oninput = draw;
+  $$('[data-guide-category]', el).forEach((b) => b.onclick = () => { category = b.dataset.guideCategory; $$('[data-guide-category]', el).forEach((x) => x.setAttribute('aria-pressed', x === b)); draw(); });
+  draw();
+});

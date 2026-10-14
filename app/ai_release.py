@@ -8,7 +8,7 @@ from pathlib import Path
 def fingerprint():
     from . import coach, coach_chat, food_photo
     root = Path(__file__).parent
-    files = ['coach.py', 'coach_chat.py', 'coach_tools.py', 'coach_proposals.py', 'food_photo.py', 'cook_chat.py', 'food_coach.py']
+    files = ['ai_access.py', 'coach.py', 'coach_chat.py', 'coach_tools.py', 'coach_proposals.py', 'food_photo.py', 'cook_chat.py', 'food_coach.py']
     config = {'files': {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in files},
               'coach_model': os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash') if coach.provider() == 'gemini' else coach.MODEL,
               'coach_fallback': os.environ.get('GEMINI_FALLBACK_MODEL', 'gemini-3.1-flash-lite'),

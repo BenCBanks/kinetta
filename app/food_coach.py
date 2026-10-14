@@ -74,7 +74,9 @@ def _check(c, user_id, kind, health=False):
     """Consent and the daily limit. Each request is written down (ai_requests) before the model is asked, under a lock
     on the person's profile row, so parallel requests or asking again can't get past the limit."""
     if not coach.enabled(): raise HTTPException(400, 'Kit is not switched on yet (needs an AI key on the server).')
-    if not coach.allowed(user_id): raise HTTPException(400, coach.OFF)
+    from . import ai_access
+    ai_access.require(user_id, 'coach', c)
+    if not coach.allowed(user_id, connection=c): raise HTTPException(400, coach.OFF)
     if health and not coach.health_ok(c, user_id): raise HTTPException(400, coach.HEALTH_NO)
     c.execute('SELECT 1 FROM profile WHERE user_id = %s FOR UPDATE', (user_id,))
     n = c.execute("SELECT count(*) AS n FROM ai_requests WHERE user_id = %s AND created > now() - interval '1 day'", (user_id,)).fetchone()['n']
@@ -122,6 +124,8 @@ def diet_review_get(user=Depends(current_user)):
 
 @router.post('/food/review')
 def diet_review(user=Depends(current_user)):
+    from . import ai_access
+    ai_access.require(user['id'], 'coach')
     if not coach.enabled(): raise HTTPException(400, 'Kit is not switched on yet (needs an AI key on the server).')
     if not coach.allowed(user['id']): raise HTTPException(400, coach.OFF)      # before reading anything
     with db.connect() as c:

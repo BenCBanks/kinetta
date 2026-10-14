@@ -314,7 +314,7 @@ class SayIn(BaseModel):
 
 
 def _ai_ready(uid):
-    return bool(os.environ.get('GEMINI_API_KEY')) and coach.allowed(uid)
+    return bool(os.environ.get('GEMINI_API_KEY')) and coach.allowed(uid, 'food')
 
 
 @router.post('/{did:int}/say')
@@ -327,7 +327,8 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
         found = from_memory(text, memory(c, uid))
     if found is None:
         if not _ai_ready(uid):
-            return {'fallback': True, 'needs_ok': bool(os.environ.get('GEMINI_API_KEY')) and coach.enabled()}
+            from . import ai_access
+            return {'fallback': True, 'needs_ok': ai_access.has(uid, 'food') and bool(os.environ.get('GEMINI_API_KEY')) and coach.enabled()}
         food_photo.brake(uid, DAILY_LIMIT, 'cook', 'messages')
         actions, reply = ai_actions(text, d['items'], uid)
     else:

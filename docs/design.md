@@ -147,3 +147,30 @@ open the review in a sheet, never generate one just by opening Today. Preserve A
 Omit the “This week” heading; retain accessible weekly-total labels, three metrics and the dated day bars.
 Show the latest activity as a compact labeled link to its detail screen, without duplicating its full gallery or cheers.
 Keep feature enrollment/food conditions and the five tabs unchanged. These choices supersede the original Today mockup.
+
+## Onboarding, discovery and optional AI (14 October follow-up)
+
+The owner's newer request permits persistent discovery actions on Today. Keep the plan and food *data panels* under
+their existing enrollment/logged-food conditions; add small, always-available Log food, Your training plan and Explore
+Kinetta links. They are usable destinations, not fake empty totals. The setup checklist remains when a native user has
+not enabled their account-scoped Health connection, even if activities were imported another way. Keep private body
+settings guidance until missing weight, height, sex or birth year is supplied; these details remain optional and editable.
+
+Explore Kinetta is a permanent searchable guide in Me and on Today, with categories, a short explanation, expandable
+how-to and a real destination for every feature. The same 36-entry catalog generates the public website guide using
+`node dev/design/build_guide.js`; CI checks drift. Explain why body inputs affect estimated needs without promising
+medical accuracy or implying that these fields are public. No forced tour or one-time dismissal hides the guide.
+
+Use **Meals**, **My meals**, and **Saved combinations** in user-facing app/site copy. My meals means log, edit or create;
+provide explicit edit controls and retain unfinished named meals. Keep existing API/storage identifiers for compatibility.
+Direct food search remains because food-photo estimates currently do not first consult USDA and AI is optional.
+
+A non-AI account gets clear manual food/ingredient search, barcode and known-total controls. Do not fill its screens
+with locked AI prompts. Existing AI reviews remain readable; generation controls require both product access and
+consent. Product access, provider configuration, consent, Health consent and release approval remain distinct states.
+
+Health setup requests the combined read-only categories once on the main thread. A returned authorization request
+is not proof that every category was allowed. Use “Sync enabled”, retain individual choices, and explain Health's access
+settings. Do not hold the Connect button while background delivery or first import runs; show progress and bounded,
+retryable errors. Keep account guards and import cursors intact on timeout. The browser cannot validate Apple's native
+permission switches or device animation: those need an iPhone check.

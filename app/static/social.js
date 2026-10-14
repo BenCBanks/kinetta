@@ -536,7 +536,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 // ---------- Notifications (2026-10-11, notify.py) ----------
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
 // (/me/notifications). /notifications lights no tab (it opens from several).
-const PUSH_NAMES = {friends: 'Friend requests', cheers: CHEER.title, comments: 'Comments', dishes: 'Shared dishes'};
+const PUSH_NAMES = {friends: 'Friend requests', cheers: CHEER.title, comments: 'Comments', dishes: 'Shared meals'};
 const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', report: 'lock'};
 route(/^\/notifications$/, null, async (el) => {
   el.innerHTML = `<div class="top">${backBtn()}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
@@ -546,7 +546,7 @@ route(/^\/notifications$/, null, async (el) => {
     list.innerHTML = r.items.length ? `<div class="card list notes">${r.items.map((n) => `<a class="note${n.read ? '' : ' unread'}" href="${esc(n.link)}">
         <span class="note-av">${avatar(n.who)}<span class="note-k">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
         <span class="grow"><span class="note-t">${esc(n.text)}</span><small class="muted">${esc(when(n.created))}</small></span></a>`).join('')}</div>`
-      : `<div class="card empty"><b>Nothing yet</b>Friend requests, ${esc(CHEER.many)}, comments and shared dishes show up here.</div>`;
+      : `<div class="card empty"><b>Nothing yet</b>Friend requests, ${esc(CHEER.many)}, comments and shared meals show up here.</div>`;
     if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
     if (r.unread) api('/api/notifications/read', json('POST', {})).then(() => { App.me.notifications = 0; Social.badge(); invalidate('/api/notifications'); }).catch(() => {});
   }, {maxAge: 0});

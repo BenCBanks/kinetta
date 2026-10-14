@@ -89,6 +89,7 @@ function device(background = null) {
   });
   await bg.n.ready; bg.n.base = 'https://example.test'; bg.n.token = 'native-token';
   await bg.n.connectHealth();
+  await bg.n.enableBackground();
   assert.equal(calls[0][0], 'connect');
   assert.equal(calls[0][1].server, 'https://example.test');
   assert.equal(calls[0][1].token, 'native-token');
@@ -135,5 +136,34 @@ function device(background = null) {
   rich.ctx.App.me = {id:2};
   assert.equal(await rich.n.syncHealth(), null);
   assert.equal(refreshed.length, 1, 'account without consent cannot refresh another account queue');
+  // Returning from Done must not await background delivery or the first import.
+  let permissionCalls = 0, legacyCalls = 0, settingsCalls = 0;
+  const stuck = device({requestPermissions: async () => { permissionCalls++; },
+    connect: () => new Promise(() => {}), retry: async () => {}, status: async () => ({enabled:false}), disconnect: async () => {}});
+  await stuck.n.ready; stuck.n.base = 'https://example.test'; stuck.n.token = 'test-token';
+  stuck.n.healthBackgroundTimeout = 5; stuck.n.lastAuto = Date.now();
+  stuck.ctx.window.Capacitor.Plugins.HealthPlugin.requestHealthPermissions = async () => { legacyCalls++; };
+  stuck.ctx.window.Capacitor.Plugins.HealthPlugin.openAppleHealthSettings = async () => { settingsCalls++; };
+  const firstConnect = stuck.n.connectHealth(), secondConnect = stuck.n.connectHealth();
+  assert.equal(firstConnect, secondConnect, 'double tap joins one connection');
+  await Promise.race([firstConnect, new Promise((_, reject) => setTimeout(() => reject(new Error('Connect waited for background callback')), 100))]);
+  assert.equal(permissionCalls, 1, 'one combined permission request');
+  assert.equal(legacyCalls, 0, 'no second Health sheet from legacy plugin');
+  assert.equal(await stuck.n.healthOn(), true);
+  assert.equal(stuck.n.lastAuto, 0, 'pre-connect auto-sync cannot delay first import');
+  await stuck.n.openHealthSettings(); assert.equal(settingsCalls, 1); assert.equal(permissionCalls, 1, 'manage access does not re-request permissions');
+  stuck.n.healthTimeout = 5;
+  stuck.ctx.query = () => new Promise(() => {});
+  await assert.rejects(stuck.n.syncHealth(), /taking too long/);
+  assert.equal(stuck.n.syncing, null, 'timed out sync releases busy state');
+  assert.equal(stuck.saved.has('health.last'), false, 'timeout cannot advance cursor');
+  delete stuck.ctx.query;
+  await stuck.n.syncHealth(); assert.ok(stuck.saved.has('health.last'), 'retry remains usable');
+  let finishPermissions;
+  const slow = device({requestPermissions: () => new Promise(r => { finishPermissions = r; })});
+  await slow.n.ready; slow.n.base = 'https://example.test'; slow.n.token = 'slow-token'; slow.n.healthPermissionTimeout = 5;
+  await assert.rejects(slow.n.connectHealth(), /has not finished/);
+  finishPermissions(); await Promise.resolve(); await Promise.resolve();
+  assert.equal(await slow.n.healthOn(), false, 'late permission callback cannot enable a timed-out connection');
   console.log('native sync: consent, history retry, offline, incomplete reads/acks and in-flight logout passed');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

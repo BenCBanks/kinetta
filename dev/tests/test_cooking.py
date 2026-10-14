@@ -38,7 +38,7 @@ s, d = b.post('/api/dishes', {'name': 'Test chicken stew'})
 check('create: by servings, makes 1', s == 200 and d['name'] == 'Test chicken stew' and d['named'] and d['items'] == [] and d['serving'] == 'one' and d['servings'] == 1 and 'status' not in d, d)
 did = d['id']
 s, d2 = b.post('/api/dishes', {'meal': 'dinner'})       # older phones still send the meal
-check('create unnamed', s == 200 and d2['name'] == 'New dish' and not d2['named'], d2)
+check('create unnamed', s == 200 and d2['name'] == 'New meal' and not d2['named'], d2)
 check('name too long 422', b.post('/api/dishes', {'name': 'x' * 81})[0] == 422)
 # Start a new dish again reopens the empty one instead of making another; empty ones stay off the list
 s, d3 = b.post('/api/dishes', {})

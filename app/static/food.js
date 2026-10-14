@@ -88,6 +88,9 @@ route(/^\/food$/, 'food', async (el) => {
   dp.onchange = () => { if (dp.value) go(dp.value === today ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
   $('#fq-add', el).onclick = () => addSheet(day, guessMeal());
   await load(`/api/food/day?d=${day}`, (D) => drawDay(el, D), {maxAge: 5000});
+  if (q.get('add') === '1' && el.isConnected) {
+    history.replaceState(null, '', '/food'); addSheet(day, guessMeal());
+  }
 });
 
 // someone who has never logged food (2026-10-12): three steps instead of a page of zeros
@@ -99,7 +102,7 @@ function firstFood(box, day) {
     box.innerHTML = `<h2 class="sec-head">Start your food log</h2><div class="card list first-food">
       ${step('ff-goal', 'target', 'c-brand', 'Set your daily targets', 'Calories and protein to aim for. Workouts add to them.')}
       ${step('ff-log', 'search', 'c-green', 'Log something you ate', 'Search, scan a barcode or snap a photo.')}
-      ${step('ff-dish', 'pot', 'c-orange', 'Save a dish you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
+      ${step('ff-dish', 'pot', 'c-orange', 'Save a meal you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
     $('#ff-goal', box).onclick = () => targetsSheet();
     $('#ff-log', box).onclick = () => addSheet(day, guessMeal());
     $('#ff-dish', box).onclick = (e) => newDish(e.currentTarget);
@@ -177,7 +180,7 @@ function drawDay(el, D) {
   });
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => copyDay(addDays(D.day, -1), D.day);
 }
-const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit}`);
+const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit === 'dish' ? 'meal' : e.unit}`);
 const refresh = () => { invalidate('/api/food'); render(); };
 
 async function addEntries(items) {   // each item gets a client_id, so a resend after a lost connection never doubles it
@@ -281,10 +284,10 @@ function addSheet(day, meal) {
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways three"><button class="way" id="as-photo">${svg('sparkle')}<b>Describe or snap</b></button>
+    <div class="ways${aiCan('food') ? ' three' : ''}">${aiCan('food') ? `<button class="way" id="as-photo">${svg('sparkle')}<b>Describe or snap</b></button>` : ''}
       <button class="way" id="as-scan">${svg('barcode')}<b>Barcode</b></button>
       <button class="way" id="as-dish">${svg('pot')}<b>Cook a meal</b></button></div>
-    <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'Saved Dishes'], ['search', 'Search'], ['quick', 'Quick']]
+    <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My meals'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
     const dp = $('#as-day', b);     // a short label ("Today", "Sat, Oct 10") over the native picker: the full date field didn't fit
@@ -295,7 +298,7 @@ function addSheet(day, meal) {
     const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
-    $('#as-photo', b).onclick = () => {   // words and photos go to the AI service, so it needs the person's OK first
+    const photo = $('#as-photo', b); if (photo) photo.onclick = () => {   // words and photos go to the AI service, so it needs the person's OK first
       const w = where(); close();
       if (App.me.coach && !App.me.ai_ok) aiSheet(() => describeSheet(w.day, w.meal)); else describeSheet(w.day, w.meal);
     };
@@ -363,26 +366,32 @@ async function tSaved(body, where, close) {
   body.innerHTML = skel(1);
   try {
     const [dishes, meals, foods] = await Promise.all([api('/api/dishes').catch(() => []), api('/api/food/meals'), api('/api/food/foods')]);
-    dishes.splice(0, dishes.length, ...dishes.filter((d) => d.items.length || d.known.kcal != null));     // nothing in it yet: nothing to log
     const mine = dishes.filter((d) => d.mine !== false), theirs = dishes.filter((d) => d.mine === false);
     const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
       <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
     const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
       d.totals.kcal, d.serving === 'one' ? 'kcal a serving' : 'kcal total');
-    body.innerHTML = `${mine.length ? `<h3 class="ghead">Dishes</h3><div class="results">${mine.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
+    body.innerHTML = `<p class="small muted">Log a portion, edit a meal, or create something new. Meals stay saved for next time.</p>
+      ${mine.length ? `<h3 class="ghead">Your meals</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="icon-btn" data-edit-meal="${d.id}" aria-label="Edit ${esc(d.name)}">${svg('edit')}</button></div>`).join('')}</div>` : '<p class="small muted">No saved meals yet. Create one below, with or without AI.</p>'}
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
-      ${meals.length ? `<h3 class="ghead">Meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
+      ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><div class="results">${foods.map(foodRow).join('')}</div>
       <div class="btncol"><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
 `;
     const again = () => tSaved(body, where, close);
     $('#tm-food', body).onclick = () => foodEditor(null, again);
     $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
+    $$('[data-edit-meal]', body).forEach((b) => b.onclick = () => { close(); go('/food/cook/' + b.dataset.editMeal); });
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
     $$('[data-dish]', body).forEach((x) => x.onclick = () => dishLogSheet(dishes[+x.dataset.dish], where(), (editing) => close()));
     $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet(meals[+x.dataset.meal], where(), close, again));
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
+route(/^\/food\/meals$/, 'food', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>My meals</h1><div id="meal-library"></div>`;
+  wireBack(el, '/food');
+  await tSaved($('#meal-library', el), () => ({day: isoDay(new Date()), meal: guessMeal()}), () => {});
+});
 // How much of a saved meal: grams (when every food in it is in grams) or servings. A saved meal is 1 serving as saved
 // ("½" or "2" scale every food in it).
 function savedSheet(m, w, closeParent, after) {
@@ -392,7 +401,7 @@ function savedSheet(m, w, closeParent, after) {
     ${weight ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="${Math.round(weight)}" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
     <div class="share-line">${weight ? '<span class="muted">or</span>' : ''}<input name="n" inputmode="decimal" value="1" aria-label="Servings"><span>servings</span></div>
     <div class="portion-out" aria-live="polite"></div>
-    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${App.me.coach ? `<button type="button" class="ghost" id="sv-ai" aria-label="Kit’s take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''}<span class="spacer"></span>
+    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${aiCan('coach') || m.review ? `<button type="button" class="ghost" id="sv-ai" aria-label="Kit’s take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''}<span class="spacer"></span>
       <button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     const f = $('#sv', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
     let mode = 'n';
@@ -968,7 +977,7 @@ addEventListener('DOMContentLoaded', start);
 
 // ---------- AI review of your eating (2026-10-11, food_coach.py): the last two weeks, what's going well, what to try ----------
 function dietCoach(box) {
-  if (!box || !App.me.coach) return;      // the server has no AI key: nothing to offer
+  if (!box) return; // Previously saved reviews remain readable without generation access.
   load('/api/food/review', (r) => {
     if (!box.isConnected) return;
     const L = r.latest, when = L ? new Date(L.day + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
@@ -983,6 +992,7 @@ function dietCoach(box) {
       : `<div class="card ai coach-card"><h2>Kit’s take</h2><p>A short review of your last two weeks of eating: what's going well, and two or three things to try next, from your own log.</p>
         <button class="primary wide" id="dc-go">${svg('sparkle')}Review my eating</button></div>`;
     const b = $('#dc-go', box);
+    if (!aiCan('coach')) { if (L) b.remove(); else box.innerHTML = ''; return; }
     b.onclick = async () => {
       if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
       b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';
@@ -1003,6 +1013,7 @@ function mealCoach(m) {
         <p class="small muted">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</p><button class="linkbtn" id="mc-go">${svg('sparkle')}Ask again</button>`)
         : `<p>Feedback on this meal from Kit: how it fits your day, and a few tweaks with what each one changes.</p><button class="primary wide" id="mc-go">${svg('sparkle')}Get feedback</button>`;
       const g = $('#mc-go', box);
+      if (!aiCan('coach')) { g.remove(); return; }
       g.onclick = async () => {
         if (!App.me.ai_ok) { aiSheet(() => g.click()); return; }
         g.disabled = true; const was = g.innerHTML; g.textContent = 'Reading the meal…';
