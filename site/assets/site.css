@@ -308,6 +308,5 @@ html { scroll-padding-top: 130px; }
 .zoom button:disabled { opacity: .35; }
 
 /* The editorial brand leaves content and screenshots room to breathe. */
-.track { display: none; }
 .point, .hcard, .card, .combo > div { border-radius: 16px; }
 .btn.solid { border-color: var(--brand-solid); }

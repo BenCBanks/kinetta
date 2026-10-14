@@ -98,6 +98,10 @@ Apply the same typography, ivory/forest palette, evergreen actions and restraine
 pages. Header/footer copies must stay consistent. Screenshots are actual implemented demo screens, never generated
 mockups presented as app evidence. Capture on an isolated clean demo install so test accounts do not appear publicly.
 
+Preserve the homepage oval track and its moving ball behind the iPhone screenshot: the track uses the subtle divider
+color and the ball uses the evergreen/sage brand token. Keep the phone in front, the oval within the viewport, and
+pause the ball for reduced-motion preferences. This is an intentional brand detail requested by the owner.
+
 Refresh captures daily and on app changes, then publish Pages. The capture manifest identifies the actual source and
 UTC capture time; it must work when the converter runs outside the git checkout. An already-open homepage checks the
 manifest and refreshes light/dark images when it changes, retaining usable pictures offline. Near-midnight staging keeps
