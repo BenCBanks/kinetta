@@ -30,8 +30,8 @@ NUM = ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')
 KNOWN = ('kcal', 'protein_g', 'carbs_g', 'fat_g')     # what can be typed in for the whole dish
 MAX_ITEMS = 60
 MAX_DISHES = 300
-NEW_NAME = 'New dish'   # a dish not named yet (older ones were called after their meal)
-PLACEHOLDERS = {NEW_NAME, 'Breakfast', 'Lunch', 'Dinner', 'Snacks'}
+NEW_NAME = 'New meal'   # a dish not named yet (older ones were called after their meal)
+PLACEHOLDERS = {NEW_NAME, 'New dish', 'Breakfast', 'Lunch', 'Dinner', 'Snacks'}
 
 
 # ---------- "100 g chicken" -> 100 g + "chicken" (no AI: the person then picks a match from /api/food/search) ----------
@@ -152,7 +152,7 @@ def _weight(d):
 
 def _out(d):
     totals, weight = _totals(d), _weight(d)
-    return {'id': d['id'], 'name': d['name'], 'items': d['items'],
+    return {'id': d['id'], 'name': (NEW_NAME if d['name'] == 'New dish' else d['name']), 'items': d['items'],
             'known': {k: d[f'known_{k}'] for k in KNOWN}, 'totals': totals,
             'cooked_g': d['cooked_g'], 'weight_g': weight, 'items_g': _sum_g(d), 'weighed': d['cooked_g'] is not None,
             'serving': d['serving'], 'servings': d['servings'], 'named': d['name'] not in PLACEHOLDERS,
@@ -240,7 +240,7 @@ def dish_add(body: DishIn, user=Depends(current_user)):
             c.execute('UPDATE dishes SET created = now(), updated = now(), name = %s WHERE id = %s', (NEW_NAME, empty['id']))
             return _view(c, user['id'], _get(c, user['id'], empty['id']))
         if c.execute('SELECT count(*) AS n FROM dishes WHERE user_id = %s', (user['id'],)).fetchone()['n'] >= MAX_DISHES:
-            raise HTTPException(400, f'You can keep up to {MAX_DISHES} dishes - delete one first')
+            raise HTTPException(400, f'You can keep up to {MAX_DISHES} meals - delete one first')
         # new dishes are measured by servings (the whole dish is one serving): the simplest to log; a pot switches to weight
         did = c.execute("INSERT INTO dishes (user_id, name, serving, servings) VALUES (%s, %s, 'one', 1) RETURNING id", (user['id'], name or NEW_NAME)).fetchone()['id']
         return _view(c, user['id'], _get(c, user['id'], did))
@@ -270,7 +270,7 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         d = _get(c, user['id'], did, lock=True)
         sets = {}
         if 'name' in v:
-            if not (v['name'] or '').strip(): raise HTTPException(400, 'The dish needs a name')
+            if not (v['name'] or '').strip(): raise HTTPException(400, 'The meal needs a name')
             sets['name'] = v['name'].strip()
         if 'cooked_g' in v:     # the same as the ingredients added up = not weighed
             g = _r(v['cooked_g'])
@@ -333,7 +333,7 @@ def item_add(did: int, body: ItemIn, user=Depends(current_user)):
     per100 = _per100(body)
     with db.connect() as c:
         items = _get(c, user['id'], did, lock=True)['items']
-        if len(items) >= MAX_ITEMS: raise HTTPException(400, f'A dish can have up to {MAX_ITEMS} ingredients')
+        if len(items) >= MAX_ITEMS: raise HTTPException(400, f'A meal can have up to {MAX_ITEMS} ingredients')
         item = {'id': secrets.token_hex(4), 'name': body.name.strip(), 'grams': round(body.grams, 1), **_item_values(per100, body.grams),
                 'per100': per100, 'source': body.source, 'ref': body.ref}
         return _view(c, user['id'], _save_items(c, user['id'], did, items + [item]))
@@ -383,9 +383,9 @@ def portion(did: int, body: PortionIn, user=Depends(current_user)):
     if sum(x is not None for x in (body.grams, body.share, body.count)) != 1: raise HTTPException(400, 'Send grams, share or count')
     with db.connect() as c:
         d = _seen(c, user['id'], did)
-        if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, "Add the ingredients or the dish's total calories first")
+        if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, "Add the ingredients or the meal's total calories first")
         weight = _weight(d)
-        if body.grams is not None and not weight: raise HTTPException(400, "This dish has no weight yet - log a share of it, or add its weight")
+        if body.grams is not None and not weight: raise HTTPException(400, "This meal has no weight yet - log a share of it, or add its weight")
         if body.count is not None:      # servings of the whole dish: by servings, the whole dish is one serving (Ben, 2026-10-12)
             f, amount, unit = body.count, round(body.count, 2), 'serving'
         elif body.grams is not None: f, amount, unit = body.grams / weight, round(body.grams, 1), 'g'
@@ -422,9 +422,9 @@ def share(did: int, body: ShareIn, user=Depends(current_user)):
         t = c.execute("""SELECT u.id, u.name FROM users u JOIN friendships f ON f.status = 'accepted'
                            AND ((f.requester = u.id AND f.addressee = %(me)s) OR (f.addressee = u.id AND f.requester = %(me)s))
                          WHERE u.login = %(l)s""", {'me': user['id'], 'l': body.login.strip().lower()}).fetchone()
-        if not t: raise HTTPException(404, 'You can share a dish only with friends')
+        if not t: raise HTTPException(404, 'You can share a meal only with friends')
         if c.execute('SELECT count(*) AS n FROM dish_shares WHERE dish_id = %s', (did,)).fetchone()['n'] >= MAX_SHARES:
-            raise HTTPException(400, f'A dish can be shared with up to {MAX_SHARES} people')
+            raise HTTPException(400, f'A meal can be shared with up to {MAX_SHARES} people')
         if c.execute('INSERT INTO dish_shares (dish_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (did, t['id'])).fetchone():
             notify.add(c, t['id'], 'dish_shared', user['id'], dish_id=did)
         return _view(c, user['id'], _get(c, user['id'], did))

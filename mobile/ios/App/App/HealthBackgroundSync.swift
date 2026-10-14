@@ -28,6 +28,8 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
     private var completions: [() -> Void] = []
     private var activeCompletions: [() -> Void] = []
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
+    // Main-thread only: join repeated taps instead of presenting overlapping sheets.
+    private var permissionWaiters: [(Error?) -> Void] = []
     private let keyAccount = "apple-health-sync"
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -104,8 +106,28 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
 
     // Called only from the user's explicit Connect/permissions action, never in the background.
     func requestPermissions(done: @escaping (Error?) -> Void) {
-        store.requestAuthorization(toShare: [], read: detailTypes()) { success, error in
-            done(error ?? (success ? nil : self.failure("Health permissions could not be requested.")))
+        DispatchQueue.main.async {
+            guard HKHealthStore.isHealthDataAvailable() else {
+                done(self.failure("Apple Health is unavailable on this device.")); return
+            }
+            self.permissionWaiters.append(done)
+            guard self.permissionWaiters.count == 1 else { return }
+            // One read-only request covers the foreground reader and native queue.
+            var types = self.detailTypes()
+            types.insert(HKObjectType.workoutType())
+            types.insert(HKSeriesType.workoutRoute())
+            let quantities: [HKQuantityTypeIdentifier] = [.heartRate, .distanceWalkingRunning, .distanceCycling, .distanceSwimming, .distanceDownhillSnowSports, .activeEnergyBurned]
+            for id in quantities {
+                if let type = HKObjectType.quantityType(forIdentifier: id) { types.insert(type) }
+            }
+            self.store.requestAuthorization(toShare: [], read: types) { success, error in
+                DispatchQueue.main.async {
+                    let waiting = self.permissionWaiters
+                    self.permissionWaiters.removeAll()
+                    let failure = error ?? (success ? nil : self.failure("Health permissions could not be requested."))
+                    for complete in waiting { complete(failure) }
+                }
+            }
         }
     }
 

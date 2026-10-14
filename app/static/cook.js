@@ -26,7 +26,7 @@ route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
   try { await load(`/api/dishes/${id}`, (d) => drawDish(el, d), {maxAge: 0}); }
   catch (x) {     // deleted (or no longer shared)
     if (x.status !== 404) throw x;
-    el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><div class="card empty"><b>This dish is gone</b>Portions logged from it are still in the food log.</div>`;
+    el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><div class="card empty"><b>This meal is gone</b>Portions logged from it are still in the food log.</div>`;
     wireBack(el, '/food');
   }
 });
@@ -46,23 +46,23 @@ function drawDish(el, d) {
   const shared = mine ? d.shared_with || [] : [];
   const bySv = d.serving === 'one';
   const sums = has ? `<p class="dish-sum num"><b>${r0(t.kcal)} kcal</b> · ${MACROS.map(([k, nm]) => `${r0(t[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${mine ? `<button class="icon-btn" id="dk-help" aria-label="How dishes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Dish options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
-    ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the dish" aria-label="Dish name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
+  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${mine ? `<button class="icon-btn" id="dk-help" aria-label="How meals work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
+    ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the meal" aria-label="Meal name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
     ${sums}
     ${d.items.length ? `<div class="card ing-card"><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
     ${mine && has ? `<div class="card serve measure"><div class="seg wide m-seg" role="group" aria-label="How it's measured">
         <button type="button" data-sv="one" aria-pressed="${bySv}">By servings</button><button type="button" data-sv="portion" aria-pressed="${!bySv}">By weight</button></div>
-      ${bySv ? `<p class="small muted m-note">The whole dish is one serving. Had more? Say so when you log it.</p>`
+      ${bySv ? `<p class="small muted m-note">The whole meal is one serving. Had more? Say so when you log it.</p>`
         : `<form class="m-row" id="dk-weigh"><label class="m-lab" for="dk-w">Total weight</label><span class="gfield"><input id="dk-w" name="g" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
-          value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole dish in grams"><span>g</span></span></form>
+          value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole meal in grams"><span>g</span></span></form>
           ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
-    ${(mine && App.me.coach && has) || d.review ? `<div class="card ai coach-card" id="dk-ai">${recipeReview(d, mine)}</div>` : ''}
+    ${(mine && aiCan('coach') && has) || d.review ? `<div class="card ai coach-card" id="dk-ai">${recipeReview(d, mine)}</div>` : ''}
     ${shared.length ? `<button class="card tap share-row" id="dk-share"><span class="avs">${shared.map((p) => avatar(p)).join('')}</span>
       <span class="grow"><b>Shared with ${esc(shared.map((p) => p.name.split(' ')[0]).join(', '))}</b><small class="muted">Tap to change</small></span>${svg('chev')}</button>` : ''}
     ${mine ? `${chatLog(d)}<div id="dk-match"></div>
       <form class="composer" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
-        <input name="t" id="dk-t" placeholder="Add an ingredient…" aria-label="Add an ingredient in your own words, like 2 apples or a tablespoon of olive oil" autocomplete="off" enterkeyhint="send" maxlength="600" required>
+        <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'Add an ingredient…' : 'Search for an ingredient…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="search" maxlength="600" required>
         <button class="icon-btn send" aria-label="Add">${svg('send')}</button></form>
       <input type="file" accept="image/*" id="dk-label-file" hidden>`
       : has ? `<div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
@@ -72,7 +72,7 @@ function drawDish(el, d) {
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
   if (!mine) return;
-  $('#dk-help', el).onclick = () => sheet('How dishes work', cookSteps(d));
+  $('#dk-help', el).onclick = () => sheet('How meals work', cookSteps(d));
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
   labelButton(el, d, set);
@@ -81,7 +81,7 @@ function drawDish(el, d) {
   // Done: back to Nutrition (a dish with nothing in it and no name isn't kept)
   $('#dk-done', el).onclick = () => {
     if (!has && !$('#dk-name', el).value.trim()) { api(`/api/dishes/${d.id}`, {method: 'DELETE'}).catch(() => {}); App.cache.delete('/api/dishes'); }
-    else if (has) toast('Saved. Log it from Add food > Saved Dishes');
+    else if (has) toast('Saved. Log it from Add food > Saved Meals');
     go('/food', {replace: true});
   };
   // the name, edited in place: saved when you leave the box or press Done on the keyboard
@@ -111,11 +111,11 @@ function drawDish(el, d) {
 // + next to the message box: the other ways to add an ingredient
 function plusMenu(el, d, set) {
   sheet('Add an ingredient', `<div class="btncol plus-menu"><button class="ghost" id="pm-scan">${svg('barcode')}Scan a barcode</button>
-    <button class="ghost" id="pm-label">${svg('camera')}Photo of the nutrition label</button>
+    ${aiCan('food') ? `<button class="ghost" id="pm-label">${svg('camera')}Photo of the nutrition label</button>` : ''}
     <button class="ghost" id="pm-search">${svg('search')}Search the food database</button>
-    <button class="ghost" id="pm-known">${svg('edit')}${d.known.kcal != null ? 'Change the total you typed in' : 'Type the whole dish\'s calories'}</button></div>`, (b, close) => {
+    <button class="ghost" id="pm-known">${svg('edit')}${d.known.kcal != null ? 'Change the total you typed in' : 'Type the whole meal\'s calories'}</button></div>`, (b, close) => {
     $('#pm-scan', b).onclick = () => { close(); scanSheet(null, null, (f) => foodToDish(d, f, set)); };
-    $('#pm-label', b).onclick = () => { close(); el._label(); };
+    const label = $('#pm-label', b); if (label) label.onclick = () => { close(); el._label(); };
     $('#pm-search', b).onclick = () => { close(); el._search && el._search(); };
     $('#pm-known', b).onclick = () => { close(); knownSheet(d, set); };
   });
@@ -128,7 +128,7 @@ function foodToDish(d, f, set) {
     <label>How much went in<span class="gfield"><input name="g" inputmode="decimal" value="${sg ? Math.round(sg) : 100}" aria-label="How much went in, in grams"><span>g</span></span></label>
     ${sg ? `<div class="share-line"><span class="muted">or</span><input name="n" inputmode="decimal" placeholder="1" aria-label="Servings"><span>servings</span></div>` : ''}
     <div class="portion-out" aria-live="polite"></div>
-    <div class="actions"><button class="primary">Add to the dish</button></div></form>`, (b, close) => {
+    <div class="actions"><button class="primary">Add to the meal</button></div></form>`, (b, close) => {
     const fm = $('#fd2', b), out = $('.portion-out', fm), num = (x) => +x.value.replace(',', '.');
     const show = () => { const g = num(fm.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, (p[k] || 0) * g / 100]))) : ''; };
     fm.g.oninput = () => { if (fm.n) fm.n.value = ''; show(); };
@@ -153,8 +153,8 @@ function dishLogSheet(d, w, done) {
   sheet(d.name, `<form class="form" id="dl">
     ${bySv ? `<div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
         <span><b class="num" id="dl-n">1</b><small id="dl-u">serving</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div>`
-      : wt ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="The whole dish is ${Math.round(wt)}" aria-label="Your portion in grams"><span>g</span></span></label>`
-      : '<p class="callout warn">This dish is measured by weight but has no weight yet. Edit it and type its total weight, or switch it to servings.</p>'}
+      : wt ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="The whole meal is ${Math.round(wt)}" aria-label="Your portion in grams"><span>g</span></span></label>`
+      : '<p class="callout warn">This meal is measured by weight but has no weight yet. Edit it and type its total weight, or switch it to servings.</p>'}
     <div class="portion-out" aria-live="polite"></div>
     <div class="actions">${d.mine !== false ? `<button type="button" class="ghost" id="dl-edit">${svg('edit')}Edit</button><span class="spacer"></span>` : ''}
       <button class="primary"${!bySv && !wt ? ' disabled' : ''}>Add to ${esc(MEAL_NAMES[w.meal])}${w.day !== isoDay(new Date()) ? `, ${esc(dayLabel(w.day))}` : ''}</button></div></form>`, (b, close) => {
@@ -238,7 +238,7 @@ function labelButton(el, d, set) {
           ${pkg ? `<button type="button" class="linkbtn" id="lb-all">The whole package (${gfmt(pkg)})</button>` : ''}</div>
         <div class="portion-out" aria-live="polite"></div>
         <label class="check"><input type="checkbox" name="save"> <span>Also save it to My foods</span></label>
-        <div class="actions"><button class="primary">Add to the dish</button></div></form>`;
+        <div class="actions"><button class="primary">Add to the meal</button></div></form>`;
       const f = $('#lb', b), out = $('.portion-out', f), num = (x) => +x.value.replace(',', '.');
       const show = () => { const g = num(f.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, (L.per100[k] || 0) * g / 100]))) : ''; };
       f.g.oninput = () => { f.n.value = ''; show(); };
@@ -276,11 +276,11 @@ function cookSteps(d) {
   const added = d.items.length > 0 || d.known.kcal != null;
   const steps = [
     [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it the way you\'d text it, or tap + to scan a barcode or photograph the label.'],
-    [added, 'Say how it\'s measured', 'By servings (the whole dish is one serving, like a smoothie; log 2 if you had two) or by weight (a pot of chili: you log grams).'],
-    [false, 'Log it when you eat it', 'Add food > Saved Dishes, any day. It stays saved until you delete it.'],
+    [added, 'Say how it\'s measured', 'By servings (the whole meal is one serving, like a smoothie; log 2 if you had two) or by weight (a pot of chili: you log grams).'],
+    [false, 'Log it when you eat it', 'Add food > Saved Meals, any day. It stays saved until you delete it.'],
   ];
   const now = added ? 2 : 0;
-  return `<ol class="card cook-steps" aria-label="How dishes work">${steps.map(([done, title, sub], i) =>
+  return `<ol class="card cook-steps" aria-label="How meals work">${steps.map(([done, title, sub], i) =>
     `<li class="${done && i !== now ? 'done' : i === now ? 'now' : ''}"${i === now ? ' aria-current="step"' : ''}><span class="stepn">${done && i !== now ? svg('check') : i + 1}</span>
       <div><b>${title}</b><small>${esc(sub)}</small></div></li>`).join('')}</ol>`;
 }
@@ -293,18 +293,18 @@ function recipeReview(d, mine) {
     ${R.summary ? `<p class="ai-head">${esc(R.summary)}</p>` : ''}${R.text ? `<p>${esc(R.text)}</p>` : ''}
     ${R.ideas ? `<h3 class="ghead">Ideas</h3><ul class="ai-list">${R.ideas.map((i) => `<li>${svg('sparkle')}<span><b>${esc(i.change)}</b>${i.effect ? ` <span class="muted">${esc(i.effect)}</span>` : ''}</span></li>`).join('')}</ul>` : ''}
     ${R.note ? `<div class="callout warn">${esc(R.note)}</div>` : ''}
-    ${mine && App.me.coach ? `<button class="linkbtn" id="dk-review">${svg('sparkle')}${R.changed_since ? 'The recipe changed - ask again' : 'Ask again'}</button>` : ''}`, new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}));
+    ${mine && aiCan('coach') ? `<button class="linkbtn" id="dk-review">${svg('sparkle')}${R.changed_since ? 'The recipe changed - ask again' : 'Ask again'}</button>` : ''}`, new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}));
 }
 // who the dish is shared with: friends only, one tap each
 function shareDishSheet(d, set) {
-  sheet('Share this dish', `<p class="small muted">Friends you share it with see the dish and log their own portion. They can't change it.</p><div id="sd-list">${skel(1)}</div>`, async (b) => {
+  sheet('Share this meal', `<p class="small muted">Friends you share it with see the meal and log their own portion. They can't change it.</p><div id="sd-list">${skel(1)}</div>`, async (b) => {
     const box = $('#sd-list', b);
     let on = new Set((d.shared_with || []).map((p) => p.login)), fr;
     try { fr = (await api('/api/friends')).friends; } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
     const draw = () => {
       box.innerHTML = fr.length ? `<div class="card list">${fr.map((p) => `<div class="person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span>
         <button class="${on.has(p.login) ? 'ghost' : 'primary'} sm" data-sd="${esc(p.login)}">${on.has(p.login) ? `${svg('check')}Shared` : 'Share'}</button></div>`).join('')}</div>`
-        : '<p class="small muted">No friends yet. Add them under Me &gt; Friends, then share dishes with them here.</p>';
+        : '<p class="small muted">No friends yet. Add them under Me &gt; Friends, then share meals with them here.</p>';
       $$('[data-sd]', box).forEach((x) => x.onclick = async () => {
         x.disabled = true; const login = x.dataset.sd;
         try {
@@ -318,7 +318,7 @@ function shareDishSheet(d, set) {
   });
 }
 function sharedMenu(d) {
-  sheet(d.name, `<p class="small muted">${esc(d.owner.name)} shared this dish with you.</p><div class="btncol"><button class="ghost danger" id="sm-hide">Remove it from my list</button></div>`, (b, close) => {
+  sheet(d.name, `<p class="small muted">${esc(d.owner.name)} shared this meal with you.</p><div class="btncol"><button class="ghost danger" id="sm-hide">Remove it from my list</button></div>`, (b, close) => {
     $('#sm-hide', b).onclick = async () => {
       try { await api(`/api/dishes/${d.id}/share/${encodeURIComponent(App.me.login)}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); }
       catch (x) { toast(x.message); }
@@ -335,7 +335,7 @@ function chatLog(d) {
   const bubble = (m, i) => m.who === 'me' ? `<p class="cmsg me">${esc(m.text)}</p>`
     : `<div class="cmsg ai${m.wait ? ' wait' : ''}">${m.wait ? '<span class="dots" aria-label="Working it out"><i></i><i></i><i></i></span>' : esc(m.text)}
         ${m.added && m.added.length && !m.undone ? `<button type="button" class="linkbtn" data-undo="${i}">Undo</button>` : ''}</div>`;
-  return `<div class="cchat" id="dk-chat" aria-live="polite">${first ? `<div class="cmsg ai">Add an ingredient or take a picture. Type it like a text: “2 apples”, “a box of penne”, “make the rice 200 g”. Tap + to scan a barcode or photograph the nutrition label.</div>` : ''}
+  return `<div class="cchat" id="dk-chat" aria-live="polite">${first ? `<div class="cmsg ai">${aiCan('food') ? 'Describe an ingredient, photograph a label or scan a barcode. Review the nutrition before adding.' : 'Search for an ingredient below, then choose the amount. Tap + to scan a barcode or enter known nutrition totals. AI is optional.'}</div>` : ''}
     ${log.slice(-8).map((m, k) => bubble(m, log.length - Math.min(log.length, 8) + k)).join('')}</div>`;
 }
 function chatBox(el, d, set) {
@@ -357,7 +357,7 @@ function chatBox(el, d, set) {
     log.splice(log.indexOf(wait), 1, {who: 'ai', text: r.reply, added: r.added});
     redraw(r.dish);
   };
-  f.onsubmit = (e) => { e.preventDefault(); const text = f.t.value.trim(); if (text) send(text); };
+  f.onsubmit = (e) => { e.preventDefault(); const text = f.t.value.trim(); if (text) { if (aiCan('food')) send(text); else searchFlow(el, d, set, text); } };
   el._search = () => searchFlow(el, d, set, f.t.value.trim());
   $$('[data-undo]', el).forEach((b) => b.onclick = async () => {
     const m = log[+b.dataset.undo]; b.disabled = true;
@@ -453,7 +453,7 @@ function itemSheet(d, it, set) {
 }
 function knownSheet(d, set) {
   const k = d.known, v = (x) => (x == null ? '' : Math.round(x));
-  sheet('Total for the whole dish', `<form class="form" id="kn"><label>Calories<input name="kcal" inputmode="decimal" value="${v(k.kcal)}" required></label>
+  sheet('Total for the whole meal', `<form class="form" id="kn"><label>Calories<input name="kcal" inputmode="decimal" value="${v(k.kcal)}" required></label>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal" value="${v(k.protein_g)}"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal" value="${v(k.carbs_g)}"></label></div>
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal" value="${v(k.fat_g)}"></label><span></span></div>
     <p class="small muted">From a recipe or your own sums. It's used instead of the ingredients.</p>
@@ -474,14 +474,14 @@ function dishMenu(d, set, search, known) {
   sheet(d.name, `<div class="btncol"><button class="ghost" id="dm-search">Search the food database</button>
     <button class="ghost" id="dm-known">${d.known.kcal != null ? 'Change the total you typed in' : 'I already know the total'}</button>
     <button class="ghost" id="dm-share">${(d.shared_with || []).length ? 'Shared with friends' : 'Share with a friend'}</button>
-    <button class="ghost danger" id="dm-del">Delete dish</button></div>
+    <button class="ghost danger" id="dm-del">Delete meal</button></div>
     <p class="small muted">What you've logged from it stays in your food log.</p>`, (b, close) => {
     $('#dm-search', b).onclick = () => { close(); search(); };
     $('#dm-known', b).onclick = () => { close(); known(); };
     $('#dm-share', b).onclick = () => { close(); shareDishSheet(d, set); };
     $('#dm-del', b).onclick = async () => {
       if (!confirm(`Delete ${d.name}?`)) return;
-      try { await api(`/api/dishes/${d.id}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); toast('Dish deleted'); } catch (x) { toast(x.message); }
+      try { await api(`/api/dishes/${d.id}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); toast('Meal deleted'); } catch (x) { toast(x.message); }
     };
   });
 }

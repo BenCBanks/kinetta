@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field, field_validator
 
-from . import coach_chat, coach_proposals, ai_release
+from . import coach_chat, coach_proposals, ai_release, ai_access
 from .auth import current_user
 from .coach_tools import AccountTools, Empty
 from .food_photo import brake
@@ -41,6 +41,7 @@ def tool(body: ToolIn, user=Depends(current_user)):
 @router.post('/ask')
 def ask(body: AskIn, user=Depends(current_user)):
     if not ai_release.enabled(): raise HTTPException(503, 'Kit questions are not available yet.')
+    ai_access.require(user['id'], 'coach')
     brake(user['id'], limit=10, kind='coach_questions', what='questions for Kit')
     try: return coach_chat.answer(user['id'], body.question)
     except ValueError as e: raise HTTPException(400, str(e)) from e

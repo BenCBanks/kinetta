@@ -17,6 +17,7 @@ route(/^\/me\/kit$/, 'me', async (el) => {
     if (!valid() || me.id !== account) return;
     App.me = me; keep('/api/me', me);
   } catch (e) { if (valid()) error.textContent = e.message; return; }
+  if (!aiCan('coach')) { form.innerHTML = '<p>AI coaching is unavailable for this account or consent is off. Your training plan, activity history and food tools still work.</p><a href="/me/explore">Explore Kinetta</a>'; return; }
   if (!App.me?.coach_tools) {
     form.innerHTML = '<p class="small">Kit questions are not available yet.</p><a class="ghost wide" href="/me">Back to Me</a>';
     return;

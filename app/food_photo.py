@@ -18,7 +18,7 @@ import urllib.request
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from . import coach
+from . import coach, ai_access
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
@@ -112,7 +112,8 @@ def brake(user_id, limit=DAILY_LIMIT, kind='photo', what='estimates'):
 
 @router.post('/photo')
 def photo(body: PhotoIn, user=Depends(current_user)):
-    if coach.enabled() and not coach.allowed(user['id']): raise HTTPException(403, coach.OFF)
+    ai_access.require(user['id'], 'food')
+    if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.OFF)
     key = os.environ.get('GEMINI_API_KEY')
     if not key: raise HTTPException(503, 'Photo logging needs a Gemini key on the server')
     note = (body.note or '').strip()
@@ -173,7 +174,8 @@ class LabelIn(BaseModel):
 @router.post('/label')
 def label(body: LabelIn, user=Depends(current_user)):
     """Read a nutrition label: {name, brand, serving: {label, g}, servings, package_g, per_serving, per100}. Nothing is saved."""
-    if coach.enabled() and not coach.allowed(user['id']): raise HTTPException(403, coach.OFF)
+    ai_access.require(user['id'], 'food')
+    if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.OFF)
     if not os.environ.get('GEMINI_API_KEY'): raise HTTPException(503, 'Reading labels needs a Gemini key on the server')
     try: img = base64.b64decode(body.image.split(',', 1)[-1], validate=True)
     except (binascii.Error, ValueError): raise HTTPException(400, "That photo couldn't be read")

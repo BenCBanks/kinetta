@@ -65,7 +65,7 @@ def _words(r):
         snip = (r['comment'] or '').strip()
         return f'{who} commented on your {act}' + (f': "{snip[:80]}{"…" if len(snip) > 80 else ""}"' if snip else ''), f"/activity/{r['activity_id']}"
     if r['kind'] == 'report': return f'{who} reported something for the admins to look at', '/me/people'
-    return f"{who} shared {r['dish'] or 'a dish'} with you", f"/food/cook/{r['dish_id']}"
+    return f"{who} shared {r['dish'] or 'a meal'} with you", f"/food/cook/{r['dish_id']}"
 
 
 def _item(r):

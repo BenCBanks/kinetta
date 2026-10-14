@@ -10,6 +10,16 @@ const Native = (() => {
   const get = async (key) => (await prefs.get({key})).value;
   const put = (key, value) => (value == null ? prefs.remove({key}) : prefs.set({key, value: String(value)}));
   const N = {on, base: '', token: null, server: 'https://login.kinetta.app'};
+  // Bound device callbacks too: a missing HealthKit callback must not leave the UI asking forever.
+  N.healthTimeout = 45000;
+  N.healthPermissionTimeout = 120000;
+  N.healthBackgroundTimeout = 10000;
+  N.healthCall = (promise, message, ms = N.healthTimeout) => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    Promise.resolve(promise).then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+  N.healthProgress = '';
+  const progress = (text) => { N.healthProgress = text; if (N.onHealthProgress) N.onHealthProgress(text); };
   // the server and login token live in the app's own settings (Capacitor Preferences), which iOS doesn't clear the way it
   // can clear a web view's storage when the phone runs low on space
   N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); })().catch(() => {}) : Promise.resolve();
@@ -51,27 +61,33 @@ const Native = (() => {
   N.healthStatus = async () => { try { return await N.healthOn() ? JSON.parse(await get('health.status')) : null; } catch (e) { return null; } };
   N.backgroundStatus = async () => {
     if (!background || !(await N.healthOn())) return null;
-    try { return await background.status({owner: owner()}); }
+    try { return await N.healthCall(background.status({owner: owner()}), 'Health status is taking too long. Try again.', 10000); }
     catch (e) { return {enabled: false, error: 'Background sync status is unavailable. Open Kinetta to sync.'}; }
   };
-  N.enableBackground = async () => {
+  N.enableBackground = () => N.backgroundConnecting || (N.backgroundConnecting = (async () => {
     const account = owner(), token = N.token, base = N.base, version = generation;
     if (background && await N.healthOn()) {
       if (account !== owner() || token !== N.token || version !== generation) return;
-      try { await background.connect({server: base, owner: account, token}); }
+      try { await N.healthCall(background.connect({server: base, owner: account, token}), 'Background sync did not respond. Foreground sync is still available.', N.healthBackgroundTimeout); }
       catch (e) { /* Native status retains the background error; keep foreground recovery available. */ }
     }
-  };
-  N.connectHealth = async () => {
+  })().finally(() => { N.backgroundConnecting = null; }));
+  N.connectHealth = () => N.connecting || (N.connecting = (async () => {
     const account = owner(), version = generation;
-    if (!(await health.isHealthAvailable()).available) throw new Error("Apple Health isn't available on this device.");
-    await health.requestHealthPermissions({permissions: ASK});   // iOS shows its own sheet once; later changes are in Settings
-    if (background?.requestPermissions) await background.requestPermissions();
+    if (!(await N.healthCall(health.isHealthAvailable(), 'Apple Health did not respond. Please try again.')).available) throw new Error("Apple Health isn't available on this device.");
+    progress('Choose what Kinetta can read in Apple Health, then tap Done.');
+    // Older shells retain their original permission API; new builds use one combined native request.
+    await N.healthCall(background?.requestPermissions ? background.requestPermissions() : health.requestHealthPermissions({permissions: ASK}),
+      'Health setup has not finished. Close the Health permission screen, then try Connect again.', N.healthPermissionTimeout);
     if (!account || account !== owner() || version !== generation) throw new Error('Log in before connecting Apple Health.');
-    await put('health.owner', owner());
+    await put('health.owner', account);
+    if (account !== owner() || version !== generation) throw new Error('Health connection stopped because the account changed.');
     await put('health.on', '1');
-    await N.enableBackground();
-  };
+    N.lastAuto = 0; // A pre-connection auto-sync must not suppress the first import for ten minutes.
+    progress('Health sync is enabled. Your first import runs separately.');
+    // Permission completion is independent of background delivery and a potentially large first import.
+    N.enableBackground().catch(() => {});
+  })().finally(() => { N.connecting = null; }));
   N.disconnectHealth = async () => {
     generation++; N.lastAuto = 0;
     // Native uploads must stop before a login can replace the selected account/server.
@@ -81,8 +97,8 @@ const Native = (() => {
     for (const key of ['health.on', 'health.owner', 'health.last', 'health.retryFrom', 'health.status']) await put(key, null);
   };
   N.openHealthSettings = async () => {
-    if (background?.requestPermissions) await background.requestPermissions();
-    await health.openAppleHealthSettings();
+    // Re-requesting decided read permissions cannot reopen Apple's switches.
+    await N.healthCall(health.openAppleHealthSettings(), 'Settings did not open. Use Health → your profile → Apps → Kinetta.');
   };
   // The plugin's workout -> what POST /api/health/workouts takes
   const shape = (w) => ({id: w.id, type: w.workoutType || 'other', start: w.startDate, end: w.endDate, duration_s: w.duration,
@@ -99,24 +115,27 @@ const Native = (() => {
     const from = retry ? Math.min(retry, requested) : requested;
     const previous = await N.healthStatus();
     const sum = {added: 0, duplicates: 0, updated: 0, failed: 0};
+    progress('Reading recent workouts from Apple Health…');
     guard(); await put('health.retryFrom', from);
     try {
       if (background) {
         await N.enableBackground(); guard();
-        if (background.refresh) await background.refresh({owner: account, start: new Date(from).toISOString(), end: new Date(to).toISOString()});
+        if (background.refresh) await N.healthCall(background.refresh({owner: account, start: new Date(from).toISOString(), end: new Date(to).toISOString()}), 'Health detail refresh did not respond. Try Sync now again.');
         else await background.retry().catch(() => {});
         guard();
       }
       for (let a = from; a < to; a += 7 * DAY) {
         guard();
-        const r = await health.queryWorkouts({startDate: new Date(a).toISOString(), endDate: new Date(Math.min(a + 7 * DAY, to)).toISOString(),
-          includeHeartRate: true, includeRoute: true, includeSteps: true});
+        progress(`Reading workouts: ${Math.min(Math.ceil((a - from) / DAY) + 7, Math.ceil((to - from) / DAY))} of ${Math.ceil((to - from) / DAY)} days…`);
+        const r = await N.healthCall(health.queryWorkouts({startDate: new Date(a).toISOString(), endDate: new Date(Math.min(a + 7 * DAY, to)).toISOString(),
+          includeHeartRate: true, includeRoute: true, includeSteps: true}), 'Apple Health is taking too long to read workouts. Keep your phone unlocked and try Sync now.');
         guard();
         if (r.errors && Object.keys(r.errors).length) throw new Error('Apple Health could not read all workout details. Unlock your phone and try again.');
         const ws = (r.workouts || []).filter((w) => w.id && w.duration > 0).map(shape);
         for (let i = 0; i < ws.length; i += 10) {
           guard();
-          const res = await api('/api/health/workouts', json('POST', {workouts: ws.slice(i, i + 10)}));
+          progress(`Importing workouts… ${sum.added} new, ${sum.duplicates} already here.`);
+          const res = await N.healthCall(api('/api/health/workouts', json('POST', {workouts: ws.slice(i, i + 10)})), 'The workout upload took too long. Sync now will safely retry it.');
           guard();
           // A missing or incomplete acknowledgement must never move the sync date forward.
           if (!res || !Array.isArray(res.results) || !ws.slice(i, i + 10).every((w) => res.results.some((x) => x.id === w.id && ['added', 'duplicate', 'failed'].includes(x.result))))
@@ -130,8 +149,10 @@ const Native = (() => {
       await put('health.last', to);
       await put('health.retryFrom', null);
       await put('health.status', JSON.stringify({...sum, at: new Date(to).toISOString(), last_success_at: new Date(to).toISOString()}));
+      progress(sum.added || sum.updated ? 'Import complete.' : 'No new readable workouts. If you expected some, check Kinetta’s access in Apple Health.');
       return sum;
     } catch (e) {
+      if (version === generation && account === owner()) progress(e.message || 'Sync paused. Try again.');
       if (version === generation && account === owner() && token === N.token)
         await put('health.status', JSON.stringify({...sum, at: new Date(to).toISOString(), last_success_at: previous?.last_success_at || null, error: e.message || 'Sync failed. Please try again.'}));
       throw e;
@@ -161,7 +182,9 @@ route(/^\/me\/health$/, 'me', async (el) => {
   const [isOn, st, bg] = await Promise.all([Native.healthOn(), Native.healthStatus(), Native.backgroundStatus()]);
   const ai = !!App.me.health_ai_ok;
   box.innerHTML = `<div class="card">
-      <h2>${isOn ? 'Connected' : 'Bring in your workouts'}</h2>
+      <h2>${isOn ? 'Sync enabled' : 'Bring in your workouts'}</h2>
+      <p class="small muted">Choose only the Health categories you want to share. Apple keeps your read-permission choices private; enabling sync does not mean every category was allowed.</p>
+      <p id="h-progress" class="health-progress" role="status">${esc(Native.healthProgress || '')}</p>
       <p>Kinetta reads from Apple Health:</p>
       <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
       <p class="small muted">Kinetta can only import what the recording app saves to Health. Garmin Connect does not send GPS tracks to Apple Health; use Watch connections or import the original file for those maps. Sync now also checks for details that arrived later.</p>
@@ -174,19 +197,26 @@ route(/^\/me\/health$/, 'me', async (el) => {
       ${bg?.error ? `<p class="err" role="alert">${esc(bg.error)}</p>` : ''}
       ${isOn ? `<button class="primary wide" id="h-sync">Sync now</button>
         <button class="ghost wide" id="h-year">Also bring in the past year</button>
-        <button class="ghost wide" id="h-settings">Change what Kinetta can read</button>
+        <button class="ghost wide" id="h-settings">Manage Health access</button>
+        <p class="small muted">In the Health app, tap your profile → Apps (or Apps and Services) → Kinetta to change individual switches. Settings may also list Health under Privacy & Security. Return here and tap Sync now.</p>
         <button class="ghost wide danger" id="h-off">Stop syncing</button>`
       : '<button class="primary wide" id="h-on">Connect Apple Health</button>'}</div>
     <div class="card"><h2>Kit, your AI coach</h2>
       <p class="small">Kit writes notes about your training using an AI service. It reads your Apple Health workouts only if you say yes. Until then Kit stays off for you.</p>
       <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health workouts</label></div>`;
   const err = $('.err', box);
+  Native.onHealthProgress = (text) => { if (box.isConnected) $('#h-progress', box).textContent = text; };
   const busy = async (b, label, fn) => {
     const was = b.textContent; b.disabled = true; b.textContent = label; err.textContent = '';
     try { await fn(); } catch (x) { err.textContent = x.message || String(x); } finally { b.disabled = false; b.textContent = was; }
   };
   const done = (s) => { toast(s ? (s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} added` : s.updated ? `${s.updated} workout${s.updated > 1 ? 's' : ''} updated` : 'Up to date') : 'Nothing to sync'); render(); };
-  const on = $('#h-on', box); if (on) on.onclick = () => busy(on, 'Asking…', async () => { await Native.connectHealth(); done(await Native.syncHealth()); });
+  const on = $('#h-on', box); if (on) on.onclick = () => busy(on, 'Opening Health…', async () => {
+    await Native.connectHealth();
+    if (!box.isConnected) return;
+    toast('Health sync enabled. Importing your recent workouts…');
+    render(); Native.autoSync();
+  });
   const sy = $('#h-sync', box); if (sy) sy.onclick = () => busy(sy, 'Syncing…', async () => done(await Native.syncHealth()));
   const yr = $('#h-year', box); if (yr) yr.onclick = () => busy(yr, 'Bringing in the past year…', async () => done(await Native.syncHealth({days: 365})));
   const se = $('#h-settings', box); if (se) se.onclick = () => busy(se, 'Opening…', () => Native.openHealthSettings());

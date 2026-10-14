@@ -24,7 +24,7 @@ More extensive rescheduling around new available days, changes informed by expec
 
 ## Meal proposals use stored nutrition
 
-The application reads remaining targets, own saved dishes and commonly logged foods. It calculates portion macros and ranks single/pair combinations using those stored values. AI can choose/explain an existing combination, not invent calories, protein or serving weights. Allergy/preferences are not inferred from missing records.
+The application reads remaining targets, own saved meals and commonly logged foods. It calculates portion macros and ranks single/pair combinations using those stored values. AI can choose/explain an existing combination, not invent calories, protein or serving weights. Allergy/preferences are not inferred from missing records.
 
 No suggestions are inserted beneath meal cards. Recommendations are available only when the person asks Kit. The Add food UI cleanup remains a separate change.
 
@@ -48,3 +48,31 @@ Release requirements still outstanding: a reviewed multimodal dataset with known
 4. Extend scheduling constraints and available-days support with deterministic tests; keep every write confirmation-only.
 
 Technical references: [PostgreSQL roles](https://www.postgresql.org/docs/17/sql-set-role.html), [Gemini tool calls](https://ai.google.dev/api/generate-content), [Claude tool definitions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools).
+
+## Product access without making the app depend on AI
+
+`app/ai_access.py` is the server boundary for product access. `food` covers model-powered food/label estimates and
+ingredient interpretation; `coach` covers generated workout, weekly, food and recipe reviews and future Kit answers.
+These capabilities are separate from provider availability, `ai_ok` consent, `health_ai_ok` consent, usage limits and
+the reviewed-evaluation release gate. Access never implies consent and payment will never override a release gate.
+
+`KINETTA_AI_ACCESS_MODE=open` is the default: existing installations keep their current access. A future hosted rollout
+can explicitly choose `entitled`; only enabled, unexpired per-account feature records then allow new model work.
+Unknown mode values fail closed. Migration 39 creates the RLS-protected access table with SELECT-only personal SQL
+access. No profile field, model tool, client claim or public write endpoint can grant an entitlement. The server must
+bind every future billing update to a verified account and validated provider event/transaction. There is no checkout,
+price, trial clock or billing integration in this change; platform purchase rules need review when that is introduced.
+
+Generation endpoints and automatic coaching check access before provider work. Requests without access receive a
+clear 402 response, while cook ingredient input falls back to manual database selection. UI capabilities come from
+`GET /api/me`; the server rechecks each generation request so stale client state cannot bypass revocation. Previously
+saved user records/reviews remain readable. Feature access can expire without deleting plans, meals or logged data.
+
+The non-AI product remains complete: direct food search, barcodes, known totals, custom foods, reusable Meals and
+portion calculations, Health imports, activity detail/maps/social, ordinary training-engine plans, progress, gear and
+profile/body settings do not depend on these grants. Deterministic application tools/proposal validation are separate
+from billable model calls. New model features must choose an existing capability or deliberately extend this catalog,
+with server-denial, consent, isolation and non-AI regression coverage.
+
+Describe or snap currently produces model estimates; it does **not** guarantee a USDA lookup. Keep direct food search.
+Adding a grounded lookup stage is a separate prompt/model change requiring the reviewed food evaluation process.

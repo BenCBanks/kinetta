@@ -45,9 +45,14 @@ def enabled():
     return provider() is not None
 
 
-def allowed(user_id):
-    """The server has an AI key AND this person turned AI features on (Me > AI features)."""
+def allowed(user_id, feature='coach', connection=None):
+    """Provider, per-feature product access and AI consent must all allow generation."""
     if not enabled(): return False
+    from . import ai_access
+    if not ai_access.has(user_id, feature, connection): return False
+    if connection is not None:
+        r = connection.execute('SELECT ai_ok FROM profile WHERE user_id = %s', (user_id,)).fetchone()
+        return bool(r and r['ai_ok'])
     with db.connect() as c:
         r = c.execute('SELECT ai_ok FROM profile WHERE user_id = %s', (user_id,)).fetchone()
     return bool(r and r['ai_ok'])
@@ -171,6 +176,8 @@ def _week_context(c, user_id, week_start):
 
 def week_review(user_id, week_start=None):
     """Writes (or rewrites) the review for the week starting Monday week_start (default: this week)."""
+    from . import ai_access
+    ai_access.require(user_id, 'coach')
     if not enabled(): raise ValueError('Kit is not switched on yet (needs an AI key on the server).')
     if not allowed(user_id): raise ValueError(OFF)
     if week_start is None:
@@ -205,6 +212,8 @@ def weekly_scheduler():
 
 def note(user_id, aid):
     """Writes activities.ai_note; returns the text (or raises ValueError with a friendly message)."""
+    from . import ai_access
+    ai_access.require(user_id, 'coach')
     if not enabled(): raise ValueError('Kit is not switched on yet (needs an AI key on the server).')
     if not allowed(user_id): raise ValueError(OFF)
     with db.connect() as c:

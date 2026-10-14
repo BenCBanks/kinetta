@@ -855,6 +855,20 @@ MIGRATIONS = [
     """
     ALTER TABLE profile ADD COLUMN bio text NOT NULL DEFAULT '' CHECK (char_length(bio) <= 280);
     """,
+    # 39: product access is independent of AI consent; only trusted server code writes it.
+    """
+    CREATE TABLE ai_entitlements (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      feature text NOT NULL CHECK (feature IN ('food', 'coach')),
+      enabled boolean NOT NULL DEFAULT true,
+      expires_at timestamptz,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, feature));
+    ALTER TABLE ai_entitlements ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON ai_entitlements FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON ai_entitlements FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON ai_entitlements TO fit_readers;
+    """,
 ]
 
 

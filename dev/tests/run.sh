@@ -15,6 +15,7 @@ P="${KINETTA_PROJECT:-kinettatest}"
 echo "== shared design tokens and contrast"
 python3 dev/design/build_tokens.py --check
 python3 dev/tests/test_design_manifest.py
+node dev/design/build_guide.js --check
 
 echo "== syntax"
 python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
@@ -38,4 +39,5 @@ echo "== in the app container"
 docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/coach_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/ai_access_incontainer.py
 echo "== all passed"
