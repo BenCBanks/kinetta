@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts
 import threading
 from .auth import current_user
+from . import api_coach, ai_release
 
 @asynccontextmanager
 async def lifespan(app):
@@ -37,6 +38,7 @@ app.include_router(api_dishes.router)
 app.include_router(cook_chat.router)
 app.include_router(food_coach.router)
 app.include_router(notify.router)
+app.include_router(api_coach.router)
 STATIC = os.path.join(os.path.dirname(__file__), 'static')
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; "
        "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
@@ -125,7 +127,7 @@ def me(user=Depends(current_user)):
         p = c.execute('SELECT units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, ai_ok, health_ai_ok FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
-    return {**user, 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
+    return {**user, 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):

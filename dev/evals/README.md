@@ -1,0 +1,21 @@
+# Kinetta AI evaluations
+
+AI functionality is tested on Kinetta's own tasks, not chosen from generic provider rankings. No CI job calls a paid model.
+
+`python3 dev/evals/check.py` runs 300 synthetic reference cases and tests that worse nutrition, product, portion, schema, latency and cost results fail comparison. These tests validate the scorer/gates; their perfect reference answers are not model predictions and do not measure AI accuracy. Categories: text, label text, barcode metadata, fictional restaurant menus and follow-up corrections, including fractional quantities. Human-reviewed photographed meals and actual label images are a separate release requirement.
+
+`dev/tests/coach_incontainer.py` checks quantitative evidence references, unsupported values/paths, invented options, numerical claims outside evidence, loop bounds and consent. API tests prove real PostgreSQL RLS isolation, read-only tools, identity/SQL argument rejection, empty histories, stale proposals, explicit confirmation and idempotent replay. Semantic interpretations still need human review; evidence checks cannot prove every qualitative claim or causality.
+
+## Capture a real benchmark
+
+1. Build a reviewed, nonpersonal manifest with at least several hundred examples, including text, weighed-meal photos, labels, barcode products, restaurant portions and follow-up corrections. Every case needs reviewed calorie/protein/macros/grams and product names. Keep licensed image files beside the manifest; record provenance and review. Do not invent ground truth for unknown photo portions.
+2. Use an isolated image of the current production revision, then an isolated image of the proposed revision. Supply the same manifest, a dedicated key, reviewed model prices, a request limit and an approved budget. The collector reads no account/health data.
+3. Run `dev/evals/run.py` inside the isolated environment. It requires `--accept-paid-calls`, `--manifest`, `--output`, `--source-commit`, `--prices`, `--max-requests` and `--budget-usd`. The budget stops subsequent requests after observed spending; retries and the final call can add charges, so it is not a provider billing cap. Cost is an estimate from actual token usage at supplied prices. Partial runs are not valid release comparisons.
+4. Compare complete saved results: `python3 dev/evals/compare.py /private/baseline.json /private/candidate.json --output /private/comparison.json`. Use the same reviewed dataset. Outputs stay private; publish only a sanitized summary or CI artifact when authorized.
+5. Before deployment, review the comparison: no schema or large-error regression; no worse product/serving accuracy; calorie/protein MAE within the stated tolerance; latency/cost within 20%; every modality covered, with no skipped cases. Large errors currently mean more than the greater of 250 kcal or 50% of the known calorie total, or more than the greater of 25 g or 50% of known protein. These are explicit initial engineering thresholds for owner review.
+
+The current production baseline has not been captured and there is no reviewed real-photo dataset yet. New coach functionality and prompt/model changes remain behind that release gate; a passing synthetic contract suite does not satisfy it. No model was called to create the reference fixtures.
+
+## Private rollout report
+
+The new coach needs `KINETTA_COACH_TOOLS_ENABLED=1` and `KINETTA_AI_EVAL_REPORT` pointing at a reviewed private JSON report. Fields: `reviewed: true`, `candidate_fingerprint` from `app.ai_release.fingerprint()`, the actual comparison under `food`, and `coach` with `case_count >= 30`, `unsupported_numeric_claims: 0`, `isolation_failures: 0`, `qualitative_review_passed: true`. These fields are completed from real recorded results and human review; do not create a passing report from the contract stand-ins. Any relevant code/prompt/model fingerprint change disables new questions until a matching reviewed comparison is supplied.

@@ -84,6 +84,38 @@ def connect():
         yield c
 
 
+@contextmanager
+def coach_scope(c, user_id):
+    """Restrict deterministic reads on an existing transaction, including confirmation validation.
+
+    A savepoint restores role/settings on failure. It also avoids borrowing a second pooled connection while
+    holding a confirmation lock, which could otherwise exhaust the pool under concurrent retries.
+    """
+    if type(user_id) is not int or user_id <= 0: raise ValueError('Authenticated account required')
+    with c.transaction():
+        before = c.execute("SELECT current_user AS role, current_setting('kinetta.coach_user_id', true) AS uid").fetchone()
+        c.execute('SET LOCAL ROLE fit_coach')
+        c.execute("SELECT set_config('kinetta.coach_user_id', %s, true)", (str(user_id),))
+        yield c
+        c.execute(sql.SQL('SET LOCAL ROLE {}').format(sql.Identifier(before['role'])))
+        c.execute("SELECT set_config('kinetta.coach_user_id', %s, true)", (before['uid'] or '',))
+
+
+@contextmanager
+def coach_connect(user_id):
+    """Trusted application identity, never a model argument. Transaction-local role, RLS and read-only mode.
+
+    The restricted role has no membership in the SQL admin/read-all role. LOCAL settings disappear before
+    the pooled connection is reused; a tool cannot change identity, execute arbitrary SQL or write rows.
+    """
+    if type(user_id) is not int or user_id <= 0: raise ValueError('Authenticated account required')
+    with pool().connection() as c:
+        with c.transaction():
+            c.execute('SET TRANSACTION READ ONLY')
+            c.execute("SET LOCAL statement_timeout = '3s'")
+            with coach_scope(c, user_id): yield c
+
+
 MIGRATIONS = [
     # 1: accounts, login sessions, per-person settings; the fit_me() helper used by row-level security
     """
@@ -766,6 +798,50 @@ MIGRATIONS = [
       FROM lift_sets s JOIN exercises e ON e.id = s.exercise_id JOIN activities a ON a.id = s.activity_id JOIN users u ON u.id = s.user_id
       WHERE s.done;
     GRANT SELECT ON v_lift_sets TO fit_readers;
+    """,
+    # 36: narrow read-only coach context, explicit-confirmation proposals and constrained plan overrides.
+    """
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fit_coach') THEN CREATE ROLE fit_coach NOLOGIN; END IF;
+    END $$;
+    GRANT fit_coach TO fit_app;
+    GRANT USAGE ON SCHEMA public TO fit_coach;
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['profile', 'activities', 'best_efforts', 'routes', 'food_entries', 'weights',
+                               'dishes', 'day_goals', 'day_energy', 'training_plans', 'plan_marks', 'exercises', 'lift_sets'] LOOP
+        EXECUTE format('GRANT SELECT ON %I TO fit_coach', t);
+        EXECUTE format('CREATE POLICY coach_own_rows ON %I FOR SELECT TO fit_coach USING
+          (user_id = nullif(current_setting(''kinetta.coach_user_id'', true), '''')::bigint)', t);
+      END LOOP;
+    END $$;
+    CREATE TABLE coach_proposals (
+      id uuid PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK (kind IN ('plan', 'food')),
+      payload jsonb NOT NULL,
+      baseline text NOT NULL,
+      status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'applied', 'dismissed')),
+      created timestamptz NOT NULL DEFAULT now(),
+      expires timestamptz NOT NULL DEFAULT now() + interval '1 day');
+    CREATE INDEX coach_proposals_user ON coach_proposals (user_id, created DESC);
+    CREATE TABLE plan_adjustments (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plan_id bigint NOT NULL REFERENCES training_plans(id) ON DELETE CASCADE,
+      day date NOT NULL,
+      workout jsonb NOT NULL,
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (plan_id, day));
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['coach_proposals', 'plan_adjustments'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP;
+    END $$;
+    GRANT SELECT ON plan_adjustments TO fit_coach;
+    CREATE POLICY coach_own_rows ON plan_adjustments FOR SELECT TO fit_coach USING
+      (user_id = nullif(current_setting('kinetta.coach_user_id', true), '')::bigint);
     """,
 ]
 

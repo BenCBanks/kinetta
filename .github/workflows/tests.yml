@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: AI evaluation contracts (no paid model calls)
+        run: python3 dev/evals/check.py
       - name: Start a throwaway Kinetta
         run: |
           GEMINI_API_KEY=placeholder-for-tests KINETTA_PORT=8798 TZ=America/New_York docker compose -p kinettatest up -d --build
