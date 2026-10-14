@@ -310,3 +310,7 @@ html { scroll-padding-top: 130px; }
 /* The editorial brand leaves content and screenshots room to breathe. */
 .point, .hcard, .card, .combo > div { border-radius: 16px; }
 .btn.solid { border-color: var(--brand-solid); }
+
+/* Decorative motion remains optional, without covering the phone or blocking its screenshot. */
+.track-toggle { position: absolute; bottom: -48px; left: 50%; transform: translateX(-50%); z-index: 2; min-height: 44px; padding: 8px 12px; border: 0; background: transparent; color: var(--ink3); font: 500 12px/1.2 var(--body); cursor: pointer; white-space: nowrap; }
+.track-toggle[hidden] { display: none; }
