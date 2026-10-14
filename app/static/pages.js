@@ -101,9 +101,12 @@ function getStarted() {
 }
 route(/^\/today$/, 'today', async (el) => {
   const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: tz()});
+  const firstName = (App.me.name || '').trim().split(/\s+/)[0];
+  const greeting = firstName ? `Hi, ${firstName}` : 'Hi there';
   el.innerHTML = `<div class="brand-line"><a class="wordmark" href="/today">Kinetta</a><a class="icon-btn" href="/me" aria-label="My profile">${svg('me')}</a></div>
-    <div class="top today-head"><div><div class="eyebrow">${esc(day)}</div><h1>Today</h1></div><div class="acts">${bellBtn()}<button class="icon-btn" data-addact aria-label="Add activity">${svg('plus')}</button></div></div>
-    <div id="t-lift"></div><div id="t-plan"></div><div id="t-food"></div><div id="t-week">${skel(1)}</div><div id="t-last"></div><div id="t-goals"></div><div id="t-review"></div><div id="t-form"></div>`;
+    <div class="today-head"><div class="today-date-row"><div class="eyebrow">${esc(day)}</div><div class="acts">${bellBtn()}<button class="icon-btn" data-addact aria-label="Add activity">${svg('plus')}</button></div></div>
+      <div class="today-greeting-row"><h1>${esc(greeting)}</h1><div id="t-review"></div></div></div>
+    <div id="t-lift"></div><div id="t-plan"></div><div id="t-food"></div><div id="t-week">${skel(1)}</div><div id="t-last"></div><div id="t-goals"></div><div id="t-form"></div>`;
   liftNowCard($('#t-lift', el));
   planCard($('#t-plan', el)).catch(() => {});
   todayFoodCard($('#t-food', el)).catch(() => {});
@@ -116,28 +119,19 @@ route(/^\/today$/, 'today', async (el) => {
       try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
       catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
     }
-    if (!wk) {
-      box.innerHTML = `<div class="card ai review-card"><div class="review-head"><h2>Kit’s weekly review</h2></div>
-        <p class="small muted">Kit writes a short review every Sunday evening.</p>
-        ${r.enabled ? '<button class="linkbtn" id="t-rev">Review this week now</button>' : ''}</div>`;
-      const b0 = $('#t-rev', box); if (b0) b0.onclick = () => reviewNow(b0);
-      return;
-    }
-    const first = (r.latest.text.trim().match(/^[\s\S]*?[.!?](?=\s|$)/) || [r.latest.text])[0].trim();
-    box.innerHTML = `<div class="card ai review-card">${coachMessage('week:' + wk, r.latest.text, 'Kit’s weekly review',
-      `<p class="review-line">${esc(first)}</p><button class="linkbtn" id="t-review-open">Read review</button>`, 'Week of ' + when)}</div>`;
-    $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', `<p class="small muted">Week of ${esc(when)}</p>
-        <p class="review-text">${esc(r.latest.text)}</p>
-        <div class="btnrow${r.enabled ? '' : ' one'}">${r.enabled ? '<button class="ghost" id="rv-now">Review this week now</button>' : ''}<button class="ghost" id="rv-hide">Hide review</button></div>`, (sb, close) => {
-      $('#rv-hide', sb).onclick = () => { close(); $('[data-coach-toggle]', box).click(); };
-      const n = $('#rv-now', sb); if (n) n.onclick = () => reviewNow(n, close);
-    });
+    box.innerHTML = `<button class="kit-weekly" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}<span><b>Kit</b><small>Weekly review</small></span></button>`;
+    $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', wk
+      ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text">${esc(r.latest.text)}</p>
+          ${r.enabled ? '<button class="ghost wide" id="rv-now">Review this week now</button>' : ''}`
+      : `<p>Kit writes a short review every Sunday evening.</p><p class="small muted">You can also ask for a review of this week so far.</p>
+          <button class="primary wide" id="rv-now">Review this week now</button>`, (sb, close) => {
+        const button = $('#rv-now', sb); if (button) button.onclick = () => reviewNow(button, close);
+      });
   }).catch(() => {});
   const [feed, st, fit, goals] = await Promise.all([
     load('/api/activities?limit=3', (d) => {
-      $('#t-last', el).innerHTML = d.length ? `<h2 class="sec-head">Latest activity<a href="/activity?view=mine">See all ›</a></h2>${postCard(d[0], {compact: true})}` :
+      $('#t-last', el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` :
         getStarted();
-      feedMaps($('#t-last', el)); wireCheers($('#t-last', el));
     }),
     load('/api/stats', (s) => {
       const wk = s.weeks.filter((w) => w.week === s.weeks.reduce((m, x) => (x.week > m ? x.week : m), ''));
@@ -148,8 +142,8 @@ route(/^\/today$/, 'today', async (el) => {
       const t = isThis ? tot : {n: 0, d: 0, t: 0, e: 0};
       const days = s.week_days || [], maxT = Math.max(1, ...days.map((x) => x.moving_s || 0)), maxD = Math.max(1, ...days.map((x) => x.distance_m || 0));
       const dayName = (d) => new Date(d + 'T12:00').toLocaleDateString([], {weekday: 'long'});
-      $('#t-week', el).innerHTML = `<div class="card week-summary"><h2>This week<a class="more pill-more" href="/progress?view=totals">Totals</a></h2>
-        <a class="week-metrics" href="/progress?view=totals">${stat('Distance', U.dist(t.d, 1), U.du())}${stat('Time', dur(t.t, true))}${t.e ? stat('Climb', U.elev(t.e), U.eu()) : stat('Activities', t.n)}</a>
+      $('#t-week', el).innerHTML = `<div class="card week-summary" role="region" aria-label="Weekly activity totals">
+        <a class="week-metrics" href="/progress?view=totals" aria-label="View weekly activity totals">${stat('Distance', U.dist(t.d, 1), U.du())}${stat('Time', dur(t.t, true))}${t.e ? stat('Climb', U.elev(t.e), U.eu()) : stat('Activities', t.n)}</a>
         ${days.length ? `<div class="wstrip wchart" role="img" aria-label="Each day this week: ${esc(days.map((x) => `${dayName(x.d)} ${x.distance_m ? `${U.dist(x.distance_m, 1)} ${U.du()}` : x.moving_s ? `${Math.round(x.moving_s / 60)} min` : 'nothing'}`).join(', '))}">${days.map((x) => {
           // a bar chart of each day's miles (2026-10-13, Ben): the number over each bar, a flat stub for a day off
           const val = x.distance_m ? U.dist(x.distance_m, 1) : x.moving_s ? `${Math.round(x.moving_s / 60)}m` : '';
