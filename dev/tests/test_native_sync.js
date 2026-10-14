@@ -65,6 +65,7 @@ function device(background = null) {
   delete d.ctx.respond;
 
   await d.n.forget();
+  assert.equal(d.n.healthProgress, '', 'sign-out clears visible progress as well as stored account status');
   for (const key of ['health.on', 'health.owner', 'health.last', 'health.retryFrom', 'health.status']) assert.equal(d.saved.has(key), false);
   d.ctx.App.me = {id: 2}; d.n.token = 'second';
   assert.equal(await d.n.syncHealth(), null, 'new account cannot inherit consent');
@@ -165,5 +166,14 @@ function device(background = null) {
   await assert.rejects(slow.n.connectHealth(), /has not finished/);
   finishPermissions(); await Promise.resolve(); await Promise.resolve();
   assert.equal(await slow.n.healthOn(), false, 'late permission callback cannot enable a timed-out connection');
+  let finishAvailability;
+  const changing = device(); await changing.n.ready;
+  changing.n.base = 'https://example.test'; changing.n.token = 'first-account';
+  changing.ctx.window.Capacitor.Plugins.HealthPlugin.isHealthAvailable = () => new Promise(r => { finishAvailability = r; });
+  const connecting = changing.n.connectHealth();
+  await changing.n.disconnectHealth(); changing.ctx.App.me = {id:2};
+  finishAvailability({available:true});
+  await assert.rejects(connecting, /account changed/);
+  assert.equal(changing.n.healthProgress, '', 'late availability cannot repopulate another account’s progress');
   console.log('native sync: consent, history retry, offline, incomplete reads/acks and in-flight logout passed');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

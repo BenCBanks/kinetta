@@ -75,6 +75,7 @@ const Native = (() => {
   N.connectHealth = () => N.connecting || (N.connecting = (async () => {
     const account = owner(), version = generation;
     if (!(await N.healthCall(health.isHealthAvailable(), 'Apple Health did not respond. Please try again.')).available) throw new Error("Apple Health isn't available on this device.");
+    if (!account || account !== owner() || version !== generation) throw new Error('Health connection stopped because the account changed.');
     progress('Choose what Kinetta can read in Apple Health, then tap Done.');
     // Older shells retain their original permission API; new builds use one combined native request.
     await N.healthCall(background?.requestPermissions ? background.requestPermissions() : health.requestHealthPermissions({permissions: ASK}),
@@ -90,6 +91,7 @@ const Native = (() => {
   })().finally(() => { N.connecting = null; }));
   N.disconnectHealth = async () => {
     generation++; N.lastAuto = 0;
+    progress(''); N.onHealthProgress = null;
     // Native uploads must stop before a login can replace the selected account/server.
     if (background) await background.disconnect();
     // Finish the current request before replacing its account/server; later batches stop at the guard below.
