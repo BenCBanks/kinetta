@@ -95,3 +95,7 @@ verification, merge and release status distinct, and follow the owner's current 
 Other routes for automatic uploads were ruled out: Strava's API terms forbid showing a person's Strava data to anyone
 else or using it with AI, and Garmin's developer program is paused and for companies only. (Uploading your own Strava
 export file is different and is fine.)
+
+## Design agent reference
+
+Read `docs/design.md` before any UI, brand, website or screenshot work. Evergreen Agenda is the approved design system; it supersedes the old ruby palette. Preserve the conditional Today panels, stable five-tab navigation and profile/activity privacy rules described there.

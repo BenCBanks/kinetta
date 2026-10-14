@@ -258,6 +258,8 @@ function avatar(p, cls = '') {
 const pimg = (path, attrs = '') => `<img ${Native.on ? 'data-asrc' : 'src'}="${esc(path)}" alt="" loading="lazy" decoding="async" ${attrs}>`;
 // a photo that won't load (removed meanwhile, or offline) leaves the initials showing
 document.addEventListener('error', (e) => { if (e.target.matches && e.target.matches('.av img')) e.target.remove(); }, true);
+// Phosphor regular, MIT; source paths retained at their original scale.
+Object.assign(IC, {"today": "<g transform=\"scale(0.09375)\" fill=\"currentColor\" stroke=\"none\"><path xmlns=\"http://www.w3.org/2000/svg\" d=\"M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z\" /></g>", "activity": "<g transform=\"scale(0.09375)\" fill=\"currentColor\" stroke=\"none\"><path xmlns=\"http://www.w3.org/2000/svg\" d=\"M72,144H32a8,8,0,0,1,0-16H67.72l13.62-20.44a8,8,0,0,1,13.32,0l25.34,38,9.34-14A8,8,0,0,1,136,128h24a8,8,0,0,1,0,16H140.28l-13.62,20.44a8,8,0,0,1-13.32,0L88,126.42l-9.34,14A8,8,0,0,1,72,144ZM178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,.75,0,1.5,0,2.25a8,8,0,1,0,16-.5c0-.58,0-1.17,0-1.75A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46c0,53.61-77.76,102.15-96,112.8-10.83-6.31-42.63-26-66.68-52.21a8,8,0,1,0-11.8,10.82c31.17,34,72.93,56.68,74.69,57.63a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40Z\" /></g>", "progress": "<g transform=\"scale(0.09375)\" fill=\"currentColor\" stroke=\"none\"><path xmlns=\"http://www.w3.org/2000/svg\" d=\"M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z\" /></g>", "food": "<g transform=\"scale(0.09375)\" fill=\"currentColor\" stroke=\"none\"><path xmlns=\"http://www.w3.org/2000/svg\" d=\"M72,88V40a8,8,0,0,1,16,0V88a8,8,0,0,1-16,0ZM216,40V224a8,8,0,0,1-16,0V176H152a8,8,0,0,1-8-8,268.75,268.75,0,0,1,7.22-56.88c9.78-40.49,28.32-67.63,53.63-78.47A8,8,0,0,1,216,40ZM200,53.9c-32.17,24.57-38.47,84.42-39.7,106.1H200ZM119.89,38.69a8,8,0,1,0-15.78,2.63L112,88.63a32,32,0,0,1-64,0l7.88-47.31a8,8,0,1,0-15.78-2.63l-8,48A8.17,8.17,0,0,0,32,88a48.07,48.07,0,0,0,40,47.32V224a8,8,0,0,0,16,0V135.32A48.07,48.07,0,0,0,128,88a8.17,8.17,0,0,0-.11-1.31Z\" /></g>", "me": "<g transform=\"scale(0.09375)\" fill=\"currentColor\" stroke=\"none\"><path xmlns=\"http://www.w3.org/2000/svg\" d=\"M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z\" /></g>", "shoe": "<g transform=\"scale(0.09375)\" fill=\"currentColor\" stroke=\"none\"><path xmlns=\"http://www.w3.org/2000/svg\" d=\"M228.65,129.11l-60.73-20.24a24,24,0,0,1-14.32-13L130.39,41.6s0-.07,0-.1A16,16,0,0,0,110.25,33L34.53,60.49A16.05,16.05,0,0,0,24,75.53V192a16,16,0,0,0,16,16H240a16,16,0,0,0,16-16V167.06A40,40,0,0,0,228.65,129.11ZM115.72,48l7.11,16.63-21.56,7.85A8,8,0,0,0,104,88a7.91,7.91,0,0,0,2.73-.49l22.4-8.14,4.74,11.07-16.6,6A8,8,0,0,0,120,112a7.91,7.91,0,0,0,2.73-.49l17.6-6.4a40.24,40.24,0,0,0,7.68,10l-14.74,5.36A8,8,0,0,0,136,136a8.14,8.14,0,0,0,2.73-.48l28-10.18,56.87,18.95A24,24,0,0,1,238.93,160H40V75.53ZM40,192h0V176H240v16Z\" /></g>"});
 const svg = (k, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k] || IC.other}</svg>`;
 const sportMark = (s) => `<span class="sp ${esc(s)}" aria-hidden="true">${svg(s)}</span>`;
 
@@ -362,6 +364,10 @@ function render() {
 }
 function showError(el, e) {
   if (e && e.status === 401) return;
+  if (e && e.status === 404) {
+    const href = location.pathname.startsWith('/people/') ? '/me/friends' : location.pathname.startsWith('/activity/') ? '/activity' : '/today';
+    el.innerHTML = `<div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p><a class="ghost wide" href="${href}">Go back</a></div>`; return;
+  }
   el.innerHTML = `<div class="boot"><p>${esc(e && e.message || 'Something went wrong')}</p><button class="ghost" id="retry">Try again</button></div>`;
   $('#retry', el).onclick = () => { invalidate('/api/'); render(); };
 }
@@ -866,3 +872,21 @@ async function start() {
 }
 // (the iPhone app has its files built in: no service worker there)
 if ('serviceWorker' in navigator && !window.Capacitor) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+function installKeyboardDismissal() {
+  let gesture = null;
+  const editable = (el) => el && (el.matches('input:not([type="checkbox"]):not([type="radio"]), textarea') || el.isContentEditable);
+  document.addEventListener('touchstart', (e) => {
+    const field = document.activeElement;
+    if (e.touches.length !== 1 || !editable(field) || e.target.closest('input, textarea, [contenteditable], .map, .fmap, .media-track, .ph-view')) { gesture = null; return; }
+    gesture = {x: e.touches[0].clientX, y: e.touches[0].clientY, field};
+  }, {passive: true});
+  document.addEventListener('touchmove', (e) => {
+    if (!gesture || e.touches.length !== 1) { gesture = null; return; }
+    const dx = e.touches[0].clientX - gesture.x, dy = e.touches[0].clientY - gesture.y;
+    if (dy > 40 && dy > Math.abs(dx) * 1.5) { if (document.activeElement === gesture.field) gesture.field.blur(); gesture = null; }
+  }, {passive: true});
+  document.addEventListener('touchend', () => { gesture = null; }, {passive: true});
+  document.addEventListener('touchcancel', () => { gesture = null; }, {passive: true});
+}
+installKeyboardDismissal();

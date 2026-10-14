@@ -4,3 +4,7 @@ from PIL import Image
 for p in sorted(glob.glob(os.path.join(sys.argv[1], '*.png'))):
     Image.open(p).convert('RGB').save(os.path.join(sys.argv[2], os.path.basename(p)[:-4] + '.webp'), 'WEBP', quality=82, method=6)
     print(os.path.basename(p))
+
+# A manifest lets an already-open homepage discover a genuinely refreshed screenshot set.
+from manifest import write_manifest
+write_manifest(sys.argv[2])

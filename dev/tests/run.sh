@@ -12,6 +12,10 @@ cd "$(dirname "$0")/../.."
 export KINETTA_URL="${KINETTA_URL:-http://localhost:8798}"
 P="${KINETTA_PROJECT:-kinettatest}"
 
+echo "== shared design tokens and contrast"
+python3 dev/design/build_tokens.py --check
+python3 dev/tests/test_design_manifest.py
+
 echo "== syntax"
 python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
 for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
@@ -19,6 +23,7 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_native_sync.js
 node dev/tests/test_ui_state.js
+node dev/tests/test_keyboard.js
 
 echo "== AI evaluation contracts (no model calls)"
 python3 dev/evals/check.py

@@ -1,13 +1,14 @@
-// Activity photos sit to the left of the route in one horizontal, equally sized rail.
+// The route leads, followed by photos in one equally sized horizontal rail.
 'use strict';
-function activityMedia(a, {mapId = '', detail = false, full = false} = {}) {
+function activityMedia(a, {mapId = '', detail = false, full = false, openHref = ''} = {}) {
   const photos = a.photos || [], count = photos.length + (a.line ? 1 : 0);
   if (!count) return '';
   const map = a.line ? `<div class="media-item media-map"><div class="${detail ? 'map big lead' : 'fmap'}"${mapId ? ` id="${mapId}"` : ''} data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" role="img" aria-label="Route map">
     ${detail ? '' : miniRoute(a.line, a.sport)}${full ? '<button class="map-full" id="d-full" aria-label="Full-screen map">' + svg('expand') + '</button>' : ''}</div></div>` : '';
   return `<div class="activity-media${detail ? ' detail-media' : ''}" data-media="${a.id}" data-media-photos="${esc(JSON.stringify(photos))}" data-media-mine="${!a.owner || a.owner.login === App.me.login}">
-    <div class="media-track" tabindex="0" role="region" aria-label="Activity photos and route; swipe or use arrow buttons">${photos.map((p, i) => `<button type="button" class="media-item media-photo" data-media-photo="${i}" aria-label="Open photo ${i + 1} of ${photos.length}">${pimg(photoSrc(p, true)).replace('alt=""', `alt="Activity photo ${i + 1}"`)}</button>`).join('')}${map}</div>
-    ${count > 1 ? `<div class="media-controls"><button type="button" class="icon-btn" data-media-step="-1" aria-label="Previous photo or map" disabled>${svg('back')}</button><span class="small muted num" data-media-position aria-live="polite">${photos.length ? 'Photo 1' : 'Map'} · 1 of ${count}</span>${a.line && photos.length ? `<button class="linkbtn small" data-media-map>Map</button>` : ''}<button type="button" class="icon-btn" data-media-step="1" aria-label="Next photo or map">${svg('chev')}</button></div>` : ''}</div>`;
+    <div class="media-track" tabindex="0" role="region" aria-label="Activity photos and route; swipe or use arrow buttons">${map}${photos.map((p, i) => `<button type="button" class="media-item media-photo" data-media-photo="${i}" aria-label="Open photo ${i + 1} of ${photos.length}">${pimg(photoSrc(p, true)).replace('alt=""', `alt="Activity photo ${i + 1}"`)}</button>`).join('')}</div>
+    ${openHref ? `<a class="primary wide post-open" href="${esc(openHref)}">View activity ${svg('chev')}</a>` : ''}
+    ${count > 1 ? `<div class="media-controls"><button type="button" class="icon-btn" data-media-step="-1" aria-label="Previous photo or map" disabled>${svg('back')}</button><span class="small muted num" data-media-position aria-live="polite">${a.line ? 'Map' : 'Photo 1'} · 1 of ${count}</span>${a.line && photos.length ? `<button class="linkbtn small" data-media-map>Map</button>` : ''}<button type="button" class="icon-btn" data-media-step="1" aria-label="Next photo or map">${svg('chev')}</button></div>` : ''}</div>`;
 }
 function wireMediaMapFull(box, mapObject, line, still) {
   const btn = $('.map-full', box), spot = document.createComment('map');
@@ -46,7 +47,7 @@ function wireActivityMedia(root) {
       if (!track.clientWidth) return;
       if (fromScroll) index = Math.max(0, Math.min(items.length - 1, Math.round(track.scrollLeft / track.clientWidth)));
       const label = $('[data-media-position]', box);
-      if (label) label.textContent = `${index < photos.length ? `Photo ${index + 1}` : 'Map'} · ${index + 1} of ${items.length}`;
+      if (label) label.textContent = `${items[index].classList.contains('media-map') ? 'Map' : `Photo ${+items[index].dataset.mediaPhoto + 1}`} · ${index + 1} of ${items.length}`;
       const prev = $('[data-media-step="-1"]', box), next = $('[data-media-step="1"]', box);
       if (prev) prev.disabled = index === 0;
       if (next) next.disabled = index === items.length - 1;
@@ -62,7 +63,7 @@ function wireActivityMedia(root) {
       e.preventDefault(); show(e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : index + (e.key === 'ArrowRight' ? 1 : -1));
     });
     $$('[data-media-step]', box).forEach((button) => button.onclick = () => show(index + +button.dataset.mediaStep));
-    const map = $('[data-media-map]', box); if (map) map.onclick = () => show(items.length - 1);
+    const map = $('[data-media-map]', box); if (map) map.onclick = () => show(0);
     $$('[data-media-photo]', box).forEach((button) => button.onclick = () => photoViewer(a, +button.dataset.mediaPhoto, box.dataset.mediaMine === 'true', () => render()));
     const resize = new ResizeObserver(() => { track.scrollLeft = index * track.clientWidth; update(); });
     resize.observe(track); viewResources.set(track, () => resize.disconnect());

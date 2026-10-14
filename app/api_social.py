@@ -202,6 +202,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created
                               FROM users WHERE login = %s AND pw_hash IS NOT NULL""", (login.lower(),)).fetchone()
         if not person or _blocked_pair(c, user['id'], person['id']): raise HTTPException(404, 'Not found')
+        person['bio'] = (c.execute('SELECT bio FROM profile WHERE user_id = %s', (person['id'],)).fetchone() or {}).get('bio', '')
         relation = _pair(c, user['id'], person['id'])
         status = ('friends' if relation['status'] == 'accepted' else
                   'sent' if relation['requester'] == user['id'] else 'incoming') if relation else None
@@ -210,6 +211,9 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         overview = c.execute(f"""SELECT count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
                                   coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s
                                   FROM activities a WHERE {visible}""", params).fetchone()
+        sports = c.execute(f"""SELECT a.sport, count(*) AS activities, coalesce(sum(a.distance_m),0) AS distance_m,
+                                coalesce(sum(coalesce(a.moving_s,a.elapsed_s)),0) AS time_s
+                                FROM activities a WHERE {visible} GROUP BY a.sport ORDER BY count(*) DESC, a.sport""", params).fetchall()
         query = _select() + ' WHERE ' + visible
         if before:
             query += ' AND (a.start_time < %(before)s OR (a.start_time = %(before)s AND a.id < %(before_id)s))'
@@ -217,8 +221,8 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         rows = c.execute(query + ' ORDER BY a.start_time DESC, a.id DESC LIMIT %(limit)s', params).fetchall()
     items = [shared_activity(row) for row in rows[:limit]]
     last = rows[limit - 1] if len(rows) > limit else None
-    return {'person': {k: person[k] for k in ('login', 'name', 'photo', 'created')}, 'status': status,
-            'mine': person['id'] == user['id'], 'overview': overview, 'items': items,
+    return {'person': {k: person[k] for k in ('login', 'name', 'photo', 'created', 'bio')}, 'status': status,
+            'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
             'next': {'before': last['start_time'], 'before_id': last['id']} if last else None}
 
 

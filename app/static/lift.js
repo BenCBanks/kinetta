@@ -58,7 +58,7 @@ function startLiftSheet() {
 function addActivityMenu(day) {
   if (day) return addActivitySheet(day);
   pickSheet('Add', `<div class="pick-list">
-    <button type="button" class="row-link" data-pk="lift"><span class="ri c-berry">${svg('workout')}</span><span class="grow"><span>Start lifting</span><small class="muted">Log sets as you go, with your previous numbers beside each one</small></span></button>
+    <button type="button" class="row-link" data-pk="lift"><span class="ri c-brand">${svg('workout')}</span><span class="grow"><span>Start lifting</span><small class="muted">Log sets as you go, with your previous numbers beside each one</small></span></button>
     <button type="button" class="row-link" data-pk="hand"><span class="ri c-blue">${svg('plus')}</span><span class="grow"><span>Add an activity by hand</span><small class="muted">A class, a treadmill run, anything without a file</small></span></button>
     <button type="button" class="row-link" data-pk="upload"><span class="ri c-ink">${svg('upload')}</span><span class="grow"><span>Upload files</span><small class="muted">FIT, GPX, TCX or your Strava export</small></span></button></div>`,
   (k) => (k === 'lift' ? startLiftSheet() : k === 'hand' ? addActivitySheet() : go('/me/import')));
@@ -310,7 +310,7 @@ function exercisePicker(skip, pick) {
       const mine = all.mine.filter((x) => !skip.includes(x.id) && hit(x)), common = all.common.filter(hit);
       const groups = [...new Set(common.map((x) => x.muscle))];
       const exact = t && [...all.mine, ...all.common].some((x) => x.name.toLowerCase() === t);
-      $('#xp-list', b).innerHTML = `${t && !exact ? `<button type="button" class="row-link xp-new" data-new="1"><span class="ri c-berry">${svg('plus')}</span><span class="grow"><span>Add “${esc(q.value.trim())}”</span><small class="muted">A new exercise of your own</small></span></button>` : ''}
+      $('#xp-list', b).innerHTML = `${t && !exact ? `<button type="button" class="row-link xp-new" data-new="1"><span class="ri c-brand">${svg('plus')}</span><span class="grow"><span>Add “${esc(q.value.trim())}”</span><small class="muted">A new exercise of your own</small></span></button>` : ''}
         ${mine.length ? `<h3 class="ghead">Yours</h3><div class="pick-list">${mine.map((x) => row(x, true)).join('')}</div>` : ''}
         ${groups.map((g) => `<h3 class="ghead">${esc(g)}</h3><div class="pick-list">${common.filter((x) => x.muscle === g).map((x) => row(x, false)).join('')}</div>`).join('')}
         ${!mine.length && !common.length && !t ? '<p class="muted">Type a name to add your own.</p>' : ''}`;

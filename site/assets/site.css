@@ -1,31 +1,32 @@
+@font-face { font-family: "Source Serif 4"; src: url("fonts/source-serif-4.woff2") format("woff2"); font-weight: 200 900; font-display: swap; }
 /* kinetta.app: shared by every page (Home, Training, Food, Friends, Compare, Self-host, Privacy). */
 /* Layout: one long page that runs like a lap - hero with the track, the word, what it does (phones), privacy,
    install, people - every section a straight, the track oval returns as the section marker. */
 :root {
-  --bg: #F4F1EC; --paper: #FBFAF7; --ink: #1E2522; --ink2: #4A524E; --ink3: #626B66; --line: #DFDAD1;
-  --berry-solid: #C0283D; --berry: #C0283D; --spruce: #2F6F5E; --code: #1E2522; --codetx: #EEF2F0;
-  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --bg: var(--color-canvas); --paper: var(--color-surface); --ink: var(--color-text); --ink2: var(--color-text-secondary); --ink3: var(--color-text-muted); --line: var(--color-divider);
+  --brand-solid: var(--color-action); --brand: var(--color-brand); --spruce: var(--color-success); --code: #1E2522; --codetx: #EEF2F0;
+  --display: var(--font-display);
   --body: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #121716; --paper: #1A201E; --ink: #EEF2F0; --ink2: #BFC7C3; --ink3: #939D99; --line: #2C3533;
-  --berry: #EF5868; --spruce: #6CC3A8; --code: #0B0F0E; --codetx: #E3E9E6; color-scheme: dark; } }
+  --bg: var(--color-canvas); --paper: var(--color-surface); --ink: var(--color-text); --ink2: var(--color-text-secondary); --ink3: var(--color-text-muted); --line: var(--color-divider);
+  --brand: var(--color-brand); --spruce: var(--color-success); --code: #0B0F0E; --codetx: #E3E9E6; color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --bg: #121716; --paper: #1A201E; --ink: #EEF2F0; --ink2: #BFC7C3; --ink3: #939D99; --line: #2C3533;
-  --berry: #EF5868; --spruce: #6CC3A8; --code: #0B0F0E; --codetx: #E3E9E6; color-scheme: dark; }
+  --bg: var(--color-canvas); --paper: var(--color-surface); --ink: var(--color-text); --ink2: var(--color-text-secondary); --ink3: var(--color-text-muted); --line: var(--color-divider);
+  --brand: var(--color-brand); --spruce: var(--color-success); --code: #0B0F0E; --codetx: #E3E9E6; color-scheme: dark; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 var(--body); }
 img { max-width: 100%; display: block; }
 a { color: inherit; }
-:focus-visible { outline: 3px solid var(--berry); outline-offset: 3px; border-radius: 4px; }
+:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 4px; }
 .wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; }
 h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.12; margin: 0; text-wrap: balance; letter-spacing: -0.02em; }
 p { margin: 0; }
-.eyebrow { font: 500 13px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--berry); }
+.eyebrow { font: 500 13px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
 
 /* header: logo, the page tabs, Join the beta. Same markup on every page (copy it when adding a page). On a phone the
    tabs get their own row and scroll sideways, so every page is one tap away without a menu. */
@@ -38,7 +39,7 @@ nav.tabs { display: flex; justify-content: flex-start; gap: 2px; overflow-x: aut
 nav.tabs::-webkit-scrollbar { display: none; }
 nav.tabs a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; flex: none; padding: 8px 14px; border-radius: 999px; text-decoration: none; color: var(--ink2); font-weight: 500; font-size: 15px; }
 nav.tabs a:hover { color: var(--ink); }
-nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in srgb, var(--berry) 11%, transparent); font-weight: 600; }
+nav.tabs a[aria-current="page"] { color: var(--brand); background: color-mix(in srgb, var(--brand) 11%, transparent); font-weight: 600; }
 .btn.sm { min-height: 44px; padding: 0 18px; font-size: 15px; }
 @media (max-width: 960px) {
   header.top .wrap { grid-template-columns: minmax(0, 1fr) auto; padding-block: 10px 0; }
@@ -49,7 +50,7 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
 /* the top of every page except Home: what this page is about, in one line */
 .pagehead { padding-block: 56px 8px; }
 .pagehead h1 { font-size: clamp(36px, 5.4vw, 62px); font-weight: 500; letter-spacing: -0.03em; max-width: 18ch; }
-.pagehead h1 em { font-style: normal; color: var(--berry); }
+.pagehead h1 em { font-style: normal; color: var(--brand); }
 .pagehead .lede { font-size: clamp(18px, 2vw, 21px); color: var(--ink2); max-width: 52ch; margin-top: 18px; }
 .pagehead + section.band { border-top: 0; padding-top: 48px; }
 
@@ -60,7 +61,7 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
   text-decoration: none; transition: transform .15s, border-color .15s; min-width: 0; }
 .point:hover { transform: translateY(-2px); border-color: var(--ink3); }
 .point h2 { font-size: 23px; } .point p { color: var(--ink2); font-size: 16px; }
-.point .go { color: var(--berry); font-weight: 600; font-size: 15px; margin-top: 4px; }
+.point .go { color: var(--brand); font-weight: 600; font-size: 15px; margin-top: 4px; }
 @media (max-width: 860px) { .points .wrap { grid-template-columns: 1fr; gap: 12px; } .point { padding: 20px 22px; } }
 .price { padding-block: 0 72px; }
 .price .wrap > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 32px; align-items: center; padding: 28px 30px; border-radius: 22px;
@@ -76,31 +77,31 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
 .next a.on { text-decoration: none; display: grid; gap: 4px; }
 .next a.on small { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); }
 .next a.on span { font: 600 clamp(22px, 2.8vw, 30px)/1.2 var(--display); letter-spacing: -0.02em; }
-.next a.on:hover span { color: var(--berry); }
+.next a.on:hover span { color: var(--brand); }
 
 /* hero */
 .hero { position: relative; overflow: hidden; padding-block: 40px 72px; }
 .hero .wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 48px; align-items: center; position: relative; }
 .hero h1 { font-size: clamp(40px, 6.4vw, 76px); font-weight: 500; letter-spacing: -0.035em; }
-.hero h1 em { font-style: normal; color: var(--berry); }
+.hero h1 em { font-style: normal; color: var(--brand); }
 .hero .lede { font-size: clamp(18px, 2vw, 21px); color: var(--ink2); max-width: 34ch; margin-top: 22px; }
 .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 22px; border-radius: 999px;
   font: 600 16px/1 var(--body); text-decoration: none; border: 1.5px solid var(--ink); }
-.btn.solid { background: var(--berry-solid); color: #fff; }
+.btn.solid { background: var(--brand-solid); color: #fff; }
 .btn.line { color: var(--ink); }
 .btn:hover { transform: translateY(-1px); } .btn { transition: transform .15s; }
 /* Food page (2026-10-13, Ben: lead with saying what you ate): the chat itself, as little bubbles under the headline */
 .says { display: grid; gap: 6px; margin-top: 22px; max-width: 30rem; }
 .says p { margin: 0; padding: 8px 13px; border-radius: 16px; font-size: 15px; line-height: 1.35; max-width: 85%; }
-.says .me { justify-self: end; background: var(--berry-solid); color: #fff; border-bottom-right-radius: 5px; }
+.says .me { justify-self: end; background: var(--brand-solid); color: #fff; border-bottom-right-radius: 5px; }
 .says .ai { justify-self: start; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
 .food-hero h1 { font-size: clamp(38px, 5.6vw, 66px); }
 .hero .note { margin-top: 18px; font-size: 14px; color: var(--ink3); }
 /* the whole oval sits behind the phone, inside the screen at every width (the runner never leaves the picture) */
 .stage { position: relative; display: grid; place-items: center; }
 .track { position: absolute; left: 50%; top: 50%; width: min(135%, calc(100vw - 24px)); transform: translate(-50%, -50%); color: var(--line); pointer-events: none; overflow: visible; }
-.track .runner { fill: var(--berry); }
+.track .runner { fill: var(--brand); }
 .phone { width: min(340px, 82vw); margin-inline: auto; border-radius: 40px; padding: 10px; background: var(--ink);
   box-shadow: 0 30px 60px -30px rgba(30, 37, 34, .45); position: relative; z-index: 1; }
 .phone img { border-radius: 31px; width: 100%; height: auto; min-width: 0; aspect-ratio: 720 / 1558; object-fit: cover; object-position: top; }
@@ -127,8 +128,8 @@ nav.tabs a[aria-current="page"] { color: var(--berry); background: color-mix(in 
 .hcard { display: grid; gap: 8px; align-content: start; padding: 22px; border-radius: 20px; background: var(--paper); border: 1px solid var(--line); text-decoration: none; transition: transform .15s, border-color .15s; }
 .hcard:hover { transform: translateY(-2px); border-color: var(--ink3); }
 .hcard h3 { font-size: 20px; } .hcard p { color: var(--ink2); font-size: 15.5px; }
-.hico { display: inline-grid; place-items: center; justify-self: start; width: 44px; height: 44px; border-radius: 13px; color: var(--berry);
-  background: color-mix(in srgb, var(--berry) 11%, transparent); }
+.hico { display: inline-grid; place-items: center; justify-self: start; width: 44px; height: 44px; border-radius: 13px; color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 11%, transparent); }
 .hico svg { width: 24px; height: 24px; }
 @media (max-width: 900px) { .hl .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .hl .wrap { grid-template-columns: 1fr; gap: 12px; } .hcard { padding: 18px; } }
@@ -180,7 +181,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .spot p { color: var(--ink2); font-size: 18px; margin-top: 14px; max-width: 44ch; }
 .spot ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink2); }
 .spot li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; }
-.spot li svg { width: 26px; height: 16px; margin-top: 5px; color: var(--berry); }
+.spot li svg { width: 26px; height: 16px; margin-top: 5px; color: var(--brand); }
 /* on a phone the two shots scroll sideways at a readable size instead of sitting side by side at half size */
 @media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; }
   .spot .pair { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(300px, 80vw); justify-content: start; overflow-x: auto;
@@ -219,7 +220,7 @@ table.cmp { width: 100%; border-collapse: collapse; font-size: 15.5px; min-width
 
 /* one app instead of two (2026-10-11) */
 .hero .eyebrow { display: block; margin-bottom: 18px; }
-.nav-beta { font-weight: 600; color: var(--berry) !important; }
+.nav-beta { font-weight: 600; color: var(--brand) !important; }
 .combo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .combo > div { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 28px; min-width: 0; }
 .combo .tag { font: 500 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--spruce); }
@@ -234,7 +235,7 @@ table.cmp { width: 100%; border-collapse: collapse; font-size: 15.5px; min-width
 @media (max-width: 760px) { .combo { grid-template-columns: 1fr; } .combo .meet ul { grid-template-columns: 1fr; } }
 .final { text-align: center; }
 .final .wrap { display: grid; justify-items: center; gap: 16px; }
-.final h2 { font-size: clamp(32px, 4.6vw, 52px); } .final h2 em { font-style: normal; color: var(--berry); }
+.final h2 { font-size: clamp(32px, 4.6vw, 52px); } .final h2 em { font-style: normal; color: var(--brand); }
 .final p { color: var(--ink2); font-size: 19px; max-width: 46ch; }
 .final .ctas { justify-content: center; margin-top: 8px; }
 
@@ -250,7 +251,7 @@ table.cmp { width: 100%; border-collapse: collapse; font-size: 15.5px; min-width
 /* install */
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; counter-reset: step; }
 .step { display: grid; gap: 10px; align-content: start; min-width: 0; }
-.step .n { font: 500 15px var(--mono); color: var(--berry); }
+.step .n { font: 500 15px var(--mono); color: var(--brand); }
 .step h3 { font-size: 21px; }
 .step p { color: var(--ink2); font-size: 16px; }
 pre { margin: 6px 0 0; background: var(--code); color: var(--codetx); border-radius: 14px; padding: 16px 18px; overflow-x: auto;
@@ -305,3 +306,8 @@ html { scroll-padding-top: 130px; }
 .skip-link:focus { transform: none; }
 @media (min-width: 961px) { nav.tabs { justify-content: center; } }
 .zoom button:disabled { opacity: .35; }
+
+/* The editorial brand leaves content and screenshots room to breathe. */
+.track { display: none; }
+.point, .hcard, .card, .combo > div { border-radius: 16px; }
+.btn.solid { border-color: var(--brand-solid); }

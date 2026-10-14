@@ -851,6 +851,10 @@ MIGRATIONS = [
       OR (source = 'lift' AND source_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$');
     CREATE UNIQUE INDEX activities_healthkit_identity ON activities (user_id, healthkit_id) WHERE healthkit_id IS NOT NULL;
     """,
+    # 38: a short, public profile bio; existing profile RLS remains in force.
+    """
+    ALTER TABLE profile ADD COLUMN bio text NOT NULL DEFAULT '' CHECK (char_length(bio) <= 280);
+    """,
 ]
 
 
