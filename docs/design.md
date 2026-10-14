@@ -58,11 +58,11 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
 
 ## Navigation and screen decisions
 
-- **Today:** serif Kinetta wordmark, profile link, full local date, Today heading, notifications and Add activity.
+- **Today:** serif Kinetta wordmark, profile link, small local date, “Hi, [first name]” greeting, notifications and Add activity.
   An enrolled plan supplies a compact agenda. Nutrition appears under the existing current-day logged-food condition.
-  With neither active, weekly distance/time/climb or activity count leads directly to one latest activity with View
-  activity and See all history. Use evergreen seven-day bars with day/date/value labels, without a comparison ring.
-  Goals, reviews and fitness follow the primary daily content. Do not invent feature switches, empty promos or setup nags.
+  With neither active, weekly distance/time/climb or activity count leads directly to a compact latest-activity link.
+  Omit the redundant This week heading. Use evergreen seven-day bars with day/date/value labels, without a comparison ring.
+  Eligible Kit weekly reviews open from a small button beside the greeting; goals and fitness follow the primary content. Do not invent feature switches, empty promos or setup nags.
 - **Five stable tabs:** Today, Activity, Progress, Nutrition, Me always remain visible. Feature-panel visibility must not
   hide a tab. Use a full-width bottom bar, regular icons, readable labels, safe-area padding and a short active underline.
 - **Activities:** use Friends feed and My activities. Friends feed contains your activities and approved friends’ shared
@@ -70,8 +70,7 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
   privacy labels, comments, Cheers and double-tap people lists. The names match mutual friendships, not a new Follow model.
 - **Activity media:** GPS map always comes first, followed by equally sized photos. Without GPS, photos lead. Retain
   swipe, arrows, keyboard navigation, positions, Map shortcut and full-screen zoom/pan. Never move server privacy trimming
-  into the client. On Today, combine title with sport/date and use 156px media; View activity comes before gallery controls
-  so the main action fits in the activity-only first fold. Detailed media stays larger. Reserve a theme-colored top safe area so native status-bar text stays readable over bright maps/photos. Marketing photo examples may
+  into the client. Today links to the latest activity without repeating its full card or media. Detailed media stays larger. Reserve a theme-colored top safe area so native status-bar text stays readable over bright maps/photos. Marketing photo examples may
   show Photo1 after an explicit swipe; that must not change the app’s default map-first behavior.
 - **Nutrition:** compact calorie figure, eaten/goal context, editable goal and flat macro bars; logging is prominent.
   Meals contain logged items and Add, without suggested food rows. Add food offers Your Usuals without a second Recent
@@ -135,3 +134,12 @@ references: [Source Serif 4](https://github.com/google/fonts/tree/main/ofl/sourc
 [Apple charts](https://developer.apple.com/design/human-interface-guidelines/charts),
 [Apple tab bars](https://developer.apple.com/design/human-interface-guidelines/tab-bars), and
 [W3C target sizes](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
+
+## Today refinement: personal and compact
+
+Use “Hi, [first name]” as the heading (fallback “Hi there”), rather than repeating the Today tab name. Keep the date small.
+Place a quiet sparkle/Kit weekly-review button beside the greeting when reviews are enabled or a saved review exists;
+open the review in a sheet, never generate one just by opening Today. Preserve AI consent and manual generation.
+Omit the “This week” heading; retain accessible weekly-total labels, three metrics and the dated day bars.
+Show the latest activity as a compact labeled link to its detail screen, without duplicating its full gallery or cheers.
+Keep feature enrollment/food conditions and the five tabs unchanged. These choices supersede the original Today mockup.
