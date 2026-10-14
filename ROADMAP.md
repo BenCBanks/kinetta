@@ -16,7 +16,7 @@ Requirements live in GitHub issues. Use [the requirements guide](docs/requiremen
 
 ## Separate track
 
-- Owner-requested social/activity polish is in progress: double-tap Cheers people, live user search, user profiles constrained by activity visibility, visible gear deletion, shorter Me AI text and equal-sized photo/map slides. Verify API privacy, native compilation and phone layouts before merging; record server and iPhone release separately.
+- Owner-requested social/activity polish is implemented in [PR #75](https://github.com/BenCBanks/kinetta/pull/75): double-tap Cheers people, live user search, user profiles constrained by activity visibility, visible gear deletion, shorter Me AI text and equal-sized photo/map slides. Fresh API/privacy, migration upgrade and phone/desktop browser checks passed. Native compilation is checked in CI; physical-device acceptance and server deployment remain separate release gates.
 - Food logging simplification and the deterministic Kit/evaluation foundation have merged. The new tool coach stays disabled until reviewed accuracy results pass its rollout gate.
 - [#63: Direct Garmin access](https://github.com/BenCBanks/kinetta/issues/63). Owner identity and provider intake/approval required. Apple Health and intervals.icu beta work can proceed independently.
 

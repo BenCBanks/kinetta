@@ -111,7 +111,7 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
 
     func refresh(owner: String, start: Date, end: Date, done: @escaping (Error?) -> Void) {
         serial.async {
-            guard self.credentials?.owner == owner, start < end, end.timeIntervalSince(start) <= 370 * 86400,
+            guard self.credentials?.owner == owner, start < end,
                   end <= Date().addingTimeInterval(3600) else {
                 done(self.failure("Reconnect Apple Health before refreshing workout details.")); return
             }
