@@ -49,6 +49,27 @@ jobs:
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release
           -sdk iphoneos -destination 'generic/platform=iOS'
           -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Check the unsigned archive and HealthKit entitlements
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            -archivePath "$RUNNER_TEMP/Kinetta-check.xcarchive" CODE_SIGNING_ALLOWED=NO archive
+          for framework in "$RUNNER_TEMP/Kinetta-check.xcarchive/Products/Applications/App.app/Frameworks/"*.framework; do
+            [ -d "$framework" ] || continue
+            codesign --force --sign - "$framework"
+          done
+          codesign --force --sign - --entitlements ios/App/App/App.entitlements \
+            "$RUNNER_TEMP/Kinetta-check.xcarchive/Products/Applications/App.app"
+          codesign --verify --deep --strict "$RUNNER_TEMP/Kinetta-check.xcarchive/Products/Applications/App.app"
+          codesign --display --entitlements - --xml \
+            "$RUNNER_TEMP/Kinetta-check.xcarchive/Products/Applications/App.app" > "$RUNNER_TEMP/health-entitlements.plist"
+          python3 - <<'PYCODE'
+          import os, plistlib
+          from pathlib import Path
+          entitlements = plistlib.loads((Path(os.environ['RUNNER_TEMP']) / 'health-entitlements.plist').read_bytes())
+          assert entitlements['com.apple.developer.healthkit'] is True
+          assert entitlements['com.apple.developer.healthkit.background-delivery'] is True
+          PYCODE
       - name: Pack the Simulator app
         run: cd build/Build/Products/Debug-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/Kinetta-simulator.zip" App.app
       - uses: actions/upload-artifact@v4
@@ -94,15 +115,24 @@ jobs:
       # Apple's own signing: with the App Store Connect key, Xcode makes and keeps the certificate and profile itself,
       # so no certificate files live in this repository or its secrets. Each upload needs a higher build number than the
       # last; the workflow's run number (+100, above any build made by hand) always goes up.
-      - name: Sign and archive
+      - name: Archive for App Store export
         if: steps.keys.outputs.ok
         run: |
+          umask 077
           printf '%s' "$KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Kinetta.xcarchive" \
-            -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER" \
-            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION=$((GITHUB_RUN_NUMBER + 100)) archive
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION=$((GITHUB_RUN_NUMBER + 100)) archive
+          # Archiving with automatic development signing requires a registered device.
+          # Defer Apple distribution signing to export; retain the app's HealthKit
+          # entitlements in a temporary ad-hoc signature for Xcode to carry forward.
+          for framework in "$RUNNER_TEMP/Kinetta.xcarchive/Products/Applications/App.app/Frameworks/"*.framework; do
+            [ -d "$framework" ] || continue
+            codesign --force --sign - "$framework"
+          done
+          codesign --force --sign - --entitlements ios/App/App/App.entitlements \
+            "$RUNNER_TEMP/Kinetta.xcarchive/Products/Applications/App.app"
       - name: Upload to App Store Connect (TestFlight)
         if: steps.keys.outputs.ok
         run: |

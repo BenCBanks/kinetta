@@ -92,6 +92,10 @@ Do these in order. Nothing here costs money except the membership.
    app's privacy manifest. If the AI features are on for your server, also say that health, fitness and food data and
    food photos are shared with Google (Gemini) when the person turns AI features on.
 
+The workflow archives without a development profile, preserves the HealthKit entitlements, then lets Xcode
+automatically sign for App Store Connect during export. You do not need to register a development iPhone for this
+TestFlight upload. A successful upload and physical-device HealthKit test are still required.
+
 After step 7, start the upload once by hand: GitHub > **Actions > iPhone app > Run workflow** (branch `main`). The build
 shows up in App Store Connect under **TestFlight** 10 to 30 minutes later. From then on every change to the app on
 `main` uploads a new build by itself.
