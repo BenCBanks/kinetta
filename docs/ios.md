@@ -137,3 +137,10 @@ Use a signed build whose provisioning profile includes `com.apple.developer.heal
 HealthKit read access is private: denied access can look like an empty result. Kinetta cannot prove authorization merely from a successful empty query. If a queued workout was deleted from Health or access revoked, its reference remains pending with a readable error; disconnect/reconnect resets that queue without deleting server activities.
 
 References: [Apple observer queries](https://developer.apple.com/documentation/healthkit/hkobserverquery), [executing observer queries](https://developer.apple.com/documentation/healthkit/executing-observer-queries), and [background delivery entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.healthkit.background-delivery).
+
+## App icon and upload checks
+
+The existing Kinetta track-and-dot icon is bundled in the app's `AppIcon` asset catalog.
+The [1024-pixel PNG](../mobile/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png) is an opaque RGB square; iOS applies its own corner mask. App Store Connect takes the icon from the uploaded build, so there is no separate icon upload step.
+
+The signing workflow checks that its API key can read the `com.kinetta.app` app record before archiving. It signs/exports an IPA first, then uploads that signed file with Apple's `altool`. This separates account access, signing and upload errors. Keys stay on the temporary runner and are removed even after a failure.

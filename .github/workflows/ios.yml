@@ -24,6 +24,8 @@ jobs:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v4
+      - name: Check Apple API helper and bundled app icon
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
@@ -115,6 +117,12 @@ jobs:
       # Apple's own signing: with the App Store Connect key, Xcode makes and keeps the certificate and profile itself,
       # so no certificate files live in this repository or its secrets. Each upload needs a higher build number than the
       # last; the workflow's run number (+100, above any build made by hand) always goes up.
+      - name: Check App Store Connect app access
+        if: steps.keys.outputs.ok
+        run: |
+          umask 077
+          printf '%s' "$KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          python3 scripts/check-app-store.py
       - name: Archive for App Store export
         if: steps.keys.outputs.ok
         run: |
@@ -133,7 +141,7 @@ jobs:
           done
           codesign --force --sign - --entitlements ios/App/App/App.entitlements \
             "$RUNNER_TEMP/Kinetta.xcarchive/Products/Applications/App.app"
-      - name: Upload to App Store Connect (TestFlight)
+      - name: Sign and export for App Store Connect
         if: steps.keys.outputs.ok
         run: |
           cat > "$RUNNER_TEMP/export.plist" <<PLIST
@@ -141,7 +149,7 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>export</string>
             <key>teamID</key><string>$TEAM</string>
             <key>signingStyle</key><string>automatic</string>
             <key>manageAppVersionAndBuildNumber</key><false/>
@@ -150,7 +158,21 @@ jobs:
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Kinetta.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
             -exportPath "$RUNNER_TEMP/export" -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
             -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER"
+      - name: Verify signed app and icon before upload
+        if: steps.keys.outputs.ok
+        run: python3 scripts/check-export.py
+      - name: Upload signed app to TestFlight
+        if: steps.keys.outputs.ok
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          cp "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/private_keys/AuthKey_$KEY_ID.p8"
+          ipa=("$RUNNER_TEMP/export/"*.ipa)
+          [ "${#ipa[@]}" -eq 1 ] && [ -f "${ipa[0]}" ]
+          API_PRIVATE_KEYS_DIR="$RUNNER_TEMP/private_keys" xcrun altool --upload-app \
+            --type ios --file "${ipa[0]}" --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
           echo "::notice::Build $((GITHUB_RUN_NUMBER + 100)) uploaded. It shows up in TestFlight after Apple's processing (usually 10-30 minutes)."
       - name: Remove the key
         if: always() && steps.keys.outputs.ok
-        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
+        run: |
+          rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/private_keys/AuthKey_$KEY_ID.p8"
