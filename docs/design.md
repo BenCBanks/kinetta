@@ -99,7 +99,8 @@ mockups presented as app evidence. Capture on an isolated clean demo install so 
 
 Preserve the homepage oval track and its moving ball behind the iPhone screenshot: the track uses the subtle divider
 color and the ball uses the evergreen/sage brand token. Keep the phone in front, the oval within the viewport, and
-pause the ball for reduced-motion preferences. This is an intentional brand detail requested by the owner.
+start the ball on a visible side with an 18-second lap. Pause for reduced-motion preferences and provide a small
+Play/Pause control beneath the phone, including explicit opt-in playback when reduced motion is enabled. This is an intentional brand detail requested by the owner.
 
 Refresh captures daily and on app changes, then publish Pages. The capture manifest identifies the actual source and
 UTC capture time; it must work when the converter runs outside the git checkout. An already-open homepage checks the
