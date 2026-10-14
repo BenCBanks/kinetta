@@ -34,7 +34,7 @@ can be signed and uploaded automatically.
    Apple's checks: a privacy manifest (`mobile/ios/App/App/PrivacyInfo.xcprivacy`), the "no special encryption"
    answer, the Apple Health permission texts, the 1024-pixel icon, delete-my-account in the app and the privacy policy
    at https://kinetta.app/privacy.
-3. **Background sync**: native observer, anchored reads and a durable per-account queue are implemented in the development branch; release requires a Mac build and the physical-device checklist below.
+3. **Background sync**: native observer, anchored reads and a durable per-account queue have merged and passed Mac builds and a TestFlight upload. Complete the physical-device checklist below before declaring background delivery reliable.
 4. **More from Apple Health**: weight, resting heart rate and sleep.
 5. **App Store**: screenshots and a demo account for Apple's reviewers (see "Before outside testers" below).
 6. **Android** (Health Connect) after that. The Health plugin already supports it.
@@ -144,3 +144,17 @@ The existing Kinetta track-and-dot icon is bundled in the app's `AppIcon` asset 
 The [1024-pixel PNG](../mobile/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png) is an opaque RGB square; iOS applies its own corner mask. App Store Connect takes the icon from the uploaded build, so there is no separate icon upload step.
 
 The signing workflow checks that its API key can read the `com.kinetta.app` app record before archiving. It signs/exports an IPA first, then uploads that signed file with Apple's `altool`. This separates account access, signing and upload errors. Keys stay on the temporary runner and are removed even after a failure.
+
+## Available Health details
+
+Kinetta rereads the recent overlap when opened and queues native detail refreshes without advancing the new-workout anchor. A known Health UUID can enrich its existing activity with a later route, heart rate or recorded metrics. Empty retries preserve fuller recordings. Compatible imports from another source can gain missing details while keeping their title, sharing, gear and existing summary values. Legacy installed apps still receive `added`/`duplicate` acknowledgements; the API separately reports `details_updated` and an `updated` count.
+
+A compatible original workout file arriving after a Health summary can also fill in its route and signals on the same activity. Duplicate matching checks sport and duration as well as time/distance; enrichment applies a tighter distance check. Dense but incomplete recordings do not replace recordings covering the full workout.
+
+Additional read permission is requested only through Connect or Change what Kinetta can read. Native statistics include steps, elevation, running power/speed/stride/vertical oscillation/ground contact time (supported on iOS 16+) and cycling power/speed/cadence (iOS 17+), when the recording provides them. Aggregate values do not invent time-series charts. Stored running stride/vertical oscillation use millimetres, ground contact uses milliseconds, speed uses metres per second and power uses watts.
+
+Apple Health does not guarantee that every recording app shares every metric. [Garmin documents that its GPS tracks are not transmitted to Apple Health](https://support.garmin.com/es-CL/?faq=lK5FPB9iPF5PXFkIpFlFPA&searchType=noProduct). Use a compatible original FIT/GPX/TCX file or an independently configured connection for fuller Garmin workouts. A missing route is not proof that permission was denied: HealthKit intentionally does not reveal denied read access.
+
+Physical acceptance must include an Apple Watch outdoor workout with route permission, a summary-only Garmin import, a delayed-route replay, an empty/denied-detail retry, an existing file import and account switching. Compare the values with their recorded source; verify one activity remains after foreground/background retries. Linux stand-ins establish API/state contracts, not actual HealthKit delivery.
+
+For how server releases, bundled screens and database migrations fit together, see [Developing and releasing Kinetta](development-and-updates.md).

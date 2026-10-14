@@ -22,7 +22,7 @@ function postCard(a, {who = false} = {}) {
   if (a.prs) badges.push(`<span class="badge pr">${svg('trophy')} ${a.prs} PR${a.prs > 1 ? 's' : ''}</span>`);
   if (a.route_id) badges.push('<span class="badge">Matched route</span>');
   if (a.commute) badges.push('<span class="badge">Commute</span>');
-  const head = who ? `${avatar(theirs ? a.owner : App.me)}<span class="ph-txt"><b>${theirs ? esc(a.owner.name) : 'You'}</b><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>${sportMark(a.sport)}`
+  const head = who ? `<a class="post-person" href="${profileHref(theirs ? a.owner : App.me)}">${avatar(theirs ? a.owner : App.me)}<span class="ph-txt"><b>${theirs ? esc(a.owner.name) : 'You'}</b><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span></a>${sportMark(a.sport)}`
     : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>`;
   const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
   const vis = a.visibility || 'me';
@@ -30,17 +30,11 @@ function postCard(a, {who = false} = {}) {
   const foot = `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
        <button type="button" class="pf" data-talk="${a.id}" aria-label="Comments">${svg('comment')}${n('comments')}</button>` + (theirs ? '' : `
        <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`);
-  return `<article class="card post"><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
-    <div class="post-hd">${head}</div><h3 class="post-title">${esc(a.name)}</h3>
+  return `<article class="card post"><div class="post-hd post-profile">${head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
+    <h3 class="post-title">${esc(a.name)}</h3>
     <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
-    ${a.line ? `<div class="fmap" data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" aria-hidden="true">${miniRoute(a.line, a.sport)}</div>` : ''}${postPhotos(a)}</a>
+    </a>${activityMedia(a)}
     <div class="post-ft">${foot}</div></article>`;
-}
-// photos on a feed card (2026-10-12): up to three in a row under the map, "+N" on the last when there are more
-function postPhotos(a) {
-  const ph = a.photos || []; if (!ph.length) return '';
-  const shown = ph.slice(0, 3), more = ph.length - shown.length;
-  return `<div class="post-photos n${shown.length}${a.line ? '' : ' nomap'}" aria-label="${ph.length} photo${ph.length > 1 ? 's' : ''}">${shown.map((p, i) => `<span>${pimg(`/api/activity-photos/${p.id}?size=thumb`)}${more && i === shown.length - 1 ? `<b>+${more}</b>` : ''}</span>`).join('')}</div>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
@@ -53,6 +47,7 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
 // Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment
 // button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
+  wireActivityMedia(box);
   $$('[data-talk]', box).forEach((b) => b.onclick = async () => {
     b.disabled = true;
     try {
@@ -65,14 +60,17 @@ function wireCheers(box) {
     } catch (x) { toast(x.message); }
     b.disabled = false;
   });
-  $$('[data-cheer]', box).forEach((b) => b.onclick = async () => {
+  $$('[data-cheer]', box).forEach((b) => cheerGesture(b, async () => {
+    if (b.dataset.sending) return;
+    b.dataset.sending = '1';
     const on = b.getAttribute('aria-pressed') !== 'true', id = b.dataset.cheer;
     const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
     const shift = (d) => { const c = cnt(), v = (+c.textContent || 0) + d; c.textContent = v || ''; b.setAttribute('aria-pressed', String(d > 0)); };
     shift(on ? 1 : -1); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
     try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); invalidate('/api/shared/' + id); invalidate('/api/activities?'); App.cache.delete('feed:home'); }
     catch (x) { shift(on ? -1 : 1); toast(x.message); }
-  });
+    finally { delete b.dataset.sending; }
+  }, () => activityCheers(b.dataset.cheer)));
 }
 const backBtn = (label = 'Back') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
 function wireBack(el, fallback) {
@@ -332,8 +330,8 @@ function drawDetail(el, a) {
   };
   const has = (k) => k === 'overview' || pane[k].trim() !== '';
   // with a map, the map runs to the top of the screen and the buttons float over it (2026-10-12, Ben)
-  const topBar = `<div class="top${a.line ? ' over' : ''}">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
-  el.innerHTML = `${a.line ? `<div class="map-head"><div class="map big lead" id="d-map" role="img" aria-label="Route map"><button class="map-full" id="d-full" aria-label="Full-screen map">${svg('expand')}</button></div>${topBar}</div>` : topBar}
+  const topBar = `<div class="top${a.line || a.photos?.length ? ' over' : ''}">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
+  el.innerHTML = `${a.line || a.photos?.length ? `<div class="map-head">${activityMedia(a, {mapId: 'd-map', detail: true, full: !!a.line})}${topBar}</div>` : topBar}
     <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span></div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
@@ -355,7 +353,8 @@ function drawDetail(el, a) {
   $('#d-edit', el).onclick = () => editActivity(a);
   $('#d-send', el).onclick = () => shareOut(a);
   ownSocial(el, a);
-  photoStrip($('#d-photos', el), a, true);
+  photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
+  wireActivityMedia(el);
   if (a.lifts) fillLiftCard(el, a);
   const cb = $('#d-coach', el);
   if (cb) cb.onclick = async () => {
@@ -365,33 +364,16 @@ function drawDetail(el, a) {
     catch (x) { toast(x.message); cb.disabled = false; cb.textContent = 'Ask Kit'; }
   };
   let marker = null, pts = null, mapObj = null;
-  if (a.line) lazy($('#d-map', el), async () => {
-    try { const m = await mapInto($('#d-map', el), [a.line], {sport: a.sport}); mapObj = m; pts = decode(a.line); }
-    catch (e) { console.error('map', e); $('#d-map', el).innerHTML = '<p class="empty">Map unavailable right now</p>'; }
+  const mapBox = $('#d-map', el);
+  if (a.line) lazy(mapBox, async () => {
+    try {
+      const m = await mapInto(mapBox, [a.line], {sport: a.sport, still: !!a.photos?.length && !mapBox.classList.contains('full')});
+      mapObj = m; pts = decode(a.line);
+      if (m && a.photos?.length && !mapBox.classList.contains('full')) { m.map.dragging.disable(); m.map.touchZoom.disable(); }
+    }
+    catch (e) { console.error('map', e); if (mapBox.isConnected) mapBox.insertAdjacentHTML('beforeend', '<p class="empty">Map unavailable right now</p>'); }
   });
-  if (a.line) {   // full screen: the same map fills the screen (chart dot keeps working); X or Esc closes it
-    const box = $('#d-map', el), btn = $('#d-full', el);
-    const refit = () => { if (mapObj) { mapObj.map.invalidateSize(); mapObj.map.fitBounds(mapObj.L.latLngBounds(decode(a.line)), {padding: [24, 24]}); } };
-    // full screen moves the map to <body> (2026-10-12): inside the page, the page's own box set its size, so it ran
-    // taller than the screen; a placeholder keeps its spot for the way back
-    const spot = document.createComment('map');
-    const close = () => {
-      if (!box.classList.contains('full')) return;
-      box.classList.remove('full'); document.body.classList.remove('map-open');
-      if (spot.parentNode) spot.replaceWith(box); else { box.remove(); return; }     // left the page while it was full screen
-      btn.innerHTML = svg('expand'); btn.setAttribute('aria-label', 'Full-screen map'); refit(); btn.focus();
-      removeEventListener('keydown', onKey);
-    };
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      if (box.classList.contains('full')) { close(); return; }
-      box.replaceWith(spot); document.body.append(box); addEventListener('popstate', close, {once: true});
-      box.classList.add('full'); document.body.classList.add('map-open');
-      btn.innerHTML = svg('close'); btn.setAttribute('aria-label', 'Close full-screen map'); refit();
-      addEventListener('keydown', onKey);
-    };
-  }
+  if (a.line) wireMediaMapFull(mapBox, () => mapObj, a.line, !!a.photos?.length);
   if (a.chart) {
     const c = a.chart, x = c.d && c.d[c.d.length - 1] > 100 ? c.d : c.t, byDist = x === c.d;
     const rows = [];
@@ -1053,7 +1035,7 @@ route(/^\/me$/, 'me', async (el) => {
   // 2026-10-11 redesign: a settings-style list, each row with a coloured icon; the long forms open in sheets
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<div class="profile"><button type="button" class="av-edit" id="m-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'lg')}<span class="av-cam">${svg('camera')}</span></button><div><h1>${esc(me.name)}</h1><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
+  el.innerHTML = `<div class="profile"><button type="button" class="av-edit" id="m-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'lg')}<span class="av-cam">${svg('camera')}</span></button><div><a href="${profileHref(me)}" aria-label="View my profile"><h1>${esc(me.name)}</h1></a><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
     <div class="card list">${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/friends"', 'people', 'c-berry', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}</div>
@@ -1076,7 +1058,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       ${me.is_admin ? row('a', 'href="/me/people"', 'people', 'c-ink', 'People', 'Invite, reset, remove') : ''}</div>
-    ${me.coach ? `<h2 class="sec-head">AI features</h2><div class="card" id="ai">${aiExplain()}${me.coach_tools ? '<a class="ghost wide" href="/me/kit">Ask Kit about your training or food</a>' : ''}
+    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Training notes and food estimates.</p><button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools ? '<a class="ghost wide" href="/me/kit">Ask Kit</a>' : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
@@ -1084,6 +1066,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
     <button class="ghost wide" id="logout">${svg('logout')}Log out</button>`;
   $('#m-photo', el).onclick = () => profilePhotoSheet(() => render());
+  const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit & food AI', aiExplain());
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');
@@ -1097,6 +1080,7 @@ route(/^\/me$/, 'me', async (el) => {
   $('#m-del', el).onclick = () => deleteSheet();
   $$('[data-ai]', el).forEach((b) => b.onclick = async () => {
     const on = b.dataset.ai === '1'; if (on === !!me.ai_ok) return;
+    if (on) { aiSheet(() => render()); return; }
     try { await api('/api/profile', json('PUT', {ai_ok: on})); me.ai_ok = on; keep('/api/me', me); invalidate('/api/coach'); render(); toast(on ? 'AI features on' : 'AI features off - nothing is sent'); }
     catch (x) { toast(x.message); }
   });
@@ -1414,6 +1398,12 @@ route(/^\/me\/connections$/, 'me', async (el) => {
 route(/^\/me\/gear$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost" id="g-add">Add</button></div><h1>Shoes & bikes</h1><div id="g-list">${skel(2)}</div>`;
   wireBack(el, '/me');
+  const remove = async (g, button, close) => {
+    if (!confirm(`Delete ${g.name}? Your activities stay; only their link to this gear is removed.`)) return;
+    button.disabled = true;
+    try { await api(`/api/gear/${g.id}`, {method: 'DELETE'}); invalidate('/api/'); if (close) close(); toast('Gear deleted. Activities kept.'); render(); }
+    catch (x) { toast(x.message); button.disabled = false; }
+  };
   const edit = (g) => sheet(g ? 'Edit gear' : 'Add gear', `<form class="form">
       <div class="two"><label>Type<select name="kind">${['shoe', 'bike', 'other'].map((k) => `<option value="${k}"${g && g.kind === k ? ' selected' : ''}>${k === 'shoe' ? 'Shoes' : k === 'bike' ? 'Bike' : 'Other'}</option>`).join('')}</select></label>
       <label>Name<input name="name" required maxlength="120" value="${esc(g ? g.name : '')}"></label></div>
@@ -1430,17 +1420,18 @@ route(/^\/me\/gear$/, 'me', async (el) => {
         alert_distance_m: toM(f.alert.value), start_distance_m: toM(f.start.value) || 0, is_default: f.is_default.checked, retired: f.retired.checked};
       try { await api(g ? `/api/gear/${g.id}` : '/api/gear', json(g ? 'PUT' : 'POST', body)); invalidate('/api/gear'); close(); render(); } catch (x) { toast(x.message); }
     };
-    if (g) $('#g-del', b).onclick = async () => { if (!confirm(`Delete ${g.name}? Activities keep their data.`)) return; try { await api(`/api/gear/${g.id}`, {method: 'DELETE'}); invalidate('/api/'); close(); render(); } catch (x) { toast(x.message); } };
+    if (g) $('#g-del', b).onclick = (e) => remove(g, e.currentTarget, close);
   });
   $('#g-add', el).onclick = () => edit(null);
   await load('/api/gear', (gear) => {
     $('#g-list', el).innerHTML = gear.length ? `<div class="card">${gear.map((g) => {
       const due = g.alert_distance_m && g.total_m >= g.alert_distance_m;
-      return `<button class="row-link" data-id="${g.id}"><div><b>${esc(g.name)}</b>${g.is_default ? ' <span class="badge">Default</span>' : ''}${g.retired ? ' <span class="badge">Retired</span>' : ''}<br>
+      return `<div class="gear-row"><button class="row-link" data-id="${g.id}" aria-label="Edit ${esc(g.name)}"><div><b>${esc(g.name)}</b>${g.is_default ? ' <span class="badge">Default</span>' : ''}${g.retired ? ' <span class="badge">Retired</span>' : ''}<br>
         <small class="muted">${g.uses} activities${g.last_used ? ' · last ' + esc(fdate(g.last_used, {month: 'short', day: 'numeric'})) : ''}</small></div>
-        <div class="r"><b class="num">${U.dist(g.total_m, 0)} ${U.du()}</b>${due ? '<br><small class="danger">Time to replace</small>' : g.alert_distance_m ? `<br><small class="muted">of ${U.dist(g.alert_distance_m, 0)}</small>` : ''}</div></button>`; }).join('')}</div>`
+        <div class="r"><b class="num">${U.dist(g.total_m, 0)} ${U.du()}</b>${due ? '<br><small class="danger">Time to replace</small>' : g.alert_distance_m ? `<br><small class="muted">of ${U.dist(g.alert_distance_m, 0)}</small>` : ''}</div></button><button type="button" class="icon-btn danger" data-gear-delete="${g.id}" aria-label="Delete ${esc(g.name)}">${svg('trash')}</button></div>`; }).join('')}</div>`
       : '<div class="card empty"><b>No gear yet</b>Add shoes or a bike to track their mileage. Strava gear is imported with your export.</div>';
     $$('[data-id]', el).forEach((b) => b.onclick = () => edit(gear.find((g) => g.id === +b.dataset.id)));
+    $$('[data-gear-delete]', el).forEach((b) => b.onclick = () => remove(gear.find((g) => g.id === +b.dataset.gearDelete), b));
   });
 });
 

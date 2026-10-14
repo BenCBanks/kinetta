@@ -4,6 +4,7 @@ Matched routes (like Strava's Matched Activities): same sport family, start and 
 and the same path in the same direction (discrete Fréchet distance of the simplified lines < ~250 m).
 """
 import datetime as dt
+import bisect
 import hashlib
 import json
 import math
@@ -47,11 +48,13 @@ def profile_of(c, user_id):
     return p
 
 
-def find_duplicate(c, user_id, start, distance_m):
-    rows = c.execute("""SELECT id, distance_m, auto_name, source FROM activities WHERE user_id = %s
+def find_duplicate(c, user_id, start, distance_m, sport=None, elapsed_s=None):
+    rows = c.execute("""SELECT id, distance_m, elapsed_s, sport, auto_name, source FROM activities WHERE user_id = %s
                         AND start_time BETWEEN %s AND %s""",
                      (user_id, start - dt.timedelta(minutes=2), start + dt.timedelta(minutes=2))).fetchall()
     for r in rows:
+        if sport and sport != r['sport']: continue
+        if elapsed_s and r['elapsed_s'] and abs(elapsed_s - r['elapsed_s']) > max(120, r['elapsed_s'] * .1): continue
         a, b = r['distance_m'] or 0, distance_m or 0
         if (a < 50 and b < 50) or (max(a, b) > 0 and min(a, b) / max(a, b) > 0.85):
             return r
@@ -92,14 +95,15 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
                            zones=json.dumps(summ['zones']) if summ.get('zones') else None)
             merged = api_lifts.merge_watch(c, user_id, start, start + dt.timedelta(seconds=float(secs)), numbers)
             if merged: return 'updated', merged
-        dup = None if source == 'lift' else find_duplicate(c, user_id, start, summ.get('distance_m'))   # a session started here is always new
+        dup = None if source == 'lift' else find_duplicate(c, user_id, start, summ.get('distance_m'), sport, summ.get('elapsed_s'))   # a session started here is always new
         if dup:
+            richer = enrich_file(c, user_id, dup['id'], parsed, summ, sha, path) if raw is not None else False
             if meta.get('name') and dup['auto_name']:   # e.g. Garmin copy first, then Strava export brings the real title
                 c.execute("""UPDATE activities SET name = %s, auto_name = false, description = coalesce(description, %s),
                              private_note = coalesce(private_note, %s), strava_id = coalesce(strava_id, %s), updated = now()
                              WHERE id = %s""", (meta['name'], meta.get('description'), meta.get('private_note'), meta.get('strava_id'), dup['id']))
                 return 'updated', dup['id']
-            return 'duplicate', dup['id']
+            return ('updated' if richer else 'duplicate'), dup['id']
         name = meta.get('name') or default_name(start, tz, sport, meta.get('sport_label'))
         gear_id = gear_for(c, user_id, sport, meta.get('gear'))
         row = dict(user_id=user_id, sport=sport, sub_sport=parsed.get('sub_sport'), sport_label=meta.get('sport_label'), name=name, auto_name=not meta.get('name'),
@@ -143,6 +147,69 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
 def _floats(xs):
     """Stream array for a float8[] column. Watch files mix ints and floats (hr 142, then 142.5), which psycopg refuses."""
     return [None if x is None else float(x) for x in xs] if xs is not None and len(xs) else None   # lists or numpy arrays
+
+
+def merge_streams(old, incoming):
+    """Keep the richer GPS grid; fill each signal from its richer recording, joined within 30 seconds.
+
+    Sparse or temporarily unavailable Health reads must never erase a fuller recording.
+    """
+    from .parsers import STREAMS
+    count = lambda s, k: sum(v is not None for v in s.get(k, []))
+    def richer(k):
+        if count(incoming, k) <= count(old, k): return False
+        before = [t for t, v in zip(old.get('t', []), old.get(k, [])) if v is not None]
+        after = [t for t, v in zip(incoming.get('t', []), incoming.get(k, [])) if v is not None]
+        return not before or (after and min(after) <= min(before) + 30 and max(after) >= max(before) - 30)
+    gps = lambda s: sum(a is not None and b is not None for a, b in zip(s.get('lat', []), s.get('lon', [])))
+    base = incoming if gps(incoming) > gps(old) and richer('lat') else old
+    if not gps(base): base = incoming if richer('t') else old
+    times = base.get('t', [])
+    merged = {'t': times}
+    for k in STREAMS:
+        src = incoming if richer(k) else old
+        pairs = sorted((t, v) for t, v in zip(src.get('t', []), src.get(k, [])) if v is not None)
+        ts = [t for t, _ in pairs]
+        vals = []
+        for t in times:
+            i = bisect.bisect_left(ts, t)
+            near = min((j for j in (i - 1, i) if 0 <= j < len(ts)), key=lambda j: abs(ts[j] - t), default=None)
+            vals.append(pairs[near][1] if near is not None and abs(ts[near] - t) <= 30 else None)
+        merged[k] = vals
+    return merged
+
+
+def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
+    """A full recording arriving after a Health summary supplies its missing route and signals."""
+    from .parsers import STREAMS
+    a = c.execute('SELECT * FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, uid)).fetchone()
+    if not a or not (a['source'] == 'healthkit' or a.get('healthkit_id')): return False
+    x, y = a.get('distance_m') or 0, incoming_summary.get('distance_m') or 0
+    if x and y and min(x, y) / max(x, y) < .93: return False
+    old = c.execute('SELECT * FROM activity_streams WHERE activity_id = %s AND user_id = %s', (aid, uid)).fetchone() or {}
+    old = {k: old.get(k) or [] for k in ('t',) + STREAMS}
+    incoming = dict(parsed['streams'])
+    offset = (parsed['start'] - a['start_time']).total_seconds()
+    incoming['t'] = [t + offset for t in incoming['t']]
+    st = merge_streams(old, incoming)
+    if not st['t'] or st == old: return False
+    S = analysis.prepare(st, a['sport'])
+    session = {k: a[k] for k in ('elapsed_s', 'moving_s', 'distance_m', 'calories', 'ascent_m', 'descent_m') if a.get(k) is not None}
+    summ = analysis.summary(S, a['sport'], session, profile_of(c, uid))
+    cols = ('t',) + STREAMS
+    c.execute('INSERT INTO activity_streams (activity_id,user_id,' + ','.join(cols) + ') VALUES (' + ','.join(['%s']*(len(cols)+2)) + ') ON CONFLICT (activity_id) DO UPDATE SET ' + ','.join(k+'=EXCLUDED.'+k for k in cols), (aid,uid,*[_floats(st[k]) for k in cols]))
+    sets = {}
+    for k in ('avg_hr', 'max_hr', 'avg_cad', 'avg_power', 'max_power', 'max_speed', 'avg_vo', 'avg_gct', 'avg_stride', 'steps'):
+        if a.get(k) is None and summ.get(k) is not None: sets[k] = num(summ[k])
+    sets.update(chart=json.dumps(analysis.chart_series(S, a['sport'])), zones=json.dumps(summ.get('zones')),
+        splits_km=json.dumps(analysis.splits(S,a['sport'],1000)), splits_mi=json.dumps(analysis.splits(S,a['sport'],MI)),
+        power_curve=json.dumps(analysis.power_curve(S)))
+    c.execute('UPDATE activities SET '+','.join(k+'=%('+k+')s' for k in sets)+', file_sha256=coalesce(file_sha256,%(sha)s), file_path=coalesce(file_path,%(path)s), updated=now() WHERE id=%(aid)s AND user_id=%(uid)s', {**sets,'sha':sha,'path':path,'aid':aid,'uid':uid})
+    c.execute('DELETE FROM best_efforts WHERE activity_id=%s AND user_id=%s', (aid,uid))
+    for e in analysis.best_efforts(S,a['sport']):
+        c.execute('INSERT INTO best_efforts (user_id,activity_id,sport,distance_m,label,elapsed_s,start_s,start_time) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)', (uid,aid,a['sport'],e['distance_m'],e['label'],e['elapsed_s'],e['start_s'],a['start_time']))
+    set_geometry(c,aid,st); match_route(c,uid,aid)
+    return True
 
 
 def set_geometry(c, aid, st):

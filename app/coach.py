@@ -62,7 +62,7 @@ HEALTH_NO = 'Kit needs your OK to read workouts from Apple Health first: Me > Ap
 def health_ok(c, user_id):
     """Apple's rules: health data goes to an AI service only with the person's explicit consent."""
     r = c.execute("""SELECT coalesce((SELECT health_ai_ok FROM profile WHERE user_id = %s), false) AS ok,
-                       EXISTS (SELECT 1 FROM activities WHERE user_id = %s AND source = 'healthkit') AS has""", (user_id, user_id)).fetchone()
+                       EXISTS (SELECT 1 FROM activities WHERE user_id = %s AND (source = 'healthkit' OR healthkit_id IS NOT NULL)) AS has""", (user_id, user_id)).fetchone()
     return r['ok'] or not r['has']
 
 

@@ -1102,7 +1102,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .social .cheer-who { width: 100%; border: 0; background: none; padding: 6px 0; color: var(--tx); text-align: left; }
 .social .cheer-who .grow { flex: 1; min-width: 0; }
 .comments .comment { display: flex; gap: 10px; }
-.comments .comment > .av { width: 32px; height: 32px; font-size: 12px; margin-top: 2px; }
+.comments .comment > .av, .comments .comment > a .av { width: 32px; height: 32px; font-size: 12px; margin-top: 2px; }
 .comment .c-body { flex: 1; min-width: 0; }
 .post-photos { display: grid; gap: 6px; margin: 14px 0 4px; }
 .post .fmap:has(+ .post-photos) { margin-bottom: 0; } .post .fmap + .post-photos { margin-top: 6px; }
@@ -1194,3 +1194,31 @@ button.lift-prev:active { background: var(--card2); }
 #xp-q { margin-bottom: 4px; }
 .pick-list .row-link.danger { color: var(--alert); }
 
+
+/* People and social controls: directory identity links never contain activity links. */
+.person-link, .post-person { display: flex; align-items: center; gap: 10px; color: inherit; min-width: 0; flex: 1; min-height: 44px; }
+.person-link .grow { min-width: 0; } .person-link:focus-visible, .post-person:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+.post-profile { padding: 14px 16px 0; margin-bottom: 0; } .post-profile + .post-link { padding-top: 8px; }
+.profile-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 16px; }
+.public-profile small { display: block; margin-top: 5px; }
+.gear-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); gap: 4px; }
+.gear-row:last-child { border-bottom: 0; } .gear-row .row-link { flex: 1; min-width: 0; border-bottom: 0; }
+.gear-row .row-link > div:first-child { min-width: 0; overflow-wrap: anywhere; } .gear-row .r { flex-shrink: 0; }
+.gear-row > .icon-btn { flex-shrink: 0; }
+.cheer.cheer-wait { background: var(--card2); }
+
+/* Photos are full-size slides before the map, never thumbnails beneath it. */
+.activity-media { --media-height: 190px; min-width: 0; margin: 12px 16px 4px; }
+.media-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: var(--r3); -webkit-overflow-scrolling: touch; }
+.media-track::-webkit-scrollbar { display: none; }
+.media-item { position: relative; flex: 0 0 100%; min-width: 0; height: var(--media-height); scroll-snap-align: start; scroll-snap-stop: always; padding: 0; border: 0; overflow: hidden; background: var(--card2); }
+.media-item > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.media-map > .map, .post .media-map > .fmap { height: 100%; width: 100%; margin: 0; border-radius: 0; }
+.media-controls { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; }
+.media-controls [data-media-position] { flex: 1; text-align: center; }
+.detail-media { --media-height: 380px; margin: 0 0 12px; }
+.map-head .detail-media { --media-height: calc(380px + env(safe-area-inset-top)); margin: 0; }
+.map-head .media-track { border-radius: 0 0 var(--r) var(--r); }
+.map-head .media-item .map.lead { height: 100%; }
+.map-head .media-controls { padding: 0 16px; }
+@media (min-width: 900px) { .activity-media { --media-height: 240px; } .detail-media, .map-head .detail-media { --media-height: 480px; } .map-head .media-track { border-radius: var(--r); } }
