@@ -612,7 +612,7 @@ class KinettaHealthSyncPlugin: CAPPlugin, CAPBridgedPlugin {
         HealthBackgroundSync.shared.status(owner: call.getString("owner") ?? "") { call.resolve($0) }
     }
     @objc func retry(_ call: CAPPluginCall) { HealthBackgroundSync.shared.start(); call.resolve() }
-    @objc func requestPermissions(_ call: CAPPluginCall) {
+    @objc override func requestPermissions(_ call: CAPPluginCall) {
         HealthBackgroundSync.shared.requestPermissions { error in
             if let error = error { call.reject(error.localizedDescription) } else { call.resolve() }
         }

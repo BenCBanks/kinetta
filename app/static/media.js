@@ -11,15 +11,16 @@ function activityMedia(a, {mapId = '', detail = false, full = false} = {}) {
 }
 function wireMediaMapFull(box, mapObject, line, still) {
   const btn = $('.map-full', box), spot = document.createComment('map');
-  const refit = () => { const m = mapObject(); if (m) { m.map.invalidateSize(); m.map.fitBounds(m.L.latLngBounds(decode(line)), {padding: [24, 24]}); } };
+  const refit = () => { const m = mapObject(); if (m) { m.map.invalidateSize({pan: false}); m.map.fitBounds(m.L.latLngBounds(decode(line)), {padding: [24, 24], animate: false}); } };
   const close = () => {
     if (!box.classList.contains('full')) return;
     viewResources.delete(spot);
+    removeEventListener('keydown', key); removeEventListener('popstate', close);
     box.classList.remove('full'); document.body.classList.remove('map-open');
     const m = mapObject(); if (m && still) { m.map.dragging.disable(); m.map.touchZoom.disable(); }
     if (spot.parentNode) spot.replaceWith(box); else { box.remove(); return; }
-    btn.innerHTML = svg('expand'); btn.setAttribute('aria-label', 'Full-screen map'); refit(); btn.focus();
-    removeEventListener('keydown', key); removeEventListener('popstate', close);
+    btn.innerHTML = svg('expand'); btn.setAttribute('aria-label', 'Full-screen map');
+    if (box.isConnected) { refit(); btn.focus(); }
   };
   const key = (e) => { if (e.key === 'Escape') close(); };
   btn.onclick = (e) => {
@@ -37,7 +38,7 @@ function wireActivityMedia(root) {
     const track = $('.media-track', box), items = $$('.media-item', track);
     if (!box.classList.contains('detail-media')) {
       const map = $('.media-map', box);
-      if (map) map.onclick = () => go(`${box.dataset.mediaMine === 'true' ? '/activity/' : '/shared/'}${box.dataset.media}`);
+      if (map) map.onclick = () => go(`${box.dataset.mediaMine === 'true' ? '/activity/' : '/activity/friends/'}${box.dataset.media}`);
     }
     const photos = JSON.parse(box.dataset.mediaPhotos), a = {id: +box.dataset.media, photos};
     let index = 0;
