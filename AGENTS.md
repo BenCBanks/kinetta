@@ -35,6 +35,14 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 - Admin-only endpoints call `_admin(user)` from `api_account.py`.
 - Never weaken login protection, the password rules, cookies or the security headers in `main.py` without saying so.
 
+## AI architecture and evaluation
+
+Read `docs/ai-architecture.md` and `dev/evals/README.md` before changing AI behavior. Structured activity/food/weight
+records stay in PostgreSQL; use fixed, authenticated RLS tools with no model-supplied SQL or user ID. Algorithms own
+training/meal numbers and allowed changes. Writes need backend validation and explicit user confirmation. Compare
+prompt/model changes with reviewed production baselines before rollout; synthetic contract tests are not model
+accuracy evidence. New tool-based questions stay disabled until the matching reviewed report is supplied.
+
 ## Conventions
 - Database changes: append a new SQL string to the end of `MIGRATIONS` in `app/db.py`, with a numbered comment. Never
   change the SQL of a migration that has shipped; real installs have already run it.
