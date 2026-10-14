@@ -36,3 +36,11 @@ Write preferences as explicit rules: for example, "Food logging should take as f
 Use **Now / Next / Later** to express order. Keep Now small and put its tasks in a numbered sequence. Say whether a Later item is a possible idea or an agreed requirement. When priorities change, change the order instead of leaving competing lists in chat.
 
 You can give a rough brief in chat: "Here are the problems, in order, and what I want the result to feel like." The agent can turn it into testable requirements, identify missing decisions and propose scope. The owner decides priorities and release authority; the agent maintains progress and evidence.
+
+## Write in a normal document if you prefer
+
+The owner can maintain requirements in a Google Doc or a spreadsheet and provide its link through the connected service. A document works well for explaining behavior and examples; a spreadsheet works well for sorting many items by priority and status. Markdown editing is optional for the owner.
+
+Designate one document as the requirements source of truth. At the start of requested work, read its latest content, reconcile it with the roadmap and existing issues, then select the next ready task. Keep the repository roadmap and issues as derived implementation records, with evidence and release status. Preserve any requirements that have not yet been implemented. Resolve material contradictions with the owner before dependent work.
+
+Store private source links in private operator notes, not in this public repository. Reading an updated document does not itself authorize publishing, deployment or invitations, and editing it does not automatically launch an agent.
