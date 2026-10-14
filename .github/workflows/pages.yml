@@ -11,7 +11,9 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # Finish an active Pages deployment before publishing the next capture/release.
+  # Cancelling its workflow can leave the Pages API still deploying underneath it.
+  cancel-in-progress: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
