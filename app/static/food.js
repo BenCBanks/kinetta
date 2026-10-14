@@ -390,7 +390,7 @@ async function tSaved(body, where, close) {
 route(/^\/food\/meals$/, 'food', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>My meals</h1><div id="meal-library"></div>`;
   wireBack(el, '/food');
-  await tSaved($('#meal-library', el), {day: isoDay(new Date()), meal: guessMeal()}, () => {});
+  await tSaved($('#meal-library', el), () => ({day: isoDay(new Date()), meal: guessMeal()}), () => {});
 });
 // How much of a saved meal: grams (when every food in it is in grams) or servings. A saved meal is 1 serving as saved
 // ("½" or "2" scale every food in it).

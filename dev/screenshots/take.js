@@ -18,6 +18,8 @@ const SHOTS = [
   ['plan', '/plan'],
   ['heatmap', '/progress/heatmap'],
   ['food', '/food'],
+  ['explore', '/me/explore'],
+  ['meals', '/food/meals', {logDish: 'Chicken and veg traybake', portion: '380', directLibrary: true}],
   ['cook', 'DISH'],
   ['serve', '/food', {logDish: 'Chicken and veg traybake', portion: '380'}],
   ['friends', '/me/friends'],
@@ -94,8 +96,11 @@ function chrome(dark) {
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => !document.querySelector('.leaflet-container') || document.querySelector('.leaflet-tile-loaded'), null, {timeout: 8000}).catch(() => {});
       if (opt.logDish) {      // Add food > My meals > the dish: the log sheet, with a portion typed in
-        await page.evaluate(() => addSheet(isoDay(new Date()), 'dinner'));
-        await page.click('[data-t=saved]'); await page.click(`.sheet .fe[data-dish]:has-text("${opt.logDish}")`);
+        if (opt.directLibrary) await page.click(`#meal-library .fe[data-dish]:has-text("${opt.logDish}")`);
+        else {
+          await page.evaluate(() => addSheet(isoDay(new Date()), 'dinner'));
+          await page.click('[data-t=saved]'); await page.click(`.sheet .fe[data-dish]:has-text("${opt.logDish}")`);
+        }
         await page.fill('#dl input[name=g]', opt.portion);
       }
       if (opt.photo) {

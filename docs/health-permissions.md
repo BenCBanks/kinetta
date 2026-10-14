@@ -7,7 +7,7 @@ and a large first import (including routes/heart rate) held under the same “As
 could also suppress the initial import for ten minutes.
 
 The app now issues one combined read-only request through its own native plugin, on the main thread, coalescing
-repeat taps. After permission completion it records only that syncing is enabled for the current account; it does not
+repeat taps. Explicit retries first check whether Apple still needs a prompt, so a lost completion callback can recover without a second sheet. This prompt status never reveals read grants. After permission completion it records only that syncing is enabled for the current account; it does not
 claim individual read grants. The page becomes usable independently of background registration and the first import.
 Import progress explains the current phase. Device reads/uploads have bounded waits, retain retry cursors and release
 busy state after failure. Late callbacks cannot enable a timed-out connection or cross an account boundary.
