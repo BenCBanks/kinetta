@@ -161,9 +161,8 @@ function drawDay(el, D) {
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
-    const lm = (D.last_meals || {})[m];
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
-      ${lm ? `<button class="same" data-same="${m}"><span><small class="muted">Same as ${esc(dayLabel(lm.day))}</small><b>${esc(lm.items.map((i) => i.name).join(', '))}</b></span><span class="r"><b class="num">${r0(lm.kcal)}</b><small class="muted">Log ${svg('plus')}</small></span></button>` : ''}</section>`;
+      </section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => `<button class="fe${e.pending ? ' pending' : ''}" data-id="${e.id}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`).join('')}
@@ -175,14 +174,6 @@ function drawDay(el, D) {
     const e = D.entries.find((x) => String(x.id) === b.dataset.id);
     if (e.pending) { toast('Saved on this phone - it sends when you are back online'); return; }
     entrySheet(e, D.day);
-  });
-  $$('[data-same]', el).forEach((b) => b.onclick = async () => {
-    const m = b.dataset.same, lm = D.last_meals[m];
-    b.disabled = true;
-    try {
-      const r = await addEntries(lm.items.map((it) => ({...it, day: D.day, meal: m, ref: it.ref || null})));
-      toast(`Logged ${MEAL_NAMES[m].toLowerCase()} - same as ${dayLabel(lm.day)}`, r.ids ? () => Promise.all(r.ids.map((id) => api(`/api/food/entries/${id}`, {method: 'DELETE', body: '{}'}))).then(refresh).catch((x) => toast(x.message)) : null);
-    } catch (x) { toast(x.message); b.disabled = false; }
   });
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => copyDay(addDays(D.day, -1), D.day);
 }
@@ -284,16 +275,16 @@ const macroInputs = (e = {}) => `<div class="mac4">
   <label>Fat g<input name="fat_g" inputmode="decimal" value="${e.fat_g != null ? r1(e.fat_g) : ''}"></label>
   <label>Fiber g<input name="fiber_g" inputmode="decimal" value="${e.fiber_g != null ? r1(e.fiber_g) : ''}"></label></div>`;
 
-// ---------- add: search / recent / my foods / meals / quick ----------
+// ---------- add: usuals / saved dishes / search / quick ----------
 function addSheet(day, meal) {
-  // 2026-10-12 (Ben: too crowded): where it goes on one line, the three ways as small tiles, and Recent first
+  // One suggestions list inside Add food; meal cards show only what was actually logged.
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
     <div class="ways three"><button class="way" id="as-photo">${svg('sparkle')}<b>Describe or snap</b></button>
       <button class="way" id="as-scan">${svg('barcode')}<b>Barcode</b></button>
       <button class="way" id="as-dish">${svg('pot')}<b>Cook a meal</b></button></div>
-    <div class="seg wide" role="tablist">${[['recent', 'Recent'], ['saved', 'Saved Dishes'], ['search', 'Search'], ['quick', 'Quick']]
+    <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'Saved Dishes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
     const dp = $('#as-day', b);     // a short label ("Today", "Sat, Oct 10") over the native picker: the full date field didn't fit
@@ -301,7 +292,7 @@ function addSheet(day, meal) {
     dp.onchange = () => { if (dp.value) $('#as-dayl', b).textContent = dayLabel(dp.value); };
     const body = $('#as-body', b);
     const where = () => ({day: $('#as-day', b).value, meal: $('#as-meal', b).value});
-    const tabs = {search: tSearch, recent: tRecent, saved: tSaved, quick: tQuick};
+    const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
     $('#as-photo', b).onclick = () => {   // words and photos go to the AI service, so it needs the person's OK first
@@ -310,7 +301,7 @@ function addSheet(day, meal) {
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
     $('#as-dish', b).onclick = (e) => { close(); newDish(e.currentTarget); };     // a saved dish is logged from Saved Dishes
-    show('recent');
+    show('usuals');
   });
 }
 const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
@@ -344,15 +335,14 @@ function tSearch(body, where, close) {
 const recentToFood = (r) => (r.ref ? {...r.ref, name: r.name, brand: r.brand, _last: r} :
   {source: 'recent', name: r.name, brand: r.brand, per_serving: {kcal: r.kcal / r.amount, protein_g: r.protein_g / r.amount, carbs_g: r.carbs_g / r.amount, fat_g: r.fat_g / r.amount, fiber_g: r.fiber_g == null ? null : r.fiber_g / r.amount},
    serving: {label: r.unit === 'serving' ? '1 serving' : `1 ${r.unit}`, g: null}, _last: r, _unit: r.unit});
-async function tRecent(body, where, close) {
+async function tUsuals(body, where, close) {
   body.innerHTML = skel(1);
   try {
-    const [usual, rows] = await Promise.all([api('/api/food/usual').catch(() => []), api('/api/food/recent')]);
-    const foods = [...usual, ...rows].map(recentToFood);
+    const usual = await api('/api/food/usual');
+    const foods = usual.map(recentToFood);
     const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd" data-q="${i}" aria-label="Log ${esc(f.name)} now (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
-    body.innerHTML = (usual.length ? `<h3 class="ghead">Your usuals <small class="muted">· + logs your usual amount</small></h3><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>` : '')
-      + (rows.length ? `<h3 class="ghead">Recent</h3><div class="results">${rows.map((_, j) => foodRow(foods[usual.length + j], usual.length + j)).join('')}</div>` : '')
-      || '<p class="small muted">Nothing logged yet. Foods you log show up here, ready to log again in one tap.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>';
+    body.innerHTML = usual.length ? `<p class="small muted">+ logs your usual amount</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
+      : '<p class="small muted">Foods you log often will appear here. Search to add something new.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>';
     const ts = $('#tr-search', body); if (ts) ts.onclick = () => $('.sheet [data-t=search]').click();
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
