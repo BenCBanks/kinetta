@@ -63,8 +63,11 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
   With neither active, weekly distance/time/climb or activity count leads directly to a compact latest-activity link.
   Omit the redundant This week heading. Use evergreen seven-day bars with day/date/value labels, without a comparison ring.
   Eligible Kit weekly reviews open from a small button beside the greeting; goals and fitness follow the primary content. Do not invent feature switches, empty promos or setup nags.
-- **Five stable tabs:** Today, Activity, Progress, Nutrition, Me always remain visible. Feature-panel visibility must not
-  hide a tab. Use a full-width bottom bar, regular icons, readable labels, safe-area padding and a short active underline.
+- **Five stable tabs:** Today, Activity, Progress, Nutrition, Me remain available on every screen. Feature-panel visibility
+  must not hide a tab. Hide the entire bottom bar while the software keyboard is open, on every route and in sheets;
+  restore it after dismissal, including swipe-down dismissal. Native keyboard events take precedence over viewport guesses.
+  A focused field with a physical keyboard must not hide navigation. Use a full-width bottom bar, regular icons, readable
+  labels, safe-area padding and a short active underline.
 - **Activities:** use Friends feed and My activities. Friends feed contains your activities and approved friends’ shared
   activities, newest first. My activities contains your own history with search and filters. Keep the short scope line,
   privacy labels, comments, Cheers and double-tap people lists. The names match mutual friendships, not a new Follow model.

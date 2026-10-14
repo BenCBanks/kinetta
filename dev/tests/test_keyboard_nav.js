@@ -1,0 +1,47 @@
+// Real shared controller with stand-in OS events/viewport; no device or personal data.
+'use strict';
+const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+const source = fs.readFileSync('app/static/keyboard.js', 'utf8');
+function setup({native = false, coarse = true, viewport = true} = {}) {
+  const handlers = {}, classes = new Set(), frames = [];
+  const listen = (name, fn) => (handlers[name] ||= []).push(fn);
+  const vv = {height: 844, offsetTop: 0, scale: 1, addEventListener: listen};
+  const document = {activeElement: null, addEventListener: listen,
+    documentElement: {classList: {toggle(name, on) { if (on) classes.add(name); else classes.delete(name); }}}};
+  const context = {document, innerHeight: 844, addEventListener: listen,
+    requestAnimationFrame: (fn) => frames.push(fn), matchMedia: () => ({matches: coarse}),
+    window: {Capacitor: {isNativePlatform: () => native}, visualViewport: viewport ? vv : null}};
+  vm.runInNewContext(source, context);
+  return {document, vv, context, open: () => classes.has('keyboard-open'),
+    event(name) { for (const fn of handlers[name] || []) fn(); while (frames.length) frames.shift()(); },
+    focus(extra = {}) { document.activeElement = {matches: () => true, ...extra}; this.event('focusin'); },
+    blur() { document.activeElement = null; this.event('focusout'); }};
+}
+const n = setup({native: true});
+assert.equal(n.open(), false);
+n.event('keyboardWillShow'); assert.equal(n.open(), true, 'hidden before native resize');
+n.context.innerHeight = 510; n.vv.height = 510; n.event('resize'); n.focus(); n.blur();
+assert.equal(n.open(), true, 'native state survives resize, blur and route replacement');
+n.event('keyboardWillHide'); assert.equal(n.open(), true, 'no flash during interactive dismissal');
+n.event('keyboardDidShow'); assert.equal(n.open(), true, 'cancelled dismissal stays hidden');
+n.event('keyboardDidHide'); assert.equal(n.open(), false, 'restore even while field remains focused');
+n.focus(); assert.equal(n.open(), false, 'external keyboard focus does not hide tabs');
+const b = setup();
+b.focus(); assert.equal(b.open(), false);
+b.vv.height = 770; b.event('resize'); assert.equal(b.open(), false, 'browser chrome is not keyboard');
+b.vv.height = 510; b.event('resize'); assert.equal(b.open(), true, 'browser overlay keyboard');
+b.blur(); assert.equal(b.open(), true, 'blur cannot expose tabs during closing animation');
+b.focus(); assert.equal(b.open(), true, 'changing fields keeps tabs hidden');
+b.vv.height = 844; b.event('resize'); assert.equal(b.open(), false, 'dismiss with field still focused');
+b.context.innerHeight = 510; b.vv.height = 510; b.event('resize');
+assert.equal(b.open(), true, 'browser that resizes layout viewport');
+b.context.innerHeight = 844; b.vv.height = 844; b.event('resize'); assert.equal(b.open(), false);
+b.vv.scale = 2; b.vv.height = 422; b.event('resize'); assert.equal(b.open(), false, 'pinch zoom is not keyboard');
+const d = setup({coarse: false}); d.focus(); d.vv.height = 400; d.event('resize'); assert.equal(d.open(), false, 'desktop resizing');
+for (const extra of [{disabled: true}, {readOnly: true}, {inputMode: 'none'}, {matches: () => false}]) {
+  const t = setup(); t.focus(extra); t.vv.height = 510; t.event('resize'); assert.equal(t.open(), false, 'non-editable controls');
+}
+const content = setup(); content.focus({matches: () => false, isContentEditable: true});
+content.vv.height = 510; content.event('resize'); assert.equal(content.open(), true, 'contenteditable');
+assert.doesNotThrow(() => setup({viewport: false}));
+console.log('Keyboard navigation: native lifecycle, cancelled dismissal, viewport modes, focus changes, physical keyboards and zoom passed');

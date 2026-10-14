@@ -24,6 +24,7 @@ echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_native_sync.js
 node dev/tests/test_ui_state.js
 node dev/tests/test_keyboard.js
+node dev/tests/test_keyboard_nav.js
 
 echo "== AI evaluation contracts (no model calls)"
 python3 dev/evals/check.py

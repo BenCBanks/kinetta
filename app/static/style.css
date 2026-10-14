@@ -1247,6 +1247,9 @@ button.lift-prev:active { background: var(--card2); }
 .stat b i { font-size: 12px; font-weight: 400; }
 .hero .stat b, .public-profile ~ .card .stat b { font-size: clamp(18px, 5.3vw, 26px); }
 nav.tabs { left: 0; right: 0; bottom: 0; max-width: 800px; border-radius: 0; box-shadow: none; border-top: 1px solid var(--line); padding: 7px 10px calc(env(safe-area-inset-bottom) + 7px); background: var(--card); }
+/* Software keyboard takes precedence over global navigation on every route. */
+html.keyboard-open { --tab-h: 0px; }
+html.keyboard-open nav.tabs { display: none; }
 nav.tabs a { border-radius: 0; font-size: 12px; min-height: 54px; gap: 4px; }
 nav.tabs a[aria-current="page"] { background: transparent; }
 nav.tabs a[aria-current="page"]::after { content: ''; width: 24px; height: 3px; border-radius: 2px; background: var(--accent); position: absolute; bottom: 0; }
