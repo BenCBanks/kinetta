@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const DAY = 864e5, now = Date.now();
 const workout = {id: '12345678-test-workout', workoutType: 'running', startDate: new Date(now - 20 * DAY).toISOString(),
   endDate: new Date(now - 20 * DAY + 1800000).toISOString(), duration: 1800, distance: 5000, calories: 300};
-function device() {
+function device(background = null) {
   const saved = new Map(), queries = [], sent = [], events = {};
   const ctx = {console, Date, Map, JSON, Error, Promise, setTimeout, clearTimeout,
     App: {me: {id: 1}, cache: new Map()}, route() {}, forgetKept() {}, invalidate() {}, toast() {}, render() {},
@@ -18,6 +18,7 @@ function device() {
         set: async ({key, value}) => saved.set(key, value), remove: async ({key}) => saved.delete(key)},
       HealthPlugin: {isHealthAvailable: async () => ({available: true}), requestHealthPermissions: async () => {},
         queryWorkouts: async (q) => { queries.push(q); return ctx.query ? ctx.query(q) : {workouts: [workout]}; }},
+      ...(background ? {KinettaHealthSync: background} : {}),
     }}},
     api: async (path, opts) => {
       if (path === '/api/login') return {token: 'new-login'};
@@ -79,5 +80,41 @@ function device() {
   await assert.rejects(pending, /account changed/); await stopped;
   assert.equal(d.n.token, null);
   assert.equal(d.saved.has('health.status'), false, 'cancelled sync cannot restore stale status');
+
+  const calls = [], bg = device({
+    connect: async (opts) => calls.push(['connect', opts]),
+    disconnect: async () => calls.push(['disconnect']),
+    retry: async () => calls.push(['retry']),
+    status: async (opts) => ({enabled: true, pending: 2, owner: opts.owner}),
+  });
+  await bg.n.ready; bg.n.base = 'https://example.test'; bg.n.token = 'native-token';
+  await bg.n.connectHealth();
+  assert.equal(calls[0][0], 'connect');
+  assert.equal(calls[0][1].server, 'https://example.test');
+  assert.equal(calls[0][1].token, 'native-token');
+  assert.equal(calls[0][1].owner, JSON.stringify(['https://example.test', 1]));
+  assert.equal((await bg.n.backgroundStatus()).pending, 2);
+  await bg.n.syncHealth();
+  assert.ok(calls.some((x) => x[0] === 'retry'), 'foreground sync also wakes the durable native queue');
+  bg.ctx.App.me = {id: 2};
+  assert.equal(await bg.n.backgroundStatus(), null, 'native queue status is not inherited by another account');
+  bg.ctx.App.me = {id: 1};
+  await bg.n.forget();
+  assert.equal(calls.at(-1)[0], 'disconnect', 'logout cancels native queue before clearing login');
+  assert.equal(bg.n.token, null);
+
+  const unavailable = device({connect: async () => { throw new Error('Capability missing'); },
+    disconnect: async () => {}, retry: async () => {}, status: async () => { throw new Error('Locked'); }});
+  await unavailable.n.ready; unavailable.n.base = 'https://example.test'; unavailable.n.token = 'token';
+  await unavailable.n.connectHealth();
+  await unavailable.n.syncHealth();
+  assert.ok(unavailable.sent.length, 'background setup failure leaves foreground import available');
+  assert.equal((await unavailable.n.backgroundStatus()).enabled, false);
+
+  const cannotStop = device({disconnect: async () => { throw new Error('Unlock required'); }});
+  await cannotStop.n.ready; cannotStop.n.base = 'https://example.test'; cannotStop.n.token = 'first';
+  await assert.rejects(cannotStop.n.login('https://second.example.test', 'test', 'password'), /Unlock/);
+  assert.equal(cannotStop.n.base, 'https://example.test', 'failed native disconnect prevents account/server replacement');
+  assert.equal(cannotStop.n.token, 'first');
   console.log('native sync: consent, history retry, offline, incomplete reads/acks and in-flight logout passed');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

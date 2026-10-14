@@ -21,7 +21,7 @@ The first beta should use Apple Health or the existing intervals.icu connection.
 These are engineering tasks, not forms the owner needs to fill in:
 
 - Recoverable Apple Health imports, visible errors and account-specific consent: [#58](https://github.com/BenCBanks/kinetta/issues/58).
-- Native background delivery and a durable queue, plus a physical-device acceptance checklist: [#59](https://github.com/BenCBanks/kinetta/issues/59).
+- Native background delivery and a durable queue are implemented in a development branch; Mac build and signed physical-device acceptance remain required (see [the checklist](ios.md#background-sync-device-acceptance)): [#59](https://github.com/BenCBanks/kinetta/issues/59).
 - Conservative deduplication and authenticated native file uploads: [#60](https://github.com/BenCBanks/kinetta/issues/60).
 - Health Auto Export fixtures and intervals.icu history/outage recovery: [#61](https://github.com/BenCBanks/kinetta/issues/61). Real service accounts still need end-to-end validation. Strava-fed activities are unavailable through the intervals API; use a direct watch connection.
 - Invite/onboarding/auth tests, support instructions and operational checks: [#62](https://github.com/BenCBanks/kinetta/issues/62).
