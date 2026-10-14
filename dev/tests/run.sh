@@ -14,6 +14,7 @@ P="${KINETTA_PROJECT:-kinettatest}"
 
 echo "== shared design tokens and contrast"
 python3 dev/design/build_tokens.py --check
+python3 dev/tests/test_design_manifest.py
 
 echo "== syntax"
 python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
