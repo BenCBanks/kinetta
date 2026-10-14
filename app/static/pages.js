@@ -1076,7 +1076,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       ${me.is_admin ? row('a', 'href="/me/people"', 'people', 'c-ink', 'People', 'Invite, reset, remove') : ''}</div>
-    ${me.coach ? `<h2 class="sec-head">AI features</h2><div class="card" id="ai">${aiExplain()}
+    ${me.coach ? `<h2 class="sec-head">AI features</h2><div class="card" id="ai">${aiExplain()}${me.coach_tools ? '<a class="ghost wide" href="/me/kit">Ask Kit about your training or food</a>' : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}

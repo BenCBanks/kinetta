@@ -175,7 +175,7 @@ def week_review(user_id, week_start=None):
     if not allowed(user_id): raise ValueError(OFF)
     if week_start is None:
         today = dt.date.today(); week_start = today - dt.timedelta(days=today.weekday())
-    with db.connect() as c:
+    with db.coach_connect(user_id) as c:
         if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         ctx = _week_context(c, user_id, week_start)
     if not ctx['activities'] and not ctx['food_days']: raise ValueError('Nothing logged this week yet.')
@@ -212,6 +212,7 @@ def note(user_id, aid):
         # every note counts, the ones written after an import too (2026-10-12 review: imports could run up the bill)
         n = c.execute("""SELECT count(*) AS n FROM activities WHERE user_id = %s AND ai_note_at > now() - interval '1 day'""", (user_id,)).fetchone()['n']
         if n >= DAILY_LIMIT: raise ValueError('Daily limit for Kit’s notes reached - try again tomorrow.')
+    with db.coach_connect(user_id) as c:
         ctx = _context(c, user_id, aid)
     if not ctx: raise ValueError('Activity not found')
     text = _gemini(ctx) if provider() == 'gemini' else _claude(ctx)

@@ -397,17 +397,34 @@ def create(b: PlanIn, user=Depends(current_user)):
 @router.get('/current')
 def current(user=Depends(current_user)):
     with db.connect() as c:
-        p = c.execute('SELECT * FROM training_plans WHERE user_id = %s AND active', (user['id'],)).fetchone()
-        if not p: return {'plan': None}
-        tz, unit, today = _ctx(c, user['id'])
-        v = current_vdot(c, user['id'])
-        runs = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sum(distance_m) AS m, min(id) AS id, count(*) AS n
-                            FROM activities WHERE user_id = %s AND sport = 'run' AND start_time >= %s::date - 1
-                            GROUP BY 1""", (tz, user['id'], p['start_day'])).fetchall()
-        marks = {r['day']: r['done'] for r in c.execute('SELECT day, done FROM plan_marks WHERE plan_id = %s AND user_id = %s', (p['id'], user['id'])).fetchall()}
-        pred = run_predictions(c, user['id'], [(RACES[p['race']]['m'], p['race'])])
+        return current_from_connection(c, user['id'])
+
+
+def apply_adjustments(c, uid, p, weeks):
+    rows = c.execute('SELECT day, workout FROM plan_adjustments WHERE user_id = %s AND plan_id = %s', (uid, p['id'])).fetchall()
+    adjusted = {r['day']: r['workout'] for r in rows}
+    for week in weeks:
+        for workout in week['workouts']:
+            if workout['day'] in adjusted:
+                workout['original_dist'] = workout.get('dist')
+                workout.update(adjusted[workout['day']])
+                workout['adjusted'] = True
+
+
+def current_from_connection(c, uid):
+    """Shared deterministic plan facts, usable inside a bound read-only coach RLS transaction."""
+    p = c.execute('SELECT * FROM training_plans WHERE user_id = %s AND active', (uid,)).fetchone()
+    if not p: return {'plan': None}
+    tz, unit, today = _ctx(c, uid)
+    v = current_vdot(c, uid)
+    runs = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sum(distance_m) AS m, min(id) AS id, count(*) AS n
+                        FROM activities WHERE user_id = %s AND sport = 'run' AND start_time >= %s::date - 1
+                        GROUP BY 1""", (tz, uid, p['start_day'])).fetchall()
+    marks = {r['day']: r['done'] for r in c.execute('SELECT day, done FROM plan_marks WHERE plan_id = %s AND user_id = %s', (p['id'], uid)).fetchall()}
+    pred = run_predictions(c, uid, [(RACES[p['race']]['m'], p['race'])])
     P = paces(v, p['goal_s'], RACES[p['race']]['m'])
     weeks = build(p, P)
+    apply_adjustments(c, uid, p, weeks)
     U = p['unit']; per = MI if U == 'mi' else 1000
     by_day = {r['d']: r for r in runs}
     created = p['created'].astimezone(ZoneInfo(tz)).date()   # days before the plan existed aren't "missed"
