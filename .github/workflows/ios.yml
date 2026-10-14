@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-26-intel
     timeout-minutes: 40
     defaults:
       run:
@@ -83,7 +83,7 @@ jobs:
   testflight:
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: macos-latest
+    runs-on: macos-26-intel
     timeout-minutes: 45
     env:
       TEAM: ${{ secrets.APPLE_TEAM_ID }}
