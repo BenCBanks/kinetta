@@ -23,7 +23,7 @@ const SHOTS = [
   ['friends', '/me/friends'],
   ['dietcoach', '/food?view=overview', {to: "Kit’s take"}],
   ['recipecoach', 'DISH', {to: "Kit’s take"}],
-  ['photos', 'LATEST', {sel: '.d-title'}],
+  ['photos', 'LATEST', {photo: true}],
   ['describe', '/food', {describe: ['I had a hot dog from Costco and a Diet Coke', 'make it two hot dogs']}],
   // lifting (2026-10-13): last; the logger starts a session from the latest one (a live session would change Today)
   ['liftex', 'SQUAT'],
@@ -97,6 +97,12 @@ function chrome(dark) {
         await page.evaluate(() => addSheet(isoDay(new Date()), 'dinner'));
         await page.click('[data-t=saved]'); await page.click(`.sheet .fe[data-dish]:has-text("${opt.logDish}")`);
         await page.fill('#dl input[name=g]', opt.portion);
+      }
+      if (opt.photo) {
+        // The real activity always opens on its map. This feature example shows the next slide after a swipe.
+        await page.click('[data-media-step="1"]');
+        await page.waitForTimeout(450);
+        await page.evaluate(() => window.scrollTo(0, 0));
       }
       if (opt.describe) {   // Add food > Describe or snap: a message, the estimate, a correction
         await page.evaluate(() => { App.me.ai_ok = true; addSheet(isoDay(new Date()), 'dinner'); });

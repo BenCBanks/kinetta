@@ -1362,3 +1362,7 @@ nav.tabs a svg { width: 23px; height: 23px; }
 .view-nav .range-btn { min-width: 0; margin-left: 0; padding-inline: 4px; justify-content: center; }
 
 .bar.over { background: var(--alert); }
+
+/* Keep native status-bar text on a readable theme surface, even over bright photos/maps. */
+.map-head .detail-media { padding-top: env(safe-area-inset-top); --media-height: 380px; background: var(--bg); }
+@media (min-width: 900px) { .map-head .detail-media { --media-height: 480px; } }
