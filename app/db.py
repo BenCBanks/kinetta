@@ -843,6 +843,14 @@ MIGRATIONS = [
     CREATE POLICY coach_own_rows ON plan_adjustments FOR SELECT TO fit_coach USING
       (user_id = nullif(current_setting('kinetta.coach_user_id', true), '')::bigint);
     """,
+    # 37: retain Health provenance when richer details enrich an existing import.
+    """
+    ALTER TABLE activities ADD COLUMN healthkit_id text;
+    ALTER TABLE activities ADD COLUMN health_details jsonb;
+    UPDATE activities SET healthkit_id = source_id WHERE source = 'healthkit'
+      OR (source = 'lift' AND source_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$');
+    CREATE UNIQUE INDEX activities_healthkit_identity ON activities (user_id, healthkit_id) WHERE healthkit_id IS NOT NULL;
+    """,
 ]
 
 

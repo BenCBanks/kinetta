@@ -22,6 +22,7 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
     private var task: URLSessionDataTask?
     private var busy = false
     private var rerun = false
+    private var refreshRange: (Date, Date)?
     private var attempted = Set<String>()
     private var version = 0
     private var completions: [() -> Void] = []
@@ -92,6 +93,33 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
 
     private func failure(_ message: String) -> NSError {
         NSError(domain: "KinettaHealth", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+    }
+
+    private func detailTypes() -> Set<HKObjectType> {
+        var ids: [HKQuantityTypeIdentifier] = [.stepCount]
+        if #available(iOS 16.0, *) { ids += [.runningPower, .runningSpeed, .runningStrideLength, .runningVerticalOscillation, .runningGroundContactTime] }
+        if #available(iOS 17.0, *) { ids += [.cyclingPower, .cyclingSpeed, .cyclingCadence] }
+        return Set(ids.compactMap { HKObjectType.quantityType(forIdentifier: $0) })
+    }
+
+    // Called only from the user's explicit Connect/permissions action, never in the background.
+    func requestPermissions(done: @escaping (Error?) -> Void) {
+        store.requestAuthorization(toShare: [], read: detailTypes()) { success, error in
+            done(error ?? (success ? nil : self.failure("Health permissions could not be requested.")))
+        }
+    }
+
+    func refresh(owner: String, start: Date, end: Date, done: @escaping (Error?) -> Void) {
+        serial.async {
+            guard self.credentials?.owner == owner, start < end,
+                  end <= Date().addingTimeInterval(3600) else {
+                done(self.failure("Reconnect Apple Health before refreshing workout details.")); return
+            }
+            // Schedule after the current read/upload, retaining the anchored new-workout cursor.
+            if let range = self.refreshRange { self.refreshRange = (min(range.0, start), max(range.1, end)) }
+            else { self.refreshRange = (start, end) }
+            self.kick(); done(nil)
+        }
     }
 
     func start() {
@@ -190,6 +218,7 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
         (activeCompletions + completions).forEach { $0() }
         activeCompletions.removeAll(); completions.removeAll()
         busy = false; rerun = false
+        refreshRange = nil
         endBackgroundTask()
     }
 
@@ -223,6 +252,25 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
     }
 
     private func capture(run: Int) {
+        if let range = refreshRange {
+            refreshRange = nil
+            let predicate = HKQuery.predicateForSamples(withStart: range.0, end: range.1, options: .strictStartDate)
+            let query = HKSampleQuery(sampleType: .workoutType(), predicate: predicate, limit: 2001, sortDescriptors: nil) { _, samples, error in
+                self.serial.async {
+                    guard run == self.version else { return }
+                    self.queries.removeAll()
+                    do {
+                        guard error == nil, var next = self.state, (samples?.count ?? 0) <= 2000 else {
+                            throw self.failure("Could not refresh this Health history. Try a shorter range.")
+                        }
+                        next.enqueue((samples as? [HKWorkout] ?? []).map { $0.uuid.uuidString }, anchor: next.anchor)
+                        try self.persist(next)
+                        self.capture(run: run)
+                    } catch { self.recordError(error.localizedDescription); self.finish() }
+                }
+            }
+            queries = [query]; store.execute(query); return
+        }
         guard let saved = state else { finish(); return }
         do {
             let anchor: HKQueryAnchor?
@@ -284,6 +332,44 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
             "duration_s": workout.duration, "source": String(workout.sourceRevision.source.name.prefix(100)),
             "distance_m": workout.totalDistance?.doubleValue(for: .meter()) ?? 0,
             "calories": workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) ?? 0]
+        if #available(iOS 16.0, *) {
+            func metric(_ id: HKQuantityTypeIdentifier, _ key: String, _ unit: HKUnit, maximum: Bool = false, sum: Bool = false) {
+                guard let type = HKObjectType.quantityType(forIdentifier: id), let stats = workout.statistics(for: type) else { return }
+                let quantity = sum ? stats.sumQuantity() : maximum ? stats.maximumQuantity() : stats.averageQuantity()
+                if let value = quantity?.doubleValue(for: unit), value.isFinite { payload[key] = value }
+            }
+            metric(.stepCount, "steps", .count(), sum: true)
+            metric(.activeEnergyBurned, "calories", .kilocalorie(), sum: true)
+            if workout.totalDistance == nil {
+                switch workout.workoutActivityType {
+                case .running, .walking, .hiking: metric(.distanceWalkingRunning, "distance_m", .meter(), sum: true)
+                case .cycling: metric(.distanceCycling, "distance_m", .meter(), sum: true)
+                case .swimming: metric(.distanceSwimming, "distance_m", .meter(), sum: true)
+                default: break
+                }
+            }
+            let speed = HKUnit.meter().unitDivided(by: .second())
+            if workout.workoutActivityType == .running {
+                metric(.runningPower, "avg_power", .watt())
+                metric(.runningPower, "max_power", .watt(), maximum: true)
+                metric(.runningSpeed, "max_speed", speed, maximum: true)
+                metric(.runningStrideLength, "avg_stride", .meterUnit(with: .milli))
+                metric(.runningVerticalOscillation, "avg_vo", .meterUnit(with: .milli))
+                metric(.runningGroundContactTime, "avg_gct", .secondUnit(with: .milli))
+            }
+            if #available(iOS 17.0, *), workout.workoutActivityType == .cycling {
+                metric(.cyclingPower, "avg_power", .watt())
+                metric(.cyclingPower, "max_power", .watt(), maximum: true)
+                metric(.cyclingSpeed, "max_speed", speed, maximum: true)
+                metric(.cyclingCadence, "avg_cad", HKUnit.count().unitDivided(by: .minute()))
+            }
+        }
+        if let elevation = workout.metadata?[HKMetadataKeyElevationAscended] as? HKQuantity {
+            payload["ascent_m"] = elevation.doubleValue(for: .meter())
+        }
+        if let elevation = workout.metadata?[HKMetadataKeyElevationDescended] as? HKQuantity {
+            payload["descent_m"] = elevation.doubleValue(for: .meter())
+        }
         let heart = HKSampleQuery(sampleType: HKObjectType.quantityType(forIdentifier: .heartRate)!,
             predicate: HKQuery.predicateForSamples(withStart: workout.startDate, end: workout.endDate, options: .strictStartDate),
             limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
@@ -508,6 +594,8 @@ class KinettaHealthSyncPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "connect", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestPermissions", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "refresh", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "retry", returnType: CAPPluginReturnPromise)
     ]
     @objc func connect(_ call: CAPPluginCall) {
@@ -524,6 +612,21 @@ class KinettaHealthSyncPlugin: CAPPlugin, CAPBridgedPlugin {
         HealthBackgroundSync.shared.status(owner: call.getString("owner") ?? "") { call.resolve($0) }
     }
     @objc func retry(_ call: CAPPluginCall) { HealthBackgroundSync.shared.start(); call.resolve() }
+    @objc override func requestPermissions(_ call: CAPPluginCall) {
+        HealthBackgroundSync.shared.requestPermissions { error in
+            if let error = error { call.reject(error.localizedDescription) } else { call.resolve() }
+        }
+    }
+    @objc func refresh(_ call: CAPPluginCall) {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let start = formatter.date(from: call.getString("start") ?? ""), let end = formatter.date(from: call.getString("end") ?? "") else {
+            call.reject("A valid Health refresh range is required."); return
+        }
+        HealthBackgroundSync.shared.refresh(owner: call.getString("owner") ?? "", start: start, end: end) { error in
+            if let error = error { call.reject(error.localizedDescription) } else { call.resolve() }
+        }
+    }
 }
 
 class KinettaBridgeViewController: CAPBridgeViewController {

@@ -31,4 +31,7 @@ restored = try JSONDecoder().decode(HealthSyncState.self, from: Data(contentsOf:
 check(restored.needsLogin && restored.pending == ["one"], "expired auth preserves queue across launches")
 check(restored.acknowledge(id: "one", results: [["id": "one", "result": "duplicate"]]), "server duplicate confirms a retried delivery")
 check(restored.pending.isEmpty, "all successful acknowledgements empty queue")
+let previousAnchor = restored.anchor
+restored.enqueue(["one", "one"], anchor: previousAnchor)
+check(restored.pending == ["one"] && restored.anchor == previousAnchor, "detail refresh requeues an acknowledged UUID without moving the new-workout anchor")
 print("Swift Health queue: persistence, replay, partial/invalid acknowledgements and expired auth passed")

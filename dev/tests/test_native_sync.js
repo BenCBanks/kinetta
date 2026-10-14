@@ -116,5 +116,24 @@ function device(background = null) {
   await assert.rejects(cannotStop.n.login('https://second.example.test', 'test', 'password'), /Unlock/);
   assert.equal(cannotStop.n.base, 'https://example.test', 'failed native disconnect prevents account/server replacement');
   assert.equal(cannotStop.n.token, 'first');
+  const refreshed = [], permissions = [];
+  const rich = device({connect: async () => {}, disconnect: async () => {},
+    requestPermissions: async () => permissions.push('explicit'),
+    refresh: async (opts) => refreshed.push(opts)});
+  await rich.n.ready; rich.n.base = 'https://example.test'; rich.n.token = 'rich';
+  await rich.n.connectHealth();
+  assert.equal(permissions.length, 1, 'additional Health permission is requested on explicit connect');
+  rich.ctx.query = () => ({workouts: [{...workout, steps: 6000}]});
+  rich.ctx.respond = () => ({added:0, duplicates:1, updated:1, failed:0, results:[{id:workout.id, result:'duplicate', details_updated:true}]});
+  const details = await rich.n.syncHealth();
+  assert.ok(details.updated > 0, 'detail updates survive legacy duplicate acknowledgements');
+  assert.equal(refreshed.length, 1);
+  assert.equal(refreshed[0].owner, JSON.stringify(['https://example.test', 1]));
+  assert.equal(permissions.length, 1, 'automatic sync never prompts for permissions');
+  assert.ok(rich.queries.every((q) => q.includeSteps && q.includeRoute && q.includeHeartRate));
+  assert.equal(rich.sent[0].workouts[0].steps, 6000);
+  rich.ctx.App.me = {id:2};
+  assert.equal(await rich.n.syncHealth(), null);
+  assert.equal(refreshed.length, 1, 'account without consent cannot refresh another account queue');
   console.log('native sync: consent, history retry, offline, incomplete reads/acks and in-flight logout passed');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

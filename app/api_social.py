@@ -14,7 +14,7 @@ Keeping people's data safe:
 import datetime as dt
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
 from pydantic import BaseModel, Field
 
@@ -174,13 +174,12 @@ def friends_waiting(user=Depends(current_user)):
 
 
 @router.get('/people/search')
-def people_search(q: str = '', user=Depends(current_user)):
+def people_search(q: str = Query('', max_length=60), user=Depends(current_user)):
     """Find people to add by name or username (like Strava's athlete search). Only names and usernames come back,
-    with where you stand with each: never anything they've logged. At least 2 letters, at most 20 people.
+    with where you stand with each: never anything they've logged. At most 20 people; an empty query discovers people.
     Someone who turned off "Let people find me" shows up only when the search is exactly their username, or when
     you're already friends or have a request between you."""
     q = q.strip()
-    if len(q) < 2: return []
     like = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
     with db.connect() as c:
         rows = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent
@@ -188,11 +187,39 @@ def people_search(q: str = '', user=Depends(current_user)):
             LEFT JOIN profile p ON p.user_id = u.id
             WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT {blocked}
               AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
-              AND (u.login ILIKE %(pre)s OR u.name ILIKE %(pre)s OR u.name ILIKE %(word)s)
-            ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name LIMIT 20""".replace('{blocked}', blocked('u.id')),
-                         {'viewer': user['id'], 'me': user['id'], 'q': q, 'pre': like + '%', 'word': '% ' + like + '%'}).fetchall()
+              AND (%(q)s = '' OR u.login ILIKE %(match)s OR u.name ILIKE %(match)s)
+            ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name, u.login LIMIT 20""".replace('{blocked}', blocked('u.id')),
+                         {'viewer': user['id'], 'me': user['id'], 'q': q, 'match': '%' + like + '%'}).fetchall()
     rel = lambda r: 'friends' if r['status'] == 'accepted' else ('sent' if r['sent'] else 'incoming') if r['status'] else None
     return [{'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'status': rel(r)} for r in rows]
+
+
+@router.get('/people/{login}/profile')
+def public_profile(login: str, before: dt.datetime | None = None, before_id: int | None = None,
+                   limit: int = Query(20, ge=1, le=50), user=Depends(current_user)):
+    """An authenticated profile directory, never a bypass around activity visibility or blocking."""
+    with db.connect() as c:
+        person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created
+                              FROM users WHERE login = %s AND pw_hash IS NOT NULL""", (login.lower(),)).fetchone()
+        if not person or _blocked_pair(c, user['id'], person['id']): raise HTTPException(404, 'Not found')
+        relation = _pair(c, user['id'], person['id'])
+        status = ('friends' if relation['status'] == 'accepted' else
+                  'sent' if relation['requester'] == user['id'] else 'incoming') if relation else None
+        params = _params(user['id'], PREVIEW_TOL, person=person['id'], limit=limit + 1)
+        visible = f'a.user_id = %(person)s AND {CAN_SEE}'
+        overview = c.execute(f"""SELECT count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
+                                  coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s
+                                  FROM activities a WHERE {visible}""", params).fetchone()
+        query = _select() + ' WHERE ' + visible
+        if before:
+            query += ' AND (a.start_time < %(before)s OR (a.start_time = %(before)s AND a.id < %(before_id)s))'
+            params.update(before=before, before_id=before_id or 0)
+        rows = c.execute(query + ' ORDER BY a.start_time DESC, a.id DESC LIMIT %(limit)s', params).fetchall()
+    items = [shared_activity(row) for row in rows[:limit]]
+    last = rows[limit - 1] if len(rows) > limit else None
+    return {'person': {k: person[k] for k in ('login', 'name', 'photo', 'created')}, 'status': status,
+            'mine': person['id'] == user['id'], 'overview': overview, 'items': items,
+            'next': {'before': last['start_time'], 'before_id': last['id']} if last else None}
 
 
 @router.post('/friends')

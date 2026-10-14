@@ -5,7 +5,7 @@ Requirements live in GitHub issues. Use [the requirements guide](docs/requiremen
 
 ## Now — dependable workout imports
 
-1. [#59: Apple Health background sync](https://github.com/BenCBanks/kinetta/issues/59). Native observer, durable account-specific queue, acknowledgement-based retry and secure disconnect. Implementation is in a development branch; it is not merged or released. Next gates: Mac build, signed physical iPhone tests, then review and release.
+1. [#59: Apple Health background sync](https://github.com/BenCBanks/kinetta/issues/59). Native observer, durable account-specific queue, acknowledgement-based retry and secure disconnect merged. Mac builds and TestFlight upload passed; physical iPhone acceptance and separate server deployment remain. Follow-up in progress: late GPS/heart-rate enrichment and additional recorded metrics. Garmin Connect does not write GPS tracks to Health; its full routes need an alternative source.
 2. [#60: Conservative duplicate detection](https://github.com/BenCBanks/kinetta/issues/60). Native upload authentication has shipped; compatible sport/duration matching and replay/concurrency coverage remain.
 3. [#61: Alternative-source recovery](https://github.com/BenCBanks/kinetta/issues/61). intervals.icu history and outage catch-up, format-aware imports, Health Auto Export fixtures, then real-account validation.
 
@@ -16,6 +16,8 @@ Requirements live in GitHub issues. Use [the requirements guide](docs/requiremen
 
 ## Separate track
 
+- Owner-requested social/activity polish is implemented in [PR #75](https://github.com/BenCBanks/kinetta/pull/75): double-tap Cheers people, live user search, user profiles constrained by activity visibility, visible gear deletion, shorter Me AI text and equal-sized photo/map slides. Fresh API/privacy, migration upgrade and phone/desktop browser checks passed. Native compilation is checked in CI; physical-device acceptance and server deployment remain separate release gates.
+- Food logging simplification and the deterministic Kit/evaluation foundation have merged. The new tool coach stays disabled until reviewed accuracy results pass its rollout gate.
 - [#63: Direct Garmin access](https://github.com/BenCBanks/kinetta/issues/63). Owner identity and provider intake/approval required. Apple Health and intervals.icu beta work can proceed independently.
 
 ## Later — candidates, not scheduled commitments

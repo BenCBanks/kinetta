@@ -106,6 +106,7 @@ Uploaded original files (FIT/GPX) are in the `data` volume.
 
 ## For the curious
 
+- **Developing in VS Code and releasing server/iPhone/database changes**: see [the update guide](docs/development-and-updates.md).
 - **Read-only SQL access** to your own data (DBeaver, pgAdmin, psql): see [docs/sql.md](docs/sql.md).
 - **How it's built**: Python ([FastAPI](https://fastapi.tiangolo.com)) and PostgreSQL with PostGIS on the server; a
   plain-JavaScript phone app with no build step (`app/static/`). Database changes are numbered migrations in

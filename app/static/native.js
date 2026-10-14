@@ -42,7 +42,7 @@ const Native = (() => {
   N.forget = async () => { if (on) await N.disconnectHealth(); N.token = null; if (on) await put('token', null); };
 
   // ---------- Apple Health ----------
-  const ASK = ['READ_WORKOUTS', 'READ_HEART_RATE', 'READ_ROUTE', 'READ_DISTANCE', 'READ_ACTIVE_CALORIES'];
+  const ASK = ['READ_WORKOUTS', 'READ_HEART_RATE', 'READ_ROUTE', 'READ_DISTANCE', 'READ_ACTIVE_CALORIES', 'READ_STEPS'];
   const DAY = 864e5, FIRST_DAYS = 30, OVERLAP_DAYS = 3;
   // Consent belongs to this account on this server. Old device-wide opt-ins need a fresh connection.
   const owner = () => App.me && JSON.stringify([N.base, App.me.id]);
@@ -66,6 +66,7 @@ const Native = (() => {
     const account = owner(), version = generation;
     if (!(await health.isHealthAvailable()).available) throw new Error("Apple Health isn't available on this device.");
     await health.requestHealthPermissions({permissions: ASK});   // iOS shows its own sheet once; later changes are in Settings
+    if (background?.requestPermissions) await background.requestPermissions();
     if (!account || account !== owner() || version !== generation) throw new Error('Log in before connecting Apple Health.');
     await put('health.owner', owner());
     await put('health.on', '1');
@@ -79,10 +80,13 @@ const Native = (() => {
     if (N.syncing) await N.syncing.catch(() => {});
     for (const key of ['health.on', 'health.owner', 'health.last', 'health.retryFrom', 'health.status']) await put(key, null);
   };
-  N.openHealthSettings = () => health.openAppleHealthSettings();
+  N.openHealthSettings = async () => {
+    if (background?.requestPermissions) await background.requestPermissions();
+    await health.openAppleHealthSettings();
+  };
   // The plugin's workout -> what POST /api/health/workouts takes
   const shape = (w) => ({id: w.id, type: w.workoutType || 'other', start: w.startDate, end: w.endDate, duration_s: w.duration,
-    distance_m: w.distance || null, calories: w.calories || null, source: w.sourceName || null,
+    distance_m: w.distance || null, calories: w.calories || null, steps: w.steps ?? null, source: w.sourceName || null,
     route: (w.route || []).map((p) => ({t: p.timestamp, lat: p.lat, lng: p.lng, alt: p.alt ?? null})),
     heart_rate: (w.heartRate || []).filter((h) => h.bpm > 20 && h.bpm < 260).map((h) => ({t: h.timestamp, bpm: h.bpm}))});
   // Keep the entire attempted range until every workout is acknowledged. This also retries failed history imports.
@@ -94,14 +98,19 @@ const Native = (() => {
     const requested = days ? to - days * DAY : last ? last - OVERLAP_DAYS * DAY : to - FIRST_DAYS * DAY;
     const from = retry ? Math.min(retry, requested) : requested;
     const previous = await N.healthStatus();
-    const sum = {added: 0, duplicates: 0, failed: 0};
+    const sum = {added: 0, duplicates: 0, updated: 0, failed: 0};
     guard(); await put('health.retryFrom', from);
     try {
-      if (background) { await N.enableBackground(); guard(); await background.retry().catch(() => {}); }
+      if (background) {
+        await N.enableBackground(); guard();
+        if (background.refresh) await background.refresh({owner: account, start: new Date(from).toISOString(), end: new Date(to).toISOString()});
+        else await background.retry().catch(() => {});
+        guard();
+      }
       for (let a = from; a < to; a += 7 * DAY) {
         guard();
         const r = await health.queryWorkouts({startDate: new Date(a).toISOString(), endDate: new Date(Math.min(a + 7 * DAY, to)).toISOString(),
-          includeHeartRate: true, includeRoute: true, includeSteps: false});
+          includeHeartRate: true, includeRoute: true, includeSteps: true});
         guard();
         if (r.errors && Object.keys(r.errors).length) throw new Error('Apple Health could not read all workout details. Unlock your phone and try again.');
         const ws = (r.workouts || []).filter((w) => w.id && w.duration > 0).map(shape);
@@ -127,14 +136,14 @@ const Native = (() => {
         await put('health.status', JSON.stringify({...sum, at: new Date(to).toISOString(), last_success_at: previous?.last_success_at || null, error: e.message || 'Sync failed. Please try again.'}));
       throw e;
     } finally {
-      if (sum.added && account === owner() && token === N.token) invalidate('/api/');
+      if ((sum.added || sum.updated) && account === owner() && token === N.token) invalidate('/api/');
     }
   })().finally(() => { N.syncing = null; }));
   // quietly, when the app opens and comes back to the front (at most every 10 minutes)
   N.autoSync = () => {
     if (!on || !App.me || Date.now() - (N.lastAuto || 0) < 600000) return;
     N.lastAuto = Date.now();
-    N.syncHealth().then((s) => { if (s && s.added) { toast(`${s.added} new workout${s.added > 1 ? 's' : ''} from Apple Health`); render(); } }).catch(() => { N.lastAuto = 0; });
+    N.syncHealth().then((s) => { if (s && (s.added || s.updated)) { toast(s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} from Apple Health` : 'Apple Health workout details updated'); render(); } }).catch(() => { N.lastAuto = 0; });
   };
   if (on) window.addEventListener('online', () => N.autoSync());
   if (on) document.addEventListener('visibilitychange', () => { if (!document.hidden) N.autoSync(); });
@@ -154,11 +163,12 @@ route(/^\/me\/health$/, 'me', async (el) => {
   box.innerHTML = `<div class="card">
       <h2>${isOn ? 'Connected' : 'Bring in your workouts'}</h2>
       <p>Kinetta reads from Apple Health:</p>
-      <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories</li><li><b>Heart rate</b> during workouts</li><li><b>Routes</b> of outdoor workouts</li></ul>
+      <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
+      <p class="small muted">Kinetta can only import what the recording app saves to Health. Garmin Connect does not send GPS tracks to Apple Health; use Watch connections or import the original file for those maps. Sync now also checks for details that arrived later.</p>
       <p class="small muted">${bg?.enabled ? 'iOS can sync new workouts in the background. Delivery timing depends on iOS; locked phones and force-quitting can delay it. Open Kinetta to catch up.' : 'Sync runs when you open Kinetta or return to it.'} Keep your phone unlocked until the first import finishes.</p>
       <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Kinetta only reads; it never changes your Health data.</p>
       <p class="small muted">Workouts go only to your Kinetta server${Native.base ? ` (${esc(Native.base.replace(/^https?:\/\//, ''))})` : ''} and are private to you.</p>
-      ${isOn ? `<p class="small">${st ? `Last ${st.error ? 'attempt' : 'sync'} ${esc(when(st.at))}: ${st.added} new, ${st.duplicates} already here${st.failed ? `, ${st.failed} couldn't be read` : ''}.` : 'Not synced yet.'}</p>` : ''}
+      ${isOn ? `<p class="small">${st ? `Last ${st.error ? 'attempt' : 'sync'} ${esc(when(st.at))}: ${st.added} new, ${st.duplicates} already here${st.updated ? `, ${st.updated} with updated details` : ''}${st.failed ? `, ${st.failed} couldn't be read` : ''}.` : 'Not synced yet.'}</p>` : ''}
       <p class="err" role="alert">${esc(st?.error || '')}</p>
       ${bg && (bg.enabled || bg.pending > 0) ? `<p class="small">Background: ${bg.pending ? `${bg.pending} workout${bg.pending > 1 ? 's' : ''} waiting` : 'No workouts waiting'}${bg.lastSuccess ? ` · last upload ${esc(when(bg.lastSuccess))}` : ''}.</p>` : ''}
       ${bg?.error ? `<p class="err" role="alert">${esc(bg.error)}</p>` : ''}
@@ -175,11 +185,11 @@ route(/^\/me\/health$/, 'me', async (el) => {
     const was = b.textContent; b.disabled = true; b.textContent = label; err.textContent = '';
     try { await fn(); } catch (x) { err.textContent = x.message || String(x); } finally { b.disabled = false; b.textContent = was; }
   };
-  const done = (s) => { toast(s ? (s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} added` : 'Up to date') : 'Nothing to sync'); render(); };
+  const done = (s) => { toast(s ? (s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} added` : s.updated ? `${s.updated} workout${s.updated > 1 ? 's' : ''} updated` : 'Up to date') : 'Nothing to sync'); render(); };
   const on = $('#h-on', box); if (on) on.onclick = () => busy(on, 'Asking…', async () => { await Native.connectHealth(); done(await Native.syncHealth()); });
   const sy = $('#h-sync', box); if (sy) sy.onclick = () => busy(sy, 'Syncing…', async () => done(await Native.syncHealth()));
   const yr = $('#h-year', box); if (yr) yr.onclick = () => busy(yr, 'Bringing in the past year…', async () => done(await Native.syncHealth({days: 365})));
-  const se = $('#h-settings', box); if (se) se.onclick = () => Native.openHealthSettings();
+  const se = $('#h-settings', box); if (se) se.onclick = () => busy(se, 'Opening…', () => Native.openHealthSettings());
   const off = $('#h-off', box); if (off) off.onclick = () => {
     if (!confirm('Stop syncing? Workouts already here stay. To remove Kinetta\'s access completely, use the Health app\'s settings.')) return;
     return busy(off, 'Stopping…', async () => { await Native.disconnectHealth(); render(); });

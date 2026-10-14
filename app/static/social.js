@@ -17,6 +17,33 @@ Object.assign(IC, {
   people: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/>',
 });
 const trimName = (m) => (!m ? 'Off' : imp() ? {200: '⅛ mi', 400: '¼ mi', 800: '½ mi'}[m] : `${m} m`);
+const profileHref = (p) => `/people/${encodeURIComponent(p.login)}`;
+const personLink = (p, label = p.name) => `<a class="person-link" href="${profileHref(p)}">${avatar(p)}<span class="grow"><b>${esc(label)}</b><small class="muted">@${esc(p.login)}</small></span></a>`;
+
+// Delay the single action briefly so a double tap inspects people without sending/removing Cheers.
+function cheerGesture(button, toggle, show) {
+  if (!button || button.dataset.cheerBound) return;
+  button.dataset.cheerBound = '1';
+  button.title = 'Tap to send or remove Cheers. Double tap to see who cheered.';
+  let timer = null;
+  const clear = () => { clearTimeout(timer); timer = null; button.classList.remove('cheer-wait'); };
+  button.onclick = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.detail === 0) { clear(); toggle(); return; } // keyboard and assistive activation
+    if (timer) { clear(); show(); return; }
+    button.classList.add('cheer-wait');
+    timer = setTimeout(() => { clear(); if (button.isConnected) toggle(); }, 280);
+  };
+  button.ondblclick = (e) => { e.preventDefault(); e.stopPropagation(); };
+  viewResources.set(button, clear);
+}
+function activityCheers(aid) {
+  sheet('Cheers', '<div class="cheers-list" aria-live="polite">Loading…</div>', async (box) => {
+    const list = $('.cheers-list', box);
+    try { const s = await api(`/api/activities/${aid}/social`); if (list.isConnected) list.innerHTML = cheersPeople(s.cheers); }
+    catch (x) { if (list.isConnected) list.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p>`; }
+  });
+}
 
 // the number on the Me tab: unread notifications (or friend requests waiting, if more); checked at most once a minute
 const Social = {
@@ -92,13 +119,13 @@ function drawShared(el, a) {
   const splits = imp() ? a.splits_mi : a.splits_km;
   el.innerHTML = `<div class="top">${backBtn(mine ? 'Back' : 'Feed')}</div>
     ${mine ? '<div class="callout">This is what others see of your activity.</div>' : ''}
-    <div class="d-title card"><div class="post-hd">${avatar(a.owner)}<span class="ph-txt"><b>${esc(a.owner.name)}</b>
-      <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${sportMark(a.sport)}</div>
+    <div class="d-title card"><div class="post-hd"><a class="post-person" href="${profileHref(a.owner)}">${avatar(a.owner)}<span class="ph-txt"><b>${esc(a.owner.name)}</b>
+      <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span></a>${sportMark(a.sport)}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="s-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}<div id="s-photos"></div><div class="cpile"></div></div>
-    ${a.line ? `<div class="map big" id="s-map" role="img" aria-label="Route map${a.ends_hidden ? ', without the start and end' : ''}"></div>
-      ${a.ends_hidden ? '<p class="small muted map-note">The start and end of the route are hidden.</p>' : ''}` : ''}
+      <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}<div class="cpile"></div></div>
+    ${activityMedia(a, {mapId: 's-map', detail: true, full: true})}
+    ${a.ends_hidden ? '<p class="small muted map-note">The start and end of the route are hidden.</p>' : ''}
     ${a.chart ? '<div class="card"><h2>Charts</h2><div id="s-charts"></div></div>' : ''}
     ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
     ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
@@ -106,10 +133,18 @@ function drawShared(el, a) {
     ${mine ? '' : `<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
   wireBack(el, mine ? `/activity/${a.id}` : '/activity');
   if (!mine) $('#s-rb', el).onclick = () => reportSheet(a.owner, {activity_id: a.id});
-  if (a.line) lazy($('#s-map', el), () => mapInto($('#s-map', el), [a.line], {sport: a.sport, ends: false})
-    .catch(() => { $('#s-map', el).innerHTML = '<p class="empty">Map unavailable right now</p>'; }));
+  if (a.line) {
+    const box = $('#s-map', el); let m = null;
+    wireMediaMapFull(box, () => m, a.line, !!a.photos?.length);
+    lazy(box, async () => {
+      try {
+        m = await mapInto(box, [a.line], {sport: a.sport, ends: false, still: !!a.photos?.length && !box.classList.contains('full')});
+        if (m && a.photos?.length && !box.classList.contains('full')) { m.map.dragging.disable(); m.map.touchZoom.disable(); }
+      } catch (e) { if (box.isConnected) box.insertAdjacentHTML('beforeend', '<p class="empty">Map unavailable right now</p>'); }
+    });
+  }
   wireTalk($('#s-soc', el), a.id, a.social, new URLSearchParams(location.search).get('tab') === 'comments');
-  photoStrip($('#s-photos', el), a, false);
+  wireActivityMedia(el);
   if (a.chart) requestAnimationFrame(() => sharedCharts($('#s-charts', el), a));
 }
 function sharedCharts(box, a) {
@@ -129,21 +164,25 @@ const talkIcons = (s) => `<button type="button" class="pf cheer" data-tcheer ari
   <button type="button" class="pf" data-ttalk aria-label="Comments">${svg('comment')}<span class="num">${s.comments.length || ''}</span></button>`;
 function wireTalk(box, aid, s, open) {
   if (!box) return;
+  let sending = false;
   const pile = box.closest('.d-title') && $('.cpile', box.closest('.d-title'));
   const draw = () => {
     box.innerHTML = talkIcons(s);
     if (pile) { pile.innerHTML = cheerPile(s.cheers); const pb = $('[data-cpile]', pile); if (pb) pb.onclick = () => cheersSheet(s.cheers); }
     const cb = $('[data-tcheer]', box);
-    cb.onclick = async () => {
-      const was = s; cb.disabled = true;
+    cheerGesture(cb, async () => {
+      if (sending) return;
+      sending = true;
+      const was = s;
       s = {...s, cheered: !s.cheered, cheers: s.cheered ? s.cheers.filter((c) => c.login !== App.me.login) : [...s.cheers, {login: App.me.login, name: App.me.name}]};
       draw(); if (s.cheered) $('[data-tcheer]', box).classList.add('just');
       try {
         if (was.cheered) await api(`/api/activities/${aid}/cheer`, {method: 'DELETE'});
         else s = {...s, ...await api(`/api/activities/${aid}/cheer`, json('POST', {}))};
         socialChanged(aid);
-      } catch (x) { s = was; draw(); toast(x.message); }
-    };
+      } catch (x) { s = was; toast(x.message); }
+      finally { sending = false; if (box.isConnected) draw(); }
+    }, () => activityCheers(aid));
     $('[data-ttalk]', box).onclick = () => commentsSheet(aid, s, (fresh) => { s = fresh; draw(); });
   };
   draw();
@@ -158,9 +197,8 @@ function cheerPile(cheers) {
   return `<button type="button" class="cheer-pile" data-cpile><span class="faces">${cheers.slice(0, 3).map((c) => avatar(c)).join('')}</span>
     <span class="grow"><b>${esc(CHEER.title)}</b> from ${esc(first)}${more ? ` and ${more} other${more > 1 ? 's' : ''}` : ''}</span><span class="chev">${svg('chev')}</span></button>`;
 }
-function cheersSheet(cheers) {
-  sheet(`${CHEER.title} · ${cheers.length}`, `<div class="card list">${cheers.map((c) => `<div class="person">${avatar(c)}<span class="grow"><b>${esc(cheerName(c))}</b><small class="muted">@${esc(c.login)}</small></span></div>`).join('')}</div>`);
-}
+const cheersPeople = (cheers) => `<div class="card list">${cheers.length ? cheers.map((c) => `<div class="person" data-close>${personLink(c, cheerName(c))}</div>`).join('') : '<p class="small muted">No Cheers yet.</p>'}</div>`;
+function cheersSheet(cheers) { sheet(`${CHEER.title} · ${cheers.length}`, cheersPeople(cheers)); }
 function socialChanged(aid) {
   invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); App.cache.delete('feed:home');
 }
@@ -171,7 +209,7 @@ function commentsSheet(aid, s, onChange) {
 function drawComments(box, aid, s, onChange) {
   const names = s.cheers.map((c) => c.name);
   const who = names.length ? `<button type="button" class="small cheer-who" data-cwho>${svg('cheer')}<span class="grow"><b>${esc(CHEER.title)}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</span><span class="chev">${svg('chev')}</span></button>` : '';
-  box.innerHTML = `${who}<div class="comments">${s.comments.length ? s.comments.map((c) => `<div class="comment">${avatar(c)}<div class="c-body"><div class="c-hd"><b>${esc(c.name)}</b><small class="muted">${esc(when(c.created))}</small></div><p>${esc(c.text)}</p><div class="c-acts">${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div></div></div>`).join('')
+  box.innerHTML = `${who}<div class="comments">${s.comments.length ? s.comments.map((c) => `<div class="comment"><a href="${profileHref(c)}" data-close aria-label="View ${esc(c.name)}'s profile">${avatar(c)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(c)}" data-close><b>${esc(c.name)}</b></a><small class="muted">${esc(when(c.created))}</small></div><p>${esc(c.text)}</p><div class="c-acts">${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div></div></div>`).join('')
       : '<p class="small muted c-none">No comments yet.</p>'}</div>
     <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
       <button class="primary wide">Post comment</button></form>`;
@@ -204,12 +242,12 @@ const photoSrc = (p, thumb) => `/api/activity-photos/${p.id}${thumb ? '?size=thu
 function photoChanged(aid) {
   invalidate('/api/activities/' + aid); invalidate('/api/shared/' + aid); invalidate('/api/activities?'); invalidate('/api/feed/friends'); App.cache.delete('feed:home');
 }
-function photoStrip(box, a, mine) {
+function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null} = {}) {
   if (!box) return;
   const ph = a.photos || [];
   if (!ph.length && !mine) { box.innerHTML = ''; return; }
   const canAdd = mine && ph.length < PHOTO_MAX;
-  box.innerHTML = `<div class="ph-strip${ph.length ? '' : ' empty'}">${ph.map((p, i) => `<button type="button" class="ph-th" data-ph="${i}" aria-label="Photo ${i + 1} of ${ph.length}">${pimg(photoSrc(p, true))}</button>`).join('')}
+  box.innerHTML = `<div class="ph-strip${ph.length && !controlsOnly ? '' : ' empty'}">${controlsOnly ? '' : ph.map((p, i) => `<button type="button" class="ph-th" data-ph="${i}" aria-label="Photo ${i + 1} of ${ph.length}">${pimg(photoSrc(p, true))}</button>`).join('')}
     ${canAdd ? `<button type="button" class="ph-add" data-phadd>${svg('camera')}<span>${ph.length ? 'Add' : 'Add photos'}</span></button><input type="file" accept="image/*" multiple hidden data-phfile>` : ''}</div>`;
   $$('[data-ph]', box).forEach((b) => b.onclick = () => photoViewer(a, +b.dataset.ph, mine, () => photoStrip(box, a, mine)));
   const add = $('[data-phadd]', box), file = $('[data-phfile]', box);
@@ -227,7 +265,7 @@ function photoStrip(box, a, mine) {
       } catch (x) { toast(x.message || "That photo couldn't be added"); break; }
     }
     if (done) photoChanged(a.id);
-    photoStrip(box, a, mine);
+    if (afterChange) afterChange(); else photoStrip(box, a, mine);
   };
 }
 // full screen: swipe or the arrows for the next one; the owner can remove one
@@ -312,6 +350,55 @@ function shareFields(box, aid, s) {
 }
 
 // ---------- Me > Friends: search by name or username, requests, your friends ----------
+route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
+  login = decodeURIComponent(login);
+  el.innerHTML = `<div class="top">${backBtn('People')}</div><div id="person-profile">${skel(2)}</div>`;
+  wireBack(el, '/me/friends');
+  const box = $('#person-profile', el);
+  const draw = (r) => {
+    const p = r.person;
+    const action = r.mine ? '<a class="ghost" href="/me">Edit my profile</a>' :
+      r.status === 'friends' ? '<span class="badge on">Friends</span>' :
+      r.status === 'sent' ? '<button class="ghost" data-person-action="cancel">Request sent</button>' :
+      r.status === 'incoming' ? '<button class="primary" data-person-action="accept">Approve request</button>' : '<button class="primary" data-person-action="add">Add friend</button>';
+    box.innerHTML = `<div class="profile public-profile">${avatar(p, 'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
+      <div class="profile-actions">${action}${r.mine ? '' : '<button class="ghost" data-person-report>Report or block</button>'}</div>
+      <div class="card"><h2>${r.mine ? 'Your activity overview' : 'Shared activity overview'}</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${stat('Time', dur(r.overview.time_s))}</div>
+        <p class="small muted">${r.mine ? 'Others see only the activities you share with them.' : 'Only activities this person shares with you are included.'}</p></div>
+      <h2 class="sec-head">${r.mine ? 'Your activities' : 'Shared activities'}</h2><div class="feed-list" id="person-activities">${r.items.length ? r.items.map((a) => postCard(a)).join('') : '<div class="card empty"><b>No shared activities yet</b>This person has not shared any activities you can see.</div>'}</div>
+      <button class="ghost wide" id="person-more"${r.next ? '' : ' hidden'}>Show more</button>`;
+    feedMaps(box); wireCheers(box);
+    const act = $('[data-person-action]', box);
+    if (act) act.onclick = async () => {
+      act.disabled = true;
+      try {
+        const path = '/api/friends/' + encodeURIComponent(p.login);
+        if (act.dataset.personAction === 'cancel') await api(path, {method: 'DELETE'});
+        else if (act.dataset.personAction === 'accept') await api(path + '/accept', json('POST', {}));
+        else await api('/api/friends', json('POST', {login: p.login}));
+        invalidate('/api/friends'); invalidate('/api/people/'); App.cache.delete('feed:home');
+        if (box.isConnected) draw(await api('/api/people/' + encodeURIComponent(p.login) + '/profile'));
+      } catch (x) { toast(x.message); act.disabled = false; }
+    };
+    const report = $('[data-person-report]', box);
+    if (report) report.onclick = () => reportSheet(p, {}, () => go('/me/friends', {replace: true}));
+    const more = $('#person-more', box);
+    let next = r.next;
+    more.onclick = async () => {
+      if (!next) return; more.disabled = true;
+      try {
+        const query = new URLSearchParams(next);
+        const fresh = await api('/api/people/' + encodeURIComponent(p.login) + '/profile?' + query);
+        if (!box.isConnected) return;
+        $('#person-activities', box).insertAdjacentHTML('beforeend', fresh.items.map((a) => postCard(a)).join(''));
+        next = fresh.next; more.hidden = !next; feedMaps(box); wireCheers(box);
+      } catch (x) { toast(x.message); }
+      more.disabled = false;
+    };
+  };
+  await load('/api/people/' + encodeURIComponent(login) + '/profile', draw, {maxAge: 0});
+});
+
 route(/^\/me\/friends$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Friends</h1>
     <form class="searchbox" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
@@ -320,13 +407,13 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Who sees new activities, and which details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
   const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el);
-  const person = (p, btns, cls = '') => `<div class="person ${cls}">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span><span class="btnrow tight">${btns}</span></div>`;
+  const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}<span class="btnrow tight">${btns}</span></div>`;
   const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
     sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Requested</button>`,
     incoming: `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button>`})[p.status] || `<button class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button>`;
   let last = null, people = [];
   const who = (login) => (people.find((p) => p.login === login) || {}).name || login;
-  const refresh = async () => { invalidate('/api/feed/friends'); App.cache.delete('feed:home'); App.cache.delete('/api/friends'); await load('/api/friends', draw, {maxAge: 0}); if (f.q.value.trim().length > 1) find(true); };
+  const refresh = async () => { invalidate('/api/feed/friends'); invalidate('/api/people/'); App.cache.delete('feed:home'); App.cache.delete('/api/friends'); await load('/api/friends', draw, {maxAge: 0}); find(true); };
   const act = (box, sel, fn) => $$(sel, box).forEach((b) => b.onclick = async () => {
     b.disabled = true;
     try { if (await fn(b) === false) { b.disabled = false; return; } await refresh(); }
@@ -348,17 +435,21 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   };
   async function find(again) {
     const q = f.q.value.trim();
-    if (q.length < 2) { found.innerHTML = ''; last = null; return; }
     if (q === last && !again) return; last = q;
+    const request = ++searchVersion;
+    found.setAttribute('aria-busy', 'true');
     try {
       const r = await api('/api/people/search?q=' + encodeURIComponent(q));
-      if (q !== last) return;
-      people = people.concat(r);
-      found.innerHTML = `<div class="card list">${r.length ? r.map((p) => person(p, btnFor(p))).join('') : `<p class="small muted">No one called "${esc(q)}" here yet. They need a Kinetta account first.</p>`}</div>`;
+      if (request !== searchVersion || !found.isConnected) return;
+      people = [...new Map(people.concat(r).map((p) => [p.login, p])).values()];
+      found.innerHTML = `<h2 class="sec-head">${q ? 'Search results' : 'People on Kinetta'}</h2><div class="card list">${r.length ? r.map((p) => person(p, btnFor(p))).join('') : `<p class="small muted">${q ? `No people found for “${esc(q)}”.` : 'No other discoverable people yet.'}</p>`}</div>`;
       wire(found);
-    } catch (x) { toast(x.message); }
+    } catch (x) { if (request === searchVersion && found.isConnected) { last = null; found.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" data-retry>Retry search</button>`; $('[data-retry]', found).onclick = () => find(true); } }
+    finally { if (request === searchVersion) found.setAttribute('aria-busy', 'false'); }
   }
-  let t; f.q.oninput = () => { clearTimeout(t); t = setTimeout(find, 250); };
+  let t, searchVersion = 0;
+  f.q.oninput = () => { clearTimeout(t); last = null; searchVersion++; t = setTimeout(() => find(), 180); };
+  viewResources.set(f, () => { clearTimeout(t); searchVersion++; });
   f.onsubmit = (e) => { e.preventDefault(); find(); };
   const draw = (r) => {
     Social.set(r.incoming.length); people = people.concat(r.incoming, r.friends, r.outgoing);
@@ -370,6 +461,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     wire(lists);
   };
   await load('/api/friends', draw, {maxAge: 0});
+  find();
 });
 
 // ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------
