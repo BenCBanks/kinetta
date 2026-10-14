@@ -357,17 +357,18 @@ route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
   const box = $('#person-profile', el);
   const draw = (r) => {
     const p = r.person;
-    const action = r.mine ? '<a class="ghost" href="/me">Edit my profile</a>' :
+    const action = r.mine ? '<button class="ghost" data-edit-profile>Edit profile</button>' :
       r.status === 'friends' ? '<span class="badge on">Friends</span>' :
       r.status === 'sent' ? '<button class="ghost" data-person-action="cancel">Request sent</button>' :
       r.status === 'incoming' ? '<button class="primary" data-person-action="accept">Approve request</button>' : '<button class="primary" data-person-action="add">Add friend</button>';
     box.innerHTML = `<div class="profile public-profile">${avatar(p, 'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
-      <div class="profile-actions">${action}${r.mine ? '' : '<button class="ghost" data-person-report>Report or block</button>'}</div>
-      <div class="card"><h2>${r.mine ? 'Your activity overview' : 'Shared activity overview'}</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${stat('Time', dur(r.overview.time_s))}</div>
-        <p class="small muted">${r.mine ? 'Others see only the activities you share with them.' : 'Only activities this person shares with you are included.'}</p></div>
+      ${p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${action}${r.mine ? '' : '<button class="ghost" data-person-report>Report or block</button>'}</div>
+      <div class="card"><h2>${r.mine ? 'Your activity overview' : 'Shared activity overview'}</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
+        <div class="sport-overview">${(r.sports || []).map((s) => `<div class="row"><b>${esc(SPORT_NAMES[s.sport] || s.sport)}</b><span class="num">${s.activities} activities · ${s.distance_m ? U.dist(s.distance_m) + ' ' + U.du() : dur(s.time_s, true)}</span></div>`).join('')}</div><p class="small muted">${r.mine ? 'Others see only the activities you share with them.' : 'Only activities this person shares with you are included.'}</p></div>
       <h2 class="sec-head">${r.mine ? 'Your activities' : 'Shared activities'}</h2><div class="feed-list" id="person-activities">${r.items.length ? r.items.map((a) => postCard(a)).join('') : '<div class="card empty"><b>No shared activities yet</b>This person has not shared any activities you can see.</div>'}</div>
       <button class="ghost wide" id="person-more"${r.next ? '' : ' hidden'}>Show more</button>`;
     feedMaps(box); wireCheers(box);
+    const edit = $('[data-edit-profile]', box); if (edit) edit.onclick = () => editProfileSheet();
     const act = $('[data-person-action]', box);
     if (act) act.onclick = async () => {
       act.disabled = true;

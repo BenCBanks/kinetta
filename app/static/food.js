@@ -58,14 +58,14 @@ const NPROG = [['overview', 'Overview', 'Averages, insights and Kit', 'sparkle',
   ['energy', 'Calories & weight', 'Eaten vs burned, and your running deficit', 'flame', 'c-orange'],
   ['macros', 'Protein & macros', 'Protein, carbs and fat, and your top foods', 'progress', 'c-red'],
   ['weight', 'Weight', 'Log a weigh-in and see your trend', 'scale', 'c-purple'],
-  ['needs', 'Calorie needs', 'What you burn, and your daily target', 'target', 'c-berry'],
+  ['needs', 'Calorie needs', 'What you burn, and your daily target', 'target', 'c-brand'],
   ['weeks', 'Week by week', 'Every week in one table', 'calendar', 'c-blue']];
 const NMORE = [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']];
 const NRANGED = ['overview', 'energy', 'macros'];
 function nHead(el, view, filters) {
   const v = [...NLOG, ...NPROG].find((m) => m[0] === view);
   el.innerHTML = `<div class="top"><h1>Nutrition</h1><div class="acts">${bellBtn()}</div></div>
-    <div class="pbar nbar">${pillBtn('n-view', v[3], v[1], 'View')}${filters}</div><div id="n-body"></div>`;
+    <nav class="view-nav" aria-label="Nutrition views">${[['log','Food log'],['overview','Overview'],['weight','Weight']].map(([k,n]) => `<a href="${k === 'log' ? '/food' : '/food?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('n-view', '', 'More', 'More nutrition views')}</nav><div class="pbar nbar">${filters}</div><div id="n-body"></div>`;
   $('#n-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your log</h3>${pickRows(NLOG, view)}<h3 class="ghead">Progress</h3>${pickRows(NPROG, view)}<h3 class="ghead">More</h3>${pickRows(NMORE, view)}`,
     (k) => (k === 'import' ? go('/food/import') : go(k === 'log' ? '/food' : `/food?view=${k}`, {replace: true})));
   return $('#n-body', el);
@@ -97,7 +97,7 @@ function firstFood(box, day) {
     if (rows.length || !box.isConnected) return;
     const step = (id, ico, c, label, sub) => `<button class="row-link" id="${id}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></button>`;
     box.innerHTML = `<h2 class="sec-head">Start your food log</h2><div class="card list first-food">
-      ${step('ff-goal', 'target', 'c-berry', 'Set your daily targets', 'Calories and protein to aim for. Workouts add to them.')}
+      ${step('ff-goal', 'target', 'c-brand', 'Set your daily targets', 'Calories and protein to aim for. Workouts add to them.')}
       ${step('ff-log', 'search', 'c-green', 'Log something you ate', 'Search, scan a barcode or snap a photo.')}
       ${step('ff-dish', 'pot', 'c-orange', 'Save a dish you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
     $('#ff-goal', box).onclick = () => targetsSheet();
@@ -136,10 +136,10 @@ function drawDay(el, D) {
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
   // one card (2026-10-12 redesign): calories, macros, then the day's balance, with how it adds up folded underneath
   $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
-      <div class="tc3 ringrow"><div><small>Eaten</small><b class="num">${r0(eaten)}</b><small>kcal</small></div>
-        <div role="img" aria-label="${r0(eaten)} of ${goal == null ? 'no goal' : r0(goal)} kcal${left != null ? `, ${r0(Math.abs(left))} ${left < 0 ? 'over' : 'left'}` : ''}">${ring(eaten, goal, 'kcal')}</div>
-        <button class="tc-goal" id="fd-goal" aria-label="Set the calorie goal for this day"><small>Goal ${svg('edit')}</small><b class="num">${goal == null ? 'Set' : r0(goal)}</b></button>
-        <div class="tc-mrings">${MACROS.map(([k, n]) => macroRing(k, n, T[k] || 0, t[k.replace('_g', '_target')])).join('')}</div></div>
+      <div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories eaten' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div><p class="small muted">${r0(eaten)} eaten${goal == null ? '' : ' of ' + r0(goal)}</p></div>
+        <button class="ghost" id="fd-goal" aria-label="Set the calorie goal for this day">${svg('edit')} ${goal == null ? 'Set goal' : 'Goal'}</button></div>
+      ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
+      <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div><div class="macro-line"><b>${n}</b><span class="num">${r0(v)}${target ? ' / ' + r0(target) : ''} g</span></div>${target ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
       ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
       ${B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>'
@@ -307,7 +307,7 @@ function addSheet(day, meal) {
 const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
   <div class="r"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><small class="muted">kcal</small></div></button>`;
 function tSearch(body, where, close) {
-  body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search foods, brands…" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
+  body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search foods, brands…" aria-label="Search foods and brands" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
   const inp = $('input', body), out = $('#ts-r', body); softFocus(inp);
   let timer, seq = 0, all = [];
   const draw = (groups) => {
@@ -317,7 +317,7 @@ function tSearch(body, where, close) {
     $$('[data-i]', out).forEach((x) => x.onclick = () => amountSheet(all[+x.dataset.i], where(), close));
   };
   const run = async (q) => {
-    const my = ++seq; if (q.length < 2) { out.innerHTML = ''; return; }
+    const my = ++seq; out.innerHTML = ''; if (q.length < 2) { out.innerHTML = ''; return; }
     try {   // fast local results first, then the databases
       const local = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=mine`);
       if (my !== seq) return;
@@ -327,7 +327,11 @@ function tSearch(body, where, close) {
       const ext = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=off,usda`);
       if (my !== seq) return;
       draw([['My foods', local.mine], ['Recent', recent], ['USDA', ext.usda], ['Open Food Facts', ext.off]]);
-    } catch (x) { if (my === seq) out.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+    } catch (x) { if (my === seq) {
+      $('#ts-load', out)?.remove();
+      out.insertAdjacentHTML('beforeend', `<p class="err" role="alert">${esc(x.message)}</p><button class="ghost wide" id="ts-retry">Retry search</button>`);
+      $('#ts-retry', out).onclick = () => { out.innerHTML = ''; run(inp.value.trim()); };
+    } }
   };
   inp.oninput = () => { clearTimeout(timer); timer = setTimeout(() => run(inp.value.trim()), 300); };
   $('#ts-f', body).onsubmit = (e) => { e.preventDefault(); clearTimeout(timer); run(inp.value.trim()); inp.blur(); };
@@ -937,7 +941,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
       ${tile('Days logged', S.logged, `/ ${S.past_days}`, S.past_days ? `${Math.round(S.logged / S.past_days * 100)}%` : '')}</div>
     ${I.insights.length ? `<div class="card"><h2>Insights</h2>${I.insights.map(([k, t]) => `<div class="insight"><span class="dot ${k === 'good' ? 'good' : k === 'warn' ? 'warn' : 'info'}"></span><div><span>${esc(t)}</span></div></div>`).join('')}</div>` : ''}`,
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
-      <p class="small muted">Burned = your daily needs (${r0(S.tdee)} kcal: BMR × everyday activity) + that day's workouts. Bars below the orange line are a deficit.</p></div>
+      <p class="small muted">Burned = your daily needs (${r0(S.tdee)} kcal: BMR × everyday activity) + that day's workouts. Bars below the goal line are a deficit.</p></div>
     <div class="card"><h2>Running deficit</h2><div id="nt-cum"></div>
       <p class="small muted">Adds up each fully logged day's deficit. 3,500 kcal ≈ 1 lb of fat.</p></div>`,
     macros: `<div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-protein"></div></div>

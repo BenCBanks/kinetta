@@ -15,7 +15,11 @@ City Dweller 2 (CC BY-SA 4.0), from Wikimedia Commons; see `dev/demo/README.md`.
 
 Map tiles are loaded from [OpenStreetMap](https://www.openstreetmap.org/copyright) (© OpenStreetMap contributors).
 Food data comes from [Open Food Facts](https://world.openfoodfacts.org) (ODbL) and [USDA FoodData Central](https://fdc.nal.usda.gov) (public domain).
-The Kinetta wordmark is drawn from the [Sora](https://fonts.google.com/specimen/Sora) typeface (SIL Open Font License).
+The Kinetta wordmark is drawn from Source Serif 4 (SIL Open Font License; see the local font attribution below).
 
 Demo route shapes in `dev/demo/routes.json` come from OpenStreetMap routing (© OpenStreetMap contributors,
 [ODbL](https://www.openstreetmap.org/copyright)).
+
+- Source Serif 4 by Adobe, locally hosted Latin subset; SIL Open Font License 1.1. License: `app/static/fonts/OFL.txt` and `site/assets/fonts/OFL.txt`. Font source: https://github.com/google/fonts/tree/main/ofl/sourceserif4 .
+
+- Six Phosphor regular icons (house, heartbeat, chart-bar, fork-knife, user, sneaker), MIT. Source: https://github.com/phosphor-icons/core ; license: `app/static/vendor/phosphor-LICENSE`.

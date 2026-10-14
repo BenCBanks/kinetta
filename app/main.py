@@ -124,13 +124,14 @@ def logout(request: Request, response: Response):
 @app.get('/api/me')
 def me(user=Depends(current_user)):
     with db.connect() as c:
-        p = c.execute('SELECT units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, ai_ok, health_ai_ok FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, ai_ok, health_ai_ok FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
     return {**user, 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):
+    bio: str | None = Field(None, max_length=280)
     units: str | None = Field(None, pattern='^(imperial|metric)$')
     tz: str | None = Field(None, max_length=64)
     ai_ok: bool | None = None      # consent to AI features (coach notes, weekly review, food photos)
@@ -148,6 +149,7 @@ class ProfileIn(BaseModel):
 def set_profile(body: ProfileIn, user=Depends(current_user)):
     vals = body.model_dump(exclude_unset=True)
     if vals.get('health_ai_ok', False) is None: del vals['health_ai_ok']    # yes or no only
+    if 'bio' in vals: vals['bio'] = (vals['bio'] or '').strip()
     if 'tz' in vals:
         vals['tz'] = db.valid_tz(vals['tz'])
         if not vals['tz']: raise HTTPException(400, 'Unknown time zone')

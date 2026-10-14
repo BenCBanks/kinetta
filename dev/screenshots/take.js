@@ -88,12 +88,14 @@ function chrome(dark) {
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
-      await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
+      await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
+      await page.evaluate(() => { window.scrollTo(0, 0); });
+      await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => !document.querySelector('.leaflet-container') || document.querySelector('.leaflet-tile-loaded'), null, {timeout: 8000}).catch(() => {});
       if (opt.logDish) {      // Add food > Saved Dishes > the dish: the log sheet, with a portion typed in
         await page.evaluate(() => addSheet(isoDay(new Date()), 'dinner'));
-        await page.click('[data-t=saved]'); await page.click(`.fe:has-text("${opt.logDish}")`);
+        await page.click('[data-t=saved]'); await page.click(`.sheet .fe[data-dish]:has-text("${opt.logDish}")`);
         await page.fill('#dl input[name=g]', opt.portion);
       }
       if (opt.describe) {   // Add food > Describe or snap: a message, the estimate, a correction

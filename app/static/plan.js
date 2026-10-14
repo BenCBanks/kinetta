@@ -72,29 +72,21 @@ function workoutSheet(w, U) {
 function planCard(box) {
   return load('/api/plans/current', (d) => {
     if (!box.isConnected) return;
-    if (!d.plan) {
-      let hidden = false; try { hidden = localStorage.getItem('fit.plan.promo') === 'hidden'; } catch (e) { /* none */ }
-      box.innerHTML = hidden ? '' : `<div class="card plan-promo"><h2>Training for a race?</h2>
-        <p class="small muted">5K, 10K, half or marathon plans - beginner to advanced, with paces from your own fitness.</p>
-        <div class="btnrow"><a class="primary" href="/plan">Choose a plan</a><button class="ghost" id="tp-hide">Not now</button></div>
-        <p class="small muted">You can always find plans under Progress &gt; Plan.</p></div>`;
-      const h = $('#tp-hide', box); if (h) h.onclick = () => { try { localStorage.setItem('fit.plan.promo', 'hidden'); } catch (e) { /* none */ } box.innerHTML = ''; };
-      return;
-    }
+    if (!d.plan) { box.innerHTML = ''; return; }
     const p = d.plan, w = d.today_workout, n = d.next_workout, pr = d.progress || {};
     const started = d.today >= p.start_day;
     const head = d.days_to_race > 0 ? `${d.days_to_race} day${d.days_to_race === 1 ? '' : 's'} to go` : d.days_to_race === 0 ? 'Race day!' : 'Finished';
     const wk = d.this_week ? `Week ${d.this_week} of ${p.weeks}` : started ? 'Plan finished' : `Starts ${pday(p.start_day)}`;
-    const show = w || n, ran = d.today_run;
+    const show = w && w.status !== 'done' ? w : n || w, ran = d.today_run;
     // a run today on a rest day still shows (2026-10-12: "it is not registering that I worked out")
     const rest = ran && !w ? `<a class="pt-w ran" href="/activity/${ran.activity_id}"><small>${svg('check')} You ran ${esc(ran.actual)} ${esc(p.unit)} today</small>
       <b>Rest day on the plan</b><span class="small">Extra running counts toward this week. Next: ${esc(n ? `${n.title}, ${pday(n.day, {weekday: 'long'})}` : 'race day')}</span></a>` : '';
-    box.innerHTML = `<div class="card plan-today"><h2>${esc(p.race_name)} plan<span class="muted small">${esc(head)}</span></h2>
+    box.innerHTML = `<div class="card plan-today"><h2>${esc(p.race_name)} plan<a class="more" href="/plan">View plan ›</a></h2>
       ${started ? `<div class="ptrack"><div class="bar" data-w="${Math.min(1, (d.this_week ? d.this_week - 1 : p.weeks) / p.weeks).toFixed(3)}"></div></div>` : ''}
       <p class="small muted">${esc(wk)}${pr.workouts_due ? ` · ${pr.workouts_done} of ${pr.workouts_due} workouts done so far` : ''}</p>
-      ${rest || (show ? `<button class="pt-w ${esc(w ? w.status : '')}" data-wday="${esc(show.day)}"><small>${w ? (w.status === 'done' ? 'Done today' : 'Today') : started ? `Rest day today · next ${esc(pday(n.day, {weekday: 'long'}))}` : `First run · ${esc(pday(n.day, {weekday: 'long', month: 'short', day: 'numeric'}))}`}</small>
-        <b>${esc(show.title)}</b><span class="small">${esc(show.detail)}</span></button>` : '')}
-      <a class="ghost wide" href="/plan">Open my plan</a></div>`;
+      ${rest || (show ? `<button class="pt-w ${esc(show.status || '')}" data-wday="${esc(show.day)}"><small>${show === w ? (w.status === 'done' ? 'Done today' : 'Today') : started ? `${w && w.status === 'done' ? 'Done today' : 'Rest day today'} · next ${esc(pday(n.day, {weekday: 'long'}))}` : `First run · ${esc(pday(n.day, {weekday: 'long', month: 'short', day: 'numeric'}))}`}</small>
+        <b>${esc(show.title)}</b></button>` : '')}
+      <p class="small muted plan-meta">${esc(head)}</p></div>`;
     wireWorkouts(box, d);
   });
 }
@@ -128,12 +120,12 @@ function planOverview(box, d) {
       <p class="ph-week">${d.this_week ? `Week ${d.this_week} of ${p.weeks} · ${esc(cur.phase)}` : started ? 'Plan finished' : `Starts ${esc(pday(p.start_day, {weekday: 'long', month: 'short', day: 'numeric'}))}`}</p>
       <div class="stats3">${stat(d.days_to_race >= 0 ? 'Days to go' : 'Finished', d.days_to_race >= 0 ? d.days_to_race : '✓')}${stat('Predicted', fmtT(d.predicted_s))}${p.goal_s ? stat('Goal', fmtT(p.goal_s)) : ''}</div></div>
     ${w || n ? `<div class="card"><h2>${w ? 'Today' : started ? 'Next workout' : 'Your first workout'}</h2>${workoutRow(w || n, U)}</div>` : ''}
+    <div class="card"><h2>${cur.n === d.this_week ? 'This week' : `Week ${cur.n}`}<span class="muted small">${esc(cur.phase)} · ${cur.done} of ${cur.planned} ${esc(U)}</span></h2>
+      ${cur.workouts.map((x) => workoutRow(x, U)).join('')}<p class="small muted">Days not listed are rest days. Tap a workout for details.</p></div>
     <div class="card"><h2>Progress so far</h2>
       <div class="stats3">${stat('Workouts', `${pr.workouts_done || 0}/${pr.workouts_due || 0}`)}${stat('Distance', `${pr.done_so_far || 0}`, `/${pr.planned_so_far || 0} ${U}`)}${stat('Weeks done', `${pr.weeks_done || 0}/${p.weeks}`)}</div>
       <div id="pl-chart"></div>
       <p class="small muted">${pr.workouts_due ? 'A run of at least the planned distance ticks its day off by itself.' : 'Your progress shows here once the plan starts - every run you record counts.'}</p></div>
-    <div class="card"><h2>${cur.n === d.this_week ? 'This week' : `Week ${cur.n}`}<span class="muted small">${esc(cur.phase)} · ${cur.done} of ${cur.planned} ${esc(U)}</span></h2>
-      ${cur.workouts.map((x) => workoutRow(x, U)).join('')}<p class="small muted">Days not listed are rest days. Tap a workout for details.</p></div>
     <div class="card"><h2>About this plan</h2><p class="small">${esc(d.level_desc || '')}</p>
       ${detail('Race', `${p.race_name}${p.goal_s ? `, goal ${fmtT(p.goal_s)}` : ''}`)}${detail('Level', p.level_name)}${detail('Length', `${p.weeks} weeks`)}
       ${detail('Runs a week', p.runs)}${detail('Long run', p.long_day === 6 ? 'Sundays' : 'Saturdays')}${detail('Starts', pday(p.start_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}

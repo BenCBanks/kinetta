@@ -34,6 +34,7 @@ def _clean_name(v):
 
 
 class AccountIn(BaseModel):
+    bio: str | None = Field(None, max_length=280)
     name: str | None = Field(None, max_length=60)
     login: str | None = Field(None, max_length=30)
 
@@ -43,10 +44,12 @@ def set_account(body: AccountIn, user=Depends(current_user)):
     vals = {}
     if body.name is not None: vals['name'] = _clean_name(body.name)
     if body.login is not None: vals['login'] = _clean_login(body.login)
-    if vals:
+    if vals or body.bio is not None:
         try:
             with db.connect() as c:
-                c.execute(f"UPDATE users SET {', '.join(f'{k} = %s' for k in vals)} WHERE id = %s", (*vals.values(), user['id']))
+                if body.bio is not None:
+                    c.execute('UPDATE profile SET bio = %s WHERE user_id = %s', (body.bio.strip(), user['id']))
+                if vals: c.execute(f"UPDATE users SET {', '.join(f'{k} = %s' for k in vals)} WHERE id = %s", (*vals.values(), user['id']))
         except errors.UniqueViolation:
             raise HTTPException(409, 'That username is taken')
     return {'ok': True, **vals}

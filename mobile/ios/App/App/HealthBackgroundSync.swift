@@ -630,5 +630,8 @@ class KinettaHealthSyncPlugin: CAPPlugin, CAPBridgedPlugin {
 }
 
 class KinettaBridgeViewController: CAPBridgeViewController {
-    override func capacitorDidLoad() { bridge?.registerPluginInstance(KinettaHealthSyncPlugin()) }
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(KinettaHealthSyncPlugin())
+        webView?.scrollView.keyboardDismissMode = .interactive
+    }
 }

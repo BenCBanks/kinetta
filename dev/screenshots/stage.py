@@ -5,6 +5,7 @@
 # lifting (the same session twice a week, a little heavier each week, in round pounds). Alex also ran this
 # morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
+from zoneinfo import ZoneInfo
 import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
 
 B = os.environ.get('KINETTA_URL', 'http://localhost:8798'); G = sys.argv[1]
@@ -58,7 +59,9 @@ sam('POST', '/api/friends', {'login': 'alex'})                      # waiting fo
 alex('PUT', '/api/sharing', {'default': 'friends'})
 last = [p for p in sorted(glob.glob(G + '/*running.gpx'))][-1]; raw = open(last, 'rb').read()
 t0 = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1).decode().replace('Z', '+00:00'))
-ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2.5)
+now = dt.datetime.now(ZoneInfo('America/New_York'))
+# Scheduled captures near midnight still need a workout on the displayed demo day.
+ago = max(now - dt.timedelta(hours=2.5), now.replace(hour=0, minute=0, second=0, microsecond=0)).astimezone(dt.timezone.utc)
 print('alex today', upload(alex, [('today-running.gpx', later(raw, (ago - t0).total_seconds() // 60))]).get('added'))
 mine = alex('GET', '/api/activities?limit=8')
 for a in mine: alex('PUT', f"/api/activities/{a['id']}/sharing", {'visibility': 'friends'})
