@@ -1356,3 +1356,6 @@ nav.tabs a svg { width: 23px; height: 23px; }
 
 Use compact hours (for example 96.5 h) for long all-time profile totals, rather than a clock string that clips or splits
 a digit. Short histories retain minute/second durations. Main action labels remain centered, including arrow buttons.
+
+Activity naming follows the existing mutual-friend model: **Friends feed**, not Following, because Kinetta uses approved
+friendships rather than a one-way Follow action. The scope line explicitly distinguishes your activity from friends’ shared activity.

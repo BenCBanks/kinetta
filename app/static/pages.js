@@ -190,7 +190,7 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 // ---------- Activity feed ----------
 // Feed | Mine at the top of the Activity tab (2026-10-11): the Feed (yours and your friends', newest first) leads;
 // Mine is only yours, with filters and search. The Feed itself is in social.js.
-const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'mine'}">Following</button><button data-whose="mine" aria-pressed="${cur === 'mine'}">My activities</button></div><p class="activity-view-note">${cur === 'mine' ? 'Your history, with search and filters.' : 'Your activities and the people you follow, newest first.'}</p>`;
+const whoseSeg = (cur) => `<div class="seg wide two" role="group" aria-label="Whose activities"><button data-whose="" aria-pressed="${cur !== 'mine'}">Friends feed</button><button data-whose="mine" aria-pressed="${cur === 'mine'}">My activities</button></div><p class="activity-view-note">${cur === 'mine' ? 'Your history, with search and filters.' : 'Your activities and your friends’ shared activities, newest first.'}</p>`;
 const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () => go('/activity' + (b.dataset.whose ? '?view=' + b.dataset.whose : ''), {replace: true}));
 // the bell (2026-10-12: on Today, Activity, Progress and Nutrition), with the unread count; it opens the list only
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
