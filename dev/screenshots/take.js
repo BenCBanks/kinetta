@@ -124,24 +124,25 @@ function chrome(dark) {
           ]);
           // Lookup and estimate finish independently of the resolve request. Wait for
           // rendered choices/results rather than racing them with a fixed sleep.
-          await page.waitForFunction(() => !document.querySelector('#ql-t').disabled &&
-            !/Looking up|Estimating/.test(document.querySelector('#ql-items').textContent));
+          // Locator waits also work on the CI-pinned Playwright under the app's
+          // strict CSP; waitForFunction in that version requires unsafe-eval.
+          await page.locator('#ql-t:not(:disabled)').waitFor();
+          await page.locator('#ql-items').filter({hasText: /Looking up|Estimating/}).waitFor({state: 'hidden'});
           const estimates = page.getByRole('button', {name: 'Estimate with AI', exact: true});
           while (await estimates.count()) {
             await Promise.all([
               page.waitForResponse(r => r.url().endsWith('/api/food/photo') && r.ok()),
               estimates.first().click(),
             ]);
-            await page.waitForFunction(() => !/Estimating/.test(document.querySelector('#ql-items').textContent));
+            await page.locator('#ql-items').filter({hasText: /Estimating/}).waitFor({state: 'hidden'});
           }
         }
         // Prove the correction and per-food stand-ins rendered once each before
         // capturing the actual page (there is deliberately no .sheet here).
         const rows = page.locator('#ql-items .ql-main');
         if (await rows.count() !== 2) throw new Error('Describe screenshot needs exactly two foods');
-        await page.waitForFunction(() => [...document.querySelectorAll('#ql-items .ql-main')]
-          .some(row => /Hot dog/.test(row.textContent) && /1,100/.test(row.textContent)));
-        await page.waitForFunction(() => !document.querySelector('#ql-add').disabled);
+        await rows.filter({hasText: 'Hot dog'}).filter({hasText: '1,100'}).waitFor();
+        await page.locator('#ql-add:not(:disabled)').waitFor();
         if (await page.locator('.sheet').count()) throw new Error('Describe must remain a full page');
         await page.evaluate(() => {
           document.activeElement.blur();
