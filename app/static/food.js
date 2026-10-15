@@ -227,8 +227,8 @@ function entrySheet(e, day) {
     <div class="two"><label>Amount<input name="amount" inputmode="decimal" value="${r1(e.amount)}"></label>
       <label>Unit<select name="unit">${unitOptions(ref, e.unit)}</select></label></div>
     ${macroInputs(e)}
-    <div class="two"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === e.meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-      <label>Day<input name="day" type="date" value="${esc(day)}"></label></div>
+    <div class="two entry-when"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === e.meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label>Day<input class="datefield" name="day" type="date" value="${esc(day)}"></label></div>
     <div class="actions"><button type="button" class="ghost danger" id="es-del">Delete</button><span class="spacer"></span>
       <button type="button" class="ghost" id="es-again">Log again</button><button class="primary">Save</button></div></form>`, (b, close) => {
     const f = $('#es', b);

@@ -74,6 +74,15 @@ async function load(path, render, {maxAge = 15000} = {}) {
   return data;
 }
 
+// A same-session /me refresh replaces profile data without cancelling its page reads.
+function refreshMe(me) {
+  const previous = App.me, same = previous && previous.id === me.id;
+  if (same && readSessions.has(previous)) readSessions.set(me, readSessions.get(previous));
+  if (!same) { App.cache.clear(); forgetKept(); }
+  App.me = me; keep('/api/me', me);
+  if (!same) render();
+}
+
 // ---------- offline: kept screens + a send queue for food and weight (2026-10-10) ----------
 const KEEP = [/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/plans\/current$/,
   /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=3$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/];
@@ -868,7 +877,7 @@ async function start() {
   const saved = kept('/api/me');
   if (saved && !location.pathname.startsWith('/join/')) {
     App.me = saved; enter();
-    api('/api/me').then((me) => { App.me = me; keep('/api/me', me); }).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
+    api('/api/me').then(refreshMe).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
     return;
   }
   try {
