@@ -151,6 +151,7 @@ addEventListener('online', () => { netState(false); Q.flush(); });
 addEventListener('offline', () => netState(true));
 setInterval(() => { if (Q.mine().length) Q.flush(); }, 30000);
 const invalidate = (prefix) => {
+  if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) App.cache.delete('feed:home');
   for (const k of App.cache.keys()) if (k.startsWith(prefix)) App.cache.delete(k);
   for (const k of pendingReads.keys()) if (JSON.parse(k)[1].startsWith(prefix)) pendingReads.delete(k);
 };
@@ -814,7 +815,7 @@ async function showBeta() {
     <p class="small muted">We use your email only to send your invite. <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">Ask to join</button>
-    <p class="small muted">Already have an account? <a href="/" id="b-login">Log in</a></p></form></div>`;
+    <p class="small muted">Already have an account? <a href="/" id="b-login">Log in</a></p><p class="small"><a href="https://kinetta.app/">Back to the Kinetta website</a></p></form></div>`;
   const f = $('form', root); f.name.focus();
   $('#b-login', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
   f.addEventListener('submit', async (e) => {
@@ -826,7 +827,7 @@ async function showBeta() {
     try {
       await api('/api/beta', json('POST', {name: f.name.value, email: f.email.value, phone: f.phone.value, watch: f.watch.value, note: f.note.value, website: f.website.value}));
       root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Thanks, ${esc(f.name.value.trim().split(/\s+/)[0])}!</h1>
-        <p>You're on the list. We'll email your invite link to ${esc(f.email.value.trim())} when there's a spot.</p></div></div>`;
+        <p>You're on the list. We'll email your invite link to ${esc(f.email.value.trim())} when there's a spot.</p><a class="primary wide" href="https://kinetta.app/">Back to the Kinetta website</a></div></div>`;
     } catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }

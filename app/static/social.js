@@ -73,7 +73,7 @@ const Social = {
 const FEED_N = 15;
 async function feedPage(before) {
   const b = before ? '&before=' + encodeURIComponent(before) : '';
-  const [mine, theirs] = await Promise.all([api(`/api/activities?limit=${FEED_N}${b}`), api(`/api/feed/friends?limit=${FEED_N}${b}`)]);
+  const [mine, theirs] = await Promise.all([readOnce(`/api/activities?limit=${FEED_N}${b}`), readOnce(`/api/feed/friends?limit=${FEED_N}${b}`)]);
   const all = mine.concat(theirs).sort((x, y) => new Date(y.start_time) - new Date(x.start_time));
   // the next page asks for "older than the last card", so activities sharing the last card's start time all go on this page
   let n = Math.min(FEED_N, all.length);
@@ -93,7 +93,10 @@ async function homeFeed(el) {
     more.hidden = !pg.more; feedMaps(list); wireCheers(list);
   };
   const hit = App.cache.get('feed:home'); if (hit) draw(hit.data);
-  try { const pg = await feedPage(); App.cache.set('feed:home', {data: pg, at: Date.now()}); if (list.isConnected) draw(pg); }
+  const account = readOwner();
+  // A fresh cached feed already contains the current cards/maps. Avoid fetching and rebuilding it.
+  const fresh = hit && Date.now() - hit.at < 15000;
+  try { if (!fresh) { const pg = await feedPage(); if (account !== readOwner()) return; App.cache.set('feed:home', {data: pg, at: Date.now()}); if (list.isConnected && (!hit || JSON.stringify(hit.data) !== JSON.stringify(pg))) draw(pg); } }
   catch (x) { if (!hit) throw x; }
   more.onclick = async () => {
     more.disabled = true; more.textContent = 'Loading…';

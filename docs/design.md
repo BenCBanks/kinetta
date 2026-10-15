@@ -62,7 +62,7 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
   An enrolled plan supplies a compact agenda. Nutrition appears under the existing current-day logged-food condition.
   With neither active, weekly distance/time/climb or activity count leads directly to a compact latest-activity link.
   Omit the redundant This week heading. Use evergreen seven-day bars with day/date/value labels, without a comparison ring.
-  Eligible Kit weekly reviews open from a small button beside the greeting; goals and fitness follow the primary content. Do not invent feature switches, empty promos or setup nags.
+  Eligible Kit weekly reviews open from a small button beside the greeting; goals and fitness follow the primary content. Keep the persistent discovery/setup actions specified below separate from conditional data panels.
 - **Five stable tabs:** Today, Activity, Progress, Nutrition, Me remain available on every screen. Feature-panel visibility
   must not hide a tab. Hide the entire bottom bar while the software keyboard is open, on every route and in sheets;
   restore it after dismissal, including swipe-down dismissal. Native keyboard events take precedence over viewport guesses.
@@ -174,3 +174,17 @@ is not proof that every category was allowed. Use “Sync enabled”, retain ind
 settings. Do not hold the Connect button while background delivery or first import runs; show progress and bounded,
 retryable errors. Keep account guards and import cursors intact on timeout. The browser cannot validate Apple's native
 permission switches or device animation: those need an iPhone check.
+
+## Discovery controls, native canvas and website copy
+
+Feature category buttons use full pill radii (999px), including visible keyboard-focus outlines, with at least44px
+targets. Native UIKit, WebView and scroll-view backgrounds match the app canvas in both themes; rounded keyboard
+corners must never expose a default black backing. Browser screenshots cannot prove the actual keyboard animation.
+
+Website prose is authored in `site/content/*.md` and injected into the existing `site/templates/` layouts by
+`dev/design/build_content.py`. Preserve the layout, screenshot refresh/track animation and shared feature catalog.
+Beta forms and successful confirmations always provide a return link to the public website.
+
+Feed performance: reuse a fresh15-second cached first page and coalesce concurrent identical reads, avoiding duplicate
+requests and unnecessary map/card reconstruction when refreshed records are unchanged. Preserve account guards, cache
+invalidation after edits/Cheers and pagination. Validate network counts with delayed synthetic responses before claiming gains.

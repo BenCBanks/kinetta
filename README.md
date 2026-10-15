@@ -128,3 +128,5 @@ The name **Kinetta** and the Kinetta logo are not covered by the code license. P
 fork or product without permission.
 
 Copyright © 2026 Ben Banks.
+
+Website writing: [edit Markdown copy without changing layouts](docs/website-content.md). Apple Watch maps: [requirements and troubleshooting](docs/apple-watch-routes.md).

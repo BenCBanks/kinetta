@@ -669,5 +669,32 @@ class KinettaBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(KinettaHealthSyncPlugin())
         webView?.scrollView.keyboardDismissMode = .interactive
+        applyCanvasColor()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyCanvasColor()
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        applyCanvasColor()
+    }
+
+    // Rounded keyboard corners expose the native view behind the WebView.
+    // Match the same light/dark canvas used in theme.css, including during resize.
+    private func applyCanvasColor() {
+        let canvas = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 16/255, green: 28/255, blue: 24/255, alpha: 1)
+                : UIColor(red: 248/255, green: 247/255, blue: 241/255, alpha: 1)
+        }
+        view.backgroundColor = canvas
+        view.window?.backgroundColor = canvas
+        webView?.isOpaque = false
+        webView?.backgroundColor = canvas
+        webView?.underPageBackgroundColor = canvas
+        webView?.scrollView.backgroundColor = canvas
     }
 }

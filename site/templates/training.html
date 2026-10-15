@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Training · Kinetta</title>
+<meta name="description" content="Runs, rides and walks from your watch or Strava history: maps, matched routes, training plans, race predictions, a heatmap and Kit, your AI coach.">
+<meta property="og:title" content="Training · Kinetta">
+<meta property="og:description" content="Runs, rides and walks from your watch or Strava history: maps, matched routes, training plans, race predictions, a heatmap and Kit, your AI coach.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Kinetta">
+<meta property="og:url" content="https://kinetta.app/training">
+<meta property="og:image" content="https://kinetta.app/assets/og.png?v=3">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Kinetta: Your workouts and your food. One app. Activity tracking plus food and health, together.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://kinetta.app/training">
+<link rel="icon" href="assets/favicon.svg?v=3" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon-180.png?v=3">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/theme.css?v=1">
+<link rel="stylesheet" href="assets/site.css?v=12">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-people" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/></g></symbol>
+  <symbol id="i-pot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM2 10h2M20 10h2M9 6c0-1 1-1 1-2M14 6c0-1 1-1 1-2"/></g></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></g></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/></g></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></g></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-9z"/></g></symbol>
+  <symbol id="i-run" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4.5" r="1.8"/><path d="M8 21l3-6 3 2 1 5M6 12l3-4 4 1 2 3 3 1M11 15l1-5"/></g></symbol>
+  <symbol id="oval" viewBox="0 0 44 26"><rect x="2.5" y="2.5" width="39" height="21" rx="10.5" fill="none" stroke="currentColor" stroke-width="3"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg?v=3" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=3" alt="Kinetta" width="132" height="21"></picture></a>
+    <nav class="tabs" aria-label="Pages"><a href="training" aria-current="page">Training</a><a href="food">Food</a><a href="friends">Friends</a><a href="compare">Compare</a><a href="privacy">Privacy</a></nav>
+    <a class="btn solid sm" href="https://login.kinetta.app/beta">Join the beta</a>
+  </div>
+</header>
+
+<main id="main">
+  <section class="pagehead">
+    <div class="wrap">
+      <span class="eyebrow">Training</span>
+      <h1>{{copy:runs-rides-walks-and-lifting-1}}</h1>
+      <p class="lede">{{copy:import-watch-files-or-your-strava-history-or-connect-a-2}}</p>
+    </div>
+  </section>
+  <section class="band" aria-labelledby="import-h">
+    <div class="wrap">
+      <div class="head"><span class="eyebrow">Bring your history</span><h2 id="import-h">{{copy:start-with-the-workouts-you-already-have-3}}</h2><p>{{copy:file-imports-work-in-the-web-beta-automatic-updates-de-4}}</p></div>
+      <div class="steps">
+        <div class="step"><h3>{{copy:watch-files-and-strava-history-5}}</h3><p>{{copy:upload-fit-gpx-or-tcx-files-or-your-own-strava-history-6}}</p></div>
+        <div class="step"><h3>{{copy:connected-sources-7}}</h3><p>{{copy:set-up-intervals-icu-or-health-auto-export-from-me-wat-8}}</p></div>
+        <div class="step"><h3>{{copy:apple-health-on-iphone-9}}</h3><p>{{copy:testflight-access-is-being-prepared-in-the-iphone-app--10}}</p></div>
+      </div>
+    </div>
+  </section>
+  <section class="band" id="what" aria-labelledby="what-h">
+    <div class="wrap">
+      <div class="head"><span class="eyebrow">Each workout</span><h2 id="what-h">{{copy:maps-splits-heart-rate-and-records-11}}</h2></div>
+      <div class="shots three">
+        <div class="shot"><figure>
+          <div class="frame"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A 2.97 mile morning run: a map of the loop, distance, moving time and pace" loading="lazy" width="786" height="1704"></picture></div>
+          <figcaption><h3>{{copy:your-activities-12}}</h3><p>{{copy:fit-gpx-and-tcx-files-strava-history-or-a-connected-so-13}}</p></figcaption>
+        </figure></div>
+        <div class="shot"><figure>
+          <div class="frame"><picture><source srcset="assets/shots/dark-progress.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-progress.webp" alt="Weekly running miles over the last months as bars, with the average week as a dashed line" loading="lazy" width="786" height="1704"></picture></div>
+          <figcaption><h3>{{copy:progress-over-time-14}}</h3><p>{{copy:totals-records-and-fitness-15}}</p></figcaption>
+        </figure></div>
+        <div class="shot"><figure>
+          <div class="frame"><picture><source srcset="assets/shots/dark-plan.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-plan.webp" alt="A 10-week intermediate 10K training plan with the first workout and progress so far" loading="lazy" width="786" height="1704"></picture></div>
+          <figcaption><h3>{{copy:training-plans-16}}</h3><p>{{copy:5k-to-marathon-a-run-ticks-off-its-day-by-itself-or-ti-17}}</p></figcaption>
+        </figure></div>
+      </div>
+    </div>
+  </section>
+  <section class="band" aria-labelledby="loop-h">
+    <div class="wrap">
+      <div class="spot">
+        <div>
+          <span class="eyebrow">See yourself improve</span>
+          <h2 id="loop-h" class="spot-h">{{copy:your-favorite-loop-run-after-run-18}}</h2>
+          <p>{{copy:run-the-same-route-see-if-you-re-getting-faster-19}}</p>
+          <ul>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Matched routes</b>: each repeat on one chart</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Fitness</b>: your pace at the same heart rate, over time</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Similar efforts</b>: this run next to ones like it</span></li>
+          </ul>
+        </div>
+        <div class="pair">
+          <div class="frame"><picture><source srcset="assets/shots/dark-route.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-route.webp" alt="The Freedom Park loop run 34 times: best 24:41, average 26:06, and a pace-over-time chart that says: getting faster, about 15 seconds per mile per month, and fitter at the same effort" loading="lazy" width="786" height="1704"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-similar.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-similar.webp" alt="Similar efforts: five earlier runs on the same route, each showing how many seconds per mile faster this run was" loading="lazy" width="786" height="1704"></picture></div>
+        </div>
+      </div>
+      <div class="pcards">
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-coach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-coach.webp" alt="A note from Kit on a 2.98 mile run: pace, heart rate, what it means and what to do next" loading="lazy" width="786" height="1704"></picture></div>
+          <h4>Kit knows your history</h4><p>{{copy:your-optional-ai-coach-a-note-on-every-workout-a-revie-20}}</p></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-fitness.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-fitness.webp" alt="Race predictions for 5K, 10K, half marathon and marathon, each with your best time, the 10K in green because the prediction beats it, and a running fitness score" loading="lazy" width="786" height="1704"></picture></div>
+          <h4>Race predictions and fitness</h4><p>{{copy:predicted-5k-to-marathon-times-next-to-your-best-green-21}}</p></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-heatmap.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-heatmap.webp" alt="A personal heatmap of every route run, ridden or walked around Charlotte" loading="lazy" width="786" height="1704"></picture></div>
+          <h4>Your personal heatmap</h4><p>{{copy:every-street-you-ve-covered-by-sport-22}}</p></div>
+      </div>
+    </div>
+  </section>
+  <section class="band" aria-labelledby="lift-h">
+    <div class="wrap">
+      <div class="spot rev">
+        <div>
+          <span class="eyebrow">Lifting</span>
+          <h2 id="lift-h" class="spot-h">{{copy:your-previous-numbers-beside-every-set-23}}</h2>
+          <p>{{copy:log-each-set-as-you-go-the-weights-and-reps-from-your--24}}</p>
+          <ul>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Repeat a session</b>: its exercises come along, numbers to beat in grey</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Records</b>: heaviest set, estimated one-rep max, most reps</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Every exercise's history</b>: each session, and a chart of your progress</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Works with your watch</b>: its heart rate and calories join the session</span></li>
+          </ul>
+        </div>
+        <div class="pair">
+          <div class="frame"><picture><source srcset="assets/shots/dark-lift.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-lift.webp" alt="Logging a squat session: the previous session's 200 x 5 beside each set, today's sets at 205 lb ticked off, with a new record" loading="lazy" width="786" height="1704"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-liftex.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-liftex.webp" alt="Squat history: heaviest set, best estimated one-rep max, a chart rising week by week, and every session's sets" loading="lazy" width="786" height="1704"></picture></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="band next" aria-label="Next">
+    <div class="wrap">
+      <a class="on" href="food"><small>Next: Food</small><span>Quick food logging ›</span></a>
+      <a class="btn solid" href="https://login.kinetta.app/beta">Join the beta</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <picture><source srcset="assets/logo-dark.svg?v=3" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=3" alt="Kinetta" width="124" height="20"></picture>
+    <div>
+      <p>{{copy:training-training-food-food-friends-friends-compare-co-25}}</p>
+      <p>{{copy:free-for-personal-use-under-the-polyform-noncommercial-26}}</p>
+      <p>{{copy:2026-ben-banks-name-and-logo-not-covered-by-the-licens-27}}</p>
+    </div>
+  </div>
+</footer>
+<script src="assets/zoom.js?v=2" defer></script>
+</body>
+</html>

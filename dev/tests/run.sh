@@ -15,6 +15,8 @@ P="${KINETTA_PROJECT:-kinettatest}"
 echo "== shared design tokens and contrast"
 python3 dev/design/build_tokens.py --check
 python3 dev/tests/test_design_manifest.py
+python3 dev/design/build_content.py
+python3 dev/tests/test_website_content.py
 node dev/design/build_guide.js --check
 
 echo "== syntax"
@@ -24,6 +26,7 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_native_sync.js
 node dev/tests/test_ui_state.js
+node dev/tests/test_feed_cache.js
 node dev/tests/test_keyboard.js
 node dev/tests/test_keyboard_nav.js
 

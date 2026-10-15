@@ -37,6 +37,13 @@ function client() {
   assert.match(c.coachMessage('activity:10', 'A made-up note.', 'Coach', '<p>Demo</p>'), /aria-expanded="true"/);
   assert.ok([...saved.values()].every(v => !v.includes('made-up')), 'storage holds fingerprints, not another copy of coach text');
 
+  c.App.cache.set('feed:home', {data: 'demo'});
+  c.invalidate('/api/activities/10');
+  assert.equal(c.App.cache.has('feed:home'), false, 'activity edits invalidate the warm feed');
+  c.App.cache.set('feed:home', {data: 'demo'});
+  c.invalidate('/api/');
+  assert.equal(c.App.cache.has('feed:home'), false, 'broad activity/profile refresh invalidates the warm feed');
+
   let calls = 0, release;
   c.ctx.api = () => { calls++; return new Promise(r => { release = r; }); };
   c.prefetch('/api/ui-test');
