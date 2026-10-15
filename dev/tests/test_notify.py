@@ -57,17 +57,29 @@ n1.delete(f'/api/activities/{aid}'); n1.delete(f"/api/dishes/{d['id']}")
 ck(not any(i['link'] == f'/activity/{aid}' for i in notes(n1)['items']), 'activity deleted: notifications go')
 ck(not any(i['kind'] == 'dish_shared' for i in notes(n2)['items']), 'dish deleted: notifications go')
 
-# phone notifications: the key, sign-up checks, settings
-s, k = n1.get('/api/push/key'); ck(s == 200 and len(k['key']) > 80, 'push key')
-ck(n1.post('/api/push/subscribe', {'endpoint': 'http://insecure.example/x', 'keys': {'p256dh': 'x' * 87, 'auth': 'y' * 22}})[0] == 422, 'https only')
-ck(n1.post('/api/push/subscribe', {'endpoint': 'https://fcm.googleapis.com/fcm/send/abc', 'keys': {'p256dh': 'x'}})[0] == 400, 'needs both keys')
-for bad in ('https://push.example/abc', 'https://192.168.1.10/x', 'https://localhost:8123/api', 'https://fcm.googleapis.com.evil.example/x',
-            'https://user@fcm.googleapis.com/x', 'https://fcm.googleapis.com:8443/x'):
-    ck(n1.post('/api/push/subscribe', {'endpoint': bad, 'keys': {'p256dh': 'x' * 87, 'auth': 'y' * 22}})[0] == 400, f'not a push service: {bad}')
-for good in ('https://fcm.googleapis.com/fcm/send/abc', 'https://web.push.apple.com/QOx', 'https://updates.push.services.mozilla.com/wpush/v2/x'):
-    ck(n1.post('/api/push/subscribe', {'endpoint': good, 'keys': {'p256dh': 'x' * 87, 'auth': 'y' * 22}})[0] == 200, f'subscribe {good}')
-s, r = n1.put('/api/notifications/settings', {'cheers': False}); ck(r['push'] == {'friends': True, 'cheers': False, 'comments': True, 'dishes': True}, 'settings')
+# Browser delivery is retired. Native registration requires a bearer login and validates device addresses.
+ck(n1.get('/api/push/key')[0] == 410, 'browser push key retired')
+ck(n1.post('/api/push/subscribe', {'endpoint': 'https://web.push.apple.com/test'})[0] == 410, 'browser signup retired')
+ck(n1.post('/api/push/ios', {'token': 'ab' * 32, 'environment': 'production'})[0] == 400, 'cookie-only registration rejected')
+s, app_login = n1.post('/api/login', {'login': 'zz_test_note1', 'password': 'green teapot on the hill', 'app': True})
+n1.op.addheaders = [('Authorization', 'Bearer ' + app_login['token'])]
+ck(n1.post('/api/push/ios', {'token': 'invalid-device', 'environment': 'production'})[0] == 422, 'invalid native token rejected')
+ck(n1.post('/api/push/ios', {'token': 'ab' * 32, 'environment': 'arbitrary-host'})[0] == 422, 'native environment allowlist')
+ck(n1.post('/api/push/ios', {'token': 'ab' * 32, 'environment': 'production'})[0] == 200, 'native device registered')
+ck(n1.delete('/api/push/ios')[0] == 200, 'native device disabled for this session')
+s, r = n1.put('/api/notifications/settings', {'cheers': False})
+ck(r['push'] == {'friends': True, 'cheers': False, 'comments': True, 'dishes': True, 'activities': True}, 'settings')
 n1.put('/api/notifications/settings', {'cheers': True})
-ck(all(n1.post('/api/push/unsubscribe', {'endpoint': e})[0] == 200 for e in ('https://fcm.googleapis.com/fcm/send/abc', 'https://web.push.apple.com/QOx', 'https://updates.push.services.mozilla.com/wpush/v2/x')), 'unsubscribe')
-ck(n3.get('/api/notifications')[0] == 200 and person('zz_test_note3').get('/api/push/key')[0] == 200, 'others fine')
+# A workout typed in by hand is never congratulated: you just did it yourself. (Workouts that arrive by
+# themselves are covered in incontainer.py, with Health/Garmin sources.)
+import datetime as dt
+recent = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2)).isoformat()
+payload = {'sport': 'run', 'start': recent, 'name': 'Test afternoon run', 'duration_s': 1800, 'distance_m': 5000}
+s, a = n1.post('/api/activities/manual', payload); ck(s == 200, f'recent activity {a}')
+aid = a['id']
+ck(not any(i['kind'] == 'activity_ready' for i in notes(n1)['items']), 'typed-in workout: no alert, nothing under the bell')
+n1.put('/api/notifications/settings', {'activities': False})
+ck(notes(n1)['push']['activities'] is False, 'new-workout alerts have their own off switch')
+n1.put('/api/notifications/settings', {'activities': True})
+n1.delete(f'/api/activities/{aid}')
 print(f'notifications: {n} checks passed')

@@ -1221,6 +1221,9 @@ button.lift-prev:active { background: var(--card2); }
 .gear-row .row-link > div:first-child { min-width: 0; overflow-wrap: anywhere; } .gear-row .r { flex-shrink: 0; }
 .gear-row > .icon-btn { flex-shrink: 0; }
 .cheer.cheer-wait { background: var(--card2); }
+.pf { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.pf:active { background: var(--card2); }
+.t-soc .pf { min-width: 44px; min-height: 44px; }
 
 /* Photos are full-size slides before the map, never thumbnails beneath it. */
 .activity-media { --media-height: 190px; min-width: 0; margin: 12px 16px 4px; }

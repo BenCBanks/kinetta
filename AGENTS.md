@@ -16,6 +16,13 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 - The maintainer's live server is updated separately. Cloud/code-only agents must not access it. A server-resident
   agent may deploy only with the owner's session authorization and applicable private house workflow.
 
+## Pull request descriptions
+
+Describe the specifics of the final change: the concrete problem, exactly what users will experience, and relevant
+before/after examples. For multiple issues, explain each issue's resulting behavior. Name meaningful checks and their
+outcomes, and state any missing credentials, setup, unverified device behavior or remaining release steps. Keep
+implementation, CI, merge, deployment and TestFlight upload distinct. Do not substitute a vague summary for these details.
+
 ## Layout
 | Path | What |
 |---|---|

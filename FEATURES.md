@@ -88,7 +88,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Invite links (one use, 7 days); each new account starts in its phone's time zone and units
 - [x] Private accounts, read-only SQL login per person with row-level security + friendly views, one-command database backups
 - [x] Notifications (2026-10-11, `notify.py`): friend requests, accepted requests, cheers, comments and shared meals in
-      Me > Notifications (a number on the Me tab, a dot on Today's bell), and on the phone through Web Push when turned on
+      Me > Notifications (a number on the Me tab, a dot on Today's bell), and in the native iPhone app through APNs when turned on; browser push is retired
       (each kind can be switched off); the iPhone app gets them once it can use Apple's push service
 - [x] Sharing between people (2026-10-11, off by default): friends found by name or username, a Feed of yours and your
       friends' activities (Mine for just yours), sharing per activity, hidden map ends, cheers and comments

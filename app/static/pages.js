@@ -49,28 +49,24 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
 // button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
   wireActivityMedia(box);
-  $$('[data-talk]', box).forEach((b) => b.onclick = async () => {
-    b.disabled = true;
-    try {
-      const s = await api(`/api/activities/${b.dataset.talk}/social`);
-      commentsSheet(b.dataset.talk, s, (fresh) => {
-        b.innerHTML = svg('comment') + (fresh.comments.length ? `<span class="num">${fresh.comments.length}</span>` : '');
-        const c = $(`[data-cheer="${b.dataset.talk}"]`, box);
-        if (c) { c.setAttribute('aria-pressed', String(fresh.cheered)); c.innerHTML = svg('cheer') + (fresh.cheers.length ? `<span class="num">${fresh.cheers.length}</span>` : ''); }
-      });
-    } catch (x) { toast(x.message); }
-    b.disabled = false;
+  $$('[data-talk]', box).forEach((b) => b.onclick = () => {
+    commentsSheet(b.dataset.talk, null, (fresh) => {
+      if (!b.isConnected) return;
+      b.innerHTML = svg('comment') + (fresh.comments.length ? `<span class="num">${fresh.comments.length}</span>` : '');
+      const c = $(`[data-cheer="${b.dataset.talk}"]`, box);
+      if (c && !c.dataset.sending) { c.setAttribute('aria-pressed', String(fresh.cheered)); c.innerHTML = svg('cheer') + (fresh.cheers.length ? `<span class="num">${fresh.cheers.length}</span>` : ''); }
+    });
   });
   $$('[data-cheer]', box).forEach((b) => cheerGesture(b, async () => {
     if (b.dataset.sending) return;
-    b.dataset.sending = '1';
+    b.dataset.sending = '1'; b.setAttribute('aria-busy', 'true');
     const on = b.getAttribute('aria-pressed') !== 'true', id = b.dataset.cheer;
     const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
     const shift = (d) => { const c = cnt(), v = (+c.textContent || 0) + d; c.textContent = v || ''; b.setAttribute('aria-pressed', String(d > 0)); };
     shift(on ? 1 : -1); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
-    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); invalidate('/api/shared/' + id); invalidate('/api/activities?'); invalidateFeed(); }
+    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); socialChanged(id); }
     catch (x) { shift(on ? -1 : 1); toast(x.message); }
-    finally { delete b.dataset.sending; }
+    finally { delete b.dataset.sending; b.setAttribute('aria-busy', 'false'); }
   }, () => activityCheers(b.dataset.cheer)));
 }
 const backBtn = (label = 'Back') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;

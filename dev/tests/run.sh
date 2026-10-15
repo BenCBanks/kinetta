@@ -25,6 +25,7 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_native_sync.js
+node dev/tests/test_social_gestures.js
 node dev/tests/test_ui_state.js
 node dev/tests/test_async_reads.js
 node dev/tests/test_food_search.js
@@ -44,6 +45,7 @@ echo "== in the app container"
 docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/coach_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/native_push_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/ai_access_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_chat_incontainer.py
 echo "== all passed"

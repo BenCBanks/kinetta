@@ -20,23 +20,40 @@ const trimName = (m) => (!m ? 'Off' : imp() ? {200: '⅛ mi', 400: '¼ mi', 800:
 const profileHref = (p) => `/people/${encodeURIComponent(p.login)}`;
 const personLink = (p, label = p.name) => `<a class="person-link" href="${profileHref(p)}">${avatar(p)}<span class="grow"><b>${esc(label)}</b><small class="muted">@${esc(p.login)}</small></span></a>`;
 
-// Delay the single action briefly so a double tap inspects people without sending/removing Cheers.
+// A tap reacts immediately. A long press opens people and consumes the following click.
 function cheerGesture(button, toggle, show) {
   if (!button || button.dataset.cheerBound) return;
   button.dataset.cheerBound = '1';
-  button.title = 'Tap to send or remove Cheers. Double tap to see who cheered.';
-  let timer = null;
-  const clear = () => { clearTimeout(timer); timer = null; button.classList.remove('cheer-wait'); };
-  button.onclick = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    if (e.detail === 0) { clear(); toggle(); return; } // keyboard and assistive activation
-    if (timer) { clear(); show(); return; }
-    button.classList.add('cheer-wait');
-    timer = setTimeout(() => { clear(); if (button.isConnected) toggle(); }, 280);
+  button.title = 'Tap to send or remove Cheers. Hold to see who cheered.';
+  let timer = null, origin = null, suppressUntil = 0, held = false;
+  const clear = () => { clearTimeout(timer); timer = null; origin = null; button.classList.remove('cheer-wait'); };
+  button.onpointerdown = (e) => {
+    clear(); held = false; suppressUntil = 0;
+    if (e.isPrimary === false || e.button !== 0) return;
+    origin = {x: e.clientX, y: e.clientY};
+    timer = setTimeout(() => {
+      clear();
+      if (!button.isConnected) return;
+      held = true; suppressUntil = Date.now() + 1000;
+      show();
+    }, 500);
   };
-  button.ondblclick = (e) => { e.preventDefault(); e.stopPropagation(); };
+  button.onpointermove = (e) => { if (origin && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > 10) clear(); };
+  button.onpointerup = () => { if (held) suppressUntil = Date.now() + 1000; held = false; clear(); };
+  button.onpointercancel = () => { held = false; clear(); }; button.onpointerleave = clear;
+  button.onclick = (e) => {
+    e.preventDefault(); e.stopPropagation(); clear();
+    if (e.detail !== 0 && Date.now() < suppressUntil) { suppressUntil = 0; return; }
+    toggle();
+    try { if (!localStorage.getItem('fit.cheerHint')) { localStorage.setItem('fit.cheerHint', '1'); toast(`Tip: hold ${CHEER.title} to see who sent them`); } } catch (x) { /* private mode */ }
+  };
+  button.oncontextmenu = (e) => {
+    e.preventDefault(); e.stopPropagation(); clear();
+    if (Date.now() >= suppressUntil) { suppressUntil = Date.now() + 1000; show(); }
+  };
   viewResources.set(button, clear);
 }
+
 function activityCheers(aid) {
   sheet('Cheers', '<div class="cheers-list" aria-live="polite">Loading…</div>', async (box) => {
     const list = $('.cheers-list', box);
@@ -53,6 +70,7 @@ const Social = {
     const a = $('nav.tabs a[data-tab="me"]'); if (!a) return;
     const n = Social.count(); let b = $('.tab-n', a);
     const un = (App.me && App.me.notifications) || 0;
+    if (typeof Native !== 'undefined' && Native.setBadge) Native.setBadge(un);
     $$('.bell-dot').forEach((d) => { d.hidden = !un; d.textContent = un > 9 ? '9+' : un || ''; });
     if (!n) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('span'); b.className = 'tab-n'; a.append(b); }
@@ -176,6 +194,7 @@ function wireTalk(box, aid, s, open) {
     box.innerHTML = talkIcons(s);
     if (pile) { pile.innerHTML = cheerPile(s.cheers); const pb = $('[data-cpile]', pile); if (pb) pb.onclick = () => cheersSheet(s.cheers); }
     const cb = $('[data-tcheer]', box);
+    cb.setAttribute('aria-busy', String(sending));
     cheerGesture(cb, async () => {
       if (sending) return;
       sending = true;
@@ -210,9 +229,24 @@ function socialChanged(aid) {
 }
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
 function commentsSheet(aid, s, onChange) {
-  sheet('Comments', '<div class="social"></div>', (b) => drawComments($('.social', b), aid, s, onChange));
+  const account = readOwner();
+  sheet('Comments', '<div class="social" aria-live="polite"><p class="muted">Loading comments…</p></div>', (b) => {
+    const box = $('.social', b);
+    const current = () => box.isConnected && account === readOwner();
+    const fetchComments = async () => {
+      box.innerHTML = '<p class="muted">Loading comments…</p>';
+      try { const fresh = await api(`/api/activities/${aid}/social`); if (current()) drawComments(box, aid, fresh, onChange); }
+      catch (x) {
+        if (!current()) return;
+        box.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button type="button" class="ghost wide" data-retry>Retry</button>`;
+        $('[data-retry]', box).onclick = fetchComments;
+      }
+    };
+    if (s) drawComments(box, aid, s, onChange); else fetchComments();
+  });
 }
 function drawComments(box, aid, s, onChange) {
+  const account = readOwner();
   const names = s.cheers.map((c) => c.name);
   const who = names.length ? `<button type="button" class="small cheer-who" data-cwho>${svg('cheer')}<span class="grow"><b>${esc(CHEER.title)}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</span><span class="chev">${svg('chev')}</span></button>` : '';
   box.innerHTML = `${who}<div class="comments">${s.comments.length ? s.comments.map((c) => `<div class="comment"><a href="${profileHref(c)}" data-close aria-label="View ${esc(c.name)}'s profile">${avatar(c)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(c)}" data-close><b>${esc(c.name)}</b></a><small class="muted">${esc(when(c.created))}</small></div><p>${esc(c.text)}</p><div class="c-acts">${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div></div></div>`).join('')
@@ -220,7 +254,7 @@ function drawComments(box, aid, s, onChange) {
     <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
       <button class="primary wide">Post comment</button></form>`;
   const cw = $('[data-cwho]', box); if (cw) cw.onclick = () => cheersSheet(s.cheers);
-  const after = (fresh) => { socialChanged(aid); s = {...s, ...fresh}; drawComments(box, aid, s, onChange); if (onChange) onChange(s); };
+  const after = (fresh) => { if (account !== readOwner()) return; socialChanged(aid); s = {...s, ...fresh}; drawComments(box, aid, s, onChange); if (onChange) onChange(s); };
   $$('[data-del]', box).forEach((b) => b.onclick = async () => {
     if (!confirm('Delete this comment?')) return;
     b.disabled = true;
@@ -234,9 +268,9 @@ function drawComments(box, aid, s, onChange) {
   const f = $('.c-form', box);
   f.onsubmit = async (e) => {
     e.preventDefault(); const text = f.text.value.trim(); if (!text) return;
-    const btn = $('button', f); btn.disabled = true;
+    const btn = $('button', f); if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Posting…';
     try { after(await api(`/api/activities/${aid}/comments`, json('POST', {text}))); }
-    catch (x) { toast(x.message); btn.disabled = false; }
+    catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Post comment'; }
   };
 }
 
@@ -542,8 +576,8 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 // ---------- Notifications (2026-10-11, notify.py) ----------
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
 // (/me/notifications). /notifications lights no tab (it opens from several).
-const PUSH_NAMES = {friends: 'Friend requests', cheers: CHEER.title, comments: 'Comments', dishes: 'Shared meals'};
-const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', report: 'lock'};
+const PUSH_NAMES = {friends: 'Friend requests', cheers: CHEER.title, comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts'};
+const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', report: 'lock'};
 route(/^\/notifications$/, null, async (el) => {
   el.innerHTML = `<div class="top">${backBtn()}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
   wireBack(el, '/today');
@@ -552,7 +586,7 @@ route(/^\/notifications$/, null, async (el) => {
     list.innerHTML = r.items.length ? `<div class="card list notes">${r.items.map((n) => `<a class="note${n.read ? '' : ' unread'}" href="${esc(n.link)}">
         <span class="note-av">${avatar(n.who)}<span class="note-k">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
         <span class="grow"><span class="note-t">${esc(n.text)}</span><small class="muted">${esc(when(n.created))}</small></span></a>`).join('')}</div>`
-      : `<div class="card empty"><b>Nothing yet</b>Friend requests, ${esc(CHEER.many)}, comments and shared meals show up here.</div>`;
+      : `<div class="card empty"><b>Nothing yet</b>New workouts, friend requests, ${esc(CHEER.many)}, comments and shared meals show up here.</div>`;
     if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
     if (r.unread) api('/api/notifications/read', json('POST', {})).then(() => { App.me.notifications = 0; Social.badge(); invalidate('/api/notifications'); }).catch(() => {});
   }, {maxAge: 0});
@@ -562,51 +596,48 @@ route(/^\/me\/notifications$/, 'me', async (el) => {
   wireBack(el, '/me');
   await load('/api/notifications', (r) => {
     const box = $('#nt-push', el); if (!box) return;
-    if (!r.push_ready) { box.innerHTML = '<div class="card"><h2>Phone notifications</h2><p class="small muted">This server isn\'t set up to send phone notifications. You still see everything under the bell.</p></div>'; return; }
     pushCard(box, r);
   }, {maxAge: 0});
 });
-const pushable = () => !Native.on && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-async function pushSub() { try { const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription(); } catch (e) { return null; } }
 async function pushCard(box, r) {
   if (!box) return;
-  const ios = /iPhone|iPad/.test(navigator.userAgent);
-  if (!r.push_ready) { box.innerHTML = ''; return; }
-  if (!pushable()) {
-    box.innerHTML = `<div class="card"><h2>Phone notifications</h2><p class="small muted">${Native.on ? 'Coming to the iPhone app with its App Store version. Until then, you see them under the bell.'
-      : ios ? 'On iPhone, add Kinetta to your Home Screen first (Share › Add to Home Screen), open it from there, then turn them on here.'
-      : "This browser can't show notifications. You still see them under the bell."}</p></div>`;
+  if (!Native.on) {
+    box.innerHTML = '<div class="card"><h2>iPhone notifications</h2><p>Open Kinetta’s native iPhone app to turn on phone notifications. Your notification history stays available here.</p></div>';
     return;
   }
-  const sub = await pushSub(), on = !!sub && Notification.permission === 'granted';
-  box.innerHTML = `<div class="card"><h2>Phone notifications</h2>
-    ${on ? `<div class="checks one" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${r.push[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>
-      <button class="ghost wide" id="np-off">Turn off on this device</button>`
-    : Notification.permission === 'denied' ? '<p class="small muted">Notifications are blocked for Kinetta in this browser\'s settings. Allow them there, then come back.</p>'
-    : `<p class="small muted">Get a notification on this device when someone sends a friend request, sends ${esc(CHEER.many)}, comments, or shares a dish.</p>
-      <button class="primary wide" id="np-on">${svg('heart')}Turn on</button>`}</div>`;
-  const b = $('#np-on', box);
+  if (!Native.pushSupported) {
+    box.innerHTML = '<div class="card"><h2>iPhone notifications</h2><p>Update Kinetta from TestFlight to enable iPhone notifications.</p></div>';
+    return;
+  }
+  const account = readOwner();
+  let status;
+  try { status = await Native.pushStatus(); }
+  catch (e) { if (box.isConnected) box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; return; }
+  if (!box.isConnected || account !== readOwner()) return;
+  box.innerHTML = `<div class="card"><h2>iPhone notifications</h2>
+    ${!r.push_ready ? '<p class="small muted">The server’s Apple notification setup is not complete yet. Your notifications still appear under the bell.</p>' : ''}
+    ${status.enabled ? `<div class="checks one" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${r.push[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>
+      <button class="ghost wide" id="np-off">Turn off on this iPhone</button>`
+      : status.denied ? '<p class="small muted">Notifications are blocked for Kinetta. Allow them in iPhone Settings → Notifications → Kinetta, then return here.</p>'
+      : `<p class="small muted">Get an alert on this iPhone for friend requests, ${esc(CHEER.many)}, comments, meals shared with you, and new workouts from your watch or Apple Health. Choose which ones after turning them on.</p>
+        <button class="primary wide" id="np-on">Turn on iPhone notifications</button>`}
+    <p class="err" role="alert" id="np-error"></p></div>`;
+  const error = $('#np-error', box), b = $('#np-on', box), off = $('#np-off', box);
   if (b) b.onclick = async () => {
-    b.disabled = true;
-    try {
-      if (await Notification.requestPermission() !== 'granted') { toast('Notifications were not allowed'); pushCard(box, r); return; }
-      const {key} = await api('/api/push/key'), reg = await navigator.serviceWorker.ready;
-      const raw = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - key.length % 4) % 4)), (ch) => ch.charCodeAt(0));
-      const s = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: raw});
-      await api('/api/push/subscribe', json('POST', s.toJSON()));
-      toast('Notifications on for this device'); pushCard(box, r);
-    } catch (x) { toast(x.message || 'Could not turn on notifications'); b.disabled = false; }
+    b.disabled = true; b.textContent = 'Connecting…'; error.textContent = '';
+    try { await Native.enablePush(); if (box.isConnected && account === readOwner()) pushCard(box, r); }
+    catch (x) { error.textContent = x.message; b.disabled = false; b.textContent = 'Turn on iPhone notifications'; }
   };
-  const off = $('#np-off', box);
   if (off) off.onclick = async () => {
-    off.disabled = true;
-    try { await api('/api/push/unsubscribe', json('POST', {endpoint: sub.endpoint})); await sub.unsubscribe(); toast('Notifications off for this device'); pushCard(box, r); }
-    catch (x) { toast(x.message); off.disabled = false; }
+    off.disabled = true; error.textContent = '';
+    try { await Native.disconnectPush({forget: true}); if (box.isConnected && account === readOwner()) pushCard(box, r); }
+    catch (x) { error.textContent = x.message; off.disabled = false; }
   };
   const kinds = $('#np-kinds', box);
   if (kinds) kinds.onchange = async (e) => {
-    const k = e.target.name, v = e.target.checked;
-    try { r.push = (await api('/api/notifications/settings', json('PUT', {[k]: v}))).push; invalidate('/api/notifications'); }
-    catch (x) { e.target.checked = !v; toast(x.message); }
+    const k = e.target.name, v = e.target.checked; e.target.disabled = true;
+    try { const fresh = await api('/api/notifications/settings', json('PUT', {[k]: v})); if (account === readOwner()) { r.push = fresh.push; invalidate('/api/notifications'); } }
+    catch (x) { e.target.checked = !v; error.textContent = x.message; }
+    finally { e.target.disabled = false; }
   };
 }

@@ -29,6 +29,7 @@ const Native = (() => {
   N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   N.login = async (server, login, password) => {
+    await N.disconnectPush();
     await N.disconnectHealth();
     N.base = N.address(server); if (!N.base) throw new Error("Enter your Kinetta server's address.");
     const r = await api('/api/login', json('POST', {login, password, app: true}));
@@ -49,7 +50,71 @@ const Native = (() => {
     }
   };
   if (on) new MutationObserver(fill).observe(document.documentElement, {childList: true, subtree: true});
-  N.forget = async () => { if (on) await N.disconnectHealth(); N.token = null; if (on) await put('token', null); };
+  N.forget = async () => { if (on) { await N.disconnectPush({signedOut: true}); await N.disconnectHealth(); } N.token = null; if (on) await put('token', null); };
+
+  // ---------- Native iPhone notifications ----------
+  const push = P.KinettaPush;
+  let pushTask = null, pushEnableTask = null, pushAccount = null, pushAt = 0;
+  const pushOwner = () => App.me && JSON.stringify([N.base, App.me.id]);
+  N.pushSupported = !!push;
+  N.pushStatus = async () => {
+    if (!push) return {supported: false};
+    const status = await push.status();
+    return {...status, supported: true, enabled: status.allowed && (await get('push.owner')) === pushOwner()};
+  };
+  N.registerPush = async (request = false) => {
+    const account = pushOwner(), token = N.token;
+    if (!push || !account || !token) throw new Error('Log in to the iPhone app to enable notifications.');
+    const device = await N.healthCall(push.register({request}), 'Apple notification registration timed out.', request ? 120000 : 20000);
+    if (account !== pushOwner() || token !== N.token) throw new Error('Notification registration stopped because the account changed.');
+    await api('/api/push/ios', json('POST', device));
+    if (account !== pushOwner() || token !== N.token) return;
+    await put('push.owner', account); await put('push.wanted', account);
+  };
+  N.enablePush = () => pushEnableTask || (pushEnableTask = (async () => {
+    if (pushTask) await pushTask;
+    pushTask = N.registerPush(true);
+    try { await pushTask; } finally { pushTask = null; }
+  })().finally(() => { pushEnableTask = null; }));
+  // forget: turned off on purpose. Logging out (or in again) keeps the wish, so the same account gets alerts back.
+  N.disconnectPush = async ({signedOut = false, forget = false} = {}) => {
+    if (!push) return;
+    // Finish any registration before removing it, so a late response cannot re-register the old login.
+    if (pushEnableTask) await pushEnableTask.catch(() => {});
+    if (pushTask) await pushTask.catch(() => {});
+    if (N.token) {
+      try { await api('/api/push/ios', {method: 'DELETE'}); }
+      catch (e) { if (!signedOut && e.status !== 401) throw e; }
+    }
+    await put('push.owner', null); if (forget) await put('push.wanted', null); pushAccount = null; pushAt = 0;
+    await push.unregister();
+  };
+  const openPush = async () => {
+    if (!push || !App.me) return;
+    const account = pushOwner();
+    const {url} = await push.takePending();
+    if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people)|food\/cook\/\d+)$/.test(url)) go(url);
+  };
+  N.syncPush = () => {
+    if (!push || !App.me || !N.token) return;
+    openPush().catch(() => {});
+    const account = pushOwner();
+    if (pushTask || (pushAccount === account && Date.now() - pushAt < 60000)) return;
+    pushAccount = account; pushAt = Date.now();
+    pushTask = (async () => {
+      const st = await N.pushStatus();
+      if (account === pushOwner() && st.allowed && (st.enabled || (await get('push.wanted')) === account)) await N.registerPush();
+    })().catch(() => { pushAt = 0; }).finally(() => { pushTask = null; });
+  };
+  // the number on the app icon: the unread count, so reading them under the bell clears it
+  let badgeShown = null;
+  N.setBadge = (n) => { if (!push || !push.setBadge || n === badgeShown) return; badgeShown = n; push.setBadge({count: n}).catch(() => { badgeShown = null; }); };
+  if (push) {
+    push.addListener('notificationOpened', () => openPush().catch(() => {}));
+    const back = () => { N.syncPush(); if (typeof Social !== 'undefined') { Social.at = 0; Social.refresh(); } };
+    window.addEventListener('focus', back);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) back(); });
+  }
 
   // ---------- Apple Health ----------
   const ASK = ['READ_WORKOUTS', 'READ_HEART_RATE', 'READ_ROUTE', 'READ_DISTANCE', 'READ_ACTIVE_CALORIES', 'READ_STEPS'];
