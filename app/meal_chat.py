@@ -5,8 +5,8 @@
 matched against the person's own records only: saved Meals (dishes), Saved combinations, My foods and foods they
 have logged before. Amounts come from what they said, or from the amount they used last time. It is fixed SQL plus
 arithmetic: zero model calls, so it works with AI turned off (and behind a future paywall). Anything that isn't found
-comes back as `unknown`; the phone may send just those words to the existing AI estimator when the person has AI
-access and consent.
+comes back as `unknown`; the phone checks public branded catalogs and offers an explicit optional estimate.
+Only opted-in unknown words go to the existing estimator with AI access and consent.
 
 Resolve is read-only and stateless: the phone sends back the conversation (`parts`) with each new message. Confirm
 recalculates every item on the server under lock, checks each item's 15-minute preview fingerprint, and uses
@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from . import db
 from . import api_dishes as dishes
-from .api_food import _custom_food
+from .api_food import _custom_food, _search_off, _search_usda
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food/meals-chat')
@@ -281,7 +281,7 @@ def catalog_for(c, uid):
     tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
     out = []
     def add(kind, row, name, recent, saved_day=None):
-        words = name_words(name); phrase = tuple(toks(name))
+        words = name_words(name + ' ' + (row.get('brand') or '')); phrase = tuple(toks(name))
         if not words: return
         # a one-word name that is also a number/meal word ("Lunch") is never protected as a phrase
         protectable = not (len(phrase) == 1 and (phrase[0] in FILLER or phrase[0] in COUNTS or phrase[0] in MEAL_WORDS))
@@ -317,7 +317,7 @@ def matches(part, catalog, saved_day):
             for e in pool:
                 n = set(e['words'])
                 if q <= n: scored.append((len(q) / len(n), e))                       # every word you said is in its name
-                elif n <= q and len(n) / len(q) >= 2 / 3: scored.append((len(n) / len(q) - .01, e))   # its name, plus a word
+                # Never drop an extra word: it may identify a different brand or variant.
             if not scored:
                 return matches(part, catalog, None) if saved_day else []
             scored.sort(key=lambda x: -x[0])
@@ -385,10 +385,10 @@ def settle(c, uid, e, p):
 def compute(c, uid, kind, row, p):
     """Entries to log for one food at portion p, from stored values only. Returns (entries, None) or (None, why)."""
     if kind == 'dish':
-        if not row['items'] and row['known_kcal'] is None: return None, 'Add nutrition to this meal first in My meals.'
+        if not row['items'] and row['known_kcal'] is None: return None, 'Add nutrition to this meal first in My Recipes.'
         weight = dishes._weight(row)
         if 'grams' in p:
-            if not weight: return None, 'This meal has no total weight. Say half, a quarter or a number of servings, or add its weight in My meals.'
+            if not weight: return None, 'This meal has no total weight. Say half, a quarter or a number of servings, or add its weight in My Recipes.'
             f, amount_, unit = p['grams'] / weight, round(p['grams'], 1), 'g'
         elif 'count' in p:
             if p['count'] > 20: return None, 'Use up to 20 whole-meal servings.'
@@ -577,6 +577,39 @@ def resolve(body: ResolveIn, user=Depends(current_user)):
             'note': note, 'issued': issued, 'client_id': str(uuid.uuid4()), 'message': summary(items, note)}
 
 
+@router.get('/products')
+def products(text: str, user=Depends(current_user)):
+    """Public catalog candidates, never a guessed brand substitution or an automatic write.
+
+    Keep all name/brand words after removing the spoken portion. A human checks the
+    package and serving on the phone; catalog availability and completeness vary.
+    """
+    if not 2 <= len(text.strip()) <= 200:
+        raise HTTPException(400, 'Use a product name up to 200 characters')
+    portion, remaining = amount(raw(text))
+    # Do not discard brand words such as 'Other', 'Simply' or 'Whole' as
+    # conversation filler. Only strip grammatical lead-ins around the portion.
+    words = [stem(t) for t in (remaining or []) if t not in {'i', 'had', 'ate', 'of', 'the', 'a', 'an', 'my'}]
+    if remaining is None or re.search(r'-\s*\d', text) or not words:
+        return {'query': '', 'foods': [], 'portion': None}
+    query = ' '.join(words)[:80]
+    # Avoid a truncated query being treated as a complete product description.
+    if len(' '.join(words)) > 80:
+        return {'query': query, 'foods': [], 'portion': portion}
+    foods, seen = [], set()
+    for f in _search_usda(query) + _search_off(query):
+        brand = f.get('brand') or ''
+        name = f.get('name') or ''
+        tokens = {stem(t) for t in raw(name + ' ' + brand)}
+        key = (name.lower(), brand.lower())
+        # Branded products only, every requested word present; no similar generic food.
+        if not brand.strip() or not set(words) <= tokens or key in seen:
+            continue
+        seen.add(key)
+        foods.append(f)
+    return {'query': query, 'foods': foods[:8], 'portion': portion}
+
+
 def pick_entry(p, catalog):
     if not p.get('pick'): return None
     return next((e for e in catalog if e['kind'] == p['pick']['kind'] and e['id'] == p['pick']['id']), None)
@@ -612,7 +645,7 @@ def item_for(c, uid, p, catalog, issued=None):
     return out
 
 
-KIND_LABEL = {'dish': 'Saved meal', 'combo': 'Saved combination', 'custom': 'My food', 'food': 'Logged before'}
+KIND_LABEL = {'dish': 'Saved recipe', 'combo': 'Saved combination', 'custom': 'My food', 'food': 'Logged before'}
 
 
 def choice(e):

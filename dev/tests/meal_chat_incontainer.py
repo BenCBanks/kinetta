@@ -51,3 +51,51 @@ try:
 finally:
     if uid:
         with db.connect() as c: c.execute('DELETE FROM users WHERE id=%s AND login=%s', (uid, 'zz_test_meal_dates'))
+
+# Product descriptions use public databases before an optional estimate, with all
+# name/brand words retained and no personal catalog or model involved.
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from app.main import app
+from app.auth import current_user
+product = {'source': 'usda', 'id': 99001, 'name': 'Cocoa Crisp Cereal', 'brand': 'Example Brand',
+           'per100': {'kcal': 400, 'protein_g': 10, 'carbs_g': 80, 'fat_g': 4, 'fiber_g': 2},
+           'serving': {'g': 30, 'label': '30 g'}}
+other = {**product, 'brand': 'Other Brand'}
+generic = {**product, 'brand': None}
+with patch.object(chat, '_search_usda', return_value=[other, generic, product]) as usda, patch.object(chat, '_search_off', return_value=[product]), patch.object(food_photo, 'ask', side_effect=AssertionError('no model')):
+    r = chat.products('60 grams Example Brand Cocoa Crisp Cereal', {'id': -1})
+    assert r['foods'] == [product] and r['portion'] == {'grams': 60}, r
+    assert usda.call_args.args == ('example brand cocoa crisp cereal',), usda.call_args
+    assert chat.products('Other Brand Cocoa Crisp Cereal', {'id': -1})['foods'] == [other]
+    assert chat.products('Unknown Brand Cocoa Crisp Cereal', {'id': -1})['foods'] == []
+    assert chat.products('-60g Example Cereal', {'id': -1})['foods'] == []
+    app.dependency_overrides[current_user] = lambda: {'id': -1}
+    try:
+        client = TestClient(app)
+        response = client.get('/api/food/meals-chat/products', params={'text': '60 grams Example Brand Cocoa Crisp Cereal'})
+        assert response.status_code == 200 and response.json()['foods'] == [product]
+        assert client.get('/api/food/meals-chat/products', params={'text': 'x' * 201}).status_code == 400
+    finally: app.dependency_overrides.pop(current_user, None)
+    assert TestClient(app).get('/api/food/meals-chat/products?text=cereal').status_code == 401
+with patch.object(chat, '_search_usda', return_value=[]), patch.object(chat, '_search_off', return_value=[]):
+    assert chat.products('Example Brand Cereal', {'id': -1})['foods'] == []
+print('Product lookup: authenticated, bounded, portion-free full brand query; no generic/other-brand substitution, dedup, no-model and empty catalogs passed')
+
+from app import api_food
+uid = None
+try:
+    with db.connect() as c:
+        uid = c.execute("INSERT INTO users (login,name) VALUES ('zz_test_product_brand','Brand Test') RETURNING id").fetchone()['id']
+        c.execute('INSERT INTO profile (user_id) VALUES (%s)', (uid,))
+    user = {'id': uid}
+    api_food.food_add(api_food.FoodIn(name='Greek Yogurt', kcal=100), user)
+    r = chat.resolve(chat.ResolveIn(say='Example Greek Yogurt'), user)
+    assert r['items'][0]['status'] == 'unknown', 'an extra brand must not silently match generic stored yogurt'
+    branded = api_food.food_add(api_food.FoodIn(name='Greek Yogurt', brand='Example', kcal=120), user)
+    r = chat.resolve(chat.ResolveIn(say='Example Greek Yogurt'), user)
+    assert r['items'][0]['status'] == 'ready' and r['items'][0]['id'] == branded['id'], r
+    print('Stored foods: brand-aware matching; an extra brand cannot silently fall back to a generic food')
+finally:
+    if uid:
+        with db.connect() as c: c.execute("DELETE FROM users WHERE id=%s AND login='zz_test_product_brand'", (uid,))

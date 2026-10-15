@@ -161,11 +161,11 @@ how-to and a real destination for every feature. The same 36-entry catalog gener
 `node dev/design/build_guide.js`; CI checks drift. Explain why body inputs affect estimated needs without promising
 medical accuracy or implying that these fields are public. No forced tour or one-time dismissal hides the guide.
 
-Use **Meals**, **My meals**, and **Saved combinations** in user-facing app/site copy. My meals means log, edit or create;
+Use **My Recipes** for reusable recipes, **My foods** for individual saved foods, and **Saved combinations** in user-facing app/site copy. My Recipes means log, edit or create;
 provide explicit edit controls and retain unfinished named meals. Keep existing API/storage identifiers for compatibility.
-Direct food search remains because food-photo estimates currently do not first consult USDA and AI is optional.
+Direct food search remains. Described unknown products consult USDA/Open Food Facts before an optional estimate; photo estimates remain separate. Today’s energy balance stays collapsed with its number inside the breakdown; past days retain their balance summary. Nutrition help links directly to private body settings. Describe, Snap or Scan opens a full page with the same composer pattern as Cook a meal; scanning lives in its + menu.
 
-Describing food is a conversation with as little effort as possible: one sentence can hold several foods, the log day and the meal; follow-ups change, add or remove foods. Match the person's own foods first (no AI). Each row shows name, amount and calories; ✕ removes, a tap offers Half/Double. Ambiguity asks for a choice; a meal never logged by weight offers All of it / Half / A quarter. Only unknown foods may go to the AI estimator (with access and consent), shown as "AI estimate"; without AI they get a Search button. Add is the explicit confirmation. Never invent nutrition for a saved food that can't be found.
+Describing food is a conversation with as little effort as possible: one sentence can hold several foods, the log day and the meal; follow-ups change, add or remove foods. Match the person's own foods first (no AI). Each row shows name, amount and calories; ✕ removes, a tap offers Half/Double. Ambiguity asks for a choice; a meal never logged by weight offers All of it / Half / A quarter. Only unknown foods explicitly selected for estimation may go to the AI estimator (with access and consent), shown as "AI estimate"; without AI they get a Search button. Add is the explicit confirmation. Never invent nutrition for a saved food that can't be found.
 
 A non-AI account gets clear manual food/ingredient search, barcode and known-total controls. Do not fill its screens
 with locked AI prompts. Existing AI reviews remain readable; generation controls require both product access and

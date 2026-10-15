@@ -81,7 +81,7 @@ function drawDish(el, d) {
   // Done: back to Nutrition (a dish with nothing in it and no name isn't kept)
   $('#dk-done', el).onclick = () => {
     if (!has && !$('#dk-name', el).value.trim()) { api(`/api/dishes/${d.id}`, {method: 'DELETE'}).catch(() => {}); App.cache.delete('/api/dishes'); }
-    else if (has) toast('Saved. Log it from Add food > Saved Meals');
+    else if (has) toast('Saved. Log it from My Recipes');
     go('/food', {replace: true});
   };
   // the name, edited in place: saved when you leave the box or press Done on the keyboard
@@ -277,7 +277,7 @@ function cookSteps(d) {
   const steps = [
     [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it the way you\'d text it, or tap + to scan a barcode or photograph the label.'],
     [added, 'Say how it\'s measured', 'By servings (the whole meal is one serving, like a smoothie; log 2 if you had two) or by weight (a pot of chili: you log grams).'],
-    [false, 'Log it when you eat it', 'Add food > Saved Meals, any day. It stays saved until you delete it.'],
+    [false, 'Log it when you eat it', 'My Recipes, any day. It stays saved until you delete it.'],
   ];
   const now = added ? 2 : 0;
   return `<ol class="card cook-steps" aria-label="How meals work">${steps.map(([done, title, sub], i) =>

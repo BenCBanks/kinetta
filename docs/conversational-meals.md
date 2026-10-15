@@ -1,6 +1,6 @@
 # Describe what you ate
 
-In **Nutrition → Add food**, tap **Describe or snap** (or **Describe it** when AI is off), or **My meals → Describe
+In **Nutrition → Add food**, tap **Describe, Snap or Scan**, or **My Recipes → Describe
 what you ate**. Type the way you'd tell a friend:
 
 - “2 eggs and toast for breakfast”
@@ -42,7 +42,8 @@ Matching ignores capitals, accents and plurals (taco/tacos). Names with “and�
 “5 bean chili”) are recognised as one food. If a word matches several foods, you choose. If nothing matches, the food
 is **not** guessed:
 
-- With AI access and consent, only the words of the foods that weren't found (for example “a hot dog”) go to the AI
+- First, Kinetta checks USDA and Open Food Facts for branded products containing every requested name/brand word. Choose a candidate, check the package and serving, then confirm its amount. No generic substitute is silently logged. Coverage and catalog accuracy vary; search or scan the barcode if the exact product is missing. Database failures retain Search and Retry options.
+- With AI access and consent, tap **Estimate with AI** (or **Use an AI estimate instead**). Only the words of the foods that weren't found (for example “a hot dog”) go to the AI
   estimator, and its estimate is shown as **AI estimate**, editable, in the same list. Later corrections about that
   food go to the AI as well. Your saved foods, recipes and history are never sent.
 - With AI off, the food gets a **Search for “…”** button. After you add the rest, Add food opens on Search with those
@@ -54,7 +55,7 @@ A photo still goes to the AI estimator with whatever you say about it.
 
 Looking things up is fixed SQL and arithmetic: **zero model calls**, no embeddings, no new dependency. It works with no
 AI access and no AI consent, so food logging keeps working if AI is turned off or later sold separately
-(`app/ai_access.py` gates only the estimator). One AI request per message at most, and only for unknown foods.
+(`app/ai_access.py` gates only the estimator). No model request is made by typing an unknown food: estimates require an explicit choice. Public product queries contain the unknown product words, never saved recipes or account details. Photos and later corrections to an opted-in estimate still use the existing estimator.
 
 ## Safety
 
@@ -64,3 +65,7 @@ every food under lock from your own rows, checks each item's 15-minute fingerpri
 again) and calculates the nutrition on the server. Each logged entry gets a client ID derived from the confirmation,
 so a retry after a lost answer returns the same entries, even if the meal was edited or deleted in between. No schema
 change.
+
+## Edit saved food
+
+Open **Nutrition → My Recipes & foods · edit or create**. Recipe rows have a visible **Edit** button for ingredients, weight and totals; My foods has its own **Edit** buttons. Tapping the row still logs a portion. Nutrition’s help icon links to **Me → Body & heart rate** for weight, height, birth year and sex.

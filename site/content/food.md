@@ -60,7 +60,7 @@ Your food log, with or without AI.
 
 ## search-usda-and-open-food-facts-scan-barcodes-or-enter-15
 
-Search USDA and Open Food Facts, scan barcodes or enter known calories and macros. Open My meals to log, edit or create a reusable meal. Optional AI estimates and label reading are separate from these everyday tools.
+Search USDA and Open Food Facts, scan barcodes or enter known calories and macros. Open My Recipes to log, edit or create a reusable meal. Optional AI estimates and label reading are separate from these everyday tools.
 
 ## training-training-food-food-friends-friends-compare-co-16
 

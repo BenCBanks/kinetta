@@ -76,3 +76,17 @@ with server-denial, consent, isolation and non-AI regression coverage.
 
 Describe or snap first matches the person's own foods (saved meals, combinations, My foods, logged history) with fixed SQL and arithmetic and no provider work (`app/meal_chat.py`, `docs/conversational-meals.md`). Only the words of foods that weren't found, or a photo, go to the existing model estimator, behind the usual food access/consent/usage checks; it does **not** guarantee a USDA lookup.
 Adding a grounded lookup stage is a separate prompt/model change requiring the reviewed food evaluation process.
+
+## Described branded products
+
+Food descriptions still resolve against the authenticated person's saved records first. Unknown food words can be
+looked up in the existing USDA/Open Food Facts catalogs through the authenticated `/api/food/meals-chat/products`
+read endpoint. It removes the spoken amount, preserves brand/name words, keeps only branded candidates containing
+all requested words, and returns at most eight. Public queries contain product words only, with the existing provider
+cache and pacing; no private recipe contents, history or identity is sent to the catalogs. Catalog completeness and
+accuracy are not guaranteed. The person selects a product, checks the package/serving and confirms an amount using
+the normal validated food-entry API. No new schema, arbitrary tools, prompts or model configuration are introduced.
+
+No unknown text is automatically estimated: a separate, explicit estimate button uses the existing access/consent-gated
+food estimator. Photos and corrections to an explicitly chosen estimate retain their existing behavior and validation.
+Existing reviewed-evaluation release gates continue to apply to subsequent model or prompt changes.
