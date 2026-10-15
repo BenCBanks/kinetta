@@ -76,6 +76,17 @@ try:
     assert record['status']=='done' and record['failed']==0 and record['added']==0, record
     assert activity(file_aid)['line'] and activity(file_aid)['distance_m']==1600
     assert send(owner, summary)['results'][0]['activity_id']==file_aid and activity(file_aid)['line']
+    # Sparse Health readings use elapsed HR time rather than the short GPS/moving mask.
+    sparse_start=start-dt.timedelta(days=8)
+    sparse={**base,'id':'health-details-sparse-fixture','start':sparse_start.isoformat(),
+        'end':(sparse_start+dt.timedelta(seconds=363)).isoformat(),'duration_s':363,'distance_m':1200,
+        'heart_rate':[{'t':(sparse_start+dt.timedelta(seconds=t)).isoformat(),'bpm':h} for t,h in zip([0,3,123,243,363],[72,72,142,152,150])]}
+    sparse_aid=send(owner,sparse)['results'][0]['activity_id']
+    expected_hr=(72*3+107*120+147*120+151*120)/363
+    assert abs(activity(sparse_aid)['avg_hr']-expected_hr)<.001
+    assert activity(sparse_aid)['moving_s']==363 and sum(activity(sparse_aid)['zones'])==363
+    assert send(owner,sparse)['updated']==0
+    assert other.get(f'/api/activities/{sparse_aid}')[0]==404
     # Same time and distance do not merge different sports.
     bike = send(owner, {**summary,'id':'health-details-fixture-bike','type':'cycling'})
     assert bike['added']==1 and bike['results'][0]['activity_id']!=file_aid

@@ -14,6 +14,7 @@ don't get an automatic coach note here.
 """
 import datetime as dt
 import json
+import math
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -123,6 +124,14 @@ def _known(uid, wid):
     return r['id'] if r else None
 
 
+
+def _same_measurement(a, b):
+    # Activity summaries use PostgreSQL real (float32); JSON provenance keeps the original Python precision.
+    # Ignore only storage rounding, so a replay still recognizes its own imported value without losing edits.
+    if a is None or b is None: return a is b
+    return math.isclose(a, b, rel_tol=1e-6, abs_tol=1e-6)
+
+
 def enrich(uid, aid, w, parsed, meta):
     """Fill missing details on this user's compatible activity, preserving edits and fuller imports."""
     with db.connect() as c:
@@ -151,12 +160,17 @@ def enrich(uid, aid, w, parsed, meta):
             value = activities.num(summ.get(k))
             if value is None: continue
             current = a.get(k)
-            if a['source'] == 'healthkit' and current == value: imported.setdefault(k, value)
+            if a['source'] == 'healthkit' and _same_measurement(current, value): imported.setdefault(k, value)
             # Preserve user corrections, and never replace another import's nonempty summary.
-            if current is None or (a['source'] == 'healthkit' and k in previous and current == previous[k]) or (
+            if current is None or (a['source'] == 'healthkit' and k in previous and _same_measurement(current, previous[k])) or (
                 a['source'] == 'healthkit' and k in ('ascent_m', 'descent_m') and current == 0 and not previous and not any(v is not None for v in old['alt'])):
-                if current != value: updates[k] = value
+                if not _same_measurement(current, value): updates[k] = value
                 imported[k] = value
+        # A replay can correct the old sparse-HR average even when its recording did not change.
+        # Keep the matching derived HR summary in step without rebuilding unrelated GPS/route records.
+        if not changed and 'avg_hr' in updates:
+            updates['zones'] = json.dumps(summ.get('zones'))
+            updates['effort'] = activities.num(summ.get('effort'))
         if changed and st['t']:
             cols = ('t',) + parsers.STREAMS
             arrays = [activities._floats(st[k]) for k in cols]

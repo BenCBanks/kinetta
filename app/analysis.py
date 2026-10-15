@@ -133,6 +133,21 @@ def _wmean(vals, w):
     return float(np.sum(vals[ok] * w[ok]) / np.sum(w[ok]))
 
 
+
+def heart_intervals(S):
+    """Observed HR intervals, independent of GPS/movement sampling.
+
+    Health sources can provide one reading every two minutes. Bridge at most five minutes between valid readings,
+    use their midpoint over the elapsed interval, and never extrapolate before/after observations or across outages.
+    """
+    if S['hr'] is None or S['n'] < 2: return np.array([]), np.array([])
+    valid = np.isfinite(S['t']) & np.isfinite(S['hr']) & (S['hr'] > 0)
+    times, beats = S['t'][valid], S['hr'][valid]
+    gaps = np.diff(times)
+    keep = (gaps > 0) & (gaps <= 300)
+    return ((beats[:-1] + beats[1:]) / 2)[keep], gaps[keep]
+
+
 def summary(S, sport, session, profile):
     n, dt, mv = S['n'], S['dt'], S['moving']
     out = {}
@@ -145,7 +160,7 @@ def summary(S, sport, session, profile):
     out['descent_m'] = session.get('descent_m') if session.get('descent_m') is not None else down
     w = np.where(mv, dt, 0) if n > 1 else None
     seg = lambda a: None if a is None else (a[:-1] + a[1:]) / 2   # value over each interval
-    out['avg_hr'] = _wmean(seg(S['hr']), w) if n > 1 else session.get('avg_hr')
+    out['avg_hr'] = _wmean(*heart_intervals(S)) if n > 1 else session.get('avg_hr')
     out['max_hr'] = float(np.nanmax(S['hr'])) if S['hr'] is not None and not np.isnan(S['hr']).all() else session.get('max_hr')
     out['avg_cad'] = _wmean(seg(S['cad']), w) if n > 1 else None
     out['avg_power'] = _wmean(seg(S['power']), w) if n > 1 else session.get('avg_power')
@@ -206,8 +221,7 @@ def extras(S, sport, session, out):
 
 def hr_zones(S, hrmax):
     if S['hr'] is None or S['n'] < 2: return None
-    h = (S['hr'][:-1] + S['hr'][1:]) / 2
-    w = np.where((S['dt'] > 0) & (S['dt'] <= 30), S['dt'], 0)
+    h, w = heart_intervals(S)
     bounds = [0, .6, .7, .8, .9, 9]
     z = [float(np.sum(w[(h >= hrmax * bounds[i]) & (h < hrmax * bounds[i + 1])])) for i in range(5)]
     return z if sum(z) > 0 else None
@@ -215,8 +229,8 @@ def hr_zones(S, hrmax):
 
 def trimp(S, hrmax, hrrest, sex):
     if S['hr'] is None or S['n'] < 2 or hrmax <= hrrest: return None
-    h = (S['hr'][:-1] + S['hr'][1:]) / 2
-    w = np.where((S['dt'] > 0) & (S['dt'] <= 30) & ~np.isnan(h), S['dt'], 0) / 60
+    h, w = heart_intervals(S)
+    w = w / 60
     r = np.clip((np.nan_to_num(h) - hrrest) / (hrmax - hrrest), 0, 1.1)
     k = 1.67 if (sex or '').lower().startswith('f') else 1.92
     v = float(np.sum(w * r * 0.64 * np.exp(k * r)))
