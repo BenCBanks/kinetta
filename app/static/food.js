@@ -320,15 +320,15 @@ function tSearch(body, where, close) {
     $$('[data-i]', out).forEach((x) => x.onclick = () => amountSheet(all[+x.dataset.i], where(), close));
   };
   const run = async (q) => {
-    const my = ++seq; out.innerHTML = ''; if (q.length < 2) { out.innerHTML = ''; return; }
+    const my = ++seq; if (!inp.isConnected) return; out.innerHTML = ''; if (q.length < 2) { out.innerHTML = ''; return; }
     try {   // fast local results first, then the databases
       const local = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=mine`);
-      if (my !== seq) return;
+      if (my !== seq || !inp.isConnected) return;
       const recent = local.recent.map(recentToFood);
       draw([['My foods', local.mine], ['Recent', recent]]);
       out.insertAdjacentHTML('beforeend', '<p class="small muted" id="ts-load">Searching food databases…</p>');
       const ext = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=off,usda`);
-      if (my !== seq) return;
+      if (my !== seq || !inp.isConnected) return;
       draw([['My foods', local.mine], ['Recent', recent], ['USDA', ext.usda], ['Open Food Facts', ext.off]]);
     } catch (x) { if (my === seq) {
       $('#ts-load', out)?.remove();
@@ -336,7 +336,12 @@ function tSearch(body, where, close) {
       $('#ts-retry', out).onclick = () => { out.innerHTML = ''; run(inp.value.trim()); };
     } }
   };
-  inp.oninput = () => { clearTimeout(timer); timer = setTimeout(() => run(inp.value.trim()), 300); };
+  inp.oninput = () => {
+    clearTimeout(timer); ++seq; all = [];
+    const q = inp.value.trim();
+    out.innerHTML = q.length < 2 ? '' : '<p class="small muted" role="status">Searching…</p>';
+    timer = setTimeout(() => run(q), 300);
+  };
   $('#ts-f', body).onsubmit = (e) => { e.preventDefault(); clearTimeout(timer); run(inp.value.trim()); inp.blur(); };
 }
 const recentToFood = (r) => (r.ref ? {...r.ref, name: r.name, brand: r.brand, _last: r} :

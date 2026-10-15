@@ -188,3 +188,8 @@ Beta forms and successful confirmations always provide a return link to the publ
 Feed performance: reuse a fresh15-second cached first page and coalesce concurrent identical reads, avoiding duplicate
 requests and unnecessary map/card reconstruction when refreshed records are unchanged. Preserve account guards, cache
 invalidation after edits/Cheers and pagination. Validate network counts with delayed synthetic responses before claiming gains.
+
+Async responses must belong to both the current account and the current read revision. Invalidation prevents an
+older GET/prefetch/merged-feed response from restoring stale records after an edit. Delayed401s and notification
+counts from a previous account must not change a new login. Food-search input invalidates older results immediately,
+including during debounce; clearing/closing search cancels queued work. Preserve the fast cached-first behavior.

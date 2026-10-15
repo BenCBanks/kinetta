@@ -10,7 +10,15 @@ const col = (name) => getComputedStyle(document.documentElement).getPropertyValu
 const App = {me: null, cache: new Map(), pages: [], scroll: {}};
 // A quick tap can prefetch and open the same page before either request finishes.
 const pendingReads = new Map();
-const readOwner = () => JSON.stringify([Native.base, Native.token, App.me && App.me.id]);
+const readEpochs = new Map();
+const readEpoch = (path) => readEpochs.get(path) || 0;
+// A new cookie login to the same account is still a different session.
+const readSessions = new WeakMap();
+let readSession = 0;
+const readOwner = () => {
+  if (App.me && !readSessions.has(App.me)) readSessions.set(App.me, ++readSession);
+  return JSON.stringify([Native.base, Native.token, App.me && App.me.id, App.me ? readSessions.get(App.me) : 0]);
+};
 function readOnce(path) {
   const key = JSON.stringify([readOwner(), path]);
   if (!pendingReads.has(key)) {
@@ -22,17 +30,19 @@ function readOnce(path) {
 
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
+  const owner = readOwner();
   let r;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
   try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, headers: {...headers, ...Native.headers(), ...(opts.headers || {})}}); }
   catch (e) { throw Object.assign(new Error("Can't reach Kinetta - check your connection."), {offline: true}); }
   let body = null; try { body = await r.json(); } catch (e) { /* empty */ }
+  if (owner !== readOwner()) throw Object.assign(new Error('The account changed while this request was running. Please try again.'), {stale: true});
   if (!r.ok) {
     const d = body && body.detail;
     const e = new Error(typeof d === 'string' ? d : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : `Error ${r.status}`);
     e.status = r.status;
-    if (r.status === 401 && App.me) { App.me = null; showLogin('Please log in again.'); }
+    if (r.status === 401 && App.me && owner === readOwner()) { App.me = null; showLogin('Please log in again.'); }
     throw e;
   }
   return body;
@@ -41,7 +51,7 @@ const json = (method, body) => ({method, body: JSON.stringify(body)});
 // Calls render(data) at once with cached data (if any), then again with fresh data when it arrives.
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
 async function load(path, render, {maxAge = 15000} = {}) {
-  const owner = readOwner();
+  const owner = readOwner(), epoch = readEpoch(path);
   let hit = App.cache.get(path);
   // the phone's saved copy shows at once (fresh data replaces it a moment later), except yesterday's "today" food log
   if (!hit) { const k = kept(path); if (k && !(k.day && !path.includes('d=') && k.day !== isoDay(new Date()))) { hit = {data: k, at: 0}; App.cache.set(path, hit); } }
@@ -50,14 +60,14 @@ async function load(path, render, {maxAge = 15000} = {}) {
   let data;
   try { data = await readOnce(path); }
   catch (e) {
-    if (owner !== readOwner()) return null;
+    if (owner !== readOwner() || epoch !== readEpoch(path)) return null;
     if (!e.offline) throw e;
     netState(true);
     if (hit) return hit.data;
     const k = kept(path); if (!k) throw e;
     App.cache.set(path, {data: k, at: 0}); render(k, true); return k;
   }
-  if (owner !== readOwner()) return null;
+  if (owner !== readOwner() || epoch !== readEpoch(path)) return null;
   netState(false);
   App.cache.set(path, {data, at: Date.now()}); keep(path, data);
   if (!hit || JSON.stringify(hit.data) !== JSON.stringify(data)) render(data, false);
@@ -150,15 +160,19 @@ function netbar() {
 addEventListener('online', () => { netState(false); Q.flush(); });
 addEventListener('offline', () => netState(true));
 setInterval(() => { if (Q.mine().length) Q.flush(); }, 30000);
+function invalidateFeed() {
+  readEpochs.set('feed:home', readEpoch('feed:home') + 1); App.cache.delete('feed:home');
+}
 const invalidate = (prefix) => {
-  if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) App.cache.delete('feed:home');
-  for (const k of App.cache.keys()) if (k.startsWith(prefix)) App.cache.delete(k);
+  if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) invalidateFeed();
+  const paths = new Set([...App.cache.keys(), ...[...pendingReads.keys()].map((k) => JSON.parse(k)[1])]);
+  for (const p of paths) if (p.startsWith(prefix)) { readEpochs.set(p, readEpoch(p) + 1); App.cache.delete(p); }
   for (const k of pendingReads.keys()) if (JSON.parse(k)[1].startsWith(prefix)) pendingReads.delete(k);
 };
 const prefetch = (path) => {
-  const owner = readOwner();
+  const owner = readOwner(), epoch = readEpoch(path);
   if (!App.cache.has(path)) readOnce(path).then((data) => {
-    if (owner === readOwner()) App.cache.set(path, {data, at: Date.now()});
+    if (owner === readOwner() && epoch === readEpoch(path)) App.cache.set(path, {data, at: Date.now()});
   }).catch(() => {});
 };
 

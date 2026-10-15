@@ -60,9 +60,12 @@ const Social = {
   },
   refresh() {
     Social.badge();
-    if (!App.me || !navigator.onLine || Date.now() - Social.at < 60000) return;
+    if (!App.me || !navigator.onLine) return;
+    const account = readOwner();
+    if (Social.owner !== account) { Social.owner = account; Social.at = 0; }
+    if (Date.now() - Social.at < 60000) return;
     Social.at = Date.now();
-    api('/api/notifications/count').then((r) => { App.me.notifications = r.unread; App.me.friend_requests = r.friend_requests; Social.badge(); }).catch(() => {});
+    api('/api/notifications/count').then((r) => { if (account !== readOwner() || !App.me) return; App.me.notifications = r.unread; App.me.friend_requests = r.friend_requests; Social.badge(); }).catch(() => {});
   },
   set(n) { if (App.me && n != null) { App.me.friend_requests = n; Social.badge(); } },
 };
@@ -93,10 +96,10 @@ async function homeFeed(el) {
     more.hidden = !pg.more; feedMaps(list); wireCheers(list);
   };
   const hit = App.cache.get('feed:home'); if (hit) draw(hit.data);
-  const account = readOwner();
+  const account = readOwner(), epoch = readEpoch('feed:home');
   // A fresh cached feed already contains the current cards/maps. Avoid fetching and rebuilding it.
   const fresh = hit && Date.now() - hit.at < 15000;
-  try { if (!fresh) { const pg = await feedPage(); if (account !== readOwner()) return; App.cache.set('feed:home', {data: pg, at: Date.now()}); if (list.isConnected && (!hit || JSON.stringify(hit.data) !== JSON.stringify(pg))) draw(pg); } }
+  try { if (!fresh) { const pg = await feedPage(); if (account !== readOwner() || epoch !== readEpoch('feed:home')) return; App.cache.set('feed:home', {data: pg, at: Date.now()}); if (list.isConnected && (!hit || JSON.stringify(hit.data) !== JSON.stringify(pg))) draw(pg); } }
   catch (x) { if (!hit) throw x; }
   more.onclick = async () => {
     more.disabled = true; more.textContent = 'Loading…';
@@ -203,7 +206,7 @@ function cheerPile(cheers) {
 const cheersPeople = (cheers) => `<div class="card list">${cheers.length ? cheers.map((c) => `<div class="person" data-close>${personLink(c, cheerName(c))}</div>`).join('') : '<p class="small muted">No Cheers yet.</p>'}</div>`;
 function cheersSheet(cheers) { sheet(`${CHEER.title} · ${cheers.length}`, cheersPeople(cheers)); }
 function socialChanged(aid) {
-  invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); App.cache.delete('feed:home');
+  invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); invalidateFeed();
 }
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
 function commentsSheet(aid, s, onChange) {
@@ -243,7 +246,7 @@ function drawComments(box, aid, s, onChange) {
 const PHOTO_MAX = 10;
 const photoSrc = (p, thumb) => `/api/activity-photos/${p.id}${thumb ? '?size=thumb' : ''}`;
 function photoChanged(aid) {
-  invalidate('/api/activities/' + aid); invalidate('/api/shared/' + aid); invalidate('/api/activities?'); invalidate('/api/feed/friends'); App.cache.delete('feed:home');
+  invalidate('/api/activities/' + aid); invalidate('/api/shared/' + aid); invalidate('/api/activities?'); invalidate('/api/feed/friends'); invalidateFeed();
 }
 function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null} = {}) {
   if (!box) return;
@@ -380,7 +383,7 @@ route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
         if (act.dataset.personAction === 'cancel') await api(path, {method: 'DELETE'});
         else if (act.dataset.personAction === 'accept') await api(path + '/accept', json('POST', {}));
         else await api('/api/friends', json('POST', {login: p.login}));
-        invalidate('/api/friends'); invalidate('/api/people/'); App.cache.delete('feed:home');
+        invalidate('/api/friends'); invalidate('/api/people/'); invalidateFeed();
         if (box.isConnected) draw(await api('/api/people/' + encodeURIComponent(p.login) + '/profile'));
       } catch (x) { toast(x.message); act.disabled = false; }
     };
@@ -417,7 +420,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     incoming: `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button>`})[p.status] || `<button class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button>`;
   let last = null, people = [];
   const who = (login) => (people.find((p) => p.login === login) || {}).name || login;
-  const refresh = async () => { invalidate('/api/feed/friends'); invalidate('/api/people/'); App.cache.delete('feed:home'); App.cache.delete('/api/friends'); await load('/api/friends', draw, {maxAge: 0}); find(true); };
+  const refresh = async () => { invalidate('/api/feed/friends'); invalidate('/api/people/'); invalidateFeed(); App.cache.delete('/api/friends'); await load('/api/friends', draw, {maxAge: 0}); find(true); };
   const act = (box, sel, fn) => $$(sel, box).forEach((b) => b.onclick = async () => {
     b.disabled = true;
     try { if (await fn(b) === false) { b.disabled = false; return; } await refresh(); }
@@ -489,7 +492,7 @@ function reportSheet(p, what = {}, onBlocked) {
     };
     $('#rp-block', b).onclick = async () => {
       try {
-        await api(`/api/people/${encodeURIComponent(p.login)}/block`, json('POST', {})); invalidate('/api/'); App.cache.delete('feed:home');
+        await api(`/api/people/${encodeURIComponent(p.login)}/block`, json('POST', {})); invalidate('/api/'); invalidateFeed();
         close(); toast(`${p.name} is blocked`);
         if (onBlocked) onBlocked(); else go('/activity', {replace: true});
       } catch (x) { toast(x.message); }
