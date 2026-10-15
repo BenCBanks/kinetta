@@ -8,7 +8,6 @@
 | [@capacitor/keyboard](https://capacitorjs.com/docs/apis/keyboard) 8: hides the bar iOS puts above the keyboard | `mobile/` (installed by npm) | MIT, © Ionic and contributors |
 | [capacitor-health](https://github.com/mley/capacitor-health): Apple Health in the iPhone app | `mobile/` (installed by npm) | MIT, © 2024 Martin Ley |
 | [Pillow](https://python-pillow.github.io) 11: re-saving photos (profile and activity photos) without their hidden details | installed by pip (`requirements.txt`) | MIT-CMU (HPND), © Jeffrey A. Clark and contributors, © Secret Labs AB, © Fredrik Lundh |
-| [pywebpush](https://github.com/web-push-libs/pywebpush) 2.0 and [py-vapid](https://github.com/web-push-libs/vapid): phone notifications (Web Push) | installed by pip (`requirements.txt`) | MPL-2.0, © Mozilla and contributors |
 
 Demo photos in `dev/demo/photos` (and the homepage screenshots showing them) are by James Willamor (CC BY-SA 3.0) and
 City Dweller 2 (CC BY-SA 4.0), from Wikimedia Commons; see `dev/demo/README.md`.
@@ -23,3 +22,5 @@ Demo route shapes in `dev/demo/routes.json` come from OpenStreetMap routing (© 
 - Source Serif 4 by Adobe, locally hosted Latin subset; SIL Open Font License 1.1. License: `app/static/fonts/OFL.txt` and `site/assets/fonts/OFL.txt`. Font source: https://github.com/google/fonts/tree/main/ofl/sourceserif4 .
 
 - Six Phosphor regular icons (house, heartbeat, chart-bar, fork-knife, user, sneaker), MIT. Source: https://github.com/phosphor-icons/core ; license: `app/static/vendor/phosphor-LICENSE`.
+
+- [HTTPX](https://www.python-httpx.org/) and h2 (HTTP/2), BSD/MIT; [PyJWT](https://pyjwt.readthedocs.io/) (MIT) and cryptography (Apache-2.0/BSD): native Apple push delivery, installed through requirements.txt.

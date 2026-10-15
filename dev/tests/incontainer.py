@@ -97,21 +97,23 @@ r = cook_chat.say(cd, cook_chat.SayIn(text='a pinch of saffron'), user={'id': ui
 ck(r.get('fallback') and r.get('needs_ok') and len(asked_cook) == 2, 'AI off: search instead, and nothing sent')
 api_dishes.dish_delete(cd, user={'id': uid})
 
-# --- phone push: what is sent, and the person's choices ---
+# --- Native APNs: payload and preferences, with delivery replaced (no real phones) ---
+from app.auth import new_session, token_hash
 sent = []
 with db.connect() as c:
-    c.execute('DELETE FROM push_subscriptions WHERE user_id = %s', (uid,))
-    c.execute("INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (%s, 'https://push.example/alex', 'k', 'a')", (uid,))
+    c.execute('DELETE FROM native_push_devices WHERE user_id = %s', (uid,))
+    push_session = new_session(c, uid, 'zz_test_native_push')
+    c.execute("INSERT INTO native_push_devices (user_id, token, environment, session_hash) VALUES (%s, %s, 'production', %s)", (uid, 'ab' * 32, token_hash(push_session)))
     nid = c.execute("INSERT INTO notifications (user_id, kind, actor_id, dish_id) VALUES (%s, 'dish_shared', %s, %s) RETURNING id", (uid, jid, tray)).fetchone()['id']
-ck(notify.push(nid, send=lambda info, data: sent.append((info, json.loads(data)))) == 1, 'pushed once')
-ck(sent[0][0]['endpoint'] == 'https://push.example/alex' and sent[0][1]['title'] == 'Jordan Lee shared Chicken and veg traybake with you' and sent[0][1]['body'] == ''
-   and sent[0][1]['url'] == f'/food/cook/{tray}', f'payload {sent[0][1]}')
+ck(notify.push(nid, send=lambda device, data: sent.append((device, data))) == 1, 'native pushed once')
+ck(sent[0][0]['token'] == 'ab' * 32 and sent[0][1]['title'] == 'Jordan Lee shared Chicken and veg traybake with you' and sent[0][1]['body'] == ''
+   and sent[0][1]['url'] == f'/food/cook/{tray}', 'native payload')
 notify.settings(notify.PrefsIn(dishes=False), user={'id': uid})
 ck(notify.push(nid, send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'turned off: not pushed')
 notify.settings(notify.PrefsIn(dishes=True), user={'id': uid})
-ck(notify._vapid() is not None and len(notify._vapid()[1]) > 80, 'server push key')
 with db.connect() as c:
-    c.execute('DELETE FROM notifications WHERE id = %s', (nid,)); c.execute('DELETE FROM push_subscriptions WHERE user_id = %s', (uid,))
+    c.execute('DELETE FROM notifications WHERE id = %s', (nid,)); c.execute('DELETE FROM sessions WHERE token_hash = %s', (token_hash(push_session),))
+    ck(not c.execute('SELECT 1 FROM native_push_devices WHERE user_id = %s', (uid,)).fetchone(), 'logout cascades device revocation')
     c.execute('UPDATE profile SET ai_ok = false'); c.execute('DELETE FROM ai_requests')
 # --- 2026-10-12: a dish is kept until deleted, however old; one opened and left empty for a day is cleared away ---
 old1 = api_dishes.dish_add(api_dishes.DishIn(name='Test old stew'), user={'id': uid})['id']
@@ -242,5 +244,39 @@ from app import api_connections as AC
 first, again = AC.intervals_sync_now(user={'id': jid}), AC.intervals_sync_now(user={'id': jid})
 ck(not first.get('already') and again.get('already'), 'Sync now: a second tap within 2 minutes starts nothing')
 ck(not AC.intervals_sync_now(user={'id': uid}).get('already'), "one person's sync doesn't hold up another's")
+
+# New-workout delivery: real rows and actual push serialization, replaced transport (no phone/network).
+import datetime as dt
+from unittest.mock import patch
+from app import activities, parsers
+now = dt.datetime.now(dt.timezone.utc)
+parsed = {'sport': 'run', 'sub_sport': None, 'start': now - dt.timedelta(hours=3), 'device': None, 'laps': [],
+          'session': {'elapsed_s': 1800, 'moving_s': 1800, 'distance_m': 5000},
+          'streams': {k: [] for k in ('t',) + parsers.STREAMS}}
+with patch.object(notify.threading, 'Thread'):
+    result, aid = activities.store(uid, parsed, {'name': 'Test ready workout'}, source='healthkit')
+    ck(result == 'added', 'new Health workout saved')
+    with db.connect() as c:
+        c.execute("UPDATE profile SET notify = '{}'::jsonb, units = 'metric' WHERE user_id = %s", (uid,))
+        push_session = new_session(c, uid, 'zz_test_new_workout')
+        c.execute("INSERT INTO native_push_devices (user_id, token, environment, session_hash) VALUES (%s, %s, 'production', %s)", (uid, 'ab' * 32, token_hash(push_session)))
+        # The same event replayed under a lock is still only one notification.
+        notify.activity_loaded(c, uid, aid)
+        rows = c.execute("SELECT id FROM notifications WHERE user_id = %s AND kind = 'activity_ready' AND activity_id = %s", (uid, aid)).fetchall()
+        ck(len(rows) == 1, 'workout replay has one notification')
+    sent = []
+    ck(notify.push(rows[0]['id'], send=lambda info, data: sent.append(data)) == 1, 'new-workout push sent through existing delivery')
+    ck(sent[0]['title'] == 'Nice work! Test ready workout is ready' and sent[0]['body'] == '5.00 km · 30 min' and sent[0]['url'] == f'/activity/{aid}', 'descriptive title, metric summary and deep link')
+    notify.settings(notify.PrefsIn(activities=False), user={'id': uid})
+    ck(notify.push(rows[0]['id'], send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'disabled workout category sends nothing')
+    with db.connect() as c:
+        c.execute('DELETE FROM activities WHERE id = %s AND user_id = %s', (aid, uid))
+        c.execute('DELETE FROM sessions WHERE token_hash = %s', (token_hash(push_session),))
+        c.execute("UPDATE profile SET notify = '{}'::jsonb, units = 'imperial' WHERE user_id = %s", (uid,))
+    parsed['start'] = now - dt.timedelta(days=10)
+    result, old = activities.store(uid, parsed, {'name': 'Test old import'}, source='file')
+    with db.connect() as c:
+        ck(not c.execute("SELECT 1 FROM notifications WHERE activity_id = %s AND kind = 'activity_ready'", (old,)).fetchone(), 'old bulk history is quiet')
+        c.execute('DELETE FROM activities WHERE id = %s AND user_id = %s', (old, uid))
 
 print(f'in the container (AI + push): {n} checks passed')

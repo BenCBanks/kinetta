@@ -141,6 +141,9 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                       (user_id, aid, sport, e['distance_m'], e['label'], e['elapsed_s'], e['start_s'], start))
         match_route(c, user_id, aid)
+        if source != 'lift':
+            from . import notify
+            notify.activity_loaded(c, user_id, aid)
         return 'added', aid
 
 

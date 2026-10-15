@@ -69,6 +69,7 @@ jobs:
           import os, plistlib
           from pathlib import Path
           entitlements = plistlib.loads((Path(os.environ['RUNNER_TEMP']) / 'health-entitlements.plist').read_bytes())
+          assert entitlements['aps-environment'] in ('development', 'production')
           assert entitlements['com.apple.developer.healthkit'] is True
           assert entitlements['com.apple.developer.healthkit.background-delivery'] is True
           PYCODE

@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const DAY = 864e5, now = Date.now();
 const workout = {id: '12345678-test-workout', workoutType: 'running', startDate: new Date(now - 20 * DAY).toISOString(),
   endDate: new Date(now - 20 * DAY + 1800000).toISOString(), duration: 1800, distance: 5000, calories: 300};
-function device(background = null) {
+function device(background = null, push = null) {
   const saved = new Map(), queries = [], sent = [], events = {};
   const ctx = {console, Date, Map, JSON, Error, Promise, setTimeout, clearTimeout,
     App: {me: {id: 1}, cache: new Map()}, route() {}, forgetKept() {}, invalidate() {}, toast() {}, render() {},
@@ -18,6 +18,7 @@ function device(background = null) {
         set: async ({key, value}) => saved.set(key, value), remove: async ({key}) => saved.delete(key)},
       HealthPlugin: {isHealthAvailable: async () => ({available: true}), requestHealthPermissions: async () => {},
         queryWorkouts: async (q) => { queries.push(q); return ctx.query ? ctx.query(q) : {workouts: [workout]}; }},
+      ...(push ? {KinettaPush: push} : {}),
       ...(background ? {KinettaHealthSync: background} : {}),
     }}},
     api: async (path, opts) => {
@@ -32,6 +33,31 @@ function device(background = null) {
   return {ctx, n: ctx.client, saved, queries, sent, events};
 }
 (async () => {
+  const registrations = [], pushEvents = {};
+  const push = {status: async () => ({allowed: true, denied: false}),
+    register: async () => ({token: 'ab'.repeat(32), environment: 'production'}),
+    unregister: async () => registrations.push('unregister'), takePending: async () => ({url: ''}),
+    addListener: (name, fn) => {pushEvents[name] = fn;}};
+  const pushDevice = device(null, push);await pushDevice.n.ready;
+  pushDevice.n.base = 'https://example.test';pushDevice.n.token = 'native-session';
+  pushDevice.ctx.api = async (path, opts) => {registrations.push({path, method: opts.method, body: opts.body});return {ok: true};};
+  await pushDevice.n.enablePush();
+  assert.equal(registrations[0].path, '/api/push/ios');
+  assert.equal(JSON.parse(registrations[0].body).environment, 'production');
+  assert.equal((await pushDevice.n.pushStatus()).enabled, true);
+  pushDevice.ctx.App.me = {id: 2};
+  assert.equal((await pushDevice.n.pushStatus()).enabled, false, 'device consent belongs to the selected account');
+  await pushDevice.n.disconnectPush();
+  assert.equal(registrations[1].method, 'DELETE');
+  assert.equal(pushDevice.saved.has('push.owner'), false);
+  assert.equal(registrations[2], 'unregister');
+  let finishRegister;
+  push.register = () => new Promise(resolve => { finishRegister = resolve; });
+  const pendingPush = pushDevice.n.enablePush();
+  pushDevice.ctx.App.me = {id: 3};
+  finishRegister({token: 'ab'.repeat(32), environment: 'production'});
+  await assert.rejects(pendingPush, /account changed/);
+  assert.equal(registrations.length, 3, 'late registration cannot bind a device to a different account');
   const d = device(); await d.n.ready; d.n.base = 'https://example.test'; d.n.token = 'first';
   d.saved.set('health.on', '1');
   assert.equal(await d.n.healthOn(), false, 'legacy device consent is not inherited');

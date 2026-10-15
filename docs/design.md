@@ -70,7 +70,7 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
   labels, safe-area padding and a short active underline.
 - **Activities:** use Friends feed and My activities. Friends feed contains your activities and approved friends’ shared
   activities, newest first. My activities contains your own history with search and filters. Keep the short scope line,
-  privacy labels, comments, Cheers and double-tap people lists. The names match mutual friendships, not a new Follow model.
+  privacy labels, comments, Cheers and long-press people lists. The names match mutual friendships, not a new Follow model.
 - **Activity media:** GPS map always comes first, followed by equally sized photos. Without GPS, photos lead. Retain
   swipe, arrows, keyboard navigation, positions, Map shortcut and full-screen zoom/pan. Never move server privacy trimming
   into the client. Today links to the latest activity without repeating its full card or media. Detailed media stays larger. Reserve a theme-colored top safe area so native status-bar text stays readable over bright maps/photos. Marketing photo examples may
@@ -199,3 +199,16 @@ including during debounce; clearing/closing search cancels queued work. Preserve
 Food-entry editing places Meal and Day on separate full-width rows at phone widths (up to480px). Use the shared
 `datefield` styling for visible native date inputs, with explicit minimum/maximum widths, so iOS date controls cannot
 push beyond their grid cell. Preserve the native picker, readable date and44px-or-larger target.
+
+## Activity notifications and social feedback (15 October)
+
+Phone alerts use the native iPhone app and APNs only; browser/Home Screen push controls are retired. A newly saved
+workout from the last24hours congratulates only its owner with the activity name, distance in their units and duration.
+Duplicates, enrichment and older history stay quiet. Keep an independent New workouts notification preference;
+in-app history remains available without device permission. Never ask an AI model to compose these alerts.
+
+Cheers reacts on an ordinary tap immediately, without a double-tap delay. Hold for500ms to see the people list;
+release after a hold must not send/remove Cheers. Cancel a hold on scroll, pointer cancellation or leaving the control.
+Keyboard activation still reacts; the context-menu key and visible people/count controls can open the list.
+Comments opens its sheet before the network responds, with loading/failure/retry states. Posting shows pending feedback,
+preserves the draft on failure and prevents duplicate submissions. Keep44px targets, both themes and rollback on failure.

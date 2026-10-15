@@ -16,6 +16,11 @@ Requirements live in GitHub issues. Use [the requirements guide](docs/requiremen
 
 ## Separate track
 
+- Owner queue: [#86 native owner-only workout notifications](https://github.com/BenCBanks/kinetta/issues/86),
+  [#87 responsive Comments and Cheers](https://github.com/BenCBanks/kinetta/issues/87), and
+  [#88 long-press Cheers people list](https://github.com/BenCBanks/kinetta/issues/88) are in development.
+  Native delivery requires APNs account setup and a newly signed iPhone build; see [notification setup](docs/ios-notifications.md).
+
 - Owner-requested social/activity polish is implemented in [PR #75](https://github.com/BenCBanks/kinetta/pull/75): double-tap Cheers people, live user search, user profiles constrained by activity visibility, visible gear deletion, shorter Me AI text and equal-sized photo/map slides. Fresh API/privacy, migration upgrade and phone/desktop browser checks passed. Native compilation and server deployment passed; physical-device acceptance remains separate.
 - Evergreen UI, keyboard navigation, persistent setup/discovery, Meals and optional food/coach access controls have shipped. Website prose is now editable through [Markdown content](docs/website-content.md).
 - Food logging simplification and the deterministic Kit/evaluation foundation have merged. The new tool coach stays disabled until reviewed accuracy results pass its rollout gate.

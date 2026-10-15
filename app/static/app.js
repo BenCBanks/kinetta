@@ -381,6 +381,7 @@ function render() {
   const el = $('#page');
   const key = location.pathname + location.search;
   if (App.lastPath !== location.pathname) { el.classList.add('enter'); App.lastPath = location.pathname; }
+  if (Native.syncPush) Native.syncPush();
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
     requestAnimationFrame(() => { if (el.isConnected && key === location.pathname + location.search) window.scrollTo(0, App.scroll[key] || 0); });

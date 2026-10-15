@@ -24,6 +24,7 @@ def main():
         entitlements = plistlib.loads(signed.stdout)
         assert entitlements.get("com.apple.developer.healthkit") is True, "Export lost HealthKit permission"
         assert entitlements.get("com.apple.developer.healthkit.background-delivery") is True, "Export lost background permission"
+        assert entitlements.get("aps-environment") == "production", "Export lost production push entitlement"
         assert entitlements.get("application-identifier") == os.environ["TEAM"] + ".com.kinetta.app", "Unexpected app signing identity"
         assert entitlements.get("get-task-allow") is not True, "Export uses a development profile"
         profile = subprocess.run(["security", "cms", "-D", "-i", str(app / "embedded.mobileprovision")],

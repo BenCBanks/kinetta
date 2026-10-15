@@ -158,3 +158,5 @@ Apple Health does not guarantee that every recording app shares every metric. [G
 Physical acceptance must include an Apple Watch outdoor workout with route permission, a summary-only Garmin import, a delayed-route replay, an empty/denied-detail retry, an existing file import and account switching. Compare the values with their recorded source; verify one activity remains after foreground/background retries. Linux stand-ins establish API/state contracts, not actual HealthKit delivery.
 
 For how server releases, bundled screens and database migrations fit together, see [Developing and releasing Kinetta](development-and-updates.md).
+
+Native iPhone alerts and APNs credentials: [notification setup](ios-notifications.md). Browser push delivery is retired.

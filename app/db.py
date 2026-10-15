@@ -869,6 +869,22 @@ MIGRATIONS = [
     CREATE POLICY all_rows ON ai_entitlements FOR SELECT TO fit_all_readers USING (true);
     GRANT SELECT ON ai_entitlements TO fit_readers;
     """,
+    # 40: native iPhone push devices; logout/expired-session cleanup revokes delivery with the session.
+    """
+    CREATE TABLE native_push_devices (
+      token text NOT NULL CHECK (token ~ '^[0-9a-f]{64,200}$'),
+      environment text NOT NULL CHECK (environment IN ('production', 'sandbox')),
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      session_hash text NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (token, environment));
+    CREATE INDEX native_push_user ON native_push_devices (user_id);
+    ALTER TABLE native_push_devices ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON native_push_devices FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON native_push_devices FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON native_push_devices TO fit_readers;
+    """,
+
 ]
 
 
