@@ -1127,7 +1127,22 @@ body.ph-open { overflow: hidden; }
 .ql-chat { min-height: 60px; }
 .ql-choices .fe b { display: block; overflow: visible; -webkit-line-clamp: unset; overflow-wrap: anywhere; }
 .ql-choices .fe small { white-space: normal; }
-.ql-saved h3 { overflow-wrap: anywhere; }
+/* the foods found in what you said (2026-10-15): one row each, tap to adjust, x to remove */
+.ql-list { padding: 0 14px; margin-bottom: 10px; }
+.ql-row { display: flex; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--line); }
+.ql-row:first-child { border-top: 0; }
+.ql-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 0; min-height: 56px; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.ql-main .grow { min-width: 0; flex: 1; } .ql-main b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.ql-main small { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.ql-main .r { flex: none; text-align: right; } .ql-main .r b { font-family: var(--numf); }
+.ql-x { flex: none; width: 44px; height: 44px; margin-right: -10px; }
+.ql-row .ql-adjust, .ql-row .ql-hint, .ql-row .pnums { flex-basis: 100%; }
+.ql-row .ql-hint { margin: 0 0 10px; }
+.ql-row .pnums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding-bottom: 10px; }
+.ql-row .pnums label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ql-row .pnums small { font-size: 11px; color: var(--tx3); font-weight: 600; }
+.ql-row .pnums input { min-height: 40px; padding: 4px 6px; text-align: right; font-size: 16px; width: 100%; border-radius: 10px; }
+.ql-ask { display: block; padding: 10px 0; } .ql-ask p { margin: 0 0 8px; } .ql-ask .btncol { margin-top: 4px; }
 .ql-img { display: block; max-width: 180px; max-height: 180px; border-radius: 12px; margin: -3px -7px; }
 .cmsg.me:has(.ql-img) { padding: 6px; background: transparent; }
 .cmsg.ai i { font-style: normal; color: var(--tx2); }
@@ -1137,6 +1152,7 @@ body.ph-open { overflow: hidden; }
 /* the total on the left, Add on the right, so the button never sits on the total (2026-10-13) */
 #ql-items .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 2px 4px; }
 #ql-items .actions .primary { flex: none; margin: 0; padding: 0 22px; min-height: 46px; }
+@media (max-width: 380px) { #ql-items .actions { flex-direction: column; align-items: stretch; } #ql-items .actions .primary { width: 100%; } }
 
 /* ---------- Lifting (2026-10-13, lift.js) ---------- */
 .lift-clock { display: flex; gap: 22px; padding: 10px 16px; font-size: 13px; font-weight: 650; color: var(--tx3); text-transform: uppercase; letter-spacing: .05em; }

@@ -65,7 +65,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Log a past session by hand, then add its sets; the AI coach note reads the sets and last time's; SQL view `v_lift_sets`
 
 ## Food
-- [x] Describe a portion of your own saved meal: name/date matching, ambiguity choices, stored nutrition, explicit confirmation and safe retries; no model call
+- [x] Describe what you ate in your own words (several foods, amounts, day/meal, follow-up corrections): matched against your own meals, foods and history with no AI; only unknown foods go to the AI estimate, and without AI you search for them
 - [x] Log by search (USDA + Open Food Facts), barcode, quick add (cal/P/C/F), custom foods, saved meals, recipes
 - [x] Photo (+ optional description) -> AI estimate (Gemini Flash-Lite, ~$0.001/photo on your own key) -> check -> logged
 - [x] Edit / move / copy / delete any entry; copy a day or a meal

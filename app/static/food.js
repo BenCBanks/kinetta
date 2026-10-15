@@ -279,12 +279,12 @@ const macroInputs = (e = {}) => `<div class="mac4">
   <label>Fiber g<input name="fiber_g" inputmode="decimal" value="${e.fiber_g != null ? r1(e.fiber_g) : ''}"></label></div>`;
 
 // ---------- add: usuals / saved dishes / search / quick ----------
-function addSheet(day, meal) {
+function addSheet(day, meal, find = '') {
   // One suggestions list inside Add food; meal cards show only what was actually logged.
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways three"><button class="way" id="as-photo">${svg(aiCan('food') ? 'sparkle' : 'pot')}<b>${aiCan('food') ? 'Describe or snap' : 'Describe a meal'}</b></button>
+    <div class="ways three"><button class="way" id="as-photo">${svg(aiCan('food') ? 'sparkle' : 'comment')}<b>${aiCan('food') ? 'Describe or snap' : 'Describe it'}</b></button>
       <button class="way" id="as-scan">${svg('barcode')}<b>Barcode</b></button>
       <button class="way" id="as-dish">${svg('pot')}<b>Cook a meal</b></button></div>
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My meals'], ['search', 'Search'], ['quick', 'Quick']]
@@ -304,7 +304,8 @@ function addSheet(day, meal) {
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
     $('#as-dish', b).onclick = (e) => { close(); newDish(e.currentTarget); };     // a saved dish is logged from Saved Dishes
-    show('usuals');
+    show(find ? 'search' : 'usuals');
+    if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
   });
 }
 const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
@@ -381,7 +382,7 @@ async function tSaved(body, where, close) {
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><div class="results">${foods.map(foodRow).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe a saved meal portion</button><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
+      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
 `;
     const again = () => tSaved(body, where, close);
     $('#tm-describe', body).onclick = () => { const w = where(); close(); describeSheet(w.day, w.meal); };
@@ -530,119 +531,184 @@ async function shrinkPhoto(file, max = 1280) {
     return c.toDataURL('image/jpeg', 0.82);
   } finally { URL.revokeObjectURL(url); }
 }
-// Describe or snap (2026-10-12, Ben: "I had a hotdog from Costco and a Diet Coke" should be quick): a small chat. Say what
-// you had, add a photo if you like (or only a photo), check the estimate, send a correction ("make it two"), then log it.
-// Saved-meal portions use deterministic lookup; AI estimates are explicit and send bounded user text plus any photo.
+// Describe what you ate (2026-10-12; reworked 2026-10-15, Ben: logging food should be very little effort, in your own
+// words, without leaning on AI). "2 eggs and toast for breakfast", "a bowl of the chili I made Sunday", then "make it
+// 300 grams", "also a coffee" or "remove the toast". The server matches each food against your own saved meals, My
+// foods and foods you've logged before, with no AI (meal_chat.py), so it works with AI turned off. Only foods it can't
+// find go to the AI estimator, and only when you have AI access and consent; without AI they get a Search button.
 function describeSheet(day, meal) {
   const canEstimate = aiCan('food');
   sheet('What did you eat?', `<div class="where ql-where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="ql-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="ql-dayl">${esc(dayLabel(day))}</span><input id="ql-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai ql-tip">Try <i>“230 grams of the pasta I cooked on Monday”</i>. I’ll look in your saved meals. Check the match, portion and log destination before adding.${canEstimate ? ' For other food, you can request an AI estimate.' : ''}</p></div>
+    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai ql-tip">Say it like you’d tell a friend: <i>“2 eggs and toast”</i> or <i>“a bowl of the chili I made Sunday”</i>. I use foods you’ve logged before.${canEstimate ? ' Anything new gets an AI estimate.' : ' Anything new, you can search for.'}</p></div>
     <div id="ql-items"></div>
     <form class="composer ql-composer" id="ql-f">${canEstimate ? `<button type="button" class="icon-btn" id="ql-cam" aria-label="Add a photo">${svg('camera')}</button>` : ''}
-      <input name="t" id="ql-t" placeholder="Describe a saved meal and amount" aria-label="What you ate, in your own words" autocomplete="off" enterkeyhint="send" maxlength="400">
-      <button class="icon-btn send" aria-label="Find meal">${svg('send')}</button></form>
+      <input name="t" id="ql-t" placeholder="What did you eat?" aria-label="What you ate, in your own words" autocomplete="off" enterkeyhint="send" maxlength="400">
+      <button class="icon-btn send" aria-label="Send">${svg('send')}</button></form>
     <input type="file" accept="image/*" id="ql-file" hidden>`, (b, close) => {
     const owner = readOwner(), active = () => b.isConnected && readOwner() === owner;
-    const chat = $('#ql-chat', b), items = $('#ql-items', b), f = $('#ql-f', b), file = $('#ql-file', b), input = $('#ql-t', b);
+    const chat = $('#ql-chat', b), box = $('#ql-items', b), f = $('#ql-f', b), file = $('#ql-file', b), input = $('#ql-t', b);
     const dp = $('#ql-day', b), dest = $('#ql-meal', b);
-    let photo = null, busy = false, selected = null, portion = null, lastText = '', said = [];
-    input.focus();
-    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* native picker */ } };
-    const destination = () => { const btn = $('#ql-add-meal', items); if (btn && !btn.dataset.retry) btn.textContent = `Add to ${MEAL_NAMES[dest.value]}, ${dayLabel(dp.value)}`; };
-    dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); destination(); };
-    dest.onchange = destination;
-    const setBusy = (on) => { busy = on; $$('button, input, select', b).forEach((el) => { el.disabled = on; }); };
+    input.focus();   // runs inside the tap that opened it, so iOS shows the keyboard at once
+    // parts: the conversation as the server last returned it (it is stateless); items: what each part matched.
+    // batches: foods sent to the AI together, with what was said about them and the estimates that came back.
+    let parts = [], items = [], preview = null, batches = [], busy = false, photo = null, photoSaid = [], sent = null, open = null;
     const say = (html, who) => { $('.ql-tip', chat)?.remove(); chat.insertAdjacentHTML('beforeend', `<p class="cmsg ${who}">${html}</p>`); chat.lastElementChild.scrollIntoView({block: 'nearest'}); return chat.lastElementChild; };
-    const resetPreview = () => { items.innerHTML = ''; };
-    input.oninput = resetPreview;
+    const setBusy = (on) => { busy = on; $$('button, input, select', b).forEach((el) => { if (!el.closest('.ql-row')) el.disabled = on; }); };
+    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* native picker */ } };
+    dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); sent = null; draw(); };
+    dest.onchange = () => { sent = null; draw(); };
     const camera = $('#ql-cam', b);
     if (camera) camera.onclick = () => file.click();
     file.onchange = async () => {
       const fl = file.files?.[0]; file.value = ''; if (!fl || busy || !active()) return;
-      resetPreview(); setBusy(true);
-      try { const image = await shrinkPhoto(fl); if (!active()) return; photo = image; selected = null; portion = null;
-        say(`<img class="ql-img" src="${photo}" alt="Your photo">`, 'me'); input.placeholder = 'Describe it, or send for an AI estimate';
+      try { const image = await shrinkPhoto(fl); if (!active()) return; photo = image; photoSaid = [];
+        say(`<img class="ql-img" src="${photo}" alt="Your photo">`, 'me'); input.placeholder = 'Add a few words, or tap send';
       } catch (x) { if (active()) toast("That photo couldn't be opened"); }
-      finally { if (active()) setBusy(false); }
     };
-    const alternatives = () => {
-      items.innerHTML = `<div class="btncol"><button class="ghost wide" id="ql-library">Choose from My meals</button>${canEstimate ? '<button class="ghost wide" id="ql-estimate">Estimate as other food with AI</button>' : ''}</div>`;
-      $('#ql-library', items).onclick = () => { close(); go('/food/meals'); };
-      const estimate = $('#ql-estimate', items); if (estimate) estimate.onclick = () => estimateFood();
+
+    const unknown = () => items.filter((i) => i.status === 'unknown');
+    const batchOf = (i) => batches.find((x) => x.idx.includes(i));
+    const aiItems = () => batches.flatMap((x) => x.items || []).filter((x) => !x.removed);
+    const waiting = () => items.some((i) => i.status === 'choose' || i.status === 'quantity') || batches.some((x) => x.state === 'loading');
+    const kcalOf = () => items.filter((i) => i.status === 'ready').reduce((s, i) => s + (i.totals.kcal || 0), 0) + aiItems().reduce((s, x) => s + (x.kcal || 0), 0);
+    const savedDay = (iso) => (iso ? ` · saved ${dayLabel(iso)}` : '');
+    const row = (i) => {
+      if (i.status === 'ready') return `<div class="ql-row" data-row="${i.index}"><button class="ql-main" data-open="${i.index}" aria-expanded="${open === i.index}">
+          <span class="grow"><b>${esc(i.name)}</b><small class="muted">${esc(i.amount)}${i.note ? ` · ${esc(i.note)}` : ''}${esc(savedDay(i.saved_day))}</small></span>
+          <span class="r"><b class="num">${r0(i.totals.kcal)}</b><small class="muted">kcal</small></span></button>
+          <button class="icon-btn ql-x" data-remove="${i.index}" aria-label="Remove ${esc(i.name)}">${svg('close')}</button>
+          ${open === i.index ? `<div class="chips wrap ql-adjust"><button class="chip" data-scale="${i.index}" data-by="0.5">Half</button><button class="chip" data-scale="${i.index}" data-by="2">Double</button></div><p class="small muted ql-hint">Or type a new amount, like “make the ${esc(i.name.toLowerCase())} 300 grams”.</p>` : ''}</div>`;
+      if (i.status === 'choose') return `<div class="ql-row ql-ask"><p class="small">${esc(i.message)}</p><div class="results ql-choices">${i.choices.map((c, n) => `<button class="fe" data-choose="${i.index}" data-n="${n}"><div><b>${esc(c.name)}</b><small class="muted">${esc(c.detail)}${esc(savedDay(c.saved_day))}${c.weight_g ? ` · ${r0(c.weight_g)} g total` : ''}</small></div></button>`).join('')}</div>${i.more ? '<p class="small muted">Showing the first 12. Say a longer name to narrow it down.</p>' : ''}</div>`;
+      if (i.status === 'quantity') return `<div class="ql-row ql-ask"><p class="small"><b>${esc(i.name)}</b>${esc(savedDay(i.saved_day))}</p><p class="small muted">${esc(i.message)}</p>${i.options && i.options.length ? `<div class="chips wrap">${i.options.map((o, n) => `<button class="chip" data-amount="${i.index}" data-n="${n}">${esc(o.label)}</button>`).join('')}</div>` : ''}</div>`;
+      const x = batchOf(i.index);   // not in your foods
+      if (x && x.state === 'loading') return x.idx[0] === i.index ? `<div class="ql-row ql-ask"><p class="small muted">Estimating “${esc(x.idx.map((n) => parts[n].text).join(', '))}” with AI…</p></div>` : '';
+      if (x && x.state === 'done') return x.idx[0] === i.index ? x.items.map((a, n) => a.removed ? '' : `<div class="ql-row" data-ai="${x.id}-${n}"><button class="ql-main" data-open="ai-${x.id}-${n}" aria-expanded="${open === `ai-${x.id}-${n}`}">
+          <span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'AI estimate'].filter(Boolean).join(' · '))}</small></span>
+          <span class="r"><b class="num">${r0(a.kcal)}</b><small class="muted">kcal</small></span></button>
+          <button class="icon-btn ql-x" data-unai="${x.id}-${n}" aria-label="Remove ${esc(a.name)}">${svg('close')}</button>
+          ${open === `ai-${x.id}-${n}` ? `<div class="pnums">${[['kcal', 'kcal'], ['protein_g', 'Protein'], ['carbs_g', 'Carbs'], ['fat_g', 'Fat']].map(([k, l]) => `<label><small>${l}</small><input data-edit="${x.id}-${n}" name="${k}" inputmode="decimal" value="${a[k] == null ? '' : esc(String(Math.round(a[k] * 10) / 10))}" aria-label="${l}"></label>`).join('')}</div>` : ''}</div>`).join('') : '';
+      return `<div class="ql-row ql-ask"><p class="small muted">${canEstimate ? esc(i.message) : `Not in your foods yet: “${esc(i.text)}”`}</p>${x && x.error ? `<p class="small err">${esc(x.error)}</p>` : ''}<div class="btncol">${canEstimate && x ? `<button class="ghost wide" data-retry-ai="${x.id}">Try the AI estimate again</button>` : ''}<button class="ghost wide" data-search="${i.index}">Search for “${esc(i.text)}”</button></div></div>`;
     };
-    const savedResult = (r, wait) => {
-      wait.textContent = r.message + (r.more_matches ? ' Showing the first 12. Type a more specific name or saved date to narrow it down.' : '');
-      if (r.meal) dest.value = r.meal;
-      if (r.portion) portion = r.portion;
-      if (r.dish) selected = r.dish.id;
-      if (r.status === 'choose') {
-        selected = null;
-        items.innerHTML = `<div class="results ql-choices">${r.choices.map((d, i) => `<button class="fe" data-chat-choice="${i}"><div><b>${esc(d.name)}</b><small class="muted">Saved ${esc(d.saved_day)}${d.weight_g ? ` · ${r0(d.weight_g)} g total` : ' · no total weight'}</small></div></button>`).join('')}</div>`;
-        $$('[data-chat-choice]', items).forEach((btn) => btn.onclick = () => resolveSaved(lastText, r.choices[+btn.dataset.chatChoice].id));
-      } else if (r.status === 'ready') {
-        const p = r.portion, amount = p.grams ? `${r1(p.grams)} g` : p.count ? `${r1(p.count)} whole-meal serving${p.count === 1 ? '' : 's'}` : `${r0(p.share * 100)}% of the whole meal`;
-        items.innerHTML = `<div class="card ql-saved"><h3>${esc(r.dish.name)}</h3><p class="small muted">Saved ${esc(r.dish.saved_day)} · ${esc(amount)}</p>${nutGrid(r.totals)}<p class="small muted">From your saved nutrition, without an AI estimate. Send another amount to change the portion.</p><button class="primary wide" id="ql-add-meal"></button><p class="err" id="ql-error" role="status"></p></div>`;
-        destination();
-        let confirmation = null;
-        $('#ql-add-meal', items).onclick = async () => {
-          if (busy || !active()) return;
-          // Freeze the first request so a lost acknowledgement retries the identical entry, even after a date edit.
-          confirmation ||= {dish_id: r.dish.id, ...p, issued: r.issued, expected: r.expected, client_id: r.client_id,
-            day: dp.value, meal: dest.value, confirm: true};
-          setBusy(true); const btn = $('#ql-add-meal', items); btn.textContent = 'Adding…';
-          try { await api('/api/food/meals-chat/confirm', json('POST', confirmation)); if (!active()) return;
-            invalidate('/api/food/'); close(); refresh(); toast('Saved meal added');
-          } catch (x) { if (!active()) return; $('#ql-error', items).textContent = x.message;
-            if (x.status === 409 || x.status === 404) { btn.remove(); }
-            else { btn.dataset.retry = 'true'; btn.textContent = `Retry add to ${MEAL_NAMES[confirmation.meal]}, ${dayLabel(confirmation.day)}`; }
-          } finally { if (active()) setBusy(false); }
-        };
-      } else if (r.status === 'quantity') {
-        items.innerHTML = r.dish ? `<p class="small muted">${esc(r.dish.name)} · saved ${esc(r.dish.saved_day)}. Nothing added yet.</p>` : '';
-        input.placeholder = 'For example: make it 300 grams';
-      } else { selected = null; portion = null; alternatives(); }
+    const draw = () => {
+      if (!active()) return;
+      if (!items.length && !aiItems().length && !batches.some((x) => x.state === 'loading')) { box.innerHTML = ''; return; }
+      const ready = items.filter((i) => i.status === 'ready').length + aiItems().length;
+      const label = sent ? `Try again: add to ${MEAL_NAMES[sent.meal]}, ${dayLabel(sent.day)}` : `Add to ${MEAL_NAMES[dest.value]}, ${dayLabel(dp.value)}`;
+      box.innerHTML = `<div class="card list ql-list">${items.map(row).join('')}${photoRows()}</div>
+        <div class="actions"><span class="muted small num">${ready ? `≈ ${r0(kcalOf())} kcal` : ''}</span><button class="primary" id="ql-add"${!ready || waiting() ? ' disabled' : ''}>${esc(label)}</button></div><p class="err" id="ql-error" role="status"></p>`;
+      wire();
     };
-    const resolveSaved = async (text, did = selected) => {
+    // a photo estimate covers the whole meal: its rows follow the matched foods
+    const photoRows = () => batches.filter((x) => x.photo).map((x) => (x.state === 'loading' ? '<div class="ql-row ql-ask"><p class="small muted">Estimating your photo with AI…</p></div>'
+      : (x.items || []).map((a, n) => a.removed ? '' : `<div class="ql-row" data-ai="${x.id}-${n}"><button class="ql-main" data-open="ai-${x.id}-${n}"><span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'AI estimate'].filter(Boolean).join(' · '))}</small></span><span class="r"><b class="num">${r0(a.kcal)}</b><small class="muted">kcal</small></span></button><button class="icon-btn ql-x" data-unai="${x.id}-${n}" aria-label="Remove ${esc(a.name)}">${svg('close')}</button>${open === `ai-${x.id}-${n}` ? `<div class="pnums">${[['kcal', 'kcal'], ['protein_g', 'Protein'], ['carbs_g', 'Carbs'], ['fat_g', 'Fat']].map(([k, l]) => `<label><small>${l}</small><input data-edit="${x.id}-${n}" name="${k}" inputmode="decimal" value="${a[k] == null ? '' : esc(String(Math.round(a[k] * 10) / 10))}" aria-label="${l}"></label>`).join('')}</div>` : ''}</div>`).join(''))).join('');
+    const aiAt = (key) => { const [id, n] = key.split('-').map(Number); const x = batches.find((y) => y.id === id); return x && x.items[n]; };
+    const wire = () => {
+      $$('[data-open]', box).forEach((el) => el.onclick = () => { const k = el.dataset.open; open = open === (isNaN(+k) ? k : +k) ? null : (isNaN(+k) ? k : +k); draw(); });
+      $$('[data-remove]', box).forEach((el) => el.onclick = () => { parts[+el.dataset.remove].removed = true; sent = null; resolve(null); });
+      $$('[data-unai]', box).forEach((el) => el.onclick = () => { aiAt(el.dataset.unai).removed = true; sent = null; draw(); });
+      $$('[data-edit]', box).forEach((el) => el.onchange = () => { const v = el.value.trim(); aiAt(el.dataset.edit)[el.name] = v === '' ? 0 : Math.max(0, parseFloat(v) || 0); sent = null; draw(); });
+      $$('[data-choose]', box).forEach((el) => el.onclick = () => { const i = items.find((x) => x.index === +el.dataset.choose), c = i.choices[+el.dataset.n]; parts[i.index].pick = {kind: c.kind, id: c.id}; resolve(null); });
+      $$('[data-amount]', box).forEach((el) => el.onclick = () => { const i = items.find((x) => x.index === +el.dataset.amount); parts[i.index].portion = i.options[+el.dataset.n].portion; resolve(null); });
+      $$('[data-scale]', box).forEach((el) => el.onclick = () => {
+        const i = items.find((x) => x.index === +el.dataset.scale), by = +el.dataset.by, p = {...i.portion};
+        for (const k of ['grams', 'count']) if (p[k] != null) p[k] = Math.round(p[k] * by * 1000) / 1000;
+        if (p.share != null) { const s = p.share * by; if (s > 1) { delete p.share; p.count = s; } else p.share = s; }
+        parts[i.index].portion = p; resolve(null);
+      });
+      $$('[data-search]', box).forEach((el) => el.onclick = () => { const w = {day: dp.value, meal: dest.value}; close(); addSheet(w.day, w.meal, items.find((x) => x.index === +el.dataset.search).text); });
+      $$('[data-retry-ai]', box).forEach((el) => el.onclick = () => estimate(batches.find((x) => x.id === +el.dataset.retryAi)));
+      const add = $('#ql-add', box); if (add) add.onclick = addAll;
+    };
+
+    let batchSeq = 0;
+    const estimate = async (x) => {   // only the words of foods that weren't found (or a photo) go to the AI service
+      if (!canEstimate || !aiCan('food') || !active()) return;
+      x.state = 'loading'; x.error = null; draw();
+      try {
+        const words = x.photo ? x.said : [x.idx.map((n) => parts[n].text).join(', '), ...x.said];
+        const r = await api('/api/food/photo', json('POST', {image: x.photo || null, note: words.join('\n').slice(-2000) || null}));
+        if (!active() || !batches.includes(x)) return;
+        x.items = r.items.map((it) => ({...it, client_id: newId()})); x.state = 'done';
+        if (!x.items.length) { x.state = 'error'; x.error = "The AI couldn't find food in that."; }
+      } catch (e) { if (!active() || !batches.includes(x)) return; x.state = 'error'; x.error = e.message; }
+      sent = null; draw();
+    };
+    const resolve = async (text, {quiet = false} = {}) => {
       if (busy || !active()) return;
-      resetPreview(); setBusy(true); const wait = say('Looking in your saved meals…', 'ai');
-      try { const r = await api('/api/food/meals-chat/resolve', json('POST', {text, ...(did ? {dish_id: did} : {}), ...(portion || {})}));
-        if (!active()) return; savedResult(r, wait);
-      } catch (x) { if (active()) { wait.textContent = x.message; input.value = text; } }
+      setBusy(true); const wait = text && !quiet ? say('<span class="dots"><i></i><i></i><i></i></span>', 'ai') : null;
+      try {
+        const r = await api('/api/food/meals-chat/resolve', json('POST', {say: text, parts}));
+        if (!active()) return;
+        if (r.status === 'clarify') {
+          // nothing to change on our side: words about an AI-estimated food go to the AI as a correction
+          const target = batches.find((x) => x.state === 'done' && !x.photo);
+          if (text && target && canEstimate) { wait.remove(); target.said.push(text); setBusy(false); return estimate(target); }
+          if (wait) wait.textContent = r.message; return;
+        }
+        if (r.meal) dest.value = r.meal;
+        if (r.day && r.day <= isoDay(new Date())) { dp.value = r.day; $('#ql-dayl', b).textContent = dayLabel(r.day); }
+        if (r.note === 'new') batches = [];
+        parts = r.parts; items = r.items; preview = {issued: r.issued, client_id: r.client_id}; sent = null;
+        // drop AI estimates for foods that were removed; estimate newly unknown foods together in one request
+        batches = batches.filter((x) => x.photo || x.idx.every((n) => !parts[n].removed && items.some((i) => i.index === n && i.status === 'unknown')));
+        const fresh = unknown().map((i) => i.index).filter((n) => !batchOf(n));
+        if (fresh.length && canEstimate) { const x = {id: ++batchSeq, idx: fresh, said: [], state: 'loading'}; batches.push(x); estimate(x); }
+        else if (r.note === 'changed' && text) {
+          const changed = batches.find((x) => !x.photo && x.idx.some((n) => parts[n].portion));
+          if (changed) { changed.said.push(text); estimate(changed); }
+        }
+        const named = fresh.map((n) => `“${parts[n].text}”`).join(', ');
+        if (wait) wait.textContent = !fresh.length ? r.message : canEstimate ? `${named} isn’t in your foods yet, so I’m estimating it with AI.` : `${named} isn’t in your foods yet. Search for it below.`;
+        draw();
+      } catch (x) { if (active()) { if (wait) wait.textContent = x.message; if (text) input.value = text; } }
       finally { if (active()) setBusy(false); }
     };
-    const estimateFood = async () => {
-      if (busy || !active() || !canEstimate || !aiCan('food')) return;
-      resetPreview(); setBusy(true); const wait = say('Estimating with AI…', 'ai');
-      try { const r = await api('/api/food/photo', json('POST', {image: photo, note: said.join('\n').slice(-2000) || null}));
+    const addAll = async () => {
+      if (busy || !active() || waiting()) return;
+      const err = $('#ql-error', box);
+      // Freeze what was sent, so a lost answer retries the identical entries (each has its own id), even after a date edit.
+      sent ||= {day: dp.value, meal: dest.value, done: false,
+        confirm: items.filter((i) => i.status === 'ready').map((i) => ({kind: i.kind, id: i.id, portion: i.portion, expected: i.expected})),
+        ai: aiItems().map((a) => ({day: dp.value, meal: dest.value, name: a.amount ? `${a.name} (${a.amount})` : a.name, amount: 1, unit: 'serving',
+          kcal: a.kcal || 0, protein_g: a.protein_g || 0, carbs_g: a.carbs_g || 0, fat_g: a.fat_g || 0, fiber_g: a.fiber_g ?? null, source: 'photo', client_id: a.client_id})),
+        issued: preview.issued, client_id: preview.client_id};
+      setBusy(true); const btn = $('#ql-add', box); btn.textContent = 'Adding…'; err.textContent = '';
+      try {
+        if (sent.confirm.length && !sent.done) {
+          await api('/api/food/meals-chat/confirm', json('POST', {items: sent.confirm, issued: sent.issued, client_id: sent.client_id, day: sent.day, meal: sent.meal, confirm: true}));
+          sent.done = true;
+        }
+        if (sent.ai.length) await addEntries(sent.ai); else refresh();
         if (!active()) return;
-        if (!r.items.length) { wait.textContent = "I couldn't find food in that. Say a bit more?"; return; }
-        wait.textContent = `AI estimate: about ${r0(r.items.reduce((x, it) => x + (it.kcal || 0), 0))} kcal. ${r.notes || ''} Check below before adding.`;
-        reviewItems(items, r.items.map((it) => ({...it, name: it.amount ? `${it.name} (${it.amount})` : it.name})), {
-          add: async (list) => { if (!active()) throw new Error('The account changed. Reopen Add food.'); if (busy) throw new Error('Please wait for the current request.'); setBusy(true);
-            try { await addEntries(list.map((it) => ({...it, day: dp.value, meal: dest.value, source: 'photo'}))); if (active()) close(); }
-            finally { if (active()) setBusy(false); }
-          },
-        });
-      } catch (x) { if (active()) { wait.textContent = x.message; alternatives(); } }
-      finally { if (active()) setBusy(false); }
+        const n = sent.confirm.length + sent.ai.length, left = unknown().filter((i) => !batchOf(i.index) || batchOf(i.index).state !== 'done');
+        invalidate('/api/food/'); close(); toast(`Added ${n === 1 ? 'it' : n + ' foods'} to ${MEAL_NAMES[sent.meal].toLowerCase()}`);
+        if (left.length) addSheet(sent.day, sent.meal, left[0].text);    // carry on with the food that wasn't found
+      } catch (x) {
+        if (!active()) return;
+        if (x.status === 409 || x.status === 404 || x.status === 400) {   // something changed: show it fresh, nothing was added
+          sent = null; setBusy(false); await resolve(null); $('#ql-error', box) && ($('#ql-error', box).textContent = x.message + ' I’ve updated it below.');
+          return;
+        }
+        draw(); $('#ql-error', box).textContent = x.message;
+      } finally { if (active()) setBusy(false); }
     };
     f.onsubmit = async (e) => {
       e.preventDefault(); if (busy || !active()) return;
-      const text = input.value.trim(); if (!text && !photo) { toast('Describe a saved meal and amount'); return; }
-      if (text) { said = [...said, text].slice(-5); say(esc(text), 'me'); }
-      input.value = ''; input.placeholder = 'Change the amount, or describe another meal';
-      lastText = text;
-      if (photo) { await estimateFood(); return; }
-      // Keep context only for a whole amount-only correction, never a differently named meal.
-      const correction = /^(?:(?:actually|make it|instead|it was)\s+)?(?:[\d.,/ ½¼¾]+\s*(?:g|grams?|kg|kilograms?|oz|ounces?|lbs?|pounds?|servings?|whole meals?)|(?:a |one )?(?:half|quarter))(?:\s+(?:of it|instead))?[.!]?$/i.test(text);
-      if (!correction) { selected = null; portion = null; }
-      await resolveSaved(text);
+      const text = input.value.trim(); if (!text && !photo) { toast('Say what you had'); return; }
+      if (text) say(esc(text), 'me');
+      input.value = ''; input.placeholder = 'Change something, or add more';
+      if (photo) {   // a photo goes to the AI estimator with what you said about it
+        if (text) photoSaid.push(text);
+        let x = batches.find((y) => y.photo === photo);
+        if (!x) { x = {id: ++batchSeq, idx: [], photo, said: [], state: 'loading'}; batches.push(x); }
+        x.said = photoSaid.slice(-5); return estimate(x);
+      }
+      await resolve(text);
     };
   });
 }
-// editable list of estimated items: tick, rename, change numbers, then add
 function reviewItems(box, list, {intro = '', add}) {
   const tot = list.reduce((s, it) => s + (it.kcal || 0), 0);
   const num = (k, lbl, v) => `<label><small>${lbl}</small><input name="${k}" inputmode="decimal" value="${v == null ? '' : esc(String(Math.round(v * 10) / 10))}" aria-label="${lbl}"></label>`;

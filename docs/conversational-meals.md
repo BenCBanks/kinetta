@@ -1,58 +1,66 @@
-# Describe a saved meal portion
+# Describe what you ate
 
-In **Nutrition → Add food**, tap **Describe or snap** (or **Describe a meal** without AI). You can also open
-**My meals → Describe a saved meal portion**. Try:
+In **Nutrition → Add food**, tap **Describe or snap** (or **Describe it** when AI is off), or **My meals → Describe
+what you ate**. Type the way you'd tell a friend:
 
-- “I had a 230 grams of the pasta I cooked on Monday for lunch.”
-- “8 ounces of my stew.”
-- “Half of the lentil soup.”
-- “1.5 servings of my smoothie.” One whole saved meal is one serving.
+- “2 eggs and toast for breakfast”
+- “a bowl of the chili I made Sunday”
+- “230 grams of the pasta I cooked on Monday for lunch”
+- “half the lasagna and a diet coke last night”
 
-Only your own cooked/saved Meals are searched. Saved combinations and friends’ shared meals still use their existing
-manual log controls. Matching ignores capitalization and accents, checks complete name words and asks you to choose
-if more than one meal matches. A shorter name such as “pasta” can match “Garden pasta”; an unknown name is never a
-license to invent its nutrition. Twelve choices are shown at most; narrow the name or saved date if there are more.
+Kinetta splits the sentence into foods and looks each one up in **your own records only**: saved Meals, Saved
+combinations, My foods, and foods you've logged in the last year. Then you can keep talking:
 
-**Dates mean when you saved the meal.** There is no separate cook-date field. The preview labels that date explicitly.
-Weekdays mean the most recent occurrence in your profile time zone (including today); “last Monday” excludes today
-when today is Monday. Today, yesterday and an explicit YYYY-MM-DD date also work. The selected log day stays visible
-and is not changed by a saved-meal date. “For lunch” selects Lunch; otherwise the destination you opened stays selected.
+- “make it 300 grams”, “make the toast 2 slices”, “two”, “only half” change an amount
+- “also a coffee” adds a food; “remove the toast” or “no coke” takes one off
+- “for dinner” or “it was yesterday” changes where it's logged
 
-Check the matched meal, portion, calories/macros and the **Adding to** day and meal. Nothing is logged until you tap
-**Add to…**. You can say “make it 300 grams” to change the current portion; it is recalculated from the same meal.
-If the weight or nutrition is missing, the app asks rather than guessing. You can edit the saved meal in My meals, or
-use half/a quarter/whole-meal servings when there is no total weight. Gram portions use the stored total weight, which
-may be an ingredients sum if you have not entered a weighed cooked total.
+Each food shows its amount and calories. Tap a food for **Half** / **Double**, or ✕ to remove it. Nothing is logged
+until you tap **Add to …**.
 
-This is a constrained conversation: one named saved meal and one supported amount at a time. Extra foods, unsupported
-units/dates and unclear phrasing ask for clarification. Use My meals for manual selection. It does not claim arbitrary
-natural-language understanding. Search, barcode, Quick and ordinary meal logging remain available.
+## How amounts are worked out
 
-## Cost and future product access
+- **No amount** means your usual amount: what you logged last time (“as last time”).
+- **A number** means that many of the unit you used before: “2 eggs” when you log eggs by the serving, “2 diet cokes”
+  when you log them by the can. A different unit means that many of your usual portion.
+- **Grams, ounces, kilograms, pounds** use the meal's stored weight, or the food's per-100 g values. If Kinetta doesn't
+  know a food's weight it says so and asks for a count instead.
+- **Half, a quarter, three quarters** of a saved meal are shares of the whole thing. “Half a serving” is half your
+  usual portion.
+- **A bowl / a plate / a serving** of a saved meal is the portion you logged last time. The first time you log a meal
+  that's measured by weight, it asks, with one-tap **All of it / Half / A quarter**.
 
-Saved-meal matching uses fixed SQL and portion arithmetic: **zero model calls**, no embedding/vector database, no
-recipe/history upload, no model-invented nutrition and no new dependency. A request reads at most the account’s
-300 saved meals, returning only compact name/date/weight choices or the selected portion’s totals.
+## Dates
 
-For other food, **Estimate as other food with AI** explicitly invokes the unchanged estimator. Photos use that same
-existing AI path. They require the existing `food` entitlement, provider configuration and consent, and retain its
-usage brakes, bounded five-message/2,000-character context, token limits and retry policy. The client never sends the
-saved-meal catalog, ingredients, totals or lookup responses to that provider. Only the person's supplied description
-and any photo go to it. A missing/ambiguous meal lookup never automatically triggers an estimate.
+“Last night”, “this morning”, “yesterday”, a weekday or 2026-10-12 say **when you ate**, and set the day (and meal)
+it's logged on. Next to a cooking word (“the chili I **made** Sunday”, “pasta **from** Monday”) a date picks **which
+saved meal** you mean, by the day it was saved in your time zone.
 
-Future billing can gate model-powered food features through `app/ai_access.py`; no prices, purchase flow, grants or
-new paywall are introduced here. Payment does not grant consent. Deterministic saved-meal logging remains available
-without AI access. This change does not alter prompts/models or enable the evaluation-gated Kit tool coach. Tests use
-stand-ins and fictional records; they are not evidence of real-model accuracy.
+## Names
 
-## Confirmation integrity
+Matching ignores capitals, accents and plurals (taco/tacos). Names with “and”, “with” or numbers (“Mac and cheese”,
+“5 bean chili”) are recognised as one food. If a word matches several foods, you choose. If nothing matches, the food
+is **not** guessed:
 
-The resolve endpoint is authenticated/read-only and accepts no user ID, SQL, nutrition or arbitrary tool call.
-The confirmation endpoint requires a strict `confirm: true`, binds ownership again, locks the account and saved meal,
-checks a 15-minute preview fingerprint and calculates nutrition again on the server. Recipe changes reject stale
-previews. The editable log day/meal are explicit confirmation inputs, independent of the saved-meal date.
+- With AI access and consent, only the words of the foods that weren't found (for example “a hot dog”) go to the AI
+  estimator, and its estimate is shown as **AI estimate**, editable, in the same list. Later corrections about that
+  food go to the AI as well. Your saved foods, recipes and history are never sent.
+- With AI off, the food gets a **Search for “…”** button. After you add the rest, Add food opens on Search with those
+  words filled in.
 
-A per-account client ID and stored request fingerprint make concurrent/repeated confirmations return one entry,
-including a lost response followed by an edit/deletion of the original recipe. Reusing that ID for different inputs
-is rejected. The existing `food_entries` RLS and unique index are reused; no schema migration is needed. Chat text and
-pending previews are not saved. Logged entries keep their normal meal provenance and remain editable/deletable.
+A photo still goes to the AI estimator with whatever you say about it.
+
+## Cost and AI being optional
+
+Looking things up is fixed SQL and arithmetic: **zero model calls**, no embeddings, no new dependency. It works with no
+AI access and no AI consent, so food logging keeps working if AI is turned off or later sold separately
+(`app/ai_access.py` gates only the estimator). One AI request per message at most, and only for unknown foods.
+
+## Safety
+
+The resolve endpoint is authenticated and read-only; it takes your words plus the conversation so far (the server
+keeps nothing between messages), never a user ID, SQL or nutrition. Confirmation requires `confirm: true`, re-reads
+every food under lock from your own rows, checks each item's 15-minute fingerprint (an edited meal must be looked at
+again) and calculates the nutrition on the server. Each logged entry gets a client ID derived from the confirmation,
+so a retry after a lost answer returns the same entries, even if the meal was edited or deleted in between. No schema
+change.
