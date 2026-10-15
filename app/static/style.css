@@ -1448,3 +1448,22 @@ nav.tabs a svg { width: 23px; height: 23px; }
 .food-describe .ql-chat { margin-top: 16px; }
 .food-describe .ql-choices .fe b, .food-describe [data-product] b { white-space: normal; overflow-wrap: anywhere; }
 .meal-library-row > .ghost { flex: none; min-height: 44px; }
+
+
+/* Food actions and logged-item controls: centered targets, clear boundaries. */
+.food-ways { margin: 16px 0; }
+.food-ways .way { align-items: center; justify-content: center; text-align: center;
+  min-height: 112px; gap: 10px; border: 1px solid var(--accent); background: var(--card2); box-shadow: none; }
+.food-ways .way b { width: 100%; min-height: 2.6em; display: flex; align-items: center; justify-content: center; line-height: 1.3; white-space: normal; }
+.food-ways .way svg { flex: none; }
+.logged-food { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.logged-food:last-child { border-bottom: 0; }
+.logged-food > .fe { flex: 1; min-width: 0; border: 0; padding-right: 0; }
+.logged-food .fe > div:first-child { min-width: 0; }
+.logged-food .fe b { display: block; white-space: normal; overflow-wrap: anywhere; }
+.logged-food .remove-food { flex: none; display: flex; align-items: center; gap: 3px; min-height: 44px; font-size: 12px; }
+.remove-food svg { width: 15px; height: 15px; }
+.entry-context b, .entry-context small { display: block; overflow-wrap: anywhere; }
+.entry-remove { margin: 0 0 16px; }
+.entry-move { margin: 8px 0; }
+.entry-move summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--tx2); }

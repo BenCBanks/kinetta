@@ -168,13 +168,14 @@ function drawDay(el, D) {
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
       </section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
-      ${list.map((e) => `<button class="fe${e.pending ? ' pending' : ''}" data-id="${e.id}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
-        <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`).join('')}
+      ${list.map((e) => `<div class="logged-food"><button class="fe${e.pending ? ' pending' : ''}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
+        <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>${e.pending ? '' : `<button class="linkbtn danger remove-food" data-remove-food="${e.id}" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[m]}">${svg('trash')}Remove</button>`}</div>`).join('')}
       <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('edit')}Edit</button>` : ''}</div></section>`;
   }).join('') + (D.entries.length ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
   $$('[data-add]', el).forEach((b) => b.onclick = () => addSheet(D.day, b.dataset.add));
   $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
-  $$('.fe', el).forEach((b) => b.onclick = () => {
+  $$('[data-remove-food]', el).forEach(b => b.onclick = () => removeFoodEntry(D.entries.find(e => String(e.id) === b.dataset.removeFood), {button: b}));
+  $$('[data-id]', el).forEach((b) => b.onclick = () => {
     const e = D.entries.find((x) => String(x.id) === b.dataset.id);
     if (e.pending) { toast('Saved on this phone - it sends when you are back online'); return; }
     entrySheet(e, D.day);
@@ -200,44 +201,72 @@ async function copyDay(from, to, meal) {
   try { const r = await api('/api/food/copy', json('POST', {from_day: from, to_day: to, meal: meal || null})); refresh(); toast(r.copied ? `Copied ${r.copied} item${r.copied > 1 ? 's' : ''}` : 'Nothing to copy'); }
   catch (x) { toast(x.message); }
 }
-// Edit a meal (2026-10-12, Ben: make it obvious): every food in it, tap one to change or remove it; then save or copy it
+// Meal actions are scoped to the selected meal and day; copying days belongs elsewhere.
 function mealMenu(D, meal) {
-  const list = D.entries.filter((e) => e.meal === meal && !e.pending);
-  sheet(`Edit ${MEAL_NAMES[meal].toLowerCase()}`, `<p class="small muted">Tap a food to change how much, move it or remove it.</p>
-    <div class="card list mm-list">${list.map((e) => `<button class="fe" data-me="${e.id}"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))}</small></div>
-      <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal ${svg('chev')}</small></div></button>`).join('')}</div>
-    <div class="card list">
-    <button class="row-link" id="mm-save"><span>Save as a meal for next time</span></button>
-    <button class="row-link" id="mm-copy"><span>Copy to today</span></button>
-    <button class="row-link" id="mm-tomorrow"><span>Copy to the next day</span></button></div>`, (b, close) => {
-    $$('[data-me]', b).forEach((x) => x.onclick = () => { close(); entrySheet(list.find((e) => String(e.id) === x.dataset.me), D.day); });
+  const list = D.entries.filter(e => e.meal === meal && !e.pending);
+  const totals = Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g'].map(k => [k, list.reduce((n, e) => n + (e[k] || 0), 0)]));
+  sheet(`Edit ${MEAL_NAMES[meal].toLowerCase()}`, `<p class="small muted">${esc(dayLabel(D.day))} · ${list.length} food${list.length === 1 ? '' : 's'}. Edit an item’s amount or nutrition, or remove it below.</p>
+    ${nutGrid(totals)}<div class="card list mm-list">${list.map(e => `<div class="logged-food"><button class="fe" data-me="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[meal]}"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))} · Edit</small></div>
+      <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button><button class="linkbtn danger remove-food" data-remove-food="${e.id}" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[meal]}">${svg('trash')}Remove</button></div>`).join('')}</div>
+    <div class="btncol"><button class="primary" id="mm-add">${svg('plus')}Add food to ${MEAL_NAMES[meal]}</button>
+    <button class="ghost" id="mm-save"${list.length ? '' : ' disabled'}>Save these foods as a combination</button></div>`, (b, close) => {
+    $$('[data-me]', b).forEach(x => x.onclick = () => { close(); entrySheet(list.find(e => String(e.id) === x.dataset.me), D.day); });
+    $$('[data-remove-food]', b).forEach(x => x.onclick = () => removeFoodEntry(list.find(e => String(e.id) === x.dataset.removeFood), {button: x, after: close}));
+    $('#mm-add', b).onclick = () => { close(); addSheet(D.day, meal); };
     $('#mm-save', b).onclick = async () => {
-      const name = prompt('Name this meal', `${MEAL_NAMES[meal]} favourite`); if (!name) return;
-      try { await api('/api/food/meals', json('POST', {name, from_day: D.day, meal})); invalidate('/api/food/meals'); close(); toast('Meal saved'); } catch (x) { toast(x.message); }
+      const name = prompt('Name this combination', `${MEAL_NAMES[meal]} favourite`); if (!name) return;
+      const owner = readOwner(), btn = $('#mm-save', b); btn.disabled = true;
+      try { await api('/api/food/meals', json('POST', {name, from_day: D.day, meal})); if (owner !== readOwner()) return; invalidate('/api/food/meals'); close(); toast('Combination saved'); }
+      catch (x) { if (owner === readOwner()) { toast(x.message); if (btn.isConnected) btn.disabled = false; } }
     };
-    $('#mm-copy', b).onclick = () => { close(); copyDay(D.day, isoDay(new Date()), meal); };
-    $('#mm-tomorrow', b).onclick = () => { close(); copyDay(D.day, addDays(D.day, 1), meal); };
   });
+}
+
+// The same one-item removal is available from the log, meal menu and entry editor.
+// Keep the deleted row until Undo succeeds, with one stable retry ID.
+async function removeFoodEntry(e, {button, after} = {}) {
+  if (!e || e.pending || button?.disabled) return false;
+  const owner = readOwner(), label = button?.innerHTML;
+  if (button) { button.disabled = true; button.textContent = 'Removing…'; }
+  try {
+    const r = await api(`/api/food/entries/${e.id}`, {method: 'DELETE'});
+    if (readOwner() !== owner) return false;
+    if (after) after(); refresh();
+    const entry = {...r.deleted, ref: r.deleted.ref || null, client_id: newId()};
+    let restoring = false, restored = false;
+    const undo = async () => {
+      if (restoring || restored || readOwner() !== owner) return;
+      restoring = true;
+      try { await addEntries([entry]); restored = true; }
+      catch (x) { if (readOwner() === owner) toast(`Couldn’t restore ${e.name}: ${x.message}`, undo); }
+      finally { restoring = false; }
+    };
+    toast(`Removed ${e.name} from ${MEAL_NAMES[e.meal]}`, undo);
+    return true;
+  } catch (x) { if (readOwner() === owner) toast(x.message); return false; }
+  finally { if (button?.isConnected) { button.disabled = false; button.innerHTML = label; } }
 }
 
 // ---------- edit an entry ----------
 function entrySheet(e, day) {
   const ref = e.ref;
-  sheet('Edit food', `<div id="es-nut">${nutGrid(e)}</div><form class="form" id="es">
+  sheet('Edit food', `<p class="entry-context"><b>${esc(e.name)}</b><small class="muted">${MEAL_NAMES[e.meal]} · ${esc(dayLabel(day))}</small></p><div id="es-nut">${nutGrid(e)}</div><button type="button" class="ghost danger wide entry-remove" id="es-del">${svg('trash')}Remove from ${MEAL_NAMES[e.meal]}</button><form class="form" id="es">
     <label>Name<input name="name" value="${esc(e.name)}" maxlength="200"></label>
     <div class="two"><label>Amount<input name="amount" inputmode="decimal" value="${r1(e.amount)}"></label>
       <label>Unit<select name="unit">${unitOptions(ref, e.unit)}</select></label></div>
     ${macroInputs(e)}
-    <div class="two entry-when"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === e.meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-      <label>Day<input class="datefield" name="day" type="date" value="${esc(day)}"></label></div>
-    <div class="actions"><button type="button" class="ghost danger" id="es-del">Delete</button><span class="spacer"></span>
-      <button type="button" class="ghost" id="es-again">Log again</button><button class="primary">Save</button></div></form>`, (b, close) => {
+    <details class="entry-move"><summary>Move this food</summary><div class="two entry-when"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === e.meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label>Day<input class="datefield" name="day" type="date" value="${esc(day)}"></label></div></details>
+    <div class="actions"><button class="primary wide">Save changes</button></div></form>`, (b, close) => {
     const f = $('#es', b);
+    // Opening an editor must not put keyboard focus on its removal action.
+    if (matchMedia('(pointer: coarse)').matches) b.closest('.sheet').querySelector('[data-close]').focus({preventScroll: true});
+    else softFocus(f.name);
     const rescale = () => {   // changing the amount rescales the numbers when we know the food's per-100 g / per-serving values
       const a = parseFloat(f.amount.value);
       if (!(a > 0)) return;
       let v;
-      if (ref) v = scaleFood(ref, a, f.unit.value);
+      if (ref && (ref.per100 || ref.per_serving)) v = scaleFood(ref, a, f.unit.value);
       else if (e.amount > 0 && f.unit.value === e.unit) { const k = a / e.amount; v = {kcal: e.kcal * k, protein_g: e.protein_g * k, carbs_g: e.carbs_g * k, fat_g: e.fat_g * k, fiber_g: e.fiber_g == null ? null : e.fiber_g * k}; }
       if (v) for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) if (f[k]) f[k].value = v[k] == null ? '' : r1(v[k]);
       if (v) $('#es-nut', b).innerHTML = nutGrid(v);
@@ -250,17 +279,7 @@ function entrySheet(e, day) {
         kcal: n(f.kcal) || 0, protein_g: n(f.protein_g) || 0, carbs_g: n(f.carbs_g) || 0, fat_g: n(f.fat_g) || 0, fiber_g: n(f.fiber_g)};
       try { await api(`/api/food/entries/${e.id}`, json('PATCH', body)); close(); refresh(); } catch (x) { toast(x.message); }
     };
-    $('#es-del', b).onclick = async () => {
-      try {
-        const r = await api(`/api/food/entries/${e.id}`, {method: 'DELETE'}); close(); refresh();
-        const d = r.deleted;
-        toast(`Deleted ${e.name}`, () => addEntries([{...d, day: d.day, ref: d.ref || null}]).catch((x) => toast(x.message)));
-      } catch (x) { toast(x.message); }
-    };
-    $('#es-again', b).onclick = async () => {
-      try { await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
-        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g, source: e.source, ref: e.ref}]); close(); toast('Logged again today'); } catch (x) { toast(x.message); }
-    };
+    $('#es-del', b).onclick = () => removeFoodEntry(e, {button: $('#es-del', b), after: close});
   });
 }
 function unitList(ref, cur) {      // [[key, label]]: servings, grams when the food has per-100 g values, and the unit it was logged in
@@ -285,8 +304,8 @@ function addSheet(day, meal, find = '') {
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways"><button class="way" id="as-photo">${svg('comment')}<b>Describe, Snap or Scan</b></button>
-      <button class="way" id="as-dish">${svg('pot')}<b>Cook a meal</b></button></div>
+    <div class="ways food-ways"><button class="way" id="as-photo">${svg('comment')}<b>Describe, Snap or Scan</b></button>
+      <button class="way" id="as-dish">${svg('pot')}<b>Create a Recipe</b></button></div>
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
@@ -381,7 +400,7 @@ async function tSaved(body, where, close) {
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
+      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button><button class="ghost wide" id="tm-dish">+ Create a Recipe</button></div>
 `;
     const again = () => tSaved(body, where, close);
     $('#tm-describe', body).onclick = () => { const w = where(); close(); describeSheet(w.day, w.meal); };
