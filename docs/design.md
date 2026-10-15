@@ -188,3 +188,12 @@ Beta forms and successful confirmations always provide a return link to the publ
 Feed performance: reuse a fresh15-second cached first page and coalesce concurrent identical reads, avoiding duplicate
 requests and unnecessary map/card reconstruction when refreshed records are unchanged. Preserve account guards, cache
 invalidation after edits/Cheers and pagination. Validate network counts with delayed synthetic responses before claiming gains.
+
+Async responses must belong to both the current account and the current read revision. Invalidation prevents an
+older GET/prefetch/merged-feed response from restoring stale records after an edit. Delayed401s and notification
+counts from a previous account must not change a new login. Food-search input invalidates older results immediately,
+including during debounce; clearing/closing search cancels queued work. Preserve the fast cached-first behavior.
+
+Food-entry editing places Meal and Day on separate full-width rows at phone widths (up to480px). Use the shared
+`datefield` styling for visible native date inputs, with explicit minimum/maximum widths, so iOS date controls cannot
+push beyond their grid cell. Preserve the native picker, readable date and44px-or-larger target.

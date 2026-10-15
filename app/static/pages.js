@@ -68,7 +68,7 @@ function wireCheers(box) {
     const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
     const shift = (d) => { const c = cnt(), v = (+c.textContent || 0) + d; c.textContent = v || ''; b.setAttribute('aria-pressed', String(d > 0)); };
     shift(on ? 1 : -1); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
-    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); invalidate('/api/shared/' + id); invalidate('/api/activities?'); App.cache.delete('feed:home'); }
+    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); invalidate('/api/shared/' + id); invalidate('/api/activities?'); invalidateFeed(); }
     catch (x) { shift(on ? -1 : 1); toast(x.message); }
     finally { delete b.dataset.sending; }
   }, () => activityCheers(b.dataset.cheer)));
