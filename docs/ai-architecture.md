@@ -74,5 +74,5 @@ profile/body settings do not depend on these grants. Deterministic application t
 from billable model calls. New model features must choose an existing capability or deliberately extend this catalog,
 with server-denial, consent, isolation and non-AI regression coverage.
 
-Describe or snap currently produces model estimates; it does **not** guarantee a USDA lookup. Keep direct food search.
+Describe or snap first offers deterministic, account-bound saved-meal matching and portion calculations without provider work. The separate **Estimate as other food with AI** action uses the existing model estimator and food access/consent/usage checks; it does **not** guarantee a USDA lookup. See [conversational-meals.md](conversational-meals.md). Keep direct food search.
 Adding a grounded lookup stage is a separate prompt/model change requiring the reviewed food evaluation process.

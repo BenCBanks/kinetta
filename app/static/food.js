@@ -284,7 +284,7 @@ function addSheet(day, meal) {
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways${aiCan('food') ? ' three' : ''}">${aiCan('food') ? `<button class="way" id="as-photo">${svg('sparkle')}<b>Describe or snap</b></button>` : ''}
+    <div class="ways three"><button class="way" id="as-photo">${svg(aiCan('food') ? 'sparkle' : 'pot')}<b>${aiCan('food') ? 'Describe or snap' : 'Describe a meal'}</b></button>
       <button class="way" id="as-scan">${svg('barcode')}<b>Barcode</b></button>
       <button class="way" id="as-dish">${svg('pot')}<b>Cook a meal</b></button></div>
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My meals'], ['search', 'Search'], ['quick', 'Quick']]
@@ -298,9 +298,9 @@ function addSheet(day, meal) {
     const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
-    const photo = $('#as-photo', b); if (photo) photo.onclick = () => {   // words and photos go to the AI service, so it needs the person's OK first
+    const photo = $('#as-photo', b); if (photo) photo.onclick = () => {   // saved-meal lookup is local; model estimates separately require access and consent
       const w = where(); close();
-      if (App.me.coach && !App.me.ai_ok) aiSheet(() => describeSheet(w.day, w.meal)); else describeSheet(w.day, w.meal);
+      describeSheet(w.day, w.meal);
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
     $('#as-dish', b).onclick = (e) => { close(); newDish(e.currentTarget); };     // a saved dish is logged from Saved Dishes
@@ -381,9 +381,10 @@ async function tSaved(body, where, close) {
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><div class="results">${foods.map(foodRow).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
+      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe a saved meal portion</button><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
 `;
     const again = () => tSaved(body, where, close);
+    $('#tm-describe', body).onclick = () => { const w = where(); close(); describeSheet(w.day, w.meal); };
     $('#tm-food', body).onclick = () => foodEditor(null, again);
     $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
     $$('[data-edit-meal]', body).forEach((b) => b.onclick = () => { close(); go('/food/cook/' + b.dataset.editMeal); });
@@ -531,51 +532,113 @@ async function shrinkPhoto(file, max = 1280) {
 }
 // Describe or snap (2026-10-12, Ben: "I had a hotdog from Costco and a Diet Coke" should be quick): a small chat. Say what
 // you had, add a photo if you like (or only a photo), check the estimate, send a correction ("make it two"), then log it.
-// Each estimate sends everything said so far (later lines correct earlier ones) plus the photo; nothing is stored.
+// Saved-meal portions use deterministic lookup; AI estimates are explicit and send bounded user text plus any photo.
 function describeSheet(day, meal) {
+  const canEstimate = aiCan('food');
   sheet('What did you eat?', `<div class="where ql-where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="ql-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="ql-dayl">${esc(dayLabel(day))}</span><input id="ql-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai ql-tip">Tell me what you had, snap a photo, or both. For example: <i>"a hot dog and a Diet Coke from Costco"</i>.</p></div>
+    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai ql-tip">Try <i>“230 grams of the pasta I cooked on Monday”</i>. I’ll look in your saved meals. Check the match, portion and log destination before adding.${canEstimate ? ' For other food, you can request an AI estimate.' : ''}</p></div>
     <div id="ql-items"></div>
-    <form class="composer ql-composer" id="ql-f"><button type="button" class="icon-btn" id="ql-cam" aria-label="Add a photo">${svg('camera')}</button>
-      <input name="t" id="ql-t" placeholder="What did you eat?" aria-label="What you ate, in your own words" autocomplete="off" enterkeyhint="send" maxlength="400">
-      <button class="icon-btn send" aria-label="Estimate">${svg('send')}</button></form>
+    <form class="composer ql-composer" id="ql-f">${canEstimate ? `<button type="button" class="icon-btn" id="ql-cam" aria-label="Add a photo">${svg('camera')}</button>` : ''}
+      <input name="t" id="ql-t" placeholder="Describe a saved meal and amount" aria-label="What you ate, in your own words" autocomplete="off" enterkeyhint="send" maxlength="400">
+      <button class="icon-btn send" aria-label="Find meal">${svg('send')}</button></form>
     <input type="file" accept="image/*" id="ql-file" hidden>`, (b, close) => {
+    const owner = readOwner(), active = () => b.isConnected && readOwner() === owner;
     const chat = $('#ql-chat', b), items = $('#ql-items', b), f = $('#ql-f', b), file = $('#ql-file', b), input = $('#ql-t', b);
-    input.focus();   // ready to type (Ben): this runs inside the tap that opened it, so iOS shows the keyboard at once
-    const dp = $('#ql-day', b);
-    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
-    dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); };
-    const said = [];
-    let photo = null, busy = false;
-    // the opening tip goes once you've said something or added a photo (2026-10-13, Ben): by then you know how it works
+    const dp = $('#ql-day', b), dest = $('#ql-meal', b);
+    let photo = null, busy = false, selected = null, portion = null, lastText = '', said = [];
+    input.focus();
+    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* native picker */ } };
+    const destination = () => { const btn = $('#ql-add-meal', items); if (btn && !btn.dataset.retry) btn.textContent = `Add to ${MEAL_NAMES[dest.value]}, ${dayLabel(dp.value)}`; };
+    dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); destination(); };
+    dest.onchange = destination;
+    const setBusy = (on) => { busy = on; $$('button, input, select', b).forEach((el) => { el.disabled = on; }); };
     const say = (html, who) => { $('.ql-tip', chat)?.remove(); chat.insertAdjacentHTML('beforeend', `<p class="cmsg ${who}">${html}</p>`); chat.lastElementChild.scrollIntoView({block: 'nearest'}); return chat.lastElementChild; };
-    $('#ql-cam', b).onclick = () => file.click();
+    const resetPreview = () => { items.innerHTML = ''; };
+    input.oninput = resetPreview;
+    const camera = $('#ql-cam', b);
+    if (camera) camera.onclick = () => file.click();
     file.onchange = async () => {
-      const fl = file.files && file.files[0]; file.value = ''; if (!fl) return;
-      try { photo = await shrinkPhoto(fl); } catch (e) { toast("That photo couldn't be opened"); return; }
-      say(`<img class="ql-img" src="${photo}" alt="Your photo">`, 'me');
-      if (!input.value.trim()) { input.placeholder = 'Add a few words, or tap send'; }
+      const fl = file.files?.[0]; file.value = ''; if (!fl || busy || !active()) return;
+      resetPreview(); setBusy(true);
+      try { const image = await shrinkPhoto(fl); if (!active()) return; photo = image; selected = null; portion = null;
+        say(`<img class="ql-img" src="${photo}" alt="Your photo">`, 'me'); input.placeholder = 'Describe it, or send for an AI estimate';
+      } catch (x) { if (active()) toast("That photo couldn't be opened"); }
+      finally { if (active()) setBusy(false); }
+    };
+    const alternatives = () => {
+      items.innerHTML = `<div class="btncol"><button class="ghost wide" id="ql-library">Choose from My meals</button>${canEstimate ? '<button class="ghost wide" id="ql-estimate">Estimate as other food with AI</button>' : ''}</div>`;
+      $('#ql-library', items).onclick = () => { close(); go('/food/meals'); };
+      const estimate = $('#ql-estimate', items); if (estimate) estimate.onclick = () => estimateFood();
+    };
+    const savedResult = (r, wait) => {
+      wait.textContent = r.message + (r.more_matches ? ' Showing the first 12. Type a more specific name or saved date to narrow it down.' : '');
+      if (r.meal) dest.value = r.meal;
+      if (r.portion) portion = r.portion;
+      if (r.dish) selected = r.dish.id;
+      if (r.status === 'choose') {
+        selected = null;
+        items.innerHTML = `<div class="results ql-choices">${r.choices.map((d, i) => `<button class="fe" data-chat-choice="${i}"><div><b>${esc(d.name)}</b><small class="muted">Saved ${esc(d.saved_day)}${d.weight_g ? ` · ${r0(d.weight_g)} g total` : ' · no total weight'}</small></div></button>`).join('')}</div>`;
+        $$('[data-chat-choice]', items).forEach((btn) => btn.onclick = () => resolveSaved(lastText, r.choices[+btn.dataset.chatChoice].id));
+      } else if (r.status === 'ready') {
+        const p = r.portion, amount = p.grams ? `${r1(p.grams)} g` : p.count ? `${r1(p.count)} whole-meal serving${p.count === 1 ? '' : 's'}` : `${r0(p.share * 100)}% of the whole meal`;
+        items.innerHTML = `<div class="card ql-saved"><h3>${esc(r.dish.name)}</h3><p class="small muted">Saved ${esc(r.dish.saved_day)} · ${esc(amount)}</p>${nutGrid(r.totals)}<p class="small muted">From your saved nutrition, without an AI estimate. Send another amount to change the portion.</p><button class="primary wide" id="ql-add-meal"></button><p class="err" id="ql-error" role="status"></p></div>`;
+        destination();
+        let confirmation = null;
+        $('#ql-add-meal', items).onclick = async () => {
+          if (busy || !active()) return;
+          // Freeze the first request so a lost acknowledgement retries the identical entry, even after a date edit.
+          confirmation ||= {dish_id: r.dish.id, ...p, issued: r.issued, expected: r.expected, client_id: r.client_id,
+            day: dp.value, meal: dest.value, confirm: true};
+          setBusy(true); const btn = $('#ql-add-meal', items); btn.textContent = 'Adding…';
+          try { await api('/api/food/meals-chat/confirm', json('POST', confirmation)); if (!active()) return;
+            invalidate('/api/food/'); close(); refresh(); toast('Saved meal added');
+          } catch (x) { if (!active()) return; $('#ql-error', items).textContent = x.message;
+            if (x.status === 409 || x.status === 404) { btn.remove(); }
+            else { btn.dataset.retry = 'true'; btn.textContent = `Retry add to ${MEAL_NAMES[confirmation.meal]}, ${dayLabel(confirmation.day)}`; }
+          } finally { if (active()) setBusy(false); }
+        };
+      } else if (r.status === 'quantity') {
+        items.innerHTML = r.dish ? `<p class="small muted">${esc(r.dish.name)} · saved ${esc(r.dish.saved_day)}. Nothing added yet.</p>` : '';
+        input.placeholder = 'For example: make it 300 grams';
+      } else { selected = null; portion = null; alternatives(); }
+    };
+    const resolveSaved = async (text, did = selected) => {
+      if (busy || !active()) return;
+      resetPreview(); setBusy(true); const wait = say('Looking in your saved meals…', 'ai');
+      try { const r = await api('/api/food/meals-chat/resolve', json('POST', {text, ...(did ? {dish_id: did} : {}), ...(portion || {})}));
+        if (!active()) return; savedResult(r, wait);
+      } catch (x) { if (active()) { wait.textContent = x.message; input.value = text; } }
+      finally { if (active()) setBusy(false); }
+    };
+    const estimateFood = async () => {
+      if (busy || !active() || !canEstimate || !aiCan('food')) return;
+      resetPreview(); setBusy(true); const wait = say('Estimating with AI…', 'ai');
+      try { const r = await api('/api/food/photo', json('POST', {image: photo, note: said.join('\n').slice(-2000) || null}));
+        if (!active()) return;
+        if (!r.items.length) { wait.textContent = "I couldn't find food in that. Say a bit more?"; return; }
+        wait.textContent = `AI estimate: about ${r0(r.items.reduce((x, it) => x + (it.kcal || 0), 0))} kcal. ${r.notes || ''} Check below before adding.`;
+        reviewItems(items, r.items.map((it) => ({...it, name: it.amount ? `${it.name} (${it.amount})` : it.name})), {
+          add: async (list) => { if (!active()) throw new Error('The account changed. Reopen Add food.'); if (busy) throw new Error('Please wait for the current request.'); setBusy(true);
+            try { await addEntries(list.map((it) => ({...it, day: dp.value, meal: dest.value, source: 'photo'}))); if (active()) close(); }
+            finally { if (active()) setBusy(false); }
+          },
+        });
+      } catch (x) { if (active()) { wait.textContent = x.message; alternatives(); } }
+      finally { if (active()) setBusy(false); }
     };
     f.onsubmit = async (e) => {
-      e.preventDefault(); if (busy) return;
-      const t = input.value.trim();
-      if (!t && !photo) { toast('Say what you had, or add a photo'); return; }
-      if (!t && said.length && !photo) return;
-      if (t) { said.push(t); say(esc(t), 'me'); }
-      input.value = ''; input.placeholder = 'Anything to change?';
-      busy = true; const wait = say('<span class="dots"><i></i><i></i><i></i></span>', 'ai');
-      try {
-        const r = await api('/api/food/photo', json('POST', {image: photo, note: said.join('\n') || null}));
-        if (!r.items.length) { wait.textContent = 'I couldn\'t find any food in that. Say a bit more about what you had?'; items.innerHTML = ''; return; }
-        const tot = r.items.reduce((x, it) => x + (it.kcal || 0), 0);
-        wait.innerHTML = `${r.items.length === 1 ? 'That looks like' : `${r.items.length} things, about`} <b>${r0(tot)} kcal</b>${r.items.length === 1 ? ` (${esc(r.items[0].name)})` : ''}.${r.notes ? ` <span class="muted">${esc(r.notes)}</span>` : ''} Check below, or tell me what to change.`;
-        reviewItems(items, r.items.map((it) => ({...it, name: it.amount ? `${it.name} (${it.amount})` : it.name})), {
-          add: async (list) => { await addEntries(list.map((it) => ({...it, day: dp.value, meal: $('#ql-meal', b).value, source: 'photo'}))); close(); },
-        });
-      } catch (x) { wait.textContent = x.message; }
-      finally { busy = false; }
+      e.preventDefault(); if (busy || !active()) return;
+      const text = input.value.trim(); if (!text && !photo) { toast('Describe a saved meal and amount'); return; }
+      if (text) { said = [...said, text].slice(-5); say(esc(text), 'me'); }
+      input.value = ''; input.placeholder = 'Change the amount, or describe another meal';
+      lastText = text;
+      if (photo) { await estimateFood(); return; }
+      // Keep context only for a whole amount-only correction, never a differently named meal.
+      const correction = /^(?:(?:actually|make it|instead|it was)\s+)?(?:[\d.,/ ½¼¾]+\s*(?:g|grams?|kg|kilograms?|oz|ounces?|lbs?|pounds?|servings?|whole meals?)|(?:a |one )?(?:half|quarter))(?:\s+(?:of it|instead))?[.!]?$/i.test(text);
+      if (!correction) { selected = null; portion = null; }
+      await resolveSaved(text);
     };
   });
 }
