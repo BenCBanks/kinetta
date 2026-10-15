@@ -3,7 +3,7 @@ name: Homepage
 on:
   push:
     branches: [main]
-    paths: ["site/**", ".github/workflows/pages.yml"]
+    paths: ["site/**", "dev/design/build_content.py", "dev/design/build_guide.js", "app/static/explore.js", ".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +22,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Build editable website copy
+        run: python3 dev/design/build_content.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

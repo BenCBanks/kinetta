@@ -13,8 +13,8 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 ## How work gets to users
 - Work on a branch and open a pull request. Never push to `main`: a merge to `main` publishes the homepage
   (`site/`, GitHub Pages at kinetta.app) and the Docker image (`ghcr.io/bencbanks/kinetta`).
-- The maintainer's live server (login.kinetta.app) is updated separately, by the maintainer. Don't try to reach it,
-  log in to it, or send anything to it.
+- The maintainer's live server is updated separately. Cloud/code-only agents must not access it. A server-resident
+  agent may deploy only with the owner's session authorization and applicable private house workflow.
 
 ## Layout
 | Path | What |
@@ -22,7 +22,7 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 | `app/` | FastAPI server (Python 3.12). `main.py` wires the routers; `api_*.py` are the endpoints; `db.py` has the schema |
 | `app/static/` | The phone app: plain JavaScript, no build step (`app.js` core + charts, `pages.js`, `food.js`, `plan.js`, `social.js`, `cook.js`, `lift.js` lifting, `native.js` iPhone-app-only parts, `style.css`) |
 | `mobile/` | The iPhone app: a Capacitor shell around `app/static` plus Apple Health (see `mobile/README.md`, `docs/ios.md`); built on a macOS runner by `.github/workflows/ios.yml` |
-| `site/` | The kinetta.app website: one page per tab (`index` Home, `training`, `food`, `friends`, `compare`, `privacy`, `self-host`), shared styles in `assets/site.css`. The header and footer are copied on every page: change them on all of them |
+| `site/` | The kinetta.app website: one page per tab (`index` Home, `training`, `food`, `friends`, `compare`, `privacy`, `self-host`), shared styles in `assets/site.css`. Written copy lives in `site/content/*.md`; layouts in `site/templates/`. Run `python3 dev/design/build_content.py` after changes. The feature catalog stays shared with the app; see `docs/website-content.md` |
 | `docs/` | Public guides (connecting phones, SQL access) |
 | `dev/demo/` | Made-up demo data for testing and screenshots |
 | `docker-compose.yml` | How people install it (app + PostgreSQL 17/PostGIS, passwords generated on first start) |
@@ -85,15 +85,15 @@ verification, merge and release status distinct, and follow the owner's current 
 1. **Hosted beta**: testers ask to join at `/beta`; the admin invites them from Me > People. Done.
 2. **Before more testers**: a privacy policy page, delete-my-account in the app (Apple requires it), data export. Done: Me > Your data (the iPhone app downloads through a one-time link opened in Safari).
 3. **iPhone app**: a Capacitor shell around `app/static/`, reading workouts (and weight, resting heart rate, sleep)
-   from Apple Health and sending them to the server. That makes uploads automatic: Garmin, Apple Watch, Coros, Wahoo
-   and others all write to Apple Health. The maintainer has no Mac, so builds and TestFlight uploads run on GitHub
+   from Apple Health and sending them to the server. Health uploads include only records and categories a source actually writes and the user permits. Apple Watch outdoor
+   GPS can include routes; Garmin may omit GPS. See `docs/apple-watch-routes.md`. The maintainer has no Mac, so builds and TestFlight uploads run on GitHub
    Actions macOS runners (for example with fastlane), with signing secrets he adds. Health data sent to an AI coach
    needs the person's explicit consent first. Android (Health Connect) comes after.
 4. **Social**: friends you approve, a sharing choice per activity (only me / friends / everyone; private by default),
    hidden map start and end around home, kudos and comments, a friends feed.
 
 Other routes for automatic uploads were ruled out: Strava's API terms forbid showing a person's Strava data to anyone
-else or using it with AI, and Garmin's developer program is paused and for companies only. (Uploading your own Strava
+else or using it with AI, and direct Garmin access needs separate provider eligibility/approval; verify its current official terms before advising. (Uploading your own Strava
 export file is different and is fine.)
 
 ## Design agent reference

@@ -1264,7 +1264,8 @@ html.keyboard-open nav.tabs { display: none; }
 .setup-body small { color: var(--tx3); }
 .guide-search { margin: 18px 0 12px; }
 .guide-categories { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.guide-categories button { min-height: 44px; }
+.guide-categories button { min-height: 44px; border-radius: 999px; border: 1px solid var(--line); padding: 8px 16px; background: var(--card); color: var(--tx); }
+.guide-categories button:focus-visible { border-radius: 999px; }
 .guide-categories [aria-pressed="true"] { background: var(--accent2); color: var(--accent); border-color: var(--accent); }
 .feature-guide-card h2 { margin: 8px 0; }
 .feature-guide-card p { color: var(--tx2); }
