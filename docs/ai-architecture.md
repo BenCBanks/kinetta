@@ -74,7 +74,7 @@ profile/body settings do not depend on these grants. Deterministic application t
 from billable model calls. New model features must choose an existing capability or deliberately extend this catalog,
 with server-denial, consent, isolation and non-AI regression coverage.
 
-Describe or snap first matches the person's own foods (saved meals, combinations, My foods, logged history) with fixed SQL and arithmetic and no provider work (`app/meal_chat.py`, `docs/conversational-meals.md`). Only the words of foods that weren't found, or a photo, go to the existing model estimator, behind the usual food access/consent/usage checks; it does **not** guarantee a USDA lookup.
+Describe, Snap or Scan first matches the person's own foods (My Recipes, combinations, My foods, logged history) with fixed SQL and arithmetic and no provider work (`app/meal_chat.py`, `docs/conversational-meals.md`). Unknown product words are checked in the public food catalogs before an explicitly chosen estimate; only opted-in unknown words or a photo go to the existing model estimator, behind the usual food access/consent/usage checks. Catalog coverage and nutrition accuracy vary.
 Adding a grounded lookup stage is a separate prompt/model change requiring the reviewed food evaluation process.
 
 ## Described branded products
