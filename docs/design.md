@@ -163,7 +163,7 @@ medical accuracy or implying that these fields are public. No forced tour or one
 
 Use **My Recipes** for reusable recipes, **My foods** for individual saved foods, and **Saved combinations** in user-facing app/site copy. My Recipes means log, edit or create;
 provide explicit edit controls and retain unfinished named meals. Keep existing API/storage identifiers for compatibility.
-Direct food search remains. Described unknown products consult USDA/Open Food Facts before an optional estimate; photo estimates remain separate. Today’s energy balance stays collapsed with its number inside the breakdown; past days retain their balance summary. Nutrition help links directly to private body settings. Describe, Snap or Scan opens a full page with the same composer pattern as Cook a meal; scanning lives in its + menu.
+Direct food search remains. Described unknown products consult USDA/Open Food Facts before an optional estimate; photo estimates remain separate. Today’s energy balance stays collapsed with its number inside the breakdown; past days retain their balance summary. Nutrition help links directly to private body settings. Describe, Snap or Scan opens a full page with the same composer pattern as Create a Recipe; scanning lives in its + menu.
 
 Describing food is a conversation with as little effort as possible: one sentence can hold several foods, the log day and the meal; follow-ups change, add or remove foods. Match the person's own foods first (no AI). Each row shows name, amount and calories; ✕ removes, a tap offers Half/Double. Ambiguity asks for a choice; a meal never logged by weight offers All of it / Half / A quarter. Only unknown foods explicitly selected for estimation may go to the AI estimator (with access and consent), shown as "AI estimate"; without AI they get a Search button. Add is the explicit confirmation. Never invent nutrition for a saved food that can't be found.
 
@@ -214,3 +214,12 @@ release after a hold must not send/remove Cheers. Cancel a hold on scroll, point
 Keyboard activation still reacts; the context-menu key and visible people/count controls can open the list.
 Comments opens its sheet before the network responds, with loading/failure/retry states. Posting shows pending feedback,
 preserves the draft on failure and prevents duplicate submissions. Keep44px targets, both themes and rollback on failure.
+
+
+Food-entry actions use centered icons/labels and visibly outlined theme surfaces. The reusable-food action is named
+**Create a Recipe** wherever it is offered. A logged meal's pencil menu stays scoped to that meal and selected day:
+show its food totals, per-item Edit and Remove, Add food to this meal, and Save these foods as a combination.
+Copy-to-today/next-day shortcuts do not belong in this menu. Logged foods expose a visible Remove action in the log
+and meal menu, with Undo restoring the original day, mealtime, amount and nutrition. The entry editor keeps removal
+near the top; Move this food is secondary, and Save changes applies only to this entry. Recipe-backed logged portions
+scale their recorded nutrients by amount when they lack a normalized per-serving/per-100g reference.

@@ -46,8 +46,8 @@ function drawDish(el, d) {
   const shared = mine ? d.shared_with || [] : [];
   const bySv = d.serving === 'one';
   const sums = has ? `<p class="dish-sum num"><b>${r0(t.kcal)} kcal</b> · ${MACROS.map(([k, nm]) => `${r0(t[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${mine ? `<button class="icon-btn" id="dk-help" aria-label="How meals work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
-    ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the meal" aria-label="Meal name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
+  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
+    ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
     ${sums}
     ${d.items.length ? `<div class="card ing-card"><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
@@ -72,7 +72,7 @@ function drawDish(el, d) {
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
   if (!mine) return;
-  $('#dk-help', el).onclick = () => sheet('How meals work', cookSteps(d));
+  $('#dk-help', el).onclick = () => sheet('How recipes work', cookSteps(d));
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
   labelButton(el, d, set);
@@ -280,7 +280,7 @@ function cookSteps(d) {
     [false, 'Log it when you eat it', 'My Recipes, any day. It stays saved until you delete it.'],
   ];
   const now = added ? 2 : 0;
-  return `<ol class="card cook-steps" aria-label="How meals work">${steps.map(([done, title, sub], i) =>
+  return `<ol class="card cook-steps" aria-label="How recipes work">${steps.map(([done, title, sub], i) =>
     `<li class="${done && i !== now ? 'done' : i === now ? 'now' : ''}"${i === now ? ' aria-current="step"' : ''}><span class="stepn">${done && i !== now ? svg('check') : i + 1}</span>
       <div><b>${title}</b><small>${esc(sub)}</small></div></li>`).join('')}</ol>`;
 }

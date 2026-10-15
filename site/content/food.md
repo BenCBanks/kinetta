@@ -36,7 +36,7 @@ Save a meal once, log it whenever you eat it.
 
 ## tap-cook-a-meal-and-type-the-ingredients-like-a-text-m-9
 
-Tap **Cook a meal** and type the ingredients like a text message. Log it later by the serving or by the gram.
+Tap **Create a Recipe** and type the ingredients like a text message. Log it later by the serving or by the gram.
 
 ## your-day-at-a-glance-with-honest-feedback-10
 
