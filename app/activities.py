@@ -141,8 +141,8 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                       (user_id, aid, sport, e['distance_m'], e['label'], e['elapsed_s'], e['start_s'], start))
         match_route(c, user_id, aid)
-        if source != 'lift':
-            from . import notify
+        from . import notify
+        if source in notify.AUTO_SOURCES:      # arrived by itself; not one you just typed in or uploaded
             notify.activity_loaded(c, user_id, aid)
         return 'added', aid
 

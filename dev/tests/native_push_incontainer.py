@@ -12,7 +12,7 @@ from app.auth import new_session, token_hash
 key = ec.generate_private_key(ec.SECP256R1())
 pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
 device = {'token': 'ab' * 32, 'environment': 'production'}
-payload = {'title': 'Nice work! Test run is ready', 'body': '5.00 km · 30 min', 'url': '/activity/1', 'badge': 1, 'tag': 'activity_ready-1'}
+payload = {'title': 'Nice work! Test run saved', 'body': '5.00 km · 30 min', 'url': '/activity/1', 'badge': 1, 'tag': 'activity_ready-1'}
 requests = []
 def accept(request):
     requests.append(request)

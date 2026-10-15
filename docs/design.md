@@ -202,10 +202,12 @@ push beyond their grid cell. Preserve the native picker, readable date and44px-o
 
 ## Activity notifications and social feedback (15 October)
 
-Phone alerts use the native iPhone app and APNs only; browser/Home Screen push controls are retired. A newly saved
-workout from the last24hours congratulates only its owner with the activity name, distance in their units and duration.
-Duplicates, enrichment and older history stay quiet. Keep an independent New workouts notification preference;
-in-app history remains available without device permission. Never ask an AI model to compose these alerts.
+Phone alerts use the native iPhone app and APNs only; browser/Home Screen push controls are retired. A workout that
+arrives by itself (Apple Health/watch or Garmin sync) from the last 24 hours congratulates only its owner with the
+activity name, distance in their units and duration. Workouts typed in or uploaded by hand, duplicates, enrichment and
+older history stay quiet. New workouts off means no alert and no bell entry. The app icon's number follows the unread
+count and clears when notifications are read. Logging out and back in to the same account keeps alerts on; only Turn
+off on this iPhone forgets them. Explain the Cheers hold once with a tip, since phones show no tooltips. Never ask an AI model to compose these alerts.
 
 Cheers reacts on an ordinary tap immediately, without a double-tap delay. Hold for500ms to see the people list;
 release after a hold must not send/remove Cheers. Cancel a hold on scroll, pointer cancellation or leaving the control.

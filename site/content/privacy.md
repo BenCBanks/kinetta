@@ -120,7 +120,7 @@ Who else sees it
 
 ## your-browser-s-notification-service-for-example-apple--30
 
-**Apple Push Notification service (APNs)**, **only if you turn on notifications in the native iPhone app**: your app's device token and the short notification text, such as "Nice work! Morning Run is ready" with distance and duration. Only the workout owner gets new-workout alerts. Browser push notifications are no longer supported.
+**Apple Push Notification service (APNs)**, **only if you turn on notifications in the native iPhone app**: your app's device token and the short notification text, such as "Nice work! Morning Run saved" with distance and duration. Only the workout owner gets new-workout alerts. Browser push notifications are no longer supported.
 
 ## openstreetmap-supplies-the-maps-so-it-sees-which-map-a-31
 

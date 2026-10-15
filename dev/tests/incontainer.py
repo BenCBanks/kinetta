@@ -266,13 +266,23 @@ with patch.object(notify.threading, 'Thread'):
         ck(len(rows) == 1, 'workout replay has one notification')
     sent = []
     ck(notify.push(rows[0]['id'], send=lambda info, data: sent.append(data)) == 1, 'new-workout push sent through existing delivery')
-    ck(sent[0]['title'] == 'Nice work! Test ready workout is ready' and sent[0]['body'] == '5.00 km · 30 min' and sent[0]['url'] == f'/activity/{aid}', 'descriptive title, metric summary and deep link')
+    ck(sent[0]['title'] == 'Nice work! Test ready workout saved' and sent[0]['body'] == '5.00 km · 30 min' and sent[0]['url'] == f'/activity/{aid}', 'descriptive title, metric summary and deep link')
     notify.settings(notify.PrefsIn(activities=False), user={'id': uid})
     ck(notify.push(rows[0]['id'], send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'disabled workout category sends nothing')
     with db.connect() as c:
         c.execute('DELETE FROM activities WHERE id = %s AND user_id = %s', (aid, uid))
         c.execute('DELETE FROM sessions WHERE token_hash = %s', (token_hash(push_session),))
         c.execute("UPDATE profile SET notify = '{}'::jsonb, units = 'imperial' WHERE user_id = %s", (uid,))
+    # switched off: a new workout leaves no bell entry either; a workout typed in by hand is never celebrated
+    parsed['start'] = now - dt.timedelta(hours=2)
+    notify.settings(notify.PrefsIn(activities=False), user={'id': uid})
+    _, off = activities.store(uid, parsed, {'name': 'Test quiet workout'}, source='healthkit')
+    notify.settings(notify.PrefsIn(activities=True), user={'id': uid})
+    parsed['start'] = now - dt.timedelta(hours=1)
+    _, typed = activities.store(uid, parsed, {'name': 'Test typed workout'}, source='manual')
+    with db.connect() as c:
+        ck(not c.execute("SELECT 1 FROM notifications WHERE activity_id = ANY(%s) AND kind = 'activity_ready'", ([off, typed],)).fetchone(), 'switched off / typed in: no notification row')
+        c.execute('DELETE FROM activities WHERE id = ANY(%s) AND user_id = %s', ([off, typed], uid))
     parsed['start'] = now - dt.timedelta(days=10)
     result, old = activities.store(uid, parsed, {'name': 'Test old import'}, source='file')
     with db.connect() as c:

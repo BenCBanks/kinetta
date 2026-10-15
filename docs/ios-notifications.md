@@ -4,9 +4,10 @@ Kinetta sends phone alerts through Apple Push Notification service (APNs), to th
 Browser and Home Screen web-app push delivery is retired. Everyone can still read their own notification history
 under the bell in Kinetta.
 
-A newly saved workout from the last 24 hours gets a private “Nice work!” alert with its name, distance in your units
-and duration. Only its owner receives it. Duplicate uploads, richer details arriving later, and older history imports
-stay quiet. No AI service writes these messages. Friend requests, Cheers, comments and shared meals use the same
+A workout that arrives by itself (from Apple Health or your watch, or Garmin sync) in the last 24 hours gets a private
+“Nice work! Morning Run saved” alert with its distance in your units and duration. Only its owner receives it. Workouts
+you type in or upload yourself, duplicate uploads, richer details arriving later, and older history imports stay quiet.
+The number on the app icon is your unread count; it clears when you read your notifications in Kinetta. No AI service writes these messages. Friend requests, Cheers, comments and shared meals use the same
 native delivery and retain separate notification preferences.
 
 ## Apple account setup (server owner)
@@ -34,8 +35,9 @@ response. The app requests a fresh device token on registration; it does not per
 ## On the iPhone
 
 Open **Me → Notification settings → Turn on iPhone notifications**, then allow Kinetta in Apple's permission prompt.
-Switch **New workouts** off if you do not want workout congratulations. Turn off on this iPhone revokes this device's
-registration; iOS Settings → Notifications → Kinetta controls Apple's system permission. Permission is never requested
+Switch **New workouts** off if you do not want workout congratulations (they then don't appear under the bell
+either). Logging out and back in to the same account turns alerts back on by itself. Turn off on this iPhone revokes
+this device's registration and is remembered; iOS Settings → Notifications → Kinetta controls Apple's system permission. Permission is never requested
 just by opening the app. Tapping an alert opens its activity or the corresponding Kinetta page.
 
 If the server's APNs credentials are missing, the settings page explains that setup is incomplete. It must not claim

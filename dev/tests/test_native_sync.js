@@ -58,6 +58,25 @@ function device(background = null, push = null) {
   finishRegister({token: 'ab'.repeat(32), environment: 'production'});
   await assert.rejects(pendingPush, /account changed/);
   assert.equal(registrations.length, 3, 'late registration cannot bind a device to a different account');
+  // Logging out and back in to the same account turns alerts back on by itself; Turn off on purpose is remembered.
+  const tick = () => new Promise(resolve => setTimeout(resolve, 20));
+  push.register = async () => ({token: 'cd'.repeat(32), environment: 'production'});
+  pushDevice.ctx.App.me = {id: 4};
+  await pushDevice.n.enablePush();
+  await pushDevice.n.disconnectPush({signedOut: true});
+  assert.equal((await pushDevice.n.pushStatus()).enabled, false);
+  pushDevice.n.syncPush(); await tick();
+  assert.equal((await pushDevice.n.pushStatus()).enabled, true, 'same account after logging back in: alerts on again');
+  await pushDevice.n.disconnectPush({forget: true});
+  pushDevice.n.syncPush(); await tick();
+  assert.equal((await pushDevice.n.pushStatus()).enabled, false, 'turned off on purpose stays off');
+  pushDevice.ctx.App.me = {id: 5}; await pushDevice.n.enablePush(); await pushDevice.n.disconnectPush({signedOut: true});
+  pushDevice.ctx.App.me = {id: 6}; pushDevice.n.syncPush(); await tick();
+  assert.equal((await pushDevice.n.pushStatus()).enabled, false, 'a different account does not inherit alerts');
+  // the app icon's number follows the unread count and clears at zero, without repeating the same number
+  const badges = []; push.setBadge = async ({count}) => badges.push(count);
+  pushDevice.n.setBadge(3); pushDevice.n.setBadge(3); pushDevice.n.setBadge(0);
+  assert.deepEqual(badges, [3, 0]);
   const d = device(); await d.n.ready; d.n.base = 'https://example.test'; d.n.token = 'first';
   d.saved.set('health.on', '1');
   assert.equal(await d.n.healthOn(), false, 'legacy device consent is not inherited');

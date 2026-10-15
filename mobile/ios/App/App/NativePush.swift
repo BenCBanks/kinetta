@@ -43,7 +43,8 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "register", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "unregister", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "takePending", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "takePending", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setBadge", returnType: CAPPluginReturnPromise)
     ]
     override func load() { NativePushCenter.shared.plugin = self }
     @objc func status(_ call: CAPPluginCall) {
@@ -99,6 +100,18 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
             NativePushCenter.shared.pendingURL = nil
             UNUserNotificationCenter.current().removeAllDeliveredNotifications()
             call.resolve()
+        }
+    }
+    // The app icon's number follows the unread count; 0 clears it once notifications are read.
+    @objc func setBadge(_ call: CAPPluginCall) {
+        let count = max(0, call.getInt("count") ?? 0)
+        DispatchQueue.main.async {
+            if #available(iOS 16.0, *) {
+                UNUserNotificationCenter.current().setBadgeCount(count) { _ in call.resolve() }
+            } else {
+                UIApplication.shared.applicationIconBadgeNumber = count
+                call.resolve()
+            }
         }
     }
     @objc func takePending(_ call: CAPPluginCall) {

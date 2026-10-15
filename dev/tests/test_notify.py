@@ -70,20 +70,16 @@ ck(n1.delete('/api/push/ios')[0] == 200, 'native device disabled for this sessio
 s, r = n1.put('/api/notifications/settings', {'cheers': False})
 ck(r['push'] == {'friends': True, 'cheers': False, 'comments': True, 'dishes': True, 'activities': True}, 'settings')
 n1.put('/api/notifications/settings', {'cheers': True})
-# A newly loaded recent workout celebrates its owner, including a private activity. Older history is quiet.
+# A workout typed in by hand is never congratulated: you just did it yourself. (Workouts that arrive by
+# themselves are covered in incontainer.py, with Health/Garmin sources.)
 import datetime as dt
 recent = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2)).isoformat()
 payload = {'sport': 'run', 'start': recent, 'name': 'Test afternoon run', 'duration_s': 1800, 'distance_m': 5000}
 s, a = n1.post('/api/activities/manual', payload); ck(s == 200, f'recent activity {a}')
 aid = a['id']
-ready = [i for i in notes(n1)['items'] if i['kind'] == 'activity_ready' and i['link'] == f'/activity/{aid}']
-ck(len(ready) == 1 and 'Nice work!' in ready[0]['text'] and '3.11 mi' in ready[0]['text'] and '30 min' in ready[0]['text'], 'congratulations with workout name, distance and duration')
-ck(not any(i['link'] == f'/activity/{aid}' for i in notes(n2)['items'] + notes(n3)['items']), 'workout notification is private to its owner')
-ck(n1.post('/api/activities/manual', payload)[0] == 409, 'duplicate rejected')
-ck(len([i for i in notes(n1)['items'] if i['kind'] == 'activity_ready' and i['link'] == f'/activity/{aid}']) == 1, 'retry does not congratulate twice')
+ck(not any(i['kind'] == 'activity_ready' for i in notes(n1)['items']), 'typed-in workout: no alert, nothing under the bell')
 n1.put('/api/notifications/settings', {'activities': False})
-ck(notes(n1)['push']['activities'] is False, 'new-workout push has its own off switch')
+ck(notes(n1)['push']['activities'] is False, 'new-workout alerts have their own off switch')
 n1.put('/api/notifications/settings', {'activities': True})
 n1.delete(f'/api/activities/{aid}')
-ck(not any(i['link'] == f'/activity/{aid}' for i in notes(n1)['items']), 'deleted workout removes its notification')
 print(f'notifications: {n} checks passed')

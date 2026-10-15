@@ -45,6 +45,7 @@ function cheerGesture(button, toggle, show) {
     e.preventDefault(); e.stopPropagation(); clear();
     if (e.detail !== 0 && Date.now() < suppressUntil) { suppressUntil = 0; return; }
     toggle();
+    try { if (!localStorage.getItem('fit.cheerHint')) { localStorage.setItem('fit.cheerHint', '1'); toast(`Tip: hold ${CHEER.title} to see who sent them`); } } catch (x) { /* private mode */ }
   };
   button.oncontextmenu = (e) => {
     e.preventDefault(); e.stopPropagation(); clear();
@@ -69,6 +70,7 @@ const Social = {
     const a = $('nav.tabs a[data-tab="me"]'); if (!a) return;
     const n = Social.count(); let b = $('.tab-n', a);
     const un = (App.me && App.me.notifications) || 0;
+    if (typeof Native !== 'undefined' && Native.setBadge) Native.setBadge(un);
     $$('.bell-dot').forEach((d) => { d.hidden = !un; d.textContent = un > 9 ? '9+' : un || ''; });
     if (!n) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('span'); b.className = 'tab-n'; a.append(b); }
@@ -617,7 +619,7 @@ async function pushCard(box, r) {
     ${status.enabled ? `<div class="checks one" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${r.push[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>
       <button class="ghost wide" id="np-off">Turn off on this iPhone</button>`
       : status.denied ? '<p class="small muted">Notifications are blocked for Kinetta. Allow them in iPhone Settings → Notifications → Kinetta, then return here.</p>'
-      : `<p class="small muted">Celebrate a newly saved workout with its name, distance and time. Only you receive your workout alerts.</p>
+      : `<p class="small muted">Get an alert on this iPhone for friend requests, ${esc(CHEER.many)}, comments, meals shared with you, and new workouts from your watch or Apple Health. Choose which ones after turning them on.</p>
         <button class="primary wide" id="np-on">Turn on iPhone notifications</button>`}
     <p class="err" role="alert" id="np-error"></p></div>`;
   const error = $('#np-error', box), b = $('#np-on', box), off = $('#np-off', box);
@@ -628,7 +630,7 @@ async function pushCard(box, r) {
   };
   if (off) off.onclick = async () => {
     off.disabled = true; error.textContent = '';
-    try { await Native.disconnectPush(); if (box.isConnected && account === readOwner()) pushCard(box, r); }
+    try { await Native.disconnectPush({forget: true}); if (box.isConnected && account === readOwner()) pushCard(box, r); }
     catch (x) { error.textContent = x.message; off.disabled = false; }
   };
   const kinds = $('#np-kinds', box);

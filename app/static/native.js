@@ -69,14 +69,15 @@ const Native = (() => {
     if (account !== pushOwner() || token !== N.token) throw new Error('Notification registration stopped because the account changed.');
     await api('/api/push/ios', json('POST', device));
     if (account !== pushOwner() || token !== N.token) return;
-    await put('push.owner', account);
+    await put('push.owner', account); await put('push.wanted', account);
   };
   N.enablePush = () => pushEnableTask || (pushEnableTask = (async () => {
     if (pushTask) await pushTask;
     pushTask = N.registerPush(true);
     try { await pushTask; } finally { pushTask = null; }
   })().finally(() => { pushEnableTask = null; }));
-  N.disconnectPush = async ({signedOut = false} = {}) => {
+  // forget: turned off on purpose. Logging out (or in again) keeps the wish, so the same account gets alerts back.
+  N.disconnectPush = async ({signedOut = false, forget = false} = {}) => {
     if (!push) return;
     // Finish any registration before removing it, so a late response cannot re-register the old login.
     if (pushEnableTask) await pushEnableTask.catch(() => {});
@@ -85,7 +86,7 @@ const Native = (() => {
       try { await api('/api/push/ios', {method: 'DELETE'}); }
       catch (e) { if (!signedOut && e.status !== 401) throw e; }
     }
-    await put('push.owner', null); pushAccount = null; pushAt = 0;
+    await put('push.owner', null); if (forget) await put('push.wanted', null); pushAccount = null; pushAt = 0;
     await push.unregister();
   };
   const openPush = async () => {
@@ -101,13 +102,18 @@ const Native = (() => {
     if (pushTask || (pushAccount === account && Date.now() - pushAt < 60000)) return;
     pushAccount = account; pushAt = Date.now();
     pushTask = (async () => {
-      if ((await N.pushStatus()).enabled && account === pushOwner()) await N.registerPush();
+      const st = await N.pushStatus();
+      if (account === pushOwner() && st.allowed && (st.enabled || (await get('push.wanted')) === account)) await N.registerPush();
     })().catch(() => { pushAt = 0; }).finally(() => { pushTask = null; });
   };
+  // the number on the app icon: the unread count, so reading them under the bell clears it
+  let badgeShown = null;
+  N.setBadge = (n) => { if (!push || !push.setBadge || n === badgeShown) return; badgeShown = n; push.setBadge({count: n}).catch(() => { badgeShown = null; }); };
   if (push) {
     push.addListener('notificationOpened', () => openPush().catch(() => {}));
-    window.addEventListener('focus', () => N.syncPush());
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) N.syncPush(); });
+    const back = () => { N.syncPush(); if (typeof Social !== 'undefined') { Social.at = 0; Social.refresh(); } };
+    window.addEventListener('focus', back);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) back(); });
   }
 
   // ---------- Apple Health ----------

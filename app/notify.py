@@ -16,6 +16,7 @@ router = APIRouter(prefix='/api')
 KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'report')   # report: admins only, in the app only
 PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',)}
 MAX_SUBS = 10           # devices per person
+AUTO_SOURCES = ('apple', 'healthkit', 'garmin')   # workouts that arrive without the person doing anything
 
 
 def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=None):
@@ -46,6 +47,8 @@ def activity_loaded(c, user_id, activity_id):
                      AND start_time + make_interval(secs => coalesce(elapsed_s, moving_s, 0)) <= now() + interval '1 minute'
                      FOR UPDATE""", (activity_id, user_id)).fetchone()
     if not a: return
+    p = c.execute('SELECT notify FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
+    if not _prefs(p.get('notify'))['activities']: return      # switched off: no alert and nothing under the bell
     if c.execute("SELECT 1 FROM notifications WHERE user_id = %s AND activity_id = %s AND kind = 'activity_ready'",
                  (user_id, activity_id)).fetchone(): return
     nid = c.execute("""INSERT INTO notifications (user_id, kind, actor_id, activity_id)
@@ -69,7 +72,7 @@ _LIST = """SELECT n.id, n.kind, n.created, n.read_at IS NOT NULL AS read, n.acti
 def _words(r):
     who, act = r['name'], r['activity'] or 'activity'
     if r['kind'] == 'activity_ready':
-        return f"Nice work! {act} is ready — {_activity_summary(r)}", f"/activity/{r['activity_id']}"
+        return f"Nice work! {act} saved — {_activity_summary(r)}", f"/activity/{r['activity_id']}"
     if r['kind'] == 'friend_request': return f'{who} wants to be friends', '/me/friends'
     if r['kind'] == 'friend_accepted': return f'{who} accepted your friend request', '/activity'
     if r['kind'] == 'cheer': return f'{who} sent cheers on your {act}', f"/activity/{r['activity_id']}"
@@ -224,7 +227,7 @@ def push(nid, send=None):
     title, _, said = text.partition(': "') if r['kind'] == 'comment' else (text, '', '')
     body = ('"' + said) if said else ''
     if r['kind'] == 'activity_ready':
-        title, body = f"Nice work! {r['activity'] or 'Your activity'} is ready", _activity_summary(r)
+        title, body = f"Nice work! {r['activity'] or 'Your workout'} saved", _activity_summary(r)
     payload = {'title': title[:180], 'body': body[:600], 'url': link, 'badge': badge, 'tag': f"{r['kind']}-{nid}"}
     sent = 0
     for device in subs:
