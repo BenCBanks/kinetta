@@ -34,10 +34,12 @@ const SHOTS = [
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const W = 393, H = 852, TOP = 59, BOTTOM = 34;
-// "Describe or snap" needs the AI: the shot shows a made-up answer instead (nothing is sent anywhere)
+// Describe, Snap or Scan: explicit estimates use per-food stand-ins; no provider is called.
 const SAMPLE = (note) => { const n = /two/.test(note || '') ? 2 : 1;   // the correction changes the answer, like the real thing
-  return {items: [{name: 'Hot dog', amount: String(n), kcal: 550 * n, protein_g: 20 * n, carbs_g: 45 * n, fat_g: 32 * n, fiber_g: 2 * n},
-    {name: 'Diet Coke', amount: '20 fl oz', kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0}], notes: 'Costco food court hot dog' + (n > 1 ? 's.' : '.'), model: 'sample'}; };
+  const items = [{name: 'Hot dog', amount: String(n), kcal: 550 * n, protein_g: 20 * n, carbs_g: 45 * n, fat_g: 32 * n, fiber_g: 2 * n},
+    {name: 'Diet Coke', amount: '20 fl oz', kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0}];
+  return {items: items.filter(x => x.name === 'Hot dog' ? /hot dog/i.test(note || '') : /diet coke/i.test(note || '')),
+    notes: 'Made-up screenshot nutrition, not a live provider response.', model: 'sample'}; };
 // the iPhone's status bar (9:41, signal, Wi-Fi, battery), the Dynamic Island and the home bar, over every shot
 function chrome(dark) {
   const c = dark ? '#fff' : '#000', W = 393;
@@ -75,6 +77,7 @@ function chrome(dark) {
       await route.fulfill({response: r, body: css});
     });
     await page.route('**/api/food/photo', (route) => route.fulfill({json: SAMPLE(JSON.parse(route.request().postData() || '{}').note)}));
+    await page.route('**/api/food/meals-chat/products?**', route => route.fulfill({json: {query: '', foods: [], portion: null}}));
     page.on('pageerror', (e) => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
     await page.fill('input[name=login]', 'alex'); await page.fill('input[name=password]', 'blue kettle morning run');
@@ -95,7 +98,7 @@ function chrome(dark) {
       await page.evaluate(() => { window.scrollTo(0, 0); });
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => !document.querySelector('.leaflet-container') || document.querySelector('.leaflet-tile-loaded'), null, {timeout: 8000}).catch(() => {});
-      if (opt.logDish) {      // Add food > My meals > the dish: the log sheet, with a portion typed in
+      if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
         if (opt.directLibrary) await page.click(`#meal-library .fe[data-dish]:has-text("${opt.logDish}")`);
         else {
           await page.evaluate(() => addSheet(isoDay(new Date()), 'dinner'));
@@ -109,11 +112,45 @@ function chrome(dark) {
         await page.waitForTimeout(450);
         await page.evaluate(() => window.scrollTo(0, 0));
       }
-      if (opt.describe) {   // Add food > Describe or snap: a message, the estimate, a correction
+      if (opt.describe) {   // Full-page conversation: explicitly choose each made-up estimate, then correct it.
         await page.evaluate(() => { App.me.ai_ok = true; addSheet(isoDay(new Date()), 'dinner'); });
         await page.click('#as-photo');
-        for (const t of opt.describe) { await page.fill('#ql-t', t); await page.click('#ql-f .send'); await page.waitForTimeout(500); }
-        await page.evaluate(() => { const s = document.querySelector('.sheet'); s.scrollTop = 0; });
+        await page.waitForURL('**/food/describe?**');
+        for (const t of opt.describe) {
+          await page.fill('#ql-t', t);
+          await Promise.all([
+            page.waitForResponse(r => r.url().endsWith('/api/food/meals-chat/resolve') && r.ok()),
+            page.click('#ql-f .send'),
+          ]);
+          // Lookup and estimate finish independently of the resolve request. Wait for
+          // rendered choices/results rather than racing them with a fixed sleep.
+          await page.waitForFunction(() => !document.querySelector('#ql-t').disabled &&
+            !/Looking up|Estimating/.test(document.querySelector('#ql-items').textContent));
+          const estimates = page.getByRole('button', {name: 'Estimate with AI', exact: true});
+          while (await estimates.count()) {
+            await Promise.all([
+              page.waitForResponse(r => r.url().endsWith('/api/food/photo') && r.ok()),
+              estimates.first().click(),
+            ]);
+            await page.waitForFunction(() => !/Estimating/.test(document.querySelector('#ql-items').textContent));
+          }
+        }
+        // Prove the correction and per-food stand-ins rendered once each before
+        // capturing the actual page (there is deliberately no .sheet here).
+        const rows = page.locator('#ql-items .ql-main');
+        if (await rows.count() !== 2) throw new Error('Describe screenshot needs exactly two foods');
+        await page.waitForFunction(() => [...document.querySelectorAll('#ql-items .ql-main')]
+          .some(row => /Hot dog/.test(row.textContent) && /1,100/.test(row.textContent)));
+        await page.waitForFunction(() => !document.querySelector('#ql-add').disabled);
+        if (await page.locator('.sheet').count()) throw new Error('Describe must remain a full page');
+        await page.evaluate(() => {
+          document.activeElement.blur();
+          // Keep confirmation above the sticky composer, just as scrolling the
+          // full page normally would; don't try to scroll the retired sheet.
+          const add = document.querySelector('#ql-add'), composer = document.querySelector('#ql-f');
+          const overlap = add.getBoundingClientRect().bottom - composer.getBoundingClientRect().top + 12;
+          if (overlap > 0) window.scrollBy(0, overlap);
+        });
       }
       if (opt.lift) {       // Start lifting > repeat the latest session; the first exercise's sets ticked, the second's first set
         const id = await page.evaluate(async () => {
