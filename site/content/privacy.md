@@ -4,7 +4,7 @@ Edit the text below each heading. Keep the section keys unchanged. Supports **bo
 
 ## your-numbers-stay-yours-1
 
-Your numbers *stay yours.*
+You choose *what to share.*
 
 ## not-for-sale-2
 
@@ -32,7 +32,7 @@ Off until you turn it on.
 
 ## honest-note-beta-data-sits-on-a-server-ben-banks-runs--8
 
-**Honest note:** beta data sits on a server Ben Banks runs and can read. Want full control? [Host it yourself](self-host).
+The hosted beta runs on a server operated by Ben Banks, who can access its database to maintain the service. For control of your own server, see [self-hosting](self-host).
 
 ## privacy-policy-9
 
@@ -40,7 +40,7 @@ Privacy policy
 
 ## last-updated-october-13-2026-10
 
-Last updated October 13, 2026
+Last updated October 15, 2026
 
 ## the-short-version-11
 

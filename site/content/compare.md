@@ -4,23 +4,23 @@ Edit the text below each heading. Keep the section keys unchanged. Supports **bo
 
 ## the-premium-features-free-1
 
-The premium features, *free.*
+Workouts and food, *tracked together.*
 
 ## others-charge-160-a-year-for-these-kinetta-doesn-t-2
 
-Others charge $160 a year for these. Kinetta doesn't.
+If you use separate apps for training and food, here’s what you can keep in Kinetta. The hosted beta is free while we test and improve it.
 
 ## us-prices-from-strava-https-www-strava-com-subscribe-a-3
 
-US prices from [Strava](https://www.strava.com/subscribe) and [MyFitnessPal](https://www.myfitnesspal.com/premium), October 2026. Trademarks of their owners; Kinetta isn't affiliated with either.
+Beta access is by invitation. Future hosted pricing has not been announced. Self-hosting is free for noncommercial use; optional AI services may have provider costs.
 
 ## like-strava-and-myfitnesspal-combined-4
 
-Like Strava and MyFitnessPal, combined.
+Your activity history beside your food log.
 
 ## everything-you-do-5
 
-Everything you do
+Training
 
 ## runs-rides-walks-swims-lifting-6
 
@@ -28,7 +28,7 @@ Runs, rides, walks, swims, lifting
 
 ## watch-file-and-strava-history-imports-7
 
-Watch-file and Strava-history imports
+Apple Health, watch files and Strava export imports
 
 ## maps-pace-heart-rate-8
 
@@ -48,11 +48,11 @@ Friends and a feed
 
 ## everything-you-eat-12
 
-Everything you eat
+Food and nutrition
 
 ## describe-it-snap-it-or-scan-the-barcode-13
 
-Describe it, snap it or scan the barcode
+Food search, barcodes and optional photo estimates
 
 ## calories-and-macros-14
 
@@ -60,11 +60,11 @@ Calories and macros
 
 ## meals-you-build-once-15
 
-Meals you build once
+Saved recipes with servings or portions by weight
 
 ## kit-s-feedback-on-your-eating-16
 
-Kit’s feedback on your eating
+Optional AI nutrition reviews
 
 ## weight-trend-17
 

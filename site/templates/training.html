@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Training · Kinetta</title>
-<meta name="description" content="Runs, rides and walks from your watch or Strava history: maps, matched routes, training plans, race predictions, a heatmap and Kit, your AI coach.">
+<meta name="description" content="Import workouts from Apple Health or activity files. Follow running plans, log lifting sets and compare routes, records and progress.">
 <meta property="og:title" content="Training · Kinetta">
-<meta property="og:description" content="Runs, rides and walks from your watch or Strava history: maps, matched routes, training plans, race predictions, a heatmap and Kit, your AI coach.">
+<meta property="og:description" content="Import workouts from Apple Health or activity files. Follow running plans, log lifting sets and compare routes, records and progress.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Kinetta">
 <meta property="og:url" content="https://kinetta.app/training">
@@ -59,9 +59,9 @@
     <div class="wrap">
       <div class="head"><span class="eyebrow">Bring your history</span><h2 id="import-h">{{copy:start-with-the-workouts-you-already-have-3}}</h2><p>{{copy:file-imports-work-in-the-web-beta-automatic-updates-de-4}}</p></div>
       <div class="steps">
+        <div class="step"><h3>{{copy:apple-health-on-iphone-9}}</h3><p>{{copy:testflight-access-is-being-prepared-in-the-iphone-app--10}}</p></div>
         <div class="step"><h3>{{copy:watch-files-and-strava-history-5}}</h3><p>{{copy:upload-fit-gpx-or-tcx-files-or-your-own-strava-history-6}}</p></div>
         <div class="step"><h3>{{copy:connected-sources-7}}</h3><p>{{copy:set-up-intervals-icu-or-health-auto-export-from-me-wat-8}}</p></div>
-        <div class="step"><h3>{{copy:apple-health-on-iphone-9}}</h3><p>{{copy:testflight-access-is-being-prepared-in-the-iphone-app--10}}</p></div>
       </div>
     </div>
   </section>
@@ -70,7 +70,7 @@
       <div class="head"><span class="eyebrow">Each workout</span><h2 id="what-h">{{copy:maps-splits-heart-rate-and-records-11}}</h2></div>
       <div class="shots three">
         <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A 2.97 mile morning run: a map of the loop, distance, moving time and pace" loading="lazy" width="786" height="1704"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A recorded run with a route map, distance, moving time and pace" loading="lazy" width="786" height="1704"></picture></div>
           <figcaption><h3>{{copy:your-activities-12}}</h3><p>{{copy:fit-gpx-and-tcx-files-strava-history-or-a-connected-so-13}}</p></figcaption>
         </figure></div>
         <div class="shot"><figure>
@@ -78,9 +78,30 @@
           <figcaption><h3>{{copy:progress-over-time-14}}</h3><p>{{copy:totals-records-and-fitness-15}}</p></figcaption>
         </figure></div>
         <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-plan.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-plan.webp" alt="A 10-week intermediate 10K training plan with the first workout and progress so far" loading="lazy" width="786" height="1704"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-plan.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-plan.webp" alt="An intermediate 10K training plan with the next workout and completion progress" loading="lazy" width="786" height="1704"></picture></div>
           <figcaption><h3>{{copy:training-plans-16}}</h3><p>{{copy:5k-to-marathon-a-run-ticks-off-its-day-by-itself-or-ti-17}}</p></figcaption>
         </figure></div>
+      </div>
+    </div>
+  </section>
+  <section class="band" aria-labelledby="lift-h">
+    <div class="wrap">
+      <div class="spot rev">
+        <div>
+          <span class="eyebrow">Lifting</span>
+          <h2 id="lift-h" class="spot-h">{{copy:your-previous-numbers-beside-every-set-23}}</h2>
+          <p>{{copy:log-each-set-as-you-go-the-weights-and-reps-from-your--24}}</p>
+          <ul>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Repeat a session</b>: reuse its exercises with the previous weights and reps beside each set</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Records</b>: heaviest set, estimated one-rep max, most reps</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Every exercise's history</b>: each session, and a chart of your progress</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Link a watch workout</b>: include its recorded heart rate and calories in the session</span></li>
+          </ul>
+        </div>
+        <div class="pair">
+          <div class="frame"><picture><source srcset="assets/shots/dark-lift.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-lift.webp" alt="Logging a squat session: the previous session's 200 x 5 beside each set, today's sets at 205 lb ticked off, with a new record" loading="lazy" width="786" height="1704"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-liftex.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-liftex.webp" alt="Squat history: heaviest set, best estimated one-rep max, a chart rising week by week, and every session's sets" loading="lazy" width="786" height="1704"></picture></div>
+        </div>
       </div>
     </div>
   </section>
@@ -98,41 +119,21 @@
           </ul>
         </div>
         <div class="pair">
-          <div class="frame"><picture><source srcset="assets/shots/dark-route.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-route.webp" alt="The Freedom Park loop run 34 times: best 24:41, average 26:06, and a pace-over-time chart that says: getting faster, about 15 seconds per mile per month, and fitter at the same effort" loading="lazy" width="786" height="1704"></picture></div>
-          <div class="frame"><picture><source srcset="assets/shots/dark-similar.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-similar.webp" alt="Similar efforts: five earlier runs on the same route, each showing how many seconds per mile faster this run was" loading="lazy" width="786" height="1704"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-route.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-route.webp" alt="A repeated route with its recorded efforts, best and average times, map and pace history" loading="lazy" width="786" height="1704"></picture></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-similar.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-similar.webp" alt="Activity details for comparing a run with earlier efforts on its matched route" loading="lazy" width="786" height="1704"></picture></div>
         </div>
       </div>
       <div class="pcards">
-        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-coach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-coach.webp" alt="A note from Kit on a 2.98 mile run: pace, heart rate, what it means and what to do next" loading="lazy" width="786" height="1704"></picture></div>
-          <h4>Kit knows your history</h4><p>{{copy:your-optional-ai-coach-a-note-on-every-workout-a-revie-20}}</p></div>
-        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-fitness.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-fitness.webp" alt="Race predictions for 5K, 10K, half marathon and marathon, each with your best time, the 10K in green because the prediction beats it, and a running fitness score" loading="lazy" width="786" height="1704"></picture></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-coach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-coach.webp" alt="An optional AI training note based on a recorded run and earlier efforts" loading="lazy" width="786" height="1704"></picture></div>
+          <h4>Optional training reviews</h4><p>{{copy:your-optional-ai-coach-a-note-on-every-workout-a-revie-20}}</p></div>
+        <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-fitness.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-fitness.webp" alt="Estimated race times alongside recorded bests, with a running fitness estimate" loading="lazy" width="786" height="1704"></picture></div>
           <h4>Race predictions and fitness</h4><p>{{copy:predicted-5k-to-marathon-times-next-to-your-best-green-21}}</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-heatmap.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-heatmap.webp" alt="A personal heatmap of every route run, ridden or walked around Charlotte" loading="lazy" width="786" height="1704"></picture></div>
           <h4>Your personal heatmap</h4><p>{{copy:every-street-you-ve-covered-by-sport-22}}</p></div>
       </div>
     </div>
   </section>
-  <section class="band" aria-labelledby="lift-h">
-    <div class="wrap">
-      <div class="spot rev">
-        <div>
-          <span class="eyebrow">Lifting</span>
-          <h2 id="lift-h" class="spot-h">{{copy:your-previous-numbers-beside-every-set-23}}</h2>
-          <p>{{copy:log-each-set-as-you-go-the-weights-and-reps-from-your--24}}</p>
-          <ul>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Repeat a session</b>: its exercises come along, numbers to beat in grey</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Records</b>: heaviest set, estimated one-rep max, most reps</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Every exercise's history</b>: each session, and a chart of your progress</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Works with your watch</b>: its heart rate and calories join the session</span></li>
-          </ul>
-        </div>
-        <div class="pair">
-          <div class="frame"><picture><source srcset="assets/shots/dark-lift.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-lift.webp" alt="Logging a squat session: the previous session's 200 x 5 beside each set, today's sets at 205 lb ticked off, with a new record" loading="lazy" width="786" height="1704"></picture></div>
-          <div class="frame"><picture><source srcset="assets/shots/dark-liftex.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-liftex.webp" alt="Squat history: heaviest set, best estimated one-rep max, a chart rising week by week, and every session's sets" loading="lazy" width="786" height="1704"></picture></div>
-        </div>
-      </div>
-    </div>
-  </section>
+
   <section class="band next" aria-label="Next">
     <div class="wrap">
       <a class="on" href="food"><small>Next: Food</small><span>Quick food logging ›</span></a>
