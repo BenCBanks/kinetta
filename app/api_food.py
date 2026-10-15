@@ -9,6 +9,7 @@ import datetime as dt
 import json
 import os
 import re
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -23,10 +24,13 @@ router = APIRouter(prefix='/api/food')
 UA = 'Kinetta/1.0 (self-hosted fitness app; +https://kinetta.app)'
 MEALS = ('breakfast', 'lunch', 'dinner', 'snacks')
 _last_off = [0.0]
+_off_pace = threading.Lock()
 
 
-def _get(url, timeout=6):
-    req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': 'application/json'})
+def _get(url, timeout=6, body=None):
+    headers = {'User-Agent': UA, 'Accept': 'application/json'}
+    if body is not None: headers['Content-Type'] = 'application/json'
+    req = urllib.request.Request(url, headers=headers, data=None if body is None else json.dumps(body).encode())
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read())
 
@@ -103,9 +107,10 @@ def _fdc_food(f):
 def _search_off(q):
     def fetch():
         # Open Food Facts asks for ~10 searches a minute at most; we pace and cache
-        wait = 6 - (time.time() - _last_off[0])
-        if wait > 0: time.sleep(min(wait, 6))
-        _last_off[0] = time.time()
+        with _off_pace:      # several lookups can run side by side; keep them spaced out
+            wait = 6 - (time.time() - _last_off[0])
+            if wait > 0: time.sleep(min(wait, 6))
+            _last_off[0] = time.time()
         fields = 'code,product_name,brands,nutriments,serving_size,serving_quantity,countries_tags'
         try:
             d = _get('https://search.openfoodfacts.org/search?' + urllib.parse.urlencode({'q': q, 'page_size': 20, 'fields': fields}))
@@ -124,8 +129,9 @@ def _search_off(q):
 def _search_usda(q):
     key = os.environ.get('FDC_API_KEY') or 'DEMO_KEY'
     def fetch():
-        d = _get('https://api.nal.usda.gov/fdc/v1/foods/search?' + urllib.parse.urlencode(
-            {'query': q, 'pageSize': 25, 'dataType': 'Foundation,SR Legacy,Survey (FNDDS),Branded', 'api_key': key}))
+        # Sent as JSON: the same filter in the address ("Survey (FNDDS)") was refused by about half of USDA's servers.
+        d = _get('https://api.nal.usda.gov/fdc/v1/foods/search?' + urllib.parse.urlencode({'api_key': key}),
+                 body={'query': q, 'pageSize': 25, 'dataType': ['Foundation', 'SR Legacy', 'Survey (FNDDS)', 'Branded']})
         return d.get('foods') or []
     try: foods = [f for f in (_fdc_food(x) for x in _cached('usda2-search:' + q.lower(), fetch)) if f]
     except Exception: return []

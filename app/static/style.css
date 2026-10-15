@@ -1464,6 +1464,10 @@ nav.tabs a svg { width: 23px; height: 23px; }
 .logged-food .remove-food { flex: none; display: flex; align-items: center; gap: 3px; min-height: 44px; font-size: 12px; }
 .remove-food svg { width: 15px; height: 15px; }
 .entry-context b, .entry-context small { display: block; overflow-wrap: anywhere; }
-.entry-remove { margin: 0 0 16px; }
+.entry-more { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.entry-more .linkbtn { display: flex; align-items: center; gap: 4px; min-height: 44px; }
+.entry-more svg { width: 16px; height: 16px; }
+.mm-name { margin: 0; }
+.ql-rest { margin: 6px 0 0; }
 .entry-move { margin: 8px 0; }
 .entry-move summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--tx2); }

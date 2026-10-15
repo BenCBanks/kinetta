@@ -132,7 +132,7 @@ function drawDay(el, D) {
   App.mealHours = D.meal_hours || App.mealHours;
   const t = D.targets || {}, T = D.totals, B = D.burned || {kcal: 0, n: 0, items: []}, G = D.goal || {}, today = dayLabel(D.day) === 'Today';
   const eaten = T.kcal, goal = G.kcal, left = goal != null ? goal - eaten : null, sofar = today ? ' so far' : '';
-  const goalNote = goal == null ? 'No calorie goal yet - tap Goal to set one.'
+  const goalNote = goal == null ? 'No calorie goal yet. Tap Set goal to add one.'
     : G.custom != null ? `Goal set for this day${G.default ? ` (your usual is ${r0(G.default)})` : ''}.`
     : G.extra ? `Your daily target ${r0(G.default)} + ${r0(G.extra)} for ${today ? "today's" : "this day's"} extra training.` : '';
   // signs (2026-10-13, Ben): what you eat counts up (+), what you burn counts down (−), so the deficit comes out negative
@@ -140,7 +140,7 @@ function drawDay(el, D) {
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
   // one card (2026-10-12 redesign): calories, macros, then the day's balance, with how it adds up folded underneath
   $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
-      <div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories eaten' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div><p class="small muted">${r0(eaten)} eaten${goal == null ? '' : ' of ' + r0(goal)}</p></div>
+      <div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories eaten' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} eaten of ${r0(goal)}</p>`}</div>
         <button class="ghost" id="fd-goal" aria-label="Set the calorie goal for this day">${svg('edit')} ${goal == null ? 'Set goal' : 'Goal'}</button></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
       <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div><div class="macro-line"><b>${n}</b><span class="num">${r0(v)}${target ? ' / ' + r0(target) : ''} g</span></div>${target ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
@@ -168,13 +168,15 @@ function drawDay(el, D) {
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
       </section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
-      ${list.map((e) => `<div class="logged-food"><button class="fe${e.pending ? ' pending' : ''}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
-        <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>${e.pending ? '' : `<button class="linkbtn danger remove-food" data-remove-food="${e.id}" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[m]}">${svg('trash')}Remove</button>`}</div>`).join('')}
+      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
+        <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`;
+        // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
+        return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('edit')}Edit</button>` : ''}</div></section>`;
   }).join('') + (D.entries.length ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
   $$('[data-add]', el).forEach((b) => b.onclick = () => addSheet(D.day, b.dataset.add));
   $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
-  $$('[data-remove-food]', el).forEach(b => b.onclick = () => removeFoodEntry(D.entries.find(e => String(e.id) === b.dataset.removeFood), {button: b}));
+  $$('.meal', el).forEach((card) => swipeRows(card, (id) => removeFoodEntry(D.entries.find((e) => String(e.id) === id), {button: $(`.sw-del[data-del="${id}"]`, card)})));
   $$('[data-id]', el).forEach((b) => b.onclick = () => {
     const e = D.entries.find((x) => String(x.id) === b.dataset.id);
     if (e.pending) { toast('Saved on this phone - it sends when you are back online'); return; }
@@ -201,7 +203,7 @@ async function copyDay(from, to, meal) {
   try { const r = await api('/api/food/copy', json('POST', {from_day: from, to_day: to, meal: meal || null})); refresh(); toast(r.copied ? `Copied ${r.copied} item${r.copied > 1 ? 's' : ''}` : 'Nothing to copy'); }
   catch (x) { toast(x.message); }
 }
-// Meal actions are scoped to the selected meal and day; copying days belongs elsewhere.
+// Meal actions are scoped to the selected meal and day (a past meal can be copied to today).
 function mealMenu(D, meal) {
   const list = D.entries.filter(e => e.meal === meal && !e.pending);
   const totals = Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g'].map(k => [k, list.reduce((n, e) => n + (e[k] || 0), 0)]));
@@ -209,15 +211,24 @@ function mealMenu(D, meal) {
     ${nutGrid(totals)}<div class="card list mm-list">${list.map(e => `<div class="logged-food"><button class="fe" data-me="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[meal]}"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))} · Edit</small></div>
       <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button><button class="linkbtn danger remove-food" data-remove-food="${e.id}" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[meal]}">${svg('trash')}Remove</button></div>`).join('')}</div>
     <div class="btncol"><button class="primary" id="mm-add">${svg('plus')}Add food to ${MEAL_NAMES[meal]}</button>
+    ${D.day !== isoDay(new Date()) && list.length ? `<button class="ghost" id="mm-copy">Copy ${MEAL_NAMES[meal].toLowerCase()} to today</button>` : ''}
     <button class="ghost" id="mm-save"${list.length ? '' : ' disabled'}>Save these foods as a combination</button></div>`, (b, close) => {
     $$('[data-me]', b).forEach(x => x.onclick = () => { close(); entrySheet(list.find(e => String(e.id) === x.dataset.me), D.day); });
     $$('[data-remove-food]', b).forEach(x => x.onclick = () => removeFoodEntry(list.find(e => String(e.id) === x.dataset.removeFood), {button: x, after: close}));
     $('#mm-add', b).onclick = () => { close(); addSheet(D.day, meal); };
-    $('#mm-save', b).onclick = async () => {
-      const name = prompt('Name this combination', `${MEAL_NAMES[meal]} favourite`); if (!name) return;
-      const owner = readOwner(), btn = $('#mm-save', b); btn.disabled = true;
-      try { await api('/api/food/meals', json('POST', {name, from_day: D.day, meal})); if (owner !== readOwner()) return; invalidate('/api/food/meals'); close(); toast('Combination saved'); }
-      catch (x) { if (owner === readOwner()) { toast(x.message); if (btn.isConnected) btn.disabled = false; } }
+    const cp = $('#mm-copy', b); if (cp) cp.onclick = () => { close(); copyDay(D.day, isoDay(new Date()), meal); };
+    // naming happens right here (the phone's own pop-up box looked out of place in the iPhone app)
+    $('#mm-save', b).onclick = () => {
+      $('#mm-save', b).outerHTML = `<form class="form mm-name" id="mm-name"><label>Name this combination<input name="name" maxlength="80" value="${esc(MEAL_NAMES[meal])} favourite" enterkeyhint="done" autocomplete="off"></label>
+        <button class="primary">Save combination</button></form>`;
+      const form = $('#mm-name', b); form.name.select(); form.name.focus();
+      form.onsubmit = async (ev) => {
+        ev.preventDefault();
+        const name = form.name.value.trim(), btn = $('button', form); if (!name || btn.disabled) return;
+        const owner = readOwner(); btn.disabled = true;
+        try { await api('/api/food/meals', json('POST', {name, from_day: D.day, meal})); if (owner !== readOwner()) return; invalidate('/api/food/meals'); close(); toast('Combination saved'); }
+        catch (x) { if (owner === readOwner()) { toast(x.message); if (btn.isConnected) btn.disabled = false; } }
+      };
     };
   });
 }
@@ -250,16 +261,18 @@ async function removeFoodEntry(e, {button, after} = {}) {
 // ---------- edit an entry ----------
 function entrySheet(e, day) {
   const ref = e.ref;
-  sheet('Edit food', `<p class="entry-context"><b>${esc(e.name)}</b><small class="muted">${MEAL_NAMES[e.meal]} · ${esc(dayLabel(day))}</small></p><div id="es-nut">${nutGrid(e)}</div><button type="button" class="ghost danger wide entry-remove" id="es-del">${svg('trash')}Remove from ${MEAL_NAMES[e.meal]}</button><form class="form" id="es">
+  sheet('Edit food', `<p class="entry-context"><b>${esc(e.name)}</b><small class="muted">${MEAL_NAMES[e.meal]} · ${esc(dayLabel(day))}</small></p><div id="es-nut">${nutGrid(e)}</div><form class="form" id="es">
     <label>Name<input name="name" value="${esc(e.name)}" maxlength="200"></label>
     <div class="two"><label>Amount<input name="amount" inputmode="decimal" value="${r1(e.amount)}"></label>
       <label>Unit<select name="unit">${unitOptions(ref, e.unit)}</select></label></div>
     ${macroInputs(e)}
     <details class="entry-move"><summary>Move this food</summary><div class="two entry-when"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === e.meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <label>Day<input class="datefield" name="day" type="date" value="${esc(day)}"></label></div></details>
-    <div class="actions"><button class="primary wide">Save changes</button></div></form>`, (b, close) => {
+    <div class="actions"><button class="primary wide">Save changes</button></div></form>
+    <div class="entry-more"><button type="button" class="linkbtn" id="es-again">${svg('plus')}Log again today</button>
+      <button type="button" class="linkbtn danger" id="es-del">${svg('trash')}Remove from ${MEAL_NAMES[e.meal]}</button></div>`, (b, close) => {
     const f = $('#es', b);
-    // Opening an editor must not put keyboard focus on its removal action.
+    // On a phone, opening the editor shouldn't pop the keyboard up over the numbers.
     if (matchMedia('(pointer: coarse)').matches) b.closest('.sheet').querySelector('[data-close]').focus({preventScroll: true});
     else softFocus(f.name);
     const rescale = () => {   // changing the amount rescales the numbers when we know the food's per-100 g / per-serving values
@@ -280,6 +293,12 @@ function entrySheet(e, day) {
       try { await api(`/api/food/entries/${e.id}`, json('PATCH', body)); close(); refresh(); } catch (x) { toast(x.message); }
     };
     $('#es-del', b).onclick = () => removeFoodEntry(e, {button: $('#es-del', b), after: close});
+    $('#es-again', b).onclick = async () => {   // the same food and amount, today in the meal for now
+      const btn = $('#es-again', b); if (btn.disabled) return; btn.disabled = true;
+      try { await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
+        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g, source: e.source, ref: e.ref}]); close(); toast(`Logged ${e.name} again today`); }
+      catch (x) { toast(x.message); if (btn.isConnected) btn.disabled = false; }
+    };
   });
 }
 function unitList(ref, cur) {      // [[key, label]]: servings, grams when the food has per-100 g values, and the unit it was logged in
@@ -299,7 +318,7 @@ const macroInputs = (e = {}) => `<div class="mac4">
   <label>Fiber g<input name="fiber_g" inputmode="decimal" value="${e.fiber_g != null ? r1(e.fiber_g) : ''}"></label></div>`;
 
 // ---------- add: usuals / saved dishes / search / quick ----------
-function addSheet(day, meal, find = '') {
+function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   // One suggestions list inside Add food; meal cards show only what was actually logged.
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
@@ -322,7 +341,7 @@ function addSheet(day, meal, find = '') {
       describeSheet(w.day, w.meal);
     };
     $('#as-dish', b).onclick = (e) => { close(); newDish(e.currentTarget); };     // a saved dish is logged from Saved Dishes
-    show(find ? 'search' : 'usuals');
+    show(tab);
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
   });
 }
@@ -553,8 +572,10 @@ async function shrinkPhoto(file, max = 1280) {
 // Describe what you ate (2026-10-12; reworked 2026-10-15, Ben: logging food should be very little effort, in your own
 // words, without leaning on AI). "2 eggs and toast for breakfast", "a bowl of the chili I made Sunday", then "make it
 // 300 grams", "also a coffee" or "remove the toast". The server matches each food against your own saved meals, My
-// foods and foods you've logged before, with no AI (meal_chat.py), so it works with AI turned off. Only explicitly selected unknown foods
-// go to the AI estimator, and only when you have AI access and consent; without AI they get a Search button.
+// foods and foods you've logged before, with no AI (meal_chat.py), so it works with AI turned off. New foods are looked
+// up in the food databases in one request: a brand you named offers that brand's products to pick from; everyday foods
+// go to the AI estimator automatically when you have AI access and consent, and without AI offer plain database matches.
+// Add logs whatever is ready; anything still being worked out stays on the page.
 function describeSheet(day, meal) {
   go(`/food/describe?d=${encodeURIComponent(day)}&meal=${encodeURIComponent(meal)}`);
 }
@@ -584,14 +605,17 @@ function describePage(b, day, meal) {
     // batches: foods sent to the AI together, with what was said about them and the estimates that came back.
     let parts = [], items = [], preview = null, batches = [], busy = false, photo = null, photoSaid = [], sent = null, open = null;
     const say = (html, who) => { $('.ql-tip', chat)?.remove(); chat.insertAdjacentHTML('beforeend', `<p class="cmsg ${who}">${html}</p>`); chat.lastElementChild.scrollIntoView({block: 'nearest'}); return chat.lastElementChild; };
-    const setBusy = (on) => { busy = on; $$('button, input, select', b).forEach((el) => { if (!el.closest('.ql-row')) el.disabled = on; }); };
+    const setBusy = (on) => {
+      busy = on; $$('button, input, select', b).forEach((el) => { if (!el.closest('.ql-row')) el.disabled = on; });
+      const add = $('#ql-add', b); if (add && !on) add.disabled = !readyCount();     // nothing ready: Add stays off
+    };
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* native picker */ } };
     dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); sent = null; draw(); };
     dest.onchange = () => { sent = null; draw(); };
     $('#ql-plus', b).onclick = () => sheet('Add food', `<div class="btncol">${canEstimate ? '<button class="ghost" id="ql-snap">Snap a food photo</button>' : '<p class="small muted">Food photo estimates are available with AI enabled in Me.</p>'}<button class="ghost" id="ql-scan">Scan a barcode</button><button class="ghost" id="ql-search">Search foods and brands</button></div>`, (menu, done) => {
       const snap = $('#ql-snap', menu); if (snap) snap.onclick = () => { done(); file.click(); };
       $('#ql-scan', menu).onclick = () => { done(); scanSheet(dp.value, dest.value, product => amountSheet(product, {day: dp.value, meal: dest.value}, close)); };
-      $('#ql-search', menu).onclick = () => { done(); addSheet(dp.value, dest.value, ' '); };
+      $('#ql-search', menu).onclick = () => { done(); addSheet(dp.value, dest.value, '', 'search'); };
     });
     file.onchange = async () => {
       const fl = file.files?.[0]; file.value = ''; if (!fl || busy || !active()) return;
@@ -603,7 +627,9 @@ function describePage(b, day, meal) {
     const unknown = () => items.filter((i) => i.status === 'unknown');
     const batchOf = (i) => batches.find((x) => x.idx.includes(i));
     const aiItems = () => batches.flatMap((x) => x.items || []).filter((x) => !x.removed);
-    const waiting = () => items.some((i) => i.status === 'choose' || i.status === 'quantity') || batches.some((x) => ['loading', 'searching'].includes(x.state));
+    // still being worked out: a question to answer, a lookup or estimate in progress, or a product to pick
+    const waiting = () => items.some((i) => i.status !== 'ready' && (i.status !== 'unknown' || batchOf(i.index)?.state !== 'done')) || batches.some((x) => x.photo && x.state === 'loading');
+    const readyCount = () => items.filter((i) => i.status === 'ready').length + aiItems().length;
     const kcalOf = () => items.filter((i) => i.status === 'ready').reduce((s, i) => s + (i.totals.kcal || 0), 0) + aiItems().reduce((s, x) => s + (x.kcal || 0), 0);
     const savedDay = (iso) => (iso ? ` · saved ${dayLabel(iso)}` : '');
     const row = (i) => {
@@ -612,26 +638,28 @@ function describePage(b, day, meal) {
           <span class="r"><b class="num">${r0(i.totals.kcal)}</b><small class="muted">kcal</small></span></button>
           <button class="icon-btn ql-x" data-remove="${i.index}" aria-label="Remove ${esc(i.name)}">${svg('close')}</button>
           ${open === i.index ? `<div class="chips wrap ql-adjust"><button class="chip" data-scale="${i.index}" data-by="0.5">Half</button><button class="chip" data-scale="${i.index}" data-by="2">Double</button></div><p class="small muted ql-hint">Or type a new amount, like “make the ${esc(i.name.toLowerCase())} 300 grams”.</p>` : ''}</div>`;
-      if (i.status === 'choose') return `<div class="ql-row ql-ask"><p class="small">${esc(i.message)}</p><div class="results ql-choices">${i.choices.map((c, n) => `<button class="fe" data-choose="${i.index}" data-n="${n}"><div><b>${esc(c.name)}</b><small class="muted">${esc(c.detail)}${esc(savedDay(c.saved_day))}${c.weight_g ? ` · ${r0(c.weight_g)} g total` : ''}</small></div></button>`).join('')}</div>${i.more ? '<p class="small muted">Showing the first 12. Say a longer name to narrow it down.</p>' : ''}</div>`;
+      if (i.status === 'choose') return `<div class="ql-row ql-ask"><p class="small">${esc(i.message)}</p><div class="results ql-choices">${i.choices.map((c, n) => `<button class="fe" data-choose="${i.index}" data-n="${n}"><div><b>${esc(c.name)}</b><small class="muted">${esc(c.detail)}${esc(savedDay(c.saved_day))}${c.weight_g ? ` · ${r0(c.weight_g)} g total` : ''}</small></div></button>`).join('')}</div>${i.more ? '<p class="small muted">Showing the first 12. Say a longer name to narrow it down.</p>' : ''}${i.new_ok ? `<button class="ghost wide" data-new="${i.index}">No, “${esc(i.text)}” is something new</button>` : ''}</div>`;
       if (i.status === 'quantity') return `<div class="ql-row ql-ask"><p class="small"><b>${esc(i.name)}</b>${esc(savedDay(i.saved_day))}</p><p class="small muted">${esc(i.message)}</p>${i.options && i.options.length ? `<div class="chips wrap">${i.options.map((o, n) => `<button class="chip" data-amount="${i.index}" data-n="${n}">${esc(o.label)}</button>`).join('')}</div>` : ''}</div>`;
       const x = batchOf(i.index);   // not in your foods
-      if (x && x.state === 'searching') return `<div class="ql-row ql-ask"><p class="small muted" role="status">Looking up “${esc(i.text)}” in the food databases…</p></div>`;
-      if (x && x.state === 'products') return `<div class="ql-row ql-ask"><p class="small">Check the brand, product and serving against your package. Choose a match to review its amount before logging.</p><div class="results">${x.foods.map((f,n) => `<button class="fe" data-product="${i.index}" data-n="${n}"><div><b>${esc(f.name)}</b><small class="muted">${esc(f.brand)} · ${f.source === 'usda' ? 'USDA' : 'Open Food Facts'}${f.serving?.label ? ' · ' + esc(f.serving.label) : ''}</small></div></button>`).join('')}</div><button class="ghost wide" data-search="${i.index}">Search for a different product</button>${canEstimate ? `<button class="ghost wide" data-retry-ai="${x.id}">Use an AI estimate instead</button>` : ''}</div>`;
+      if (x && x.state === 'searching') return `<div class="ql-row ql-ask"><p class="small muted" role="status">Looking up “${esc(i.text)}”…</p></div>`;
+      if (x && (x.state === 'products' || x.state === 'plain')) return `<div class="ql-row ql-ask"><p class="small">${x.state === 'products' ? `Which one is your “${esc(i.text)}”? Check the serving on your package.` : `Pick the closest match for “${esc(i.text)}”.`}</p><div class="results">${x.foods.map((f,n) => `<button class="fe" data-product="${i.index}" data-n="${n}"><div><b>${esc(f.name)}</b><small class="muted">${f.brand ? esc(f.brand) + ' · ' : ''}${f.source === 'usda' ? 'USDA' : 'Open Food Facts'}${f.serving?.label ? ' · ' + esc(f.serving.label) : ''}</small></div></button>`).join('')}</div><button class="ghost wide" data-search="${i.index}">Search instead</button>${canEstimate ? `<button class="ghost wide" data-retry-ai="${x.id}">Use an AI estimate instead</button>` : ''}</div>`;
       if (x && x.state === 'loading') return x.idx[0] === i.index ? `<div class="ql-row ql-ask"><p class="small muted">Estimating “${esc(x.idx.map((n) => parts[n].text).join(', '))}” with AI…</p></div>` : '';
       if (x && x.state === 'done') return x.idx[0] === i.index ? x.items.map((a, n) => a.removed ? '' : `<div class="ql-row" data-ai="${x.id}-${n}"><button class="ql-main" data-open="ai-${x.id}-${n}" aria-expanded="${open === `ai-${x.id}-${n}`}">
           <span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'AI estimate'].filter(Boolean).join(' · '))}</small></span>
           <span class="r"><b class="num">${r0(a.kcal)}</b><small class="muted">kcal</small></span></button>
           <button class="icon-btn ql-x" data-unai="${x.id}-${n}" aria-label="Remove ${esc(a.name)}">${svg('close')}</button>
           ${open === `ai-${x.id}-${n}` ? `<div class="pnums">${[['kcal', 'kcal'], ['protein_g', 'Protein'], ['carbs_g', 'Carbs'], ['fat_g', 'Fat']].map(([k, l]) => `<label><small>${l}</small><input data-edit="${x.id}-${n}" name="${k}" inputmode="decimal" value="${a[k] == null ? '' : esc(String(Math.round(a[k] * 10) / 10))}" aria-label="${l}"></label>`).join('')}</div>` : ''}</div>`).join('') : '';
-      return `<div class="ql-row ql-ask"><p class="small muted">${canEstimate ? esc(i.message) : `Not in your foods yet: “${esc(i.text)}”`}</p>${x && x.error ? `<p class="small err">${esc(x.error)}</p>` : ''}<div class="btncol">${x && x.error ? `<button class="ghost wide" data-retry-product="${x.id}">Retry product lookup</button>` : ''}${canEstimate && x ? `<button class="ghost wide" data-retry-ai="${x.id}">${x.state === 'error' ? 'Try the AI estimate again' : 'Estimate with AI'}</button>` : ''}<button class="ghost wide" data-search="${i.index}">Search for “${esc(i.text)}”</button></div></div>`;
+      return `<div class="ql-row ql-ask"><p class="small muted">${canEstimate ? esc(i.message) : `Not in your foods yet: “${esc(i.text)}”`}</p>${x && x.error ? `<p class="small err">${esc(x.error)}</p>` : ''}<div class="btncol">${x && x.error && x.state === 'missing' ? `<button class="ghost wide" data-retry-product="${x.id}">Look it up again</button>` : ''}${canEstimate && x ? `<button class="ghost wide" data-retry-ai="${x.id}">${x.state === 'error' ? 'Try the AI estimate again' : 'Estimate with AI'}</button>` : ''}<button class="ghost wide" data-search="${i.index}">Search for “${esc(i.text)}”</button></div></div>`;
     };
     const draw = () => {
       if (!active()) return;
-      if (!items.length && !aiItems().length && !batches.some((x) => ['loading', 'searching'].includes(x.state))) { box.innerHTML = ''; return; }
-      const ready = items.filter((i) => i.status === 'ready').length + aiItems().length;
-      const label = sent ? `Try again: add to ${MEAL_NAMES[sent.meal]}, ${dayLabel(sent.day)}` : `Add to ${MEAL_NAMES[dest.value]}, ${dayLabel(dp.value)}`;
+      if (!items.length && !batches.length) { box.innerHTML = ''; return; }
+      const ready = readyCount(), rest = waiting();
+      // Add never waits for a lookup: it logs what's ready, and anything unfinished stays here
+      const what = rest && ready ? `Add ${ready === 1 ? '1 food' : `${ready} foods`} to` : 'Add to';
+      const label = sent ? `Try again: add to ${MEAL_NAMES[sent.meal]}, ${dayLabel(sent.day)}` : `${what} ${MEAL_NAMES[dest.value]}, ${dayLabel(dp.value)}`;
       box.innerHTML = `<div class="card list ql-list">${items.map(row).join('')}${photoRows()}</div>
-        <div class="actions"><span class="muted small num">${ready ? `≈ ${r0(kcalOf())} kcal` : ''}</span><button class="primary" id="ql-add"${!ready || waiting() ? ' disabled' : ''}>${esc(label)}</button></div><p class="err" id="ql-error" role="status"></p>`;
+        <div class="actions"><span class="muted small num">${ready ? `≈ ${r0(kcalOf())} kcal` : ''}</span><button class="primary" id="ql-add"${!ready ? ' disabled' : ''}>${esc(label)}</button></div>${ready && rest ? '<p class="small muted center ql-rest">The rest stay here until you finish them.</p>' : ''}<p class="err" id="ql-error" role="status"></p>`;
       wire();
     };
     // a photo estimate covers the whole meal: its rows follow the matched foods
@@ -643,6 +671,7 @@ function describePage(b, day, meal) {
       $$('[data-remove]', box).forEach((el) => el.onclick = () => { parts[+el.dataset.remove].removed = true; sent = null; resolve(null); });
       $$('[data-unai]', box).forEach((el) => el.onclick = () => { aiAt(el.dataset.unai).removed = true; sent = null; draw(); });
       $$('[data-edit]', box).forEach((el) => el.onchange = () => { const v = el.value.trim(); aiAt(el.dataset.edit)[el.name] = v === '' ? 0 : Math.max(0, parseFloat(v) || 0); sent = null; draw(); });
+      $$('[data-new]', box).forEach((el) => el.onclick = () => { Object.assign(parts[+el.dataset.new], {new: true, pick: null}); resolve(null); });
       $$('[data-choose]', box).forEach((el) => el.onclick = () => { const i = items.find((x) => x.index === +el.dataset.choose), c = i.choices[+el.dataset.n]; parts[i.index].pick = {kind: c.kind, id: c.id}; resolve(null); });
       $$('[data-amount]', box).forEach((el) => el.onclick = () => { const i = items.find((x) => x.index === +el.dataset.amount); parts[i.index].portion = i.options[+el.dataset.n].portion; resolve(null); });
       $$('[data-scale]', box).forEach((el) => el.onclick = () => {
@@ -652,7 +681,7 @@ function describePage(b, day, meal) {
         parts[i.index].portion = p; resolve(null);
       });
       $$('[data-search]', box).forEach((el) => el.onclick = () => { const w = {day: dp.value, meal: dest.value}; close(); addSheet(w.day, w.meal, items.find((x) => x.index === +el.dataset.search).text); });
-      $$('[data-retry-product]', box).forEach(el => el.onclick = () => { const x = batches.find(y => y.id === +el.dataset.retryProduct); x.error = null; x.state = 'searching'; draw(); lookupProduct(x); });
+      $$('[data-retry-product]', box).forEach(el => el.onclick = () => lookup([batches.find(y => y.id === +el.dataset.retryProduct)]));
       $$('[data-product]', box).forEach(el => el.onclick = () => {
         const i = +el.dataset.product, x = batchOf(i), f = {...x.foods[+el.dataset.n]};
         const portion = parts[i].portion || x.portion;
@@ -670,7 +699,8 @@ function describePage(b, day, meal) {
 
     let batchSeq = 0;
     const estimate = async (x) => {   // only the words of foods that weren't found (or a photo) go to the AI service
-      if (!canEstimate || !aiCan('food') || !active()) return;
+      if (!active()) return;
+      if (!canEstimate || !aiCan('food')) { x.state = 'missing'; return draw(); }   // AI was turned off meanwhile: offer Search
       x.opted = true; x.state = 'loading'; x.error = null; draw();
       try {
         const words = x.photo ? x.said : [x.idx.map((n) => parts[n].text).join(', '), ...x.said];
@@ -681,13 +711,37 @@ function describePage(b, day, meal) {
       } catch (e) { if (!active() || !batches.includes(x)) return; x.state = 'error'; x.error = e.message; }
       sent = null; draw();
     };
-    const lookupProduct = async (x) => {
-      try {
-        const r = await api(`/api/food/meals-chat/products?text=${encodeURIComponent(parts[x.idx[0]].text)}`);
-        if (!active() || !batches.includes(x)) return;
-        x.foods = r.foods; x.portion = r.portion; x.state = r.foods.length ? 'products' : 'missing';
-      } catch (e) { if (!active() || !batches.includes(x)) return; x.state = 'missing'; x.error = e.message; }
+    // Every new food in one request. A brand you named: pick the product. Everyday foods: estimated together
+    // with AI when you have it (no extra tap), or the closest plain database foods to pick from without it.
+    const lookup = async (list) => {
+      for (const x of list) Object.assign(x, {state: 'searching', error: null});
       draw();
+      let res;
+      try { res = (await api('/api/food/meals-chat/lookup', json('POST', {texts: list.map((x) => parts[x.idx[0]].text)}))).results; }
+      catch (e) {
+        if (!active()) return;
+        list = list.filter((x) => batches.includes(x));
+        if (canEstimate && list.length) return estimateTogether(list);   // the databases are down: AI can still help
+        for (const x of list) Object.assign(x, {state: 'missing', error: e.message});
+        return draw();
+      }
+      if (!active()) return;
+      const everyday = [];
+      list.forEach((x, n) => {
+        const r = res[n];
+        if (!batches.includes(x) || !r) return;
+        x.portion = r.portion; x.foods = r.foods;
+        if (r.kind === 'brand' && r.foods.length) x.state = 'products';
+        else if (canEstimate) everyday.push(x);
+        else x.state = r.foods.length ? 'plain' : 'missing';
+      });
+      if (everyday.length) return estimateTogether(everyday);
+      draw();
+    };
+    const estimateTogether = (list) => {   // one AI request for several everyday foods
+      batches = batches.filter((x) => !list.includes(x));
+      const x = {id: ++batchSeq, idx: list.flatMap((y) => y.idx), said: [], state: 'loading'};
+      batches.push(x); estimate(x);
     };
     const resolve = async (text, {quiet = false} = {}) => {
       if (busy || !active()) return;
@@ -708,19 +762,18 @@ function describePage(b, day, meal) {
         // Drop removed foods; check newly unknown products before offering an explicit estimate.
         batches = batches.filter((x) => x.photo || x.idx.every((n) => !parts[n].removed && items.some((i) => i.index === n && i.status === 'unknown')));
         const fresh = unknown().map((i) => i.index).filter((n) => !batchOf(n));
-        for (const n of fresh) { const x = {id: ++batchSeq, idx: [n], said: [], state: 'searching'}; batches.push(x); lookupProduct(x); }
-        if (!fresh.length && r.note === 'changed' && text) {
-          const changed = batches.find((x) => x.opted && !x.photo && x.idx.some((n) => parts[n].portion));
-          if (changed) { changed.said.push(text); estimate(changed); }
-        }
+        if (fresh.length) { const list = fresh.map((n) => ({id: ++batchSeq, idx: [n], said: []})); batches.push(...list); lookup(list); }
+        // "make it two hot dogs" on an AI-estimated food: estimate it again with the correction
+        const changed = !fresh.length && r.note === 'changed' && text && batches.find((x) => x.opted && !x.photo && x.idx.some((n) => parts[n].portion));
+        if (changed) { changed.said.push(text); estimate(changed); }
         const named = fresh.map((n) => `“${parts[n].text}”`).join(', ');
-        if (wait) wait.textContent = !fresh.length ? r.message : `${named} isn’t in your foods yet. I’ll check the food databases. Choose a match, or search below.`;
+        if (wait) wait.textContent = changed ? 'Updating the AI estimate.' : !fresh.length ? r.message : `${named} ${fresh.length === 1 ? 'isn’t' : 'aren’t'} in your foods yet, so I’m looking ${fresh.length === 1 ? 'it' : 'them'} up.`;
         draw();
       } catch (x) { if (active()) { if (wait) wait.textContent = x.message; if (text) input.value = text; } }
       finally { if (active()) setBusy(false); }
     };
     const addAll = async () => {
-      if (busy || !active() || waiting()) return;
+      if (busy || !active()) return;
       const err = $('#ql-error', box);
       // Freeze what was sent, so a lost answer retries the identical entries (each has its own id), even after a date edit.
       sent ||= {day: dp.value, meal: dest.value, done: false,
@@ -736,9 +789,15 @@ function describePage(b, day, meal) {
         }
         if (sent.ai.length) await addEntries(sent.ai); else refresh();
         if (!active()) return;
-        const n = sent.confirm.length + sent.ai.length, left = unknown().filter((i) => !batchOf(i.index) || batchOf(i.index).state !== 'done');
-        invalidate('/api/food/'); close(); toast(`Added ${n === 1 ? 'it' : n + ' foods'} to ${MEAL_NAMES[sent.meal].toLowerCase()}`);
-        if (left.length) addSheet(sent.day, sent.meal, left[0].text);    // carry on with the food that wasn't found
+        const n = sent.confirm.length + sent.ai.length, added = `Added ${n === 1 ? 'it' : n + ' foods'} to ${MEAL_NAMES[sent.meal].toLowerCase()}`;
+        invalidate('/api/food/');
+        if (!waiting()) { close(); toast(added); return; }
+        // Some foods are still being worked out: drop what was just added and keep going with the rest
+        for (const i of items) if (i.status === 'ready') parts[i.index].removed = true;
+        for (const x of batches.filter((y) => y.state === 'done')) x.idx.forEach((k) => { parts[k].removed = true; });
+        batches = batches.filter((y) => y.state !== 'done'); items = items.filter((i) => !parts[i.index].removed);
+        sent = null; preview = null; say(esc(`${added}. The rest are below.`), 'ai'); setBusy(false);
+        if (items.some((i) => i.status !== 'unknown')) await resolve(null); else draw();
       } catch (x) {
         if (!active()) return;
         if (x.status === 409 || x.status === 404 || x.status === 400) {   // something changed: show it fresh, nothing was added

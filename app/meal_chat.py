@@ -19,6 +19,7 @@ import re
 import time
 import unicodedata
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
@@ -326,15 +327,25 @@ def matches(part, catalog, saved_day):
     if saved_day:
         on_day = [e for e in found if e['saved_day'] == saved_day]
         found = on_day or found
-    keys = list(dict.fromkeys(e['key'] for e in found))
-    if len(keys) == 1:   # the same name in several places: prefer a saved meal, then the most recent
-        return [min(found, key=lambda e: (KIND_RANK[e['kind']], -(e['recent'].timestamp() if e['recent'] else 0)))]
+    return best_per_name(found)
+
+
+def best_per_name(found):
+    """One entry per food name: a saved meal first, then the most recent."""
+    rank = lambda e: (KIND_RANK[e['kind']], -(e['recent'].timestamp() if e['recent'] else 0))
     best = {}
     for e in found:
-        b = best.get(e['key'])
-        if not b or (KIND_RANK[e['kind']], -(e['recent'].timestamp() if e['recent'] else 0)) < (KIND_RANK[b['kind']], -(b['recent'].timestamp() if b['recent'] else 0)):
-            best[e['key']] = e
+        if e['key'] not in best or rank(e) < rank(best[e['key']]): best[e['key']] = e
     return list(best.values())
+
+
+def near(part, catalog):
+    """Your foods whose whole name is inside what you said, with extra words ("scrambled eggs" -> Eggs).
+    An extra word may be a brand or a variant, so these are only offered as choices, never picked."""
+    q = set(part['query'])
+    if part['ref'] is not None or len(q) < 2: return []
+    close = [e for e in catalog if e['words'] and set(e['words']) < q and len(set(e['words'])) / len(q) >= .5]
+    return sorted(best_per_name(close), key=lambda e: (-len(set(e['words'])), KIND_RANK[e['kind']], e['name'].lower()))
 
 
 # ---------- how much: arithmetic on stored values only ----------
@@ -487,6 +498,7 @@ class PartIn(BaseModel):
     portion: Portion | None = None
     saved_day: dt.date | None = None
     removed: bool = False
+    new: bool = False        # "something new": skip the "is it one of your foods?" question
 
 
 class ResolveIn(BaseModel):
@@ -544,7 +556,7 @@ def resolve(body: ResolveIn, user=Depends(current_user)):
         today = dishes._today(c, uid).date()
         catalog = catalog_for(c, uid)
         parts = [{'text': p.text, 'pick': p.pick.model_dump() if p.pick else None, 'saved_day': p.saved_day,
-                  'portion': p.portion.clean() if p.portion else None, 'removed': p.removed} for p in body.parts]
+                  'portion': p.portion.clean() if p.portion else None, 'removed': p.removed, 'new': p.new} for p in body.parts]
         say = (body.say or '').strip()
         info, note = {'meal': None, 'day': None, 'saved_day': None}, None
         if parts and say:
@@ -570,44 +582,98 @@ def resolve(body: ResolveIn, user=Depends(current_user)):
             it['index'] = i
             if it.get('kind') and not p.get('pick'): p['pick'] = {'kind': it['kind'], 'id': it['id']}   # keep the match for follow-ups
             items.append(it)
-    state = [{'text': p['text'], 'pick': p['pick'], 'portion': p['portion'], 'removed': p['removed'],
+    state = [{'text': p['text'], 'pick': p['pick'], 'portion': p['portion'], 'removed': p['removed'], 'new': bool(p.get('new')),
               'saved_day': p['saved_day'] and p['saved_day'].isoformat()} for p in parts]
     status = 'ready' if all(i['status'] == 'ready' for i in items) else 'needs'
     return {'status': status, 'parts': state, 'items': items, 'meal': info['meal'], 'day': info['day'] and info['day'].isoformat(),
             'note': note, 'issued': issued, 'client_id': str(uuid.uuid4()), 'message': summary(items, note)}
 
 
+def product_words(s):
+    """Words for catalog matching: Siggi's = siggis, plural-insensitive."""
+    return [stem(t) for t in raw(re.sub(r"['’]", '', s)) if t not in (',', ';')]
+
+
+LEAD_IN = {'i', 'had', 'ate', 'of', 'the', 'a', 'an', 'my'}
+BASIC = {'raw', 'whole', 'plain', 'fresh', 'cooked', 'nf', 'regular', 'medium', 'large', 'prepared'}
+
+
+def lookup(text):
+    """Public catalog candidates for one food that isn't in your own foods. Never an automatic write.
+
+    'brand': you named a brand: that brand's products, closest to your words first (Siggi's vanilla skyr).
+    'plain': an everyday food: plain database foods with every word in their name ("a banana" -> Bananas, raw).
+    'none': nothing reliable. A word shared with a product name never counts as a brand ("banana" is not
+    the Banana Time brand), so plain foods aren't offered banana bread or juice.
+    A human checks the package and serving on the phone; catalog availability and completeness vary.
+    """
+    portion, remaining = amount(raw(re.sub(r"['’]", '', text)))
+    out = {'text': text, 'query': '', 'kind': 'none', 'foods': [], 'portion': portion}
+    if remaining is None or re.search(r'-\s*\d', text): return out
+    # Keep brand words such as 'Other', 'Simply' or 'Whole': only grammatical lead-ins go.
+    said = ' '.join(t for t in remaining if isinstance(t, str) and t not in LEAD_IN)
+    words = set(product_words(said))
+    if not words: return out
+    out['query'] = query = ' '.join(product_words(said))[:80]
+    if len(' '.join(product_words(said))) > 80: return out     # a truncated query isn't the whole description
+
+    usda = _search_usda(query)
+    # A word is a brand you named when more results carry it as their brand than as a plain food's name:
+    # Chobani, Siggi's. "Banana" names plain foods more often than brands (Banana Time), so it's a food.
+    as_food, as_brand = {}, {}
+    for f in usda:
+        for w in set(product_words(f.get('name') or '')) if f.get('generic') else set(): as_food[w] = as_food.get(w, 0) + 1
+        for w in set(product_words(f.get('brand') or '')) if not f.get('generic') else set(): as_brand[w] = as_brand.get(w, 0) + 1
+    named = {w for w in words if as_brand.get(w, 0) > as_food.get(w, 0)}
+    must = {w for w in words if not as_food.get(w)}    # brand and product words; only plain-food words may be missing
+
+    def branded(foods):
+        scored, seen = [], set()
+        for f in foods:
+            name, brand = set(product_words(f.get('name') or '')), set(product_words(f.get('brand') or ''))
+            key = ((f.get('name') or '').lower(), (f.get('brand') or '').lower())
+            rest = words - brand
+            hits = len(rest & name)
+            # A word USDA doesn't know as a food counts too (Kodiak). If USDA couldn't be reached, a word in the
+            # product's own name isn't taken as its brand ("Eggs" by The Happy Egg).
+            mine = {w for w in words & brand if w in named or not as_food.get(w)} if usda else (words & brand) - name
+            # the brand you named, and most of the other words (labels shorten names: "Protein Waffles")
+            if mine and must <= name | brand and hits * 2 >= len(rest) and key not in seen:
+                seen.add(key); scored.append((-hits, len(scored), f))
+        return [f for *_, f in sorted(scored, key=lambda x: x[:2])]
+
+    found = branded(usda)
+    if found: return {**out, 'kind': 'brand', 'foods': found[:8]}
+    plain = [f for f in usda if f.get('generic') and words <= set(product_words(f.get('name') or ''))]
+    # the plainest first: "Egg, whole, raw" before "Egg, deviled"
+    plain.sort(key=lambda f: len(set(product_words(f['name'])) - words - BASIC))
+    if plain: return {**out, 'kind': 'plain', 'foods': plain[:5]}
+    # Open Food Facts is paced (about one search every 6 seconds), so it's asked only when USDA has neither.
+    found = branded(_search_off(query))
+    return {**out, 'kind': 'brand', 'foods': found[:8]} if found else out
+
+
 @router.get('/products')
 def products(text: str, user=Depends(current_user)):
-    """Public catalog candidates, never a guessed brand substitution or an automatic write.
-
-    Keep all name/brand words after removing the spoken portion. A human checks the
-    package and serving on the phone; catalog availability and completeness vary.
-    """
+    """One food (kept for app builds from before /lookup)."""
     if not 2 <= len(text.strip()) <= 200:
         raise HTTPException(400, 'Use a product name up to 200 characters')
-    portion, remaining = amount(raw(text))
-    # Do not discard brand words such as 'Other', 'Simply' or 'Whole' as
-    # conversation filler. Only strip grammatical lead-ins around the portion.
-    words = [stem(t) for t in (remaining or []) if t not in {'i', 'had', 'ate', 'of', 'the', 'a', 'an', 'my'}]
-    if remaining is None or re.search(r'-\s*\d', text) or not words:
-        return {'query': '', 'foods': [], 'portion': None}
-    query = ' '.join(words)[:80]
-    # Avoid a truncated query being treated as a complete product description.
-    if len(' '.join(words)) > 80:
-        return {'query': query, 'foods': [], 'portion': portion}
-    foods, seen = [], set()
-    for f in _search_usda(query) + _search_off(query):
-        brand = f.get('brand') or ''
-        name = f.get('name') or ''
-        tokens = {stem(t) for t in raw(name + ' ' + brand)}
-        key = (name.lower(), brand.lower())
-        # Branded products only, every requested word present; no similar generic food.
-        if not brand.strip() or not set(words) <= tokens or key in seen:
-            continue
-        seen.add(key)
-        foods.append(f)
-    return {'query': query, 'foods': foods[:8], 'portion': portion}
+    r = lookup(text)
+    return {'query': r['query'], 'foods': r['foods'], 'portion': r['portion'], 'kind': r['kind']}
+
+
+class LookupIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    texts: list[str] = Field(min_length=1, max_length=MAX_PARTS)
+
+
+@router.post('/lookup')
+def lookup_all(body: LookupIn, user=Depends(current_user)):
+    """Every new food in one request, looked up side by side, so three new foods don't take three turns."""
+    if any(not 2 <= len(t.strip()) <= 200 for t in body.texts):
+        raise HTTPException(400, 'Use a product name up to 200 characters')
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        return {'results': list(pool.map(lookup, body.texts))}
 
 
 def pick_entry(p, catalog):
@@ -624,6 +690,10 @@ def item_for(c, uid, p, catalog, issued=None):
         return {**base, 'status': 'unknown', 'message': f"I couldn't read the amount in “{p['text']}”."}
     if not e:
         found = matches(read, catalog, p.get('saved_day'))
+        close = [] if found or p.get('new') else near(read, catalog)
+        if close:   # one tap to use your own food, or "something new" to look it up
+            return {**base, 'status': 'choose', 'message': f"Is “{p['text']}” one of your foods?",
+                    'choices': [choice(x) for x in close[:6]], 'more': False, 'new_ok': True}
         if not found: return {**base, 'status': 'unknown', 'message': f"“{p['text']}” isn't in your foods yet."}
         if len(found) > 1:
             found.sort(key=lambda x: (KIND_RANK[x['kind']], x['name'].lower()))

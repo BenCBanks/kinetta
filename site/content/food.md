@@ -4,11 +4,11 @@ Edit the text below each heading. Keep the section keys unchanged. Supports **bo
 
 ## just-say-what-you-ate-we-ll-do-the-counting-1
 
-Say what you ate. *Check, then log.*
+Just say what you ate. *Kinetta does the counting.*
 
 ## type-it-like-a-text-message-kinetta-works-out-the-calo-2
 
-Search for a food, scan its barcode or describe what you ate. Reuse foods from your history, adjust the amount and check the calories, protein, carbs and fat before adding.
+Type it like a text message. Kinetta finds the foods you’ve had before and the brands you name, adds up the calories, protein, carbs and fat, and you fix anything in plain words.
 
 ## a-hot-dog-and-a-diet-coke-from-costco-3
 
@@ -16,7 +16,7 @@ a hot dog and a Diet Coke from Costco
 
 ## 2-things-about-550-kcal-check-below-or-tell-me-what-to-4
 
-Example estimate: 2 foods, about **550 kcal**. Check the portions before adding.
+2 foods, about **550 kcal**. Check below, or tell me what to change.
 
 ## make-it-two-hot-dogs-5
 
@@ -24,11 +24,11 @@ make it two hot dogs
 
 ## now-about-1-100-kcal-ready-to-add-to-dinner-6
 
-With two hot dogs: about **1,100 kcal**. Review, then add to dinner.
+Now about **1,100 kcal**. Ready to add to dinner.
 
 ## or-snap-a-photo-scan-a-barcode-or-search-your-workouts-7
 
-Example shown with fictional AI estimates. Check product labels and portions. You can also log with search, barcodes or saved foods.
+Or snap a photo, scan a barcode or search. Example uses demo estimates.
 
 ## save-a-meal-once-log-it-whenever-you-eat-it-8
 
@@ -40,7 +40,7 @@ Choose **Create a Recipe**, add ingredients and save it in **My Recipes**. When 
 
 ## your-day-at-a-glance-with-honest-feedback-10
 
-Daily totals and optional reviews.
+Your day at a glance.
 
 ## calories-and-macros-as-rings-and-your-deficit-11
 
@@ -56,7 +56,7 @@ Optional AI suggestions for changing a recipe’s ingredients or portions. Revie
 
 ## your-food-log-with-or-without-ai-14
 
-Search, scan or use your usuals.
+Your food log, with or without AI.
 
 ## search-usda-and-open-food-facts-scan-barcodes-or-enter-15
 

@@ -74,19 +74,24 @@ profile/body settings do not depend on these grants. Deterministic application t
 from billable model calls. New model features must choose an existing capability or deliberately extend this catalog,
 with server-denial, consent, isolation and non-AI regression coverage.
 
-Describe, Snap or Scan first matches the person's own foods (My Recipes, combinations, My foods, logged history) with fixed SQL and arithmetic and no provider work (`app/meal_chat.py`, `docs/conversational-meals.md`). Unknown product words are checked in the public food catalogs before an explicitly chosen estimate; only opted-in unknown words or a photo go to the existing model estimator, behind the usual food access/consent/usage checks. Catalog coverage and nutrition accuracy vary.
+Describe, Snap or Scan first matches the person's own foods (My Recipes, combinations, My foods, logged history) with fixed SQL and arithmetic and no provider work (`app/meal_chat.py`, `docs/conversational-meals.md`). Unknown food words are checked in the public food catalogs in one request; everyday foods then go to the existing model estimator automatically, named brands offer products to pick, and a photo goes to the estimator, all behind the usual food access/consent/usage checks. Catalog coverage and nutrition accuracy vary.
 Adding a grounded lookup stage is a separate prompt/model change requiring the reviewed food evaluation process.
 
 ## Described branded products
 
-Food descriptions still resolve against the authenticated person's saved records first. Unknown food words can be
-looked up in the existing USDA/Open Food Facts catalogs through the authenticated `/api/food/meals-chat/products`
-read endpoint. It removes the spoken amount, preserves brand/name words, keeps only branded candidates containing
-all requested words, and returns at most eight. Public queries contain product words only, with the existing provider
-cache and pacing; no private recipe contents, history or identity is sent to the catalogs. Catalog completeness and
-accuracy are not guaranteed. The person selects a product, checks the package/serving and confirms an amount using
-the normal validated food-entry API. No new schema, arbitrary tools, prompts or model configuration are introduced.
+Food descriptions still resolve against the authenticated person's saved records first. All new food words from one
+message are looked up together through the authenticated `/api/food/meals-chat/lookup` read endpoint (the older
+single-food `/products` endpoint stays for earlier app builds). It removes the spoken amount and classifies each food:
+**brand** when a word is used more often as a brand than as a plain food name in the USDA results (Siggi's, Kodiak),
+returning that brand's products closest to the words said; **plain** for everyday foods with USDA plain-food matches
+("a banana" → Banana, raw); or **none**. A word that names plain foods is never taken as a brand, so "a banana" is not
+offered banana-flavoured products. Open Food Facts is asked only when USDA has neither, because it is paced at about one
+search every six seconds. Public queries contain food words only, with the existing provider cache and pacing; no
+private recipe contents, history or identity is sent to the catalogs. Catalog completeness and accuracy are not
+guaranteed. The person selects a product, checks the package/serving and confirms an amount using the normal
+validated food-entry API. No new schema, arbitrary tools, prompts or model configuration are introduced.
 
-No unknown text is automatically estimated: a separate, explicit estimate button uses the existing access/consent-gated
-food estimator. Photos and corrections to an explicitly chosen estimate retain their existing behavior and validation.
+Everyday unknown foods (plain or none) are sent together to the existing access/consent-gated food estimator
+automatically, so describing a meal needs no extra tap. Named brands are never sent automatically; the person can
+choose "Use an AI estimate instead". Without AI access the plain matches are offered to pick from.
 Existing reviewed-evaluation release gates continue to apply to subsequent model or prompt changes.
