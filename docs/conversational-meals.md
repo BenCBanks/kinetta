@@ -55,7 +55,7 @@ A photo still goes to the AI estimator with whatever you say about it.
 
 Looking things up is fixed SQL and arithmetic: **zero model calls**, no embeddings, no new dependency. It works with no
 AI access and no AI consent, so food logging keeps working if AI is turned off or later sold separately
-(`app/ai_access.py` gates only the estimator). No model request is made by typing an unknown food: estimates require an explicit choice. Public product queries contain the unknown product words, never saved recipes or account details. Photos and later corrections to an opted-in estimate still use the existing estimator.
+(`app/ai_access.py` gates only the estimator). With AI access and consent, unknown everyday foods are estimated automatically (one request for all of them); a named brand offers database products to pick first. Without AI, unknown foods offer the closest plain database foods and Search. Public product queries contain the unknown food words, never saved recipes or account details. Photos and later corrections to an estimate use the existing estimator.
 
 ## Safety
 

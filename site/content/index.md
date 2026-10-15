@@ -28,7 +28,7 @@ Quick food logging
 
 ## say-what-you-ate-in-your-own-words-snap-a-photo-or-sca-7
 
-Search foods, scan a barcode or describe what you ate. Save recipes and log your portion. Recorded workouts contribute to your daily calorie estimates.
+Say what you ate in your own words, or search and scan. Save a recipe once and log your portion any day. Your workouts count toward your daily calories.
 
 ## friends-kept-private-8
 

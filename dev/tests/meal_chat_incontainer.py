@@ -80,6 +80,35 @@ with patch.object(chat, '_search_usda', return_value=[other, generic, product]) 
     assert TestClient(app).get('/api/food/meals-chat/products?text=cereal').status_code == 401
 with patch.object(chat, '_search_usda', return_value=[]), patch.object(chat, '_search_off', return_value=[]):
     assert chat.products('Example Brand Cereal', {'id': -1})['foods'] == []
+
+# Everyday foods are plain foods, not brands: "a banana" never gets banana-flavoured products.
+def fdc(name, brand=None):
+    return {'source': 'usda', 'id': name, 'name': name, 'brand': brand, 'generic': brand is None,
+            'per100': {'kcal': 90, 'protein_g': 1, 'carbs_g': 23, 'fat_g': 0, 'fiber_g': 2}, 'serving': {'g': 100, 'label': '100 g'}}
+raw_banana, baked = fdc('Bananas, raw'), fdc('Banana, baked')
+peanut, time_brand = fdc('Banana', "Better'n Peanut"), fdc('Banana', 'Banana Time')
+skyr = fdc('Skyr, vanilla', "Siggi's")
+with patch.object(chat, '_search_usda', return_value=[peanut, baked, time_brand, raw_banana]), patch.object(chat, '_search_off', side_effect=AssertionError('USDA was enough')):
+    r = chat.lookup('a banana')
+    assert r['kind'] == 'plain' and r['foods'] == [raw_banana, baked], r
+with patch.object(chat, '_search_usda', return_value=[fdc('Yogurt, plain'), skyr, fdc('Skyr', 'Other Dairy')]):
+    r = chat.lookup("2 Siggi’s vanilla skyr")
+    assert r['kind'] == 'brand' and r['foods'] == [skyr] and r['portion'] == {'count': 2}, r
+# USDA unreachable: a word in the product's own name isn't its brand ("Eggs" by Happy Egg Co)
+with patch.object(chat, '_search_usda', return_value=[]), patch.object(chat, '_search_off', return_value=[fdc('Medium Eggs', 'Happy Egg Co')]):
+    assert chat.lookup('2 eggs')['kind'] == 'none'
+# every new food in one request, authenticated and bounded
+with patch.object(chat, '_search_usda', return_value=[raw_banana, skyr]), patch.object(chat, '_search_off', return_value=[]), patch.object(food_photo, 'ask', side_effect=AssertionError('no model')):
+    app.dependency_overrides[current_user] = lambda: {'id': -1}
+    try:
+        client = TestClient(app)
+        res = client.post('/api/food/meals-chat/lookup', json={'texts': ['a banana', 'siggis skyr']})
+        assert res.status_code == 200 and [x['kind'] for x in res.json()['results']] == ['plain', 'brand'], res.text
+        assert client.post('/api/food/meals-chat/lookup', json={'texts': ['x' * 201]}).status_code == 400
+        assert client.post('/api/food/meals-chat/lookup', json={'texts': []}).status_code == 422
+    finally: app.dependency_overrides.pop(current_user, None)
+    assert TestClient(app).post('/api/food/meals-chat/lookup', json={'texts': ['banana']}).status_code == 401
+print('Food lookup: plain foods vs named brands, one request for several foods, no OFF when USDA answers, no model calls passed')
 print('Product lookup: authenticated, bounded, portion-free full brand query; no generic/other-brand substitution, dedup, no-model and empty catalogs passed')
 
 from app import api_food
@@ -91,11 +120,18 @@ try:
     user = {'id': uid}
     api_food.food_add(api_food.FoodIn(name='Greek Yogurt', kcal=100), user)
     r = chat.resolve(chat.ResolveIn(say='Example Greek Yogurt'), user)
-    assert r['items'][0]['status'] == 'unknown', 'an extra brand must not silently match generic stored yogurt'
+    it = r['items'][0]
+    assert it['status'] == 'choose' and it['new_ok'] and [c['name'] for c in it['choices']] == ['Greek Yogurt'], \
+        'an extra word is offered as "one of your foods?", never silently matched'
+    parts = [{**p, 'new': True} for p in r['parts']]
+    r = chat.resolve(chat.ResolveIn(parts=parts), user)
+    assert r['items'][0]['status'] == 'unknown' and r['parts'][0]['new'], '"something new" stays new'
+    r = chat.resolve(chat.ResolveIn(say='Greek Yogurt'), user)
+    assert r['items'][0]['status'] == 'ready', 'the exact name still matches directly'
     branded = api_food.food_add(api_food.FoodIn(name='Greek Yogurt', brand='Example', kcal=120), user)
     r = chat.resolve(chat.ResolveIn(say='Example Greek Yogurt'), user)
     assert r['items'][0]['status'] == 'ready' and r['items'][0]['id'] == branded['id'], r
-    print('Stored foods: brand-aware matching; an extra brand cannot silently fall back to a generic food')
+    print('Stored foods: brand-aware matching; an extra word asks "one of your foods?" with a something-new choice')
 finally:
     if uid:
         with db.connect() as c: c.execute("DELETE FROM users WHERE id=%s AND login='zz_test_product_brand'", (uid,))

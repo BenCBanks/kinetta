@@ -163,9 +163,9 @@ medical accuracy or implying that these fields are public. No forced tour or one
 
 Use **My Recipes** for reusable recipes, **My foods** for individual saved foods, and **Saved combinations** in user-facing app/site copy. My Recipes means log, edit or create;
 provide explicit edit controls and retain unfinished named meals. Keep existing API/storage identifiers for compatibility.
-Direct food search remains. Described unknown products consult USDA/Open Food Facts before an optional estimate; photo estimates remain separate. Today’s energy balance stays collapsed with its number inside the breakdown; past days retain their balance summary. Nutrition help links directly to private body settings. Describe, Snap or Scan opens a full page with the same composer pattern as Create a Recipe; scanning lives in its + menu.
+Direct food search remains. New described foods are looked up in one request: a named brand offers that brand's USDA/Open Food Facts products to pick; everyday foods are estimated automatically with AI access and consent, or offer the closest plain database foods without it. A word that names plain foods (banana, apple) is never treated as a brand. Add logs whatever is ready and never waits for a lookup; unfinished foods stay on the page. Photo estimates remain separate. Today’s energy balance stays collapsed with its number inside the breakdown; past days retain their balance summary. Nutrition help links directly to private body settings. Describe, Snap or Scan opens a full page with the same composer pattern as Create a Recipe; scanning lives in its + menu.
 
-Describing food is a conversation with as little effort as possible: one sentence can hold several foods, the log day and the meal; follow-ups change, add or remove foods. Match the person's own foods first (no AI). Each row shows name, amount and calories; ✕ removes, a tap offers Half/Double. Ambiguity asks for a choice; a meal never logged by weight offers All of it / Half / A quarter. Only unknown foods explicitly selected for estimation may go to the AI estimator (with access and consent), shown as "AI estimate"; without AI they get a Search button. Add is the explicit confirmation. Never invent nutrition for a saved food that can't be found.
+Describing food is a conversation with as little effort as possible: one sentence can hold several foods, the log day and the meal; follow-ups change, add or remove foods. Match the person's own foods first (no AI). Each row shows name, amount and calories; ✕ removes, a tap offers Half/Double. Ambiguity asks for a choice; a name with extra words ("scrambled eggs" for your Eggs) asks "Is it one of your foods?" with a "something new" option, never picking silently; a meal never logged by weight offers All of it / Half / A quarter. Everyday unknown foods go to the AI estimator automatically (with access and consent), shown as "AI estimate"; a named brand offers database products first; without AI they get plain database matches and a Search button. Add is the explicit confirmation. Never invent nutrition for a saved food that can't be found.
 
 A non-AI account gets clear manual food/ingredient search, barcode and known-total controls. Do not fill its screens
 with locked AI prompts. Existing AI reviews remain readable; generation controls require both product access and
@@ -218,8 +218,9 @@ preserves the draft on failure and prevents duplicate submissions. Keep44px targ
 
 Food-entry actions use centered icons/labels and visibly outlined theme surfaces. The reusable-food action is named
 **Create a Recipe** wherever it is offered. A logged meal's pencil menu stays scoped to that meal and selected day:
-show its food totals, per-item Edit and Remove, Add food to this meal, and Save these foods as a combination.
-Copy-to-today/next-day shortcuts do not belong in this menu. Logged foods expose a visible Remove action in the log
-and meal menu, with Undo restoring the original day, mealtime, amount and nutrition. The entry editor keeps removal
-near the top; Move this food is secondary, and Save changes applies only to this entry. Recipe-backed logged portions
+show its food totals, per-item Edit and Remove, Add food to this meal, Copy to today (past days only) and Save these
+foods as a combination (named inside the sheet, never a browser pop-up). In the log, swipe a food left to remove it;
+Remove is also in the meal menu and the entry editor, with Undo restoring the original day, mealtime, amount and
+nutrition. Don't put a Remove button on every log row: it competes with the calories. The entry editor puts Save changes
+first and quieter Log again today / Remove links underneath; Move this food is secondary, and Save changes applies only to this entry. Recipe-backed logged portions
 scale their recorded nutrients by amount when they lack a normalized per-serving/per-100g reference.

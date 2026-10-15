@@ -78,6 +78,8 @@ function chrome(dark) {
     });
     await page.route('**/api/food/photo', (route) => route.fulfill({json: SAMPLE(JSON.parse(route.request().postData() || '{}').note)}));
     await page.route('**/api/food/meals-chat/products?**', route => route.fulfill({json: {query: '', foods: [], portion: null}}));
+    // the combined lookup (one request for every new food): nothing in the databases, so the stand-in AI estimates them
+    await page.route('**/api/food/meals-chat/lookup', route => route.fulfill({json: {results: JSON.parse(route.request().postData() || '{}').texts.map(text => ({text, query: '', kind: 'none', foods: [], portion: null}))}}));
     page.on('pageerror', (e) => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
     await page.fill('input[name=login]', 'alex'); await page.fill('input[name=password]', 'blue kettle morning run');
@@ -112,7 +114,7 @@ function chrome(dark) {
         await page.waitForTimeout(450);
         await page.evaluate(() => window.scrollTo(0, 0));
       }
-      if (opt.describe) {   // Full-page conversation: explicitly choose each made-up estimate, then correct it.
+      if (opt.describe) {   // Full-page conversation: the made-up estimates arrive on their own, then correct them.
         await page.evaluate(() => { App.me.ai_ok = true; addSheet(isoDay(new Date()), 'dinner'); });
         await page.click('#as-photo');
         await page.waitForURL('**/food/describe?**');
