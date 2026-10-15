@@ -165,6 +165,8 @@ Use **Meals**, **My meals**, and **Saved combinations** in user-facing app/site 
 provide explicit edit controls and retain unfinished named meals. Keep existing API/storage identifiers for compatibility.
 Direct food search remains because food-photo estimates currently do not first consult USDA and AI is optional.
 
+Describing food is a conversation with as little effort as possible: one sentence can hold several foods, the log day and the meal; follow-ups change, add or remove foods. Match the person's own foods first (no AI). Each row shows name, amount and calories; ✕ removes, a tap offers Half/Double. Ambiguity asks for a choice; a meal never logged by weight offers All of it / Half / A quarter. Only unknown foods may go to the AI estimator (with access and consent), shown as "AI estimate"; without AI they get a Search button. Add is the explicit confirmation. Never invent nutrition for a saved food that can't be found.
+
 A non-AI account gets clear manual food/ingredient search, barcode and known-total controls. Do not fill its screens
 with locked AI prompts. Existing AI reviews remain readable; generation controls require both product access and
 consent. Product access, provider configuration, consent, Health consent and release approval remain distinct states.

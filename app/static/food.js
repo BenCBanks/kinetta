@@ -279,12 +279,12 @@ const macroInputs = (e = {}) => `<div class="mac4">
   <label>Fiber g<input name="fiber_g" inputmode="decimal" value="${e.fiber_g != null ? r1(e.fiber_g) : ''}"></label></div>`;
 
 // ---------- add: usuals / saved dishes / search / quick ----------
-function addSheet(day, meal) {
+function addSheet(day, meal, find = '') {
   // One suggestions list inside Add food; meal cards show only what was actually logged.
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways${aiCan('food') ? ' three' : ''}">${aiCan('food') ? `<button class="way" id="as-photo">${svg('sparkle')}<b>Describe or snap</b></button>` : ''}
+    <div class="ways three"><button class="way" id="as-photo">${svg(aiCan('food') ? 'sparkle' : 'comment')}<b>${aiCan('food') ? 'Describe or snap' : 'Describe it'}</b></button>
       <button class="way" id="as-scan">${svg('barcode')}<b>Barcode</b></button>
       <button class="way" id="as-dish">${svg('pot')}<b>Cook a meal</b></button></div>
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My meals'], ['search', 'Search'], ['quick', 'Quick']]
@@ -298,13 +298,14 @@ function addSheet(day, meal) {
     const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
-    const photo = $('#as-photo', b); if (photo) photo.onclick = () => {   // words and photos go to the AI service, so it needs the person's OK first
+    const photo = $('#as-photo', b); if (photo) photo.onclick = () => {   // saved-meal lookup is local; model estimates separately require access and consent
       const w = where(); close();
-      if (App.me.coach && !App.me.ai_ok) aiSheet(() => describeSheet(w.day, w.meal)); else describeSheet(w.day, w.meal);
+      describeSheet(w.day, w.meal);
     };
     $('#as-scan', b).onclick = () => { const w = where(); close(); scanSheet(w.day, w.meal); };
     $('#as-dish', b).onclick = (e) => { close(); newDish(e.currentTarget); };     // a saved dish is logged from Saved Dishes
-    show('usuals');
+    show(find ? 'search' : 'usuals');
+    if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
   });
 }
 const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
@@ -381,9 +382,10 @@ async function tSaved(body, where, close) {
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><div class="results">${foods.map(foodRow).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
+      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button><button class="ghost wide" id="tm-dish">+ Cook a meal</button></div>
 `;
     const again = () => tSaved(body, where, close);
+    $('#tm-describe', body).onclick = () => { const w = where(); close(); describeSheet(w.day, w.meal); };
     $('#tm-food', body).onclick = () => foodEditor(null, again);
     $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
     $$('[data-edit-meal]', body).forEach((b) => b.onclick = () => { close(); go('/food/cook/' + b.dataset.editMeal); });
@@ -529,57 +531,184 @@ async function shrinkPhoto(file, max = 1280) {
     return c.toDataURL('image/jpeg', 0.82);
   } finally { URL.revokeObjectURL(url); }
 }
-// Describe or snap (2026-10-12, Ben: "I had a hotdog from Costco and a Diet Coke" should be quick): a small chat. Say what
-// you had, add a photo if you like (or only a photo), check the estimate, send a correction ("make it two"), then log it.
-// Each estimate sends everything said so far (later lines correct earlier ones) plus the photo; nothing is stored.
+// Describe what you ate (2026-10-12; reworked 2026-10-15, Ben: logging food should be very little effort, in your own
+// words, without leaning on AI). "2 eggs and toast for breakfast", "a bowl of the chili I made Sunday", then "make it
+// 300 grams", "also a coffee" or "remove the toast". The server matches each food against your own saved meals, My
+// foods and foods you've logged before, with no AI (meal_chat.py), so it works with AI turned off. Only foods it can't
+// find go to the AI estimator, and only when you have AI access and consent; without AI they get a Search button.
 function describeSheet(day, meal) {
+  const canEstimate = aiCan('food');
   sheet('What did you eat?', `<div class="where ql-where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="ql-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="ql-dayl">${esc(dayLabel(day))}</span><input id="ql-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai ql-tip">Tell me what you had, snap a photo, or both. For example: <i>"a hot dog and a Diet Coke from Costco"</i>.</p></div>
+    <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai ql-tip">Say it like you’d tell a friend: <i>“2 eggs and toast”</i> or <i>“a bowl of the chili I made Sunday”</i>. I use foods you’ve logged before.${canEstimate ? ' Anything new gets an AI estimate.' : ' Anything new, you can search for.'}</p></div>
     <div id="ql-items"></div>
-    <form class="composer ql-composer" id="ql-f"><button type="button" class="icon-btn" id="ql-cam" aria-label="Add a photo">${svg('camera')}</button>
+    <form class="composer ql-composer" id="ql-f">${canEstimate ? `<button type="button" class="icon-btn" id="ql-cam" aria-label="Add a photo">${svg('camera')}</button>` : ''}
       <input name="t" id="ql-t" placeholder="What did you eat?" aria-label="What you ate, in your own words" autocomplete="off" enterkeyhint="send" maxlength="400">
-      <button class="icon-btn send" aria-label="Estimate">${svg('send')}</button></form>
+      <button class="icon-btn send" aria-label="Send">${svg('send')}</button></form>
     <input type="file" accept="image/*" id="ql-file" hidden>`, (b, close) => {
-    const chat = $('#ql-chat', b), items = $('#ql-items', b), f = $('#ql-f', b), file = $('#ql-file', b), input = $('#ql-t', b);
-    input.focus();   // ready to type (Ben): this runs inside the tap that opened it, so iOS shows the keyboard at once
-    const dp = $('#ql-day', b);
-    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
-    dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); };
-    const said = [];
-    let photo = null, busy = false;
-    // the opening tip goes once you've said something or added a photo (2026-10-13, Ben): by then you know how it works
+    const owner = readOwner(), active = () => b.isConnected && readOwner() === owner;
+    const chat = $('#ql-chat', b), box = $('#ql-items', b), f = $('#ql-f', b), file = $('#ql-file', b), input = $('#ql-t', b);
+    const dp = $('#ql-day', b), dest = $('#ql-meal', b);
+    input.focus();   // runs inside the tap that opened it, so iOS shows the keyboard at once
+    // parts: the conversation as the server last returned it (it is stateless); items: what each part matched.
+    // batches: foods sent to the AI together, with what was said about them and the estimates that came back.
+    let parts = [], items = [], preview = null, batches = [], busy = false, photo = null, photoSaid = [], sent = null, open = null;
     const say = (html, who) => { $('.ql-tip', chat)?.remove(); chat.insertAdjacentHTML('beforeend', `<p class="cmsg ${who}">${html}</p>`); chat.lastElementChild.scrollIntoView({block: 'nearest'}); return chat.lastElementChild; };
-    $('#ql-cam', b).onclick = () => file.click();
+    const setBusy = (on) => { busy = on; $$('button, input, select', b).forEach((el) => { if (!el.closest('.ql-row')) el.disabled = on; }); };
+    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* native picker */ } };
+    dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); sent = null; draw(); };
+    dest.onchange = () => { sent = null; draw(); };
+    const camera = $('#ql-cam', b);
+    if (camera) camera.onclick = () => file.click();
     file.onchange = async () => {
-      const fl = file.files && file.files[0]; file.value = ''; if (!fl) return;
-      try { photo = await shrinkPhoto(fl); } catch (e) { toast("That photo couldn't be opened"); return; }
-      say(`<img class="ql-img" src="${photo}" alt="Your photo">`, 'me');
-      if (!input.value.trim()) { input.placeholder = 'Add a few words, or tap send'; }
+      const fl = file.files?.[0]; file.value = ''; if (!fl || busy || !active()) return;
+      try { const image = await shrinkPhoto(fl); if (!active()) return; photo = image; photoSaid = [];
+        say(`<img class="ql-img" src="${photo}" alt="Your photo">`, 'me'); input.placeholder = 'Add a few words, or tap send';
+      } catch (x) { if (active()) toast("That photo couldn't be opened"); }
+    };
+
+    const unknown = () => items.filter((i) => i.status === 'unknown');
+    const batchOf = (i) => batches.find((x) => x.idx.includes(i));
+    const aiItems = () => batches.flatMap((x) => x.items || []).filter((x) => !x.removed);
+    const waiting = () => items.some((i) => i.status === 'choose' || i.status === 'quantity') || batches.some((x) => x.state === 'loading');
+    const kcalOf = () => items.filter((i) => i.status === 'ready').reduce((s, i) => s + (i.totals.kcal || 0), 0) + aiItems().reduce((s, x) => s + (x.kcal || 0), 0);
+    const savedDay = (iso) => (iso ? ` · saved ${dayLabel(iso)}` : '');
+    const row = (i) => {
+      if (i.status === 'ready') return `<div class="ql-row" data-row="${i.index}"><button class="ql-main" data-open="${i.index}" aria-expanded="${open === i.index}">
+          <span class="grow"><b>${esc(i.name)}</b><small class="muted">${esc(i.amount)}${i.note ? ` · ${esc(i.note)}` : ''}${esc(savedDay(i.saved_day))}</small></span>
+          <span class="r"><b class="num">${r0(i.totals.kcal)}</b><small class="muted">kcal</small></span></button>
+          <button class="icon-btn ql-x" data-remove="${i.index}" aria-label="Remove ${esc(i.name)}">${svg('close')}</button>
+          ${open === i.index ? `<div class="chips wrap ql-adjust"><button class="chip" data-scale="${i.index}" data-by="0.5">Half</button><button class="chip" data-scale="${i.index}" data-by="2">Double</button></div><p class="small muted ql-hint">Or type a new amount, like “make the ${esc(i.name.toLowerCase())} 300 grams”.</p>` : ''}</div>`;
+      if (i.status === 'choose') return `<div class="ql-row ql-ask"><p class="small">${esc(i.message)}</p><div class="results ql-choices">${i.choices.map((c, n) => `<button class="fe" data-choose="${i.index}" data-n="${n}"><div><b>${esc(c.name)}</b><small class="muted">${esc(c.detail)}${esc(savedDay(c.saved_day))}${c.weight_g ? ` · ${r0(c.weight_g)} g total` : ''}</small></div></button>`).join('')}</div>${i.more ? '<p class="small muted">Showing the first 12. Say a longer name to narrow it down.</p>' : ''}</div>`;
+      if (i.status === 'quantity') return `<div class="ql-row ql-ask"><p class="small"><b>${esc(i.name)}</b>${esc(savedDay(i.saved_day))}</p><p class="small muted">${esc(i.message)}</p>${i.options && i.options.length ? `<div class="chips wrap">${i.options.map((o, n) => `<button class="chip" data-amount="${i.index}" data-n="${n}">${esc(o.label)}</button>`).join('')}</div>` : ''}</div>`;
+      const x = batchOf(i.index);   // not in your foods
+      if (x && x.state === 'loading') return x.idx[0] === i.index ? `<div class="ql-row ql-ask"><p class="small muted">Estimating “${esc(x.idx.map((n) => parts[n].text).join(', '))}” with AI…</p></div>` : '';
+      if (x && x.state === 'done') return x.idx[0] === i.index ? x.items.map((a, n) => a.removed ? '' : `<div class="ql-row" data-ai="${x.id}-${n}"><button class="ql-main" data-open="ai-${x.id}-${n}" aria-expanded="${open === `ai-${x.id}-${n}`}">
+          <span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'AI estimate'].filter(Boolean).join(' · '))}</small></span>
+          <span class="r"><b class="num">${r0(a.kcal)}</b><small class="muted">kcal</small></span></button>
+          <button class="icon-btn ql-x" data-unai="${x.id}-${n}" aria-label="Remove ${esc(a.name)}">${svg('close')}</button>
+          ${open === `ai-${x.id}-${n}` ? `<div class="pnums">${[['kcal', 'kcal'], ['protein_g', 'Protein'], ['carbs_g', 'Carbs'], ['fat_g', 'Fat']].map(([k, l]) => `<label><small>${l}</small><input data-edit="${x.id}-${n}" name="${k}" inputmode="decimal" value="${a[k] == null ? '' : esc(String(Math.round(a[k] * 10) / 10))}" aria-label="${l}"></label>`).join('')}</div>` : ''}</div>`).join('') : '';
+      return `<div class="ql-row ql-ask"><p class="small muted">${canEstimate ? esc(i.message) : `Not in your foods yet: “${esc(i.text)}”`}</p>${x && x.error ? `<p class="small err">${esc(x.error)}</p>` : ''}<div class="btncol">${canEstimate && x ? `<button class="ghost wide" data-retry-ai="${x.id}">Try the AI estimate again</button>` : ''}<button class="ghost wide" data-search="${i.index}">Search for “${esc(i.text)}”</button></div></div>`;
+    };
+    const draw = () => {
+      if (!active()) return;
+      if (!items.length && !aiItems().length && !batches.some((x) => x.state === 'loading')) { box.innerHTML = ''; return; }
+      const ready = items.filter((i) => i.status === 'ready').length + aiItems().length;
+      const label = sent ? `Try again: add to ${MEAL_NAMES[sent.meal]}, ${dayLabel(sent.day)}` : `Add to ${MEAL_NAMES[dest.value]}, ${dayLabel(dp.value)}`;
+      box.innerHTML = `<div class="card list ql-list">${items.map(row).join('')}${photoRows()}</div>
+        <div class="actions"><span class="muted small num">${ready ? `≈ ${r0(kcalOf())} kcal` : ''}</span><button class="primary" id="ql-add"${!ready || waiting() ? ' disabled' : ''}>${esc(label)}</button></div><p class="err" id="ql-error" role="status"></p>`;
+      wire();
+    };
+    // a photo estimate covers the whole meal: its rows follow the matched foods
+    const photoRows = () => batches.filter((x) => x.photo).map((x) => (x.state === 'loading' ? '<div class="ql-row ql-ask"><p class="small muted">Estimating your photo with AI…</p></div>'
+      : (x.items || []).map((a, n) => a.removed ? '' : `<div class="ql-row" data-ai="${x.id}-${n}"><button class="ql-main" data-open="ai-${x.id}-${n}"><span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'AI estimate'].filter(Boolean).join(' · '))}</small></span><span class="r"><b class="num">${r0(a.kcal)}</b><small class="muted">kcal</small></span></button><button class="icon-btn ql-x" data-unai="${x.id}-${n}" aria-label="Remove ${esc(a.name)}">${svg('close')}</button>${open === `ai-${x.id}-${n}` ? `<div class="pnums">${[['kcal', 'kcal'], ['protein_g', 'Protein'], ['carbs_g', 'Carbs'], ['fat_g', 'Fat']].map(([k, l]) => `<label><small>${l}</small><input data-edit="${x.id}-${n}" name="${k}" inputmode="decimal" value="${a[k] == null ? '' : esc(String(Math.round(a[k] * 10) / 10))}" aria-label="${l}"></label>`).join('')}</div>` : ''}</div>`).join(''))).join('');
+    const aiAt = (key) => { const [id, n] = key.split('-').map(Number); const x = batches.find((y) => y.id === id); return x && x.items[n]; };
+    const wire = () => {
+      $$('[data-open]', box).forEach((el) => el.onclick = () => { const k = el.dataset.open; open = open === (isNaN(+k) ? k : +k) ? null : (isNaN(+k) ? k : +k); draw(); });
+      $$('[data-remove]', box).forEach((el) => el.onclick = () => { parts[+el.dataset.remove].removed = true; sent = null; resolve(null); });
+      $$('[data-unai]', box).forEach((el) => el.onclick = () => { aiAt(el.dataset.unai).removed = true; sent = null; draw(); });
+      $$('[data-edit]', box).forEach((el) => el.onchange = () => { const v = el.value.trim(); aiAt(el.dataset.edit)[el.name] = v === '' ? 0 : Math.max(0, parseFloat(v) || 0); sent = null; draw(); });
+      $$('[data-choose]', box).forEach((el) => el.onclick = () => { const i = items.find((x) => x.index === +el.dataset.choose), c = i.choices[+el.dataset.n]; parts[i.index].pick = {kind: c.kind, id: c.id}; resolve(null); });
+      $$('[data-amount]', box).forEach((el) => el.onclick = () => { const i = items.find((x) => x.index === +el.dataset.amount); parts[i.index].portion = i.options[+el.dataset.n].portion; resolve(null); });
+      $$('[data-scale]', box).forEach((el) => el.onclick = () => {
+        const i = items.find((x) => x.index === +el.dataset.scale), by = +el.dataset.by, p = {...i.portion};
+        for (const k of ['grams', 'count']) if (p[k] != null) p[k] = Math.round(p[k] * by * 1000) / 1000;
+        if (p.share != null) { const s = p.share * by; if (s > 1) { delete p.share; p.count = s; } else p.share = s; }
+        parts[i.index].portion = p; resolve(null);
+      });
+      $$('[data-search]', box).forEach((el) => el.onclick = () => { const w = {day: dp.value, meal: dest.value}; close(); addSheet(w.day, w.meal, items.find((x) => x.index === +el.dataset.search).text); });
+      $$('[data-retry-ai]', box).forEach((el) => el.onclick = () => estimate(batches.find((x) => x.id === +el.dataset.retryAi)));
+      const add = $('#ql-add', box); if (add) add.onclick = addAll;
+    };
+
+    let batchSeq = 0;
+    const estimate = async (x) => {   // only the words of foods that weren't found (or a photo) go to the AI service
+      if (!canEstimate || !aiCan('food') || !active()) return;
+      x.state = 'loading'; x.error = null; draw();
+      try {
+        const words = x.photo ? x.said : [x.idx.map((n) => parts[n].text).join(', '), ...x.said];
+        const r = await api('/api/food/photo', json('POST', {image: x.photo || null, note: words.join('\n').slice(-2000) || null}));
+        if (!active() || !batches.includes(x)) return;
+        x.items = r.items.map((it) => ({...it, client_id: newId()})); x.state = 'done';
+        if (!x.items.length) { x.state = 'error'; x.error = "The AI couldn't find food in that."; }
+      } catch (e) { if (!active() || !batches.includes(x)) return; x.state = 'error'; x.error = e.message; }
+      sent = null; draw();
+    };
+    const resolve = async (text, {quiet = false} = {}) => {
+      if (busy || !active()) return;
+      setBusy(true); const wait = text && !quiet ? say('<span class="dots"><i></i><i></i><i></i></span>', 'ai') : null;
+      try {
+        const r = await api('/api/food/meals-chat/resolve', json('POST', {say: text, parts}));
+        if (!active()) return;
+        if (r.status === 'clarify') {
+          // nothing to change on our side: words about an AI-estimated food go to the AI as a correction
+          const target = batches.find((x) => x.state === 'done' && !x.photo);
+          if (text && target && canEstimate) { wait.remove(); target.said.push(text); setBusy(false); return estimate(target); }
+          if (wait) wait.textContent = r.message; return;
+        }
+        if (r.meal) dest.value = r.meal;
+        if (r.day && r.day <= isoDay(new Date())) { dp.value = r.day; $('#ql-dayl', b).textContent = dayLabel(r.day); }
+        if (r.note === 'new') batches = [];
+        parts = r.parts; items = r.items; preview = {issued: r.issued, client_id: r.client_id}; sent = null;
+        // drop AI estimates for foods that were removed; estimate newly unknown foods together in one request
+        batches = batches.filter((x) => x.photo || x.idx.every((n) => !parts[n].removed && items.some((i) => i.index === n && i.status === 'unknown')));
+        const fresh = unknown().map((i) => i.index).filter((n) => !batchOf(n));
+        if (fresh.length && canEstimate) { const x = {id: ++batchSeq, idx: fresh, said: [], state: 'loading'}; batches.push(x); estimate(x); }
+        else if (r.note === 'changed' && text) {
+          const changed = batches.find((x) => !x.photo && x.idx.some((n) => parts[n].portion));
+          if (changed) { changed.said.push(text); estimate(changed); }
+        }
+        const named = fresh.map((n) => `“${parts[n].text}”`).join(', ');
+        if (wait) wait.textContent = !fresh.length ? r.message : canEstimate ? `${named} isn’t in your foods yet, so I’m estimating it with AI.` : `${named} isn’t in your foods yet. Search for it below.`;
+        draw();
+      } catch (x) { if (active()) { if (wait) wait.textContent = x.message; if (text) input.value = text; } }
+      finally { if (active()) setBusy(false); }
+    };
+    const addAll = async () => {
+      if (busy || !active() || waiting()) return;
+      const err = $('#ql-error', box);
+      // Freeze what was sent, so a lost answer retries the identical entries (each has its own id), even after a date edit.
+      sent ||= {day: dp.value, meal: dest.value, done: false,
+        confirm: items.filter((i) => i.status === 'ready').map((i) => ({kind: i.kind, id: i.id, portion: i.portion, expected: i.expected})),
+        ai: aiItems().map((a) => ({day: dp.value, meal: dest.value, name: a.amount ? `${a.name} (${a.amount})` : a.name, amount: 1, unit: 'serving',
+          kcal: a.kcal || 0, protein_g: a.protein_g || 0, carbs_g: a.carbs_g || 0, fat_g: a.fat_g || 0, fiber_g: a.fiber_g ?? null, source: 'photo', client_id: a.client_id})),
+        issued: preview.issued, client_id: preview.client_id};
+      setBusy(true); const btn = $('#ql-add', box); btn.textContent = 'Adding…'; err.textContent = '';
+      try {
+        if (sent.confirm.length && !sent.done) {
+          await api('/api/food/meals-chat/confirm', json('POST', {items: sent.confirm, issued: sent.issued, client_id: sent.client_id, day: sent.day, meal: sent.meal, confirm: true}));
+          sent.done = true;
+        }
+        if (sent.ai.length) await addEntries(sent.ai); else refresh();
+        if (!active()) return;
+        const n = sent.confirm.length + sent.ai.length, left = unknown().filter((i) => !batchOf(i.index) || batchOf(i.index).state !== 'done');
+        invalidate('/api/food/'); close(); toast(`Added ${n === 1 ? 'it' : n + ' foods'} to ${MEAL_NAMES[sent.meal].toLowerCase()}`);
+        if (left.length) addSheet(sent.day, sent.meal, left[0].text);    // carry on with the food that wasn't found
+      } catch (x) {
+        if (!active()) return;
+        if (x.status === 409 || x.status === 404 || x.status === 400) {   // something changed: show it fresh, nothing was added
+          sent = null; setBusy(false); await resolve(null); $('#ql-error', box) && ($('#ql-error', box).textContent = x.message + ' I’ve updated it below.');
+          return;
+        }
+        draw(); $('#ql-error', box).textContent = x.message;
+      } finally { if (active()) setBusy(false); }
     };
     f.onsubmit = async (e) => {
-      e.preventDefault(); if (busy) return;
-      const t = input.value.trim();
-      if (!t && !photo) { toast('Say what you had, or add a photo'); return; }
-      if (!t && said.length && !photo) return;
-      if (t) { said.push(t); say(esc(t), 'me'); }
-      input.value = ''; input.placeholder = 'Anything to change?';
-      busy = true; const wait = say('<span class="dots"><i></i><i></i><i></i></span>', 'ai');
-      try {
-        const r = await api('/api/food/photo', json('POST', {image: photo, note: said.join('\n') || null}));
-        if (!r.items.length) { wait.textContent = 'I couldn\'t find any food in that. Say a bit more about what you had?'; items.innerHTML = ''; return; }
-        const tot = r.items.reduce((x, it) => x + (it.kcal || 0), 0);
-        wait.innerHTML = `${r.items.length === 1 ? 'That looks like' : `${r.items.length} things, about`} <b>${r0(tot)} kcal</b>${r.items.length === 1 ? ` (${esc(r.items[0].name)})` : ''}.${r.notes ? ` <span class="muted">${esc(r.notes)}</span>` : ''} Check below, or tell me what to change.`;
-        reviewItems(items, r.items.map((it) => ({...it, name: it.amount ? `${it.name} (${it.amount})` : it.name})), {
-          add: async (list) => { await addEntries(list.map((it) => ({...it, day: dp.value, meal: $('#ql-meal', b).value, source: 'photo'}))); close(); },
-        });
-      } catch (x) { wait.textContent = x.message; }
-      finally { busy = false; }
+      e.preventDefault(); if (busy || !active()) return;
+      const text = input.value.trim(); if (!text && !photo) { toast('Say what you had'); return; }
+      if (text) say(esc(text), 'me');
+      input.value = ''; input.placeholder = 'Change something, or add more';
+      if (photo) {   // a photo goes to the AI estimator with what you said about it
+        if (text) photoSaid.push(text);
+        let x = batches.find((y) => y.photo === photo);
+        if (!x) { x = {id: ++batchSeq, idx: [], photo, said: [], state: 'loading'}; batches.push(x); }
+        x.said = photoSaid.slice(-5); return estimate(x);
+      }
+      await resolve(text);
     };
   });
 }
-// editable list of estimated items: tick, rename, change numbers, then add
 function reviewItems(box, list, {intro = '', add}) {
   const tot = list.reduce((s, it) => s + (it.kcal || 0), 0);
   const num = (k, lbl, v) => `<label><small>${lbl}</small><input name="${k}" inputmode="decimal" value="${v == null ? '' : esc(String(Math.round(v * 10) / 10))}" aria-label="${lbl}"></label>`;
