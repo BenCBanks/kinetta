@@ -8,11 +8,11 @@ Your workouts and your food, *in one app.*
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Runs, rides, lifting and meals, tracked together and kept private.
+Track runs, rides and lifting alongside your calories, macros and recipes. See your training and food in the same daily view.
 
 ## free-in-beta-no-ads-web-access-now-iphone-testflight-a-3
 
-Free in beta. No ads. Web access now; iPhone TestFlight access is being prepared.
+Free during the beta. No ads. Available on the web and in the iPhone beta through TestFlight. Request an invite to get started.
 
 ## runs-rides-and-lifting-4
 
@@ -20,7 +20,7 @@ Runs, rides and lifting
 
 ## import-runs-and-rides-from-your-watch-files-or-connect-5
 
-Import runs and rides from your watch files or connect a supported source. Lifting is logged set by set, with your previous numbers beside each one.
+Bring in watch workouts, compare repeat routes and follow a running plan. Log lifting sets with your previous weights and reps beside them.
 
 ## quick-food-logging-6
 
@@ -28,23 +28,23 @@ Quick food logging
 
 ## say-what-you-ate-in-your-own-words-snap-a-photo-or-sca-7
 
-Say what you ate in your own words, snap a photo or scan a barcode. Your workouts are counted in.
+Search foods, scan a barcode or describe what you ate. Save recipes and log your portion. Recorded workouts contribute to your daily calorie estimates.
 
 ## friends-kept-private-8
 
-Friends, kept private
+Share with friends
 
 ## photos-cheers-and-comments-with-route-starts-and-ends--9
 
-Photos, cheers and comments, with route starts and ends trimmed.
+Choose which workouts friends can see, then add photos, cheers and comments. Shared maps leave out the start and end of your route.
 
 ## strava-and-myfitnesspal-premium-159-98-a-year-kinetta--10
 
-Strava and MyFitnessPal Premium: $159.98 a year. Kinetta: free in beta.
+Training and nutrition, together.
 
 ## matched-routes-training-plans-heatmaps-lifting-logs-ba-11
 
-Matched routes, training plans, heatmaps, lifting logs, barcode and photo logging are all included.
+See your next workout, review your food log and follow your progress in one place. Core tracking works without AI; estimates and reviews are optional.
 
 ## want-to-try-it-12
 
@@ -52,7 +52,7 @@ Want to *try it?*
 
 ## it-s-a-small-beta-for-now-ask-for-an-invite-13
 
-It's a small beta for now. Ask for an invite.
+Request an invite for the hosted beta. You can also [run Kinetta on your own server](self-host) for personal use.
 
 ## kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14
 
@@ -60,11 +60,11 @@ It's a small beta for now. Ask for an invite.
 
 ## a-lot-to-explore-an-easy-place-to-start-15
 
-A lot to explore. An easy place to start.
+Find the tools you need.
 
 ## set-up-personal-estimates-log-food-without-ai-create-m-16
 
-Set up personal estimates, log food without AI, create Meals, follow a training plan or discover your routes and records. Our searchable guide explains where each tool lives.
+Learn how to import workouts, build a recipe, set nutrition targets or compare your usual route. The feature guide shows where to start.
 
 ## training-training-food-food-friends-friends-compare-co-17
 

@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Food · Kinetta</title>
-<meta name="description" content="Calories and macros with barcode scanning, photo logging, saved meals that work out your share of the pot, AI feedback on your eating, and your workouts counted against what you ate.">
+<meta name="description" content="Log food with search, barcodes or saved foods. Create recipes, track portions, calories and macros, and review optional AI estimates before saving.">
 <meta property="og:title" content="Food · Kinetta">
-<meta property="og:description" content="Calories and macros with barcode scanning, photo logging, saved meals that work out your share of the pot, AI feedback on your eating, and your workouts counted against what you ate.">
+<meta property="og:description" content="Log food with search, barcodes or saved foods. Create recipes, track portions, calories and macros, and review optional AI estimates before saving.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Kinetta">
 <meta property="og:url" content="https://kinetta.app/food">
@@ -52,39 +52,40 @@
     <div class="wrap">
       <div>
         <span class="eyebrow">Food and health</span>
-        <h1>Just say what you ate. <em>We'll do the counting.</em></h1>
-        <p class="lede">Type it like a text message. Kinetta works out the calories, protein, carbs and fat, and you fix anything in plain words.</p>
+        <h1>Say what you ate. <em>Check, then log.</em></h1>
+        <p class="lede">Search for a food, scan its barcode or describe what you ate. Reuse foods from your history, adjust the amount and check the calories, protein, carbs and fat before adding.</p>
         <div class="says" aria-label="Example">
           <p class="me">a hot dog and a Diet Coke from Costco</p>
-          <p class="ai">2 things, about <strong>550 kcal</strong>. Check below, or tell me what to change.</p>
+          <p class="ai">Example estimate: 2 foods, about <strong>550 kcal</strong>. Check the portions before adding.</p>
           <p class="me">make it two hot dogs</p>
-          <p class="ai">Now about <strong>1,100 kcal</strong>. Ready to add to dinner.</p>
+          <p class="ai">With two hot dogs: about <strong>1,100 kcal</strong>. Review, then add to dinner.</p>
         </div>
-        <p class="note">Or snap a photo, scan a barcode or search. Your workouts are counted in.</p>
+        <p class="note">Example shown with fictional AI estimates. Check product labels and portions. You can also log with search, barcodes or saved foods.</p>
       </div>
       <div class="stage">
         <div class="phone">
-          <picture><source srcset="assets/shots/dark-describe.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-describe.webp" alt="What did you eat?: 'I had a hot dog from Costco and a Diet Coke', an estimate of 550 kcal, then 'make it two hot dogs' and an updated estimate of 1,100 kcal ready to add to dinner" width="786" height="1704"></picture>
+          <picture><source srcset="assets/shots/dark-describe.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-describe.webp" alt="Fictional food-entry example with two hot dogs and a Diet Coke, using optional AI estimates and a portion correction before adding" width="786" height="1704"></picture>
         </div>
       </div>
     </div>
   </section>
+<section class="wrap guide-intro"><h2>Search, scan or use your usuals.</h2><p>Find foods in USDA and Open Food Facts, scan a packaged product or enter known calories and macros with Quick. Your usuals and My Recipes make repeat logging easier. Edit or remove a logged food from its meal, with Undo if you remove it by mistake.</p><a class="btn outline" href="guide">See how it works</a></section>
   <section class="band" id="cooking" aria-labelledby="ck-h">
     <div class="wrap">
       <div class="spot rev">
         <div>
-          <span class="eyebrow">Meals</span>
-          <h2 id="ck-h" class="spot-h">Save a meal once, log it whenever you eat it.</h2>
-          <p>Tap <strong>Create a Recipe</strong> and type the ingredients like a text message. Log it later by the serving or by the gram.</p>
+          <span class="eyebrow">Recipes and portions</span>
+          <h2 id="ck-h" class="spot-h">Build a recipe once. Log your portion.</h2>
+          <p>Choose <strong>Create a Recipe</strong>, add ingredients and save it in <strong>My Recipes</strong>. When you eat it again, log a serving or weigh your plate.</p>
           <div class="sum" role="img" aria-label="Example: a 2,400 calorie meal weighing 1,600 grams; a 380 gram plate is 570 calories">
             <div><small>Whole meal</small><b>2,400</b><span>kcal</span></div><i>÷</i><div><small>Cooked</small><b>1,600</b><span>g</span></div><i>×</i><div><small>Your plate</small><b>380</b><span>g</span></div><i>=</i><div class="hi"><small>You ate</small><b>570</b><span>kcal</span></div>
           </div>
           <ul>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Type it like a text</b>: "2 apples and a splash of oil", "a box of protein penne": packaged foods are looked up for their real size</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Snap the nutrition label</b>: add the whole package, a few servings or grams</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>No scale needed</b>: the ingredients are added up, or type the cooked weight</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Saved for next time</b>: a smoothie logs in one tap, a pot of chili by your portion</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Share the meal</b>: friends log their own plate</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Add ingredients</b>: search foods, scan barcodes or describe them. Check suggested products and package amounts</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Read a label</b>: optional photo reading helps enter package nutrition; check the result</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Choose your portion</b>: use servings, or enter the cooked weight to log by grams</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Reuse a recipe</b>: log it again or edit the ingredients for next time</span></li>
+            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Share a recipe</b>: approved friends can log their own portion</span></li>
           </ul>
         </div>
         <div class="pair">
@@ -96,15 +97,15 @@
   </section>
   <section class="band" aria-labelledby="fc-h">
     <div class="wrap">
-      <div class="head"><span class="eyebrow">Logging and feedback</span><h2 id="fc-h">Your day at a glance, with honest feedback.</h2></div>
+      <div class="head"><span class="eyebrow">Nutrition</span><h2 id="fc-h">Daily totals and optional reviews.</h2></div>
       <div class="pcards">
         <div class="pcard">
-          <div class="frame"><picture><source srcset="assets/shots/dark-food.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-food.webp" alt="The food log: a ring for calories left, a small ring each for protein, carbs and fat, and the day's deficit" loading="lazy" width="786" height="1704"></picture></div>
-          <h4>Your day at a glance</h4><p>Calories and macros as rings, and your deficit.</p></div>
+          <div class="frame"><picture><source srcset="assets/shots/dark-food.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-food.webp" alt="Nutrition showing remaining calories, macro bars, logged meals and a collapsed daily energy breakdown" loading="lazy" width="786" height="1704"></picture></div>
+          <h4>Your day at a glance</h4><p>See eaten and remaining calories, macro totals and your targets. Open the energy breakdown to see how daily needs and recorded workouts contribute. Track weigh-ins in Weight and review trends in Overview.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-dietcoach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-dietcoach.webp" alt="Kit’s take on two weeks of eating: what's going well, and three specific things to try this week" loading="lazy" width="786" height="1704"></picture></div>
-          <h4>A review of your eating</h4><p>What's working, and what to try next.</p></div>
+          <h4>Optional food-log review</h4><p>An optional AI review of your recent food log, with suggestions based on the days you recorded.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-recipecoach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-recipecoach.webp" alt="Feedback on a chicken and vegetable traybake: calories and protein per portion, and three tweaks with what each one changes" loading="lazy" width="786" height="1704"></picture></div>
-          <h4>Feedback on your recipes</h4><p>Tweaks for any meal you cook.</p></div>
+          <h4>Optional recipe suggestions</h4><p>Optional AI suggestions for changing a recipe’s ingredients or portions. Review the changes before using them.</p></div>
       </div>
     </div>
   </section>
@@ -114,7 +115,7 @@
       <a class="btn solid" href="https://login.kinetta.app/beta">Join the beta</a>
     </div>
   </section>
-<section class="wrap guide-intro"><h2>Your food log, with or without AI.</h2><p>Search USDA and Open Food Facts, scan barcodes or enter known calories and macros. Open My Recipes to log, edit or create a reusable meal. Optional AI estimates and label reading are separate from these everyday tools.</p><a class="btn outline" href="guide">See how it works</a></section>
+
 </main>
 
 <footer>

@@ -4,15 +4,15 @@ Edit the text below each heading. Keep the section keys unchanged. Supports **bo
 
 ## find-more-in-kinetta-1
 
-Find more in Kinetta.
+Find a feature. *See how to use it.*
 
 ## activity-tracking-food-logging-meals-training-plans-an-2
 
-Activity tracking, food logging, Meals, training plans and everyday tools work without AI. Optional AI features have their own access and consent.
+Search for a task, open its instructions and jump to it in Kinetta. Find food logging, recipes, training plans, routes, records and account settings here.
 
 ## start-by-adding-your-weight-height-sex-and-birth-year--3
 
-Start by adding your weight, height, sex and birth year in **Me → Body & heart rate** for better personal estimates. You choose which private details to provide.
+For calorie-needs and heart-rate estimates, you can add body details in **Me → Body & heart rate**. Choose which details to provide; they stay separate from your public profile.
 
 ## no-features-match-try-another-search-4
 
