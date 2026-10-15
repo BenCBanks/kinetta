@@ -1122,7 +1122,7 @@ body.ph-open { overflow: hidden; }
 .comment .c-acts .linkbtn { min-height: 32px; padding: 0; font-size: 13px; }
 .comment .c-hd b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } .comment .c-hd small { white-space: nowrap; }
 .tcard .tc-bal .brow small { display: block; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; }
-/* Describe or snap (2026-10-12): the quick-log chat in a sheet */
+/* Described food: conversation rows shared by full-page logging and previews. */
 .ways.three .way b { text-align: center; line-height: 1.15; }
 .ql-chat { min-height: 60px; }
 .ql-choices .fe b { display: block; overflow: visible; -webkit-line-clamp: unset; overflow-wrap: anywhere; }
@@ -1440,3 +1440,11 @@ nav.tabs a svg { width: 23px; height: 23px; }
 .latest-activity-link > svg { width: 18px; height: 18px; flex-shrink: 0; }
 .latest-activity-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: var(--card2); color: var(--accent); flex-shrink: 0; }
 .latest-activity-icon svg { width: 20px; height: 20px; }
+
+/* Issue 93: quieter daily balance, explicit library edits, full-page food entry. */
+.food-library-link { text-align: center; margin: -2px 0 16px; }
+.tcard .tc-bal:not([open]) > summary .day-balance-detail { display: none; }
+.food-describe .ql-composer { position: sticky; margin-top: 22px; }
+.food-describe .ql-chat { margin-top: 16px; }
+.food-describe .ql-choices .fe b, .food-describe [data-product] b { white-space: normal; overflow-wrap: anywhere; }
+.meal-library-row > .ghost { flex: none; min-height: 44px; }
