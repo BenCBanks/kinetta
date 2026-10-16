@@ -28,5 +28,7 @@ const TrackNative = (() => {
     // Capture the account before authentication disappears; never attach a new owner while stopping an old one.
     try { await Native.healthCall(plugin.detach({owner:account}), 'The iPhone recorder did not respond. Reopen Track before switching accounts.', 15000); } finally { if (boundAccount === account) { bound=null;boundAccount=null; } }
   }
-  return {supported, call, detach, owner};
+  // One position for the map before Start, from Core Location: iOS remembers the permission, unlike the WebView's API.
+  const locate = () => Native.healthCall(plugin.locate(), 'Location did not answer. Tap Locate me to try again.', 30000);
+  return {supported, call, detach, owner, locate};
 })();

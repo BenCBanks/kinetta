@@ -178,11 +178,29 @@ const Track = (() => {
       <div id="track-open-lift"></div><details class="track-tools"><summary>Activity tools</summary><button class="row-link" id="track-past">Log a past activity${svg('chev')}</button><a class="row-link" href="/track/import">Upload activity files${svg('chev')}</a><a class="row-link" href="/track/connections">Watch connections${svg('chev')}</a>${Native.on ? '<a class="row-link" href="/track/health">Apple Health</a>' : ''}</details>`;
     const guide = () => { const c=choices[selected];$('#track-ready-map-wrap').hidden=!c.gps;$('#track-start').textContent=c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`;$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS continues while your screen is locked or you use another app.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'Track active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
     $('#track-kind').onchange=(e)=>{selected=+e.target.value;store.set(key+':choice',selected);guide();};guide();
-    mapInto($('#track-ready-map'), [], {still:true}).then((view)=>{ if(!view)return;$('#track-locate').onclick=()=>{
-      const button=$('#track-locate');button.disabled=true;
-      if(!navigator.geolocation){$('#track-ready-error').textContent='Location is unavailable on this device.';button.disabled=false;return;}
-      navigator.geolocation.getCurrentPosition((p)=>{button.disabled=false;if(!button.isConnected)return;view.map.setView([p.coords.latitude,p.coords.longitude],15);view.L.circleMarker([p.coords.latitude,p.coords.longitude],{radius:7,color:col('--accent'),fillOpacity:1}).addTo(view.map);},()=>{button.disabled=false;if(button.isConnected)$('#track-ready-error').textContent='Allow location access to preview your position. You can still choose an indoor activity.';},{enableHighAccuracy:true,maximumAge:15000,timeout:15000});
-    };}).catch(()=>{$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';});
+    // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
+    // (permission is remembered); a browser locates by itself only after the person has already allowed it.
+    let view=null,dot=null,located=false,here=null;
+    const show=(lat,lon)=>{ located=true;here=[lat,lon];if(!view||!$('#track-ready-map')?.isConnected)return;view.map.setView([lat,lon],15);
+      if(dot)dot.setLatLng([lat,lon]);else dot=view.L.circleMarker([lat,lon],{radius:7,color:col('--accent'),fillOpacity:1}).addTo(view.map); };
+    const locate=async(quiet)=>{
+      const button=$('#track-locate'),error=$('#track-ready-error');if(!button||button.disabled)return;
+      button.disabled=true;if(!quiet)error.textContent='';
+      try {
+        if(TrackNative.supported){const p=await TrackNative.locate();show(p.lat,p.lon);}
+        else {
+          if(!navigator.geolocation)throw new Error('Location is unavailable on this device.');
+          if(quiet){const state=await navigator.permissions?.query({name:'geolocation'}).then((s)=>s.state,()=>null);if(state!=='granted')return;}
+          const p=await new Promise((ok,no)=>navigator.geolocation.getCurrentPosition(ok,no,{enableHighAccuracy:true,maximumAge:15000,timeout:15000}));
+          show(p.coords.latitude,p.coords.longitude);
+        }
+      } catch(e) { if(button.isConnected)error.textContent=e?.message && TrackNative.supported ? e.message : 'Allow location access to see where you are. You can still choose an indoor activity.'; }
+      finally { if(button.isConnected)button.disabled=false; }
+    };
+    const auto=()=>{ if(!located&&choices[selected].gps)locate(true); };
+    $('#track-locate').onclick=()=>locate(false);
+    $('#track-kind').addEventListener('change',auto);auto();
+    mapInto($('#track-ready-map'), [], {still:true}).then((v)=>{ if(!v)return;view=v;if(here)show(...here); }).catch(()=>{$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';});
     $('#track-setup').onsubmit=async(e)=>{e.preventDefault();if(controlling)return;const c=choices[selected];if(c.lift){startLiftSheet();return;}await begin(c.sport,c.label,c.sportLabel,c.gps);};
     $('#track-past').onclick=()=>addActivitySheet();liftNowCard($('#track-open-lift'));
   }

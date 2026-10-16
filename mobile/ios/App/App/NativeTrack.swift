@@ -169,11 +169,65 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
     }
 }
 
+// One position for the map before Start. A separate manager, so it can never disturb a recording. iOS asks for
+// permission once (unless the person picks "Allow Once"); the WebView's own location API would ask again every launch.
+final class NativeTrackLocator: NSObject, CLLocationManagerDelegate {
+    static let shared=NativeTrackLocator()
+    private let manager=CLLocationManager()
+    private var waiting: [(Result<CLLocation,Error>) -> Void]=[]
+    private var timeout: DispatchWorkItem?
+    override private init() { super.init();manager.delegate=self;manager.desiredAccuracy=kCLLocationAccuracyNearestTenMeters }
+    private func fail(_ text: String) -> NSError { NSError(domain:"KinettaTrack",code:2,userInfo:[NSLocalizedDescriptionKey:text]) }
+    func locate(_ done: @escaping (Result<CLLocation,Error>) -> Void) {
+        guard CLLocationManager.locationServicesEnabled() else { done(.failure(fail("Location Services are off. Enable them in iPhone Settings.")));return }
+        // A fix from the last minute is good enough to centre the map, and shows at once.
+        if let last=manager.location,last.timestamp.timeIntervalSinceNow > -60,last.horizontalAccuracy>=0,last.horizontalAccuracy<=100 { done(.success(last));return }
+        waiting.append(done)
+        guard waiting.count==1 else { return }
+        let work=DispatchWorkItem { self.finish(.failure(self.fail("GPS did not answer. Move into the open and tap Locate me."))) }
+        timeout=work;DispatchQueue.main.asyncAfter(deadline:.now()+20,execute:work)
+        ask()
+    }
+    private func ask() {
+        switch manager.authorizationStatus {
+        case .authorizedAlways,.authorizedWhenInUse: manager.requestLocation()
+        case .notDetermined: manager.requestWhenInUseAuthorization()   // answered in locationManagerDidChangeAuthorization
+        default: finish(.failure(fail("Allow location for Kinetta in iPhone Settings to see where you are.")))
+        }
+    }
+    private func finish(_ result: Result<CLLocation,Error>) {
+        timeout?.cancel();timeout=nil
+        let callbacks=waiting;waiting=[];callbacks.forEach { $0(result) }
+    }
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard !waiting.isEmpty,manager.authorizationStatus != .notDetermined else { return }
+        ask()
+    }
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        if let best=locations.last { finish(.success(best)) }
+    }
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        if (error as? CLError)?.code == .locationUnknown { return }   // still trying; the timeout ends the wait
+        finish(.failure(fail("Location unavailable. Check location settings and tap Locate me.")))
+    }
+}
+
 @objc(KinettaTrackPlugin)
 class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
     let identifier="KinettaTrackPlugin"
     let jsName="KinettaTrack"
-    let pluginMethods: [CAPPluginMethod] = ["attach","start","status","pause","resume","finish","clear","detach"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
+    let pluginMethods: [CAPPluginMethod] = ["attach","start","status","pause","resume","finish","clear","detach","locate"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
+    // Only a position for the preview map: nothing is stored or sent to the server.
+    @objc func locate(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            NativeTrackLocator.shared.locate { result in
+                switch result {
+                case .success(let l): call.resolve(["lat":l.coordinate.latitude,"lon":l.coordinate.longitude,"accuracy":l.horizontalAccuracy])
+                case .failure(let error): call.reject(error.localizedDescription)
+                }
+            }
+        }
+    }
     private func reply(_ call: CAPPluginCall, _ operation: @escaping (NativeTrackRecorder,String) throws -> Void) {
         DispatchQueue.main.async {
             do {
