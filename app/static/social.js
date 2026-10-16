@@ -35,7 +35,7 @@ function cheerGesture(button, toggle, show) {
       clear();
       if (!button.isConnected) return;
       held = true; suppressUntil = Date.now() + 1000;
-      show();
+      Native.haptic('selection'); show();
     }, 500);
   };
   button.onpointermove = (e) => { if (origin && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > 10) clear(); };
@@ -208,7 +208,7 @@ function wireTalk(box, aid, s, open) {
       sending = true;
       const was = s;
       s = {...s, cheered: !s.cheered, cheers: s.cheered ? s.cheers.filter((c) => c.login !== App.me.login) : [...s.cheers, {login: App.me.login, name: App.me.name}]};
-      draw(); if (s.cheered) $('[data-tcheer]', box).classList.add('just');
+      draw(); Native.haptic(s.cheered ? 'medium' : 'light'); if (s.cheered) $('[data-tcheer]', box).classList.add('just');
       try {
         if (was.cheered) await api(`/api/activities/${aid}/cheer`, {method: 'DELETE'});
         else s = {...s, ...await api(`/api/activities/${aid}/cheer`, json('POST', {}))};

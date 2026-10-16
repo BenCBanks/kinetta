@@ -163,7 +163,13 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
             guard HKHealthStore.isHealthDataAvailable() else { return }
             do {
                 if self.credentials == nil { try self.restore() }
-                if self.credentials != nil { self.observe(); self.kick() }
+                if self.credentials != nil {
+                    self.observe()
+                    // Re-arm instant delivery on every launch (2026-10-16): Apple recommends it, and it keeps working after
+                    // app updates/reinstalls without reconnecting. It is idempotent; failures keep the foreground sync.
+                    self.store.enableBackgroundDelivery(for: .workoutType(), frequency: .immediate) { _, _ in }
+                    self.kick()
+                }
             } catch { /* Protected files/Keychain can be unavailable before the first unlock. Retry on activation. */ }
         }
     }
@@ -685,6 +691,7 @@ class KinettaBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(KinettaHealthSyncPlugin())
         bridge?.registerPluginInstance(KinettaPushPlugin())
         bridge?.registerPluginInstance(KinettaTrackPlugin())
+        bridge?.registerPluginInstance(KinettaHapticsPlugin())
         webView?.scrollView.keyboardDismissMode = .interactive
         applyCanvasColor()
     }

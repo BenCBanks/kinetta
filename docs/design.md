@@ -274,7 +274,7 @@ and Progress. No start/resume/import controls or active-session panels appear th
 can signal a recording without adding controls to another screen.
 
 Track uses a last-used sport selector, an outdoor map that finds the person as soon as an outdoor activity is chosen (owner, 16 October: like Strava, no repeated permission prompts; the iPhone app asks Core Location, which remembers the answer; a browser locates by itself only when already allowed), Locate me to re-centre, and one prominent Start action.
-Outdoor GPS and every supported indoor kind are available in that selector, including lifting. Activity tools holds
+Outdoor GPS and every supported indoor kind are available in that selector, including lifting. The visible “More ways to add” list (formerly the closed Activity tools fold) holds
 past entries/imports/connections/Health. During GPS recording, distance/active time/average pace or speed lead the
 map; Map/Stats changes display. Pause is the only primary running control; Resume and Finish appear when paused.
 Review/private Save stays in Track, followed by an optional link to the finished activity. Lifting uses Track routes
@@ -287,3 +287,18 @@ activity-tracking.md. Preserve ordinary activity editing, manual tools, consent,
 
 ### Resting calories (issue109)
 Nutrition owns the resting-source preference, distinct from the food goal and activity recording. Show Apple Health resting + existing activities, never an added active total/multiplier. Today is synced so far, missing data remains unknown, and switching source cannot edit a target. Keep the old target calculator optional and labeled as an estimate.
+
+## Quicker feel and tap targets (16 October owner request)
+
+- **Feed cards:** only the profile photo and the name open a person's profile. Every other part of a card (date line,
+  sport mark, title, numbers, map, empty space, the gaps in the footer) opens the activity. Cheers, comments, photos,
+  media arrows and other inner controls keep their own jobs. The card dips slightly (scale .985) under the finger.
+- **Haptics:** sending Cheers gives a medium tap and removing it a light tap; holding Cheers to see people gives a
+  selection tick. The iPhone app uses the Taptic Engine (`NativeHaptics.swift`, respects System Haptics); Android
+  browsers vibrate briefly; Safari has no haptics. Never make a buzz a required signal.
+- **Navigation speed:** switching tabs shows the page instantly with no fade; screens opened inside a tab slide in from
+  the side in about 0.18 s. The tab bar persists between screens instead of being rebuilt, and it is solid, so no
+  background blur is drawn behind it.
+- **Less repetition:** Me drops its Training plan / Log food shortcut rows when the plan or food card above already
+  shows that link or button. Progress's table is a slim fold row. Activity dates on the detail screen wrap instead of
+  ending in an ellipsis.

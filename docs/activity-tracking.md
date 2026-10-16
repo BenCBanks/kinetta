@@ -10,7 +10,7 @@ exercise, set, rep, weight and rest controls. The last selected activity is reme
 Choosing an outdoor activity shows where you are straight away (tap **Locate me** to re-centre), then **Start** begins. The recorder shows distance, active time and average
 pace or speed. **Map/Stats** changes the display. **Pause** reveals **Resume** and **Finish**; Finish opens the editable
 review. **Save activity** stores a private activity, regardless of the account's default sharing choice. Recording
-and saving stay in Track; View activity opens the finished result when you choose it. Activity tools includes past
+and saving stay in Track; View activity opens the finished result when you choose it. The “More ways to add” list includes past
 activity entry, activity files, watch connections and Apple Health.
 
 ## iPhone background recording
