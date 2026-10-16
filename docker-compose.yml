@@ -43,6 +43,7 @@ services:
       FIT_DB_HOST: db
       FIT_APP_PASSWORD_FILE: /run/kinetta/app_password
       KINETTA_ADMIN_KEY_FILE: /run/kinetta/admin_key
+      KINETTA_ADMIN_MFA: ${KINETTA_ADMIN_MFA:-on}
       KINETTA_RESEND_KEY: ${KINETTA_RESEND_KEY:-}
       KINETTA_MAIL_FROM: ${KINETTA_MAIL_FROM:-}
       KINETTA_MAIL_REPLY_TO: ${KINETTA_MAIL_REPLY_TO:-}
