@@ -225,6 +225,6 @@ nutrition. Don't put a Remove button on every log row: it competes with the calo
 first and quieter Log again today / Remove links underneath; Move this food is secondary, and Save changes applies only to this entry. Recipe-backed logged portions
 scale their recorded nutrients by amount when they lack a normalized per-serving/per-100g reference.
 
-Kit's contextual entry point is the existing sparkle in a 44 px circular help button (`kit-help`). Put it with the screen's controls; open saved notes and explicit generation controls in a sheet after a tap. Do not insert a large inline Ask Kit invitation or generate a review just because the sheet opened. Keep saved notes readable when new generation is unavailable.
+Kit's contextual entry point is the `kit-help` pill: the sparkle plus the word “Kit”, 44 px tall, tinted with the accent (2026-10-16: a bare sparkle read as decoration). Put it with the screen's controls; open saved notes and explicit generation controls in a sheet after a tap. Do not insert a large inline Ask Kit invitation or generate a review just because the sheet opened. Keep saved notes readable when new generation is unavailable.
 
 Administration lives in the separate browser `/admin` portal, with the same theme tokens and fonts, explicit account roles and distinct password/MFA sign-in. Keep administrative controls out of the personal Me screen. Food photo batches use a local thumbnail review before submission; activity summary corrections remain separate from original sensor recordings.
