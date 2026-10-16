@@ -85,7 +85,8 @@ function refreshMe(me) {
 
 // ---------- offline: kept screens + a send queue for food and weight (2026-10-10) ----------
 const KEEP = [/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/plans\/current$/,
-  /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=3$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/];
+  /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=3$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
+  /^\/api\/progress\/volume\?period=week$/, /^feed:home$/];   // 2026-10-16: Activity and Progress open from the saved copy too
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* full or blocked: offline copies are a bonus */ } },
@@ -181,9 +182,16 @@ const invalidate = (prefix) => {
 const prefetch = (path) => {
   const owner = readOwner(), epoch = readEpoch(path);
   if (!App.cache.has(path)) readOnce(path).then((data) => {
-    if (owner === readOwner() && epoch === readEpoch(path)) App.cache.set(path, {data, at: Date.now()});
+    if (owner === readOwner() && epoch === readEpoch(path)) { App.cache.set(path, {data, at: Date.now()}); keep(path, data); }
   }).catch(() => {});
 };
+// Once the app is open, fetch the other tabs' first screens quietly, so the first tap on Activity or Progress
+// doesn't wait for the server (2026-10-16: on a phone each request is a noticeable pause).
+function warmTabs() {
+  if (!App.me || !navigator.onLine) return;
+  prefetch('/api/progress/volume?period=week');
+  if (typeof warmFeed === 'function') warmFeed();
+}
 
 // ---------- units + formatting ----------
 const MI = 1609.344;
@@ -874,7 +882,7 @@ async function start() {
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/me');
-    render(); Q.flush(); netbar(); Native.autoSync();
+    render(); Q.flush(); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
   const saved = kept('/api/me');

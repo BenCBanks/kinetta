@@ -101,6 +101,12 @@ async function feedPage(before) {
   while (n && n < all.length && +new Date(all[n].start_time) === +new Date(all[n - 1].start_time)) n++;
   return {rows: all.slice(0, n), more: all.length > n || mine.length === FEED_N || theirs.length === FEED_N, friends: theirs.length};
 }
+// The feed's first page, fetched quietly after the app opens (see warmTabs in app.js).
+function warmFeed() {
+  if (App.cache.has('feed:home')) return;
+  const account = readOwner(), epoch = readEpoch('feed:home');
+  feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keep('feed:home', pg); } }).catch(() => {});
+}
 async function homeFeed(el) {
   el.innerHTML = `${actTop(false, true)}${whoseSeg('')}
     <div class="feed-list" id="ff-list">${skel(3)}</div><button class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
@@ -113,11 +119,13 @@ async function homeFeed(el) {
       Your activities and the ones your friends share show up here.${startCta()}<div class="btncol"><a class="ghost" href="/me/friends">Find your friends</a></div></div>`;
     more.hidden = !pg.more; feedMaps(list); wireCheers(list);
   };
-  const hit = App.cache.get('feed:home'); if (hit) draw(hit.data);
+  let hit = App.cache.get('feed:home');
+  if (!hit) { const k = kept('feed:home'); if (k) { hit = {data: k, at: 0}; App.cache.set('feed:home', hit); } }   // saved on this phone: show at once
+  if (hit) draw(hit.data);
   const account = readOwner(), epoch = readEpoch('feed:home');
   // A fresh cached feed already contains the current cards/maps. Avoid fetching and rebuilding it.
   const fresh = hit && Date.now() - hit.at < 15000;
-  try { if (!fresh) { const pg = await feedPage(); if (account !== readOwner() || epoch !== readEpoch('feed:home')) return; App.cache.set('feed:home', {data: pg, at: Date.now()}); if (list.isConnected && (!hit || JSON.stringify(hit.data) !== JSON.stringify(pg))) draw(pg); } }
+  try { if (!fresh) { const pg = await feedPage(); if (account !== readOwner() || epoch !== readEpoch('feed:home')) return; App.cache.set('feed:home', {data: pg, at: Date.now()}); keep('feed:home', pg); if (list.isConnected && (!hit || JSON.stringify(hit.data) !== JSON.stringify(pg))) draw(pg); } }
   catch (x) { if (!hit) throw x; }
   more.onclick = async () => {
     more.disabled = true; more.textContent = 'Loading…';
