@@ -90,6 +90,11 @@ def totp(secret, counter):
     return f'{(struct.unpack(">I",value[offset:offset+4])[0]&0x7fffffff)%1000000:06}'
 
 
+def mfa_required():
+    # On by default. A server owner can turn the authenticator step off; the portal then says so on every page.
+    return os.environ.get('KINETTA_ADMIN_MFA','on').strip().lower() not in ('off','0','false','no')
+
+
 class Credentials(BaseModel):
     model_config=ConfigDict(extra='forbid')
     login: str=Field(min_length=1,max_length=60)
@@ -105,6 +110,12 @@ def login(body: Credentials, request: Request, response: Response):
         u=c.execute('SELECT id,is_admin,pw_hash FROM users WHERE login=%s',(body.login.strip(),)).fetchone()
         if not auth.check_pw(u['pw_hash'] if u else None,body.password) or not u or not u['is_admin']:
             auth.failed(ip,key); raise HTTPException(401,'Admin sign-in failed.')
+        if not mfa_required():
+            # Owner's choice for this server (KINETTA_ADMIN_MFA=off): the admin password alone opens a portal session.
+            c.execute('DELETE FROM admin_attempts WHERE key = ANY(%s)',([attempt_key(request,'password')],))
+            token=issue_session(c,u['id']);audit(c,u['id'],'session.login_password_only')
+            cookie(response,COOKIE,token,request,LIFETIME);response.headers['Cache-Control']='no-store'
+            return {'signed_in':True,'enrollment':False,'setup_key':None}
         m=c.execute('SELECT 1 FROM admin_mfa WHERE user_id=%s',(u['id'],)).fetchone()
         seed=base64.b32encode(secrets.token_bytes(20)).decode().rstrip('=') if not m else None
         token=secrets.token_urlsafe(32)
@@ -159,7 +170,7 @@ def verify(body: Verify, request: Request, response: Response):
 
 @router.get('/me')
 def me(request: Request,user=Depends(admin_user)):
-    return {'login':user['login'],'name':user['name'],'csrf':csrf(request.cookies[COOKIE]),'session_minutes':30}
+    return {'login':user['login'],'name':user['name'],'csrf':csrf(request.cookies[COOKIE]),'session_minutes':30,'mfa':mfa_required()}
 
 
 @router.post('/logout')

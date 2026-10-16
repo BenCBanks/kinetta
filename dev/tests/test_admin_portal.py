@@ -159,6 +159,19 @@ class Portal(unittest.TestCase):
             self.assertEqual(join.post('/api/join',json={'name':'Declined','login':'zz_test_portal_declined','password':PW,'token':token}).status_code,404)
             row=next(x for x in self.client.get('/api/admin/beta').json() if x['id']==b['id'])
             self.assertEqual(row['status'],'declined' if kind=='decline' else 'waitlisted');self.assertIsNone(row['invite_id'])
+    def test_password_only_when_owner_turns_mfa_off(self):
+        c=TestClient(app);c.headers['Origin']=BASE
+        with patch.dict(os.environ,{'KINETTA_ADMIN_MFA':'off'}):
+            r=c.post('/api/admin/login',json={'login':'zz_test_portal_admin','password':PW});self.assertEqual(r.status_code,200,r.text)
+            self.assertTrue(r.json()['signed_in']);self.assertIsNone(r.json()['setup_key'])
+            me=c.get('/api/admin/me');self.assertEqual(me.status_code,200);self.assertFalse(me.json()['mfa'])
+            self.assertEqual(c.post('/api/admin/login',json={'login':'zz_test_portal_admin','password':'wrong password here'}).status_code,401)
+            self.assertEqual(c.post('/api/admin/login',json={'login':'zz_test_portal_member','password':PW}).status_code,401)   # members still can't
+            ordinary=TestClient(app);ordinary.headers['Origin']=BASE;ordinary.post('/api/login',json={'login':'zz_test_portal_admin','password':PW})
+            self.assertEqual(ordinary.get('/api/admin/people').status_code,403)   # an app login still isn't a portal session
+        with db.connect() as dbc:self.assertTrue(dbc.execute("SELECT 1 FROM admin_audit WHERE actor_id=%s AND action='session.login_password_only'",(self.uid,)).fetchone())
+        r=TestClient(app,headers={'Origin':BASE}).post('/api/admin/login',json={'login':'zz_test_portal_admin','password':PW})
+        self.assertNotIn('signed_in',r.json())   # default: authenticator required
     def test_private_tables_and_no_health_overview(self):
         r=self.client.get('/api/admin/overview');self.assertEqual(r.status_code,200);self.assertNotIn('activities',r.json());self.assertNotIn('key',r.json()['email'])
         with db.connect() as c:
