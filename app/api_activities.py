@@ -136,6 +136,18 @@ def detail(aid: int, user=Depends(current_user)):
                          FROM activities a LEFT JOIN gear g ON g.id = a.gear_id LEFT JOIN routes r ON r.id = a.route_id
                          WHERE a.id = %s AND a.user_id = %s""", (aid, user['id'])).fetchone()
         if not a: raise HTTPException(404, 'Not found')
+        # Owner detail can render every recorded section without joining gaps. Shared geometry stays
+        # on the existing server-trimmed path; raw recording files never enter shared responses.
+        if a.get('source') == 'track' and not {'distance_m','moving_s','elapsed_s'}.intersection(a.get('summary_overrides') or {}):
+            try:
+                with open(os.path.join(DATA, a['file_path']), 'rb') as recording:
+                    original = json.loads(recording.read(4 * 1024 * 1024))
+                sections = {}
+                for point in original.get('points', []):
+                    sections.setdefault(point['segment'], []).append([point['lon'], point['lat']])
+                a['track_lines'] = [polyline(points) for points in sections.values() if len(points) > 1]
+            except (OSError, ValueError, TypeError, KeyError):
+                pass
         for k in ('geom', 'start_pt', 'end_pt', 'file_path', 'file_sha256', 'user_id'): a.pop(k, None)
         a['line'] = _line(c, aid, DETAIL_TOL)
         a['efforts'] = _rank_efforts(c, user['id'], aid)
@@ -251,6 +263,75 @@ def add_manual(body: ManualIn, user=Depends(current_user)):
                           (activities.default_name(start, tz, 'workout').replace('Workout', 'Lift'), aid, user['id']))
         copy_lift(user['id'], aid, plan)
     return {'ok': True, 'id': aid}
+
+
+# ---------- foreground recordings ----------
+class TrackPoint(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    t: float = Field(ge=0, le=172800)
+    accuracy: float = Field(ge=0, le=100)
+    segment: int = Field(ge=0, le=10000)
+
+
+class TrackIn(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+    client_id: str = Field(pattern=r'^[a-f0-9-]{36}$')
+    sport: str = Field(pattern='^(run|ride|walk|hike|swim|row|ski|workout|other)$')
+    sport_label: str | None = Field(None, max_length=60)
+    name: str = Field(min_length=1, max_length=200)
+    start: dt.datetime
+    elapsed_s: float = Field(gt=0, le=172800)
+    moving_s: float = Field(gt=0, le=172800)
+    points: list[TrackPoint] = Field(default_factory=list, max_length=24000)
+
+
+@router.post('/activities/track')
+def save_track(body: TrackIn, user=Depends(current_user)):
+    """One private activity per account/recording. Retry after a lost acknowledgement returns the same id."""
+    from . import parsers
+    start = body.start
+    if not start.tzinfo: raise HTTPException(422, 'Recording start needs a time zone')
+    if start > dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=60): raise HTTPException(422, 'Start is in the future')
+    if body.moving_s > body.elapsed_s + 1: raise HTTPException(422, 'Active time exceeds elapsed time')
+    if (dt.datetime.now(dt.timezone.utc) - start).total_seconds() + 60 < body.elapsed_s:
+        raise HTTPException(422, 'Recording duration exceeds the time since it started')
+    points = body.points
+    distance, segments = 0.0, {}
+    previous = None
+    for point in points:
+        if point.t > body.elapsed_s + 1 or previous and (point.t <= previous.t or point.segment < previous.segment):
+            raise HTTPException(422, 'Recording points must be in time and segment order')
+        if previous and point.segment == previous.segment:
+            delta = point.t - previous.t
+            metres = float(analysis.haversine(previous.lat, previous.lon, point.lat, point.lon))
+            if delta > 30 or metres / delta > analysis.MAX_SPEED[body.sport]:
+                raise HTTPException(422, 'GPS gaps and jumps must start a new segment')
+            distance += metres
+        segments.setdefault(point.segment, []).append(point)
+        previous = point
+    # Existing route geometry is a single line. Save only the longest continuous segment to avoid drawing
+    # across a pause/outage; preserve every original segment in the downloadable recording file.
+    longest = max(segments.values(), key=lambda pts: sum(float(analysis.haversine(a.lat, a.lon, b.lat, b.lon)) for a, b in zip(pts, pts[1:])), default=[])
+    streams = {k: [] for k in ('t',) + parsers.STREAMS}
+    if longest:
+        streams.update(t=[p.t for p in longest], lat=[p.lat for p in longest], lon=[p.lon for p in longest])
+    parsed = {'sport': body.sport, 'start': start, 'sub_sport': None, 'device': 'Kinetta foreground recorder',
+              'laps': [], 'streams': streams, 'session': {}}
+    meta = {'sport': body.sport, 'sport_label': body.sport_label, 'name': body.name.strip() or 'Activity',
+            'source_id': body.client_id, 'elapsed_s': body.elapsed_s, 'moving_s': body.moving_s, 'distance_m': distance}
+    if len(segments) > 1:
+        meta['description'] = 'Recorded in segments. Your activity shows every section; shared previews show the longest continuous section. Totals cover the whole session.'
+    # Keep the lock and insert on one connection: concurrent retries cannot exhaust the pool waiting
+    # for a second connection. The activity and acknowledgement identity commit together.
+    with db.connect() as c:
+        c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"track:{user['id']}:{body.client_id}",))
+        found = c.execute("SELECT id FROM activities WHERE user_id = %s AND source = 'track' AND source_id = %s", (user['id'], body.client_id)).fetchone()
+        if found: return {'id': found['id'], 'duplicate': True}
+        raw = body.model_dump_json().encode()
+        _, aid = activities.store(user['id'], parsed, meta, raw=raw, ext='.json', source='track', connection=c)
+    return {'id': aid, 'duplicate': False}
 
 
 @router.delete('/activities/{aid}')
@@ -482,7 +563,7 @@ def stats(user=Depends(current_user)):
         # this week day by day (Today's strip, 2026-10-10): distance + time per day, main sport by time
         week_days = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sum(distance_m) AS distance_m, sum(moving_s) AS moving_s,
                                      (array_agg(sport ORDER BY moving_s DESC NULLS LAST))[1] AS sport
-                                   FROM activities WHERE user_id = %s AND start_time AT TIME ZONE %s >= date_trunc('week', now() AT TIME ZONE %s)
+                                   FROM activities WHERE user_id = %s AND start_time AT TIME ZONE %s >= (now() AT TIME ZONE %s)::date - 13
                                    GROUP BY 1""", (tz, user['id'], tz, tz)).fetchall()
     today = dt.datetime.now(ZoneInfo(tz)).date()
     streak, d = 0, today if days and days[0] == today else today - dt.timedelta(days=1)
@@ -496,7 +577,8 @@ def stats(user=Depends(current_user)):
     strip = [{'d': (mon + dt.timedelta(days=i)).isoformat(), 'distance_m': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('distance_m'),
               'moving_s': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('moving_s'), 'sport': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('sport'),
               'today': mon + dt.timedelta(days=i) == today} for i in range(7)]
-    return {'weeks': weeks, 'years': years, 'day_streak': streak, 'week_streak': wstreak, 'total': total['n'], 'first': total['first'], 'week_days': strip}
+    recent = [{'d': (today - dt.timedelta(days=i)).isoformat(), 'distance_m': (wd_by.get(today - dt.timedelta(days=i)) or {}).get('distance_m', 0), 'today': i == 0} for i in reversed(range(14))]
+    return {'recent_days': recent, 'weeks': weeks, 'years': years, 'day_streak': streak, 'week_streak': wstreak, 'total': total['n'], 'first': total['first'], 'week_days': strip}
 
 
 @router.get('/calendar')

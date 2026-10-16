@@ -228,3 +228,58 @@ scale their recorded nutrients by amount when they lack a normalized per-serving
 Kit's contextual entry point is the `kit-help` pill: the sparkle plus the word “Kit”, 44 px tall, tinted with the accent (2026-10-16: a bare sparkle read as decoration). Put it with the screen's controls; open saved notes and explicit generation controls in a sheet after a tap. Do not insert a large inline Ask Kit invitation or generate a review just because the sheet opened. Keep saved notes readable when new generation is unavailable.
 
 Administration lives in the separate browser `/admin` portal, with the same theme tokens and fonts, explicit account roles and distinct password/MFA sign-in. Keep administrative controls out of the personal Me screen. Food photo batches use a local thumbnail review before submission; activity summary corrections remain separate from original sensor recordings.
+
+## Me as home and Track (16 October owner request, issue #108)
+
+The owner explicitly replaces Today with Track. The five stable destinations are Activity, Track, Progress,
+Nutrition and Me; opening the app leads to Me, and old `/today` URLs redirect there. This supersedes earlier
+Today and five-tab wording above. The software-keyboard visibility rules still apply to all five tabs.
+
+Me leads with the existing dated weekly bar chart and distance/time/climb totals, followed by a compact editable
+public identity link, Start an activity and the latest activity. Every bar uses distance on one consistent scale;
+indoor time never becomes a distance bar. Current plan and nutrition panels keep their enrollment/logged-food
+conditions; plan/food discovery remains available. Setup, optional private body guidance, goals and fitness remain.
+Goals, gear and Explore are visible tools; secondary identity/sharing/connections/body/account/AI/data controls
+live under Profile & settings. Preserve every existing setting and consent.
+
+Authenticated profiles add seven daily and eight weekly distance bars with dates, totals, units, zero days and
+text equivalents. Aggregate before pagination with the exact feed visibility/block predicate, including own-profile
+friend preview. Dates use the viewer's configured time zone. Food, private health and exact locations remain private.
+
+Track starts with Run/Ride/Walk/Hike, optional foreground GPS, and an explicit background limitation. Yoga, Pilates
+and HIIT are directly available as timers; More activities includes every supported manual activity kind. Lifting
+opens the existing set logger and resumes an open session. Finish opens a review with editable name, explicit Save,
+private-default explanation and recoverable errors. Pause/resume and destructive-discard confirmation are visible.
+Drafts are scoped to server/account, survive reload as paused, and are removed after acknowledged save or deletion.
+Active/paused drafts are reachable from a persistent return link on other pages.
+
+Foreground recording pauses when hidden; GPS requires explicit permission and the self-only location policy.
+Cached/poor/implausible fixes are rejected. Pauses and signal gaps create separate segments without joining distance.
+Distance is recomputed on the server. Save retries, including concurrent requests after a lost acknowledgement,
+return the same account-owned activity. No recording creates a device notification or calls an AI model.
+
+The first recorder keeps the current single-line map schema. A segmented recording's saved map shows its longest
+continuous section, clearly explained in review and the activity description; totals cover all recorded sections and
+original points remain in the account export. Native background GPS, full segmented-map rendering, sensors, auto-pause,
+training intervals and Health write-back are follow-up work. Compilation/browser evidence does not establish physical
+GPS accuracy, locked-screen behavior, native permission prompts, VoiceOver or actual iPhone acceptance.
+
+## Owner revision: Track-only creation, native GPS, fourteen days (16 October)
+
+The newer issue #108 feedback supersedes the local first-pass recording/chart design above. Me and authenticated
+profiles show exactly fourteen daily distance bars ending today, without period filters. Date labels, units, zeros,
+text equivalents and identical feed visibility/block rules remain. Activity history/past analysis remains in Activity
+and Progress. No start/resume/import controls or active-session panels appear there or on Me. Track's nav indicator
+can signal a recording without adding controls to another screen.
+
+Track uses a last-used sport selector, an outdoor map with explicit Locate me, and one prominent Start action.
+Outdoor GPS and every supported indoor kind are available in that selector, including lifting. Activity tools holds
+past entries/imports/connections/Health. During GPS recording, distance/active time/average pace or speed lead the
+map; Map/Stats changes display. Pause is the only primary running control; Resume and Finish appear when paused.
+Review/private Save stays in Track, followed by an optional link to the finished activity. Lifting uses Track routes
+with its existing set/history/rest behavior. Old URLs redirect to the new Track destinations.
+
+The iPhone Core Location recorder owns GPS/time/durable storage outside the WebView, with explicit permission,
+background-location mode and system indicator. Browser mode remains foreground-only and states that limitation.
+Native build/device acceptance is separate from stand-in browser evidence. See recording-design.md and
+activity-tracking.md. Preserve ordinary activity editing, manual tools, consent, drafts and account isolation.

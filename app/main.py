@@ -80,7 +80,7 @@ async def guard(request: Request, call_next):
     r.headers['Referrer-Policy'] = 'same-origin'
     r.headers['X-Frame-Options'] = 'DENY'
     r.headers['Content-Security-Policy'] = CSP
-    r.headers['Permissions-Policy'] = 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()'
+    r.headers['Permissions-Policy'] = 'camera=(self), microphone=(), geolocation=(self), payment=(), usb=()'
     r.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
     if request.url.scheme == 'https': r.headers['Strict-Transport-Security'] = 'max-age=31536000'
     # photos say for themselves how long phones may keep them (api_photos.py: private, and the address changes with the photo)

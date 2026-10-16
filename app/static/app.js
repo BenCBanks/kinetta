@@ -42,7 +42,7 @@ async function api(path, opts = {}) {
     const d = body && body.detail;
     const e = new Error(typeof d === 'string' ? d : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : `Error ${r.status}`);
     e.status = r.status;
-    if (r.status === 401 && App.me && owner === readOwner()) { App.me = null; showLogin('Please log in again.'); }
+    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); App.me = null; showLogin('Please log in again.'); }
     throw e;
   }
   return body;
@@ -363,7 +363,8 @@ function sheet(title, html, onMount) {
 }
 
 // ---------- router ----------
-const TABS = [['today', 'Today'], ['activity', 'Activity'], ['progress', 'Progress'], ['food', 'Nutrition'], ['me', 'Me']];
+IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
+const TABS = [['activity', 'Activity'], ['track', 'Track'], ['progress', 'Progress'], ['food', 'Nutrition'], ['me', 'Me']];
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
@@ -372,7 +373,7 @@ function go(path, {replace = false} = {}) {
 }
 function render() {
   if (!App.me) return;
-  const path = location.pathname.replace(/\/+$/, '') || '/today';
+  const path = location.pathname.replace(/\/+$/, '') || '/me';
   const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
   const m = path.match(page.re) || [];
   root.innerHTML = `<main class="shell" id="page"></main><nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
@@ -384,13 +385,14 @@ function render() {
   if (Native.syncPush) Native.syncPush();
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
+    if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if (el.isConnected && key === location.pathname + location.search) window.scrollTo(0, App.scroll[key] || 0); });
   });
 }
 function showError(el, e) {
   if (e && e.status === 401) return;
   if (e && e.status === 404) {
-    const href = location.pathname.startsWith('/people/') ? '/me/friends' : location.pathname.startsWith('/activity/') ? '/activity' : '/today';
+    const href = location.pathname.startsWith('/people/') ? '/me/friends' : location.pathname.startsWith('/activity/') ? '/activity' : '/me';
     el.innerHTML = `<div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p><a class="ghost wide" href="${href}">Go back</a></div>`; return;
   }
   el.innerHTML = `<div class="boot"><p>${esc(e && e.message || 'Something went wrong')}</p><button class="ghost" id="retry">Try again</button></div>`;
@@ -470,7 +472,7 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
   if (all.length) map.fitBounds(L.latLngBounds(all.flat()), {padding: still ? [12, 12] : [18, 18]}); else map.setView([39.5, -98.5], 3);
   const group = L.featureGroup().addTo(map);
   for (const pts of all) L.polyline(pts, heat ? {color, weight: 2, opacity: .35} : {color, weight: 4, opacity: .95}).addTo(group);
-  if (still) { map.attributionControl.setPrefix(false); return {map, L}; }
+  if (still) { map.attributionControl.setPrefix(false); return {map, L, group}; }
   if (!heat && ends && lines[0]) {
     const pts = typeof lines[0] === 'string' ? decode(lines[0]) : lines[0];
     if (pts.length) {
@@ -480,7 +482,7 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
   }
   map.attributionControl.setPrefix(false);      // no "Leaflet" credit; phones pinch to zoom, so +/- only with a mouse (2026-10-12)
   if (!matchMedia('(pointer: coarse)').matches) L.control.zoom({position: 'bottomright'}).addTo(map);
-  return {map, L};
+  return {map, L, group};
 }
 function feedMaps(box) {   // Strava-style map on each feed card, built when it scrolls near the screen
   for (const el of box.querySelectorAll('.fmap:not([data-on])')) {
@@ -807,7 +809,7 @@ function showNewAccount({title, intro, button, send}) {
     if (!f.name.value.trim() || !f.login.value.trim()) { err.textContent = 'Enter your name and a username.'; return; }
     if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; f.password.focus(); return; }
     b.disabled = true; err.textContent = '';
-    try { await send({name: f.name.value, login: f.login.value.trim().toLowerCase(), password: f.password.value, ...phoneDefaults()}); history.replaceState(null, '', '/today'); await start(); }
+    try { await send({name: f.name.value, login: f.login.value.trim().toLowerCase(), password: f.password.value, ...phoneDefaults()}); history.replaceState(null, '', '/me'); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }
@@ -871,7 +873,7 @@ async function start() {
   await Native.ready;
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
-    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/today');
+    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/me');
     render(); Q.flush(); netbar(); Native.autoSync();
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
@@ -888,7 +890,7 @@ async function start() {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }
     if (x.offline && kept('/api/me')) {   // no connection: open with what's saved on this phone
       App.me = kept('/api/me'); netState(true);
-      if (location.pathname === '/' || location.pathname === '') history.replaceState(null, '', '/today');
+      if (location.pathname === '/' || location.pathname === '') history.replaceState(null, '', '/me');
       render(); return;
     }
     root.innerHTML = `<div class="boot"><p>${esc(x.message)}</p><button class="ghost" id="retry">Try again</button></div>`;

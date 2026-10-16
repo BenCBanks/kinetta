@@ -24,6 +24,8 @@ python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
 for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
 echo "== native sync recovery (stand-in HealthKit, no health data)"
+node dev/tests/test_track.js
+node dev/tests/test_track_native.js
 node dev/tests/test_native_sync.js
 node dev/tests/test_social_gestures.js
 node dev/tests/test_ui_state.js
@@ -39,7 +41,7 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_health_details; do python3 "$t.py"; done
+for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"

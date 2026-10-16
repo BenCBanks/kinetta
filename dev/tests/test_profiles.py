@@ -46,6 +46,8 @@ try:
     request(viewer, 'GET', '/api/people/search?q=' + 'a' * 61, expected=422)
     profile = request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile?limit=1')
     check(profile['person']['bio'] == bio, 'profile exposes public bio as literal text')
+    check(sum(r['distance_m'] for r in profile['mileage']['days']) == 2000, 'distance chart excludes private and friends-only activities')
+    check(len(profile['mileage']['days']) == 14, 'chart zero-fills fixed periods')
     check(profile['sports'] == [{'sport': 'run', 'activities': 2, 'distance_m': 2000, 'time_s': 1200}], 'sport summaries use visible workouts only')
     check(profile['overview'] == {'activities': 2, 'distance_m': 2000, 'time_s': 1200}, 'overview excludes private and friends-only workouts')
     check(profile['items'][0]['id'] == ids[-1] and profile['next'], 'newest shared activity and cursor')
@@ -62,6 +64,8 @@ try:
     own = request(owner, 'GET', '/api/people/zz_test_profile_owner/profile')
     check(own['mine'] and own['overview']['activities'] == 4, 'own profile normally lists every own activity')
     preview = request(owner, 'GET', '/api/people/zz_test_profile_owner/profile?as_friend=true')
+    check(sum(r['distance_m'] for r in profile['mileage']['days']) == 3000, 'chart includes accepted friend activities')
+    check(preview['mileage'] == profile['mileage'], 'chart own friend preview matches actual friend')
     check(preview['overview'] == profile['overview'] and [a['id'] for a in preview['items']] == [a['id'] for a in profile['items']],
           'own profile "as friends see it" matches what a friend actually sees')
     other = request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile?as_friend=true')

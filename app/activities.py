@@ -3,6 +3,7 @@
 Matched routes (like Strava's Matched Activities): same sport family, start and finish within 200 m, distance within 7 %,
 and the same path in the same direction (discrete Fréchet distance of the simplified lines < ~250 m).
 """
+from contextlib import nullcontext
 import datetime as dt
 import bisect
 import hashlib
@@ -73,23 +74,26 @@ def save_file(user_id, raw, ext):
     return sha, os.path.relpath(path, DATA)
 
 
-def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
+def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connection=None):
     """Returns ('added', id) | ('duplicate', id) | ('updated', id). meta: Strava CSV fields (name, description, ...)."""
     meta = meta or {}
     sport = meta.get('sport') or parsed['sport']
     start = parsed['start'] or meta.get('start')
     if start is None: raise ValueError('no start time')
-    with db.connect() as c:
+    with (nullcontext(connection) if connection is not None else db.connect()) as c:
         prof = profile_of(c, user_id)
         tz = prof.get('tz') or db.DEFAULT_TZ
         S = analysis.prepare(parsed['streams'], sport)
         summ = analysis.summary(S, sport, parsed.get('session') or {}, prof)
+        if source == 'track':
+            # Session totals span pauses; map/derived sample metrics describe one uninterrupted segment only.
+            summ.update({k: meta[k] for k in ('elapsed_s', 'moving_s', 'distance_m')})
         sha = path = None
         if raw is not None:
             sha, path = save_file(user_id, raw, ext or '')
             hit = c.execute('SELECT id FROM activities WHERE user_id = %s AND file_sha256 = %s', (user_id, sha)).fetchone()
             if hit: return 'duplicate', hit['id']
-        if sport == 'workout' and source != 'lift':   # a watch's strength workout during a session logged in Kinetta (2026-10-13)
+        if sport == 'workout' and source not in ('lift', 'track'):   # a watch's strength workout during a session logged in Kinetta (2026-10-13)
             from . import api_lifts
             secs = summ.get('elapsed_s') or meta.get('elapsed_s') or 0
             sess = parsed.get('session') or {}
@@ -98,7 +102,7 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
                            zones=json.dumps(summ['zones']) if summ.get('zones') else None)
             merged = api_lifts.merge_watch(c, user_id, start, start + dt.timedelta(seconds=float(secs)), numbers)
             if merged: return 'updated', merged
-        dup = None if source == 'lift' else find_duplicate(c, user_id, start, summ.get('distance_m'), sport, summ.get('elapsed_s'))   # a session started here is always new
+        dup = None if source in ('lift', 'track') else find_duplicate(c, user_id, start, summ.get('distance_m'), sport, summ.get('elapsed_s'))   # a session started here is always new
         if dup:
             richer = enrich_file(c, user_id, dup['id'], parsed, summ, sha, path) if raw is not None else False
             if meta.get('name') and dup['auto_name']:   # e.g. Garmin copy first, then Strava export brings the real title
@@ -114,7 +118,7 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file'):
                    start_time=start, tz=tz, device=parsed.get('device'), source=source, source_id=meta.get('source_id'),
                    file_sha256=sha, file_path=path, strava_id=meta.get('strava_id'), gear_id=gear_id,
                    laps=json.dumps(parsed.get('laps') or [], default=str),
-                   visibility=prof.get('share_default') or 'me')   # who sees it: the person's choice for new activities
+                   visibility='me' if source == 'track' else prof.get('share_default') or 'me')   # who sees it: the person's choice for new activities
         for k in ('elapsed_s', 'moving_s', 'distance_m', 'ascent_m', 'descent_m', 'avg_hr', 'max_hr', 'avg_cad', 'avg_power',
                   'max_power', 'max_speed', 'avg_temp', 'calories', 'avg_vo', 'avg_gct', 'avg_stride', 'gap_s_per_km', 'effort',
                   'decoupling', 'vo2max', 'max_alt', 'min_alt', 'vam', 'norm_power', 'steps', 'pool_length_m', 'lengths',

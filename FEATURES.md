@@ -93,3 +93,15 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Sharing between people (2026-10-11, off by default): friends found by name or username, a Feed of yours and your
       friends' activities (Mine for just yours), sharing per activity, hidden map ends, cheers and comments
 - [x] Admin: reset a person's password, remove a person + all their data (Me > Account > People)
+
+## Me and native activity tracking (issue #108, under review; not released)
+
+- [x] Me replaces Today as home, with the fixed fourteen-day chart, personal identity, current-day panels, useful tools and grouped settings.
+- [x] Personal/profile fixed14day distance charts use exactly the shared feed visibility rules.
+- [x] Track owns outdoor GPS, indoor timers, lifting, past entries/imports and source connections. Native iPhone GPS is independent of the WebView.
+- [x] Pause/resume, review/private save, retry without duplicates and account-scoped recoverable drafts.
+- [x] Native background location engine, protected point journal, account guards and WebView recovery.
+- [ ] Apple SDK build and physical-iPhone background/locked-screen GPS acceptance.
+- [x] Owner activity detail renders all recorded route sections; shared map previews retain the trimmed longest section.
+
+See [Recording activities](docs/activity-tracking.md).

@@ -20,6 +20,8 @@
 		AB1400000000000000000010 /* HealthSyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1400000000000000000000 /* HealthSyncState.swift */; };
 		AB1400000000000000000011 /* HealthBackgroundSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1400000000000000000001 /* HealthBackgroundSync.swift */; };
 		AB1500000000000000000011 /* NativePush.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1500000000000000000001 /* NativePush.swift */; };
+		AB1600000000000000000010 /* TrackRecordingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1600000000000000000000 /* TrackRecordingState.swift */; };
+		AB1600000000000000000011 /* NativeTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1600000000000000000001 /* NativeTrack.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +40,8 @@
 		AB1400000000000000000000 /* HealthSyncState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthSyncState.swift; sourceTree = "<group>"; };
 		AB1400000000000000000001 /* HealthBackgroundSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthBackgroundSync.swift; sourceTree = "<group>"; };
 		AB1500000000000000000001 /* NativePush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativePush.swift; sourceTree = "<group>"; };
+		AB1600000000000000000000 /* TrackRecordingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackRecordingState.swift; sourceTree = "<group>"; };
+		AB1600000000000000000001 /* NativeTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTrack.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +81,8 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				AB1400000000000000000001 /* HealthBackgroundSync.swift */,
 				AB1500000000000000000001 /* NativePush.swift */,
+				AB1600000000000000000001 /* NativeTrack.swift */,
+				AB1600000000000000000000 /* TrackRecordingState.swift */,
 				AB1400000000000000000000 /* HealthSyncState.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -125,7 +131,7 @@
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
 						ProvisioningStyle = Automatic;
-						SystemCapabilities = {com.apple.Push = {enabled = 1; }; };
+						SystemCapabilities = {com.apple.Push = {enabled = 1; }; com.apple.BackgroundModes = {enabled = 1; }; };
 					};
 				};
 			};
@@ -175,6 +181,8 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				AB1400000000000000000011 /* HealthBackgroundSync.swift in Sources */,
 				AB1500000000000000000011 /* NativePush.swift in Sources */,
+				AB1600000000000000000011 /* NativeTrack.swift in Sources */,
+				AB1600000000000000000010 /* TrackRecordingState.swift in Sources */,
 				AB1400000000000000000010 /* HealthSyncState.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);

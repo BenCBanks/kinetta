@@ -2,7 +2,7 @@
   "name": "Kinetta",
   "short_name": "Kinetta",
   "description": "Private fitness and food tracking for you and your people.",
-  "start_url": "/today",
+  "start_url": "/me",
   "scope": "/",
   "display": "standalone",
   "background_color": "#F8F7F1",

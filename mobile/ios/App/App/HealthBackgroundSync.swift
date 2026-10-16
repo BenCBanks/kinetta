@@ -669,6 +669,7 @@ class KinettaBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(KinettaHealthSyncPlugin())
         bridge?.registerPluginInstance(KinettaPushPlugin())
+        bridge?.registerPluginInstance(KinettaTrackPlugin())
         webView?.scrollView.keyboardDismissMode = .interactive
         applyCanvasColor()
     }

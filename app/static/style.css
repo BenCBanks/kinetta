@@ -1511,3 +1511,112 @@ nav.tabs a svg { width: 23px; height: 23px; }
   background: var(--card); border-top: 1px solid var(--line); }
 html.keyboard-open .kb-done { display: flex; }
 .kb-done button { min-height: 44px; padding: 0 14px; border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 16px; }
+
+/* Me personal overview and foreground Track (October 2026). */
+.me-heading h1 { margin: 0; }
+#me-overview .week-summary { margin-top: 8px; }
+#me-overview .week-summary h2 { margin: 0 0 12px; }
+.me-identity { display: flex; align-items: center; gap: 12px; padding: 18px 0; color: var(--ink); }
+.me-identity .grow { min-width: 0; }
+.me-identity b, .me-identity small { display: block; overflow-wrap: anywhere; }
+.me-identity > span:not(.grow) { font-size: 13px; color: var(--tx3); }
+.me-identity > svg { width: 18px; flex-shrink: 0; }
+.me-start { margin: 0 0 18px; }
+.me-agenda { margin: 24px 0; }
+.me-agenda > h2 { margin-bottom: 12px; }
+.me-day-links { display: grid; grid-template-columns: 1fr 1fr; border-block: 1px solid var(--line); }
+.me-day-links a { display: flex; align-items: center; gap: 8px; min-height: 60px; font-size: 14px; color: var(--ink); }
+.me-day-links svg { width: 20px; flex-shrink: 0; }
+.me-day-links a > svg:last-child { margin-left: auto; width: 15px; }
+.me-settings { margin-top: 20px; }
+.me-settings > summary, .track-indoor summary { min-height: 56px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-block: 1px solid var(--line); font-weight: 600; }
+.me-settings > summary svg { width: 20px; }
+.me-settings[open] > summary { margin-bottom: 18px; }
+.me-settings .ri { color: var(--tx3); background: transparent; }
+.me-settings .val { max-width: 45%; text-align: right; overflow-wrap: anywhere; }
+.track-question { margin: 24px 0; font-size: 28px; }
+.track-sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0 26px; }
+.track-sports button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 92px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); font: 500 15px system-ui; }
+.track-sports button svg { width: 26px; height: 26px; }
+.track-sports button[aria-pressed="true"] { color: var(--onbtn); background: var(--btn); border-color: var(--btn); }
+.track-gps { display: flex !important; align-items: center; gap: 12px; min-height: 48px; font-size: 16px; }
+.track-gps input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+#track-setup { border-bottom: 1px solid var(--line); padding-bottom: 24px; }
+.track-indoor .row-link, #track-lift { border-bottom: 1px solid var(--line); width: 100%; color: var(--ink); }
+.track-indoor .row-link > svg, #track-lift > svg { width: 18px; flex-shrink: 0; }
+.track-indoor .ri, #track-lift .ri { background: transparent; color: var(--ink); }
+.track-indoor summary { font-weight: 500; color: var(--accent); }
+.track-session { padding-top: 26px; text-align: center; }
+.track-session > h2 { font-size: 30px; margin: 0 0 12px; }
+.track-clock { font-size: clamp(40px, 12vw, 68px); line-height: 1.2; letter-spacing: -.04em; margin: 28px 0 4px; font-weight: 600; }
+.track-metrics { display: grid; grid-template-columns: 1fr 1fr; margin: 24px 0; }
+.track-metrics > div + div { border-left: 1px solid var(--line); }
+.track-metrics b { display: block; font-size: 32px; }
+.track-metrics span { color: var(--tx3); }
+.track-map { height: 240px; border-radius: 16px; overflow: hidden; margin: 22px 0; }
+.track-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }
+.track-actions button { min-height: 52px; }
+.track-discard { min-height: 48px; margin-top: 18px; }
+.track-session form { text-align: left; margin-top: 24px; }
+.track-banner { display: flex; align-items: center; gap: 10px; padding: 14px; background: var(--card); border: 1px solid var(--accent); border-radius: 12px; color: var(--accent); margin-bottom: 18px; font-size: 14px; }
+.track-banner span { flex: 1; }
+.track-banner svg { width: 20px; }
+.profile-mileage h2 { margin: 0; }
+.mileage-total { margin: 18px 0; }
+.mileage-total b { font-size: 32px; font-weight: 600; }
+.mileage-total .small { display: block; margin-top: 4px; }
+.mileage-bars { display: flex; gap: 6px; }
+.mileage-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.mileage-day > .num { font-size: 11px; }
+.mileage-day small { font-size: 10px; text-align: center; line-height: 1.35; }
+.mileage-column { height: 90px; width: 100%; max-width: 32px; display: flex; align-items: flex-end; }
+.mileage-column i { display: block; width: 100%; height: calc(var(--h, .015) * 100%); min-height: 2px; border-radius: 4px 4px 0 0; background: var(--accent); }
+@media (min-width: 700px) { .track-clock { font-size: 68px; } .track-map { height: 320px; } }
+.me-identity .grow { flex: 1; }
+.track-question { font-family: var(--font-display); font-weight: 600; line-height: 1.2; }
+.track-session > h2 { font-family: var(--font-display); }
+#track-content .track-sports button { transition: background-color .15s, color .15s; }
+@media (prefers-reduced-motion: reduce) { #track-content .track-sports button { transition: none; } }
+.me-agenda > h2, .profile-mileage h2 { font-family: var(--font-display); font-size: 24px; font-weight: 600; }
+.mileage-day small { font-size: 11px; }
+
+#track-setup > p { margin: 0; }
+
+/* Track v2: map-first, all live controls in the Track destination; fourteen fixed profile days. */
+.fortnight-bars { gap: 4px; align-items: flex-end; }
+.fortnight-bars .mileage-column { height: 110px; max-width: 18px; }
+.fortnight-bars .mileage-day small { font-size: 10px; line-height: 1.5; }
+.fortnight-bars .mileage-day small b { display: block; font-weight: 400; }
+.fortnight-bars .current-day small, .fortnight-bars .current-day small b { color: var(--accent); font-weight: 750; }
+.mileage-range { text-align: right; margin: 8px 0 0; }
+.track-ready { gap: 12px; }
+.track-ready select { width: 100%; min-height: 50px; font-size: 17px; }
+.track-ready-map-wrap { position: relative; }
+.track-ready-map, .live-record-map { height: clamp(240px, 39dvh, 380px); border-radius: 16px; overflow: hidden; background: var(--card2); }
+.track-locate { position: absolute; right: 12px; bottom: 12px; z-index: 500; background: var(--card); min-height: 44px; padding: 10px 14px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.track-locate svg { width: 18px; }
+#track-setup > p:empty { display: none; }
+.track-tools { margin: 18px 0; }
+.track-tools summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
+.track-tools .row-link { justify-content: space-between; width: 100%; }
+.track-tools .row-link > svg { width: 18px; }
+.track-live { padding-top: 0; }
+.track-live-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.track-live-top h2 { font: 600 28px/1.2 var(--font-display); margin: 0; }
+.track-live > #track-status { text-align: left; min-height: 20px; }
+.track-live-metrics { display: flex; justify-content: space-between; gap: 8px; margin: 22px 0; text-align: left; }
+.track-live-metrics > div { flex: 1; min-width: 0; }
+.track-live-metrics small { display: block; font-size: 11px; color: var(--tx3); margin-bottom: 6px; }
+.track-live-metrics b { display: block; font-size: clamp(19px,5.5vw,26px); font-weight: 650; white-space: nowrap; }
+.track-live #track-time { margin: 0; letter-spacing: -.035em; line-height: 1.45; }
+.track-live .recording-actions { grid-template-columns: 1fr; }
+.track-live .track-actions { margin-top: 18px; }
+.track-live .track-map { margin: 0; }
+.stats-expanded .track-live-metrics { flex-direction: column; align-items: center; gap: 26px; text-align: center; padding-block: 24px; }
+.stats-expanded .track-live-metrics b { font-size: 48px; }
+.stats-expanded .track-live-metrics small { font-size: 14px; }
+.track-saved { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.track-saved a { display: inline-flex; gap: 6px; align-items: center; }
+.track-saved svg { width: 16px; }
+nav.tabs a.has-recording { position: relative; }
+nav.tabs a.has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }

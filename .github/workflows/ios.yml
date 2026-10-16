@@ -41,6 +41,10 @@ jobs:
         run: |
           swiftc ios/App/App/HealthSyncState.swift tests/main.swift -o "$RUNNER_TEMP/health-state-tests"
           "$RUNNER_TEMP/health-state-tests"
+      - name: Test the durable activity recorder
+        run: |
+          swiftc ios/App/App/TrackRecordingState.swift tests/track/main.swift -o "$RUNNER_TEMP/track-state-tests"
+          "$RUNNER_TEMP/track-state-tests"
       - name: Build for the iPhone Simulator (unsigned)
         run: >
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug
