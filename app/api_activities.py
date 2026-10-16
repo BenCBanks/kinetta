@@ -184,7 +184,7 @@ def edit(aid: int, body: ActivityEdit, user=Depends(current_user)):
             if values.get('moving_s') and values.get('elapsed_s') and values['moving_s']>values['elapsed_s']+1:raise HTTPException(400,'Moving time cannot exceed total duration')
             if values.get('avg_hr') and values.get('max_hr') and values['avg_hr']>values['max_hr']:raise HTTPException(400,'Average heart rate cannot exceed maximum heart rate')
             c.execute('UPDATE activities SET summary_overrides=%s,summary_original=%s WHERE id=%s AND user_id=%s',(json.dumps(overrides),json.dumps(baseline),aid,user['id']))
-            corrections.apply(c,user['id'],aid,restore_records=True)
+            corrections.apply(c,user['id'],aid,restore_records=True,clear_note=True)
         if body.gear_id is not None:
             if not c.execute('SELECT 1 FROM gear WHERE id = %s AND user_id = %s', (body.gear_id, user['id'])).fetchone():
                 raise HTTPException(400, 'Unknown gear')

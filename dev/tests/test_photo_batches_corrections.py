@@ -28,6 +28,9 @@ class Corrections(unittest.TestCase):
         # The same Health identity later gains a different distance. Correction wins, latest original is restorable.
         newer=w.model_copy(update={'distance_m':6200});status,again,_=api_health.save(self.uid,newer);self.assertEqual(again,aid)
         a=self.client.get(path).json();self.assertEqual(a['distance_m'],5000);self.assertAlmostEqual(a['summary_original']['distance_m'],6200)
+        with db.connect() as c:c.execute("UPDATE activities SET ai_note='Fictional refreshed note' WHERE id=%s",(aid,))
+        api_health.save(self.uid,newer)
+        self.assertEqual(self.client.get(path).json()['ai_note'],'Fictional refreshed note')
         self.assertEqual(self.client.patch(path,json={'restore_summary':['distance_m']}).status_code,200)
         a=self.client.get(path).json();self.assertEqual(a['distance_m'],6200);self.assertEqual(a['summary_overrides'],{})
         api_health.save(self.uid,newer);self.assertEqual(self.client.get(path).json()['distance_m'],6200)

@@ -194,7 +194,7 @@ def enrich(uid, aid, w, parsed, meta):
         updated = bool(updates or changed)
         updates.update(healthkit_id=w.id, health_details=json.dumps(details))
         c.execute('UPDATE activities SET ' + ','.join(k + '=%(' + k + ')s' for k in updates) + (', updated=now()' if updated else '') + ' WHERE id=%(id)s AND user_id=%(uid)s', {**updates, 'id': aid, 'uid': uid})
-        if raw_a.get('summary_overrides'):corrections.apply(c,uid,aid)
+        if raw_a.get('summary_overrides'):corrections.apply(c,uid,aid,clear_note=updated,touch=updated)
         return updated
 
 

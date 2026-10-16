@@ -22,7 +22,7 @@ def capture(c,row,updates):
     c.execute('UPDATE activities SET summary_original=%s WHERE id=%s AND user_id=%s',(json.dumps(base),row['id'],row['user_id']))
 
 
-def apply(c,uid,aid,restore_records=False):
+def apply(c,uid,aid,restore_records=False,clear_note=False,touch=True):
     row=c.execute('SELECT * FROM activities WHERE id=%s AND user_id=%s FOR UPDATE',(aid,uid)).fetchone()
     base=row.get('summary_original') or {};over=row.get('summary_overrides') or {}
     if not base:return
@@ -38,7 +38,7 @@ def apply(c,uid,aid,restore_records=False):
     if hr:
         for k in ('zones','effort','vo2max','decoupling'):values[k]=None
     for k in JSON_FIELDS:values[k]=json.dumps(values[k])
-    c.execute('UPDATE activities SET '+','.join(k+'=%('+k+')s' for k in values)+',ai_note=NULL,updated=now() WHERE id=%(id)s AND user_id=%(uid)s',{**values,'id':aid,'uid':uid})
+    c.execute('UPDATE activities SET '+','.join(k+'=%('+k+')s' for k in values)+(',ai_note=NULL' if clear_note else '')+(',updated=now()' if touch else '')+' WHERE id=%(id)s AND user_id=%(uid)s',{**values,'id':aid,'uid':uid})
     if restore_records and not motion:
         from .parsers import STREAMS
         s=c.execute('SELECT * FROM activity_streams WHERE activity_id=%s AND user_id=%s',(aid,uid)).fetchone()
