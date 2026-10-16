@@ -22,7 +22,10 @@ function postCard(a, {who = false, compact = false} = {}) {
   if (a.prs) badges.push(`<span class="badge pr">${svg('trophy')} ${a.prs} PR${a.prs > 1 ? 's' : ''}</span>`);
   if (a.route_id) badges.push('<span class="badge">Matched route</span>');
   if (a.commute) badges.push('<span class="badge">Commute</span>');
-  const head = who ? `<a class="post-person" href="${profileHref(theirs ? a.owner : App.me)}">${avatar(theirs ? a.owner : App.me)}<span class="ph-txt"><b>${theirs ? esc(a.owner.name) : 'You'}</b><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span></a>${sportMark(a.sport)}`
+  // Only the photo and the name open the person's profile (2026-10-16, Ben: the whole row did, so taps meant for the
+  // activity landed on the profile); every other part of the card opens the activity (wireCheers → wireCardTaps).
+  const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
+  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>${sportMark(a.sport)}`
     : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>`;
   const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
   const vis = a.visibility || 'me';
@@ -31,7 +34,7 @@ function postCard(a, {who = false, compact = false} = {}) {
        <button type="button" class="pf" data-talk="${a.id}" aria-label="Comments">${svg('comment')}${n('comments')}</button>` + (theirs ? '' : `
        <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`);
   const compactHead = `<a class="post-heading" href="${href}">${sportMark(a.sport)}<div class="ph-txt"><small>${esc(when(a.start_time))}</small><h3 class="post-title">${esc(a.name)}</h3></div></a>`;
-  return `<article class="card post${compact ? ' compact' : ''}"><div class="post-hd post-profile">${compact ? compactHead : head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
+  return `<article class="card post${compact ? ' compact' : ''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${compact ? compactHead : head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     ${compact ? '' : `<h3 class="post-title">${esc(a.name)}</h3>`}
     <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length && !compact ? `<div class="badges">${badges.join('')}</div>` : ''}
     </a>${activityMedia(a, compact ? {openHref: href} : {})}${compact && !a.line && !(a.photos || []).length ? `<a class="primary wide post-open" href="${href}">View activity ${svg('chev')}</a>` : ''}
@@ -48,7 +51,7 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
 // Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment
 // button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
-  wireActivityMedia(box);
+  wireActivityMedia(box); wireCardTaps(box);
   $$('[data-talk]', box).forEach((b) => b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
@@ -63,11 +66,33 @@ function wireCheers(box) {
     const on = b.getAttribute('aria-pressed') !== 'true', id = b.dataset.cheer;
     const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
     const shift = (d) => { const c = cnt(), v = (+c.textContent || 0) + d; c.textContent = v || ''; b.setAttribute('aria-pressed', String(d > 0)); };
-    shift(on ? 1 : -1); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
+    shift(on ? 1 : -1); Native.haptic(on ? 'medium' : 'light'); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
     try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); socialChanged(id); }
     catch (x) { shift(on ? -1 : 1); toast(x.message); }
     finally { delete b.dataset.sending; b.setAttribute('aria-busy', 'false'); }
   }, () => activityCheers(b.dataset.cheer)));
+}
+// A tap anywhere on a card that isn't one of its own buttons or links opens the activity, and the card dips slightly
+// under the finger so the tap feels answered at once (2026-10-16). Links, Cheers, comments and photos keep their jobs.
+const CARD_OWN = 'a, button, input, select, textarea, label, .media-photo, .media-controls, .leaflet-control';
+let cardPressed = null;
+const cardRelease = () => { if (cardPressed) cardPressed.classList.remove('press'); cardPressed = null; };
+addEventListener('scroll', cardRelease, {passive: true});
+function wireCardTaps(box) {
+  if (box.dataset.cardTaps) return;
+  box.dataset.cardTaps = '1';
+  const card = (e) => { const c = e.target.closest && e.target.closest('article.post[data-href]'); return c && box.contains(c) && !e.target.closest(CARD_OWN) ? c : null; };
+  box.addEventListener('pointerdown', (e) => {
+    cardRelease();
+    const c = e.target.closest && e.target.closest('.post-link') ? e.target.closest('article.post[data-href]') : card(e);   // the numbers are the card's own link
+    if (c && e.isPrimary) { cardPressed = c; c.classList.add('press'); }
+  }, {passive: true});
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => box.addEventListener(t, cardRelease, {passive: true}));
+  box.addEventListener('click', (e) => {
+    const c = card(e);
+    if (!c || e.defaultPrevented || e.metaKey || e.ctrlKey || String(getSelection && getSelection())) return;
+    go(c.dataset.href);
+  });
 }
 const backBtn = (label = 'Back') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
 function wireBack(el, fallback) {
@@ -114,8 +139,14 @@ async function meOverview(el) {
     <section class="me-agenda"><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div>
       <div class="me-day-links"><a href="/plan">${svg('calendar')}Training plan${svg('chev')}</a><a href="/food">${svg('food')}Log food${svg('chev')}</a></div></section>
     <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
-  planCard($('#t-plan', el)).catch(() => {});
-  todayFoodCard($('#t-food', el)).catch(() => {});
+  // The two shortcut rows only stay when the cards above don't already offer them (2026-10-16: Log food and the plan
+  // link showed twice on one screen).
+  Promise.allSettled([planCard($('#t-plan', el)), todayFoodCard($('#t-food', el))]).then(() => {
+    const links = $('.me-day-links', el); if (!links) return;
+    if ($('#t-plan a[href="/plan"]', el)) $('a[href="/plan"]', links)?.remove();
+    if ($('#t-food #tf-add', el)) $('a[href="/food"]', links)?.remove();
+    if (!links.children.length) links.remove();
+  });
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
     if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
@@ -868,9 +899,9 @@ async function pMileage(body, q) {
         <p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>
         <div id="m-chart"></div>
 </div>
-      <div class="card"><details><summary>Show as table</summary><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
+      <details class="fold-row table-fold"><summary><span class="grow">Show as table</span><span class="chev">${svg('chev')}</span></summary><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
-          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></details></div>`;
+          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div></details>`;
     requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: 190}));
   });
 }

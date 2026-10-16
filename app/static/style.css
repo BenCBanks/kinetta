@@ -1620,3 +1620,38 @@ html.keyboard-open .kb-done { display: flex; }
 .track-saved svg { width: 16px; }
 nav.tabs a.has-recording { position: relative; }
 nav.tabs a.has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
+
+/* ---------- Quicker feel (2026-10-16, Ben: snappier, slicker, taps land where expected) ---------- */
+/* Feed cards: only the photo and the name open the profile; anywhere else on the card opens the activity. */
+.post-av { flex: none; display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 50%; color: inherit; }
+.post-av:active { transform: scale(.92); }
+.post-name { justify-self: start; max-width: 100%; color: var(--tx); font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-name:active { opacity: .6; }
+.post[data-href] { cursor: pointer; transition: transform .14s cubic-bezier(.2, .8, .2, 1); }
+.post.press { transform: scale(.985); }
+.post-link:active { background: none; }
+/* Cheers: a springier pop with a quick ring, felt as well as seen in the iPhone app (Native.haptic). */
+.pf.cheer.just svg { animation: cheer-pop .45s cubic-bezier(.2, 1.6, .4, 1); }
+.pf.cheer { position: relative; }
+.pf.cheer.just::after { content: ''; position: absolute; left: 10px; top: 50%; width: 20px; height: 20px; margin-top: -10px; border-radius: 50%;
+  border: 2px solid var(--accent); opacity: 0; animation: cheer-ring .45s ease-out; pointer-events: none; }
+@keyframes cheer-pop { 0% { transform: scale(1); } 35% { transform: scale(1.4) rotate(-12deg); } 100% { transform: scale(1) rotate(0); } }
+@keyframes cheer-ring { 0% { opacity: .7; transform: scale(.6); } 100% { opacity: 0; transform: scale(1.9); } }
+/* Tabs switch instantly (no page fade); the bar is solid, so the costly blur behind it is switched off. */
+nav.tabs { -webkit-backdrop-filter: none; backdrop-filter: none; }
+nav.tabs a { transition: color .12s; }
+nav.tabs a[aria-current="page"] svg { animation: tab-pick .28s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes tab-pick { 0% { transform: scale(.82); } 100% { transform: scale(1); } }
+/* Opening something inside a tab slides it in from the side, quickly, like an iPhone push. */
+#page.enter { animation: page-push .18s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes page-push { from { opacity: .35; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+/* Activity page: the full date wraps instead of ending in "…". */
+.d-title .ph-txt small { white-space: normal; }
+/* Progress: the table is a slim fold, not an empty-looking card. */
+.table-fold { margin: 12px 0; } .table-fold > summary .grow { flex: 1; } .table-fold > summary { min-height: 52px; }
+.table-fold .tbl-wrap { overflow-x: auto; margin-top: 4px; }
+/* Track: the other ways to add an activity are a visible list, not a closed fold. */
+.track-tools { margin: 24px 0 8px; }
+.track-tools .row-link { justify-content: flex-start; }
+.track-tools .row-link > svg:first-child { flex: none; width: 20px; height: 20px; color: var(--accent); }
+.track-tools .row-link > svg:last-child { flex: none; width: 16px; height: 16px; color: var(--tx3); }

@@ -23,6 +23,7 @@
 		AB1600000000000000000010 /* TrackRecordingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1600000000000000000000 /* TrackRecordingState.swift */; };
 		AB1600000000000000000011 /* NativeTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1600000000000000000001 /* NativeTrack.swift */; };
 		AB1700000000000000000010 /* HealthRestingEnergy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1700000000000000000000 /* HealthRestingEnergy.swift */; };
+		AB1800000000000000000010 /* NativeHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1800000000000000000000 /* NativeHaptics.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +45,7 @@
 		AB1600000000000000000000 /* TrackRecordingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackRecordingState.swift; sourceTree = "<group>"; };
 		AB1600000000000000000001 /* NativeTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTrack.swift; sourceTree = "<group>"; };
 		AB1700000000000000000000 /* HealthRestingEnergy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthRestingEnergy.swift; sourceTree = "<group>"; };
+		AB1800000000000000000000 /* NativeHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeHaptics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,6 +86,7 @@
 				AB1400000000000000000001 /* HealthBackgroundSync.swift */,
 				AB1500000000000000000001 /* NativePush.swift */,
 				AB1700000000000000000000 /* HealthRestingEnergy.swift */,
+				AB1800000000000000000000 /* NativeHaptics.swift */,
 				AB1600000000000000000001 /* NativeTrack.swift */,
 				AB1600000000000000000000 /* TrackRecordingState.swift */,
 				AB1400000000000000000000 /* HealthSyncState.swift */,
@@ -185,6 +188,7 @@
 				AB1400000000000000000011 /* HealthBackgroundSync.swift in Sources */,
 				AB1500000000000000000011 /* NativePush.swift in Sources */,
 				AB1700000000000000000010 /* HealthRestingEnergy.swift in Sources */,
+				AB1800000000000000000010 /* NativeHaptics.swift in Sources */,
 				AB1600000000000000000011 /* NativeTrack.swift in Sources */,
 				AB1600000000000000000010 /* TrackRecordingState.swift in Sources */,
 				AB1400000000000000000010 /* HealthSyncState.swift in Sources */,

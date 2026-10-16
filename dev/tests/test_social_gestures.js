@@ -1,8 +1,8 @@
 // Real gesture handler, deterministic pointer events/timers. No network or devices.
 'use strict';
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
-const timers = new Map(), resources = new Map(); let ticks = 0, time = 0, toggles = 0, shown = 0;
-const ctx = {viewResources: resources, Date: {now: () => time}, Math,
+const timers = new Map(), resources = new Map(), buzzes = []; let ticks = 0, time = 0, toggles = 0, shown = 0;
+const ctx = {viewResources: resources, Date: {now: () => time}, Math, Native: {haptic: (kind) => buzzes.push(kind)},
  setTimeout: fn => { timers.set(++ticks, fn); return ticks; }, clearTimeout: id => timers.delete(id)};
 vm.createContext(ctx);const source = fs.readFileSync('app/static/social.js', 'utf8');
 vm.runInContext(source.slice(source.indexOf('function cheerGesture'),source.indexOf('\nfunction activityCheers')),ctx);
@@ -12,7 +12,7 @@ const b=button();ctx.cheerGesture(b,()=>toggles++,()=>shown++);
 b.onpointerdown(event());b.onpointerup(event());b.onclick(event());
 assert.equal(toggles,1,'tap toggles synchronously, no artificial delay');assert.equal(timers.size,0);
 b.onpointerdown(event());[...timers.values()].forEach(f=>f());time=10000;b.onpointerup(event());b.onclick(event());
-assert.equal(shown,1,'long press opens people');assert.equal(toggles,1,'even a prolonged hold never toggles on release');
+assert.equal(shown,1,'long press opens people');assert.deepEqual(buzzes,['selection'],'the hold is felt once when the people list opens');assert.equal(toggles,1,'even a prolonged hold never toggles on release');
 b.onpointerdown(event());b.onpointerup(event());b.onclick(event());assert.equal(toggles,2,'next intentional tap after closing people is not swallowed');
 time=12000;b.onpointerdown(event());b.onpointermove(event({clientY:30}));assert.equal(timers.size,0,'scroll cancels hold');b.onpointercancel(event());
 b.onpointerdown(event());b.onpointercancel(event());assert.equal(timers.size,0,'pointer cancellation clears timer');

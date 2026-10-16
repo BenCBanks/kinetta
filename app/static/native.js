@@ -26,6 +26,14 @@ const Native = (() => {
   // no ↑ ↓ ✓ bar above the keyboard (2026-10-13, Ben): every text box here has its own send / save button. Only the app can
   // hide it (@capacitor/keyboard); Safari and the Home Screen version always show it.
   if (on && P.Keyboard) P.Keyboard.setAccessoryBarVisible({isVisible: false}).catch(() => {});
+  // A light tap under the finger (2026-10-16, Ben: Cheers should buzz). The iPhone app uses the Taptic Engine
+  // (NativeHaptics.swift); Android browsers vibrate briefly; Safari has neither, so nothing happens there.
+  N.haptic = (kind = 'light') => {
+    try {
+      if (on && P.KinettaHaptics) P.KinettaHaptics.tap({kind}).catch(() => {});
+      else if (navigator.vibrate) navigator.vibrate(kind === 'success' ? [12, 40, 12] : 10);
+    } catch (x) { /* never let a buzz break a tap */ }
+  };
   N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   N.login = async (server, login, password) => {

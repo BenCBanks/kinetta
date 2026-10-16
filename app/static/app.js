@@ -384,12 +384,19 @@ function render() {
   const path = location.pathname.replace(/\/+$/, '') || '/me';
   const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
   const m = path.match(page.re) || [];
-  root.innerHTML = `<main class="shell" id="page"></main><nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
+  // The tab bar stays put between screens (2026-10-16): only the page is replaced, so a tap never waits for the bar to be
+  // rebuilt and its badges don't blink. The first render (or after logging in again) builds it.
+  const nav = $('nav.tabs', root), fresh = '<main class="shell" id="page"></main>';
+  if (nav && nav.parentNode === root && root.children.length === 2 && $('#page', root)) {
+    const main = document.createElement('main'); main.className = 'shell'; main.id = 'page'; $('#page', root).replaceWith(main);
+    $$('a[data-tab]', nav).forEach((a) => (a.dataset.tab === page.tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+  } else root.innerHTML = `${fresh}<nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
     `<a href="/${t}" data-tab="${t}"${t === page.tab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
   const key = location.pathname + location.search;
-  if (App.lastPath !== location.pathname) { el.classList.add('enter'); App.lastPath = location.pathname; }
+  // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab slides it in.
+  if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t)) el.classList.add('enter'); App.lastPath = location.pathname; }
   if (Native.syncPush) Native.syncPush();
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
@@ -416,7 +423,7 @@ document.addEventListener('click', (e) => {
   go(a.getAttribute('href'));
 });
 document.addEventListener('pointerdown', (e) => {
-  const a = e.target.closest('a[data-prefetch]'); if (a) prefetch(a.dataset.prefetch);
+  const a = e.target.closest('[data-prefetch]'); if (a) prefetch(a.dataset.prefetch);
 }, {passive: true});
 window.addEventListener('popstate', render);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && App.me) Q.flush(); if (!document.hidden && App.me && navigator.onLine && Date.now() - (App.hiddenAt || 0) > 60000) { invalidate('/api/'); render(); } if (document.hidden) App.hiddenAt = Date.now(); });
