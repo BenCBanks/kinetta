@@ -89,7 +89,10 @@ def set_cookie(request, response, token):
 
 
 def end_session(c, token):
-    if token: c.execute('DELETE FROM sessions WHERE token_hash = %s', (_h(token),))
+    if token:
+        c.execute('DELETE FROM admin_sessions WHERE user_id=(SELECT user_id FROM sessions WHERE token_hash=%s)',(_h(token),))
+        c.execute('DELETE FROM admin_challenges WHERE user_id=(SELECT user_id FROM sessions WHERE token_hash=%s)',(_h(token),))
+        c.execute('DELETE FROM sessions WHERE token_hash = %s', (_h(token),))
 
 def session_token(request):
     """The browser sends its login in the cookie; the iPhone app (mobile/) sends the same kind of login token as

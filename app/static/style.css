@@ -1471,3 +1471,10 @@ nav.tabs a svg { width: 23px; height: 23px; }
 .ql-rest { margin: 6px 0 0; }
 .entry-move { margin: 8px 0; }
 .entry-move summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--tx2); }
+
+/* Contextual Kit: the visible mark stays small, the touch target stays comfortable. */
+.kit-help { flex: 0 0 44px; width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 50%; background: var(--accent2); color: var(--accent); }
+.kit-help svg { width: 20px; height: 20px; }
+#nt-coach { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+.photo-selection{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:18px}.photo-selection img{width:100%;height:110px;object-fit:cover}.photo-selection button{min-height:44px;width:100%}

@@ -49,12 +49,15 @@ def profile_of(c, user_id):
 
 
 def find_duplicate(c, user_id, start, distance_m, sport=None, elapsed_s=None):
-    rows = c.execute("""SELECT id, distance_m, elapsed_s, sport, auto_name, source FROM activities WHERE user_id = %s
+    rows = c.execute("""SELECT id, start_time, distance_m, elapsed_s, sport, auto_name, source, summary_original, summary_overrides FROM activities WHERE user_id = %s
                         AND start_time BETWEEN %s AND %s""",
                      (user_id, start - dt.timedelta(minutes=2), start + dt.timedelta(minutes=2))).fetchall()
+    from . import activity_corrections as corrections
     for r in rows:
+        r=corrections.original(r)
         if sport and sport != r['sport']: continue
         if elapsed_s and r['elapsed_s'] and abs(elapsed_s - r['elapsed_s']) > max(120, r['elapsed_s'] * .1): continue
+        if r['distance_m'] is None and elapsed_s and r['elapsed_s'] and abs((r['start_time']-start).total_seconds())<=30:return r
         a, b = r['distance_m'] or 0, distance_m or 0
         if (a < 50 and b < 50) or (max(a, b) > 0 and min(a, b) / max(a, b) > 0.85):
             return r
@@ -187,6 +190,8 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
     from .parsers import STREAMS
     a = c.execute('SELECT * FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, uid)).fetchone()
     if not a or not (a['source'] == 'healthkit' or a.get('healthkit_id')): return False
+    from . import activity_corrections as corrections
+    raw_a=a;a=corrections.original(a)
     x, y = a.get('distance_m') or 0, incoming_summary.get('distance_m') or 0
     if x and y and min(x, y) / max(x, y) < .93: return False
     old = c.execute('SELECT * FROM activity_streams WHERE activity_id = %s AND user_id = %s', (aid, uid)).fetchone() or {}
@@ -207,11 +212,13 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
     sets.update(chart=json.dumps(analysis.chart_series(S, a['sport'])), zones=json.dumps(summ.get('zones')),
         splits_km=json.dumps(analysis.splits(S,a['sport'],1000)), splits_mi=json.dumps(analysis.splits(S,a['sport'],MI)),
         power_curve=json.dumps(analysis.power_curve(S)))
+    corrections.capture(c,raw_a,sets)
     c.execute('UPDATE activities SET '+','.join(k+'=%('+k+')s' for k in sets)+', file_sha256=coalesce(file_sha256,%(sha)s), file_path=coalesce(file_path,%(path)s), updated=now() WHERE id=%(aid)s AND user_id=%(uid)s', {**sets,'sha':sha,'path':path,'aid':aid,'uid':uid})
     c.execute('DELETE FROM best_efforts WHERE activity_id=%s AND user_id=%s', (aid,uid))
     for e in analysis.best_efforts(S,a['sport']):
         c.execute('INSERT INTO best_efforts (user_id,activity_id,sport,distance_m,label,elapsed_s,start_s,start_time) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)', (uid,aid,a['sport'],e['distance_m'],e['label'],e['elapsed_s'],e['start_s'],a['start_time']))
     set_geometry(c,aid,st); match_route(c,uid,aid)
+    if raw_a.get('summary_overrides'):corrections.apply(c,uid,aid)
     return True
 
 
@@ -281,21 +288,24 @@ def reprocess(user_id, aid):
     """Recompute analysis from the stored streams (after a model change or new max HR). Keeps names/notes/gear."""
     from .parsers import STREAMS
     with db.connect() as c:
-        a = c.execute('SELECT sport, start_time FROM activities WHERE id = %s AND user_id = %s', (aid, user_id)).fetchone()
+        a = c.execute('SELECT * FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, user_id)).fetchone()
         s = c.execute('SELECT * FROM activity_streams WHERE activity_id = %s AND user_id = %s', (aid, user_id)).fetchone()
         if not a or not s: return False
         streams = {'t': s['t'] or []}
         for k in STREAMS: streams[k] = s.get(k) or []
         if streams.get('dist'): streams['dist'] = streams['dist']
+        from . import activity_corrections as corrections
+        raw_a=a;a=corrections.original(a)
         prof = profile_of(c, user_id)
         S = analysis.prepare(streams, a['sport'])
-        summ = analysis.summary(S, a['sport'], {}, prof)
+        summ = analysis.summary(S, a['sport'], {k:a.get(k) for k in corrections.FIELDS}, prof)
         sets = {k: num(summ.get(k)) for k in
                 ('moving_s', 'avg_hr', 'avg_cad', 'avg_power', 'max_speed', 'gap_s_per_km', 'effort', 'decoupling', 'vo2max',
                  'max_alt', 'min_alt', 'vam', 'norm_power', 'steps')}
         sets.update(zones=json.dumps(summ.get('zones')), splits_km=json.dumps(analysis.splits(S, a['sport'], 1000)),
                     splits_mi=json.dumps(analysis.splits(S, a['sport'], MI)), power_curve=json.dumps(analysis.power_curve(S)),
                     chart=json.dumps(analysis.chart_series(S, a['sport'])))
+        corrections.capture(c,raw_a,sets)
         c.execute('UPDATE activities SET ' + ', '.join(f'{k} = %({k})s' for k in sets) + ', updated = now() WHERE id = %(id)s AND user_id = %(uid)s',
                   {**sets, 'id': aid, 'uid': user_id})
         c.execute('DELETE FROM best_efforts WHERE activity_id = %s AND user_id = %s', (aid, user_id))
@@ -303,4 +313,5 @@ def reprocess(user_id, aid):
             c.execute("""INSERT INTO best_efforts (user_id, activity_id, sport, distance_m, label, elapsed_s, start_s, start_time)
                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                       (user_id, aid, a['sport'], e['distance_m'], e['label'], e['elapsed_s'], e['start_s'], a['start_time']))
+        if raw_a.get('summary_overrides'):corrections.apply(c,user_id,aid)
         return True

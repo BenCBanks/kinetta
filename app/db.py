@@ -885,6 +885,33 @@ MIGRATIONS = [
     GRANT SELECT ON native_push_devices TO fit_readers;
     """,
 
+    # 41: isolated administrator credentials/sessions, audit and beta response outbox. No reader grants.
+    """
+    ALTER TABLE beta_requests DROP CONSTRAINT beta_requests_status_check;
+    ALTER TABLE beta_requests ADD CONSTRAINT beta_requests_status_check CHECK (status IN ('new','invited','dismissed','waitlisted','declined'));
+    CREATE TABLE admin_attempts (key text NOT NULL,created timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX admin_attempt_key ON admin_attempts(key,created);
+    CREATE TABLE admin_mfa (user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, secret text NOT NULL, last_counter bigint NOT NULL DEFAULT -1);
+    CREATE TABLE admin_challenges (token_hash text PRIMARY KEY,user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,seed text,expires timestamptz NOT NULL);
+    CREATE TABLE admin_sessions (token_hash text PRIMARY KEY,user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,expires timestamptz NOT NULL);
+    CREATE TABLE admin_recovery (user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,code_hash text PRIMARY KEY);
+    CREATE TABLE admin_audit (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,actor_id bigint REFERENCES users(id) ON DELETE SET NULL,action text NOT NULL,target text,created timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE beta_responses (id uuid PRIMARY KEY,request_id bigint NOT NULL REFERENCES beta_requests(id) ON DELETE CASCADE,actor_id bigint REFERENCES users(id) ON DELETE SET NULL,kind text NOT NULL,fingerprint text NOT NULL,recipient text NOT NULL,subject text NOT NULL,body text NOT NULL,invite_id bigint REFERENCES invites(id) ON DELETE SET NULL,state text NOT NULL DEFAULT 'queued',provider_id text UNIQUE,created timestamptz NOT NULL DEFAULT now(),first_attempt timestamptz,attempted timestamptz,error text);
+    CREATE TABLE admin_mail_events (id text PRIMARY KEY,provider_id text NOT NULL,state text,created timestamptz NOT NULL DEFAULT now());
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['admin_attempts','admin_mfa','admin_challenges','admin_sessions','admin_recovery','admin_audit','beta_responses','admin_mail_events'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('REVOKE ALL ON %I FROM PUBLIC, fit_readers, fit_all_readers',t);
+      END LOOP;
+    END $$;
+    CREATE INDEX admin_session_expiry ON admin_sessions(expires);
+    CREATE INDEX beta_responses_request ON beta_responses(request_id,created DESC);
+    """,
+
+    # 42: corrections are separate from the imported recording and latest original summary.
+    """ALTER TABLE activities ADD COLUMN summary_overrides jsonb NOT NULL DEFAULT '{}';
+       ALTER TABLE activities ADD COLUMN summary_original jsonb NOT NULL DEFAULT '{}';""",
+
 ]
 
 

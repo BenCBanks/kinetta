@@ -120,7 +120,7 @@ route(/^\/today$/, 'today', async (el) => {
       try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
       catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
     }
-    box.innerHTML = `<button class="kit-weekly" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}<span><b>Kit</b><small>Weekly review</small></span></button>`;
+    box.innerHTML = `<button class="icon-btn kit-help" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}</button>`;
     $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', wk
       ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text">${esc(r.latest.text)}</p>
           ${r.enabled ? '<button class="ghost wide" id="rv-now">Review this week now</button>' : ''}`
@@ -301,8 +301,6 @@ function drawDetail(el, a) {
     overview: `${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
-      ${a.ai_note ? `<div class="card ai">${coachMessage('activity:' + a.id, a.ai_note, 'Kit', `<p>${esc(a.ai_note)}</p>`)}</div>`
-        : aiCan('coach') ? `<div class="card"><h2>Kit</h2><p class="small muted">A short note on this workout from Kit, your AI coach, using your own history.</p><button class="ghost" id="d-coach">${App.me.ai_ok ? 'Ask Kit' : 'Turn on Kit'}</button></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
       ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
@@ -317,9 +315,10 @@ function drawDetail(el, a) {
   // with a map, the map runs to the top of the screen and the buttons float over it (2026-10-12, Ben)
   const topBar = `<div class="top${a.line || a.photos?.length ? ' over' : ''}">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
   el.innerHTML = `${a.line || a.photos?.length ? `<div class="map-head">${activityMedia(a, {mapId: 'd-map', detail: true, full: !!a.line})}${topBar}</div>` : topBar}
-    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span></div>
+    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${a.ai_note || aiCan('coach') ? `<button class="icon-btn kit-help" id="d-kit" aria-label="Ask Kit about this activity">${svg('sparkle')}</button>` : ''}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
+      ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted">Summary corrected by you. Charts and laps show the original recording. Affected splits, personal records and derived estimates stay hidden until the relevant imported values are restored.</p>':''}
       <div class="hero">${hero}</div><div id="d-photos"></div><div class="cpile"></div></div>
     <div class="seg wide dtabs" role="tablist" aria-label="Sections"${DTABS.filter(([k]) => has(k)).length < 2 ? ' hidden' : ''}>${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
     ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
@@ -341,13 +340,8 @@ function drawDetail(el, a) {
   photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
   if (a.lifts) fillLiftCard(el, a);
-  const cb = $('#d-coach', el);
-  if (cb) cb.onclick = async () => {
-    if (!App.me.ai_ok) { aiSheet(() => drawDetail(el, a)); return; }
-    cb.disabled = true; cb.textContent = 'Thinking…';
-    try { const r = await api(`/api/activities/${a.id}/coach`, json('POST', {})); a.ai_note = r.note; showCoach('activity:' + a.id); App.cache.delete(`/api/activities/${a.id}`); drawDetail(el, a); }
-    catch (x) { toast(x.message); cb.disabled = false; cb.textContent = 'Ask Kit'; }
-  };
+  const kb = $('#d-kit', el);
+  if (kb) kb.onclick = () => activityKit(a);
   let marker = null, pts = null, mapObj = null;
   const mapBox = $('#d-map', el);
   if (a.line) lazy(mapBox, async () => {
@@ -434,9 +428,13 @@ function editActivity(a) {
   const cur = kinds.find((k) => k.sp === a.sport && k.lb === (a.sport_label || null)) || (!a.sport_label && kinds.find((k) => k.sp === a.sport && !k.lb));
   const keep = cur ? '' : `<option value="keep" selected>${esc(a.sport_label || SPORT_NAMES[a.sport] || 'Activity')}</option>`;
   const kindOpts = keep + HAND_KINDS.map(([g, list], gi) => `<optgroup label="${esc(g)}">${list.map(([, n], i) => `<option value="${gi}.${i}"${cur && cur.v === `${gi}.${i}` ? ' selected' : ''}>${esc(n)}</option>`).join('')}</optgroup>`).join('');
+  const summaryFields=[['distance_m','Distance',imp()?'mi':'km',imp()?1609.344:1000],['moving_s','Moving time','min',60],['elapsed_s','Total duration','min',60],['ascent_m','Elevation gain',imp()?'ft':'m',imp()?0.3048:1],['calories','Energy','kcal',1],['avg_hr','Average heart rate','bpm',1],['max_hr','Maximum heart rate','bpm',1]];
+  const initial={};
+  const correctionFields=summaryFields.map(([key,label,unit,scale])=>{const digits=['avg_hr','max_hr','ascent_m','calories'].includes(key)?1:key.endsWith('_s')?2:3;const factor=10**digits;const value=a[key]==null?'':String(Math.round(a[key]/scale*factor)/factor);initial[key]=value;return `<label>${label} (${unit})<input name="summary_${key}" inputmode="decimal" value="${value}" placeholder="Not recorded" aria-label="${label} in ${unit}"></label>${Object.hasOwn(a.summary_overrides||{},key)?`<label class="check"><input type="checkbox" name="restore_${key}"> Use imported ${label.toLowerCase()}</label>`:''}`}).join('');
   sheet('Edit activity', `<form class="form" id="e-form">
     <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
     <label>What did you do?<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
+    <details id="e-summary"><summary>Distance, duration & other details</summary><p class="small muted">Corrections stay in Kinetta when Apple Health syncs again. Blank means not recorded. Recorded charts and laps keep their original samples; affected splits, records and derived estimates are hidden. Restore an imported value to undo its correction.</p>${correctionFields}</details>
     <label>Description<textarea name="description" maxlength="10000">${esc(a.description || '')}</textarea></label>
     <label>Private note (only you)<textarea name="private_note" maxlength="10000">${esc(a.private_note || '')}</textarea></label>
     <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
@@ -457,11 +455,13 @@ function editActivity(a) {
       if (k) { body2.sport = k.sp; body2.sport_label = k.lb || ''; }
       if (f.name.value !== a.name) body2.name = f.name.value;   // left alone, a name nobody typed follows the kind ("Lunch Yoga")
       if (f.gear.value) body2.gear_id = +f.gear.value; else body2.clear_gear = true;
+      body2.restore_summary=[];
+      for(const [key,label,,scale] of summaryFields){if(f.elements['restore_'+key]?.checked){body2.restore_summary.push(key);continue}const value=f.elements['summary_'+key].value.trim();if(value===initial[key])continue;const number=value===''?null:Number(value.replace(',','.'))*scale;if(number!==null&&!Number.isFinite(number)){toast('Enter a valid '+label.toLowerCase());return}body2[key]=number}
       const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'Saving…';
       try {
         await api(`/api/activities/${a.id}`, json('PATCH', body2));
         if (saveShare) await saveShare();
-        invalidate('/api/activities'); invalidate('/api/stats'); close(); toast('Saved'); render();
+        invalidate('/api/'); close(); toast('Saved'); render();
       } catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Save'; }
     };
     $('#e-del', body).onclick = async () => {
@@ -1020,7 +1020,7 @@ route(/^\/me$/, 'me', async (el) => {
   // 2026-10-11 redesign: a settings-style list, each row with a coloured icon; the long forms open in sheets
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<div class="profile"><button type="button" class="av-edit" id="m-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'lg')}<span class="av-cam">${svg('camera')}</span></button><div><a href="${profileHref(me)}" aria-label="View my profile"><h1>${esc(me.name)}</h1></a><div class="sub">@${esc(me.login)}${me.is_admin ? ' · admin' : ''}</div></div></div>
+  el.innerHTML = `<div class="profile"><button type="button" class="av-edit" id="m-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'lg')}<span class="av-cam">${svg('camera')}</span></button><div><a href="${profileHref(me)}" aria-label="View my profile"><h1>${esc(me.name)}</h1></a><div class="sub">@${esc(me.login)}</div></div></div>
     <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
@@ -1043,8 +1043,8 @@ route(/^\/me$/, 'me', async (el) => {
     <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
-      ${me.is_admin ? row('a', 'href="/me/people"', 'people', 'c-ink', 'People', 'Invite, reset, remove') : ''}</div>
-    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Optional training notes and food estimates. AI consent is separate from access.</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? '<a class="ghost wide" href="/me/kit">Ask Kit</a>' : ''}
+      </div>
+    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Optional training notes and food estimates. AI consent is separate from access.</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
@@ -1142,7 +1142,7 @@ function deleteSheet() {
   sheet('Delete my account', `<form class="form" id="del">
     <input name="username" value="${esc(App.me.login)}" autocomplete="username" hidden>
     <p>This deletes your account and <b>everything</b> in it straight away: activities, routes, food log, weigh-ins, plans and the files you uploaded. It can't be undone.</p>
-    <p class="small muted">Want a copy first? Use Download my data. Copies in the server's backups are deleted as the backups rotate out, within 30 days.</p>
+    <p class="small muted">Want a copy first? Use Download my data. Deleted information can remain in older backups until those copies are removed. See the privacy policy for retention details.</p>
     <label>Your password<input name="pw" type="password" autocomplete="current-password" required></label>
     <div class="actions"><button class="primary danger-btn">Delete everything</button></div></form>`, (b, close) => {
     const f = $('#del', b); f.pw.focus();
@@ -1175,143 +1175,9 @@ function passwordSheet() {
   });
 }
 route(/^\/me\/people$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>People</h1>
-    <div id="p-reports"></div><div id="p-beta"></div>
-    <div class="card"><h2>Invite someone</h2><form class="form" id="p-inv">
-      <label>Who is it for? (optional)<input name="note" maxlength="60" autocomplete="off" placeholder="e.g. Sam"></label>
-      <p class="small muted">You get a link to send by text or email. They open it, pick their own username and password, and they're in. Each link works once, for 7 days.</p>
-      <div class="actions"><button class="primary">Create invite link</button></div></form>
-      <div id="p-link"></div><div id="p-open"></div></div>
-    <div id="p-list">${skel(1)}</div>
-    <div class="card"><details><summary>Or add someone with a password</summary><form class="form" id="p-add">
-      <div class="two"><label>Name<input name="name" maxlength="60" autocomplete="off" required></label>
-      <label>Username<input name="login" maxlength="30" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" required></label></div>
-      <label>First password<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
-      <p class="small muted">Give them this password; they can change it under Me &gt; Account. Each person's activities and food are private to them in the app.</p>
-      <div class="actions"><button class="primary">Add person</button></div></form></details></div>`;
-  wireBack(el, '/me');
-  const draw = (rows) => {
-    const box = $('#p-list', el); if (!box) return;
-    const can = (p) => !p.is_admin && p.login !== App.me.login;
-    box.innerHTML = `<div class="card"><h2>On this Kinetta</h2>${rows.map((p) => `<${can(p) ? `button class="row-link" data-person="${esc(p.login)}"` : 'div class="row"'}><span><b>${esc(p.name)}</b><br><small class="muted">${esc(p.login)}${p.is_admin ? ' · admin' : ''}</small></span>
-      <span class="val small muted">${p.has_password ? 'Since ' + esc(fdate(p.created, {month: 'short', year: 'numeric'})) : 'No password yet'}${can(p) ? `<span class="chev">${svg('chev')}</span>` : ''}</span></${can(p) ? 'button' : 'div'}>`).join('')}</div>`;
-    $$('[data-person]', box).forEach((b) => b.onclick = () => personSheet(rows.find((p) => p.login === b.dataset.person), async () => { App.cache.delete('/api/people'); draw(await api('/api/people')); }));
-  };
-  const drawOpen = (rows) => {
-    const box = $('#p-open', el); if (!box) return;
-    box.innerHTML = rows.length ? `<h3 class="ghead">Waiting to be used</h3>${rows.map((r) => `<div class="row"><span>${esc(r.note || 'Invite link')}<br><small class="muted">Until ${esc(fdate(r.expires, {month: 'short', day: 'numeric'}))}</small></span>
-      <button class="ghost" data-cancel="${r.id}">Cancel</button></div>`).join('')}` : '';
-    $$('[data-cancel]', box).forEach((b) => b.onclick = async () => {
-      b.disabled = true;
-      try { await api('/api/invites/' + b.dataset.cancel, {method: 'DELETE'}); toast('Invite cancelled - that link no longer works'); drawOpen(await api('/api/invites')); $('#p-link', el).innerHTML = ''; }
-      catch (x) { toast(x.message); b.disabled = false; }
-    });
-  };
-  const fi = $('#p-inv', el);
-  fi.onsubmit = async (e) => {
-    e.preventDefault(); const btn = $('button.primary', fi); btn.disabled = true;
-    try {
-      const r = await api('/api/invites', json('POST', {note: fi.note.value}));
-      const url = r.url || location.origin + r.path, who = fi.note.value.trim();
-      $('#p-link', el).innerHTML = `<div class="callout invite"><div><p class="small">Send this link${who ? ' to ' + esc(who) : ''}. It works once, until ${esc(fdate(r.expires, {month: 'short', day: 'numeric'}))}.</p>
-        <input class="linkbox" id="p-url" readonly value="${esc(url)}" aria-label="Invite link">
-        <div class="btnrow${navigator.share ? '' : ' one'}"><button class="primary" id="p-copy">Copy link</button>${navigator.share ? '<button class="ghost" id="p-share">Share…</button>' : ''}</div></div></div>`;
-      const box = $('#p-url', el);
-      $('#p-copy', el).onclick = async () => {
-        try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (x) { box.focus(); box.select(); toast('Select the link and copy it'); }
-      };
-      if (navigator.share) $('#p-share', el).onclick = () => navigator.share({title: 'Join me on Kinetta', text: 'Here is your invite to Kinetta:', url}).catch(() => {});
-      fi.reset(); drawOpen(await api('/api/invites'));
-    } catch (x) { toast(x.message); }
-    btn.disabled = false;
-  };
-  const PHONE = {iphone: 'iPhone', android: 'Android', other: 'Other phone'};
-  const drawBeta = (rows) => {   // waitlist from the public "Join the beta" page: invite or dismiss each request
-    const box = $('#p-beta', el); if (!box) return;
-    box.innerHTML = rows.length ? `<div class="card beta-req"><h2>Beta requests <span class="muted">${rows.length}</span></h2>${rows.map((r) => `<div class="row" data-req="${r.id}"><div class="who">
-      <b>${esc(r.name)}</b> <small class="muted">${esc(PHONE[r.phone] || r.phone)}${r.watch ? ' · ' + esc(r.watch) : ''} · ${esc(fdate(r.created, {month: 'short', day: 'numeric'}))}</small><br>
-      <small>${esc(r.email)}</small>${r.note ? `<p class="small muted">${esc(r.note)}</p>` : ''}
-      <div class="btnrow"><button class="primary" data-binv="${r.id}">Invite</button><button class="ghost" data-bdis="${r.id}">Dismiss</button></div></div></div>`).join('')}</div>` : '';
-    $$('[data-bdis]', box).forEach((b) => b.onclick = async () => {
-      b.disabled = true;
-      try { await api(`/api/beta-requests/${b.dataset.bdis}/dismiss`, {method: 'POST'}); drawBeta(await api('/api/beta-requests')); }
-      catch (x) { toast(x.message); b.disabled = false; }
-    });
-    $$('[data-binv]', box).forEach((b) => b.onclick = async () => {
-      b.disabled = true;
-      const r = rows.find((x) => String(x.id) === b.dataset.binv);
-      try {
-        const inv = await api(`/api/beta-requests/${r.id}/invite`, {method: 'POST'});
-        const url = inv.url || location.origin + inv.path, first = r.name.trim().split(/\s+/)[0];
-        const body = `Hi ${first},\n\nYou're in! Here's your invite to the Kinetta beta. Open this link on your phone, pick a username and password, and you're set:\n\n${url}\n\nThe link works once, for 7 days. Once you're in, Today shows how to get started: connect your watch (Me > Watch connections) so your workouts arrive on their own, and add Kinetta to your Home Screen so it opens like an app.\n\nThanks for testing!`;
-        const mail = `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent('Your Kinetta beta invite')}&body=${encodeURIComponent(body)}`;
-        $(`[data-req="${r.id}"]`, box).innerHTML = `<div class="who"><b>${esc(r.name)}</b> <small class="muted">invited</small>
-          <p class="small">Send this to ${esc(r.email)}. It works once, until ${esc(fdate(inv.expires, {month: 'short', day: 'numeric'}))}.</p>
-          <input class="linkbox" readonly value="${esc(url)}" aria-label="Invite link">
-          <div class="btnrow"><a class="primary" href="${esc(mail)}">Email invite</a><button class="ghost" data-bcopy>Copy link</button></div></div>`;
-        const lb = $(`[data-req="${r.id}"] .linkbox`, box);
-        $(`[data-req="${r.id}"] [data-bcopy]`, box).onclick = async () => {
-          try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (x) { lb.focus(); lb.select(); toast('Select the link and copy it'); }
-        };
-        load('/api/invites', drawOpen, {maxAge: 0}).catch(() => {});
-      } catch (x) { toast(x.message); b.disabled = false; }
-    });
-  };
-  // reports from Report or block (social.js): take the thing down, or close the report and leave it
-  const WHY = {spam: 'Spam', abuse: 'Harassment or abuse', inappropriate: 'Inappropriate', other: 'Something else'};
-  const drawReports = (rows) => {
-    const box = $('#p-reports', el); if (!box) return;
-    box.innerHTML = rows.length ? `<div class="card beta-req"><h2>Reports <span class="muted">${rows.length}</span></h2>${rows.map((r) => `<div class="row"><div class="who">
-      ${r.photo && !r.activity_id && !r.comment_id ? avatar(r) : ''}<b>${esc(r.name)}</b> <small class="muted">@${esc(r.login)} · ${esc(WHY[r.reason] || r.reason)} · ${esc(fdate(r.created, {month: 'short', day: 'numeric'}))}${r.reporter ? ' · from ' + esc(r.reporter) : ''}</small>
-      <p class="small">${esc(r.what)}</p>${r.note ? `<p class="small muted">${esc(r.note)}</p>` : ''}
-      <div class="btnrow">${r.comment_id || r.activity_id || r.photo ? `<button class="primary" data-rrm="${r.id}">${r.comment_id ? 'Delete comment' : r.activity_id ? 'Make it private' : 'Remove profile photo'}</button>` : ''}<button class="ghost" data-rok="${r.id}">Close, leave it</button></div>
-      </div></div>`).join('')}<p class="small muted">To remove someone completely, tap them in the list below and choose Remove person.</p></div>` : '';
-    $$('[data-rrm], [data-rok]', box).forEach((b) => b.onclick = async () => {
-      b.disabled = true;
-      try { await api(`/api/reports/${b.dataset.rrm || b.dataset.rok}/done${b.dataset.rrm ? '?remove=true' : ''}`, json('POST', {})); drawReports(await api('/api/reports')); }
-      catch (x) { toast(x.message); b.disabled = false; }
-    });
-  };
-  if (App.me.is_admin) load('/api/reports', drawReports, {maxAge: 0}).catch(() => {});
-  if (App.me.is_admin) load('/api/beta-requests', drawBeta, {maxAge: 0}).catch(() => {});
-  load('/api/invites', drawOpen, {maxAge: 0}).catch(() => {});
-  await load('/api/people', draw);
-  const f = $('#p-add', el);
-  f.onsubmit = async (e) => {
-    e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
-    try {
-      const r = await api('/api/people', json('POST', {name: f.name.value, login: f.login.value, password: f.password.value}));
-      toast(`Added ${r.login}`); f.reset(); App.cache.delete('/api/people'); draw(await api('/api/people'));
-    } catch (x) { toast(x.message); }
-    btn.disabled = false;
-  };
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Administration moved</h1><p>Use the separate browser portal at /admin. Your personal settings stay here in Me.</p>`;
 });
-
 // admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
-function personSheet(p, after) {
-  sheet(p.name, `<form class="form" id="ps-pw"><h3 class="ghead">Set a new password</h3>
-      <label>New password<input name="pw" type="password" autocomplete="new-password" minlength="10" required></label>
-      <p class="small muted">For a forgotten password. They're logged out everywhere and use this one next time (they can change it under Me &gt; Account).</p>
-      <div class="actions"><button class="primary">Set password</button></div></form>
-    <form class="form danger-zone" id="ps-rm"><h3 class="ghead">Remove ${esc(p.name)}</h3>
-      <p class="small">Deletes their account and <b>all</b> their activities, food log, weights and plans. This can't be undone in the app (only from the nightly server backup).</p>
-      <label>Type <b>${esc(p.login)}</b> to confirm<input name="confirm" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off"></label>
-      <div class="actions"><button class="ghost danger" disabled>Remove person</button></div></form>`, (b, close) => {
-    const f1 = $('#ps-pw', b), f2 = $('#ps-rm', b), rm = $('button', f2);
-    f1.onsubmit = async (e) => {
-      e.preventDefault(); const btn = $('button', f1); btn.disabled = true;
-      try { await api(`/api/people/${encodeURIComponent(p.login)}/password`, json('POST', {password: f1.pw.value})); close(); toast(`New password set for ${p.name}`); }
-      catch (x) { toast(x.message); btn.disabled = false; }
-    };
-    f2.confirm.oninput = () => { rm.disabled = f2.confirm.value.trim().toLowerCase() !== p.login.toLowerCase(); };
-    f2.onsubmit = async (e) => {
-      e.preventDefault(); if (rm.disabled) return; rm.disabled = true;
-      try { await api(`/api/people/${encodeURIComponent(p.login)}/remove`, json('POST', {confirm: f2.confirm.value})); close(); toast(`Removed ${p.name}`); after(); }
-      catch (x) { toast(x.message); rm.disabled = false; }
-    };
-  });
-}
-
 route(/^\/me\/import$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Upload activities</h1><p class="muted">FIT, GPX or TCX files (also .gz), or your whole Strava export .zip. Duplicates are skipped automatically.</p>
     <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
@@ -1556,5 +1422,26 @@ function editProfileSheet() {
         close(); toast('Profile saved'); render();
       } catch (x) { $('.err', f).textContent = x.message; button.disabled = false; }
     };
+  });
+}
+
+function activityKit(activity) {
+  const account = App.me.login;
+  sheet('Kit · ' + activity.name, '<div id="activity-kit"></div>', (root) => {
+    const box = $('#activity-kit', root);
+    const draw = () => {
+      box.innerHTML = (activity.ai_note ? `<p>${esc(activity.ai_note)}</p>` : '<p>Ask for a note about this workout using your own training history.</p>')
+        + (aiCan('coach') ? '<button class="primary wide" id="activity-kit-generate">'+(activity.ai_note ? 'Ask again' : 'Ask Kit')+'</button>' : '<p class="small muted">New reviews are unavailable. Saved notes remain readable.</p>');
+      const button = $('#activity-kit-generate', box); if (!button) return;
+      button.onclick = async () => {
+        if (!App.me.ai_ok) { aiSheet(draw); return; }
+        button.disabled = true; button.textContent = 'Reading this workout…';
+        try {
+          const result = await api(`/api/activities/${activity.id}/coach`, json('POST', {}));
+          if (App.me?.login !== account || !box.isConnected) return;
+          activity.ai_note = result.note; invalidate(`/api/activities/${activity.id}`); draw();
+        } catch (e) { if (App.me?.login === account && box.isConnected) { draw(); aiError($('#activity-kit-generate', box), e.message); } }
+      };
+    }; draw();
   });
 }

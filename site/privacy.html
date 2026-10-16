@@ -42,98 +42,24 @@ main.policy { max-width: 800px; margin: 0 auto; padding: 0 20px 24px; line-heigh
     <a class="btn solid sm" href="https://login.kinetta.app/beta">Join the beta</a>
   </div>
 </header>
-<main id="main" class="policy">
-  <section class="pagehead" aria-labelledby="priv-h"><span class="eyebrow">Private by design</span><h1 id="priv-h">You choose <em>what to share.</em></h1></section>
-  <div class="privacy">
-        <div class="card"><h3>Not for sale</h3><p>No ads. No tracking. Never sold.</p></div>
-        <div class="card"><h3>Private per person</h3><p>Private by default. You choose which activities to share.</p></div>
-        <div class="card"><h3>AI is opt-in</h3><p>Off until you turn it on.</p></div>
-      </div>
-  <p class="honest">The hosted beta runs on a server operated by Ben Banks, who can access its database to maintain the service. For control of your own server, see <a href="self-host">self-hosting</a>.</p>
-
-  <h2 id="policy">Privacy policy</h2>
-  <p class="date">Last updated October 15, 2026</p>
-
-  <section class="short" aria-labelledby="short-h">
-    <h2 id="short-h">The short version</h2>
-    <ul>
-      <li>Your workouts, food log and health numbers are <strong>yours</strong>. Other Kinetta users see an activity only if you choose to share it, and your food log and health numbers are never shared.</li>
-      <li><strong>No ads, no tracking and no selling your data. Activity sharing is your choice.</strong></li>
-      <li>AI features send data to an AI service <strong>only if you turn them on</strong>.</li>
-      <li>You can <strong>download</strong> everything, or <strong>delete</strong> your account and all of it, from the app at any time.</li>
-    </ul>
-  </section>
-
-  <h2>Who this covers</h2>
-  <p>This policy covers the Kinetta beta at <strong>login.kinetta.app</strong> and this website, <strong>kinetta.app</strong>. Both are run by Ben Banks, an individual in North Carolina, USA ("we" below).</p>
-  <p>Kinetta can also be run by people on their own home server for personal use. If you use someone else's Kinetta, the person running it holds your data, and this policy doesn't apply to them.</p>
-
-  <h2>What we collect</h2>
-  <div class="tablewrap"><table>
-    <thead><tr><th scope="col">What</th><th scope="col">Examples</th><th scope="col">Why</th></tr></thead>
-    <tbody>
-      <tr><td>Beta request</td><td>Name, email, phone type, watch, your note</td><td>To decide on and send your invite</td></tr>
-      <tr><td>Account</td><td>Name, username, password (stored only in scrambled form), time zone, units</td><td>To let you log in and show things your way</td></tr>
-      <tr><td>Profile</td><td>Sex, birth year, height, weight, heart-rate settings, calorie and macro targets</td><td>Heart-rate zones, effort, calorie needs</td></tr>
-      <tr><td>Activities</td><td>GPS routes, distance, pace, heart rate, power, cadence, lifting sets (exercises, weights and reps), the original files from your watch or uploads</td><td>To show, analyze and compare your workouts</td></tr>
-      <tr><td>Food and health</td><td>Food log, saved meals, the meals you save (until you delete them), weigh-ins, goals, training plans, gear</td><td>Your food log, trends and plans</td></tr>
-      <tr><td>Photos</td><td>Your profile photo, if you add one, and photos you add to your activities. Each is saved again as a new picture, without the hidden details phones put in photo files (such as where it was taken)</td><td>Your profile photo is shown with your name; activity photos are shown to whoever you share the activity with</td></tr>
-      <tr><td>Friends and sharing</td><td>Your friends, who each activity is shared with, which details you share, cheers and comments</td><td>To show the activities you choose to share to the people you choose</td></tr>
-      <tr><td>Notifications</td><td>In-app notices about friend requests, cheers, comments, shared recipes and supported workout arrivals; if you enable iPhone alerts, the app’s device token</td><td>To show notices in Kinetta and deliver enabled alerts to the native iPhone app</td></tr>
-      <tr><td>Connections</td><td>Settings for services you link, such as intervals.icu or Health Auto Export</td><td>To bring in new activities automatically</td></tr>
-      <tr><td>Technical</td><td>Login sessions with the type of browser or phone; IP address and pages requested</td><td>Keeping you logged in, blocking password guessing, fixing problems</td></tr>
-    </tbody>
-  </table></div>
-  <p>Your location is collected only as part of the activities you record or upload. Kinetta doesn't track where you are otherwise. Food photos you use for estimates are sent to the AI service and are not stored.</p>
-
-  <h2>Apple Health</h2>
-  <p>If you use the Kinetta iPhone app and allow it, Kinetta <strong>reads</strong> your workouts from Apple Health, with their heart rate, routes, distance and active calories. It never writes anything to Apple Health. These workouts are sent to your Kinetta account and treated like your other activities: private by default, never used for advertising or sold, and shared with other users only when you choose to share an activity.</p>
-  <p>Kit, the AI coach, uses workouts from Apple Health only if you separately agree to that in the app (Me → Apple Health). You can change what Kinetta may read at any time in the iPhone's Settings → Health → Data Access &amp; Devices.</p>
-
-  <h2>Who else sees it</h2>
-  <ul>
-    <li><strong>Other Kinetta users:</strong> only what you choose to share. Every activity starts as <strong>Only me</strong>. You can share one with <strong>friends</strong> you have approved, or with <strong>everyone who has an account on this Kinetta</strong>, which during the beta includes people you don't know. You choose which details they see; heart rate and calories are off unless you turn them on. Shared maps leave out the start and end of the route (400 m by default, measured along the route), but the rest of the route, the date and the time are visible. Your food log, weight, health numbers, private notes and Kit’s notes are never shared. Other people with an account on this Kinetta can find you by your name or username when they search for friends, and see your name and username (nothing else) in the results. Your name and username are also shown to people you send a friend request to, and with the cheers and comments you post, which everyone who can see that activity can read.</li>
-    <li><strong>The person who runs the server</strong> (Ben Banks) can technically access its database, as with any service. We look at data only to keep the service working, fix a problem you report, or when the law requires it.</li>
-    <li><strong>Cloudflare</strong> carries all traffic to login.kinetta.app and encrypts it on the way.</li>
-    <li><strong>The AI service</strong> (currently Google's Gemini), <strong>only if you turn on AI features</strong>: the numbers of a workout and your recent training for Kit’s notes and weekly reviews, photos you choose for food estimates, and, when you ask for them, your last two weeks of food log (daily totals, targets, the foods you eat most and your weight trend) for a review of your eating, a meal's ingredients for feedback on a recipe, or what you type into a meal's ingredient box along with that meal's ingredients (only when it's a food Kinetta hasn't seen you use before). You can turn this off under Me at any time.</li>
-    <li><strong>Food databases</strong> (Open Food Facts and the USDA FoodData Central): the words you search for or barcodes you scan, and the product words when you add a packaged food to a meal ("a box of protein penne"), not who you are.</li>
-    <li><strong>Apple Push Notification service (APNs)</strong>, <strong>only if you turn on notifications in the native iPhone app</strong>: your app's device token and the short notification text, such as "Nice work! Morning Run saved" with distance and duration. Only the workout owner gets new-workout alerts. Browser push notifications are no longer supported.</li>
-    <li><strong>OpenStreetMap</strong> supplies the maps, so it sees which map area your phone loads.</li>
-    <li><strong>Services you connect yourself</strong>, such as intervals.icu or Health Auto Export, under their own policies.</li>
-  </ul>
-  <p>We don't sell your data, use it for advertising, or share it with anyone else, except when the law requires it.</p>
-
-  <h2>Where it's kept, and for how long</h2>
-  <ul>
-    <li>On a server in the United States, until you delete it.</li>
-    <li>Nightly database backups are stored locally, with the newest 14 database backup files retained by the nightly cleanup. These local copies are not separately encrypted. Extra copies made before updates may be kept longer. Deleted records can remain in backups until those copies are removed. Encrypted off-site backups are not active yet.</li>
-    <li>Server logs that include IP addresses are trimmed automatically and kept only briefly.</li>
-    <li>Beta requests are kept until we invite you or you ask us to remove them. Once you have an account, your request is deleted along with it.</li>
-  </ul>
-
-  <h2>Your choices</h2>
-  <ul>
-    <li><strong>Download your data:</strong> Me → Your data → Download my data gives you a zip with everything, including your original activity files.</li>
-    <li><strong>Delete your account:</strong> Me → Your data → Delete my account deletes your account and all its data straight away.</li>
-    <li><strong>AI features:</strong> Me → AI features, on or off at any time.</li>
-    <li><strong>Phone notifications:</strong> Me → Notifications, on or off for each device, and which kinds you get.</li>
-    <li><strong>Correct things:</strong> you can edit or delete any activity, food entry or weigh-in in the app.</li>
-  </ul>
-
-  <h2>Security</h2>
-  <p>Connections are encrypted (HTTPS). Passwords are stored only in scrambled form (Argon2). The database itself keeps each person's rows separate, repeated wrong passwords are blocked, and the server is reachable from the internet only through the Kinetta app. No system is perfectly secure; if something goes wrong that affects your data, we'll tell you.</p>
-
-  <h2>Health information</h2>
-  <p>Kinetta is a fitness and food tracker, not a medical service, and its numbers and AI notes aren't medical advice. We treat your health information as sensitive and use it only to run Kinetta for you.</p>
-
-  <h2>Children</h2>
-  <p>Kinetta isn't meant for anyone under 16, and we don't knowingly collect data from them.</p>
-
-  <h2>Changes</h2>
-  <p>If we change this policy, we'll update this page and the date at the top. For important changes, we'll tell you in the app first.</p>
-
-  <h2>Questions</h2>
-  <p>During the beta, ask the person who invited you, or use the app's account tools above. For questions about the software itself, open an issue on <a href="https://github.com/BenCBanks/kinetta/issues">GitHub</a>; please don't put personal details there.</p>
+<main id="main" class="policy"><h1>Privacy policy</h1><p>Last updated October 15, 2026</p><p>This policy explains how Kinetta collects, uses, shares and retains personal information, and the choices available to you.</p>
+<section aria-labelledby="policy-scope"><h2 id="policy-scope">About this policy</h2><p>This policy covers the Kinetta hosted beta at login.kinetta.app and the website at kinetta.app, operated by Ben Banks in North Carolina, United States. If you use a Kinetta installation operated by somebody else, ask that operator for their privacy information.</p></section>
+<section aria-labelledby="policy-collect"><h2 id="policy-collect">Information we collect</h2><p>We store the account details you provide, including your username, display name, password hash, optional photo and biography. We also store workouts and original activity files, GPS routes, recorded measurements, food entries, recipes, weight entries, goals, plans and settings that you add or import. Optional body details help calculate personal estimates. Beta requests include your name, email, device information and message.</p></section>
+<section aria-labelledby="policy-use"><h2 id="policy-use">How we use information</h2><p>We use this information to provide your account, record and display your activities and food, calculate summaries, operate features you choose, respond to requests and maintain the service. Technical records such as IP addresses, browser or device information, login sessions and errors help protect accounts and troubleshoot failures. We do not sell personal information or use health information for advertising.</p></section>
+<section aria-labelledby="policy-health"><h2 id="policy-health">Apple Health and location</h2><p>The iPhone app reads only the Apple Health categories you allow and sends the available records to your Kinetta account. It does not write to Apple Health. You can change access in the Health app’s settings. The recording source determines which measurements and routes are available. Kinetta receives location as part of recorded or imported activities; it does not continuously track your location. Permission to read Health records is separate from permission to use them for optional AI reviews.</p></section>
+<section aria-labelledby="policy-sharing"><h2 id="policy-sharing">Sharing with other members</h2><p>Activities start private. You may share an activity with approved friends or with everyone who has an account on the same Kinetta service. You choose which supported measurements are included. Shared maps remove the route’s start and end, but the remaining route, date and time may still identify places or routines. Photos are visible to the activity’s audience; we remove embedded photo metadata when processing uploads.</p></section>
+<section aria-labelledby="policy-identity"><h2 id="policy-identity">Profiles and shared content</h2><p>Other members may find your name and username through people search and see your public profile and permitted activity summaries. People who can see an activity can also see its cheers and comments. Your food log, weight, body settings and private notes are not shared with other members. Recipes you deliberately share, including recipe feedback shown with them, are visible to the approved recipients; sharing a recipe does not share your food log.</p></section>
+<section aria-labelledby="policy-providers"><h2 id="policy-providers">Service providers and connections</h2><p>Cloudflare processes network traffic to the hosted app. OpenStreetMap receives map-area requests from your device. USDA FoodData Central and Open Food Facts receive food-search words, product words or scanned barcodes, rather than your Kinetta account identity. Services you connect, such as intervals.icu or Health Auto Export, exchange information needed for the connection under their own policies. Disconnecting a source stops future imports through that connection; records already imported remain until you delete them.</p></section>
+<section aria-labelledby="policy-ai"><h2 id="policy-ai">Optional AI features</h2><p>If you enable an AI feature, the configured provider receives the information needed for that feature: selected food text or photos for estimates; workout measurements and relevant training history for training notes; food summaries and weight trends for nutrition reviews; or ingredients for recipe feedback. Kinetta supports Google’s Gemini and Anthropic’s Claude; the app identifies the configured provider. AI use is optional, and Apple Health workouts require your separate agreement before inclusion. You can change these choices in Me. Previously generated results remain stored until the associated records or account are deleted.</p></section>
+<section aria-labelledby="policy-provider-retention"><h2 id="policy-provider-retention">AI provider handling</h2><p>Food photos submitted for estimates are processed and are not kept by Kinetta as saved photos. The selected AI provider may retain requests and responses under its own terms. Data use and retention differ by provider, service tier and region; enabling an app setting does not change those terms. Review the <a href="https://ai.google.dev/gemini-api/terms">Gemini terms</a> or <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">Anthropic commercial privacy information</a> as applicable. Do not include information you do not want processed by the provider.</p></section>
+<section aria-labelledby="policy-notifications"><h2 id="policy-notifications">Notifications and administrative access</h2><p>If you enable iPhone alerts, Apple Push Notification service processes the app’s device token and notification text. New-workout alerts are sent only to the workout owner; other supported alerts follow your notification choices. Browser push is not supported. Administrators use account details, beta requests, response history and submitted moderation reports to operate the service. The service operator can technically access its database; access is limited to service operation, support, security and legal obligations.</p></section>
+<section aria-labelledby="policy-email"><h2 id="policy-email">Beta requests and email</h2><p>We use the contact information in a beta request to review eligibility, respond and provide invitations or installation instructions. When response email is configured, the email provider processes the recipient address and message, which may include a private account-invitation link. Replies go to the designated support mailbox. Request status, delivery outcomes and administrative actions may be recorded. We do not treat an email-provider receipt as proof that a person received or read a message.</p></section>
+<section aria-labelledby="policy-retention"><h2 id="policy-retention">Storage and retention</h2><p>The hosted beta stores account records in the United States until you remove them or delete your account. Beta requests and related response history are kept for administration until removed; requests linked to a joined account are removed when that account is deleted. Operational logs rotate using size limits, rather than a guaranteed number of days. Service providers apply their own retention terms.</p></section>
+<section aria-labelledby="policy-backups"><h2 id="policy-backups">Backups</h2><p>The hosted beta keeps the newest 14 scheduled local database backup files. These local copies are not separately encrypted. Additional copies made before updates may be retained longer; encrypted off-site backups are not currently active. Deleted information may remain in a backup until that copy is removed. Deleting live records does not immediately erase older backups.</p></section>
+<section aria-labelledby="policy-choices"><h2 id="policy-choices">Your choices</h2><p>Use Me to change personal details, AI choices, notification preferences and connected sources. You can edit or remove your activities, food entries and weigh-ins. Me → Your data lets you download your records and original activity files, or delete your account after confirming your password. Account deletion removes live account records and uploaded files and revokes account access. Backup copies follow the retention described above. Contact the beta organizer if you cannot access your account or need help with a privacy request.</p></section>
+<section aria-labelledby="policy-security"><h2 id="policy-security">Security</h2><p>We use encrypted connections, password hashing, account-based access controls and restrictions on administrative access. No service can guarantee complete security. If an incident affects personal information, we will assess it and provide notices required by applicable law. Kinetta is a fitness and food tracker; its measurements, estimates and reviews are not medical advice.</p></section>
+<section aria-labelledby="policy-age"><h2 id="policy-age">Age requirements</h2><p>Kinetta is not intended for children under 16, and we do not knowingly collect their information. Optional third-party services may impose additional eligibility restrictions. Contact the beta organizer if you believe a child has provided information that should be removed.</p></section>
+<section aria-labelledby="policy-contact"><h2 id="policy-contact">Contact and changes</h2><p>During the invitation-only beta, send privacy questions or requests to the person who invited you through the contact channel used for your invitation. A dedicated public support address will be listed here when available. Do not put personal records, passwords or private requests in public GitHub issues. We update the date on this page when this policy changes and will notify affected users of material changes as appropriate.</p></section>
 </main>
 <footer>
   <div class="wrap">

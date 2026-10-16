@@ -49,4 +49,6 @@ docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/native_push_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/ai_access_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_chat_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_photo_batches_corrections.py
 echo "== all passed"

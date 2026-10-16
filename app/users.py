@@ -34,6 +34,8 @@ def main(a):
             pw = ask(f'New app password for {a[1]}: ')
             c.execute('UPDATE users SET pw_hash = %s WHERE login = %s', (auth.hash_pw(pw), a[1]))
             c.execute('DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE login = %s)', (a[1],))
+            c.execute('DELETE FROM admin_sessions WHERE user_id=(SELECT id FROM users WHERE login=%s)',(a[1],))
+            c.execute('DELETE FROM admin_challenges WHERE user_id=(SELECT id FROM users WHERE login=%s)',(a[1],))
             print('password set (other logins for this person were signed out)')
         elif a[0] == 'sql-login' and len(a) in (2, 3) and a[2:] in ([], ['--all-people']):
             u = c.execute('SELECT id, login::text AS login, is_admin FROM users WHERE login = %s', (a[1],)).fetchone()

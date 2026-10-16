@@ -170,6 +170,7 @@ def delete_account(body: DeleteIn, request: Request, response: Response, user=De
     ip = auth.client_ip(request)
     if auth.too_many(ip, user['login']): raise HTTPException(429, 'Too many tries - wait 15 minutes')
     with db.connect() as c:
+        c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
         me = c.execute('SELECT id, login::text AS login, is_admin, sql_role, pw_hash FROM users WHERE id = %s', (user['id'],)).fetchone()
         if not auth.check_pw(me['pw_hash'], body.password):
             auth.failed(ip, user['login'])

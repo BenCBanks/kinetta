@@ -60,7 +60,7 @@ Kinetta makes up its own database passwords on the first start; there is nothing
 and to add Kinetta to the home screen. **[docs/connect.md](docs/connect.md)** walks you through the easy options
 (Tailscale for a family, a free Cloudflare Tunnel for a public address, or your own domain).
 
-**Then: invite your people.** Me → Account → People → *Create invite link*, and text them the link.
+**Then: invite your people.** Open `/admin` in a browser, sign in with your administrator password and authenticator code, and create an invitation. The first sign-in guides you through authenticator setup. See [the admin portal guide](docs/admin-portal.md).
 
 ### Settings (optional)
 

@@ -48,7 +48,23 @@ SCHEMA = {
 
 class PhotoIn(BaseModel):
     image: str | None = Field(None, max_length=6_000_000)    # base64 JPEG (data: URL prefix allowed)
-    note: str | None = Field(None, max_length=1500)        # the person's words; several lines = a short chat (Describe or snap)
+    images: list[str] = Field(default_factory=list, max_length=6)
+    note: str | None = Field(None, max_length=2000)        # the person's words; several lines = a short chat (Describe or snap)
+
+
+def image_batch(image, images):
+    if image and images: raise HTTPException(400, 'Use image or images, not both')
+    values = images or ([image] if image else [])
+    if len(values)>6: raise HTTPException(400, 'Choose up to 6 photos')
+    result=[]
+    for value in values:
+        if len(value)>6_000_000: raise HTTPException(400, 'Send JPEG photos under 4 MB each')
+        try: img=base64.b64decode(value.split(',',1)[-1],validate=True)
+        except (binascii.Error,ValueError): raise HTTPException(400, "A photo couldn't be read")
+        if not img.startswith(b'\xff\xd8') or len(img)>4_000_000: raise HTTPException(400, 'Send JPEG photos under 4 MB each')
+        if img not in result: result.append(img)
+    if sum(map(len,result))>8_000_000: raise HTTPException(400, 'Choose photos totaling under 8 MB after compression')
+    return result
 
 
 def _num(v, hi):
@@ -117,21 +133,17 @@ def photo(body: PhotoIn, user=Depends(current_user)):
     key = os.environ.get('GEMINI_API_KEY')
     if not key: raise HTTPException(503, 'Photo logging needs a Gemini key on the server')
     note = (body.note or '').strip()
-    img = None
-    if body.image:
-        try: img = base64.b64decode(body.image.split(',', 1)[-1], validate=True)
-        except (binascii.Error, ValueError): raise HTTPException(400, "That photo couldn't be read")
-        if not img.startswith(b'\xff\xd8') or len(img) > 4_000_000: raise HTTPException(400, 'Send a JPEG photo under 4 MB')
-    if not img and not note: raise HTTPException(400, 'Add a photo or a description')
+    imgs = image_batch(body.image, body.images)
+    if not imgs and not note: raise HTTPException(400, 'Add photos or a description')
     brake(user['id'])
 
-    what = ('Look at the photo.' if img else 'There is no photo; use the description.') + \
+    what = ('Look at all the photos together. Different views of the same food are one portion, not additional servings. Include distinct foods once each.' if imgs else 'There is no photo; use the description.') + \
            (f' The person describes the meal as: """{note}""". Trust their description for what the foods are, how they were '
             f'cooked and how much; use the photo for anything they did not mention.' if note else '') + \
            (' The description is several messages in order: later ones correct or add to earlier ones (e.g. "make it two" '
             'means two of the item just discussed), so list the meal as it stands after the last message.' if '\n' in note else '')
     parts = [{'text': PROMPT.format(what=what)}]
-    if img: parts.append({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}})
+    parts.extend({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs)
     out, data, model = ask(parts, SCHEMA, 'food photo')
     items = []
     for it in (out.get('items') or [])[:30]:
@@ -168,7 +180,8 @@ LABEL_SCHEMA = {
 
 
 class LabelIn(BaseModel):
-    image: str = Field(max_length=6_000_000)      # base64 JPEG (data: URL prefix allowed)
+    image: str | None = Field(None, max_length=6_000_000)
+    images: list[str] = Field(default_factory=list, max_length=6)      # base64 JPEG (data: URL prefix allowed)
 
 
 @router.post('/label')
@@ -177,11 +190,11 @@ def label(body: LabelIn, user=Depends(current_user)):
     ai_access.require(user['id'], 'food')
     if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.OFF)
     if not os.environ.get('GEMINI_API_KEY'): raise HTTPException(503, 'Reading labels needs a Gemini key on the server')
-    try: img = base64.b64decode(body.image.split(',', 1)[-1], validate=True)
-    except (binascii.Error, ValueError): raise HTTPException(400, "That photo couldn't be read")
-    if not img.startswith(b'\xff\xd8') or len(img) > 4_000_000: raise HTTPException(400, 'Send a JPEG photo under 4 MB')
+    imgs = image_batch(body.image, body.images)
+    if not imgs: raise HTTPException(400, 'Add photos of one ingredient or package')
     brake(user['id'])
-    out, _, model = ask([{'text': LABEL_PROMPT}, {'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}}],
+    prompt = LABEL_PROMPT + '\nThese photos show one ingredient/package from several angles. Combine the front and nutrition panel; never multiply servings by the number of photos. If they show different products, set readable=false and ask for one product at a time.'
+    out, _, model = ask([{'text': prompt}] + [{'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs],
                         LABEL_SCHEMA, 'food label')
     print(f"food label: user {user['id']} model {model} readable {out.get('readable')}", flush=True)
     if not out.get('readable'):
