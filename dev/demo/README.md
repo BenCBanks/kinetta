@@ -20,7 +20,8 @@ Route shapes in `routes.json` come from OpenStreetMap routing: © OpenStreetMap 
 [Open Database License](https://www.openstreetmap.org/copyright).
 
 `photos/` holds three photos of Freedom Park and the Little Sugar Creek Greenway (where the demo routes run), from
-Wikimedia Commons, used as activity photos in the screenshots (`dev/screenshots/stage.py` adds them). They keep their own
+Wikimedia Commons, used as activity photos in the screenshots (`dev/screenshots/stage.py` adds them), and one meal photo
+that the website's Food example uses as a snapped food photo (`dev/screenshots/take.js`). They keep their own
 licenses, not Kinetta's:
 
 | File | Photo | By | License |
@@ -28,5 +29,6 @@ licenses, not Kinetta's:
 | `freedom-park-lake.jpg` | [Freedom Park, Charlotte](https://commons.wikimedia.org/wiki/File:Freedom_Park,_Charlotte_-_panoramio.jpg) | James Willamor | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
 | `freedom-park-bridge.jpg` | [Freedom Park, Charlotte](https://commons.wikimedia.org/wiki/File:Freedom_Park,_Charlotte_-_panoramio_-_James_Willamor.jpg) | James Willamor | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
 | `sugar-creek-greenway.jpg` | [Little Sugar Creek Greenway near 18th St](https://commons.wikimedia.org/wiki/File:Little_Sugar_Creek_Greenway_near_18th_St_Late_March_2024.jpg) | City Dweller 2 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
+| `curry-rice-bowl.jpg` | [Butter chicken rice bowl](https://commons.wikimedia.org/wiki/File:Butter_chicken_rice_bowl_-_chaiiwala_2024-02-10.jpg) | Andy Li | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 
-All three are the 960 px wide versions Commons serves, otherwise unchanged.
+The three park photos are the 960 px wide versions Commons serves and the meal photo the 1280 px version, otherwise unchanged.

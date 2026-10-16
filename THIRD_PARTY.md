@@ -9,8 +9,8 @@
 | [capacitor-health](https://github.com/mley/capacitor-health): Apple Health in the iPhone app | `mobile/` (installed by npm) | MIT, © 2024 Martin Ley |
 | [Pillow](https://python-pillow.github.io) 11: re-saving photos (profile and activity photos) without their hidden details | installed by pip (`requirements.txt`) | MIT-CMU (HPND), © Jeffrey A. Clark and contributors, © Secret Labs AB, © Fredrik Lundh |
 
-Demo photos in `dev/demo/photos` (and the homepage screenshots showing them) are by James Willamor (CC BY-SA 3.0) and
-City Dweller 2 (CC BY-SA 4.0), from Wikimedia Commons; see `dev/demo/README.md`.
+Demo photos in `dev/demo/photos` (and the homepage screenshots showing them) are by James Willamor (CC BY-SA 3.0),
+City Dweller 2 (CC BY-SA 4.0) and Andy Li (CC0 1.0, the meal photo), from Wikimedia Commons; see `dev/demo/README.md`.
 
 Map tiles are loaded from [OpenStreetMap](https://www.openstreetmap.org/copyright) (© OpenStreetMap contributors).
 Food data comes from [Open Food Facts](https://world.openfoodfacts.org) (ODbL) and [USDA FoodData Central](https://fdc.nal.usda.gov) (public domain).
