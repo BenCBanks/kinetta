@@ -30,17 +30,17 @@ ck(c.post('/api/reports', {'login': 'zz_test_blk_b', 'activity_id': e, 'reason':
 ck(c.post('/api/reports', {'login': 'zz_test_blk_a', 'activity_id': e, 'reason': 'nope'})[0] == 422, 'unknown reason: 422')
 ck(c.post('/api/reports', {'login': 'zz_test_blk_c', 'reason': 'spam'})[0] == 400, 'not yourself')
 s, r = c.post('/api/reports', {'login': 'zz_test_blk_a', 'activity_id': e, 'reason': 'inappropriate'}); ck(s == 200, 'report activity'); rep_a = r['id']
-ck(c.get('/api/reports')[0] == 403, 'reports list: admins only')
-s, rows = admin.get('/api/reports'); mine = {x['id']: x for x in rows}
+ck(c.get('/api/admin/reports')[0] == 403, 'reports list: admins only')
+s, rows = admin.get('/api/admin/reports'); mine = {x['id']: x for x in rows}
 ck(rep_c in mine and 'zz test comment' in mine[rep_c]['what'] and mine[rep_c]['login'] == 'zz_test_blk_b', f'admin sees the comment report {rows}')
 ck(any(x['kind'] == 'report' and x['who']['login'] == 'zz_test_blk_c' for x in admin.get('/api/notifications')[1]['items']), 'admin notified')
-ck(c.post(f'/api/reports/{rep_c}/done?remove=true')[0] == 403, 'closing: admins only')
-ck(admin.post(f'/api/reports/{rep_c}/done?remove=true')[0] == 200, 'admin removes the comment')
+ck(c.post(f'/api/admin/reports/{rep_c}/done?remove=true')[0] == 403, 'closing: admins only')
+ck(admin.post(f'/api/admin/reports/{rep_c}/done?remove=true')[0] == 200, 'admin removes the comment')
 ck(all(x['id'] != cid for x in c.get(f'/api/shared/{e}')[1]['social']['comments']), 'comment gone')
-ck(admin.post(f'/api/reports/{rep_a}/done?remove=true')[0] == 200, 'admin makes the activity private')
+ck(admin.post(f'/api/admin/reports/{rep_a}/done?remove=true')[0] == 200, 'admin makes the activity private')
 ck(c.get(f'/api/shared/{e}')[0] == 404, 'activity now private')
 a.put(f'/api/activities/{e}/sharing', {'visibility': 'everyone'})
-ck(rep_c not in {x['id'] for x in admin.get('/api/reports')[1]}, 'closed reports leave the list')
+ck(rep_c not in {x['id'] for x in admin.get('/api/admin/reports')[1]}, 'closed reports leave the list')
 
 # blocking: b blocks a
 s, soc = b.post(f'/api/activities/{e}/comments', {'text': 'zz second comment'})
@@ -65,6 +65,6 @@ ck(b.get(f'/api/shared/{e}')[0] == 200 and a.get(f"/api/shared/{s2['id']}")[0] =
 
 # tidy up: activities, friendships and reports go with the accounts' own deletion elsewhere; here just the activities
 for x, i in ((a, e), (a, f), (b, s2['id'])): x.delete(f'/api/activities/{i}')
-for x in admin.get('/api/reports')[1]:
-    if x['login'].startswith('zz_test_blk'): admin.post(f"/api/reports/{x['id']}/done")
+for x in admin.get('/api/admin/reports')[1]:
+    if x['login'].startswith('zz_test_blk'): admin.post(f"/api/admin/reports/{x['id']}/done")
 print(f'block and report: {n} checks passed')

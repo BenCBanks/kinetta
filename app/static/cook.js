@@ -46,7 +46,7 @@ function drawDish(el, d) {
   const shared = mine ? d.shared_with || [] : [];
   const bySv = d.serving === 'one';
   const sums = has ? `<p class="dish-sum num"><b>${r0(t.kcal)} kcal</b> · ${MACROS.map(([k, nm]) => `${r0(t[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
+  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${(mine && aiCan('coach') && has) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
     ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
     ${sums}
@@ -57,20 +57,20 @@ function drawDish(el, d) {
         : `<form class="m-row" id="dk-weigh"><label class="m-lab" for="dk-w">Total weight</label><span class="gfield"><input id="dk-w" name="g" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
           value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole meal in grams"><span>g</span></span></form>
           ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
-    ${(mine && aiCan('coach') && has) || d.review ? `<div class="card ai coach-card" id="dk-ai">${recipeReview(d, mine)}</div>` : ''}
     ${shared.length ? `<button class="card tap share-row" id="dk-share"><span class="avs">${shared.map((p) => avatar(p)).join('')}</span>
       <span class="grow"><b>Shared with ${esc(shared.map((p) => p.name.split(' ')[0]).join(', '))}</b><small class="muted">Tap to change</small></span>${svg('chev')}</button>` : ''}
     ${mine ? `${chatLog(d)}<div id="dk-match"></div>
       <form class="composer" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
         <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'Add an ingredient…' : 'Search for an ingredient…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="search" maxlength="600" required>
         <button class="icon-btn send" aria-label="Add">${svg('send')}</button></form>
-      <input type="file" accept="image/*" id="dk-label-file" hidden>`
+      <input type="file" accept="image/*" multiple id="dk-label-file" hidden>`
       : has ? `<div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
   wireBack(el, '/food');
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set)) : sharedMenu(d));
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
+  const kit = $('#dk-kit', el); if (kit) kit.onclick = () => recipeKit(d, mine, set);
   if (!mine) return;
   $('#dk-help', el).onclick = () => sheet('How recipes work', cookSteps(d));
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
@@ -100,13 +100,7 @@ function drawDish(el, d) {
     wf.onsubmit = (e) => { e.preventDefault(); wf.g.blur(); };
     const sum = $('#dk-sum', el); if (sum) sum.onclick = () => patch({cooked_g: null});
   }
-  const rb = $('#dk-review', el);
-  if (rb) rb.onclick = async () => {
-    if (!App.me.ai_ok) { aiSheet(() => rb.click()); return; }
-    rb.disabled = true; const was = rb.innerHTML; rb.textContent = 'Reading…';
-    try { const r = await api(`/api/dishes/${d.id}/review`, json('POST', {})); showCoach('recipe:' + d.id); set({...d, review: {...r, changed_since: false}}); }
-    catch (x) { rb.disabled = false; rb.innerHTML = was; aiError(rb, x.message); }
-  };
+
 }
 // + next to the message box: the other ways to add an ingredient
 function plusMenu(el, d, set) {
@@ -221,14 +215,17 @@ function labelButton(el, d, set) {
   if (!file) return;
   el._label = () => { if (App.me.coach && !App.me.ai_ok) aiSheet(() => file.click()); else file.click(); };    // from the + menu
   file.onchange = async () => {
-    const fl = file.files && file.files[0]; file.value = ''; if (!fl) return;
-    let photo; try { photo = await shrinkPhoto(fl, 1600); } catch (e) { toast("That photo couldn't be opened"); return; }
+    const owner=readOwner(),active=()=>el.isConnected&&readOwner()===owner;
+    const files=[...(file.files||[])];file.value='';
+    await reviewFoodPhotos(files,async photos=>{
+    if(!active())return;
     sheet('Nutrition label', `<div id="lb-box"><p class="small muted center">${svg('sparkle')} Reading the label…</p></div>`, async (b, close) => {
       const box = $('#lb-box', b);
       let L;
-      try { L = await api('/api/food/label', json('POST', {image: photo})); }
-      catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p><div class="actions"><button class="primary" id="lb-again">Try another photo</button></div>`;
+      try { L = await api('/api/food/label', json('POST', {images: photos})); }
+      catch (x) { if(!active()||!box.isConnected)return;box.innerHTML = `<p class="err">${esc(x.message)}</p><div class="actions"><button class="primary" id="lb-again">Try another photo</button></div>`;
         $('#lb-again', b).onclick = () => { close(); file.click(); }; return; }
+      if(!active()||!box.isConnected)return;
       const S = L.per_serving, pkg = L.package_g;
       box.innerHTML = `<form class="form" id="lb">
         <label>Name<input name="name" maxlength="200" value="${esc([L.brand, L.name].filter(Boolean).join(' '))}"></label>
@@ -246,7 +243,7 @@ function labelButton(el, d, set) {
       const all = $('#lb-all', b); if (all) all.onclick = () => { f.g.value = Math.round(pkg); f.n.value = ''; show(); };
       show();
       f.onsubmit = async (e) => {
-        e.preventDefault(); const g = num(f.g), name = f.name.value.trim() || L.name;
+        e.preventDefault();if(!active())return; const g = num(f.g), name = f.name.value.trim() || L.name;
         if (!(g > 0 && g < 20000)) { toast('How much went in, in grams?'); return; }
         const sb = $('button.primary', f); sb.disabled = true;
         try {
@@ -260,6 +257,7 @@ function labelButton(el, d, set) {
         } catch (x) { toast(x.message); sb.disabled = false; }
       };
     });
+    },{label:true,active});
   };
 }
 // remove an ingredient, with Undo (it goes back at the end of the list)
@@ -483,5 +481,25 @@ function dishMenu(d, set, search, known) {
       if (!confirm(`Delete ${d.name}?`)) return;
       try { await api(`/api/dishes/${d.id}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); toast('Meal deleted'); } catch (x) { toast(x.message); }
     };
+  });
+}
+
+function recipeKit(d, mine, set) {
+  const account = App.me.login;
+  sheet('Kit · ' + d.name, '<div id="recipe-kit"></div>', root => {
+    const box = $('#recipe-kit',root);
+    const draw = () => {
+      box.innerHTML = recipeReview(d, mine);
+      const button = $('#dk-review',box); if (!button) return;
+      button.onclick = async () => {
+        if (!App.me.ai_ok) { aiSheet(draw); return; }
+        button.disabled = true; button.textContent = 'Reading this recipe…';
+        try {
+          const result = await api(`/api/dishes/${d.id}/review`,json('POST',{}));
+          if (App.me?.login !== account || !box.isConnected) return;
+          d = {...d,review:{...result,changed_since:false}}; set(d); draw();
+        } catch (e) { if (App.me?.login === account && box.isConnected) { draw(); aiError($('#dk-review',box),e.message); } }
+      };
+    }; draw();
   });
 }

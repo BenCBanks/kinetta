@@ -8,6 +8,9 @@
 from zoneinfo import ZoneInfo
 import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
 
+sys.path.insert(0,str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+from portal_fixture import admin_headers, is_admin_path
+
 B = os.environ.get('KINETTA_URL', 'http://localhost:8798'); G = sys.argv[1]
 PW = 'demo friend password 1'
 
@@ -16,7 +19,7 @@ def person(login, pw):
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     def q(m, p, b=None):
         r = urllib.request.Request(B + p, data=json.dumps(b if b is not None else {}).encode() if m != 'GET' else None, method=m,
-                                   headers={'Origin': B, 'Content-Type': 'application/json'})
+                                   headers={'Origin': B, 'Content-Type': 'application/json', **(admin_headers(B) if login == 'alex' and is_admin_path(p) else {})})
         return json.loads(op.open(r).read() or b'null')
     q('POST', '/api/login', {'login': login, 'password': pw}); q.op = op
     return q
@@ -44,7 +47,7 @@ def later(gpx, minutes):   # the same made-up route, a little later in the day
 
 alex = person('alex', 'blue kettle morning run')
 for login, name in (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera')):
-    try: alex('POST', '/api/people', {'login': login, 'name': name, 'password': PW})
+    try: alex('POST', '/api/admin/people', {'login': login, 'name': name, 'password': PW})
     except urllib.error.HTTPError as e:
         if e.code != 409: raise
 jordan, sam = person('jordan', PW), person('sam', PW)

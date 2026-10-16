@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from . import db, auth
 from .auth import current_user
+from .admin_auth import admin_user
 from .api_account import _admin, create_invite, InviteIn
 
 router = APIRouter()
@@ -55,16 +56,14 @@ def beta_request(body: BetaIn, request: Request):
     return {'ok': True}
 
 
-@router.get('/api/beta-requests')
-def beta_list(user=Depends(current_user)):
+def beta_list(user=Depends(admin_user)):
     _admin(user)
     with db.connect() as c:
         return c.execute("""SELECT id, name, email, phone, watch, note, created FROM beta_requests
                             WHERE status = 'new' ORDER BY created""").fetchall()
 
 
-@router.post('/api/beta-requests/{rid}/invite')
-def beta_invite(rid: int, user=Depends(current_user)):
+def beta_invite(rid: int, user=Depends(admin_user)):
     _admin(user)
     with db.connect() as c:
         r = c.execute("SELECT name FROM beta_requests WHERE id = %s AND status = 'new'", (rid,)).fetchone()
@@ -75,8 +74,7 @@ def beta_invite(rid: int, user=Depends(current_user)):
     return inv
 
 
-@router.post('/api/beta-requests/{rid}/dismiss')
-def beta_dismiss(rid: int, user=Depends(current_user)):
+def beta_dismiss(rid: int, user=Depends(admin_user)):
     _admin(user)
     with db.connect() as c:
         c.execute("UPDATE beta_requests SET status = 'dismissed' WHERE id = %s AND status = 'new'", (rid,))

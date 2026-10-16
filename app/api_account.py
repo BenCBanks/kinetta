@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from psycopg import errors, sql
 from . import db, auth
 from .auth import current_user
+from .admin_auth import admin_user, audit
 
 router = APIRouter()
 DATA = os.environ.get('FIT_DATA', '/data')
@@ -71,6 +72,8 @@ def set_password(body: PasswordIn, request: Request, user=Depends(current_user))
             raise HTTPException(400, 'Current password is wrong')
         auth.check_new_password(body.new, user['login'])
         c.execute('UPDATE users SET pw_hash = %s WHERE id = %s', (auth.hash_pw(body.new), user['id']))
+        c.execute('DELETE FROM admin_sessions WHERE user_id=%s',(user['id'],))
+        c.execute('DELETE FROM admin_challenges WHERE user_id=%s',(user['id'],))
         # sign out everywhere else; this phone keeps its login
         c.execute('DELETE FROM sessions WHERE user_id = %s AND token_hash <> %s',
                   (user['id'], auth._h(auth.session_token(request) or '')))
@@ -81,8 +84,7 @@ def _admin(user):
     if not user.get('is_admin'): raise HTTPException(403, 'Only an admin can do that')
 
 
-@router.get('/api/people')
-def people(user=Depends(current_user)):
+def people(user=Depends(admin_user)):
     _admin(user)
     with db.connect() as c:
         return c.execute("""SELECT login::text AS login, name, created, is_admin, pw_hash IS NOT NULL AS has_password
@@ -95,8 +97,7 @@ class PersonIn(BaseModel):
     password: str = Field(min_length=8, max_length=200)
 
 
-@router.post('/api/people')
-def add_person(body: PersonIn, user=Depends(current_user)):
+def add_person(body: PersonIn, user=Depends(admin_user)):
     _admin(user)
     login, name = _clean_login(body.login), _clean_name(body.name)
     auth.check_new_password(body.password, login)
@@ -105,6 +106,7 @@ def add_person(body: PersonIn, user=Depends(current_user)):
             uid = c.execute('INSERT INTO users (login, name, pw_hash) VALUES (%s, %s, %s) RETURNING id',
                             (login, name, auth.hash_pw(body.password))).fetchone()['id']
             c.execute('INSERT INTO profile (user_id) VALUES (%s)', (uid,))
+            audit(c,user['id'],'account.create_member',uid)
     except errors.UniqueViolation:
         raise HTTPException(409, 'That username is taken')
     return {'ok': True, 'login': login}
@@ -127,8 +129,7 @@ def _target(c, admin, login):
     return t
 
 
-@router.post('/api/people/{login}/password')
-def reset_password(login: str, body: ResetIn, user=Depends(current_user)):
+def reset_password(login: str, body: ResetIn, user=Depends(admin_user)):
     """Admin sets a new password (e.g. forgotten); every phone of that person is signed out."""
     _admin(user)
     with db.connect() as c:
@@ -136,17 +137,20 @@ def reset_password(login: str, body: ResetIn, user=Depends(current_user)):
         auth.check_new_password(body.password, t['login'])
         c.execute('UPDATE users SET pw_hash = %s WHERE id = %s', (auth.hash_pw(body.password), t['id']))
         c.execute('DELETE FROM sessions WHERE user_id = %s', (t['id'],))
+        c.execute('DELETE FROM admin_sessions WHERE user_id=%s',(t['id'],))
+        c.execute('DELETE FROM admin_challenges WHERE user_id=%s',(t['id'],))
+        audit(c,user['id'],'account.password_reset',t['id'])
     return {'ok': True}
 
 
-@router.post('/api/people/{login}/remove')
-def remove_person(login: str, body: RemoveIn, user=Depends(current_user)):
+def remove_person(login: str, body: RemoveIn, user=Depends(admin_user)):
     """Admin removes a person and ALL their data (activities, food, weights, plans, uploaded files). Can't be undone,
     except from the nightly database backup."""
     _admin(user)
     with db.connect() as c:
         t = _target(c, user, login)
         if body.confirm.strip().lower() != t['login'].lower(): raise HTTPException(400, 'Type the username exactly to confirm')
+        audit(c,user['id'],'account.remove',t['id'])
         erase(c, t)
     erase_files(t['id'])
     return {'ok': True}
@@ -223,27 +227,25 @@ class InviteIn(BaseModel):
     note: str | None = Field(None, max_length=60)      # who it's for, so the admin can tell links apart
 
 
-@router.post('/api/invites')
-def create_invite(body: InviteIn, user=Depends(current_user)):
+def create_invite(body: InviteIn, user=Depends(admin_user)):
     _admin(user)
     token = secrets.token_urlsafe(24)
     with db.connect() as c:
         r = c.execute("INSERT INTO invites (token_hash, created_by, note, expires) VALUES (%s, %s, %s, now() + %s) RETURNING id, expires",
                       (_hash(token), user['id'], (body.note or '').strip()[:60] or None, dt.timedelta(days=INVITE_DAYS))).fetchone()
+        audit(c,user['id'],'invite.create',r['id'])
     base = os.environ.get('KINETTA_PUBLIC_URL', '').rstrip('/')    # e.g. https://app.example.com - links work from anywhere
     return {'id': r['id'], 'path': '/join/' + token, 'url': base + '/join/' + token if base else None, 'expires': r['expires']}
 
 
-@router.get('/api/invites')
-def list_invites(user=Depends(current_user)):
+def list_invites(user=Depends(admin_user)):
     _admin(user)
     with db.connect() as c:
         return c.execute("""SELECT id, note, created, expires FROM invites WHERE used_at IS NULL AND expires > now()
                             ORDER BY created DESC""").fetchall()
 
 
-@router.delete('/api/invites/{invite_id}')
-def cancel_invite(invite_id: int, user=Depends(current_user)):
+def cancel_invite(invite_id: int, user=Depends(admin_user)):
     _admin(user)
     with db.connect() as c:
         c.execute('DELETE FROM invites WHERE id = %s AND used_at IS NULL', (invite_id,))

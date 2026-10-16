@@ -136,6 +136,9 @@ def enrich(uid, aid, w, parsed, meta):
     """Fill missing details on this user's compatible activity, preserving edits and fuller imports."""
     with db.connect() as c:
         a = c.execute('SELECT * FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, uid)).fetchone()
+        from . import activity_corrections as corrections
+        raw_a=a
+        if a:a=corrections.original(a)
         if not a or a['sport'] != parsed['sport'] or abs((a['start_time'] - _utc(w.start)).total_seconds()) > 120: return False
         if a.get('healthkit_id') and a['healthkit_id'] != w.id: return False
         elapsed = (a.get('elapsed_s') or 0)
@@ -187,9 +190,11 @@ def enrich(uid, aid, w, parsed, meta):
             activities.set_geometry(c, aid, st)
             activities.match_route(c, uid, aid)
         details = {'imported': imported, 'route_points': sum(v is not None for v in st['lat']), 'heart_rate_points': sum(v is not None for v in st['hr'])}
+        corrections.capture(c,raw_a,updates)
         updated = bool(updates or changed)
         updates.update(healthkit_id=w.id, health_details=json.dumps(details))
         c.execute('UPDATE activities SET ' + ','.join(k + '=%(' + k + ')s' for k in updates) + (', updated=now()' if updated else '') + ' WHERE id=%(id)s AND user_id=%(uid)s', {**updates, 'id': aid, 'uid': uid})
+        if raw_a.get('summary_overrides'):corrections.apply(c,uid,aid,clear_note=updated,touch=updated)
         return updated
 
 

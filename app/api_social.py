@@ -22,6 +22,7 @@ from . import db, notify
 from .api_account import _admin
 from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline
 from .auth import current_user
+from .admin_auth import admin_user, audit
 
 router = APIRouter(prefix='/api')
 VISIBILITY = ('me', 'friends', 'everyone')
@@ -503,8 +504,7 @@ def report(body: ReportIn, user=Depends(current_user)):
     return {'ok': True, 'id': rid}
 
 
-@router.get('/reports')
-def reports(user=Depends(current_user)):
+def reports(user=Depends(admin_user)):
     """Open reports, for the admins (Me > People)."""
     _admin(user)
     with db.connect() as c:
@@ -514,8 +514,7 @@ def reports(user=Depends(current_user)):
                             WHERE r.status = 'open' ORDER BY r.created""").fetchall()
 
 
-@router.post('/reports/{rid}/done')
-def report_done(rid: int, remove: bool = False, user=Depends(current_user)):
+def report_done(rid: int, remove: bool = False, user=Depends(admin_user)):
     """Close a report. remove=true also takes the reported thing down: the comment is deleted, the activity goes back
     to "Only me" (it stays in its owner's account), or for a report about the person, their profile photo is removed."""
     _admin(user)
@@ -527,4 +526,5 @@ def report_done(rid: int, remove: bool = False, user=Depends(current_user)):
         elif remove:
             c.execute('DELETE FROM profile_photos WHERE user_id = %s', (r['person'],))
             c.execute('UPDATE users SET photo_v = NULL WHERE id = %s', (r['person'],))
+        audit(c,user['id'],'report.remove' if remove else 'report.resolve',rid)
     return {'ok': True}

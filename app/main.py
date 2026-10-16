@@ -4,13 +4,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware import gzip as _gzip
-from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts
 import threading
 from .auth import current_user
-from . import api_coach, ai_release, meal_chat
+from . import api_coach, ai_release, meal_chat, admin_auth, api_admin
 
 @asynccontextmanager
 async def lifespan(app):
@@ -40,6 +41,16 @@ app.include_router(food_coach.router)
 app.include_router(notify.router)
 app.include_router(api_coach.router)
 app.include_router(meal_chat.router)
+app.include_router(admin_auth.router)
+app.include_router(api_admin.router)
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request: Request, exc: RequestValidationError):
+    # Same 422 as FastAPI's own, minus the echoed input: a NaN/Infinity there made the error response itself fail (500).
+    return JSONResponse({'detail': [{k: e[k] for k in ('type', 'loc', 'msg') if k in e} for e in exc.errors()]}, 422)
+
+
 STATIC = os.path.join(os.path.dirname(__file__), 'static')
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; "
        "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
@@ -178,6 +189,12 @@ def manifest(): return FileResponse(os.path.join(STATIC, 'manifest.webmanifest')
 
 @app.get('/sw.js')
 def sw(): return FileResponse(os.path.join(STATIC, 'sw.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/admin')
+@app.get('/admin/{path:path}')
+def admin_page(path: str = ''):
+    return FileResponse(os.path.join(STATIC, 'admin.html'), headers={'Cache-Control':'no-store'})
 
 
 @app.get('/{path:path}')

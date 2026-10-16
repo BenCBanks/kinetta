@@ -76,9 +76,9 @@ s, r = a.delete(f'/api/activities/{aid}'); ck(s == 200, 'delete the activity: it
 
 # a reported profile photo: the admin can take it down
 s, r = c.post('/api/reports', {'login': 'zz_test_ph_a', 'reason': 'inappropriate'}); ck(s == 200, f'report person {s} {r}')
-rep = next(x for x in admin.get('/api/reports')[1] if x['id'] == r['id'])
+rep = next(x for x in admin.get('/api/admin/reports')[1] if x['id'] == r['id'])
 ck(rep['photo'] == v, 'admin sees which photo')
-ck(admin.post(f"/api/reports/{r['id']}/done?remove=true")[0] == 200, 'admin removes it')
+ck(admin.post(f"/api/admin/reports/{r['id']}/done?remove=true")[0] == 200, 'admin removes it')
 ck(a.get('/api/me')[1].get('photo') is None and fetch(c, '/api/people/zz_test_ph_a/photo')[0] == 404, 'profile photo gone')
 ck(a.put('/api/me/photo', {'image': JPG})[0] == 200 and a.delete('/api/me/photo')[0] == 200 and a.get('/api/me')[1].get('photo') is None, 'remove your own')
 

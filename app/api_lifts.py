@@ -383,14 +383,17 @@ def coach_text(c, uid, aid):
 def merge_watch(c, uid, start, end, numbers):
     """A strength workout from a watch (Apple Health, a file, intervals.icu) that overlaps a session logged here: the
     watch's numbers go onto the logged session instead of making a second activity. Returns its id, or None."""
-    hit = c.execute("""SELECT id, start_time FROM activities WHERE user_id = %s AND source = 'lift'
+    hit = c.execute("""SELECT * FROM activities WHERE user_id = %s AND source = 'lift'
                        AND start_time < %s AND start_time + make_interval(secs => coalesce(elapsed_s, 0)) > %s
                        ORDER BY lift_open DESC, abs(extract(epoch FROM start_time - %s)) LIMIT 1""",
                     (uid, end + dt.timedelta(minutes=15), start - dt.timedelta(minutes=15), start)).fetchone()   # the one being logged, else the nearest
     if not hit: return None
     keep = {k: v for k, v in numbers.items() if v is not None}
+    from . import activity_corrections as corrections
     first = min(start, hit['start_time'])
     keep['elapsed_s'] = max(numbers.get('elapsed_s') or 0, (end - first).total_seconds())
+    corrections.capture(c,hit,keep)
     c.execute(f"""UPDATE activities SET {', '.join(f'{k} = %s' for k in keep)}, start_time = %s, lift_open = false, updated = now()
                   WHERE id = %s AND user_id = %s""", (*keep.values(), first, hit['id'], uid))
+    if hit.get('summary_overrides'):corrections.apply(c,uid,hit['id'])
     return hit['id']

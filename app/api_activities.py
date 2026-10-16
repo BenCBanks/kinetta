@@ -10,7 +10,7 @@ import secrets
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from . import activities, analysis, coach, db, importer, plans
 from .api_lifts import FEED_SQL as LIFTS_SQL, plan_of as lift_plan, copy_into as copy_lift
@@ -144,6 +144,16 @@ def detail(aid: int, user=Depends(current_user)):
 
 
 class ActivityEdit(BaseModel):
+    model_config=ConfigDict(extra='forbid',allow_inf_nan=False)
+    distance_m: float | None = Field(None,ge=0,le=1_000_000)
+    moving_s: float | None = Field(None,gt=0,le=172800)
+    elapsed_s: float | None = Field(None,gt=0,le=172800)
+    ascent_m: float | None = Field(None,ge=0,le=30000)
+    calories: float | None = Field(None,ge=0,le=100000)
+    avg_hr: float | None = Field(None,gt=0,le=300)
+    max_hr: float | None = Field(None,gt=0,le=300)
+    restore_summary: list[str] = Field(default_factory=list,max_length=7)
+
     name: str | None = Field(None, max_length=200)
     sport: str | None = Field(None, pattern='^(run|ride|walk|hike|swim|row|ski|workout|other)$')
     sport_label: str | None = Field(None, max_length=60)    # the kind ("Yoga"); '' clears it (2026-10-13)
@@ -158,8 +168,23 @@ class ActivityEdit(BaseModel):
 def edit(aid: int, body: ActivityEdit, user=Depends(current_user)):
     sets, args = [], []
     with db.connect() as c:
-        a = c.execute('SELECT sport, sport_label, auto_name, start_time, tz FROM activities WHERE id = %s AND user_id = %s', (aid, user['id'])).fetchone()
+        a = c.execute('SELECT * FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, user['id'])).fetchone()
         if not a: raise HTTPException(404, 'Not found')
+        from . import activity_corrections as corrections
+        changed={k:getattr(body,k) for k in corrections.FIELDS if k in body.model_fields_set}
+        if any(k not in corrections.FIELDS for k in body.restore_summary):raise HTTPException(400,'Unknown summary field')
+        if set(changed).intersection(body.restore_summary):raise HTTPException(400,'Either correct or restore a field')
+        if (changed or body.restore_summary) and a.get('lift_open'):raise HTTPException(409,'Finish the lifting session before correcting its summary')
+        if changed or body.restore_summary:
+            overrides=dict(a.get('summary_overrides') or {})
+            baseline=dict(a.get('summary_original') or {}) if overrides else {k:a.get(k) for k in corrections.FIELDS+corrections.DERIVED}
+            overrides.update(changed)
+            for k in body.restore_summary:overrides.pop(k,None)
+            values={**baseline,**overrides}
+            if values.get('moving_s') and values.get('elapsed_s') and values['moving_s']>values['elapsed_s']+1:raise HTTPException(400,'Moving time cannot exceed total duration')
+            if values.get('avg_hr') and values.get('max_hr') and values['avg_hr']>values['max_hr']:raise HTTPException(400,'Average heart rate cannot exceed maximum heart rate')
+            c.execute('UPDATE activities SET summary_overrides=%s,summary_original=%s WHERE id=%s AND user_id=%s',(json.dumps(overrides),json.dumps(baseline),aid,user['id']))
+            corrections.apply(c,user['id'],aid,restore_records=True,clear_note=True)
         if body.gear_id is not None:
             if not c.execute('SELECT 1 FROM gear WHERE id = %s AND user_id = %s', (body.gear_id, user['id'])).fetchone():
                 raise HTTPException(400, 'Unknown gear')

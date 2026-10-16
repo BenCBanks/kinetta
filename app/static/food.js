@@ -569,6 +569,20 @@ async function shrinkPhoto(file, max = 1280) {
     return c.toDataURL('image/jpeg', 0.82);
   } finally { URL.revokeObjectURL(url); }
 }
+// Selection stays local until the explicit confirmation; one request covers all retained views.
+async function reviewFoodPhotos(files,confirm,{label=false,active=()=>true}={}) {
+  if (!files.length) return;
+  if (files.length>6) { toast('Choose up to 6 photos at a time'); return; }
+  let photos=[];
+  try { for (const file of files) { if (file.size>20000000) throw Error('Choose photos under 20 MB each'); photos.push(await shrinkPhoto(file,1600)); if(!active())return; }
+    if(photos.reduce((n,p)=>n+p.length,0)>10000000)throw Error('These photos are too large together. Choose fewer photos.');
+  } catch(e) { if(active())toast(e.message||"A photo couldn't be opened"); return; }
+  if(!active())return;
+  sheet(label?'Photos of one ingredient':'Review your food photos','<div id="photo-selection"></div>',(root,close)=>{
+    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div><button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(label?'Read these photos':'Use these photos')+'</button>';
+      $$('[data-remove-photo]',box).forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.removePhoto,1);draw()});$('#photos-use',box).onclick=()=>{if(!active())return;close();confirm(photos.slice())};};draw();
+  });
+}
 // Describe what you ate (2026-10-12; reworked 2026-10-15, Ben: logging food should be very little effort, in your own
 // words, without leaning on AI). "2 eggs and toast for breakfast", "a bowl of the chili I made Sunday", then "make it
 // 300 grams", "also a coffee" or "remove the toast". The server matches each food against your own saved meals, My
@@ -594,7 +608,7 @@ function describePage(b, day, meal) {
     <form class="composer ql-composer" id="ql-f"><button type="button" class="icon-btn" id="ql-plus" aria-label="Snap, scan or search">${svg('plus')}</button>
       <input name="t" id="ql-t" placeholder="What did you eat?" aria-label="What you ate, in your own words" autocomplete="off" enterkeyhint="send" maxlength="400">
       <button class="icon-btn send" aria-label="Send">${svg('send')}</button></form>
-    <input type="file" accept="image/*" id="ql-file" hidden>`;
+    <input type="file" accept="image/*" multiple id="ql-file" hidden>`;
   wireBack(b, '/food');
   (() => {
     const owner = readOwner(), active = () => b.isConnected && readOwner() === owner;
@@ -618,10 +632,8 @@ function describePage(b, day, meal) {
       $('#ql-search', menu).onclick = () => { done(); addSheet(dp.value, dest.value, '', 'search'); };
     });
     file.onchange = async () => {
-      const fl = file.files?.[0]; file.value = ''; if (!fl || busy || !active()) return;
-      try { const image = await shrinkPhoto(fl); if (!active()) return; photo = image; photoSaid = [];
-        say(`<img class="ql-img" src="${photo}" alt="Your photo">`, 'me'); input.placeholder = 'Add a few words, or tap send';
-      } catch (x) { if (active()) toast("That photo couldn't be opened"); }
+      const files=[...(file.files||[])]; file.value=''; if(busy||!active())return;
+      await reviewFoodPhotos(files,images=>{if(!active())return;photo=images;photoSaid=[];say(images.map((p,i)=>`<img class="ql-img" src="${p}" alt="Your selected food photo ${i+1}">`).join(''),'me');input.placeholder='Add a few words, or tap send';},{active});
     };
 
     const unknown = () => items.filter((i) => i.status === 'unknown');
@@ -704,7 +716,7 @@ function describePage(b, day, meal) {
       x.opted = true; x.state = 'loading'; x.error = null; draw();
       try {
         const words = x.photo ? x.said : [x.idx.map((n) => parts[n].text).join(', '), ...x.said];
-        const r = await api('/api/food/photo', json('POST', {image: x.photo || null, note: words.join('\n').slice(-2000) || null}));
+        const r = await api('/api/food/photo', json('POST', {...(Array.isArray(x.photo)?{images:x.photo}:{image:x.photo||null}), note: words.join('\n').slice(-2000) || null}));
         if (!active() || !batches.includes(x)) return;
         x.items = r.items.map((it) => ({...it, client_id: newId()})); x.state = 'done';
         if (!x.items.length) { x.state = 'error'; x.error = "The AI couldn't find food in that."; }
@@ -1223,7 +1235,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
 addEventListener('DOMContentLoaded', start);
 
 // ---------- AI review of your eating (2026-10-11, food_coach.py): the last two weeks, what's going well, what to try ----------
-function dietCoach(box) {
+function dietCoachContent(box) {
   if (!box) return; // Previously saved reviews remain readable without generation access.
   load('/api/food/review', (r) => {
     if (!box.isConnected) return;
@@ -1243,10 +1255,10 @@ function dietCoach(box) {
     b.onclick = async () => {
       if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
       b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';
-      try { const fresh = await api('/api/food/review', json('POST', {})); showCoach('diet'); App.cache.set('/api/food/review', {data: {...r, enabled: true, latest: fresh}, at: Date.now()}); dietCoach(box); }
+      try { const fresh = await api('/api/food/review', json('POST', {})); showCoach('diet'); App.cache.set('/api/food/review', {data: {...r, enabled: true, latest: fresh}, at: Date.now()}); dietCoachContent(box); }
       catch (x) { b.disabled = false; b.innerHTML = was; aiError(b, x.message); }
     };
-  }).catch(() => {});
+  }).catch((e) => { if (box.isConnected) box.innerHTML = `<p class="err">${esc(e.message)}</p><button class="ghost" id="food-kit-retry">Retry</button>`; const retry = $('#food-kit-retry',box); if(retry)retry.onclick=()=>dietCoachContent(box); });
 }
 
 // AI feedback on a saved meal (food_coach.py): kept on the meal; opens over the Add food sheet
@@ -1269,5 +1281,20 @@ function mealCoach(m) {
       };
     };
     draw(m.review);
+  });
+}
+
+function dietCoach(box) {
+  if (!box) return;
+  const account = App.me.login;
+  load('/api/food/review', (r) => {
+    if (App.me?.login !== account || !box.isConnected || (!r.latest && !aiCan('coach'))) return;
+    box.innerHTML = `<button class="icon-btn kit-help" aria-label="Ask Kit about your food log">${svg('sparkle')}</button>`;
+    $('button', box).onclick = () => sheet('Kit · Food log', '<div id="food-kit"></div>', (root) => dietCoachContent($('#food-kit', root)));
+  }).catch(() => {
+    if (box.isConnected && App.me?.login === account && aiCan('coach')) {
+      box.innerHTML = `<button class="icon-btn kit-help" aria-label="Ask Kit about your food log">${svg('sparkle')}</button>`;
+      $('button', box).onclick = () => sheet('Kit · Food log', '<div id="food-kit"></div>', root => dietCoachContent($('#food-kit',root)));
+    }
   });
 }

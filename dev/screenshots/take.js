@@ -169,6 +169,9 @@ function chrome(dark) {
         await page.waitForTimeout(1500);
         await page.evaluate((x) => { document.activeElement.blur(); window.scrollTo(0, 0); window.__liftId = x; }, id);
       }
+      if (name === 'coach') await page.locator('#d-kit').click();
+      if (name === 'dietcoach') { await page.locator('#nt-coach button').waitFor({state:'visible'}); await page.locator('#nt-coach button').click(); }
+      if (name === 'recipecoach') await page.locator('#dk-kit').click();
       if (opt.sel) await page.evaluate((q) => { const e = document.querySelector(q); if (e) window.scrollTo(0, e.getBoundingClientRect().top + scrollY - 70); }, opt.sel);
       if (opt.to) await page.evaluate((t) => {
         const h = [...document.querySelectorAll('.card > h2, .coach-heading h2, h2.sec-head')].find((x) => x.textContent.trim().startsWith(t));

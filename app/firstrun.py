@@ -14,4 +14,13 @@ for name in ('db_password', 'app_password'):
         f.write(secrets.token_hex(24))      # letters + digits only: safe inside SQL quotes and connection strings
     os.chmod(path, 0o644)                   # readable by the database container's own user; the volume is private to Kinetta
     print(f'created {name}')
+# A separate encryption key protects admin MFA and queued invitation email bodies.
+from cryptography.fernet import Fernet
+path = os.path.join(DIR, 'admin_key')
+try:
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+except FileExistsError:
+    pass
+else:
+    with os.fdopen(fd, 'wb') as f: f.write(Fernet.generate_key())
 print('passwords ready')

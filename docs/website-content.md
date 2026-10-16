@@ -26,10 +26,8 @@ separate workflow. Changing a screenshot does not change the written Markdown.
 
 ## Beta requests and contact email
 
-The Join the beta button opens the hosted `/beta` form. Requests are stored in the private admin-only queue under
-Me → People → Beta requests. They do not currently send email to the owner or automatically create an account.
-Invite creates a one-use link and prepares a `mailto:` message for the owner to send from their email client.
-The confirmation and form both link back to `https://kinetta.app/`.
+The Join the beta button opens the hosted `/beta` form. Requests enter the separate `/admin` portal's Beta requests queue; submission itself sends no email and creates no account. An administrator can preview a response, then explicitly send it through the configured Resend adapter. Sending stays unavailable until a verified sender, monitored reply-to address, API key and signed webhook are configured. See [administration](admin-portal.md).
 
-A branded email address can be added once it exists. Automatic sending would additionally need a configured email
-provider/SMTP and verified sender; do not claim mail was sent from the current form or guess an uncreated address.
+The portal distinguishes queued, provider-accepted, delivered, failed/bounced and joined states. Account invitations are single-use Member links; Apple TestFlight installation access is separate. Manual invitation links explicitly say no email was sent. The confirmation and form link back to `https://kinetta.app/`.
+
+Add the branded support address to the policy and templates once it exists. Do not guess an address or claim delivery from a form submission or provider acceptance alone.
