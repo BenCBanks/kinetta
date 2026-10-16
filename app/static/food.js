@@ -79,7 +79,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
   body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <p class="small food-library-link"><a href="/food/meals">My Recipes &amp; foods · edit or create</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
+    <p class="small food-library-link"><a href="/food/meals">My Recipes &amp; foods · edit or create</a> · <a href="/food/setup">${App.me.kcal_target ? 'Review goal' : 'Set a goal'}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -101,10 +101,10 @@ function firstFood(box, day) {
     if (rows.length || !box.isConnected) return;
     const step = (id, ico, c, label, sub) => `<button class="row-link" id="${id}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></button>`;
     box.innerHTML = `<h2 class="sec-head">Start your food log</h2><div class="card list first-food">
-      ${step('ff-goal', 'target', 'c-brand', 'Set your daily targets', 'Calories and protein to aim for. Workouts add to them.')}
+      ${step('ff-goal', 'target', 'c-brand', 'Set your daily targets', 'An optional estimate for calories and protein. You choose what to save.')}
       ${step('ff-log', 'search', 'c-green', 'Log something you ate', 'Search, scan a barcode or snap a photo.')}
       ${step('ff-dish', 'pot', 'c-orange', 'Save a meal you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
-    $('#ff-goal', box).onclick = () => targetsSheet();
+    $('#ff-goal', box).onclick = () => go('/food/setup');
     $('#ff-log', box).onclick = () => addSheet(day, guessMeal());
     $('#ff-dish', box).onclick = (e) => newDish(e.currentTarget);
   }).catch(() => {});
@@ -914,13 +914,14 @@ function goalSheet(D) {
 }
 function targetsSheet() {
   const m = App.me;
-  sheet('Daily targets', `<form class="form" id="tg"><div class="mac4">
+  sheet('Daily targets', `<p class="small"><a href="/food/setup" id="tg-help">Help me choose targets</a></p><form class="form" id="tg"><div class="mac4">
     <label>Calories<input name="kcal_target" inputmode="numeric" value="${esc(m.kcal_target || '')}"></label>
     <label>Protein g<input name="protein_target" inputmode="numeric" value="${esc(m.protein_target || '')}"></label>
     <label>Carbs g<input name="carbs_target" inputmode="numeric" value="${esc(m.carbs_target || '')}"></label>
     <label>Fat g<input name="fat_target" inputmode="numeric" value="${esc(m.fat_target || '')}"></label>
     <label>Fiber g<input name="fiber_target" inputmode="numeric" value="${esc(m.fiber_target || '')}"></label></div>
     <p class="small muted" id="tg-sum"></p><div class="actions"><button class="primary">Save targets</button></div></form>`, (b, close) => {
+    $('#tg-help', b).onclick = () => close();
     const f = $('#tg', b), n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value));
     const sum = () => { const p = n(f.protein_target) || 0, c = n(f.carbs_target) || 0, fat = n(f.fat_target) || 0, k = p * 4 + c * 4 + fat * 9;
       $('#tg-sum', b).textContent = k ? `Macros add up to ${Math.round(k)} kcal${n(f.kcal_target) ? ` (target ${n(f.kcal_target)})` : ''}.` : ''; };

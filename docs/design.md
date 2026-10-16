@@ -308,3 +308,34 @@ Nutrition owns the resting-source preference, distinct from the food goal and ac
   Explore Kinetta and Help & contact share one list without a heading; Profile & settings stays last.
 - **Contact:** the public support address is KinettaApp@gmail.com (privacy policy, website footers, SECURITY.md, Me ›
   Help & contact). Never ask for passwords by email.
+
+## Nutrition-first onboarding — #122 Workstream A (October 2026)
+
+Issue #122 is the accepted direction: nutrition leads, activity remains a strong second, and a watch/connector is
+optional. This change implements A only; the home reorder, new navigation, food thread, adaptive check-in and
+training-day targets remain separate workstreams. The eight owner decisions in #122 govern their implementation.
+
+Me retains an unfinished setup list with an optional native **Connect Apple Health** step until sync is enabled,
+including accounts with activity history. Never render a setup heading/card without rows. A returned Health
+permission request is still not proof of every read grant. The existing native consent/import flow is unchanged.
+
+Goal setup is a full page opened deliberately from Me or Nutrition, never a launch pop-up. Choose Lose weight,
+Maintain, Build muscle, Eat healthier or Fuel training; choose everyday activity outside workouts, optionally enter
+private body details, then review editable calorie/protein estimates. **See my estimate** does not save anything.
+Only **Save targets** persists the goal, pace, supplied body details, everyday activity, calories and protein in one
+transaction. Other macro targets, per-day overrides, resting source and consent are preserved. Not now/Back leave
+account settings unchanged; unfinished choices resume within the same signed-in page session. Reload starts from
+saved settings. Manual targets remain available in the existing sheet.
+
+`energy.target_suggestion` uses the existing Mifflin–St Jeor resting estimate when possible, otherwise the existing
+weight-only method (20 kcal/kg for female, 22 otherwise). Missing weight explicitly uses 75 kg, never presented as
+measured. Everyday activity is ×1.2/1.3/1.45, excluding workouts. Weekly weight-change pace is 0–1% of body weight;
+7,700 kcal/kg gives the initial adjustment. Calories round to 10 and cannot fall below resting burn rounded upward
+to 10. The floor may slow loss; no rate is promised. Protein is 1.6 g/kg for loss/muscle/training goals and 1.2 for
+maintenance/healthier, rounded to 5 g. These are general adult starting estimates, not medical advice. Weight-based
+figures without full body details are labelled rough. No AI, measured-history adaptation or automatic Health choice.
+
+One main action per step, quieter Not now/Change details, explicit labels/units, 44px targets, native keyboard rules,
+shared theme tokens, wrapping and relative-sized text. Goal choices give a selection haptic and saving a success haptic,
+with visible selection/confirmation. Browser evidence is distinct from physical Dynamic Type/VoiceOver/haptic/Health
+permission acceptance, which requires an iPhone.

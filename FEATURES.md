@@ -65,6 +65,11 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Log a past session by hand, then add its sets; the AI coach note reads the sets and last time's; SQL view `v_lift_sets`
 
 ## Food
+- [x] Optional goal-first setup (#122 A): five goals, private optional body details, everyday activity and bounded pace;
+      review/edit calorie and protein estimates before an explicit Save. Skip writes nothing; existing macro targets,
+      daily overrides and Health/resting choices are preserved. Available from Me and Nutrition without a watch or AI.
+- [x] Native Me setup restores optional Connect Apple Health until sync is enabled, including accounts with history;
+      finished setup never leaves an empty heading/card. Physical-iPhone permission/haptic/text checks remain separate.
 - [x] Describe what you ate in your own words (several foods, amounts, day/meal, follow-up corrections): matched against your own meals, foods and history with no AI; only unknown foods go to the AI estimate, and without AI you search for them
 - [x] Log by search (USDA + Open Food Facts), barcode, quick add (cal/P/C/F), custom foods, saved meals, recipes
 - [x] Photo (+ optional description) -> AI estimate (Gemini Flash-Lite, ~$0.001/photo on your own key) -> check -> logged
