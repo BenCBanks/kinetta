@@ -283,3 +283,6 @@ The iPhone Core Location recorder owns GPS/time/durable storage outside the WebV
 background-location mode and system indicator. Browser mode remains foreground-only and states that limitation.
 Native build/device acceptance is separate from stand-in browser evidence. See recording-design.md and
 activity-tracking.md. Preserve ordinary activity editing, manual tools, consent, drafts and account isolation.
+
+### Resting calories (issue109)
+Nutrition owns the resting-source preference, distinct from the food goal and activity recording. Show Apple Health resting + existing activities, never an added active total/multiplier. Today is synced so far, missing data remains unknown, and switching source cannot edit a target. Keep the old target calculator optional and labeled as an estimate.

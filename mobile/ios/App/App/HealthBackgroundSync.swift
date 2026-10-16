@@ -632,6 +632,8 @@ class KinettaHealthSyncPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestPermissions", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "refresh", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestRestingPermissions", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "restingEnergy", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "retry", returnType: CAPPluginReturnPromise)
     ]
     @objc func connect(_ call: CAPPluginCall) {
@@ -646,6 +648,19 @@ class KinettaHealthSyncPlugin: CAPPlugin, CAPBridgedPlugin {
     }
     @objc func status(_ call: CAPPluginCall) {
         HealthBackgroundSync.shared.status(owner: call.getString("owner") ?? "") { call.resolve($0) }
+    }
+    @objc func requestRestingPermissions(_ call: CAPPluginCall) {
+        HealthRestingEnergy.request { error in
+            if let error=error { call.reject(error.localizedDescription) } else { call.resolve() }
+        }
+    }
+    @objc func restingEnergy(_ call: CAPPluginCall) {
+        HealthRestingEnergy.read(timeZone:call.getString("tz") ?? "") { result in
+            switch result {
+            case .success(let data):call.resolve(data)
+            case .failure(let error):call.reject(error.localizedDescription)
+            }
+        }
     }
     @objc func retry(_ call: CAPPluginCall) { HealthBackgroundSync.shared.start(); call.resolve() }
     @objc override func requestPermissions(_ call: CAPPluginCall) {

@@ -231,3 +231,60 @@ def upload_workouts(body: WorkoutsIn, user=Depends(current_user)):
             out.append({'id': w.id, 'result': 'failed', 'error': 'could not read this workout'})
     count = lambda k: sum(1 for o in out if o['result'] == k)
     return {'added': count('added'), 'duplicates': count('duplicate'), 'updated': sum(bool(o.get('details_updated')) for o in out), 'failed': count('failed'), 'results': out}
+
+
+# Daily passive energy is separate from workouts and never changes a food target.
+class RestingDayIn(BaseModel):
+    day: dt.date
+    resting_kcal: float = Field(gt=0, le=10000, allow_inf_nan=False)
+
+
+class RestingIn(BaseModel):
+    tz: str = Field(max_length=64)
+    observed_at: dt.datetime
+    days: list[RestingDayIn] = Field(max_length=400)
+
+
+@router.post('/health/resting')
+def import_resting(body: RestingIn, user=Depends(current_user)):
+    from zoneinfo import ZoneInfo
+    tz = db.valid_tz(body.tz)
+    if not tz: raise HTTPException(400, 'Unknown time zone')
+    if body.observed_at.tzinfo is None: raise HTTPException(400, 'The Health observation time must include a time zone')
+    now = dt.datetime.now(dt.timezone.utc)
+    if not now - dt.timedelta(days=2) <= body.observed_at <= now + dt.timedelta(minutes=5):
+        raise HTTPException(400, 'Read resting energy again before syncing')
+    today = body.observed_at.astimezone(ZoneInfo(tz)).date()
+    if any(not today - dt.timedelta(days=400) <= r.day <= today for r in body.days):
+        raise HTTPException(400, 'Resting energy dates must be recent and not in the future')
+    if len({r.day for r in body.days}) != len(body.days): raise HTTPException(400, 'Send each resting energy day once')
+    with db.connect() as c:
+        p = c.execute('SELECT resting_source, tz FROM profile WHERE user_id = %s FOR UPDATE', (user['id'],)).fetchone() or {}
+        if p.get('resting_source') != 'apple_health': raise HTTPException(409, 'Choose Apple Health resting calories before syncing')
+        if tz != (p.get('tz') or db.DEFAULT_TZ): raise HTTPException(409, 'Your time zone changed. Read resting energy again')
+        for r in body.days:
+            c.execute('''INSERT INTO health_resting (user_id, tz, day, resting_kcal, observed_at)
+                         VALUES (%s, %s, %s, %s, %s) ON CONFLICT (user_id, tz, day)
+                         DO UPDATE SET resting_kcal = excluded.resting_kcal, observed_at = excluded.observed_at, synced_at = now()
+                         WHERE excluded.observed_at >= health_resting.observed_at''',
+                      (user['id'], tz, r.day, r.resting_kcal, body.observed_at))
+    return {'ok': True, 'received': len(body.days), 'days': [r.day.isoformat() for r in body.days]}
+
+
+@router.get('/health/resting')
+def resting_status(user=Depends(current_user)):
+    with db.connect() as c:
+        p = c.execute('SELECT resting_source, tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        rows = c.execute('''SELECT day, resting_kcal, observed_at, synced_at FROM health_resting
+                            WHERE user_id = %s AND tz = %s ORDER BY day DESC LIMIT 31''',
+                         (user['id'], p.get('tz') or db.DEFAULT_TZ)).fetchall()
+    return {'source': p.get('resting_source', 'formula'), 'days': rows}
+
+
+@router.delete('/health/resting')
+def delete_resting(user=Depends(current_user)):
+    with db.connect() as c:
+        # Serializes with imports so a late in-flight sync cannot recreate deleted data.
+        c.execute("UPDATE profile SET resting_source = 'formula' WHERE user_id = %s", (user['id'],))
+        c.execute('DELETE FROM health_resting WHERE user_id = %s', (user['id'],))
+    return {'ok': True}

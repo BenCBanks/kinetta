@@ -46,6 +46,7 @@ TABLES = {
     'pans': "SELECT to_jsonb(t)" + DROP + " FROM pans t WHERE user_id = %s ORDER BY id",
     'weights': "SELECT to_jsonb(t)" + DROP + " FROM weights t WHERE user_id = %s ORDER BY day",
     'day_goals': "SELECT to_jsonb(t)" + DROP + " FROM day_goals t WHERE user_id = %s ORDER BY day",
+    'health_resting': "SELECT to_jsonb(t)" + DROP + " FROM health_resting t WHERE user_id = %s ORDER BY day, tz",
     'day_energy': "SELECT to_jsonb(t)" + DROP + " FROM day_energy t WHERE user_id = %s ORDER BY day",
     'imports': "SELECT to_jsonb(t)" + DROP + " FROM imports t WHERE user_id = %s ORDER BY created",
     'connections': """SELECT jsonb_build_object('kind', kind, 'status', status, 'last_sync', last_sync, 'created', created)

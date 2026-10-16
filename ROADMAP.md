@@ -16,6 +16,8 @@ Requirements live in GitHub issues. Use [the requirements guide](docs/requiremen
 
 ## Separate track
 
+- [#109: Apple Health resting calories](https://github.com/BenCBanks/kinetta/issues/109): optional passive-calorie source with independent food budgets and existing activity calories. Under review; Apple SDK and physical-iPhone comparison pending.
+
 - [#108: Me, profile mileage and Track](https://github.com/BenCBanks/kinetta/issues/108): owner-requested
   implemented and tested; under review. Me replaces Today as the personal home; profiles gain visibility-filtered distance
   bars over fourteen days; all recording tools live in Track. Native background GPS, durable point journals and

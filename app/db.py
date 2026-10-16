@@ -912,6 +912,22 @@ MIGRATIONS = [
     """ALTER TABLE activities ADD COLUMN summary_overrides jsonb NOT NULL DEFAULT '{}';
        ALTER TABLE activities ADD COLUMN summary_original jsonb NOT NULL DEFAULT '{}';""",
 
+    # 43: optional Apple Health resting energy; food targets and workout calories stay independent.
+    """
+    ALTER TABLE profile ADD COLUMN resting_source text NOT NULL DEFAULT 'formula'
+      CHECK (resting_source IN ('formula', 'apple_health'));
+    CREATE TABLE health_resting (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tz text NOT NULL, day date NOT NULL,
+      resting_kcal double precision NOT NULL CHECK (resting_kcal > 0 AND resting_kcal <= 10000),
+      observed_at timestamptz NOT NULL, synced_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, tz, day));
+    ALTER TABLE health_resting ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON health_resting FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON health_resting FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON health_resting TO fit_readers;
+    """,
+
 ]
 
 

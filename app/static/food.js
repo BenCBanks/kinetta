@@ -131,6 +131,7 @@ function macroRing(k, name, v, tg) {
 function drawDay(el, D) {
   App.mealHours = D.meal_hours || App.mealHours;
   const t = D.targets || {}, T = D.totals, B = D.burned || {kcal: 0, n: 0, items: []}, G = D.goal || {}, today = dayLabel(D.day) === 'Today';
+  const watchResting = B.source === 'apple_health';
   const eaten = T.kcal, goal = G.kcal, left = goal != null ? goal - eaten : null, sofar = today ? ' so far' : '';
   const goalNote = goal == null ? 'No calorie goal yet. Tap Set goal to add one.'
     : G.custom != null ? `Goal set for this day${G.default ? ` (your usual is ${r0(G.default)})` : ''}.`
@@ -146,18 +147,18 @@ function drawDay(el, D) {
       <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div><div class="macro-line"><b>${n}</b><span class="num">${r0(v)}${target ? ' / ' + r0(target) : ''} g</span></div>${target ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
       ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
-      ${B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>'
-        : `<details class="bd tc-bal"${!today && bdOpen() ? ' open' : ''}><summary><span>${today ? 'Daily energy breakdown' : B.deficit >= 0 ? 'Deficit' : 'Surplus'}<small class="muted"> · estimate</small></span>
-            <b class="num ${today ? 'day-balance-detail' : ''} ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}">${B.deficit >= 0 ? neg(B.deficit) : pos(-B.deficit)}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
+      ${!watchResting && B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>' : B.day_burn == null ? `<p class="small muted tc-bal">Resting calories have not synced for this day. Activities: ${r0(B.kcal)} kcal. Total burn is waiting for resting data.</p>`
+        : `<details class="bd tc-bal"${!today && bdOpen() ? ' open' : ''}><summary><span>${today ? watchResting ? 'Energy balance so far' : 'Daily energy breakdown' : B.deficit == null ? 'Energy breakdown' : B.deficit >= 0 ? 'Deficit' : 'Surplus'}<small class="muted">${watchResting ? ' · Health resting + activities' : ' · estimate'}</small></span>
+            <b class="num ${today ? 'day-balance-detail' : ''} ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}">${B.deficit == null ? neg(B.day_burn) : B.deficit >= 0 ? neg(B.deficit) : pos(-B.deficit)}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
         ${B.partly ? '<p class="small muted">Looks only partly logged, so this day is left out of your averages and totals. Add the rest and it counts.</p>' : ''}
-        ${row('Resting burn (BMR)', neg(B.bmr), '', B.bmr_exact ? 'your body at rest' : 'rough guess · <a href="/me">add height & age</a>')}
-        ${row('Everyday activity', neg(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=needs">change</a>`)}
+        ${row(watchResting ? 'Resting calories · Apple Health' : 'Resting burn (BMR)', neg(B.bmr), '', watchResting ? `${today ? 'synced so far' : 'synced daily total'}${B.observed_at ? ` · read ${esc(when(B.observed_at))}` : ''}` : B.bmr_exact ? 'Kinetta estimate' : 'rough guess · <a href="/me">add height & age</a>')}
+        ${watchResting ? '' : row('Everyday activity', neg(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=needs">change</a>`)}
         ${B.items.length ? B.items.map((a) => row(`<a href="/activity/${a.id}"><span class="exi sp ${esc(a.sport)}">${svg(a.sport)}</span>${esc(a.name)}</a>`, neg(a.kcal) + (a.estimated ? '*' : ''), 'ex', a.distance_m ? `${U.dist(a.distance_m, 1)} ${U.du()}` : '')).join('')
                          : row('Exercise', '0', 'ex', 'no workouts this day')}
-        ${row(today ? 'Burned by end of day' : 'Total burned', neg(B.day_burn), 'sum', today ? 'estimate for the whole day' : '')}
+        ${row(today ? watchResting ? 'Burned so far' : 'Burned by end of day' : 'Total burned', neg(B.day_burn), 'sum', today ? watchResting ? 'synced resting calories + activities already in Kinetta' : 'estimate for the whole day' : '')}
         ${row('Eaten' + sofar, pos(eaten))}
-        ${G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
-        <a class="small more-link" href="/food?view=energy">Running total ›</a></details>`}</div>`;
+        ${!watchResting && G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
+        ${watchResting ? `<p class="small muted">Your food goal stays independent of calories burned.${today ? ' Resting calories build throughout the day; this is not a full-day projection.' : ''}${B.items.some(a=>a.estimated) ? ' * Activity calories are estimated when no recorded value is available.' : ''}</p>` : ''}<a class="small more-link" href="/food?view=energy">Running total ›</a></details>`}<a class="small more-link" id="fd-resting-source" href="/food?view=needs">Resting calories: ${watchResting ? 'Apple Health' : 'Kinetta estimate'} · change ›</a></div>`;
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
   const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
   $('#fd-goal', el).onclick = () => goalSheet(D);
@@ -1069,16 +1070,17 @@ function energyCard(box) {
     const check = E.observed == null ? '' : Math.abs(E.check_diff) < 150
       ? `Your food log and weight change over the last 4 weeks match this (you burned about ${r0(E.observed)} a day including workouts).`
       : `Your food log and weight change suggest you actually burned about ${r0(E.observed)} a day including workouts, ${r0(Math.abs(E.check_diff))} ${E.check_diff > 0 ? 'more' : 'less'} than this estimate${E.check_diff > 0 ? ' - you may be more active than the setting below' : ' - try a lower activity level, or check that every snack is logged'}.`;
-    box.innerHTML = `<div class="card"><h2>Your daily calorie needs<span class="muted small">without workouts</span></h2>
+    box.innerHTML = `<div id="resting-source-card"></div><details class="card"${E.resting_source === 'apple_health' ? '' : ' open'}><summary>Optional calorie-target calculator · Kinetta estimate</summary><h2>Your daily calorie needs<span class="muted small">without workouts</span></h2>
       <div class="needs-eq"><div><small>Resting burn (BMR)</small><b class="num">${r0(E.bmr)}</b></div><span>×</span><div><small>Everyday activity</small><b class="num">${E.activity_factor}</b></div><span>=</span><div class="hi"><small>Daily needs</small><b class="num">${r0(E.base)}</b></div></div>
-      ${E.bmr_exact ? '' : '<p class="small warn-text">BMR is a rough guess from your weight. Add your height, birth year and sex under <a href="/me">Me &gt; Settings</a> for a precise one.</p>'}
+      ${E.bmr_exact ? '' : '<p class="small warn-text">BMR is a rough guess from your weight. Add your height, birth year and sex under <a href="/me">Me &gt; Settings</a> for a more personalized estimate.</p>'}
       <p class="small muted">Everyday activity outside workouts:</p>
       <div class="seg wide actlvl" role="group" aria-label="Everyday activity">${ACTIVITY_LEVELS.map(([f, n, d]) => `<button data-f="${f}" aria-pressed="${f === lvl[0]}" title="${esc(d)}">${esc(n)}</button>`).join('')}</div>
       <p class="small muted">Workouts are not included here. They are added to the day you do them, which deepens that day's deficit${E.avg_exercise ? ` (lately about ${r0(E.avg_exercise)} kcal a day on average)` : ''}.</p>
       ${check ? `<p class="small">${esc(check)}</p>` : ''}
       <h3 class="sub">Set your daily calorie target</h3>
       <div class="tdee-opts">${opts.map(([n, d]) => `<button class="ghost" data-k="${E.base + d}"><small>${esc(n)}</small><b class="num">${r0(E.base + d)}</b></button>`).join('')}</div>
-      <p class="small muted">Based on daily needs alone, so any workout adds to your deficit${App.me.kcal_target ? `. Now ${r0(App.me.kcal_target)}` : ''}.</p></div>`;
+      <p class="small muted">Based on daily needs alone, so any workout adds to your deficit${App.me.kcal_target ? `. Now ${r0(App.me.kcal_target)}` : ''}.</p></details>`;
+    restingSourceCard($('#resting-source-card',box));
     $$('.actlvl button', box).forEach((b) => b.onclick = async () => {
       try { await api('/api/profile', json('PUT', {activity_factor: +b.dataset.f})); App.me.activity_factor = +b.dataset.f; invalidate('/api/food'); render(); } catch (x) { toast(x.message); }
     });
@@ -1185,7 +1187,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   if (weekly) {
     const W = {};
     for (const r of I.rows) { const d = new Date(r.day + 'T12:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); const k = isoDay(d); (W[k] = W[k] || []).push(r); }
-    cols = Object.entries(W).map(([k, rs], i, arr) => { const c = rs.filter((r) => r.counted), a = (f) => (c.length ? c.reduce((s, r) => s + (r[f] || 0), 0) / c.length : null);
+    cols = Object.entries(W).map(([k, rs], i, arr) => { const c = rs.filter((r) => r.counted), a = (f) => { const v=c.map(r=>r[f]).filter(x=>x!=null);return v.length?v.reduce((s,x)=>s+x,0)/v.length:null; };
       const prev = arr[i - 1] && new Date(arr[i - 1][0] + 'T12:00'), d = new Date(k + 'T12:00');
       const ws = rs.filter((r) => r.weight != null), lastT = [...rs].reverse().find((r) => r.trend != null);
       return {label: 'Week of ' + dlabel(k, {month: 'short', day: 'numeric'}), tick: !prev || prev.getMonth() !== d.getMonth() ? (i === 0 || d.getMonth() % 2 === 0 ? dlabel(k, {month: 'short'}) : '') : '', eaten: a('eaten'), burned: a('burned'), goal: a('goal'), protein_g: a('protein_g'), partial: rs.some((r) => r.today),
@@ -1200,8 +1202,8 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   const pct = (v) => Math.round(v / kcalM * 100);
   const html = {overview: `<div class="ntiles">
       ${tile('Avg eaten / day', S.avg_eaten == null ? '–' : r0(S.avg_eaten), 'kcal', S.avg_goal ? `goal ${r0(S.avg_goal)}` : '')}
-      ${tile('Avg deficit / day', S.avg_deficit == null ? '–' : r0(Math.abs(S.avg_deficit)), 'kcal', S.avg_deficit == null ? 'no full days logged' : S.avg_deficit >= 0 ? 'deficit' : 'surplus', S.avg_deficit == null ? '' : S.avg_deficit >= 0 ? 'good' : 'bad')}
-      ${S.logged ? tile('Total deficit', r0(Math.abs(S.total_deficit)), 'kcal', `≈ ${wconv(Math.abs(pDef)).toFixed(1)} ${wu} ${pDef <= 0 ? 'lost' : 'gained'}`, S.total_deficit >= 0 ? 'good' : 'bad')
+      ${tile('Avg deficit / day', S.avg_deficit == null ? '–' : r0(Math.abs(S.avg_deficit)), 'kcal', S.avg_deficit == null ? S.missing_burn_days ? 'waiting for resting data' : 'no full days logged' : S.avg_deficit >= 0 ? 'deficit' : 'surplus', S.avg_deficit == null ? '' : S.avg_deficit >= 0 ? 'good' : 'bad')}
+      ${S.burn_counted_days ? tile('Total deficit', r0(Math.abs(S.total_deficit)), 'kcal', `≈ ${wconv(Math.abs(pDef)).toFixed(1)} ${wu} ${pDef <= 0 ? 'lost' : 'gained'}`, S.total_deficit >= 0 ? 'good' : 'bad')
         : tile('Total deficit', '–', '', 'counts fully logged days')}
       ${tile('Weight trend', pTr == null ? '–' : sgn(pTr) + wconv(Math.abs(pTr)).toFixed(1), pTr == null ? '' : wu, pTr == null ? 'log weight to see it' : 'over these days', '', '/food?view=weight')}
       ${tile('Avg protein', S.avg_protein_g == null ? '–' : r0(S.avg_protein_g), 'g', T.protein_target ? `target ${r0(T.protein_target)} g` : '')}
@@ -1225,7 +1227,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
     energyChart($('#nt-energychart', box), cols, {weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
     const cum = S.logged ? past.filter((r) => r.eaten != null) : [];   // no fully logged day yet: nothing to add up
     dayLine($('#nt-cum', box), cum.map((r) => ({y: r.total, tick: dlabel(r.day, {month: 'short', day: 'numeric'}), label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}),
-      sub: r.counted ? `Day <b>${r0(Math.abs(r.deficit))}</b> ${r.deficit >= 0 ? 'deficit' : 'surplus'}` : 'partly logged, not counted'})),
+      sub: r.counted && r.deficit == null ? 'resting calories not synced' : r.counted ? `Day <b>${r0(Math.abs(r.deficit))}</b> ${r.deficit >= 0 ? 'deficit' : 'surplus'}` : 'partly logged, not counted'})),
       {fmt: (v, short) => (short ? (Math.abs(v) >= 10000 ? (v / 1000).toFixed(1) + 'k' : r0(v)) : `${r0(Math.abs(v))} kcal ${v >= 0 ? 'deficit' : 'surplus'}`)});
   });
 }
@@ -1296,4 +1298,48 @@ function dietCoach(box) {
       $('button', box).onclick = () => sheet('Kit · Food log', '<div id="food-kit"></div>', root => dietCoachContent($('#food-kit',root)));
     }
   });
+}
+
+// The resting source changes burn accounting only; the food target remains a separate explicit action.
+async function restingSourceCard(box) {
+  if (!box?.isConnected) return;
+  const account=readOwner(),watch=App.me.resting_source==='apple_health';
+  box.innerHTML=`<section class="card"><h2>Resting calories</h2><p class="small muted">Choose where passive calories come from. Your food goal stays the same. Activity calories already in Kinetta are added once.</p>
+    <label>Source<select id="resting-source"><option value="formula"${watch?'':' selected'}>Kinetta estimate</option><option value="apple_health"${watch?' selected':''}>Apple Health · Resting Energy</option></select></label>
+    <p class="small muted">${watch ? 'Uses synced Resting Energy, without an everyday-activity multiplier. Today shows the amount so far; missing days stay blank until synced.' : 'Uses calculated BMR and your everyday activity setting.'}</p>
+    ${watch ? `<p class="small" id="resting-status" role="status">Checking resting-energy sync…</p>${Native.on ? `<button class="primary wide" id="resting-sync">Connect / sync resting calories</button>` : '<p class="small muted">Open the latest Kinetta iPhone app to allow Resting Energy and sync. Synced totals also appear here in your browser.</p>'}<button class="ghost wide danger" id="resting-remove">Remove synced resting calories</button>` : ''}
+    <p class="small err" id="resting-error" role="alert"></p></section>`;
+  const error=$('#resting-error',box),select=$('#resting-source',box);
+  const changed=async value=>{
+    select.disabled=true;
+    try {
+      if(value==='apple_health' && Native.on) await Native.connectRestingEnergy();
+      if(value==='formula' && Native.on) await Native.stopRestingEnergy();
+      if(account!==readOwner())return;
+      await api('/api/profile',json('PUT',{resting_source:value}));
+      if(account!==readOwner())return;
+      App.me.resting_source=value;invalidate('/api/food');invalidate('/api/health/resting');
+      if(value==='apple_health' && Native.on) {
+        try { await Native.syncRestingEnergy(); } catch(e) { toast(e.message); }
+      }
+      if(account===readOwner())render();
+    } catch(e) {if(account===readOwner()&&box.isConnected){error.textContent=e.message;select.value=App.me.resting_source||'formula';select.disabled=false;}}
+  };
+  select.onchange=()=>changed(select.value);
+  if(!watch)return;
+  const sync=$('#resting-sync',box);if(sync)sync.onclick=async()=>{
+    sync.disabled=true;error.textContent='';
+    try {await Native.connectRestingEnergy();const result=await Native.syncRestingEnergy();if(account!==readOwner())return;toast(result?.days ? 'Resting calories synced. Food goal unchanged.' : 'No readable Resting Energy. Check Kinetta’s access in Health.');render();}
+    catch(e){if(account===readOwner()&&box.isConnected){error.textContent=e.message;sync.disabled=false;}}
+  };
+  $('#resting-remove',box).onclick=async e=>{
+    if(!confirm('Remove your synced resting calories and use Kinetta’s estimate? Your food goal and activities stay the same.'))return;
+    e.currentTarget.disabled=true;
+    try {if(Native.on)await Native.stopRestingEnergy();if(account!==readOwner())return;await api('/api/health/resting',{method:'DELETE'});if(account!==readOwner())return;App.me.resting_source='formula';invalidate('/api/food');invalidate('/api/health/resting');render();}
+    catch(err){if(account===readOwner()&&box.isConnected){error.textContent=err.message;e.currentTarget.disabled=false;}}
+  };
+  try {
+    const status=await api('/api/health/resting');if(account!==readOwner()||!box.isConnected)return;
+    const latest=status.days?.[0];$('#resting-status',box).textContent=latest ? `Latest day: ${latest.day} · ${r0(latest.resting_kcal)} resting kcal · read ${when(latest.observed_at)}. Health totals can update after later syncs.` : 'No resting calories have synced. Allow Resting Energy in the iPhone app, then sync. Closing the permission screen does not confirm read access.';
+  }catch(e){if(account===readOwner()&&box.isConnected)$('#resting-status',box).textContent=e.message;}
 }

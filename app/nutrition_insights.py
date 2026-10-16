@@ -43,6 +43,7 @@ def insights(days: int = 30, since: dt.date | None = None, user=Depends(current_
         goals = {r['day']: float(r['kcal']) for r in c.execute('SELECT day, kcal FROM day_goals WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
         ex = energy.exercise_by_day(c, uid, ctx['tz'], start - dt.timedelta(days=28), today, ctx['kg'])
         over = energy.burn_overrides(c, uid, start, today)
+        resting = energy.resting_by_day(c, uid, ctx['tz'], start, today) if info['resting_source'] == 'apple_health' else {}
         least = energy.full_day_min(c, uid, info['base'])
         raw_w = {r['day']: float(r['kg']) for r in c.execute('SELECT day, kg FROM weights WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
 
@@ -54,16 +55,17 @@ def insights(days: int = 30, since: dt.date | None = None, user=Depends(current_
     d = start
     while d <= today:
         f = food.get(d); exk = (ex.get(d) or {}).get('kcal', 0.0)
-        burned = over.get(d, energy.daily_burn(info, exk))
+        burn = energy.burn_for_day(info, exk, d, resting, over)
+        burned = burn['total']
         default = prof.get('kcal_target')
         goal = goals.get(d, default if default else None)      # workouts deepen the deficit, they don't raise the goal
         eaten = _f(f['kcal']) if f else None
         counted = bool(f) and d < today and not (typical and eaten < 0.5 * typical) and eaten >= least
-        deficit = burned - eaten if counted else None
+        deficit = burned - eaten if counted and burned is not None else None
         if deficit is not None: total += deficit
-        rows.append({'day': d.isoformat(), 'imported_burn': d in over, 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burned), 'exercise': round(exk),
+        rows.append({'day': d.isoformat(), 'imported_burn': burn['source'] == 'imported', 'burn_source': burn['source'], 'burn_missing': burned is None, 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burned) if burned is not None else None, 'exercise': round(exk),
                      'goal': round(goal) if goal else None, 'deficit': round(deficit) if deficit is not None else None, 'total': round(total),
-                     'counted': counted, 'today': d == today, 'training': exk > usual + 150,
+                     'counted': counted, 'burn_counted': counted and burned is not None, 'today': d == today, 'training': exk > usual + 150,
                      **{k: round(_f(f[k]), 1) if f else None for k in ('protein_g', 'carbs_g', 'fat_g')},
                      'fiber_g': round(_f(f['fiber_g']), 1) if f and f['fiber_n'] else None,
                      'weight': raw_w.get(d), 'trend': round(energy.trend_on(ctx['points'], d), 2) if energy.trend_on(ctx['points'], d) is not None else None,
@@ -71,9 +73,11 @@ def insights(days: int = 30, since: dt.date | None = None, user=Depends(current_
         d += dt.timedelta(days=1)
 
     C = [r for r in rows if r['counted']]
+    B = [r for r in C if r['burn_counted']]
     n = len(C); avg = lambda k: sum(r[k] or 0 for r in C) / n if n else None
     summary = {'days': days, 'logged': n, 'past_days': days - 1, 'avg_eaten': round(avg('eaten')) if n else None,
-               'avg_burned': round(avg('burned')) if n else None, 'avg_deficit': round(total / n) if n else None, 'total_deficit': round(total),
+               'burn_counted_days': len(B), 'missing_burn_days': sum(r['burn_missing'] for r in C),
+               'avg_burned': round(sum(r['burned'] for r in B) / len(B)) if B else None, 'avg_deficit': round(total / len(B)) if B else None, 'total_deficit': round(total),
                'avg_goal': round(sum(r['goal'] for r in C if r['goal']) / max(1, sum(1 for r in C if r['goal']))) if any(r['goal'] for r in C) else None,
                **{f'avg_{k}': round(avg(k), 1) if n else None for k in ('protein_g', 'carbs_g', 'fat_g')},
                'predicted_kg': round(-total / energy.KCAL_PER_KG, 2), 'tdee': info['tdee'], 'tdee_confidence': info['confidence'], 'kg': ctx['kg']}
@@ -91,6 +95,7 @@ def insights(days: int = 30, since: dt.date | None = None, user=Depends(current_
 def _insights(C, S, tg, top, ctx, raw_w):
     """Short plain sentences, most useful first; only when there is enough data to say it."""
     out, n = [], len(C)
+    if S['missing_burn_days']: out.append(('info', f"Resting calories have not finished syncing for {S['missing_burn_days']} logged day(s). Food averages still count those days; deficit totals wait for resting data."))
     lb = lambda kg: f'{abs(kg) * 2.20462:.1f} lb'
     if S['past_days'] and n / S['past_days'] < 0.7:
         out.append(('info', f"Logged {n} of the last {S['past_days']} days. The deficit and calorie needs get more accurate with each full day."))
@@ -102,7 +107,7 @@ def _insights(C, S, tg, top, ctx, raw_w):
                     + ('on your goal.' if abs(diff) <= S['avg_goal'] * .05 else f"{abs(diff):,} {'over' if diff > 0 else 'under'} your {S['avg_goal']:,} goal.")))
         hit = sum(1 for r in C if r['goal'] and abs(r['eaten'] - r['goal']) <= r['goal'] * .1)
         out.append(('info', f"Within 10% of your goal on {hit} of {n} days."))
-    if S['trend_change_kg'] is not None and n >= 7:
+    if S['trend_change_kg'] is not None and S['burn_counted_days'] >= 7:
         out.append(('info', f"Your deficit predicts {lb(S['predicted_kg'])} {'lost' if S['predicted_kg'] <= 0 else 'gained'}; "
                             f"the scale trend is {'down' if S['trend_change_kg'] <= 0 else 'up'} {lb(S['trend_change_kg'])}."
                             + (" They match." if abs(S['predicted_kg'] - S['trend_change_kg']) < 0.6 else " Water weight usually explains a gap like this.")))

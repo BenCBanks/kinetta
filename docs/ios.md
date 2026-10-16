@@ -22,7 +22,7 @@ can be signed and uploaded automatically.
   Health's own id for it, so a workout sent twice is stored once. A workout that's already in Kinetta from somewhere
   else (a Garmin file, a Strava export) isn't added again either.
 - **Kit AI consent.** Kit reads Apple Health workouts only after you tick "Let Kit read my Apple
-  Health workouts". Until then Kit is off for anyone with Apple Health workouts (Apple's rules require consent
+  Health data". Until then Kit is off for anyone with Apple Health workouts (Apple's rules require consent
   before health data goes to an AI service).
 
 ## The plan (roadmap step 3)
@@ -170,3 +170,5 @@ Physical acceptance must include an Apple Watch outdoor workout with route permi
 For how server releases, bundled screens and database migrations fit together, see [Developing and releasing Kinetta](development-and-updates.md).
 
 Native iPhone alerts and APNs credentials: [notification setup](ios-notifications.md). Browser push delivery is retired.
+
+Resting Energy is a separate optional read for Nutrition; see [resting calories](resting-calories.md). Food goals stay independent, and recorded workout calories are not duplicated.
