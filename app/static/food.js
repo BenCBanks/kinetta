@@ -626,15 +626,26 @@ function describePage(b, day, meal) {
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* native picker */ } };
     dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); sent = null; draw(); };
     dest.onchange = () => { sent = null; draw(); };
-    $('#ql-plus', b).onclick = () => sheet('Add food', `<div class="btncol">${canEstimate ? '<button class="ghost" id="ql-snap">Snap a food photo</button>' : '<p class="small muted">Food photo estimates are available with AI enabled in Me.</p>'}<button class="ghost" id="ql-scan">Scan a barcode</button><button class="ghost" id="ql-search">Search foods and brands</button></div>`, (menu, done) => {
+    $('#ql-plus', b).onclick = () => sheet('Add food', `<div class="btncol">${canEstimate ? '<button class="ghost" id="ql-snap">Snap a food photo</button>' + (navigator.clipboard?.read ? '<button class="ghost" id="ql-paste">Paste a screenshot</button>' : '') : '<p class="small muted">Food photo estimates are available with AI enabled in Me.</p>'}<button class="ghost" id="ql-scan">Scan a barcode</button><button class="ghost" id="ql-search">Search foods and brands</button></div>`, (menu, done) => {
       const snap = $('#ql-snap', menu); if (snap) snap.onclick = () => { done(); file.click(); };
+      const paste = $('#ql-paste', menu); if (paste) paste.onclick = async () => {   // iPhone text boxes never offer Paste for a picture
+        done(); let files = [];
+        try { for (const it of await navigator.clipboard.read()) { const t = it.types.find((x) => x.startsWith('image/')); if (t) files.push(new File([await it.getType(t)], 'pasted', {type: t})); } } catch (e) { /* permission declined */ }
+        if (files.length) usePhotos(files); else toast('Copy a picture or screenshot first, then paste it here');
+      };
       $('#ql-scan', menu).onclick = () => { done(); scanSheet(dp.value, dest.value, product => amountSheet(product, {day: dp.value, meal: dest.value}, close)); };
       $('#ql-search', menu).onclick = () => { done(); addSheet(dp.value, dest.value, '', 'search'); };
     });
-    file.onchange = async () => {
-      const files=[...(file.files||[])]; file.value=''; if(busy||!active())return;
+    // photos, screenshots of a recipe or its nutrition facts: all go to the same estimate
+    const usePhotos = async (files) => {
+      if(busy||!active())return;
       await reviewFoodPhotos(files,images=>{if(!active())return;photo=images;photoSaid=[];say(images.map((p,i)=>`<img class="ql-img" src="${p}" alt="Your selected food photo ${i+1}">`).join(''),'me');input.placeholder='Add a few words, or tap send';},{active});
     };
+    file.onchange = () => { const files=[...(file.files||[])]; file.value=''; usePhotos(files); };
+    if (canEstimate) f.addEventListener('paste', (e) => {
+      const files = [...(e.clipboardData?.files || [])].filter((x) => x.type.startsWith('image/'));
+      if (files.length) { e.preventDefault(); usePhotos(files); }
+    });
 
     const unknown = () => items.filter((i) => i.status === 'unknown');
     const batchOf = (i) => batches.find((x) => x.idx.includes(i));
