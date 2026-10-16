@@ -318,7 +318,7 @@ function drawDetail(el, a) {
     <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${a.ai_note || aiCan('coach') ? `<button class="icon-btn kit-help" id="d-kit" aria-label="Ask Kit about this activity">${svg('sparkle')}</button>` : ''}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted">Summary corrected by you. Charts and laps show the original recording. Affected splits, personal records and derived estimates stay hidden until the relevant imported values are restored.</p>':''}
+      ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}
       <div class="hero">${hero}</div><div id="d-photos"></div><div class="cpile"></div></div>
     <div class="seg wide dtabs" role="tablist" aria-label="Sections"${DTABS.filter(([k]) => has(k)).length < 2 ? ' hidden' : ''}>${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
     ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
@@ -428,13 +428,17 @@ function editActivity(a) {
   const cur = kinds.find((k) => k.sp === a.sport && k.lb === (a.sport_label || null)) || (!a.sport_label && kinds.find((k) => k.sp === a.sport && !k.lb));
   const keep = cur ? '' : `<option value="keep" selected>${esc(a.sport_label || SPORT_NAMES[a.sport] || 'Activity')}</option>`;
   const kindOpts = keep + HAND_KINDS.map(([g, list], gi) => `<optgroup label="${esc(g)}">${list.map(([, n], i) => `<option value="${gi}.${i}"${cur && cur.v === `${gi}.${i}` ? ' selected' : ''}>${esc(n)}</option>`).join('')}</optgroup>`).join('');
-  const summaryFields=[['distance_m','Distance',imp()?'mi':'km',imp()?1609.344:1000],['moving_s','Moving time','min',60],['elapsed_s','Total duration','min',60],['ascent_m','Elevation gain',imp()?'ft':'m',imp()?0.3048:1],['calories','Energy','kcal',1],['avg_hr','Average heart rate','bpm',1],['max_hr','Maximum heart rate','bpm',1]];
+  // "1:34:50", "34:50" or plain minutes ("95") -> seconds; anything else -> NaN
+  const clockSecs=(v)=>{const p=v.split(':');if(p.length>3||p.some((x)=>!/^\d+([.,]\d+)?$/.test(x.trim())))return NaN;const n=p.map((x)=>Number(x.trim().replace(',','.')));return p.length===1?n[0]*60:p.length===2?n[0]*60+n[1]:n[0]*3600+n[1]*60+n[2]};
+  const summaryFields=[['distance_m','Distance',imp()?'mi':'km',imp()?1609.344:1000],['moving_s','Moving time','h:mm:ss',1],['elapsed_s','Total duration','h:mm:ss',1],['ascent_m','Elevation gain',imp()?'ft':'m',imp()?0.3048:1],['calories','Energy','kcal',1],['avg_hr','Average heart rate','bpm',1],['max_hr','Maximum heart rate','bpm',1]];
   const initial={};
-  const correctionFields=summaryFields.map(([key,label,unit,scale])=>{const digits=['avg_hr','max_hr','ascent_m','calories'].includes(key)?1:key.endsWith('_s')?2:3;const factor=10**digits;const value=a[key]==null?'':String(Math.round(a[key]/scale*factor)/factor);initial[key]=value;return `<label>${label} (${unit})<input name="summary_${key}" inputmode="decimal" value="${value}" placeholder="Not recorded" aria-label="${label} in ${unit}"></label>${Object.hasOwn(a.summary_overrides||{},key)?`<label class="check"><input type="checkbox" name="restore_${key}"> Use imported ${label.toLowerCase()}</label>`:''}`}).join('');
+  // times as 1:34:50 like everywhere else in the app; heart rate, energy and climb as whole numbers (2026-10-16)
+  const isTime=(key)=>key.endsWith('_s');
+  const correctionFields=summaryFields.map(([key,label,unit,scale])=>{const value=a[key]==null?'':isTime(key)?dur(a[key]):key==='distance_m'?String(Math.round(a[key]/scale*100)/100):String(Math.round(a[key]/scale));initial[key]=value;return `<label>${label} (${unit})<input name="summary_${key}" inputmode="${isTime(key)?'text':'decimal'}" value="${value}" placeholder="Not recorded" aria-label="${label} in ${isTime(key)?'hours, minutes and seconds':unit}"></label>${Object.hasOwn(a.summary_overrides||{},key)?`<label class="check"><input type="checkbox" name="restore_${key}"> Use recorded ${label.toLowerCase()}</label>`:''}`}).join('');
   sheet('Edit activity', `<form class="form" id="e-form">
     <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
     <label>What did you do?<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
-    <details id="e-summary"><summary>Distance, duration & other details</summary><p class="small muted">Corrections stay in Kinetta when Apple Health syncs again. Blank means not recorded. Recorded charts and laps keep their original samples; affected splits, records and derived estimates are hidden. Restore an imported value to undo its correction.</p>${correctionFields}</details>
+    <details id="e-summary"><summary>Distance, duration & other details</summary><div class="form e-fields"><p class="small muted">Your edits stay when Apple Health syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
     <label>Description<textarea name="description" maxlength="10000">${esc(a.description || '')}</textarea></label>
     <label>Private note (only you)<textarea name="private_note" maxlength="10000">${esc(a.private_note || '')}</textarea></label>
     <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
@@ -456,7 +460,7 @@ function editActivity(a) {
       if (f.name.value !== a.name) body2.name = f.name.value;   // left alone, a name nobody typed follows the kind ("Lunch Yoga")
       if (f.gear.value) body2.gear_id = +f.gear.value; else body2.clear_gear = true;
       body2.restore_summary=[];
-      for(const [key,label,,scale] of summaryFields){if(f.elements['restore_'+key]?.checked){body2.restore_summary.push(key);continue}const value=f.elements['summary_'+key].value.trim();if(value===initial[key])continue;const number=value===''?null:Number(value.replace(',','.'))*scale;if(number!==null&&!Number.isFinite(number)){toast('Enter a valid '+label.toLowerCase());return}body2[key]=number}
+      for(const [key,label,,scale] of summaryFields){if(f.elements['restore_'+key]?.checked){body2.restore_summary.push(key);continue}const value=f.elements['summary_'+key].value.trim();if(value===initial[key])continue;const number=value===''?null:isTime(key)?clockSecs(value):Number(value.replace(',','.'))*scale;if(number!==null&&!Number.isFinite(number)){toast(isTime(key)?`Enter ${label.toLowerCase()} like 1:34:50`:'Enter a valid '+label.toLowerCase());return}body2[key]=number}
       const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'Saving…';
       try {
         await api(`/api/activities/${a.id}`, json('PATCH', body2));
