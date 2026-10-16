@@ -1655,3 +1655,27 @@ nav.tabs a[aria-current="page"] svg { animation: tab-pick .28s cubic-bezier(.2, 
 .track-tools .row-link { justify-content: flex-start; }
 .track-tools .row-link > svg:first-child { flex: none; width: 20px; height: 20px; color: var(--accent); }
 .track-tools .row-link > svg:last-child { flex: none; width: 16px; height: 16px; color: var(--tx3); }
+
+/* ---------- Me as a greeting (2026-10-16, Ben: "Hi, Ben" instead of "Me"; less going on) ---------- */
+.me-heading { align-items: flex-end; }
+.me-hello { display: grid; gap: 2px; min-width: 0; }
+.me-hello small { color: var(--tx3); font-size: 13px; font-weight: 600; }
+.me-hello h1 { overflow-wrap: anywhere; }
+.me-heading .acts { align-items: center; gap: 4px; }
+.me-avatar { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; }
+.me-avatar .av { width: 36px; height: 36px; font-size: 14px; }
+.me-avatar:active { transform: scale(.92); }
+#t-week { margin-top: 8px; }
+.card.tap.me-form { display: grid; gap: 10px; padding: 14px 16px; color: var(--tx); }
+.me-form-top { display: flex; align-items: center; gap: 12px; }
+.me-form-top .grow { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.me-form-top small { font-size: 12px; color: var(--tx3); font-weight: 600; }
+.me-form .status-word { font-size: 19px; font-weight: 750; margin: 0; }
+.me-form .status-word.good { color: var(--good); } .me-form .status-word.warn { color: var(--warn); }
+.me-form-top > svg { flex: none; width: 16px; height: 16px; color: var(--tx3); }
+.me-form-nums { display: flex; gap: 24px; }
+.me-form-nums span { display: grid; }
+.me-form-nums b { font-size: 20px; font-weight: 750; }
+.me-form-nums small { font-size: 12px; color: var(--tx3); }
+.me-form .callout { margin: 0; }
+.me-tools { margin-top: 24px; }

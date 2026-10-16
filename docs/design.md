@@ -302,3 +302,9 @@ Nutrition owns the resting-source preference, distinct from the food goal and ac
 - **Less repetition:** Me drops its Training plan / Log food shortcut rows when the plan or food card above already
   shows that link or button. Progress's table is a slim fold row. Activity dates on the detail screen wrap instead of
   ending in an ellipsis.
+- **Me greeting:** the Me tab's page title is "Hi, [first name]" with the local date above it; the tab itself is still
+  called Me. Your photo at the top right (next to the bell) opens your profile and replaces the old name row. Fitness &
+  freshness is one compact card: status word, then fitness/freshness/run score in a row. Friends, Goals, Shoes & bikes,
+  Explore Kinetta and Help & contact share one list without a heading; Profile & settings stays last.
+- **Contact:** the public support address is KinettaApp@gmail.com (privacy policy, website footers, SECURITY.md, Me ›
+  Help & contact). Never ask for passwords by email.

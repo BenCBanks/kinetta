@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 15, 2026
+Last updated October 16, 2026
 
 ## intro
 
@@ -124,7 +124,7 @@ Your choices
 
 ## choices
 
-Use Me to change personal details, AI choices, notification preferences and connected sources. You can edit or remove your activities, food entries and weigh-ins. Me → Your data lets you download your records and original activity files, or delete your account after confirming your password. Account deletion removes live account records and uploaded files and revokes account access. Backup copies follow the retention described above. Contact the beta organizer if you cannot access your account or need help with a privacy request.
+Use Me to change personal details, AI choices, notification preferences and connected sources. You can edit or remove your activities, food entries and weigh-ins. Me → Your data lets you download your records and original activity files, or delete your account after confirming your password. Account deletion removes live account records and uploaded files and revokes account access. Backup copies follow the retention described above. Email [KinettaApp@gmail.com](mailto:KinettaApp@gmail.com) if you cannot access your account or need help with a privacy request.
 
 ## security-heading
 
@@ -140,7 +140,7 @@ Age requirements
 
 ## age
 
-Kinetta is not intended for children under 16, and we do not knowingly collect their information. Optional third-party services may impose additional eligibility restrictions. Contact the beta organizer if you believe a child has provided information that should be removed.
+Kinetta is not intended for children under 16, and we do not knowingly collect their information. Optional third-party services may impose additional eligibility restrictions. Email [KinettaApp@gmail.com](mailto:KinettaApp@gmail.com) if you believe a child has provided information that should be removed.
 
 ## contact-heading
 
@@ -148,11 +148,11 @@ Contact and changes
 
 ## contact
 
-During the invitation-only beta, send privacy questions or requests to the person who invited you through the contact channel used for your invitation. A dedicated public support address will be listed here when available. Do not put personal records, passwords or private requests in public GitHub issues. We update the date on this page when this policy changes and will notify affected users of material changes as appropriate.
+Send privacy questions and requests to [KinettaApp@gmail.com](mailto:KinettaApp@gmail.com). Please don't include passwords; we will never ask for one. Do not put personal records, passwords or private requests in public GitHub issues. We update the date on this page when this policy changes and will notify affected users of material changes as appropriate.
 
 ## training-training-food-food-friends-friends-compare-co-55
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [Contact](mailto:KinettaApp@gmail.com) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-56
 

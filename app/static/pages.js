@@ -131,10 +131,12 @@ function getStarted(healthConnected = false, hasHistory = false) {
 }
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 async function meOverview(el) {
-  el.innerHTML = `<div class="top me-heading"><h1>Me</h1><div class="acts"><div id="t-review"></div>${bellBtn()}</div></div>
+  // A greeting instead of the word "Me" (2026-10-16, Ben: "Hi, Ben"); your photo at the top right opens your profile,
+  // which replaces the separate name row that used to sit under the chart.
+  const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
+  el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
+    <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
-    <a class="me-identity" href="${profileHref(App.me)}">${avatar(App.me)}<span class="grow"><b>${esc(App.me.name)}</b><small>@${esc(App.me.login)}</small></span><span>Edit profile</span>${svg('chev')}</a>
-
     <div id="t-last"></div>
     <section class="me-agenda"><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div>
       <div class="me-day-links"><a href="/plan">${svg('calendar')}Training plan${svg('chev')}</a><a href="/food">${svg('food')}Log food${svg('chev')}</a></div></section>
@@ -184,10 +186,12 @@ async function meOverview(el) {
       if (!last) { $('#t-form', el).innerHTML = ''; return; }
       // the status word leads (like Garmin's training status); the numbers sit under it, the definitions on the Fitness page
       const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
-      $('#t-form', el).innerHTML = `<a class="card tap" href="/progress?view=fitness"><h2>Fitness & freshness<span class="more">More ›</span></h2>
-        <p class="status-word ${k}"><b>${esc(word)}</b><span>${esc(tip)}</span></p>
-        <div class="stats3 tiles">${stat('Fitness', Math.round(last.fitness))}${stat('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? stat('Run score', f.vdot_now) : ''}</div>
-        ${f.ramp_7d > 8 ? '<div class="callout warn">Your training load jumped this week. Watch for niggles.</div>' : ''}</a>`;
+      // one compact row (2026-10-16): the status word and its numbers; the explanations live on the Fitness page
+      const mini = (label, v) => `<span><b class="num">${esc(v)}</b><small>${esc(label)}</small></span>`;
+      $('#t-form', el).innerHTML = `<a class="card tap me-form" href="/progress?view=fitness" aria-label="Fitness and freshness: ${esc(word)}. ${esc(tip)}. Open details">
+        <span class="me-form-top"><span class="grow"><small>Fitness & freshness</small><b class="status-word ${k}">${esc(word)}</b></span>${svg('chev')}</span>
+        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? mini('Run score', f.vdot_now) : ''}</span>
+        ${f.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</a>`;
     }),
     load('/api/goals', (g) => {
       $('#t-goals', el).innerHTML = g.length ? `<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>${g.map(goalRow).join('')}</div>` : '';
@@ -1050,13 +1054,15 @@ function profilePhotoSheet(done) {
     };
   });
 }
+// Questions, problems and privacy requests (2026-10-16): the same address as the website and privacy policy.
+const SUPPORT_EMAIL = 'KinettaApp@gmail.com';
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
   // Personal overview first; secondary account controls retain their existing sheets.
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<div id="me-overview"></div><h2 class="sec-head">Your tools</h2>
-    <div class="card list">${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}<a class="row-link" href="/me/explore"><span class="ri">${svg('help')}</span><span class="grow">Explore Kinetta<small class="muted gs-sub">Features & how-to guide</small></span>${ch}</a></div>
+  el.innerHTML = `<div id="me-overview"></div>
+    <div class="card list me-tools">${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
     <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
     <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
