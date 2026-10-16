@@ -29,12 +29,13 @@ enum HealthRestingEnergy {
         func finish(_ result: Result<[String:Any],Error>) {
             lock.lock();if completed { lock.unlock();return };completed=true;lock.unlock();done(result)
         }
-        let timeout=DispatchWorkItem {
-            store.stop(query);query.initialResultsHandler=nil
+        // HealthKit throws (and the app aborts) if a handler is changed after execute, so never touch it again.
+        let timeout=DispatchWorkItem { [weak query] in
+            if let query=query { store.stop(query) }
             finish(.failure(NSError(domain:"KinettaHealth",code:1,userInfo:[NSLocalizedDescriptionKey:"Resting energy could not be read. Unlock your phone and try syncing again."])))
         }
-        query.initialResultsHandler = { _,collection,error in
-            timeout.cancel();store.stop(query);query.initialResultsHandler=nil
+        query.initialResultsHandler = { running,collection,error in
+            timeout.cancel();store.stop(running)
             if let error=error { finish(.failure(error));return }
             guard let collection=collection else {
                 finish(.failure(NSError(domain:"KinettaHealth",code:1,userInfo:[NSLocalizedDescriptionKey:"Apple Health returned no resting-energy result."])));return
