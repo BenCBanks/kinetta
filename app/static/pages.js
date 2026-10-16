@@ -77,38 +77,43 @@ function wireBack(el, fallback) {
 App.navCount = 0;
 const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 
+// Shared profile chart: viewer-local dates, explicit units, zeros retained on the same scale.
+function mileageChart(box, series) {
+  const rows = series.days || [], max = Math.max(1, ...rows.map((r) => +r.distance_m || 0));
+  const total = rows.reduce((n, r) => n + (+r.distance_m || 0), 0);
+  box.innerHTML = `<h2>Last 14 days</h2><p class="mileage-total num"><b>${U.dist(total, 1)}</b> ${U.du()}</p>
+    <div class="mileage-bars fortnight-bars" role="img" aria-label="Distance in ${U.du()} for the last 14 days: ${esc(rows.map((r) => `${r.d}: ${U.dist(r.distance_m || 0, 1)}`).join(', '))}">${rows.map((r) => {
+      const date = new Date(r.d + 'T12:00');
+      return `<div class="mileage-day${r.today ? ' current-day' : ''}"><div class="mileage-column"><i data-h="${Math.max(.015, (+r.distance_m || 0) / max)}"></i></div><small>${esc(date.toLocaleDateString([], {weekday: 'narrow'}))}<b>${date.getDate()}</b></small></div>`;
+    }).join('')}</div>
+    <p class="small muted mileage-range">${rows.length ? `${esc(fdate(rows[0].d + 'T12:00', {month:'short',day:'numeric'}))} – ${esc(fdate(rows[rows.length - 1].d + 'T12:00', {month:'short',day:'numeric'}))}` : ''}</p>
+    ${total ? '' : '<p class="small muted">No distance recorded in the last 14 days. Timed activities still appear below.</p>'}`;
+}
+
 // ---------- Today ----------
 // A new person's first steps, until their first workout arrives: automatic syncing first, so testers don't have to
 // upload files every week; the Home Screen tip only on an iPhone browser that isn't already the Home Screen app.
 // the next step for someone with nothing here yet (2026-10-12): an empty page says what to do, with the button for it
-const startCta = () => `<div class="btncol empty-cta">${Native.on ? '<a class="primary" href="/me/health">Connect Apple Health</a>' : '<a class="primary" href="/me/connections">Connect your watch</a>'}
-  <a class="ghost" href="/me/import">Upload files or your Strava export</a></div>`;
+const startCta = () => '';
 function getStarted(healthConnected = false, hasHistory = false) {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
   const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
   return `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">
-    ${Native.on ? healthConnected ? '' : step('/me/health', 'heart', 'c-red', 'Connect Apple Health', 'Choose what to share. You can keep using Kinetta while workouts import.')
-      : step('/me/connections', 'watch', 'c-ink', 'Connect your watch', 'Garmin or Apple Watch: new workouts arrive on their own.')}
-    ${!hasHistory ? step('/me/import', 'upload', 'c-blue', 'Bring in your history', 'Your Strava export, or FIT, GPX and TCX files.') : ''}
     ${!hasHistory ? step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or enter known nutrition.') : ''}
     ${!hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', 'See each other\'s runs and rides, and send cheers.') : ''}
     ${ios && !home && !Native.on ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : ''}</div>`;
 }
-route(/^\/today$/, 'today', async (el) => {
-  const day = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: tz()});
-  const firstName = (App.me.name || '').trim().split(/\s+/)[0];
-  const greeting = firstName ? `Hi, ${firstName}` : 'Hi there';
-  el.innerHTML = `<div class="brand-line"><a class="wordmark" href="/today">Kinetta</a><a class="icon-btn" href="/me" aria-label="My profile">${svg('me')}</a></div>
-    <div class="today-head"><div class="today-date-row"><div class="eyebrow">${esc(day)}</div><div class="acts">${bellBtn()}<button class="icon-btn" data-addact aria-label="Add activity">${svg('plus')}</button></div></div>
-      <div class="today-greeting-row"><h1>${esc(greeting)}</h1><div id="t-review"></div></div></div>
-    <div id="t-setup"></div><div id="t-lift"></div><div id="t-plan"></div><div id="t-food"></div><div id="t-week">${skel(1)}</div><div id="t-last"></div>
-    <section class="today-discover" aria-label="Make today yours"><h2>Make today yours</h2><div class="today-actions">
-      <a href="/food?add=1">${svg('food')}<b>Log food</b><small>Search, scan or type it in</small></a>
-      <a href="/plan">${svg('target')}<b>Training plan</b><small>Start or continue</small></a>
-      <a href="/me/explore">${svg('help')}<b>Explore Kinetta</b><small>Tools & how-to guides</small></a></div></section>
-    <div id="t-goals"></div><div id="t-form"></div>`;
-  liftNowCard($('#t-lift', el));
+route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
+async function meOverview(el) {
+  el.innerHTML = `<div class="top me-heading"><h1>Me</h1><div class="acts"><div id="t-review"></div>${bellBtn()}</div></div>
+    <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
+    <a class="me-identity" href="${profileHref(App.me)}">${avatar(App.me)}<span class="grow"><b>${esc(App.me.name)}</b><small>@${esc(App.me.login)}</small></span><span>Edit profile</span>${svg('chev')}</a>
+
+    <div id="t-last"></div>
+    <section class="me-agenda"><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div>
+      <div class="me-day-links"><a href="/plan">${svg('calendar')}Training plan${svg('chev')}</a><a href="/food">${svg('food')}Log food${svg('chev')}</a></div></section>
+    <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
   planCard($('#t-plan', el)).catch(() => {});
   todayFoodCard($('#t-food', el)).catch(() => {});
   load('/api/coach/week', (r) => {
@@ -129,7 +134,7 @@ route(/^\/today$/, 'today', async (el) => {
         const button = $('#rv-now', sb); if (button) button.onclick = () => reviewNow(button, close);
       });
   }).catch(() => {});
-  const [feed, st, fit, goals] = await Promise.all([
+  const overviewLoads = await Promise.allSettled([
     load('/api/activities?limit=3', (d) => {
       $('#t-last', el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
       Promise.resolve(Native.on ? Native.healthOn() : false).catch(() => false).then((connected) => {
@@ -140,22 +145,8 @@ route(/^\/today$/, 'today', async (el) => {
       });
     }),
     load('/api/stats', (s) => {
-      const wk = s.weeks.filter((w) => w.week === s.weeks.reduce((m, x) => (x.week > m ? x.week : m), ''));
-      const thisWeek = s.weeks.length ? wk : [];
-      const tot = thisWeek.reduce((a, w) => ({n: a.n + w.n, d: a.d + (w.distance_m || 0), t: a.t + (w.moving_s || 0), e: a.e + (w.ascent_m || 0)}), {n: 0, d: 0, t: 0, e: 0});
-      const monday = new Date(); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-      const isThis = thisWeek.length && new Date(thisWeek[0].week + 'T12:00') >= new Date(monday.toDateString());
-      const t = isThis ? tot : {n: 0, d: 0, t: 0, e: 0};
-      const days = s.week_days || [], maxT = Math.max(1, ...days.map((x) => x.moving_s || 0)), maxD = Math.max(1, ...days.map((x) => x.distance_m || 0));
-      const dayName = (d) => new Date(d + 'T12:00').toLocaleDateString([], {weekday: 'long'});
-      $('#t-week', el).innerHTML = `<div class="card week-summary" role="region" aria-label="Weekly activity totals">
-        <a class="week-metrics" href="/progress?view=totals" aria-label="View weekly activity totals">${stat('Distance', U.dist(t.d, 1), U.du())}${stat('Time', dur(t.t, true))}${t.e ? stat('Climb', U.elev(t.e), U.eu()) : stat('Activities', t.n)}</a>
-        ${days.length ? `<div class="wstrip wchart" role="img" aria-label="Each day this week: ${esc(days.map((x) => `${dayName(x.d)} ${x.distance_m ? `${U.dist(x.distance_m, 1)} ${U.du()}` : x.moving_s ? `${Math.round(x.moving_s / 60)} min` : 'nothing'}`).join(', '))}">${days.map((x) => {
-          // a bar chart of each day's miles (2026-10-13, Ben): the number over each bar, a flat stub for a day off
-          const val = x.distance_m ? U.dist(x.distance_m, 1) : x.moving_s ? `${Math.round(x.moving_s / 60)}m` : '';
-          const h = x.distance_m ? x.distance_m / maxD : (x.moving_s || 0) / maxT * .5;
-          return `<div class="wd${x.today ? ' today' : ''}${val ? '' : ' none'}"><div class="wbar">${val ? `<span class="sp-fill ${esc(x.sport || '')}" data-h="${Math.max(.1, h).toFixed(3)}"></span>` : ''}</div><span class="wv num">${esc(val)}</span><small>${new Date(x.d + 'T12:00').toLocaleDateString([], {weekday: 'short'})}<b>${new Date(x.d + 'T12:00').getDate()}</b></small></div>`; }).join('')}</div>` : ''}
-        </div>`;
+      $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
+      mileageChart($('#me-distance', el), {days:s.recent_days || []});
     }),
     load('/api/fitness?days=60', (f) => {
       const last = f.days[f.days.length - 1];
@@ -171,7 +162,13 @@ route(/^\/today$/, 'today', async (el) => {
       $('#t-goals', el).innerHTML = g.length ? `<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>${g.map(goalRow).join('')}</div>` : '';
     }),
   ]);
-});
+  if (overviewLoads[1].status === 'rejected' && el.isConnected) $('#t-week', el).innerHTML = '<p class="small muted">Weekly activity could not load.</p>';
+  if (overviewLoads.some((r) => r.status === 'rejected') && el.isConnected) {
+    el.insertAdjacentHTML('beforeend', '<button class="ghost wide" id="me-retry">Some updates could not load · Retry</button>');
+    $('#me-retry', el).onclick = () => { invalidate('/api/'); render(); };
+  }
+}
+
 function goalFmt(metric, v) {
   return metric === 'distance' ? `${U.dist(v, 1)} ${U.du()}` : metric === 'time' ? dur(v, true) : metric === 'elevation' ? `${U.elev(v)} ${U.eu()}`
     : metric === 'calories' ? `${Math.round(v).toLocaleString()} kcal` : `${Math.round(v)}`;
@@ -197,7 +194,7 @@ const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
 const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
     ${friends ? `<a class="icon-btn" href="/me/friends" aria-label="Find friends">${svg('search')}</a>` : ''}
-    ${bellBtn()}<button class="icon-btn" data-addact aria-label="Add">${svg('plus')}</button></div></div>`;
+    ${bellBtn()}</div></div>`;
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
   if (q.get('view') !== 'mine') return homeFeed(el);
@@ -346,7 +343,7 @@ function drawDetail(el, a) {
   const mapBox = $('#d-map', el);
   if (a.line) lazy(mapBox, async () => {
     try {
-      const m = await mapInto(mapBox, [a.line], {sport: a.sport, still: !!a.photos?.length && !mapBox.classList.contains('full')});
+      const m = await mapInto(mapBox, a.track_lines?.length ? a.track_lines : [a.line], {sport: a.sport, still: !!a.photos?.length && !mapBox.classList.contains('full')});
       mapObj = m; pts = decode(a.line);
       if (m && a.photos?.length && !mapBox.classList.contains('full')) { m.map.dragging.disable(); m.map.touchZoom.disable(); }
     }
@@ -1024,21 +1021,16 @@ function profilePhotoSheet(done) {
 }
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
-  // 2026-10-11 redesign: a settings-style list, each row with a coloured icon; the long forms open in sheets
+  // Personal overview first; secondary account controls retain their existing sheets.
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<div class="profile"><button type="button" class="av-edit" id="m-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'lg')}<span class="av-cam">${svg('camera')}</span></button><div><a href="${profileHref(me)}" aria-label="View my profile"><h1>${esc(me.name)}</h1></a><div class="sub">@${esc(me.login)}</div></div></div>
+  el.innerHTML = `<div id="me-overview"></div><h2 class="sec-head">Your tools</h2>
+    <div class="card list">${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}<a class="row-link" href="/me/explore"><span class="ri">${svg('help')}</span><span class="grow">Explore Kinetta<small class="muted gs-sub">Features & how-to guide</small></span>${ch}</a></div>
+    <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
     <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
-      ${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `<span class="badge alert">${me.friend_requests} waiting</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
-      ${row('a', 'href="/me/explore"', 'help', 'c-green', 'Explore Kinetta', 'Features & how-to guide')}</div>
-    <div class="card list">${row('a', 'href="/me/import"', 'upload', 'c-blue', 'Upload activities')}
-      ${row('button', 'data-addact', 'plus', 'c-blue', 'Add an activity')}
-      ${Native.on ? row('a', 'href="/me/health"', 'heart', 'c-red', 'Apple Health') : ''}
-      ${row('a', 'href="/me/connections"', 'watch', 'c-ink', 'Watch connections')}
-      ${row('a', 'href="/me/gear"', 'shoe', 'c-orange', 'Shoes & bikes')}</div>
+      </div>
     <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
-      ${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}
       ${row('button', 'id="m-targets"', 'food', 'c-green', 'Nutrition targets')}
       ${row('a', 'href="/food?view=weight"', 'scale', 'c-purple', 'Weight trend')}</div>
     <h2 class="sec-head">Settings</h2>
@@ -1057,9 +1049,10 @@ route(/^\/me$/, 'me', async (el) => {
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
       ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
-    <button class="ghost wide" id="logout">${svg('logout')}Log out</button>`;
+    <button class="ghost wide" id="logout">${svg('logout')}Log out</button></details>`;
+  meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
   $('#m-profile', el).onclick = () => go(profileHref(me));   // your public profile, editable in place (social.js)
-  $('#m-photo', el).onclick = () => profilePhotoSheet(() => render());
+
   const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit & food AI', aiExplain());
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
@@ -1084,11 +1077,12 @@ route(/^\/me$/, 'me', async (el) => {
   });
   $('#m-body', el).onclick = () => bodySheet();
   if (new URLSearchParams(location.search).get('setup') === 'body') {
-    history.replaceState(null, '', '/me'); bodySheet();
+    history.replaceState(null, '', '/me'); $('.me-settings', el).open = true; bodySheet();
   }
   $('#logout', el).onclick = async () => {
     const n = Q.mine().length;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
+    if (typeof Track !== 'undefined') await Track.pause();
     try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
     await Native.forget();
     store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
@@ -1157,6 +1151,7 @@ function deleteSheet() {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
         await api('/api/account/delete', json('POST', {password: f.pw.value}));
+        if (typeof Track !== 'undefined') Track.forgetDraft();
         close(); store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
         App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin('Your account and all your data were deleted.');
       } catch (x) { toast(x.message); btn.disabled = false; }
@@ -1185,14 +1180,15 @@ route(/^\/me\/people$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Administration moved</h1><p>Use the separate browser portal at /admin. Your personal settings stay here in Me.</p>`;
 });
 // admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
-route(/^\/me\/import$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Upload activities</h1><p class="muted">FIT, GPX or TCX files (also .gz), or your whole Strava export .zip. Duplicates are skipped automatically.</p>
+route(/^\/me\/import$/, 'track', async () => go('/track/import', {replace:true}));
+route(/^\/track\/import$/, 'track', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Upload activities</h1><p class="muted">FIT, GPX or TCX files (also .gz), or your whole Strava export .zip. Duplicates are skipped automatically.</p>
     <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
       <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
       <div id="u-prog" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
     <div class="card"><h2>How to get your Strava history</h2><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a very large archive (over a few GB) ask for it to be placed in the server inbox instead.</p></div>
     <div class="card"><h2>Recent imports</h2><div id="u-jobs">${skel(1)}</div></div>`;
-  wireBack(el, '/me');
+  wireBack(el, '/track');
   const input = $('#u-file', el), drop = $('#u-drop', el);
   const send = (files) => {
     if (!files.length) return;
@@ -1229,9 +1225,10 @@ route(/^\/me\/import$/, 'me', async (el) => {
   poll();
 });
 
-route(/^\/me\/connections$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Watch connections</h1><p class="muted">Activities arrive on their own. Your Strava posts are not affected.</p><div id="c-body">${skel(2)}</div>`;
-  wireBack(el, '/me');
+route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{replace:true}));
+route(/^\/track\/connections$/, 'track', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Watch connections</h1><p class="muted">Activities arrive on their own. Your Strava posts are not affected.</p><div id="c-body">${skel(2)}</div>`;
+  wireBack(el, '/track');
   const C = await api('/api/connections');
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
   $('#c-body', el).innerHTML = `<div class="card"><h2>Garmin (through intervals.icu)</h2>
@@ -1328,8 +1325,8 @@ route(/^\/me\/goals$/, 'me', async (el) => {
 
 
 // ---------- add an activity by hand (2026-10-09) ----------
-// Any element with data-addact opens it; data-day="YYYY-MM-DD" presets the date (e.g. from Nutrition).
-document.addEventListener('click', (e) => { const b = e.target.closest('[data-addact]'); if (b) { e.preventDefault(); addActivityMenu(b.dataset.day); } });
+// Compatibility for old recording links: all recording belongs in Track.
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-addact]'); if (b) { e.preventDefault(); go('/track'); } });
 // What it was: a drop-down by group (2026-10-13, Ben: chips and typed durations were fiddly, and lifting needs its own choices).
 // [sport, shown name, kind saved as sport_label]; the kind shows on the activity ("Yoga", "Treadmill")
 const HAND_KINDS = [
@@ -1407,7 +1404,7 @@ function addActivitySheet(day, preset) {   // preset 'workout': a lifting sessio
         distance_m: dist == null ? null : dist * (imp() ? MI : 1000), calories: n(f.kcal), avg_hr: n(f.hr), description: f.desc.value.trim() || null,
         copy_from: lift && f.copy.value ? +f.copy.value : null};
       const btn = $('#ma-go', b); btn.disabled = true;
-      try { const r = await api('/api/activities/manual', json('POST', body)); invalidate('/api/'); close(); toast(lift ? 'Saved. Now the sets.' : 'Activity saved'); go(lift ? `/lift/${r.id}` : `/activity/${r.id}`); }
+      try { const r = await api('/api/activities/manual', json('POST', body)); invalidate('/api/'); close(); toast(lift ? 'Saved. Now the sets.' : 'Activity saved'); go(lift ? `/track/lift/${r.id}` : `/track?done=${r.id}`); }
       catch (x) { toast(x.message); btn.disabled = false; }
     };
   });

@@ -7,8 +7,9 @@ const {chromium} = require('playwright');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 // name, address, and optionally a card title to scroll to, or something to do first
 const SHOTS = [
-  ['today', '/today'],
+  ['today', '/me'],
   ['feed', '/activity'],
+  ['track', '/track'],
   ['activity', 'RUN'],
   ['similar', 'RUN', {to: 'Similar efforts'}],
   ['coach', 'COACH', {to: 'Kit'}],
@@ -27,9 +28,9 @@ const SHOTS = [
   ['recipecoach', 'DISH', {to: "Kit’s take"}],
   ['photos', 'LATEST', {photo: true}],
   ['describe', '/food', {describe: ['I had a hot dog from Costco and a Diet Coke', 'make it two hot dogs']}],
-  // lifting (2026-10-13): last; the logger starts a session from the latest one (a live session would change Today)
+  // lifting (2026-10-13): last; the logger starts a session from the latest one (live sessions stay in Track)
   ['liftex', 'SQUAT'],
-  ['lift', '/today', {lift: true}],
+  ['lift', '/track', {lift: true}],
 ];
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
@@ -159,7 +160,7 @@ function chrome(dark) {
         const id = await page.evaluate(async () => {
           const last = (await (await fetch('/api/lifts/sessions?limit=1')).json())[0];
           const r = await (await fetch('/api/lifts/start', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({copy_from: last.id})})).json();
-          go('/lift/' + r.id); return r.id;
+          go('/track/lift/' + r.id); return r.id;
         });
         await page.waitForSelector('.lift-ex');
         const first = page.locator('.lift-ex').first();

@@ -16,6 +16,11 @@ Requirements live in GitHub issues. Use [the requirements guide](docs/requiremen
 
 ## Separate track
 
+- [#108: Me, profile mileage and Track](https://github.com/BenCBanks/kinetta/issues/108): owner-requested
+  implemented and tested; under review. Me replaces Today as the personal home; profiles gain visibility-filtered distance
+  bars over fourteen days; all recording tools live in Track. Native background GPS, durable point journals and
+  WebView recovery are implemented; Apple SDK build and physical-device acceptance remain. Not merged or released.
+
 - Owner queue: [#86 native owner-only workout notifications](https://github.com/BenCBanks/kinetta/issues/86),
   [#87 responsive Comments and Cheers](https://github.com/BenCBanks/kinetta/issues/87), and
   [#88 long-press Cheers people list](https://github.com/BenCBanks/kinetta/issues/88) are in development.

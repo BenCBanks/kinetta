@@ -154,7 +154,6 @@ function drawDay(el, D) {
         ${row('Everyday activity', neg(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=needs">change</a>`)}
         ${B.items.length ? B.items.map((a) => row(`<a href="/activity/${a.id}"><span class="exi sp ${esc(a.sport)}">${svg(a.sport)}</span>${esc(a.name)}</a>`, neg(a.kcal) + (a.estimated ? '*' : ''), 'ex', a.distance_m ? `${U.dist(a.distance_m, 1)} ${U.du()}` : '')).join('')
                          : row('Exercise', '0', 'ex', 'no workouts this day')}
-        <button class="linkbtn addwk" data-addact data-day="${esc(D.day)}">+ Add a workout</button>
         ${row(today ? 'Burned by end of day' : 'Total burned', neg(B.day_burn), 'sum', today ? 'estimate for the whole day' : '')}
         ${row('Eaten' + sofar, pos(eaten))}
         ${G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}

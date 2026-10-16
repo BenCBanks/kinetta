@@ -13,6 +13,7 @@ Keeping people's data safe:
 """
 import datetime as dt
 import json
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
@@ -217,6 +218,19 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         sports = c.execute(f"""SELECT a.sport, count(*) AS activities, coalesce(sum(a.distance_m),0) AS distance_m,
                                 coalesce(sum(coalesce(a.moving_s,a.elapsed_s)),0) AS time_s
                                 FROM activities a WHERE {visible} GROUP BY a.sport ORDER BY count(*) DESC, a.sport""", params).fetchall()
+        # Use the identical visibility predicate, before pagination. Dates follow the viewer's settings.
+        zone = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
+        today = dt.datetime.now(ZoneInfo(zone)).date()
+        first_day = today - dt.timedelta(days=13)
+        params.update(chart_zone=zone, chart_start=first_day, chart_end=today + dt.timedelta(days=1))
+        distances = c.execute(f"""SELECT (a.start_time AT TIME ZONE %(chart_zone)s)::date AS d,
+                    coalesce(sum(a.distance_m), 0) AS distance_m FROM activities a
+                    WHERE {visible} AND a.start_time AT TIME ZONE %(chart_zone)s >= %(chart_start)s
+                    AND a.start_time AT TIME ZONE %(chart_zone)s < %(chart_end)s GROUP BY 1""", params).fetchall()
+        by_day = {row['d']: float(row['distance_m']) for row in distances}
+        mileage = {'days': [{'d': first_day + dt.timedelta(days=i),
+                            'distance_m': by_day.get(first_day + dt.timedelta(days=i), 0),
+                            'today': i == 13} for i in range(14)]}
         query = _select() + ' WHERE ' + visible
         if before:
             query += ' AND (a.start_time < %(before)s OR (a.start_time = %(before)s AND a.id < %(before_id)s))'
@@ -225,7 +239,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
     items = [shared_activity(row) for row in rows[:limit]]
     last = rows[limit - 1] if len(rows) > limit else None
     return {'person': {k: person[k] for k in ('login', 'name', 'photo', 'created', 'bio')}, 'status': status,
-            'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
+            'mileage': mileage, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
             'next': {'before': last['start_time'], 'before_id': last['id']} if last else None}
 
 

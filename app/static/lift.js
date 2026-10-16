@@ -46,7 +46,7 @@ function startLiftSheet() {
       <button class="ghost wide" id="sl-past">Log one you did earlier</button>`;
     const begin = async (btn, copy) => {
       btn.disabled = true;
-      try { const r = await api('/api/lifts/start', json('POST', copy ? {copy_from: +copy} : {})); invalidate('/api/'); close(); go(`/lift/${r.id}`); }
+      try { const r = await api('/api/lifts/start', json('POST', copy ? {copy_from: +copy} : {})); invalidate('/api/'); close(); go(`/track/lift/${r.id}`); }
       catch (x) { toast(x.message); btn.disabled = false; }
     };
     $('#sl-new', b).onclick = (e) => begin(e.currentTarget);
@@ -55,21 +55,15 @@ function startLiftSheet() {
   });
 }
 // what the + buttons open (pages.js): lifting, or any other activity typed in by hand
-function addActivityMenu(day) {
-  if (day) return addActivitySheet(day);
-  pickSheet('Add', `<div class="pick-list">
-    <button type="button" class="row-link" data-pk="lift"><span class="ri c-brand">${svg('workout')}</span><span class="grow"><span>Start lifting</span><small class="muted">Log sets as you go, with your previous numbers beside each one</small></span></button>
-    <button type="button" class="row-link" data-pk="hand"><span class="ri c-blue">${svg('plus')}</span><span class="grow"><span>Add an activity by hand</span><small class="muted">A class, a treadmill run, anything without a file</small></span></button>
-    <button type="button" class="row-link" data-pk="upload"><span class="ri c-ink">${svg('upload')}</span><span class="grow"><span>Upload files</span><small class="muted">FIT, GPX, TCX or your Strava export</small></span></button></div>`,
-  (k) => (k === 'lift' ? startLiftSheet() : k === 'hand' ? addActivitySheet() : go('/me/import')));
-}
+function addActivityMenu() { go('/track'); }
 
 // ---------- the logger ----------
 // The whole session lives here and goes to the server after each change (a moment later, as one PUT, so a resend never
 // doubles anything). Until the server has it, a copy is kept on the phone: a gym with no signal loses nothing.
-route(/^\/lift\/(\d+)$/, 'activity', async (el, id) => {
-  el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(2)}`;
-  wireBack(el, `/activity/${id}`);
+route(/^\/lift\/(\d+)$/, 'track', async (el, id) => go(`/track/lift/${id}`, {replace:true}));
+route(/^\/track\/lift\/(\d+)$/, 'track', async (el, id) => {
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div>${skel(2)}`;
+  wireBack(el, '/track');
   const key = 'fit.lift:' + id;
   let data;
   try { data = await api(`/api/activities/${id}/lifts`); }
@@ -83,7 +77,7 @@ function liftLogger(el, aid, data) {
   const key = 'fit.lift:' + aid;
   const S = {ex: data.exercises.map((e) => ({...e, sets: e.sets.map((s) => ({...s}))})), open: data.open, start: data.start_time, lastTick: null};
   let saveT = null, saving = false, again = false, gone = false;
-  el.innerHTML = `<div class="top">${backBtn('Activity')}<div class="acts"><span class="lift-save small muted" id="lf-save" aria-live="polite"></span>
+  el.innerHTML = `<div class="top">${backBtn('Track')}<div class="acts"><span class="lift-save small muted" id="lf-save" aria-live="polite"></span>
       ${S.open ? '<button class="primary sm" id="lf-finish">Finish</button>' : '<button class="primary sm" id="lf-done">Done</button>'}</div></div>
     ${S.open ? `<div class="lift-clock card"><span>Session <b class="num" id="lf-time">0:00</b></span><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>` : ''}
     <div id="lf-list"></div>
@@ -271,7 +265,7 @@ function liftLogger(el, aid, data) {
       // planned sets nobody ticked are left out: they never happened
       if (S.open) S.ex.forEach((e) => { e.sets = e.sets.filter((s) => s.done); });
       S.ex = S.ex.filter((e) => e.sets.length || !S.open);
-      try { await save(true); store.del(key); gone = true; go(`/activity/${aid}`, {replace: true}); toast(S.open ? 'Session saved' : 'Saved'); }
+      try { await save(true); store.del(key); gone = true; go(`/track?done=${aid}`, {replace: true}); toast(S.open ? 'Session saved' : 'Saved'); }
       catch (x) { fin.disabled = false; toast(x.offline ? "Can't reach Kinetta - your sets are kept on this phone. Try again when you're back online." : x.message); }
     };
     if (S.open && open) sheet('Finish the session?', `<p>${open} set${open > 1 ? 's are' : ' is'} not ticked off. ${open > 1 ? "They're" : "It's"} left out of the session.</p>
@@ -337,18 +331,17 @@ async function pLifting(body) {
   const mine = ex.mine.filter((x) => x.sessions);
   if (!mine.length) {
     box.innerHTML = `<div class="card empty"><b>No lifting yet</b>Start a session and log your sets: every exercise gets its own history and records here.
-      <div class="btncol empty-cta"><button class="primary" id="lv-start">Start lifting</button></div></div>`;
-    $('#lv-start', box).onclick = startLiftSheet; return;
+      </div>`;
+    return;
   }
   const best = (x) => (x.kind === 'time' ? `${x.best_secs || 0} s` : x.kind === 'body' && !x.best_kg ? `${x.best_reps || 0} reps` : `${toW(x.best_kg)} ${wUnit()}`);
-  box.innerHTML = `<div class="card"><h2>Recent sessions<button class="linkbtn" id="lv-start">Start lifting</button></h2>${ses.map((s) => `<a class="row-link" href="/activity/${s.id}" data-prefetch="/api/activities/${s.id}"><span class="grow"><b>${esc(s.name)}</b>
+  box.innerHTML = `<div class="card"><h2>Recent sessions</h2>${ses.map((s) => `<a class="row-link" href="/activity/${s.id}" data-prefetch="/api/activities/${s.id}"><span class="grow"><b>${esc(s.name)}</b>
       <small class="muted">${esc(shortDay(s.start_time))} · ${s.sets} sets${s.volume ? ' · ' + esc(volText(s.volume)) : ''}</small><small class="muted lv-names">${esc((s.exercises || []).join(', '))}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>
     <div class="card"><h2>Your exercises <span class="count">${mine.length}</span></h2>
       ${mine.length > 8 ? '<input type="search" id="lv-q" placeholder="Find an exercise" autocomplete="off">' : ''}
       <div id="lv-ex">${mine.map((x) => `<a class="row-link" href="/lift/ex/${x.id}" data-n="${esc(x.name.toLowerCase())}"><span class="grow"><b>${esc(x.name)}</b>
         <small class="muted">${x.sessions} session${x.sessions > 1 ? 's' : ''} · last ${esc(shortDay(x.last))}</small></span>
         <span class="lv-best"><small class="muted">Best</small><b class="num">${esc(best(x))}</b></span></a>`).join('')}</div></div>`;
-  $('#lv-start', box).onclick = startLiftSheet;
   const q = $('#lv-q', box);
   if (q) q.oninput = () => { const t = q.value.trim().toLowerCase(); $$('#lv-ex .row-link', box).forEach((r) => { r.hidden = !!t && !r.dataset.n.includes(t); }); };
 }
@@ -410,29 +403,27 @@ function drawExercise(el, h) {
 // The session's exercises at the top of its Overview, each with its sets and any records; a session still being logged
 // says so on Today.
 function liftCard(a) {
-  if (!a.lifts && a.sport !== 'workout') return '';
-  if (!a.lifts) return `<div class="card"><h2>What you lifted</h2><p class="small muted">Add your exercises and sets: next time, they show beside every set.</p>
-    <a class="ghost wide" href="/lift/${a.id}">${svg('plus')}Add exercises</a></div>`;
-  return `<div class="card" id="d-lifts"><h2>${a.lift_open ? 'Lifting now' : 'Exercises'}<a class="more" href="/lift/${a.id}">${a.lift_open ? 'Carry on ›' : 'Edit'}</a></h2><div class="sk line"></div></div>`;
+  if (!a.lifts || a.lift_open) return '';
+  return '<div class="card" id="d-lifts"><h2>Exercises</h2><div class="sk line"></div></div>';
 }
 async function fillLiftCard(el, a) {
   const box = $('#d-lifts', el); if (!box) return;
   try {
     const r = await api(`/api/activities/${a.id}/lifts`);
     if (!box.isConnected) return;
-    box.innerHTML = `<h2>${r.open ? 'Lifting now' : 'Exercises'}<a class="more" href="/lift/${a.id}">${r.open ? 'Carry on ›' : 'Edit'}</a></h2>
+    box.innerHTML = `<h2>Exercises</h2>
       ${r.exercises.map((e) => { const prs = e.sets.filter((s) => (s.pr || []).length).flatMap((s) => s.pr);
         return `<a class="row-link ls-row" href="/lift/ex/${e.exercise_id}"><span class="grow"><b>${esc(e.name)}</b><small class="num">${esc(setsText(e.sets, e.kind)) || '<span class="muted">nothing ticked</span>'}</small>
           ${e.last ? `<small class="muted">${esc(shortDay(e.last.start_time))}: ${esc(setsText(e.last.sets, e.kind))}</small>` : ''}</span>
           ${prs.length ? `<span class="badge pr">${svg('trophy')} ${esc([...new Set(prs)].map((k) => PR_NAMES[k]).join(', '))}</span>` : `<span class="chev">${svg('chev')}</span>`}</a>`; }).join('')}`;
   } catch (x) { box.remove(); }
 }
-// Today: a session left running shows at the top, so it's one tap back into it
+// Track: keep the open lifting session one tap away.
 async function liftNowCard(box) {
   try {
     const s = (await api('/api/lifts/sessions?limit=1'))[0];
     if (!box.isConnected) return;
-    box.innerHTML = s && s.lift_open && Date.now() - new Date(s.start_time) < 4 * 3600e3 ? `<a class="card tap lift-now" href="/lift/${s.id}"><span class="sp workout" aria-hidden="true">${svg('workout')}</span>
+    box.innerHTML = s && s.lift_open && Date.now() - new Date(s.start_time) < 4 * 3600e3 ? `<a class="card tap lift-now" href="/track/lift/${s.id}"><span class="sp workout" aria-hidden="true">${svg('workout')}</span>
       <span class="grow"><b>Lifting now</b><small class="muted">Started ${esc(ftime(s.start_time))} · ${s.sets} set${s.sets === 1 ? '' : 's'} so far</small></span><span class="linkbtn">Carry on ›</span></a>` : '';
   } catch (x) { /* offline: nothing to show */ }
 }

@@ -29,6 +29,7 @@ const Native = (() => {
   N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   N.login = async (server, login, password) => {
+    if (typeof Track !== 'undefined' && App.me) await Track.leave();
     await N.disconnectPush();
     await N.disconnectHealth();
     N.base = N.address(server); if (!N.base) throw new Error("Enter your Kinetta server's address.");
@@ -50,7 +51,7 @@ const Native = (() => {
     }
   };
   if (on) new MutationObserver(fill).observe(document.documentElement, {childList: true, subtree: true});
-  N.forget = async () => { if (on) { await N.disconnectPush({signedOut: true}); await N.disconnectHealth(); } N.token = null; if (on) await put('token', null); };
+  N.forget = async () => { if (typeof Track !== 'undefined' && App.me) await Track.leave(); if (on) { await N.disconnectPush({signedOut: true}); await N.disconnectHealth(); } N.token = null; if (on) await put('token', null); };
 
   // ---------- Native iPhone notifications ----------
   const push = P.KinettaPush;
@@ -238,12 +239,13 @@ const Native = (() => {
   return N;
 })();
 
-route(/^\/me\/health$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Apple Health</h1><div id="h-body">${skel(1)}</div>`;
-  wireBack(el, '/me');
+route(/^\/me\/health$/, 'track', async () => go('/track/health',{replace:true}));
+route(/^\/track\/health$/, 'track', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Apple Health</h1><div id="h-body">${skel(1)}</div>`;
+  wireBack(el, '/track');
   const box = $('#h-body', el);
   if (!Native.on) {
-    box.innerHTML = `<div class="card"><p>Apple Health works in the Kinetta iPhone app. In a browser, use <a href="/me/connections">Watch connections</a> instead.</p></div>`;
+    box.innerHTML = `<div class="card"><p>Apple Health works in the Kinetta iPhone app. In a browser, use <a href="/track/connections">Watch connections</a> instead.</p></div>`;
     return;
   }
   const [isOn, st, bg] = await Promise.all([Native.healthOn(), Native.healthStatus(), Native.backgroundStatus()]);
