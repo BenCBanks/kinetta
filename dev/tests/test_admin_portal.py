@@ -110,6 +110,7 @@ class Portal(unittest.TestCase):
             b2=self.beta();draft2=self.draft(b2);r=self.client.post(f"/api/admin/beta/{b2['id']}/responses",json=draft2);self.assertEqual(r.status_code,200)
             with db.connect() as c:iid=c.execute('SELECT invite_id FROM beta_responses WHERE id=%s',(draft2['request_key'],)).fetchone()['invite_id']
             self.assertEqual(self.client.delete('/api/admin/invites/'+str(iid)).status_code,200)
+            self.assertEqual(next(x for x in self.client.get('/api/admin/beta').json() if x['id']==b2['id'])['status'],'new')   # no working link: unanswered again
             with patch('app.admin_mail.httpx.post') as transport:self.assertEqual(self.client.post('/api/admin/responses/'+draft2['request_key']+'/send',json={}).json()['state'],'cancelled');transport.assert_not_called()
     def test_signed_webhook_replay_and_early_delivery(self):
         with self.mail_env():
@@ -127,6 +128,37 @@ class Portal(unittest.TestCase):
             raw,headers=event('email.bounced','bounce-'+uuid.uuid4().hex);anonymous.post('/api/admin/email-events',content=raw,headers=headers)
             raw,headers=event('email.delivered','late-'+uuid.uuid4().hex);anonymous.post('/api/admin/email-events',content=raw,headers=headers)
             self.assertEqual(self.client.get(f"/api/admin/beta/{b['id']}/responses").json()[0]['state'],'bounced')
+    def test_https_tunnel_origin_and_secure_cookie(self):
+        # Through a Cloudflare Tunnel the app gets plain http with X-Forwarded-Proto: https; the browser's Origin is https.
+        c=TestClient(app);c.headers.update({'Origin':'https://portal.example.test','Host':'portal.example.test','X-Forwarded-Proto':'https','Content-Type':'application/json'})
+        r=c.post('/api/admin/login',json={'login':'zz_test_portal_admin','password':PW});self.assertEqual(r.status_code,200,r.text)
+        self.assertIn('secure',r.headers['set-cookie'].lower())
+        c.headers['Origin']='https://evil.example';self.assertEqual(c.post('/api/admin/login',json={'login':'zz_test_portal_admin','password':PW}).status_code,403)
+        del c.headers['Origin'];self.assertEqual(c.post('/api/admin/login',json={'login':'zz_test_portal_admin','password':PW}).status_code,403)
+    def test_codes_typed_loosely_and_success_resets_attempts(self):
+        with db.connect() as c:
+            uid=c.execute("INSERT INTO users(login,name,pw_hash,is_admin) VALUES ('zz_test_portal_codes','Codes Test',%s,true) RETURNING id",(auth.hash_pw(PW),)).fetchone()['id']
+            c.execute('INSERT INTO profile(user_id) VALUES (%s)',(uid,))
+        c=TestClient(app);c.headers['Origin']=BASE
+        seed=c.post('/api/admin/login',json={'login':'zz_test_portal_codes','password':PW}).json()['setup_key']
+        code=admin_auth.totp(seed,int(time.time()//30));r=c.post('/api/admin/verify',json={'code':' '+code[:3]+' '+code[3:]+' '});self.assertEqual(r.status_code,200,r.text)
+        with db.connect() as db_:self.assertEqual(db_.execute('SELECT count(*) AS n FROM admin_attempts').fetchone()['n'],0)
+        recovery=r.json()['recovery_codes'][0];c.cookies.clear();c.post('/api/admin/login',json={'login':'zz_test_portal_codes','password':PW})
+        self.assertEqual(c.post('/api/admin/verify',json={'code':recovery.upper()[:12]+'-'+recovery.upper()[12:]}).status_code,200)
+    def test_decline_or_waitlist_cancels_earlier_invite(self):
+        for kind in ('decline','waitlist'):
+            b=self.beta()
+            with self.mail_env():
+                r=self.client.post(f"/api/admin/beta/{b['id']}/responses",json=self.draft(b));self.assertEqual(r.status_code,200,r.text)
+                token=r.json()['body'].split('/join/')[1].split()[0]
+                self.assertEqual(TestClient(app).get('/api/join/'+token).status_code,200)
+                with db.connect() as c:c.execute("UPDATE beta_responses SET created=now()-interval '2 minutes' WHERE request_id=%s",(b['id'],))
+                r=self.client.post(f"/api/admin/beta/{b['id']}/responses",json=self.draft(b,kind));self.assertEqual(r.status_code,200,r.text)
+            self.assertEqual(TestClient(app).get('/api/join/'+token).status_code,404)
+            join=TestClient(app);join.headers['Origin']=BASE
+            self.assertEqual(join.post('/api/join',json={'name':'Declined','login':'zz_test_portal_declined','password':PW,'token':token}).status_code,404)
+            row=next(x for x in self.client.get('/api/admin/beta').json() if x['id']==b['id'])
+            self.assertEqual(row['status'],'declined' if kind=='decline' else 'waitlisted');self.assertIsNone(row['invite_id'])
     def test_private_tables_and_no_health_overview(self):
         r=self.client.get('/api/admin/overview');self.assertEqual(r.status_code,200);self.assertNotIn('activities',r.json());self.assertNotIn('key',r.json()['email'])
         with db.connect() as c:

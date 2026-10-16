@@ -75,7 +75,11 @@ def invite(body:api_account.InviteIn,user=Depends(admin_user)):
 def revoke(iid:int,user=Depends(admin_user)):
     with db.connect() as c:
         c.execute("UPDATE beta_responses SET state='cancelled' WHERE invite_id=%s AND state IN ('queued','failed','uncertain')",(iid,))
-        c.execute('DELETE FROM invites WHERE id=%s AND used_at IS NULL',(iid,));audit(c,user['id'],'invite.revoke',iid)
+        if c.execute('SELECT 1 FROM invites WHERE id=%s AND used_at IS NULL FOR UPDATE',(iid,)).fetchone():
+            # The applicant no longer has a working link, so the request is unanswered again (before the delete nulls invite_id).
+            c.execute("UPDATE beta_requests SET status='new' WHERE invite_id=%s AND status='invited'",(iid,))
+            c.execute('DELETE FROM invites WHERE id=%s AND used_at IS NULL',(iid,))
+        audit(c,user['id'],'invite.revoke',iid)
     return {'ok':True}
 
 
@@ -152,7 +156,12 @@ def response(rid:int,body:Draft,user=Depends(admin_user)):
             if tf.startswith('https://testflight.apple.com/join/'):text+='\nFor the iPhone beta, install TestFlight and Kinetta separately: '+tf+'\nSign in with the same Kinetta account.'
             else:text+='\nAn account invitation does not grant Apple TestFlight access. Contact the beta organizer for iPhone installation access.'
             c.execute("UPDATE beta_requests SET status='invited',invite_id=%s WHERE id=%s",(iid,rid))
-        elif body.kind in ('waitlist','decline'):c.execute('UPDATE beta_requests SET status=%s WHERE id=%s',('waitlisted' if body.kind=='waitlist' else 'declined',rid))
+        elif body.kind in ('waitlist','decline'):
+            # A waitlisted or declined applicant's earlier, unused invitation link stops working too.
+            if b['invite_id']:
+                if c.execute('SELECT 1 FROM invites WHERE id=%s AND used_at IS NOT NULL',(b['invite_id'],)).fetchone():raise HTTPException(409,'This applicant already joined.')
+                c.execute('DELETE FROM invites WHERE id=%s AND used_at IS NULL',(b['invite_id'],));audit(c,user['id'],'invite.revoke',b['invite_id'])
+            c.execute('UPDATE beta_requests SET status=%s,invite_id=NULL WHERE id=%s',('waitlisted' if body.kind=='waitlist' else 'declined',rid))
         c.execute('INSERT INTO beta_responses (id,request_id,actor_id,kind,fingerprint,recipient,subject,body,invite_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',(body.request_key,rid,user['id'],body.kind,fingerprint,b['email'],body.subject,seal(text),iid))
         audit(c,user['id'],'beta.response_queued',rid)
     return {'id':str(body.request_key),'state':'queued','body':text}

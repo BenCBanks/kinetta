@@ -23,9 +23,13 @@ def unseal(value):
     except InvalidToken: raise HTTPException(503, 'Admin encryption key does not match. Use the documented server recovery procedure.')
 
 
+def attempt_key(request, name):
+    return hmac.new(db.secret('KINETTA_ADMIN_KEY').encode(),(auth.client_ip(request)+':'+name).encode(),hashlib.sha256).hexdigest()
+
+
 def attempt(request, name, limit):
     # Durable across workers/restarts; store only a keyed hash of the visitor/group.
-    digest=hmac.new(db.secret('KINETTA_ADMIN_KEY').encode(),(auth.client_ip(request)+':'+name).encode(),hashlib.sha256).hexdigest()
+    digest=attempt_key(request,name)
     with db.connect() as c:
         c.execute('SELECT pg_advisory_xact_lock(hashtext(%s))',('admin-attempt:'+digest,))
         c.execute("DELETE FROM admin_attempts WHERE created<now()-interval '15 minutes'")
@@ -38,18 +42,25 @@ def audit(c, uid, action, target=None):
     c.execute('INSERT INTO admin_audit (actor_id, action, target) VALUES (%s,%s,%s)', (uid, action, str(target)[:120] if target is not None else None))
 
 
+def https(request):
+    # Behind a tunnel/proxy uvicorn may see plain http; the proxy's X-Forwarded-Proto says what the browser used.
+    return request.url.scheme == 'https' or request.headers.get('x-forwarded-proto', '').split(',')[0].strip() == 'https'
+
+
 def origin(request):
+    # Same rule as the app-wide guard in main.py: the browser's Origin must name this host (as the proxy forwarded it).
     value = request.headers.get('origin')
-    expected = str(request.base_url).rstrip('/')
-    if value and value != expected: raise HTTPException(403, 'Use this site’s admin portal.')
-    if request.method not in ('GET','HEAD') and value != expected: raise HTTPException(403, 'Same-origin admin request required.')
+    host = request.headers.get('x-forwarded-host') or request.headers.get('host') or ''
+    same = bool(value) and urlsplit(value).scheme in ('http', 'https') and urlsplit(value).netloc == host
+    if value and not same: raise HTTPException(403, 'Use this site’s admin portal.')
+    if request.method not in ('GET','HEAD') and not same: raise HTTPException(403, 'Same-origin admin request required.')
 
 
 def csrf(token): return hmac.new(db.secret('KINETTA_ADMIN_KEY').encode(), ('csrf:'+token).encode(), hashlib.sha256).hexdigest()
 
 
 def cookie(response, name, token, request, seconds):
-    response.set_cookie(name, token, httponly=True, secure=request.url.scheme == 'https', samesite='strict', path='/api', max_age=seconds)
+    response.set_cookie(name, token, httponly=True, secure=https(request), samesite='strict', path='/api', max_age=seconds)
 
 
 def issue_session(c, uid):
@@ -112,9 +123,11 @@ class Verify(BaseModel):
 @router.post('/verify')
 def verify(body: Verify, request: Request, response: Response):
     origin(request); cipher(); attempt(request,'mfa',12); ip=auth.client_ip(request)
-    if auth.too_many(ip,'admin-mfa'): raise HTTPException(429,'Too many attempts. Try again in 15 minutes.')
+    # Per sign-in challenge, so strangers posting codes can't use up every administrator's budget.
+    bucket='admin-mfa:'+auth.token_hash(request.cookies.get(PENDING,''))[:16]
+    if auth.too_many(ip,bucket): raise HTTPException(429,'Too many attempts. Try again in 15 minutes.')
     # Count every attempt before the transaction so failed codes cannot roll back their rate limit.
-    auth.failed(ip,'admin-mfa')
+    auth.failed(ip,bucket)
     recovery=None
     with db.connect() as c:
         row=c.execute('''SELECT q.*,u.is_admin FROM admin_challenges q JOIN users u ON u.id=q.user_id
@@ -123,10 +136,11 @@ def verify(body: Verify, request: Request, response: Response):
         m=c.execute('SELECT * FROM admin_mfa WHERE user_id=%s FOR UPDATE',(row['user_id'],)).fetchone()
         seed=unseal(row['seed'] if row['seed'] else m['secret']) if row['seed'] or m else None
         counter=int(time.time()//30)
-        matched=next((i for i in (counter-1,counter,counter+1) if seed and hmac.compare_digest(totp(seed,i),body.code)),None)
+        code=''.join(body.code.split()).replace('-','').lower()  # "123 456", spaces or capitals from a copied code
+        matched=next((i for i in (counter-1,counter,counter+1) if seed and hmac.compare_digest(totp(seed,i),code)),None)
         valid=matched is not None and (not m or matched>m['last_counter'])
         if not valid and m and not row['seed']:
-            used=c.execute('DELETE FROM admin_recovery WHERE user_id=%s AND code_hash=%s RETURNING user_id',(row['user_id'],auth.token_hash(body.code))).fetchone()
+            used=c.execute('DELETE FROM admin_recovery WHERE user_id=%s AND code_hash=%s RETURNING user_id',(row['user_id'],auth.token_hash(code))).fetchone()
             valid=bool(used)
         if not valid: raise HTTPException(401,'Code not accepted. Try a fresh authenticator code or unused recovery code.')
         if row['seed']:
@@ -138,6 +152,7 @@ def verify(body: Verify, request: Request, response: Response):
         elif matched is not None:c.execute('UPDATE admin_mfa SET last_counter=%s WHERE user_id=%s',(matched,row['user_id']))
         c.execute('DELETE FROM admin_challenges WHERE user_id=%s',(row['user_id'],))
         token=issue_session(c,row['user_id']);audit(c,row['user_id'],'session.login')
+        c.execute('DELETE FROM admin_attempts WHERE key = ANY(%s)',([attempt_key(request,n) for n in ('password','mfa')],))
     cookie(response,COOKIE,token,request,LIFETIME);response.delete_cookie(PENDING,path='/api')
     return {'ok':True,'recovery_codes':recovery}
 

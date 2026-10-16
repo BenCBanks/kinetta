@@ -48,9 +48,21 @@ class Corrections(unittest.TestCase):
         with db.connect() as c:self.assertEqual(c.execute('SELECT dist FROM activity_streams WHERE activity_id=%s',(aid,)).fetchone()['dist'],original_stream)
         self.assertEqual(self.client.patch(path,json={'restore_summary':list(a['summary_overrides'])}).status_code,200)
         a=self.client.get(path).json();self.assertEqual(a['distance_m'],5400);self.assertTrue(a['efforts']);self.assertEqual(a['splits_km'],splits)
+    def test_corrected_activity_left_out_of_route_matching(self):
+        with db.connect() as c:c.execute('DELETE FROM activities WHERE user_id=%s',(self.uid,))
+        def run(day):
+            st={k:[] for k in ('t',)+parsers.STREAMS};st.update(t=list(range(0,1801,30)),dist=[i*11.1 for i in range(61)],lat=[40+i*1e-4 for i in range(61)],lon=[-75.0]*61)
+            return activities.store(self.uid,{'sport':'run','start':dt.datetime(2026,9,day,10,tzinfo=dt.timezone.utc),'streams':st,'session':{'elapsed_s':1800,'moving_s':1800,'distance_m':666}},source='manual')[1]
+        route=lambda aid:self.client.get(f'/api/activities/{aid}').json()['route_id']
+        a=run(3);b=run(4);self.assertIsNotNone(route(a));self.assertEqual(route(a),route(b))
+        self.assertEqual(self.client.patch(f'/api/activities/{a}',json={'distance_m':690}).status_code,200);self.assertIsNone(route(a))
+        later=run(5);self.assertEqual(route(later),route(b));self.assertIsNone(route(a))      # a later run doesn't pull it back in
+        self.assertEqual(self.client.patch(f'/api/activities/{a}',json={'restore_summary':['distance_m']}).status_code,200);self.assertEqual(route(a),route(b))
     def test_validation_and_owner_only(self):
         aid=self.save(self.workout(distance_m=5000));path=f'/api/activities/{aid}'
         for body in ({'distance_m':-1},{'distance_m':1e7},{'moving_s':0},{'avg_hr':301},{'distance_m':'NaN'},{'nonsense':4}):self.assertEqual(self.client.patch(path,json=body).status_code,422,body)
+        # a bare NaN/Infinity literal used to make the error response itself fail with a 500
+        for raw in ('{"distance_m": NaN}','{"avg_hr": Infinity}'):self.assertEqual(self.client.patch(path,content=raw,headers={'Content-Type':'application/json'}).status_code,422,raw)
         self.assertEqual(self.client.patch(path,json={'moving_s':2000}).status_code,400)
         self.assertEqual(self.client.patch(path,json={'avg_hr':180,'max_hr':160}).status_code,400)
         self.assertEqual(self.client.patch(path,json={'restore_summary':['name']}).status_code,400)
