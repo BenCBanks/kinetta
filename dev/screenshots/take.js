@@ -28,6 +28,10 @@ const SHOTS = [
   ['recipecoach', 'DISH', {to: "Kit’s take"}],
   ['photos', 'LATEST', {photo: true}],
   ['describe', '/food', {describe: ['I had a hot dog from Costco and a Diet Coke', 'make it two hot dogs']}],
+  // the website's Food story (2026-10-16): scan a barcode, snap a meal, then talk the estimate into shape. 'talk' also
+  // writes 'snap' (the same conversation one message earlier).
+  ['scan', '/food', {scan: '0000000000017'}],
+  ['talk', '/food', {snap: ['chicken curry rice bowl for lunch', 'it was a small bowl, only about half the rice']}],
   // lifting (2026-10-13): last; the logger starts a session from the latest one (live sessions stay in Track)
   ['liftex', 'SQUAT'],
   ['lift', '/track', {lift: true}],
@@ -41,6 +45,18 @@ const SAMPLE = (note) => { const n = /two/.test(note || '') ? 2 : 1;   // the co
     {name: 'Diet Coke', amount: '20 fl oz', kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0}];
   return {items: items.filter(x => x.name === 'Hot dog' ? /hot dog/i.test(note || '') : /diet coke/i.test(note || '')),
     notes: 'Made-up screenshot nutrition, not a live provider response.', model: 'sample'}; };
+// A snapped meal (dev/demo/photos/curry-rice-bowl.jpg): made-up per-food estimates; "half"/"small" shrinks the rice,
+// as the real estimator would when told.
+const BOWL = (note) => { const small = /half|small/i.test(note || '');
+  return {items: [
+    {name: 'Spiced rice', amount: small ? '¾ cup' : '1½ cups', kcal: small ? 160 : 320, protein_g: small ? 3 : 6, carbs_g: small ? 35 : 70, fat_g: small ? 1 : 2, fiber_g: 1},
+    {name: 'Butter chicken', amount: '1 cup', kcal: 380, protein_g: 28, carbs_g: 12, fat_g: 24, fiber_g: 2},
+    {name: 'Chickpeas and potato', amount: '½ cup', kcal: 150, protein_g: 6, carbs_g: 24, fat_g: 3, fiber_g: 5},
+    {name: 'Slaw, tomato and crispy topping', amount: '½ cup', kcal: 70, protein_g: 1, carbs_g: 8, fat_g: 4, fiber_g: 2}],
+    notes: 'Made-up screenshot nutrition, not a live provider response.', model: 'sample'}; };
+// A scanned package (made-up label numbers for a plain product; no Open Food Facts request)
+const PRODUCT = {source: 'off', id: '0000000000017', name: 'Greek yogurt, plain nonfat', brand: null,
+  per100: {kcal: 59, protein_g: 10.3, carbs_g: 3.6, fat_g: 0.4, fiber_g: 0}, serving: {label: '1 container (170 g)', g: 170}};
 // the iPhone's status bar (9:41, signal, Wi-Fi, battery), the Dynamic Island and the home bar, over every shot
 function chrome(dark) {
   const c = dark ? '#fff' : '#000', W = 393;
@@ -77,7 +93,9 @@ function chrome(dark) {
         .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
       await route.fulfill({response: r, body: css});
     });
-    await page.route('**/api/food/photo', (route) => route.fulfill({json: SAMPLE(JSON.parse(route.request().postData() || '{}').note)}));
+    await page.route('**/api/food/photo', (route) => { const body = JSON.parse(route.request().postData() || '{}');
+      route.fulfill({json: body.images || body.image ? BOWL(body.note) : SAMPLE(body.note)}); });
+    await page.route('**/api/food/barcode/*', (route) => route.fulfill({json: PRODUCT}));
     await page.route('**/api/food/meals-chat/products?**', route => route.fulfill({json: {query: '', foods: [], portion: null}}));
     // the combined lookup (one request for every new food): nothing in the databases, so the stand-in AI estimates them
     await page.route('**/api/food/meals-chat/lookup', route => route.fulfill({json: {results: JSON.parse(route.request().postData() || '{}').texts.map(text => ({text, query: '', kind: 'none', foods: [], portion: null}))}}));
@@ -155,6 +173,38 @@ function chrome(dark) {
           const overlap = add.getBoundingClientRect().bottom - composer.getBoundingClientRect().top + 12;
           if (overlap > 0) window.scrollBy(0, overlap);
         });
+      }
+      if (opt.scan) {       // what a scan finds: the product's sheet, one container, ready to add to breakfast
+        await page.evaluate(async (code) => { const f = await api('/api/food/barcode/' + code); amountSheet(f, {day: isoDay(new Date()), meal: 'breakfast'}, () => {}); }, opt.scan);
+        await page.locator('#am-p b').first().waitFor();
+        await page.evaluate(() => document.activeElement.blur());
+      }
+      if (opt.snap) {       // the conversation page: a meal photo plus a few words, then a correction in plain words
+        const PHOTO = require('path').join(__dirname, '..', 'demo', 'photos', 'curry-rice-bowl.jpg');
+        await page.evaluate(() => { App.me.ai_ok = true; addSheet(isoDay(new Date()), 'lunch'); });
+        await page.click('#as-photo');
+        await page.waitForURL('**/food/describe?**');
+        await page.setInputFiles('#ql-file', PHOTO);
+        await page.click('#photos-use');
+        const shot = async (n) => { await page.evaluate(() => { document.activeElement.blur(); const add = document.querySelector('#ql-add'), composer = document.querySelector('#ql-f'), chat = document.querySelector('#ql-chat');
+          document.querySelector('#page').style.paddingBottom = '240px';   // capture only: room to scroll the title away
+          // start at the conversation (no half-cut title), and keep Add above the composer
+          const overlap = add && composer ? add.getBoundingClientRect().bottom - composer.getBoundingClientRect().top + 12 : 0;
+          window.scrollBy(0, Math.max(overlap, chat ? chat.getBoundingClientRect().top - 58 : 0)); });
+          await page.waitForTimeout(500); await page.evaluate(chrome, scheme === 'dark'); await page.screenshot({path: `${OUT}/${scheme}-${n}.png`}); };
+        for (const [k, t] of opt.snap.entries()) {
+          await page.fill('#ql-t', t);
+          await Promise.all([page.waitForResponse(r => r.url().endsWith('/api/food/photo') && r.ok()), page.click('#ql-f .send')]);
+          await page.locator('#ql-items').filter({hasText: /Estimating/}).waitFor({state: 'hidden'});
+          await page.locator('#ql-items .ql-main').filter({hasText: 'Spiced rice'}).filter({hasText: k ? '160' : '320'}).waitFor();
+          if (k === 0) await shot('snap');
+        }
+        if (await page.locator('.sheet').count()) throw new Error('The food story must remain a full page');
+        await page.evaluate(() => { document.activeElement.blur(); const add = document.querySelector('#ql-add'), composer = document.querySelector('#ql-f'), chat = document.querySelector('#ql-chat');
+          document.querySelector('#page').style.paddingBottom = '240px';   // capture only: room to scroll the title away
+          // start at the conversation (no half-cut title), and keep Add above the composer
+          const overlap = add && composer ? add.getBoundingClientRect().bottom - composer.getBoundingClientRect().top + 12 : 0;
+          window.scrollBy(0, Math.max(overlap, chat ? chat.getBoundingClientRect().top - 58 : 0)); });
       }
       if (opt.lift) {       // Start lifting > repeat the latest session; the first exercise's sets ticked, the second's first set
         const id = await page.evaluate(async () => {

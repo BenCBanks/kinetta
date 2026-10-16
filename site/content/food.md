@@ -62,6 +62,26 @@ Your food log, with or without AI.
 
 Find foods in USDA and Open Food Facts, scan a packaged product or enter known calories and macros with Quick. Your usuals and My Recipes make repeat logging easier. Edit or remove a logged food from its meal, with Undo if you remove it by mistake.
 
+## story-heading-19
+
+Scan it, snap it, or just say it.
+
+## story-scan-20
+
+Scan a package. Its label is ready to log.
+
+## story-snap-21
+
+Snap your plate. Each food gets an estimate.
+
+## story-say-22
+
+Say what's different. The numbers follow.
+
+## story-note-23
+
+Photo estimates are optional AI you can check and edit. Example uses demo numbers.
+
 ## training-training-food-food-friends-friends-compare-co-16
 
 [Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [Contact](mailto:KinettaApp@gmail.com) · [GitHub](https://github.com/BenCBanks/kinetta)
