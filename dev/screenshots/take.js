@@ -174,8 +174,12 @@ function chrome(dark) {
           if (overlap > 0) window.scrollBy(0, overlap);
         });
       }
-      if (opt.scan) {       // what a scan finds: the product's sheet, one container, ready to add to breakfast
-        await page.evaluate(async (code) => { const f = await api('/api/food/barcode/' + code); amountSheet(f, {day: isoDay(new Date()), meal: 'breakfast'}, () => {}); }, opt.scan);
+      if (opt.scan) {       // what a scan finds: the product's sheet, one container, ready to add to breakfast. Scanning to log
+        // starts on the "What did you eat?" page (+ › Scan a barcode), so that page sits behind the sheet, as in the app.
+        await page.evaluate(() => { App.me.ai_ok = true; addSheet(isoDay(new Date()), 'breakfast'); });
+        await page.click('#as-photo');
+        await page.waitForURL('**/food/describe?**');
+        await page.evaluate(async (code) => { const f = await api('/api/food/barcode/' + code); amountSheet(f, {day: $('#ql-day').value, meal: $('#ql-meal').value}, () => {}); }, opt.scan);
         await page.locator('#am-p b').first().waitFor();
         await page.evaluate(() => document.activeElement.blur());
       }
