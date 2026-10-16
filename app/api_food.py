@@ -239,14 +239,18 @@ def day(d: str | None = None, user=Depends(current_user)):
         least = energy.full_day_min(c, user['id'], info['base'])
     with db.connect() as c:
         over = energy.burn_overrides(c, user['id'], day_, day_).get(day_)
-    burned['day_burn'] = round(over if over is not None else energy.daily_burn(info, today_ex['kcal']))   # whole day, incl. exercise
-    burned['imported'] = over is not None
-    burned['deficit'] = round(burned['day_burn'] - totals['kcal']) if entries else None
+        resting = energy.resting_by_day(c, user['id'], ctx['tz'], day_, day_) if info['resting_source'] == 'apple_health' else {}
+    burn = energy.burn_for_day(info, today_ex['kcal'], day_, resting, {day_: over} if over is not None else {})
+    burned['day_burn'] = round(burn['total']) if burn['total'] is not None else None
+    burned['source'] = burn['source']; burned['observed_at'] = burn['observed_at']; burned['synced_at'] = burn['synced_at']
+    burned['missing'] = burn['total'] is None
+    burned['imported'] = burn['source'] == 'imported'
+    burned['deficit'] = round(burned['day_burn'] - totals['kcal']) if entries and burned['day_burn'] is not None else None
     burned['partly'] = bool(entries) and day_ < ctx['today'] and totals['kcal'] < least   # left out of averages and totals
     # burn breakdown: resting (BMR, needs height) + daily activity (the rest of the base) + exercise
-    burned['base'] = info['base']
-    burned['bmr'] = info['bmr']; burned['bmr_exact'] = info['bmr_exact']
-    burned['daily_life'] = info['base'] - info['bmr']
+    burned['base'] = burn['resting'] if burn['source'] == 'apple_health' else info['base']
+    burned['bmr'] = burn['resting']; burned['bmr_exact'] = info['bmr_exact']
+    burned['daily_life'] = 0 if burn['source'] == 'apple_health' else info['base'] - info['bmr']
     burned['activity'] = info['activity']
     burned['tdee_confidence'] = info['confidence']
     # the day's goal: a goal set for this date wins; otherwise the daily target + the training-day extra
@@ -256,7 +260,7 @@ def day(d: str | None = None, user=Depends(current_user)):
     # workouts deepen the deficit; they don't raise the goal
     goal = {'custom': round(g['kcal']) if g else None, 'default': round(default) if default else None, 'extra': 0}
     goal['kcal'] = goal['custom'] if g else (goal['default'] if default else None)
-    goal['deficit'] = round(burned['day_burn'] - goal['kcal']) if goal['kcal'] is not None else None
+    goal['deficit'] = round(burned['day_burn'] - goal['kcal']) if goal['kcal'] is not None and burned['day_burn'] is not None else None
     with db.connect() as c:
         last_meals = _last_meals(c, user['id'], day_)
         hours = c.execute("""SELECT extract(hour FROM created AT TIME ZONE %s)::int AS h, meal, count(*) AS n FROM food_entries

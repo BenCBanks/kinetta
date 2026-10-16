@@ -105,3 +105,5 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Owner activity detail renders all recorded route sections; shared map previews retain the trimmed longest section.
 
 See [Recording activities](docs/activity-tracking.md).
+
+- Optional Apple Health Resting Energy for passive burn, added to existing activity calories with independent food goals; explicit read permission and source/time labels. Under review; Apple SDK/device acceptance pending. See [resting calories](docs/resting-calories.md).

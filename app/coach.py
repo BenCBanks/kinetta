@@ -61,13 +61,15 @@ def allowed(user_id, feature='coach', connection=None):
 OFF = 'AI features are off for you - turn them on under Me > AI features.'
 
 
-HEALTH_NO = 'Kit needs your OK to read workouts from Apple Health first: Me > Apple Health.'
+HEALTH_NO = 'Kit needs your OK to read Apple Health data first: Track > Apple Health.'
 
 
 def health_ok(c, user_id):
     """Apple's rules: health data goes to an AI service only with the person's explicit consent."""
     r = c.execute("""SELECT coalesce((SELECT health_ai_ok FROM profile WHERE user_id = %s), false) AS ok,
-                       EXISTS (SELECT 1 FROM activities WHERE user_id = %s AND (source = 'healthkit' OR healthkit_id IS NOT NULL)) AS has""", (user_id, user_id)).fetchone()
+                       (EXISTS (SELECT 1 FROM activities WHERE user_id = %s AND (source = 'healthkit' OR healthkit_id IS NOT NULL))
+                        OR EXISTS (SELECT 1 FROM health_resting h JOIN profile p ON p.user_id = h.user_id
+                                   WHERE h.user_id = %s AND p.resting_source = 'apple_health')) AS has""", (user_id, user_id, user_id)).fetchone()
     return r['ok'] or not r['has']
 
 

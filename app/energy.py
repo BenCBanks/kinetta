@@ -71,13 +71,13 @@ def bmr(kg, height_cm, birth_year, sex, year):
 
 
 def context(c, user_id):
-    p = c.execute('SELECT tz, weight_kg, sex, height_cm, birth_year FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
+    p = c.execute('SELECT tz, weight_kg, sex, height_cm, birth_year, resting_source FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
     tz = p.get('tz') or db.DEFAULT_TZ
     today = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
     weights = c.execute('SELECT day, kg FROM weights WHERE user_id = %s ORDER BY day', (user_id,)).fetchall()
     pts = weight_trend(weights)
     kg = pts[-1][2] if pts else (p.get('weight_kg') or 75.0)
-    return {'tz': tz, 'today': today, 'points': pts, 'kg': kg, 'sex': p.get('sex'),
+    return {'tz': tz, 'today': today, 'resting_source': p.get('resting_source', 'formula'), 'points': pts, 'kg': kg, 'sex': p.get('sex'),
             'bmr': bmr(kg, p.get('height_cm'), p.get('birth_year'), p.get('sex'), today.year)}
 
 
@@ -118,7 +118,7 @@ def tdee(c, user_id, days=28):
         rate = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)   # kg per day
         observed = sum(full.values()) / len(full) - rate * KCAL_PER_KG
     expected = base + avg_ex           # what the model says was burned on average, workouts included
-    return {'tdee': round(base), 'base': round(base), 'bmr': round(bmr), 'bmr_exact': bool(ctx['bmr']),
+    return {'today': ctx['today'], 'resting_source': ctx['resting_source'], 'tdee': round(base), 'base': round(base), 'bmr': round(bmr), 'bmr_exact': bool(ctx['bmr']),
             'activity_factor': factor, 'activity': ACTIVITY.get(round(factor, 2), f'x{factor:g}'),
             'confidence': 'bmr' if ctx['bmr'] else 'rough',
             'observed': round(observed) if observed is not None else None, 'expected': round(expected),
@@ -139,6 +139,27 @@ def daily_burn(info, exercise_kcal):
     return info['base'] + exercise_kcal
 
 
+
+def resting_by_day(c, user_id, tz, start, end):
+    """Only this person's Health totals in the time zone used to query HealthKit. Missing is not zero."""
+    return {r['day']: r for r in c.execute(
+        'SELECT day, resting_kcal, observed_at, synced_at, (observed_at AT TIME ZONE %s)::date > day AS complete FROM health_resting WHERE user_id = %s AND tz = %s AND day BETWEEN %s AND %s',
+        (tz, user_id, tz, start, end)).fetchall()}
+
+
+def burn_for_day(info, exercise_kcal, day, resting, overrides):
+    """Watch mode replaces the passive component only. Never add a multiplier or Apple's active total."""
+    if info.get('resting_source') == 'apple_health':
+        r = resting.get(day)
+        # Yesterday's last in-progress sync must not become a completed daily total at midnight.
+        if r and day < info['today'] and not r['complete']: r = None
+        return {'source': 'apple_health', 'resting': float(r['resting_kcal']) if r else None,
+                'total': float(r['resting_kcal']) + exercise_kcal if r else None,
+                'observed_at': r['observed_at'] if r else None, 'synced_at': r['synced_at'] if r else None}
+    return {'source': 'imported' if day in overrides else 'formula', 'resting': info['bmr'],
+            'total': overrides.get(day, daily_burn(info, exercise_kcal)), 'observed_at': None, 'synced_at': None}
+
+
 def deficits(c, user_id, since=None):
     """Day by day from `since` (default: first day with food) to today: eaten, burned, deficit (burned - eaten) and the
     running total. Days with nothing logged, or clearly only partly logged, don't count (shown as skipped).
@@ -156,16 +177,17 @@ def deficits(c, user_id, since=None):
     least = full_day_min(c, user_id, info['base'])
     ex = exercise_by_day(c, user_id, ctx['tz'], since, ctx['today'], ctx['kg'])
     over = burn_overrides(c, user_id, since, ctx['today'])
+    resting = resting_by_day(c, user_id, ctx['tz'], since, ctx['today']) if info['resting_source'] == 'apple_health' else {}
     days, total, counted = [], 0.0, 0
     d = since
     while d <= ctx['today']:
         eaten, exk = intake.get(d), (ex.get(d) or {}).get('kcal', 0.0)
-        burn = over.get(d, daily_burn(info, exk))
+        burn = burn_for_day(info, exk, d, resting, over)['total']
         today = d == ctx['today']
-        skip = eaten is None or (not today and ((typical and eaten < 0.5 * typical) or eaten < least))
+        skip = burn is None or eaten is None or (not today and ((typical and eaten < 0.5 * typical) or eaten < least))
         deficit = None if skip else burn - eaten
         if deficit is not None and not today: total += deficit; counted += 1
-        days.append({'day': d.isoformat(), 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burn),
+        days.append({'day': d.isoformat(), 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burn) if burn is not None else None, 'burn_missing': burn is None,
                      'exercise': round(exk), 'deficit': round(deficit) if deficit is not None else None,
                      'total': round(total), 'skipped': skip, 'today': today})
         d += dt.timedelta(days=1)

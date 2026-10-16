@@ -123,6 +123,42 @@ const Native = (() => {
   // Consent belongs to this account on this server. Old device-wide opt-ins need a fresh connection.
   const owner = () => App.me && JSON.stringify([N.base, App.me.id]);
   let generation = 0;
+  // Resting Energy has its own explicit device/account opt-in; workout permissions remain unchanged.
+  N.restingSupported = !!(on && background?.restingEnergy && background?.requestRestingPermissions);
+  let restingGeneration = 0;
+  N.restingOn = async () => N.restingSupported && !!owner() && (await get('health.resting.owner')) === owner();
+  N.connectRestingEnergy = () => N.restingConnecting || (N.restingConnecting = (async () => {
+    if (!N.restingSupported) throw new Error('Install the latest Kinetta iPhone build to connect Resting Energy.');
+    const account=owner(),token=N.token,version=restingGeneration;
+    if (!account) throw new Error('Sign in before connecting Resting Energy.');
+    await N.healthCall(background.requestRestingPermissions(), 'Finish the Health permission screen, then try again.', N.healthPermissionTimeout);
+    if(account!==owner() || token!==N.token || version!==restingGeneration) throw new Error('Resting energy setup stopped because the account changed.');
+    // Completion means the permission screen closed, not that Apple disclosed read permission.
+    await put('health.resting.owner',account);
+    if(account!==owner() || token!==N.token || version!==restingGeneration) { await put('health.resting.owner',null);throw new Error('The account changed.'); }
+    N.lastResting=0;
+  })().finally(()=>{N.restingConnecting=null;}));
+  N.stopRestingEnergy = async () => {
+    restingGeneration++;N.lastResting=0;
+    await put('health.resting.owner',null);
+    if(N.restingSyncing) await N.restingSyncing.catch(()=>{});
+  };
+  N.syncRestingEnergy = () => N.restingSyncing || (N.restingSyncing = (async () => {
+    if(!App.me || App.me.resting_source!=='apple_health' || !(await N.restingOn())) return null;
+    const account=owner(),token=N.token,version=restingGeneration,zone=App.me.tz;
+    const guard=()=>{if(account!==owner() || token!==N.token || version!==restingGeneration || App.me?.resting_source!=='apple_health' || zone!==App.me?.tz) throw new Error('Resting energy sync stopped because the account or settings changed.');};
+    const data=await N.healthCall(background.restingEnergy({tz:zone}), 'Resting energy did not respond. Unlock your phone and try again.');
+    guard();
+    if(data?.tz!==zone || !Array.isArray(data.days) || !data.observed_at) throw new Error('Apple Health returned an incomplete resting-energy result.');
+    const res=await N.healthCall(api('/api/health/resting',json('POST',data)), 'Resting energy could not be uploaded. Sync again when online.');
+    guard();
+    if(!res?.ok || res.received!==data.days.length || !Array.isArray(res.days) || !data.days.every(r=>res.days.includes(r.day))) throw new Error('Kinetta did not confirm the resting-energy sync. Try again.');
+    invalidate('/api/food');invalidate('/api/health/resting');return {days:res.received};
+  })().finally(()=>{N.restingSyncing=null;}));
+  N.autoRestingEnergy = () => {
+    if(!on || App.me?.resting_source!=='apple_health' || Date.now()-(N.lastResting||0)<600000) return;
+    N.lastResting=Date.now();N.syncRestingEnergy().then(s=>{if(s?.days && location.pathname==='/food')render();}).catch(()=>{N.lastResting=0;});
+  };
   N.healthOn = async () => on && !!owner() && (await get('health.owner')) === owner() && (await get('health.on')) === '1';
   N.healthStatus = async () => { try { return await N.healthOn() ? JSON.parse(await get('health.status')) : null; } catch (e) { return null; } };
   N.backgroundStatus = async () => {
@@ -157,6 +193,7 @@ const Native = (() => {
   })().finally(() => { N.connecting = null; }));
   N.disconnectHealth = async () => {
     generation++; N.lastAuto = 0;
+    await N.stopRestingEnergy();
     progress(''); N.onHealthProgress = null;
     // Native uploads must stop before a login can replace the selected account/server.
     if (background) await background.disconnect();
@@ -230,6 +267,7 @@ const Native = (() => {
   })().finally(() => { N.syncing = null; }));
   // quietly, when the app opens and comes back to the front (at most every 10 minutes)
   N.autoSync = () => {
+    N.autoRestingEnergy();
     if (!on || !App.me || Date.now() - (N.lastAuto || 0) < 600000) return;
     N.lastAuto = Date.now();
     N.syncHealth().then((s) => { if (s && (s.added || s.updated)) { toast(s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} from Apple Health` : 'Apple Health workout details updated'); render(); } }).catch(() => { N.lastAuto = 0; });
@@ -255,7 +293,7 @@ route(/^\/track\/health$/, 'track', async (el) => {
       <p class="small muted">Choose only the Health categories you want to share. Apple keeps your read-permission choices private; enabling sync does not mean every category was allowed.</p>
       <p id="h-progress" class="health-progress" role="status">${esc(Native.healthProgress || '')}</p>
       <p>Kinetta reads from Apple Health:</p>
-      <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
+      <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Resting Energy</b>, only if you choose Apple Health resting calories in Nutrition</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
       <p class="small muted">Kinetta can only import what the recording app saves to Health. Garmin Connect does not send GPS tracks to Apple Health; use Watch connections or import the original file for those maps. Sync now also checks for details that arrived later.</p>
       <p class="small muted">${bg?.enabled ? 'iOS can sync new workouts in the background. Delivery timing depends on iOS; locked phones and force-quitting can delay it. Open Kinetta to catch up.' : 'Sync runs when you open Kinetta or return to it.'} Keep your phone unlocked until the first import finishes.</p>
       <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Kinetta only reads; it never changes your Health data.</p>
@@ -271,8 +309,8 @@ route(/^\/track\/health$/, 'track', async (el) => {
         <button class="ghost wide danger" id="h-off">Stop syncing</button>`
       : '<button class="primary wide" id="h-on">Connect Apple Health</button>'}</div>
     <div class="card"><h2>Kit, your AI coach</h2>
-      <p class="small">Kit writes notes about your training using an AI service. It reads your Apple Health workouts only if you say yes. Until then Kit stays off for you.</p>
-      <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health workouts</label></div>`;
+      <p class="small">Kit writes notes about your training using an AI service. It reads your Apple Health workouts and resting calories only if you say yes. Until then Kit stays off for you.</p>
+      <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health data</label></div>`;
   const err = $('.err', box);
   Native.onHealthProgress = (text) => { if (box.isConnected) $('#h-progress', box).textContent = text; };
   const busy = async (b, label, fn) => {
