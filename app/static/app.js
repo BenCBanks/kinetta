@@ -364,7 +364,7 @@ function sheet(title, html, onMount) {
 
 // ---------- router ----------
 IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
-const TABS = [['activity', 'Activity'], ['track', 'Track'], ['progress', 'Progress'], ['food', 'Nutrition'], ['me', 'Me']];
+const TABS = [['me', 'Me'], ['activity', 'Activity'], ['track', 'Track'], ['progress', 'Progress'], ['food', 'Nutrition']];   // Me is home: first, and where the app opens
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;

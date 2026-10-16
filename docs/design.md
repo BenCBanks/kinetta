@@ -231,8 +231,9 @@ Administration lives in the separate browser `/admin` portal, with the same them
 
 ## Me as home and Track (16 October owner request, issue #108)
 
-The owner explicitly replaces Today with Track. The five stable destinations are Activity, Track, Progress,
-Nutrition and Me; opening the app leads to Me, and old `/today` URLs redirect there. This supersedes earlier
+The owner explicitly replaces Today with Track. The five stable destinations are, left to right, Me, Activity,
+Track, Progress and Nutrition (owner, 16 October: Me is home, so it sits first on the far left); opening the app
+leads to Me, and old `/today` URLs redirect there. This supersedes earlier
 Today and five-tab wording above. The software-keyboard visibility rules still apply to all five tabs.
 
 Me leads with the existing dated weekly bar chart and distance/time/climb totals, followed by a compact editable
@@ -272,7 +273,7 @@ text equivalents and identical feed visibility/block rules remain. Activity hist
 and Progress. No start/resume/import controls or active-session panels appear there or on Me. Track's nav indicator
 can signal a recording without adding controls to another screen.
 
-Track uses a last-used sport selector, an outdoor map with explicit Locate me, and one prominent Start action.
+Track uses a last-used sport selector, an outdoor map that finds the person as soon as an outdoor activity is chosen (owner, 16 October: like Strava, no repeated permission prompts; the iPhone app asks Core Location, which remembers the answer; a browser locates by itself only when already allowed), Locate me to re-centre, and one prominent Start action.
 Outdoor GPS and every supported indoor kind are available in that selector, including lifting. Activity tools holds
 past entries/imports/connections/Health. During GPS recording, distance/active time/average pace or speed lead the
 map; Map/Stats changes display. Pause is the only primary running control; Resume and Finish appear when paused.
