@@ -177,3 +177,34 @@ jobs:
         if: always() && steps.keys.outputs.ok
         run: |
           rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/private_keys/AuthKey_$KEY_ID.p8"
+    outputs:
+      uploaded: ${{ steps.keys.outputs.ok }}
+
+  # After the upload, send the build to the TestFlight groups (repository variable TESTFLIGHT_GROUPS, default "Beta")
+  # so testers get it without anyone picking it in App Store Connect. External groups need Apple's beta review, which
+  # this submits; Apple releases the build to testers itself once it is approved. Waiting for Apple's processing takes
+  # up to an hour, so this runs on a Linux runner rather than holding the Mac.
+  beta:
+    needs: testflight
+    if: needs.testflight.outputs.uploaded == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+      KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      GROUPS: ${{ vars.TESTFLIGHT_GROUPS }}
+      WHAT_TO_TEST: ${{ github.event.head_commit.message }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send the build to TestFlight testers
+        run: |
+          umask 077
+          printf '%s' "$KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          BUILD_NUMBER=$((GITHUB_RUN_NUMBER + 100)) python3 scripts/distribute-beta.py
+      - name: Remove the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"

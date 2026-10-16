@@ -100,6 +100,16 @@ After step 7, start the upload once by hand: GitHub > **Actions > iPhone app > R
 shows up in App Store Connect under **TestFlight** 10 to 30 minutes later. From then on every change to the app on
 `main` uploads a new build by itself.
 
+**Testers get each new build by themselves.** After the upload, the workflow's `beta` job waits for Apple's
+processing, writes "What to Test" from the merged change's title, submits the build for beta review and adds it to
+the `Beta` group. Apple releases it to external testers once the review approves it: the first build of a new version
+can take about a day, later builds are often quicker. Nothing to pick in App Store Connect. To send builds to other
+groups, add a repository variable `TESTFLIGHT_GROUPS` (GitHub > Settings > Secrets and variables > Actions >
+Variables) with the group names, comma separated, for example `Beta,Family`. Internal groups need no review; you can
+also turn on **Automatic Distribution** for them in App Store Connect instead. Managing groups needs the API key from
+step 5 to have the **App Manager** role (or Admin); with a lower role the `beta` job fails with a note saying so, and
+the build can still be added by hand. Beta review needs **Test Information** and the reviewer sign-in filled in.
+
 ## Before outside testers or the App Store
 
 Already done: the **privacy policy URL** (https://kinetta.app/privacy, which covers Apple Health), **delete my account**
