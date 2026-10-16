@@ -1,5 +1,6 @@
 // Tap a screenshot to see it full size (2026-10-13, Ben: on a phone the shots were too small to read). The others in the
-// same section come along: swipe sideways (or the arrows / arrow keys) to move between them, tap the picture or × to close.
+// same section come along: swipe sideways (or the arrows / arrow keys) to move between them. Tap anywhere outside the
+// arrows (the picture or the dark space around it), press Escape or × to go back to where you were (2026-10-16, Ben).
 (() => {
   'use strict';
   const frames = (sec) => [...sec.querySelectorAll('.frame img')];
@@ -25,7 +26,7 @@
     dlg.querySelector('.close').onclick = () => dlg.close();
     dlg.querySelector('.prev').onclick = () => step(-1);
     dlg.querySelector('.next').onclick = () => step(1);
-    strip.addEventListener('click', (e) => { if (e.target.tagName === 'IMG') dlg.close(); });
+    strip.addEventListener('click', () => dlg.close());   // the picture or the space around it; a swipe doesn't click
     strip.addEventListener('scroll', () => show(at()), {passive: true});
     dlg.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
