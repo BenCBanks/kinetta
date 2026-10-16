@@ -32,6 +32,9 @@ cooked in oil or butter, list that fat as its own item (e.g. "Butter, for frying
 someone else's plate or in the background. Use typical US restaurant/home portions when unsure.
 For each item give: name (short, plain, e.g. "Fried eggs"), amount (household measure, e.g. "2 large", "1 cup",
 "1 slice"), grams, kcal, protein_g, carbs_g, fat_g, fiber_g.
+A photo may instead be a screenshot of a recipe or its nutrition facts. Then log what the person ate from that recipe:
+one serving unless they say otherwise, as one item named after the dish, amount like "1 serving (of 6)". Use the
+nutrition the recipe states per serving; if it states none, total the listed ingredients and divide by its servings.
 In "notes" say in one short sentence what you assumed (e.g. "Assumed eggs fried in 1 tsp butter"). Numbers only, no ranges."""
 
 SCHEMA = {
