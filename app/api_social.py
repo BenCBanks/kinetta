@@ -197,8 +197,9 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
 
 @router.get('/people/{login}/profile')
 def public_profile(login: str, before: dt.datetime | None = None, before_id: int | None = None,
-                   limit: int = Query(20, ge=1, le=50), user=Depends(current_user)):
-    """An authenticated profile directory, never a bypass around activity visibility or blocking."""
+                   limit: int = Query(20, ge=1, le=50), as_friend: bool = False, user=Depends(current_user)):
+    """An authenticated profile directory, never a bypass around activity visibility or blocking.
+    as_friend (your own profile only): what a friend sees - your activities shared with friends or everyone."""
     with db.connect() as c:
         person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created
                               FROM users WHERE login = %s AND pw_hash IS NOT NULL""", (login.lower(),)).fetchone()
@@ -209,6 +210,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
                   'sent' if relation['requester'] == user['id'] else 'incoming') if relation else None
         params = _params(user['id'], PREVIEW_TOL, person=person['id'], limit=limit + 1)
         visible = f'a.user_id = %(person)s AND {CAN_SEE}'
+        if as_friend and person['id'] == user['id']: visible += " AND a.visibility IN ('friends', 'everyone')"
         overview = c.execute(f"""SELECT count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
                                   coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s
                                   FROM activities a WHERE {visible}""", params).fetchone()

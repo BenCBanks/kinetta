@@ -59,6 +59,13 @@ try:
     request(owner, 'POST', '/api/friends/zz_test_profile_viewer/accept')
     profile = request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile')
     check(profile['overview']['activities'] == 3 and profile['status'] == 'friends', 'approved friend gets only additional friends activities')
+    own = request(owner, 'GET', '/api/people/zz_test_profile_owner/profile')
+    check(own['mine'] and own['overview']['activities'] == 4, 'own profile normally lists every own activity')
+    preview = request(owner, 'GET', '/api/people/zz_test_profile_owner/profile?as_friend=true')
+    check(preview['overview'] == profile['overview'] and [a['id'] for a in preview['items']] == [a['id'] for a in profile['items']],
+          'own profile "as friends see it" matches what a friend actually sees')
+    other = request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile?as_friend=true')
+    check(other['overview'] == profile['overview'], 'as_friend changes nothing on someone else\'s profile')
     request(viewer, 'POST', '/api/people/zz_test_profile_owner/block')
     request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile', expected=404)
     request(owner, 'GET', '/api/people/zz_test_profile_viewer/profile', expected=404)

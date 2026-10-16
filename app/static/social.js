@@ -392,23 +392,28 @@ function shareFields(box, aid, s) {
 // ---------- Me > Friends: search by name or username, requests, your friends ----------
 route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
   login = decodeURIComponent(login);
-  el.innerHTML = `<div class="top">${backBtn('People')}</div><div id="person-profile">${skel(2)}</div>`;
-  wireBack(el, '/me/friends');
+  const own = !!App.me && login.toLowerCase() === App.me.login.toLowerCase();
+  el.innerHTML = `<div class="top">${backBtn(own ? 'Me' : 'People')}</div><div id="person-profile">${skel(2)}</div>`;
+  wireBack(el, own ? '/me' : '/me/friends');
   const box = $('#person-profile', el);
+  const path0 = '/api/people/' + encodeURIComponent(login) + '/profile' + (own ? '?as_friend=true' : '');
   const draw = (r) => {
     const p = r.person;
-    const action = r.mine ? '<button class="ghost" data-edit-profile>Edit profile</button>' :
+    // Your own profile is shown the way friends see it, with your name, bio and photo editable in place (2026-10-16, Ben)
+    const action = r.mine ? '' :
       r.status === 'friends' ? '<span class="badge on">Friends</span>' :
       r.status === 'sent' ? '<button class="ghost" data-person-action="cancel">Request sent</button>' :
       r.status === 'incoming' ? '<button class="primary" data-person-action="accept">Approve request</button>' : '<button class="primary" data-person-action="add">Add friend</button>';
-    box.innerHTML = `<div class="profile public-profile">${avatar(p, 'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
-      ${p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${action}${r.mine ? '' : '<button class="ghost" data-person-report>Report or block</button>'}</div>
-      <div class="card"><h2>${r.mine ? 'Your activity overview' : 'Shared activity overview'}</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
-        <div class="sport-overview">${(r.sports || []).map((s) => `<div class="row"><b>${esc(SPORT_NAMES[s.sport] || s.sport)}</b><span class="num">${s.activities} activities · ${s.distance_m ? U.dist(s.distance_m) + ' ' + U.du() : dur(s.time_s, true)}</span></div>`).join('')}</div><p class="small muted">${r.mine ? 'Others see only the activities you share with them.' : 'Only activities this person shares with you are included.'}</p></div>
-      <h2 class="sec-head">${r.mine ? 'Your activities' : 'Shared activities'}</h2><div class="feed-list" id="person-activities">${r.items.length ? r.items.map((a) => postCard(a)).join('') : '<div class="card empty"><b>No shared activities yet</b>This person has not shared any activities you can see.</div>'}</div>
+    const pencil = `<span class="pf-pen" aria-hidden="true">${svg('edit')}</span>`;
+    box.innerHTML = `${r.mine ? '<div class="pf-preview"><b>Your profile, as friends see it</b><span>Tap your photo, name or bio to change them.</span></div>' : ''}
+      <div class="profile public-profile">${r.mine ? `<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p, 'lg')}<span class="av-cam">${svg('camera')}</span></button>` : avatar(p, 'lg')}<div>${r.mine ? `<button type="button" class="pf-edit" id="pf-name" aria-label="Edit your name"><h1>${esc(p.name)}</h1>${pencil}</button>` : `<h1>${esc(p.name)}</h1>`}<div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
+      ${r.mine ? `<button type="button" class="pf-edit pf-bio${p.bio ? '' : ' empty'}" id="pf-bio" aria-label="${p.bio ? 'Edit your bio' : 'Add a bio'}"><span class="profile-bio">${p.bio ? esc(p.bio) : 'Add a bio — a line about you for friends'}</span>${pencil}</button>` : p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${action}${r.mine ? '' : '<button class="ghost" data-person-report>Report or block</button>'}</div>
+      <div class="card"><h2>Shared activity overview</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
+        <div class="sport-overview">${(r.sports || []).map((s) => `<div class="row"><b>${esc(SPORT_NAMES[s.sport] || s.sport)}</b><span class="num">${s.activities} activities · ${s.distance_m ? U.dist(s.distance_m) + ' ' + U.du() : dur(s.time_s, true)}</span></div>`).join('')}</div><p class="small muted">${r.mine ? 'Activities set to “Only me” are left out here, as they are for everyone else.' : 'Only activities this person shares with you are included.'}</p></div>
+      <h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length ? r.items.map((a) => postCard(a)).join('') : `<div class="card empty"><b>No shared activities yet</b>${r.mine ? 'You haven’t shared any activities with friends yet.' : 'This person has not shared any activities you can see.'}</div>`}</div>
       <button class="ghost wide" id="person-more"${r.next ? '' : ' hidden'}>Show more</button>`;
     feedMaps(box); wireCheers(box);
-    const edit = $('[data-edit-profile]', box); if (edit) edit.onclick = () => editProfileSheet();
+    if (r.mine) wireProfileEditing(box, p, reload);
     const act = $('[data-person-action]', box);
     if (act) act.onclick = async () => {
       act.disabled = true;
@@ -418,7 +423,7 @@ route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
         else if (act.dataset.personAction === 'accept') await api(path + '/accept', json('POST', {}));
         else await api('/api/friends', json('POST', {login: p.login}));
         invalidate('/api/friends'); invalidate('/api/people/'); invalidateFeed();
-        if (box.isConnected) draw(await api('/api/people/' + encodeURIComponent(p.login) + '/profile'));
+        if (box.isConnected) draw(await api(path0));
       } catch (x) { toast(x.message); act.disabled = false; }
     };
     const report = $('[data-person-report]', box);
@@ -429,7 +434,7 @@ route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
       if (!next) return; more.disabled = true;
       try {
         const query = new URLSearchParams(next);
-        const fresh = await api('/api/people/' + encodeURIComponent(p.login) + '/profile?' + query);
+        const fresh = await api(path0 + (path0.includes('?') ? '&' : '?') + query);
         if (!box.isConnected) return;
         $('#person-activities', box).insertAdjacentHTML('beforeend', fresh.items.map((a) => postCard(a)).join(''));
         next = fresh.next; more.hidden = !next; feedMaps(box); wireCheers(box);
@@ -437,8 +442,33 @@ route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
       more.disabled = false;
     };
   };
-  await load('/api/people/' + encodeURIComponent(login) + '/profile', draw, {maxAge: 0});
+  const reload = async () => { invalidate('/api/people/'); try { const r = await api(path0); if (box.isConnected) draw(r); } catch (x) { toast(x.message); } };
+  await load(path0, draw, {maxAge: 0});
 });
+
+// In-place editing on your own profile: the name or bio turns into a box with Save / Cancel; the photo opens its sheet.
+function wireProfileEditing(box, p, reload) {
+  $('#pf-photo', box).onclick = () => profilePhotoSheet(reload);
+  const edit = (button, field) => {
+    const multi = field === 'bio', value = field === 'bio' ? p.bio || '' : p.name;
+    const form = document.createElement('form'); form.className = 'form pf-form';
+    form.innerHTML = `${multi ? `<textarea name="v" rows="3" maxlength="280" placeholder="A little about you" aria-label="Bio">${esc(value)}</textarea>`
+      : `<input name="v" value="${esc(value)}" maxlength="60" required autocomplete="name" enterkeyhint="done" aria-label="Name">`}
+      <p class="err" role="alert"></p><div class="actions"><button type="button" class="ghost" data-cancel>Cancel</button><button class="primary" type="submit">Save</button></div>`;
+    button.replaceWith(form); form.elements.v.focus();
+    $('[data-cancel]', form).onclick = () => form.replaceWith(button);
+    form.onsubmit = async (e) => {
+      e.preventDefault(); const save = $('[type="submit"]', form), v = form.elements.v.value.trim(); save.disabled = true;
+      try {
+        const account = await api('/api/account', json('PUT', {[field]: v}));
+        if (field === 'name') App.me.name = account.name; else App.me.bio = v;
+        invalidate('/api/me'); keep('/api/me', App.me); toast(field === 'name' ? 'Name saved' : 'Bio saved'); reload();
+      } catch (x) { $('.err', form).textContent = x.message; save.disabled = false; }
+    };
+  };
+  $('#pf-name', box).onclick = (e) => edit(e.currentTarget, 'name');
+  $('#pf-bio', box).onclick = (e) => edit(e.currentTarget, 'bio');
+}
 
 route(/^\/me\/friends$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Friends</h1>

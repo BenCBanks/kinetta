@@ -82,6 +82,16 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .check input { width: 22px; height: 22px; min-height: 0; flex: none; }
 .form { display: grid; gap: 12px; }
 #e-summary > .e-fields { margin-top: 8px; }     /* the edit-activity numbers keep the form's spacing inside the fold-out */
+/* a fold-out that looks like something to tap (2026-10-16, Ben: the plain green line was hard to spot) */
+details.fold-row { border: 1px solid var(--line); border-radius: var(--r2); background: var(--card); padding: 0 12px; }
+details.fold-row > summary { list-style: none; gap: 12px; min-height: 60px; color: var(--tx); }
+details.fold-row > summary::-webkit-details-marker { display: none; }
+details.fold-row > summary .grow { display: grid; } details.fold-row > summary small { color: var(--tx3); font-weight: 500; }
+details.fold-row > summary .ri { color: var(--accent); }
+details.fold-row > summary .chev { transition: transform .15s; } details.fold-row[open] > summary .chev { transform: rotate(90deg); }
+details.fold-row[open] { padding-bottom: 12px; }
+.opt-text textarea { min-height: 72px; }
+.opt-add { justify-self: start; gap: 6px; display: inline-flex; align-items: center; }
 .card p.corrected-note { margin: 4px 0 14px; }   /* "You edited these numbers", above the big numbers */
 .form .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 /* drop-downs with a chevron (2026-10-13, Add an activity) */
@@ -1336,6 +1346,17 @@ nav.tabs a svg { width: 23px; height: 23px; }
 #t-last .sp { background: var(--accent); color: #fff; }
 .activity-view-note { font-size: 13px; color: var(--tx3); margin: -4px 2px 16px; }
 .profile-bio { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 2px 18px; max-width: 60ch; color: var(--tx2); }
+/* your own profile, editable in place (social.js wireProfileEditing) */
+.pf-preview { display: grid; gap: 2px; margin: 4px 0 14px; padding: 10px 14px; border-radius: var(--r2); background: var(--accent2); color: var(--tx); font-size: 14px; }
+.pf-preview span { color: var(--tx2); }
+.pf-edit { display: flex; align-items: center; gap: 8px; min-height: 44px; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; }
+.pf-edit h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-pen { flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); color: var(--accent); }
+.pf-pen svg { width: 15px; height: 15px; }
+.pf-edit.pf-bio { width: 100%; align-items: flex-start; justify-content: space-between; margin: 0 0 18px; }
+.pf-edit.pf-bio .profile-bio { margin: 0 2px; }
+.pf-edit.pf-bio.empty .profile-bio { color: var(--accent); font-weight: 600; }
+.pf-form { margin: 0 0 18px; }
 .profile-actions { flex-wrap: wrap; }
 .sport-overview { display: grid; gap: 0; margin-top: 12px; }
 .sport-overview .row { font-size: 14px; flex-wrap: wrap; }
@@ -1475,8 +1496,18 @@ nav.tabs a svg { width: 23px; height: 23px; }
 .entry-move summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--tx2); }
 
 /* Contextual Kit: the visible mark stays small, the touch target stays comfortable. */
-.kit-help { flex: 0 0 44px; width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 50%; background: var(--accent2); color: var(--accent); }
-.kit-help svg { width: 20px; height: 20px; }
+/* Kit's button: the sparkle plus the word "Kit" in a pill, so it doesn't read as a stray star (2026-10-16, Ben) */
+.kit-help { flex: 0 0 auto; width: auto; min-width: 44px; min-height: 44px; padding: 0 14px 0 11px; gap: 5px; display: inline-flex; align-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 22px; background: var(--accent2); color: var(--accent);
+  font-weight: 700; font-size: 14px; }
+.kit-help::after { content: 'Kit'; }
+.kit-help svg { width: 18px; height: 18px; }
 #nt-coach { display: flex; justify-content: flex-end; margin-top: 12px; }
 
 .photo-selection{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:18px}.photo-selection img{width:100%;height:110px;object-fit:cover}.photo-selection button{min-height:44px;width:100%}
+
+/* iPhone app: "Done" above the keyboard (keyboard.js) */
+.kb-done { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 2000; justify-content: flex-end; padding: 0 8px;
+  background: var(--card); border-top: 1px solid var(--line); }
+html.keyboard-open .kb-done { display: flex; }
+.kb-done button { min-height: 44px; padding: 0 14px; border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 16px; }

@@ -438,15 +438,16 @@ function editActivity(a) {
   sheet('Edit activity', `<form class="form" id="e-form">
     <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
     <label>What did you do?<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
-    <details id="e-summary"><summary>Distance, duration & other details</summary><div class="form e-fields"><p class="small muted">Your edits stay when Apple Health syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
-    <label>Description<textarea name="description" maxlength="10000">${esc(a.description || '')}</textarea></label>
-    <label>Private note (only you)<textarea name="private_note" maxlength="10000">${esc(a.private_note || '')}</textarea></label>
+    <details id="e-summary" class="fold-row"><summary><span class="ri c-brand">${svg('edit')}</span><span class="grow"><b>Distance, time & heart rate</b><small>Fix numbers your watch got wrong</small></span><span class="chev">${svg('chev')}</span></summary><div class="form e-fields"><p class="small muted">Your edits stay when Apple Health syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
+    ${optionalText('description', 'Description', 'Add a description', a.description)}
+    ${optionalText('private_note', 'Private note (only you)', 'Add a private note', a.private_note)}
     <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
     <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
     <div id="e-share" class="e-share"><p class="small muted">Loading sharing…</p></div>
     <div class="actions"><button type="button" class="ghost danger" id="e-del">Delete</button><span class="spacer"></span>
       <button type="button" class="ghost" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, async (body, close) => {
     const f = $('#e-form', body);
+    wireOptionalText(f);
     let saveShare = null;   // sharing (2026-10-12): moved here from the activity page
     (a._social ? Promise.resolve(a._social) : api(`/api/activities/${a.id}/social`))
       .then((s) => { if (f.isConnected) saveShare = shareFields($('#e-share', body), a.id, s); })
@@ -455,7 +456,9 @@ function editActivity(a) {
     f.onsubmit = async (e) => {
       e.preventDefault();
       const k = kinds.find((x) => x.v === f.kind.value);
-      const body2 = {description: f.description.value, private_note: f.private_note.value, commute: f.commute.checked};
+      // by tag: the sharing choices below include a checkbox also named "description" (it made Save wipe the text)
+      const text = (name) => f.querySelector(`textarea[name="${name}"]`).value;
+      const body2 = {description: text('description'), private_note: text('private_note'), commute: f.commute.checked};
       if (k) { body2.sport = k.sp; body2.sport_label = k.lb || ''; }
       if (f.name.value !== a.name) body2.name = f.name.value;   // left alone, a name nobody typed follows the kind ("Lunch Yoga")
       if (f.gear.value) body2.gear_id = +f.gear.value; else body2.clear_gear = true;
@@ -1055,7 +1058,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
       ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
     <button class="ghost wide" id="logout">${svg('logout')}Log out</button>`;
-  $('#m-profile', el).onclick = () => editProfileSheet();
+  $('#m-profile', el).onclick = () => go(profileHref(me));   // your public profile, editable in place (social.js)
   $('#m-photo', el).onclick = () => profilePhotoSheet(() => render());
   const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit & food AI', aiExplain());
   $('#m-targets', el).onclick = () => targetsSheet();
@@ -1410,22 +1413,16 @@ function addActivitySheet(day, preset) {   // preset 'workout': a lifting sessio
   });
 }
 
-// Public identity is edited separately from private health/settings.
-function editProfileSheet() {
-  sheet('Edit profile', `<form class="form" id="profile-edit"><label>Name<input name="name" value="${esc(App.me.name)}" maxlength="60" required autocomplete="name"></label>
-    <label>Bio<textarea name="bio" maxlength="280" placeholder="A little about you">${esc(App.me.bio || '')}</textarea></label>
-    <p class="small muted">Your name, bio and profile photo are visible to other Kinetta members. Activity sharing stays under your control.</p>
-    <button type="button" class="ghost wide" id="profile-photo">Change profile photo</button><p class="err" role="alert"></p><button class="primary wide" type="submit">Save profile</button></form>`, (b, close) => {
-    $('#profile-photo', b).onclick = () => { close(); profilePhotoSheet(() => render()); };
-    $('#profile-edit', b).onsubmit = async (e) => {
-      e.preventDefault(); const f = e.target, button = $('[type="submit"]', f); button.disabled = true;
-      try {
-        const account = await api('/api/account', json('PUT', {name: f.elements.name.value.trim(), bio: f.elements.bio.value.trim()}));
-        App.me.name = account.name;
-        App.me.bio = f.elements.bio.value.trim(); invalidate('/api/people/'); invalidate('/api/me'); keep('/api/me', App.me);
-        close(); toast('Profile saved'); render();
-      } catch (x) { $('.err', f).textContent = x.message; button.disabled = false; }
-    };
+// A note box that stays out of the way until wanted (2026-10-16, Ben: the big boxes took over Edit activity): empty, it's
+// a small "+ Add …" link; with text, or once tapped, a modest three-line box.
+function optionalText(name, label, add, value) {
+  const has = !!(value && value.trim());
+  return `<label class="opt-text"${has ? '' : ' hidden'}>${label}<textarea name="${name}" rows="3" maxlength="10000">${esc(value || '')}</textarea></label>`
+    + (has ? '' : `<button type="button" class="linkbtn opt-add" data-opt="${name}">${svg('plus')} ${add}</button>`);
+}
+function wireOptionalText(form) {
+  $$('[data-opt]', form).forEach((b) => b.onclick = () => {
+    const box = form.querySelector(`textarea[name="${b.dataset.opt}"]`); box.closest('label').hidden = false; b.remove(); box.focus();
   });
 }
 
