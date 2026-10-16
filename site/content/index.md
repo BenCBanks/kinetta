@@ -10,10 +10,6 @@ Your workouts and your food, *in one app.*
 
 Track runs, rides and lifting alongside your calories, macros and recipes. See your training and food in the same daily view.
 
-## free-in-beta-no-ads-web-access-now-iphone-testflight-a-3
-
-Free during the beta. No ads. Available on the web and in the iPhone beta through TestFlight. Request an invite to get started.
-
 ## runs-rides-and-lifting-4
 
 Runs, rides and lifting
