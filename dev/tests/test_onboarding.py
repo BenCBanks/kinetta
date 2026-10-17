@@ -63,3 +63,7 @@ check('float storage normalization',other.post('/api/food/target-suggestion',{'g
 other.put('/api/profile',{'weight_kg':85})
 check('save without body fields preserves concurrent profile',other.put('/api/food/goal-setup',{'goal':'maintain','kcal_target':3000,'protein_target':120})[0]==200 and other.get('/api/me')[1]['weight_kg']==85)
 print('onboarding review regressions: weight trend, stored float, untouched body/activity fields PASS')
+
+latest=other.get('/api/food/weights/latest')[1]['points']
+check('latest-only weight read bounded and private',len(latest)==1 and latest[0]['kg']==90)
+check('latest-only read requires authentication',Client().get('/api/food/weights/latest')[0]==401)

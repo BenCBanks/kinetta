@@ -745,10 +745,30 @@ function wireSport(el, cur) {
     const u = new URLSearchParams(location.search); u.set('sport', k); go(location.pathname + '?' + u.toString(), {replace: true});
   });
 }
+// Keep the two halves of Progress together; explicit old training URLs still open Training.
+const progressKey = () => 'fit.progress:' + JSON.stringify([Native.base || location.origin,App.me.id]);
+const progressChoice = () => store.get(progressKey()) || 'food';
+function progressSwitch(section) {
+  store.set(progressKey(),section);
+  return `<nav class="progress-switch" aria-label="Progress focus"><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a></nav>`;
+}
+function nutritionHref(view, params = '') {
+  return location.pathname === '/progress' ? `/progress?section=food&foodview=${view}${params ? '&' + params : ''}` : `/food?view=${view}${params ? '&' + params : ''}`;
+}
+async function foodProgress(el,q) {
+  const requested = q.get('foodview') || 'overview', view = NPROG.some(v => v[0] === requested) || requested === 'calendar' ? requested : 'overview';
+  if (view !== 'calendar') return nutritionView(el,view,q);
+  const box = nHead(el,'calendar','');
+  await load('/api/food/insights?days=90',I => {
+    if (!box.isConnected) return;
+    const rows = (I.rows || []).slice().sort((a,b)=>b.day.localeCompare(a.day)), logged = rows.filter(r => r.eaten > 0);
+    box.innerHTML = `<section class="card"><h2>Food calendar</h2><p class="small muted">${logged.length} days with food logged in the last 90 days. Newest first · open a day to review it.</p>${logged.length ? `<div class="food-calendar">${rows.map(r => `<a href="/food?d=${esc(r.day)}" aria-label="${esc(dayLabel(r.day))}, ${r.eaten ? homeCalories(r.eaten) + ' kcal logged' : 'no foods logged'}"${r.eaten ? ' class="logged"' : ''}><small>${esc(new Date(r.day+'T12:00').toLocaleDateString([],{month:'short'}))}</small><b>${new Date(r.day+'T12:00').getDate()}</b><small>${r.eaten ? r0(homeCalories(r.eaten)) + ' kcal' : '—'}</small></a>`).join('')}</div>` : '<p>Log something you ate to start your calendar.</p><a class="primary wide" href="/food">Open food log</a>'}</section>`;
+  });
+}
 // the header every Progress view shares: title + bell, then View and the filters this view uses
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
-  el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
+  el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
     <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav><div class="pbar">${filters}</div><div id="p-body">${skel(2)}</div>`;
   $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
     if (k === 'plan') return go('/plan');
@@ -760,7 +780,9 @@ function pHead(el, view, filters) {
 // each view takes the sports it can show: the shared choice, mapped to the nearest one it has
 const forView = (sport, view) => ({totals: {hike: 'walk'}, records: {all: 'run'}, trends: {hike: 'walk', all: 'run'}, heatmap: {all: ''}}[view] || {})[sport] ?? sport;
 route(/^\/progress$/, 'progress', async (el) => {
-  const q = new URLSearchParams(location.search), v0 = q.get('view') || 'totals';
+  const q = new URLSearchParams(location.search);
+  if (q.get('section') === 'food' || (!q.has('section') && !q.has('view') && progressChoice() === 'food')) return foodProgress(el,q);
+  const v0 = q.get('view') || 'totals';
   if (v0 === 'plan') return go('/plan', {replace: true});
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
   const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
@@ -1080,7 +1102,7 @@ route(/^\/me$/, 'me', async (el) => {
   el.innerHTML = `<div id="me-overview"></div>
     <div class="card list me-tools">${row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`)}${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
     <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
-    <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
+    <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
       </div>
     <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
@@ -1282,6 +1304,7 @@ route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{repla
 route(/^\/track\/connections$/, 'track', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Watch connections</h1><p class="muted">Activities arrive on their own. Your Strava posts are not affected.</p><div id="c-body">${skel(2)}</div>`;
   wireBack(el, '/track');
+  $('#c-body',el).insertAdjacentHTML('beforebegin','<div class="card list connections-shortcuts"><a class="row-link" href="/track/health"><span class="grow">Apple Health</span>'+svg('chev')+'</a><a class="row-link" href="/track/import"><span class="grow">Upload activity files</span>'+svg('chev')+'</a></div>');
   const C = await api('/api/connections');
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
   $('#c-body', el).innerHTML = `<div class="card"><h2>Garmin (through intervals.icu)</h2>

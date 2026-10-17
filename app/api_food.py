@@ -486,6 +486,14 @@ def weights(days: int = 180, user=Depends(current_user)):
     return {'points': out, 'trend_kg': out[-1]['trend'] if out else None, 'rate_kg_per_week': rate}
 
 
+@router.get('/weights/latest')
+def latest_weight(user=Depends(current_user)):
+    """Small, owner-bound prefill read; no full weight history on opening a sheet."""
+    with db.connect() as c:
+        row = c.execute('SELECT day, kg, note FROM weights WHERE user_id = %s ORDER BY day DESC LIMIT 1', (user['id'],)).fetchone()
+    return {'points': [row] if row else []}
+
+
 @router.put('/weights')
 def weight_set(body: WeightIn, user=Depends(current_user)):
     if body.day > dt.date.today() + dt.timedelta(days=1): raise HTTPException(400, "That day hasn't happened yet")

@@ -114,3 +114,4 @@ See [Recording activities](docs/activity-tracking.md).
 - Optional Apple Health Resting Energy for passive burn, added to existing activity calories with independent food goals; explicit read permission and source/time labels. Under review; Apple SDK/device acceptance pending. See [resting calories](docs/resting-calories.md).
 
 - **Food-first home:** Today’s calories and macros, direct Describe/Snap/Scan/Usual logging, a preview of yesterday’s meal, and today’s workout calories. Friends and distance appear when there is something to show; all training tools remain available.
+- **Shared ＋ Log:** fast food entry, workout recording and a prefilled weigh-in from the centre tab. A recording indicator returns to your draft in one tap. Progress switches between Food & weight and Training, remembering your choice.

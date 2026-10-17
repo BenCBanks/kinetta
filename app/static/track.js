@@ -47,9 +47,12 @@ const Track = (() => {
         if (session.state === 'recording' && !session.native) { session.activeMs += Math.max(0, (session.checkpoint || session.activeAt) - session.activeAt); session.state = 'paused'; session.segment++; message = 'Recording paused when Kinetta closed. Resume when you are ready.'; persist(); }
       }
     }
-    const tab = $('nav.tabs [data-tab="track"]');
-    if (tab) { tab.classList.toggle('has-recording', !!session); tab.setAttribute('aria-label', session ? 'Track · ' + session.state : 'Track'); }
+    updateTab();
     if (TrackNative.supported && App.me) pullNative().catch(() => {});
+  }
+  function updateTab() {
+    const tab = $('nav.tabs [data-tab="log"]');
+    if (tab) { tab.classList.toggle('has-recording', !!session); tab.setAttribute('aria-label', session ? 'Return to workout · ' + session.state : 'Log food, weight or a workout'); }
   }
   function adoptNative(result) {
     const incoming = result.session;
@@ -104,6 +107,7 @@ const Track = (() => {
   }
   function clock(n) { n = Math.floor(n); return `${String(Math.floor(n / 3600)).padStart(2, '0')}:${String(Math.floor(n / 60) % 60).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`; }
   function update() {
+    updateTab();
     if (!session || !App.me || accountKey() !== key) return;
     const time = $('#track-time'); if (time) time.textContent = clock(TrackMath.seconds(session));
     const d = $('#track-distance'); if (d) d.textContent = U.dist(session.distance, 2);
@@ -218,7 +222,7 @@ const Track = (() => {
   document.addEventListener('visibilitychange', () => { if (document.hidden && session?.state === 'recording' && !session.native) { message = 'Paused while Kinetta was in the background. Resume when ready.'; pause(); draw(); } });
   window.addEventListener('pagehide', () => { if (session && !session.native) pause(); });
   setInterval(() => { if (!App.me || owner && readOwner() !== owner) { stopGPS(); if (session && !session.native) pause(); return; } if (session?.native) { if (!document.hidden && location.pathname === '/track') pullNative().catch((e)=>{message=e.message;update();});update();return; } if (session?.state === 'recording') { session.checkpoint = Date.now(); persist(false); update(); } }, 1000);
-  return {sync, draw, pause, pullNative, async leave() { if(TrackNative.supported) await TrackNative.detach();else await pause(); }, forgetDraft() { stopGPS(); if (key) store.del(key); session = null; }};
+  return {get active() { return !!session; }, sync, draw, pause, pullNative, async leave() { if(TrackNative.supported) await TrackNative.detach();else await pause(); }, forgetDraft() { stopGPS(); if (key) store.del(key); session = null; }};
 })();
 route(/^\/track$/, 'track', async (el) => {
   Track.sync(); el.innerHTML = `<div class="top"><h1>Track</h1></div><div id="track-content"></div>`;

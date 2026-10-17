@@ -111,12 +111,13 @@ const NPROG = [['overview', 'Overview', 'Averages, insights and Kit', 'sparkle',
 const NMORE = [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']];
 const NRANGED = ['overview', 'energy', 'macros'];
 function nHead(el, view, filters) {
-  const v = [...NLOG, ...NPROG].find((m) => m[0] === view);
-  el.innerHTML = `<div class="top"><h1>Nutrition</h1><div class="acts"><button class="icon-btn" id="n-help" aria-label="Nutrition help">${svg('help')}</button>${bellBtn()}</div></div>
-    <nav class="view-nav" aria-label="Nutrition views">${[['log','Food log'],['overview','Overview'],['weight','Weight']].map(([k,n]) => `<a href="${k === 'log' ? '/food' : '/food?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('n-view', '', 'More', 'More nutrition views')}</nav><div class="pbar nbar">${filters}</div><div id="n-body"></div>`;
+  const v = [...NLOG, ...NPROG].find((m) => m[0] === view), inProgress = location.pathname === '/progress';
+  el.innerHTML = `<div class="top"><h1>${inProgress ? 'Progress' : 'Nutrition'}</h1><div class="acts"><button class="icon-btn" id="n-help" aria-label="Nutrition help">${svg('help')}</button>${bellBtn()}</div></div>
+    ${inProgress ? progressSwitch('food') + `<nav class="view-nav" aria-label="Food and weight views">${[['overview','Overview'],['weight','Weight'],['calendar','Calendar']].map(([k,n]) => `<a href="${nutritionHref(k)}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('n-view', '', 'More', 'More food and weight views')}</nav>` : `<nav class="view-nav" aria-label="Nutrition views">${[['log','Food log'],['overview','Overview'],['weight','Weight']].map(([k,n]) => `<a href="${k === 'log' ? '/food' : '/food?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('n-view', '', 'More', 'More nutrition views')}</nav>`}<div class="pbar nbar">${filters}</div><div id="n-body"></div>`;
   $('#n-help', el).onclick = () => sheet('About your nutrition', `<p>For more accurate calorie estimates, update your weight, height, birth year (age) and sex in <a href="/me?setup=body">Me → Body &amp; heart rate</a>.</p><p class="small muted">Your daily balance compares food logged with estimated burn for the whole day. It becomes useful when you’ve finished logging.</p><p class="small">Edit ingredients and totals in <a href="/food/meals">My Recipes</a>. Tap a logged food to change just that entry.</p>`, (b, close) => $$('a', b).forEach(a => a.addEventListener('click', close)));
   $('#n-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your log</h3>${pickRows(NLOG, view)}<h3 class="ghead">Progress</h3>${pickRows(NPROG, view)}<h3 class="ghead">More</h3>${pickRows(NMORE, view)}`,
-    (k) => (k === 'import' ? go('/food/import') : go(k === 'log' ? '/food' : `/food?view=${k}`, {replace: true})));
+    (k) => (k === 'import' ? go('/food/import') : go(k === 'log' ? '/food' : nutritionHref(k), {replace: true})));
+  if (inProgress) el.addEventListener('click', e => { const a = e.target.closest('a[href^="/food?view="]'); if (!a) return; e.preventDefault(); e.stopPropagation(); const u = new URL(a.href); const v = u.searchParams.get('view'); u.searchParams.delete('view'); go(nutritionHref(v,u.searchParams.toString())); });
   return $('#n-body', el);
 }
 route(/^\/food$/, 'food', async (el) => {
@@ -651,6 +652,7 @@ function describePage(b, day, meal) {
   b.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>What did you eat?</h1><div class="where ql-where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="ql-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="ql-dayl">${esc(dayLabel(day))}</span><input id="ql-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
+    <div class="ql-capture-shortcuts" role="group" aria-label="Food capture"><button class="ghost" data-capture="snap">${svg('camera')}Snap</button><button class="ghost" data-capture="scan">${svg('barcode')}Scan</button><button class="ghost" data-capture="paste">${svg('plus')}Paste</button></div>
     <div class="cchat ql-chat" id="ql-chat" aria-live="polite"><p class="cmsg ai ql-tip">Say it like you’d tell a friend: <i>“2 eggs and toast”</i> or <i>“a bowl of the chili I made Sunday”</i>.</p></div>
     <div id="ql-items"></div>
     <form class="composer ql-composer" id="ql-f"><button type="button" class="icon-btn" id="ql-plus" aria-label="Snap, scan or search">${svg('plus')}</button>
@@ -683,6 +685,10 @@ function describePage(b, day, meal) {
       };
       $('#ql-scan', menu).onclick = () => { done(); scanSheet(dp.value, dest.value, product => amountSheet(product, {day: dp.value, meal: dest.value}, close)); };
       $('#ql-search', menu).onclick = () => { done(); addSheet(dp.value, dest.value, '', 'search'); };
+    });
+    $$('[data-capture]',b).forEach(button => button.onclick = () => {
+      if (button.dataset.capture === 'paste' && (!navigator.clipboard?.read || !canEstimate)) { input.focus(); toast(canEstimate ? 'Paste text in the food box, or choose a picture with Snap' : 'Paste text in the food box. Photo estimates need AI enabled in Me.'); return; }
+      $('#ql-plus',b).click(); const action = $('.sheet #ql-' + button.dataset.capture); if (action) action.click();
     });
     // photos, screenshots of a recipe or its nutrition facts: all go to the same estimate
     const usePhotos = async (files) => {
@@ -1210,7 +1216,7 @@ async function nutritionView(el, view, q) {
   if (r !== 'since' && !NRANGES.some((x) => String(x[0]) === r)) r = '30';
   const ranged = NRANGED.includes(view);
   const root = nHead(el, view, ranged ? pillBtn('n-range', 'calendar', r === 'since' ? 'Since…' : NRANGES.find((x) => String(x[0]) === r)[1], 'Time range') : '');
-  const save = (v) => { try { localStorage.setItem('fit.nrange', v); } catch (e) { /* none */ } go(`/food?view=${view}&r=${v}`, {replace: true}); };
+  const save = (v) => { try { localStorage.setItem('fit.nrange', v); } catch (e) { /* none */ } go(nutritionHref(view,`r=${v}`), {replace: true}); };
   const startSheet = (cur) => sheet('Count from', `<form class="form" id="ds"><label>Start date<input type="date" class="datefield" name="since" value="${esc(cur || '')}" max="${isoDay(new Date())}"></label>
       <p class="small muted">For example the day you started your diet. Trends, the running deficit and the averages then cover everything since that day.</p>
       <div class="actions"><button class="primary">Use this date</button></div></form>`, (b, close) => {
@@ -1241,7 +1247,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   if (!box || !box.isConnected) return;
   const S = I.summary, T = I.targets, lb = imp(), wu = lb ? 'lb' : 'kg', wconv = (kg) => (lb ? kg * 2.20462 : kg);
   const past = I.rows.filter((r) => !r.today);
-  if (!I.rows.some((r) => r.eaten != null)) { box.innerHTML = '<div class="card empty"><b>Nothing logged in this range</b>Log food in your food log, or <a href="/food/import">add your past days</a> from another app or a spreadsheet.</div>'; return; }
+  if (!I.rows.some((r) => r.eaten != null)) { box.innerHTML = '<div class="card empty"><b>Nothing logged in this range</b><p>Start with something you ate to build your food and weight picture.</p><a class="primary wide" href="/food">Log food</a><p class="small muted">Have older records? <a href="/food/import">Add past days</a>.</p></div>'; return; }
   const tile = (label, value, unit, sub, cls = '', href = '') => `<${href ? `a href="${href}"` : 'div'} class="ntile ${cls}"><small>${esc(label)}</small><b class="num">${value}<i>${esc(unit)}</i></b>${sub ? `<span>${sub}</span>` : ''}</${href ? 'a' : 'div'}>`;
   const sgn = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
   const weekly = days > 90;   // a year of daily bars is too thin: average by week
