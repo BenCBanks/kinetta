@@ -19,26 +19,23 @@ class ThreadResolveIn(meal_chat.ResolveIn):
     parts: list[ThreadPartIn] = Field(default_factory=list,max_length=meal_chat.MAX_PARTS)
 
 
-def locked_message(c,uid,mid):
-    c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
-    message=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,uid)).fetchone()
-    if not message:raise HTTPException(404,'Message not found')
-    if message['kind']!='user':raise HTTPException(400,'Choose a message you sent')
-    return message
-
-
-def stored_reply(c,uid,message):
-    return c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=%s',(uid,message['id'])).fetchone()
+locked_message=food_thread.locked_message
+stored_reply=food_thread.stored_reply
 
 
 def expected_meal(c,uid,captured):
     p=c.execute('SELECT tz FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
     zone=db.valid_tz(p.get('tz')) or db.DEFAULT_TZ;hour=captured.astimezone(ZoneInfo(zone)).hour
-    learned=c.execute('''SELECT meal,count(DISTINCT day) AS n FROM food_entries
-                         WHERE user_id=%s AND created>now()-interval '60 days'
-                         AND day=(created AT TIME ZONE %s)::date
-                         AND extract(hour FROM created AT TIME ZONE %s)::int=%s
-                         GROUP BY meal HAVING count(DISTINCT day)>=3 ORDER BY count(DISTINCT day) DESC,meal LIMIT 1''',(uid,zone,zone,hour)).fetchone()
+    learned=c.execute('''WITH habits AS (
+        SELECT e.day,e.meal,coalesce(m.captured_at,e.created) AS eaten
+        FROM food_entries e LEFT JOIN LATERAL (
+          SELECT m.captured_at FROM food_chat_entries l JOIN food_chat_messages m
+          ON m.id=l.message_id AND m.user_id=l.user_id WHERE l.entry_id=e.id AND l.user_id=e.user_id
+          AND m.kind='user' AND m.local_day=e.day ORDER BY m.id LIMIT 1
+        ) m ON true WHERE e.user_id=%s AND e.day>=current_date-60
+      ) SELECT meal,count(DISTINCT day) AS n FROM habits
+        WHERE day=(eaten AT TIME ZONE %s)::date AND extract(hour FROM eaten AT TIME ZONE %s)::int=%s
+        GROUP BY meal HAVING count(DISTINCT day)>=3 ORDER BY count(DISTINCT day) DESC,meal LIMIT 1''',(uid,zone,zone,hour)).fetchone()
     return learned['meal'] if learned else ('breakfast' if hour<10 else 'lunch' if hour<14 else 'snacks' if hour<17 else 'dinner' if hour<21 else 'snacks')
 
 
@@ -81,17 +78,19 @@ def commit_log(c,uid,message,result):
     body=meal_chat.ConfirmIn(items=[{k:item[k] for k in ('kind','id','portion','expected')} for item in resolution['items']],
                              issued=resolution['issued'],client_id=str(message['client_id']),
                              day=result['day'],meal=result['meal'],confirm=True)
-    saved=meal_chat.confirm_data(c,uid,body)
+    saved=meal_chat.confirm_data(c,uid,body,include_groups=True)
     if not saved['ids']:raise HTTPException(400,'This food has no items to log yet')
-    groups=[];offset=0
-    for item in resolution['items']:
-        source=meal_chat.source_row(c,uid,item['kind'],item['id'])
-        pieces,why=meal_chat.compute(c,uid,item['kind'],source,item['portion'])
-        if why:raise HTTPException(409,'The food details changed')
-        count=len(pieces)
-        groups.append({'name':item['name'],'ids':saved['ids'][offset:offset+count],'portion':item['portion']})
-        offset+=count
-    if offset!=len(saved['ids']):raise RuntimeError('Food group identities do not match')
+    groups=saved.get('groups')
+    if groups is None:
+        groups=[];offset=0
+        for item in resolution['items']:
+            source=meal_chat.source_row(c,uid,item['kind'],item['id'])
+            pieces,why=meal_chat.compute(c,uid,item['kind'],source,item['portion'])
+            if why:raise HTTPException(409,'The food details changed')
+            count=len(pieces)
+            groups.append({'name':item['name'],'ids':saved['ids'][offset:offset+count],'portion':item['portion']})
+            offset+=count
+        if offset!=len(saved['ids']):raise RuntimeError('Food group identities do not match')
     totals=c.execute('''SELECT sum(kcal) AS kcal,sum(protein_g) AS protein_g FROM food_entries
                         WHERE user_id=%s AND id=ANY(%s)''',(uid,saved['ids'])).fetchone()
     saved_rows=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,saved['ids'])).fetchall()
@@ -100,10 +99,7 @@ def commit_log(c,uid,message,result):
             'feedback':facts.feedback(facts.snapshot(c,uid,body.day),dict(totals),seed=message['id']),
             'as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
     response=food_thread.finish_reply(c,uid,message,result)
-    for mid in (message['id'],response['messages'][-1]['id']):
-        for eid in saved['ids']:
-            c.execute('''INSERT INTO food_chat_entries(user_id,message_id,entry_id) VALUES (%s,%s,%s)
-                         ON CONFLICT (message_id,entry_id) DO NOTHING''',(uid,mid,eid))
+    food_thread.link_entries(c,uid,[message,response['messages'][-1]],saved['ids'])
     response['messages']=food_thread.message_entries(c,uid,response['messages'])
     return response
 

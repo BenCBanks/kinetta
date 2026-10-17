@@ -156,6 +156,7 @@ def answer(question, S):
         result['open_day']=day.isoformat()
     elif kind in ('totals','left'):
         nutrient=question['nutrient'];key,target_key,unit=NUTRIENTS[nutrient]
+        def display(value): return fmt(value,unit)
         target=D['goal'].get('kcal') if key=='kcal' else D['targets'].get(target_key)
         if question.get('meal'):
             entries=[e for e in entries if e['meal']==question['meal']]
@@ -167,7 +168,6 @@ def answer(question, S):
             unknown=key=='fiber_g' and any(r['fiber_n']<r['n'] for r in rows)
             value=sum(float(r[key] or 0) for r in rows) if rows and not unknown else None
             if value is not None and question.get('average'):value/=len(rows)
-            display=lambda v:fmt(v,unit)
             what='per logged day' if question.get('average') else 'logged'
             text=f"About {display(value):,} {unit}{' ' + nutrient if nutrient!='calories' else ''} {what} across {len(rows)} days in the week through {day.isoformat()}." if value is not None else ('Fiber is missing for some foods in that week; the total is incomplete.' if unknown else 'No food is logged in that week yet.')
             if kind=='left':text+=' Targets are daily; open that day’s food log to see its remaining amount.'
@@ -178,11 +178,10 @@ def answer(question, S):
         if not entries:text=f'Nothing is logged for {label} yet.'
         elif key=='fiber_g' and any(e.get('fiber_g') is None for e in entries):text=f'Fiber is unknown for some foods logged for {label}; the total is incomplete.'
         elif kind=='left' and target:
-            remaining=target-value;display=lambda v:fmt(v,unit)
+            remaining=target-value
             current='current ' if day!=today and not (key=='kcal' and D['goal'].get('custom') is not None) else ''
             text=f"About {display(abs(remaining)):,} {unit} {'left toward' if remaining>=0 else 'above'} your {current}{display(target):,} {unit}{' ' + nutrient if nutrient != 'calories' else ''} goal; {display(value):,} {unit} logged for {label}."
         else:
-            display=lambda v:fmt(v,unit)
             text=f"About {display(value):,} {unit}{' ' + nutrient if nutrient != 'calories' else ''} logged for {label}." + (f' No {nutrient} goal is set.' if kind=='left' else '')
             if kind=='left' and not target:result['set_goal']=True
         result['facts'].update({'nutrient':nutrient,'logged':value if entries else None,'target':target})

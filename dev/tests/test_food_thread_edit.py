@@ -144,5 +144,13 @@ s,brown=a.post('/api/food/foods',{'name':'Brown rice','serving_label':'serving',
 root,meal=send('200 grams rice and 200 grams brown rice')
 _,edit=send('only half the rice')
 rows=card(root)['entries'];check(next(e for e in rows if e['name']=='Rice')['amount']==100 and next(e for e in rows if e['name']=='Brown rice')['amount']==200,'exact rice group alone changes')
+# A destination before the reference never becomes its source meal.
+_,expected=a.get('/api/food/day?d='+str(day-dt.timedelta(days=1)))
+source_names=[e['name'] for e in expected['entries'] if e['meal']=='lunch']
+_,copied=send('for dinner, same as yesterday lunch')
+check(copied['messages'][-1]['result']['meal']=='dinner' and [e['name'] for e in copied['messages'][-1]['entries']]==source_names,'copy source lunch is independent of destination dinner')
+check(a.post('/api/food/entries',[{'day':str(day),'meal':'breakfast','name':'Fictional source breakfast','kcal':111,'amount':1,'unit':'serving'}])[0]==200,'seed explicit source meal')
+_,copied=send('same as breakfast for dinner')
+check(copied['messages'][-1]['result']['meal']=='dinner' and any(e['name']=='Fictional source breakfast' for e in copied['messages'][-1]['entries']),'same-day explicit source meal copies to chosen destination')
 for c in (a,b):c.post('/api/account/delete',{'password':PW})
 print(f'food thread edits/references: {n} API checks passed; no providers/devices')

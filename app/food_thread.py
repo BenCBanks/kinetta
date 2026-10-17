@@ -64,6 +64,13 @@ def message_entries(c, uid, messages):
     return [{**m, 'entries': grouped.get(m['id'], [])} for m in messages]
 
 
+def link_entries(c,uid,messages,ids):
+    if ids:
+        c.execute("""INSERT INTO food_chat_entries(user_id,message_id,entry_id)
+                     SELECT %s,m,e FROM unnest(%s::bigint[]) m CROSS JOIN unnest(%s::bigint[]) e
+                     ON CONFLICT (message_id,entry_id) DO NOTHING""",(uid,[m['id'] for m in messages],ids))
+
+
 @router.get('')
 def history(before: int | None = Query(None, gt=0), limit: int = Query(30, ge=1, le=100), user=Depends(current_user)):
     with db.connect() as c:
@@ -162,6 +169,18 @@ def finish_reply(c, uid, message, result):
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 
+def locked_message(c,uid,mid):
+    c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+    message=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,uid)).fetchone()
+    if not message:raise HTTPException(404,'Message not found')
+    if message['kind']!='user':raise HTTPException(400,'Choose a message you sent')
+    return message
+
+
+def stored_reply(c,uid,message):
+    return c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=%s',(uid,message['id'])).fetchone()
+
+
 def answer_with(c, uid, message, question=None):
     from . import food_thread_facts as facts
     if message['kind'] != 'user':
@@ -185,10 +204,7 @@ def answer_with(c, uid, message, question=None):
 @router.post('/messages/{mid}/answer')
 def answer_message(mid: int, body: AnswerIn, user=Depends(current_user)):
     with db.connect() as c:
-        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
-        message=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,user['id'])).fetchone()
-        if not message:
-            raise HTTPException(404,'Message not found')
+        message=locked_message(c,user['id'],mid)
         return answer_with(c,user['id'],message)
 
 

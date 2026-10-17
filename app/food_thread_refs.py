@@ -31,8 +31,7 @@ def save(c,uid,message,rows,day,meal):
     result['entry_digests']={str(r['id']):engine.entry_digest(r) for r in saved}
     result['feedback']=facts.feedback(facts.snapshot(c,uid,day),{k:sum(r[k] or 0 for r in rows) for k in ('kcal','protein_g')},seed=message['id'])
     response=food_thread.finish_reply(c,uid,message,result)
-    for mid in (message['id'],response['messages'][-1]['id']):
-        for eid in result['entry_ids']:c.execute('INSERT INTO food_chat_entries VALUES (%s,%s,%s) ON CONFLICT (message_id,entry_id) DO NOTHING',(uid,mid,eid))
+    food_thread.link_entries(c,uid,[message,response['messages'][-1]],result['entry_ids'])
     response['messages']=food_thread.message_entries(c,uid,response['messages']);return response
 
 
