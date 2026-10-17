@@ -17,18 +17,16 @@ New roadmap implementation is paused at the owner's request. The last complete f
 only. It does **not** add the Share-sheet UI, runtime binding or App Group provisioning. Neither checkpoint means
 that workstream T, Milestone 3 or the overall roadmap has passed acceptance or been released.
 
-**Review and merge checkpoint:** PRs #124–155 are merged. Review fixes are prepared on the existing
-[#156](https://github.com/BenCBanks/kinetta/pull/156), [#158–162](https://github.com/BenCBanks/kinetta/pull/158)
-application stack, with corrected parents carried forward; final verification and owner merge approval remain
-separate gates. [#157](https://github.com/BenCBanks/kinetta/pull/157) is the independent provider comparison:
-its formatting is corrected, while provider selection, quotes and written licensing permission remain with the owner.
-[#163](https://github.com/BenCBanks/kinetta/pull/163) has the corrected parent and storage-contract checks;
-it still needs its external review and adds no Share extension UI or runtime.
+**Release checkpoint:** The owner has authorized merging the reviewed PRs #124–163, production deployment and
+one TestFlight build from the final main commit. Review fixes, fresh isolated suites, fictional browser checks,
+actual database-upgrade checks and applicable unsigned iPhone builds passed. The final README correction is
+being checked before merging. Application PRs merge in dependency order, waiting for each next main retarget;
+#123 and #157 are independent documentation. Production and TestFlight outcomes belong in the release record;
+merge authorization alone does not mean a deployment or Apple processing has completed.
 
-This roadmap PR (#123) is an independent document based on main. Merge the remaining application stack in order:
-#156 → #158 → #159 → #160 → #161 → #162 → #163, only after its review and verification gates pass and the owner
-approves. Wait for GitHub to retarget each next PR to main. Passing CI is not review approval. Review, merge,
-deployment and TestFlight release remain separate steps. No review fix in this batch has been deployed.
+[#157](https://github.com/BenCBanks/kinetta/pull/157) compares restaurant providers; selection, quotes and written
+licensing permission remain owner decisions. [#163](https://github.com/BenCBanks/kinetta/pull/163) was self-reviewed
+as storage-only; no external Claude comment was present. It adds no Share extension UI or runtime.
 
 **Deferred until implementation resumes:** T3 Share extension UI/runtime; P2 restaurant integration (licensed
 provider, terms and cost need owner approval); L website/README/App Store copy; and the remaining M decision-record
@@ -104,10 +102,19 @@ implemented, tested, merged and released are different states.
 
 Roadmap placement expresses priority. It does not itself authorize publishing, deployment, contacting people, spending money or changing real user data; follow the current owner instructions and repository rules.
 
-## #122 implementation record — Workstream A
+## Next review and acceptance order
 
-The accepted order is [#122 section 5](https://github.com/BenCBanks/kinetta/issues/122): A → B → C → D → E → F → G,
-then its later milestones. This supersedes the historical queue above while the roadmap rewrite in PR #123 is pending.
-A restores optional Apple Health setup and adds skippable, explicit-save goal/target estimates. Implemented on the
-Workstream A branch; review, merge, release and physical-iPhone acceptance remain separate. No other workstream is
-included in that change. Nutrition leads, activity is a strong second, and no Garmin integration is required.
+1. Verify the final production and TestFlight release; on physical iPhones check onboarding, food logging,
+   offline send/Undo, logout cleanup, Shortcut recovery, Health imports and nutrition consent, and recording
+   while backgrounded/locked. Browser and unsigned-build evidence cannot close these checks.
+2. Close Milestone 1 acceptance: review the deterministic food-thread phrase fixtures, complete the private
+   ChatGPT switch study, and obtain reviewed real-model evidence before enabling gated AI paths. Existing
+   consent, cost and release gates stay in force; do not run paid evaluations automatically.
+3. Run the five-person, two-week beta and record help needed, food-log retention and workout arrival.
+   Keep #98, #108 and #109 open until their actual acceptance evidence exists.
+4. When feature implementation is explicitly resumed, finish T3 Share extension UI/runtime and provisioning;
+   resolve P2 provider rights/cost before integration; then reconcile L launch copy and M decision records.
+   Do not call completed foundations a finished Share extension or a public-launch go decision.
+
+The A–K/N/O/Q/R/H code and later T foundations were built ahead of these acceptance gates. Their presence does
+not move the beta or public-launch gate forward without evidence. #122 remains open for the unfinished scope.
