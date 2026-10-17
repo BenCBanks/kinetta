@@ -1758,3 +1758,12 @@ nav.tabs [data-quick-log] { color:var(--accent); }
 
 .log-weight, #quick-weight input, #quick-weight button { font-size:1rem; }
 #quick-weight label { font-size:.9rem; }
+
+/* Pending food and weight writes remain reviewable after errors. */
+.netbar { width: max-content; display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.netbar .linkbtn { color: inherit; min-width: 44px; min-height: 44px; flex-shrink: 0; text-decoration: underline; }
+.pending-item { padding-block: 12px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+#pending-items { font-size: 1rem; }
+#pending-items .small { font-size: .9em; }
+#pending-items button, .netbar .linkbtn { font-size: 1em; }
+#pending-items .actions { flex-wrap: wrap; }

@@ -100,7 +100,7 @@ app.add_middleware(_gzip.GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 # Only the iPhone app may read answers across sites, and never with cookies (it sends its token in a header).
 app.add_middleware(CORSMiddleware, allow_origins=list(APP_ORIGINS), allow_credentials=False, allow_methods=['*'],
-                   allow_headers=['Authorization', 'Content-Type'], max_age=3600)
+                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account'], max_age=3600)
 
 
 class Login(BaseModel):
