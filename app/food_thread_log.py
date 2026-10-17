@@ -135,6 +135,9 @@ def process(c,uid,message):
         except (HTTPException,ValidationError) as error:
             if isinstance(error,HTTPException) and error.status_code not in (400,422):raise
             return needs_detail(c,uid,message,{},error)
+    from . import food_thread_numbers
+    numbers=food_thread_numbers.preview(c,uid,message)
+    if numbers is not None:return numbers
     resolution=resolve(c,uid,message);result=make_result(c,uid,message,resolution)
     if result['kind']=='needs':
         from . import food_thread_compose as compose
