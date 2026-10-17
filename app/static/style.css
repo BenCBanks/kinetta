@@ -1826,3 +1826,13 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .thread-kit{border-top:1px solid var(--line);margin-top:1rem;padding-top:.75rem;}
 .thread-kit h3{font-size:1rem;}
 .thread-kit dd{margin-inline-start:.5rem;overflow-wrap:anywhere;}
+
+/* Connections and original-map upload: scalable text, restrained shared rows. */
+.connections-page,.activity-import,.activity-map-help{font-size:1rem;}
+.connections-page p,.activity-import p,.activity-map-help p,.activity-map-help li{font-size:1em;overflow-wrap:anywhere;}
+.connections-page .small,.activity-import .small,.activity-map-help .small{font-size:.875em;}
+.connections-page h2,.activity-import h2{font-size:1.375em;}
+.connections-page .primary,.connections-page .ghost,.activity-map-help .primary{font-size:1em;white-space:normal;}
+.connections-page summary{font-size:1em;min-height:44px;display:flex;align-items:center;cursor:pointer;}
+.connections-page .card.tap.row-link{font-size:1em;}
+.connections-page .card.tap p{margin-bottom:0;}

@@ -353,7 +353,7 @@ function drawDetail(el, a) {
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}
-      <div class="hero">${hero}</div><div id="d-photos"></div><div class="cpile"></div></div>
+      <div class="hero">${hero}</div>${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div id="d-photos"></div><div class="cpile"></div></div>
     <div class="seg wide dtabs" role="tablist" aria-label="Sections"${DTABS.filter(([k]) => has(k)).length < 2 ? ' hidden' : ''}>${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
     ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
   let drawCharts = null;
@@ -370,6 +370,7 @@ function drawDetail(el, a) {
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
   $('#d-send', el).onclick = () => shareOut(a);
+  const addMap=$('#d-add-map',el);if(addMap)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   ownSocial(el, a);
   photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
@@ -1244,7 +1245,11 @@ route(/^\/me\/people$/, 'me', async (el) => {
 // admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
 route(/^\/me\/import$/, 'track', async () => go('/track/import', {replace:true}));
 route(/^\/track\/import$/, 'track', async (el) => {
+  el.classList.add('activity-import');
+  const owner=readOwner(),account=App.me?.id,valid=()=>el.isConnected&&owner===readOwner();
+  const mapFor=new URLSearchParams(location.search).get('map_for'),mapId=/^[1-9]\d*$/.test(mapFor||'')?mapFor:null;
   el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Upload activities</h1><p class="muted">FIT, GPX or TCX files (also .gz), or your whole Strava export .zip. Duplicates are skipped automatically.</p>
+    ${mapId?`<p class="small">Choose the original ZIP or FIT for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
     <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
       <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
       <div id="u-prog" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
@@ -1253,18 +1258,20 @@ route(/^\/track\/import$/, 'track', async (el) => {
   wireBack(el, '/track');
   const input = $('#u-file', el), drop = $('#u-drop', el);
   const send = (files) => {
-    if (!files.length) return;
+    if (!valid()||!files.length) return;
     const fd = new FormData(); for (const f of files) fd.append('files', f, f.name);
     const xhr = new XMLHttpRequest(); xhr.open('POST', Native.base + '/api/import');
     for (const [k, v] of Object.entries(Native.headers())) xhr.setRequestHeader(k, v);
+    if(account)xhr.setRequestHeader('X-Kinetta-Account',String(account));
     $('#u-prog', el).hidden = false;
     const total = [...files].reduce((s, f) => s + f.size, 0);
-    xhr.upload.onprogress = (e) => { const p = e.lengthComputable ? e.loaded / e.total : 0; $('#u-bar', el).style.setProperty('--w', p); $('#u-text', el).textContent = `Uploading ${(e.loaded / 1048576).toFixed(1)} of ${(total / 1048576).toFixed(1)} MB…`; };
+    xhr.upload.onprogress = (e) => { if(!valid())return;const p = e.lengthComputable ? e.loaded / e.total : 0; $('#u-bar', el).style.setProperty('--w', p); $('#u-text', el).textContent = `Uploading ${(e.loaded / 1048576).toFixed(1)} of ${(total / 1048576).toFixed(1)} MB…`; };
     xhr.onload = () => {
+      if(!valid())return;
       if (xhr.status === 200) { $('#u-text', el).textContent = 'Uploaded. Processing below.'; invalidate('/api/'); poll(); }
       else { let m = 'Upload failed'; try { m = JSON.parse(xhr.responseText).detail || m; } catch (e) { /* */ } $('#u-text', el).textContent = m; }
     };
-    xhr.onerror = () => { $('#u-text', el).textContent = 'Upload failed. Check your connection and try again.'; };
+    xhr.onerror = () => { if(valid())$('#u-text', el).textContent = 'Upload failed. Check your connection and try again.'; };
     xhr.send(fd);
   };
   input.onchange = () => send(input.files);
@@ -1274,9 +1281,10 @@ route(/^\/track\/import$/, 'track', async (el) => {
   let timer;
   const poll = async () => {
     clearTimeout(timer);
-    if (!document.body.contains(el)) return;
+    if (!valid()) return;
     try {
       const jobs = await api('/api/imports');
+      if(!valid())return;
       $('#u-jobs', el).innerHTML = jobs.length ? jobs.map((j) => `<div class="job"><b>${esc(j.label)}</b>
         <small>${j.status === 'running' || j.status === 'queued' ? `${j.status === 'queued' ? 'Waiting' : 'Processing'} ${j.done} of ${j.total || '?'}` : j.status === 'done' ? 'Finished' : 'Stopped'} · ${j.added} added · ${j.duplicates} duplicates${j.failed ? ` · ${j.failed} couldn't be read` : ''}</small>
         ${j.total ? `<div class="prog"><div class="bar" data-w="${(j.done / j.total).toFixed(3)}"></div></div>` : ''}
@@ -1289,33 +1297,48 @@ route(/^\/track\/import$/, 'track', async (el) => {
 
 route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{replace:true}));
 route(/^\/track\/connections$/, 'track', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Watch connections</h1><p class="muted">Activities arrive on their own. Your Strava posts are not affected.</p><div id="c-body">${skel(2)}</div>`;
+  el.classList.add('connections-page');
+  const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Bring in workouts from Apple Health or files. A watch is optional.</p>
+    <div class="card" id="c-health"><h2>Apple Health</h2>${skel(1)}</div>
+    <a class="card tap row-link" href="/track/import"><div class="grow"><h2>Upload files</h2><p>FIT, GPX, TCX or ZIP · your original watch files or activity history.</p></div><span class="chev">${svg('chev')}</span></a>
+    <details class="card" id="c-advanced"><summary>Advanced</summary><p class="small muted">For self-hosted installs and power users.</p><div id="c-body">${skel(2)}</div></details>`;
   wireBack(el, '/track');
-  $('#c-body',el).insertAdjacentHTML('beforebegin','<div class="card list connections-shortcuts"><a class="row-link" href="/track/health"><span class="grow">Apple Health</span>'+svg('chev')+'</a><a class="row-link" href="/track/import"><span class="grow">Upload activity files</span>'+svg('chev')+'</a></div>');
-  const C = await api('/api/connections');
+  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Apple Health</h2>
+    <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · bring in workouts from your iPhone.':'Available in the Kinetta iPhone app.'}</p>
+    ${st?.at?`<p class="small muted">Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.</p>`:''}${error?`<p class="err">${esc(error)}</p>`:''}
+    <a class="${Native.on?'primary':'ghost'} wide" href="/track/health">${Native.on?isOn?'Manage Apple Health':'Connect Apple Health':'About Apple Health'}</a>
+    <details><summary>Using a Garmin?</summary><p class="small">Enable Apple Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send the GPS map to Health; you can add the original file later.</p></details>`;};
+  if(Native.on)Native.healthCall(Promise.all([Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open Apple Health to review setup.'));
+  else healthCard(false,null);
+  let C;
+  try{C=await api('/api/connections');}catch(e){if(valid())$('#c-body',el).innerHTML=`<p class="err">${esc(e.message)}</p>`;return;}
+  if(!valid())return;
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
-  $('#c-body', el).innerHTML = `<div class="card"><h2>Garmin (through intervals.icu)</h2>
-      <p class="small">intervals.icu is a free site with an official Garmin link. Connect Garmin there once, then paste your athlete ID and API key (intervals.icu → Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
+  $('#c-body', el).innerHTML = `<div class="card"><h2>intervals.icu</h2>
+      <p class="small">For an existing intervals.icu account, enter your athlete ID and API key (Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
       <form class="form" id="c-icu"><div class="two"><label>Athlete ID<input name="athlete_id" placeholder="i123456" autocapitalize="none" value="${esc(C.intervals ? C.intervals.athlete_id : '')}"></label>
       <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved (paste to change)' : ''}"></label></div>
-      <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="primary">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>
-    <div class="card"><h2>Apple Watch (Health Auto Export)</h2>
+      <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>
+    <div class="card"><h2>Health Auto Export</h2>
       <p class="small">In the iPhone app <b>Health Auto Export</b> (Premium), add an automation: <b>REST API</b>, format <b>JSON</b>, data <b>Workouts</b> (and optionally <b>Body Mass</b>), with the address and header below.</p>${st('apple')}
-      <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="primary" id="c-apple">${C.apple ? 'Make a new secret' : 'Create my upload link'}</button></div></div>`;
+      <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost" id="c-apple">${C.apple ? 'Make a new secret' : 'Create my upload link'}</button></div></div>`;
   $('#c-icu', el).onsubmit = async (e) => {
-    e.preventDefault(); const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your API key'); return; }
+    e.preventDefault(); if(!valid())return;const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your API key'); return; }
     try { await api('/api/connections/intervals', json('POST', {athlete_id: f.athlete_id.value.trim(), api_key: f.api_key.value.trim()})); toast('Connected. First sync running'); render(); } catch (x) { toast(x.message); }
   };
-  const sy = $('#c-icu-sync', el); if (sy) sy.onclick = async () => { try { await api('/api/connections/intervals/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
+  const sy = $('#c-icu-sync', el); if (sy) sy.onclick = async () => { if(!valid())return;try { await api('/api/connections/intervals/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
   $('#c-apple', el).onclick = async () => {
+    if(!valid())return;
     if (C.apple && !confirm('Make a new secret? The old one stops working.')) return;
     try {
       const r = await api('/api/connections/apple', json('POST', {}));
+      if(!valid())return;
       $('#c-apple-out', el).innerHTML = `<div class="callout"><div><p class="small">Copy these into Health Auto Export now. The secret is shown only once.</p>
         <p class="small"><b>URL</b><br><code>${esc((Native.base || location.origin) + r.url)}</code></p><p class="small"><b>Header</b> Authorization<br><b>Value</b> <code>Bearer ${esc(r.token)}</code></p></div></div>`;
     } catch (x) { toast(x.message); }
   };
-  $$('[data-off]', el).forEach((b) => b.onclick = async () => { if (!confirm('Disconnect? Activities already imported stay.')) return; try { await api(`/api/connections/${b.dataset.off}`, {method: 'DELETE'}); render(); } catch (x) { toast(x.message); } });
+  $$('[data-off]', el).forEach((b) => b.onclick = async () => { if(!valid())return;if (!confirm('Disconnect? Activities already imported stay.')) return; try { await api(`/api/connections/${b.dataset.off}`, {method: 'DELETE'}); render(); } catch (x) { toast(x.message); } });
 });
 
 route(/^\/me\/gear$/, 'me', async (el) => {

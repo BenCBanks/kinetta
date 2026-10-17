@@ -100,3 +100,5 @@ In Kinetta: **Me → Watch connections**.
 - **Apple Watch**: through the iPhone app **Health Auto Export** (its Premium REST API automation). Kinetta shows the
   address and the secret to paste in. Your Kinetta address must be reachable from the iPhone (any option above).
 - **Anything else**: upload FIT, GPX or TCX files, or your whole Strava export, on **Me → Upload activities**.
+
+Connections now leads with Apple Health status and Connect/Manage in the iPhone app, then Upload files. intervals.icu and Health Auto Export remain under Advanced for self-hosted installs and power users. A watch is optional. Garmin Health sharing can be delayed and excludes GPS tracks; on your own Health-sourced outdoor workout without a route, Add the map explains Garmin Connect website → activity → settings gear → Export Original, then uploads the original ZIP/FIT through the existing importer. Matching sport/time/distance enriches the existing activity and keeps user edits; other recordings remain separate. No provider connection is required.
