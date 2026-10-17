@@ -1,11 +1,12 @@
 """Durable provider limits. No prompts, photos, keys or food names in the ledger.
 
-Reserve a priced model's full context/output allowance before *each* attempt. A
+Reserve a padded estimate of each request before *each* attempt. A
 successful response with complete usage releases unused money; timeouts, missing
 usage and crashes keep the reservation. USD figures are estimates, not invoices.
 """
 import datetime as dt
 import os
+import json
 from contextlib import contextmanager
 from contextvars import ContextVar
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
@@ -61,7 +62,7 @@ def daily(uid, kind, limit, what):
 
 def budget_micros():
     try:
-        value = Decimal(os.environ.get('KINETTA_AI_DAILY_USD') or os.environ.get('KINETTA_FOOD_AI_DAILY_USD', '10'))
+        value = Decimal(os.environ.get('KINETTA_AI_DAILY_USD') or os.environ.get('KINETTA_FOOD_AI_DAILY_USD', '5'))
         if not value.is_finite() or value < 0 or value > 10000: raise ValueError()
         return int(value * 1_000_000)
     except (InvalidOperation, ValueError): raise HTTPException(503, FALLBACK) from None
@@ -72,15 +73,39 @@ def price(model, input_tokens, output_tokens):
     return int((rate_in * input_tokens + rate_out * output_tokens).to_integral_value(rounding=ROUND_CEILING))
 
 
-def reserve(model, label):
+def request_tokens(payload=None):
+    # Local, deliberately padded estimate. Never send a second counting request,
+    # retain a prompt/image, or charge base64 transport bytes as text tokens.
+    images=0
+    def compact(value):
+        nonlocal images
+        if isinstance(value,dict):
+            if 'inlineData' in value or 'inline_data' in value or value.get('type') == 'image':
+                images+=1;return {'image':True}
+            return {k:compact(v) for k,v in value.items()}
+        if isinstance(value,list):return [compact(v) for v in value]
+        return value
+    if payload is None:return 8192,2048
+    body=json.loads(payload) if isinstance(payload,(str,bytes)) else payload
+    text_bytes=len(json.dumps(compact(body),ensure_ascii=False).encode())
+    output=body.get('max_tokens',(body.get('generationConfig') or {}).get('maxOutputTokens',2048))
+    if type(output) is not int or not 1<=output<=65536:raise HTTPException(503,FALLBACK)
+    return min(1_048_576,1024+2*text_bytes+images*16384),output
+
+
+def review_by():
+    try:return dt.date.fromisoformat(os.environ.get('KINETTA_AI_PRICING_REVIEW_BY',REVIEW_BY.isoformat()))
+    except ValueError:raise HTTPException(503,'AI pricing review date is invalid') from None
+
+
+def reserve(model, label, payload=None):
     require_enabled()
     uid = _owner.get()
     if uid is None: raise HTTPException(503, 'An authenticated AI request is required')
-    if model not in RATES or dt.datetime.now(dt.timezone.utc).date() >= REVIEW_BY:
+    if model not in RATES or dt.datetime.now(dt.timezone.utc).date() >= review_by():
         raise HTTPException(503, 'AI model pricing needs a server review. Search, barcodes and manual logging still work.')
-    # Reserve each supported model's full input/output bounds, including thinking,
-    # without changing the existing generation configuration.
-    hold = price(model, 1_048_576, 131_072 if model.startswith('claude-') else 65_536)
+    input_tokens,output_tokens=request_tokens(payload)
+    hold = price(model,input_tokens,output_tokens)
     limit = budget_micros()
     rid = uuid4()
     with db.connect() as c:
@@ -99,7 +124,7 @@ def reserve(model, label):
             raise HTTPException(429,'AI is busy. Try again shortly, or use search, barcodes or manual logging.')
         if counts['daily']>=setting('KINETTA_AI_DAILY_ATTEMPTS',2000) or own['requests']>=setting('KINETTA_AI_USER_DAILY_ATTEMPTS',120):
             raise HTTPException(429,FALLBACK)
-        if own['spent']+hold > setting('KINETTA_AI_USER_DAILY_MICROUSD',10_000_000):
+        if own['spent']+hold > setting('KINETTA_AI_USER_DAILY_MICROUSD',limit//5):
             raise HTTPException(429,FALLBACK)
         if row['charged_micros'] + hold > limit: raise HTTPException(429, FALLBACK)
         c.execute('UPDATE ai_service_budget SET charged_micros=charged_micros+%s WHERE day=%s',(hold,row['day']))
@@ -119,7 +144,6 @@ def settle(rid, data):
     values = [usage.get(names[0]), usage.get(names[1]), usage.get(names[2], 0)]
     if any(type(v) is not int or v < 0 for v in values): return
     with db.connect() as c:
-        c.execute('SELECT pg_advisory_xact_lock(122006)')
         row = c.execute('SELECT * FROM ai_food_attempts WHERE id=%s FOR UPDATE',(rid,)).fetchone()
         if not row or row['state'] == 'measured': return
         actual = price(row['model'], values[0], values[1] + values[2])
@@ -130,10 +154,35 @@ def settle(rid, data):
 
 def setting(name, default):
     try:
-        value = int(os.environ.get(name, str(default)))
+        value = int(os.environ.get(name) or str(default))
         if not 0 <= value <= 100_000_000: raise ValueError()
         return value
     except ValueError: raise HTTPException(503,FALLBACK) from None
+
+
+@contextmanager
+def lease(rid):
+    """Keep the concurrency slot while a provider is actually in flight."""
+    import threading
+    stopped = threading.Event()
+    def renew():
+        while not stopped.wait(30):
+            try:
+                renew_lease(rid)
+            except Exception:
+                # No request data or exception text in operator logs.
+                print('AI concurrency lease renewal failed', flush=True)
+    worker = threading.Thread(target=renew, daemon=True)
+    worker.start()
+    try: yield
+    finally:
+        stopped.set()
+        worker.join()
+
+
+def renew_lease(rid):
+    with db.connect() as c:
+        c.execute("UPDATE ai_food_attempts SET lease_until=now()+interval '120 seconds' WHERE id=%s AND state='reserved' AND finished_at IS NULL",(rid,))
 
 
 def finish(rid):
@@ -219,3 +268,9 @@ if __name__ == '__main__':
     import json,sys
     month=dt.date.fromisoformat(sys.argv[1]) if len(sys.argv)>1 else dt.datetime.now(dt.timezone.utc).date().replace(day=1)
     print(json.dumps(report(month),default=str,indent=2))
+
+
+def release_failed(rid,status):
+    """An explicit Gemini HTTP failure is not a bill; a timeout without response stays held."""
+    if type(status) is int and 400<=status<600:
+        settle(rid,{'usageMetadata':{'promptTokenCount':0,'candidatesTokenCount':0,'thoughtsTokenCount':0}})

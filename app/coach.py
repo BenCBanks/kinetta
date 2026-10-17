@@ -87,15 +87,16 @@ def _gemini(ctx, system=None):
                        'generationConfig': {'maxOutputTokens': 2000, 'temperature': 0.6}}).encode()
     tries = [main, main, os.environ.get('GEMINI_FALLBACK_MODEL', 'gemini-3.1-flash-lite')]
     for n, model in enumerate(tries):
-        attempt = ai_budget.reserve(model,'coach note')
+        attempt = ai_budget.reserve(model,'coach note',payload=body)
         req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', body,
                                      {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
         last = n == len(tries) - 1
         try:
-            with urllib.request.urlopen(req, timeout=60) as r: d = json.loads(r.read())
+            with ai_budget.lease(attempt), urllib.request.urlopen(req, timeout=60) as r: d = json.loads(r.read())
             ai_budget.settle(attempt,d)
             break
         except urllib.error.HTTPError as e:
+            ai_budget.release_failed(attempt,e.code)
             print(f'coach: gemini {model} HTTP {e.code}', flush=True)
             if last or (e.code != 429 and e.code < 500): raise ValueError(f'Kit is unavailable right now ({e.code}) - try again in a minute.')
         except (urllib.error.URLError, TimeoutError) as e:
@@ -245,15 +246,15 @@ def note(user_id, aid):
 
 def _claude(ctx, system=None):
     import anthropic
-    attempt = ai_budget.reserve(MODEL,'coach note')
+    payload = dict(model=MODEL,max_tokens=2000,system=system or SYSTEM,output_config={'effort':'low'},messages=[{'role':'user','content':json.dumps(ctx,default=str)}])
+    attempt = ai_budget.reserve(MODEL,'coach note',payload=payload)
     try:
-        r = client().beta.messages.create(
-            model=MODEL, max_tokens=2000, system=system or SYSTEM,
-            output_config={'effort': 'low'},
-            messages=[{'role': 'user', 'content': json.dumps(ctx, default=str)}])
+        with ai_budget.lease(attempt): r = client().beta.messages.create(**payload)
     except anthropic.RateLimitError:
+        ai_budget.release_failed(attempt,429)
         raise ValueError('Kit is busy - try again in a minute.')
     except anthropic.APIStatusError as e:
+        ai_budget.release_failed(attempt,e.status_code)
         raise ValueError(f'Kit is unavailable right now ({e.status_code}).')
     except anthropic.APIConnectionError:
         raise ValueError("Couldn't reach Kit - check the server's internet connection.")

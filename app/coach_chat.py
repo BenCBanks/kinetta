@@ -101,10 +101,13 @@ def _gemini_turn(messages, definitions):
     model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
     req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
                                  json.dumps(body, default=str).encode(), {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
-    attempt=ai_budget.reserve(model,'Kit question')
+    attempt=ai_budget.reserve(model,'Kit question',payload=body)
     try:
-        with urllib.request.urlopen(req, timeout=45) as response: result = json.load(response)
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError): raise ValueError('Kit could not answer right now. Try again shortly.') from None
+        with ai_budget.lease(attempt), urllib.request.urlopen(req, timeout=45) as response: result = json.load(response)
+    except urllib.error.HTTPError as e:
+        ai_budget.release_failed(attempt,e.code)
+        raise ValueError('Kit could not answer right now. Try again shortly.') from None
+    except (urllib.error.URLError, TimeoutError): raise ValueError('Kit could not answer right now. Try again shortly.') from None
     else: ai_budget.settle(attempt,result)
     finally: ai_budget.finish(attempt)
     content = (result.get('candidates') or [{}])[0].get('content')
@@ -117,11 +120,13 @@ def _gemini_turn(messages, definitions):
 
 
 def _claude_turn(messages, definitions):
-    attempt=ai_budget.reserve(coach.MODEL,'Kit question')
+    payload=dict(model=coach.MODEL,max_tokens=2500,system=SYSTEM,tools=definitions,messages=messages,temperature=.2)
+    attempt=ai_budget.reserve(coach.MODEL,'Kit question',payload=payload)
     try:
-        response = coach.client().messages.create(model=coach.MODEL, max_tokens=2500, system=SYSTEM,
-                                                  tools=definitions, messages=messages, temperature=.2)
-    except Exception: raise ValueError('Kit could not answer right now. Try again shortly.') from None
+        with ai_budget.lease(attempt): response = coach.client().messages.create(**payload)
+    except Exception as e:
+        ai_budget.release_failed(attempt,getattr(e,'status_code',None))
+        raise ValueError('Kit could not answer right now. Try again shortly.') from None
     else: ai_budget.settle_claude(attempt,response)
     finally: ai_budget.finish(attempt)
     content = [block.model_dump(exclude_none=True) for block in response.content]

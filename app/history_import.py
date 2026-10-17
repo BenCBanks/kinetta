@@ -151,10 +151,17 @@ def save(body: SaveIn, user=Depends(current_user)):
                 if c.execute("SELECT 1 FROM food_entries WHERE user_id = %s AND day = %s AND source <> 'import' LIMIT 1", (uid, r.day)).fetchone():
                     n['skipped_food'] += 1          # food already logged here that day: keep it, don't double count
                 else:
-                    c.execute("DELETE FROM food_entries WHERE user_id = %s AND day = %s AND source = 'import'", (uid, r.day))
-                    c.execute("""INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source)
+                    existing = c.execute("SELECT id FROM food_entries WHERE user_id = %s AND day = %s AND source = 'import' ORDER BY id FOR UPDATE", (uid, r.day)).fetchall()
+                    if len(existing) == 1:
+                        c.execute("UPDATE food_entries SET kcal=%s, protein_g=%s, carbs_g=%s, fat_g=%s, fiber_g=%s WHERE id=%s AND user_id=%s", (r.eaten,r.protein_g or 0,r.carbs_g or 0,r.fat_g or 0,r.fiber_g,existing[0]['id'],uid))
+                        n['days_food'] += 1
+                    else:
+                        if existing and c.execute('SELECT 1 FROM food_chat_entries WHERE user_id=%s AND entry_id=ANY(%s)', (uid,[e['id'] for e in existing])).fetchone():
+                            raise HTTPException(409, 'Imported foods are linked to your conversation. Review them before replacing this day.')
+                        c.execute("DELETE FROM food_entries WHERE user_id = %s AND day = %s AND source = 'import'", (uid, r.day))
+                        c.execute("""INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source)
                                  VALUES (%s, %s, 'snacks', 'Day total (imported)', 1, 'day', %s, %s, %s, %s, %s, 'import')""",
-                              (uid, r.day, r.eaten, r.protein_g or 0, r.carbs_g or 0, r.fat_g or 0, r.fiber_g)); n['days_food'] += 1
+                                  (uid, r.day, r.eaten, r.protein_g or 0, r.carbs_g or 0, r.fat_g or 0, r.fiber_g)); n['days_food'] += 1
             if r.burned:
                 c.execute("""INSERT INTO day_energy (user_id, day, burned_kcal, source) VALUES (%s, %s, %s, 'import')
                              ON CONFLICT (user_id, day) DO UPDATE SET burned_kcal = excluded.burned_kcal, source = 'import'""", (uid, r.day, r.burned)); n['burned'] += 1
