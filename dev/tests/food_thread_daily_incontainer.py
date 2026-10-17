@@ -4,7 +4,7 @@ import io,json,uuid,zipfile
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from app import auth,db,food_thread_daily as daily,food_thread_kit as kit
+from app import auth,db,food_thread_daily as daily,food_thread_kit as kit,ai_budget as budget
 from app.main import app
 uid=None;PW='green teapot on the hill';now=dt.datetime(2026,10,17,22,30,tzinfo=dt.timezone.utc)
 try:
@@ -29,13 +29,19 @@ try:
   c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) VALUES (%s,'2026-10-18','Fictional low day',100,5)",(uid,))
  nextday=now+dt.timedelta(days=1)
  result=daily.create(uid,now=nextday);low=next(m for m in result['messages'] if m['kind']=='reply');assert 'low or incomplete' in low['body'] and 'kept a record' not in low['body']
+ with db.connect() as c:c.execute("UPDATE food_entries SET kcal=2000,protein_g=120 WHERE user_id=%s AND day='2026-10-18'",(uid,))
+ refreshed=daily.create(uid,now=nextday);updated=next(m for m in refreshed['messages'] if m['kind']=='reply')
+ assert updated['id']==low['id'] and 'low or incomplete' not in updated['body'] and '2,000' in updated['body']
  # Unknown nutrient flags never become a zero total; numbers tone omits the warm lead.
  with db.connect() as c:
   c.execute("UPDATE profile SET food_chat_tone='numbers' WHERE user_id=%s",(uid,))
   c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g,ref) VALUES (%s,'2026-10-19','Fictional unknown bowl',1800,0,%s)",(uid,json.dumps({'unknown_nutrients':['protein_g']})))
  unknown=daily.create(uid,now=now+dt.timedelta(days=2));text=next(m['body'] for m in unknown['messages'] if m['kind']=='reply');assert 'protein is incomplete' in text and '0 g protein' not in text and 'One idea:' in text
  pref('ai');calls=[]
- def failure(*args,**kwargs):calls.append(1);raise ValueError('Fictional failed provider')
+ def reserved():
+  rid=budget.reserve('gemini-3.1-flash-lite','test daily',{'contents':[]})
+  budget.release_failed(rid,503);budget.finish(rid)
+ def failure(*args,**kwargs):reserved();calls.append(1);raise ValueError('Fictional failed provider')
  with patch('app.ai_release.enabled',return_value=True),patch('app.coach_chat.answer',side_effect=failure):
   first=kit.generate(uid,mid);again=kit.generate(uid,mid);assert len(calls)==1
   assert next(m for m in first['messages'] if m['kind']=='reply')['result']['kit_error']
@@ -50,13 +56,14 @@ try:
   result=kit.generate(uid,mid);assert not next(m for m in result['messages'] if m['kind']=='reply')['result']['kit_processing']
  # Older notes cannot bypass the current local day's durable one-attempt cap.
  other=next(m['id'] for m in unknown['messages'] if m['kind']=='user')
- with patch('app.ai_release.enabled',return_value=True),patch('app.coach_chat.answer',side_effect=AssertionError('No second daily request')):
-  assert client.post(f'/api/food/thread/messages/{other}/kit',json={}).status_code==429
+ with patch('app.ai_release.enabled',return_value=True),patch('app.coach_chat.answer',side_effect=lambda *a,**k:reserved()):
+  capped=client.post(f'/api/food/thread/messages/{other}/kit',json={});assert capped.status_code==200
+  assert 'already attempted today' in next(m['result'] for m in capped.json()['messages'] if m['kind']=='reply')['kit_error']
  # Simulate the next local day for the revocation scenario without waiting.
  with db.connect() as c:c.execute("DELETE FROM ai_daily_usage WHERE user_id=%s AND kind='food_daily_local'",(uid,))
  # Turning off daily Kit while a requested answer runs drops its late result.
  other=next(m['id'] for m in unknown['messages'] if m['kind']=='user')
- def revoked(*args,**kwargs):pref('off');return {'interpretation':'Illustrative food answer.','facts':[],'selection':None,'limitations':[]}
+ def revoked(*args,**kwargs):reserved();pref('off');return {'interpretation':'Illustrative food answer.','facts':[],'selection':None,'limitations':[]}
  with patch('app.ai_release.enabled',return_value=True),patch('app.coach_chat.answer',side_effect=revoked):
   stopped=kit.generate(uid,other);r=next(m['result'] for m in stopped['messages'] if m['kind']=='reply');assert not r.get('kit') and r['kit_error']
  pref('ai')
