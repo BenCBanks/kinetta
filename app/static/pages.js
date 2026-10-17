@@ -129,7 +129,7 @@ function getStarted(healthConnected = false, hasHistory = false) {
     Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
     !hasHistory ? step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or enter known nutrition.') : '',
     !hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
-    ios && !home && !Native.on ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
+    ios && !home && !Native.on && !hasHistory ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
   ].filter(Boolean);
   return rows.length ? `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">${rows.join('')}</div>` : '';
 }
@@ -143,7 +143,7 @@ async function meOverview(el) {
     <div id="t-food">${skel(1)}</div><div id="t-checkin"></div>
     <div id="t-plan"></div><div id="t-friends"></div>
     <section id="t-week" aria-label="Last 14 days"></section>
-    <div id="t-setup"></div><div id="t-goals"></div>`;
+    <div id="t-last"></div><div id="t-form"></div><div id="t-setup"></div><div id="t-goals"></div>`;
   todayFoodCard($('#t-food',el)).catch(() => {
     if (!el.isConnected) return;
     $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="primary wide" id="tf-retry">Try again</button></div>';
@@ -181,11 +181,12 @@ async function meOverview(el) {
   const overviewLoads = await Promise.allSettled([
     load('/api/activities?limit=3', (d) => {
       if (!el.isConnected) return;
+      $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
       Promise.resolve(Native.on ? Native.healthOn() : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
         const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
         $('#t-setup', el).innerHTML = getStarted(connected, !!d.length) +
-          (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+          (missing.length && (App.me.kcal_target || d.length) ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
       });
     }),
     load('/api/stats', (s) => {
@@ -193,6 +194,19 @@ async function meOverview(el) {
       if (!(s.recent_days || []).some(r => r.distance_m > 0)) { $('#t-week',el).innerHTML = ''; return; }
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
       mileageChart($('#me-distance', el), {days:s.recent_days || []});
+    }),
+    load('/api/fitness?days=60', (f) => {
+      if (!el.isConnected) return;
+      const last = f.days[f.days.length - 1];
+      if (!last || !f.days.some(day => day.fitness > 0)) { $('#t-form', el).innerHTML = ''; return; }
+      // the status word leads (like Garmin's training status); the numbers sit under it, the definitions on the Fitness page
+      const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
+      // one compact row (2026-10-16): the status word and its numbers; the explanations live on the Fitness page
+      const mini = (label, v) => `<span><b class="num">${esc(v)}</b><small>${esc(label)}</small></span>`;
+      $('#t-form', el).innerHTML = `<a class="card tap me-form" href="/progress?view=fitness" aria-label="Fitness and freshness: ${esc(word)}. ${esc(tip)}. Open details">
+        <span class="me-form-top"><span class="grow"><small>Fitness & freshness</small><b class="status-word ${k}">${esc(word)}</b></span>${svg('chev')}</span>
+        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? mini('Run score', f.vdot_now) : ''}</span>
+        ${f.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</a>`;
     }),
     load('/api/goals', (g) => {
       if (!el.isConnected) return;
