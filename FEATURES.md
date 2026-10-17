@@ -1,5 +1,14 @@
 # Kinetta — features
 
+Release checkpoint — October 17, 2026: the owner has authorized the reviewed #124–163 batch for merge,
+production deployment and a final-main TestFlight build. [ROADMAP.md](ROADMAP.md) records the current next steps.
+Some entries below describe the scope when an earlier foundation was introduced; later entries complete their
+integration. “Built” does not establish production/Apple processing, physical-device acceptance or public-launch
+readiness. Food chat, recipe links and the Health food UI are integrated; the native Share extension remains
+storage-only, restaurant integration still requires licensed-provider approval, and beta/device/model acceptance
+remains open. No new implementation resumes automatically.
+
+
 Goal: everything the big fitness and food apps do, plus deeper analysis and optional AI — private, on your own server.
 Status key: [x] built · [~] partly · [ ] planned. Keep this list current when you build something.
 
@@ -99,7 +108,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
       friends' activities (Mine for just yours), sharing per activity, hidden map ends, cheers and comments
 - [x] Admin: reset a person's password, remove a person + all their data (Me > Account > People)
 
-## Me and native activity tracking (issue #108, under review; not released)
+## Me and native activity tracking (issue #108; physical-device acceptance open)
 
 - [x] Me replaces Today as home, with the fixed fourteen-day chart, personal identity, current-day panels, useful tools and grouped settings.
 - [x] Personal/profile fixed14day distance charts use exactly the shared feed visibility rules.
@@ -111,7 +120,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 
 See [Recording activities](docs/activity-tracking.md).
 
-- Optional Apple Health Resting Energy for passive burn, added to existing activity calories with independent food goals; explicit read permission and source/time labels. Under review; Apple SDK/device acceptance pending. See [resting calories](docs/resting-calories.md).
+- Optional Apple Health Resting Energy for passive burn, added to existing activity calories with independent food goals; explicit read permission and source/time labels. Merged implementation; physical-device acceptance pending. See [resting calories](docs/resting-calories.md).
 
 - **Food-first home:** Today’s calories and macros, direct Describe/Snap/Scan/Usual logging, a preview of yesterday’s meal, and today’s workout calories. Friends and distance appear when there is something to show; all training tools remain available.
 - **Shared ＋ Log:** fast food entry, workout recording and a prefilled weigh-in from the centre tab. A recording indicator returns to your draft in one tap. Progress switches between Food & weight and Training, remembering your choice.

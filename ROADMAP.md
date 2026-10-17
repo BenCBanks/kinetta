@@ -1,55 +1,122 @@
 # Kinetta roadmap
 
-Last reviewed: October 15, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
+Last reviewed: October 17, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
 Requirements live in GitHub issues. Use [the requirements guide](docs/requirements.md) to make an item ready to build.
 
-## Now — dependable workout imports
+**Direction:** [#122: nutrition-led Kinetta with activity as a strong second (no Garmin required)](https://github.com/BenCBanks/kinetta/issues/122).
+Kinetta leads with honest, effortless food logging and targets that learn from you; activity stays strong through phone
+recording, Apple Health and plans; a watch is optional and no milestone depends on a direct Garmin connection. The
+owner's decisions are recorded in section 8 of #122. Its [addendum comment](https://github.com/BenCBanks/kinetta/issues/122#issuecomment-6226451576)
+is part of workstream D. Workstream letters below (A–T) refer to #122.
 
-1. [#59: Apple Health background sync](https://github.com/BenCBanks/kinetta/issues/59). Native observer, durable account-specific queue, acknowledgement-based retry and secure disconnect merged. Combined permission/progress recovery, rich GPS/heart-rate enrichment and account-scoped replay have merged and are deployed (schema 39; signed TestFlight build 240). Physical iPhone/Watch acceptance remains. See [Apple Watch route checks](docs/apple-watch-routes.md). Garmin Connect does not write GPS tracks to Health; its full routes need an alternative source.
-2. [#60: Conservative duplicate detection](https://github.com/BenCBanks/kinetta/issues/60). Native upload authentication has shipped; compatible sport/duration matching and replay/concurrency coverage remain.
-3. [#61: Alternative-source recovery](https://github.com/BenCBanks/kinetta/issues/61). intervals.icu history and outage catch-up, format-aware imports, Health Auto Export fixtures, then real-account validation.
+## Owner checkpoint — October 17, 2026: review before more implementation
 
-## Next — five-person beta
+New roadmap implementation is paused at the owner's request. The last complete feature implementation is
+[H: food on training days, PR #162](https://github.com/BenCBanks/kinetta/pull/162). The final technical checkpoint is
+[T2: native food-share storage, PR #163](https://github.com/BenCBanks/kinetta/pull/163): storage and account contracts
+only. It does **not** add the Share-sheet UI, runtime binding or App Group provisioning. Neither checkpoint means
+that workstream T, Milestone 3 or the overall roadmap has passed acceptance or been released.
 
-4. [#62: Installation, onboarding and beta acceptance](https://github.com/BenCBanks/kinetta/issues/62). Invite/auth tests, clear install/support instructions, isolated backup restore and five people independently using the app for a week. Owner setup and signing run alongside engineering; follow [beta-readiness.md](docs/beta-readiness.md).
-5. [#64: Remaining readability and chart checks](https://github.com/BenCBanks/kinetta/issues/64). Label contrast and spacing improvements have shipped. Verify the remaining chart legends/scales, large text and truthful sync states; do not delay beta for optional visual changes.
+**Release checkpoint:** The owner has authorized merging the reviewed PRs #124–163, production deployment and
+one TestFlight build from the final main commit. Review fixes, fresh isolated suites, fictional browser checks,
+actual database-upgrade checks and applicable unsigned iPhone builds passed. Final-head checks are required before each merge. Application PRs merge in dependency order, waiting for each next main retarget;
+#123 and #157 are independent documentation. Production and TestFlight outcomes belong in the release record;
+merge authorization alone does not mean a deployment or Apple processing has completed.
 
-## Separate track
+[#157](https://github.com/BenCBanks/kinetta/pull/157) compares restaurant providers; selection, quotes and written
+licensing permission remain owner decisions. [#163](https://github.com/BenCBanks/kinetta/pull/163) was self-reviewed
+as storage-only; no external Claude comment was present. It adds no Share extension UI or runtime.
 
-- [#109: Apple Health resting calories](https://github.com/BenCBanks/kinetta/issues/109): optional passive-calorie source with independent food budgets and existing activity calories. Under review; Apple SDK and physical-iPhone comparison pending.
+**Deferred until implementation resumes:** T3 Share extension UI/runtime; P2 restaurant integration (licensed
+provider, terms and cost need owner approval); L website/README/App Store copy; and the remaining M decision-record
+cleanup. Physical-iPhone GPS/Health/APNs/accessibility acceptance, reviewed real-model evaluation, the private
+ChatGPT switch study and the five-person beta remain open. Existing A–K/N/O/Q/R/H changes are implementations with separate merge/release state, not proof that those external acceptance gates passed. Resume feature work only when the owner
+asks; the milestone order below does not start it automatically.
 
-- [#108: Me, profile mileage and Track](https://github.com/BenCBanks/kinetta/issues/108): owner-requested
-  implemented and tested; under review. Me replaces Today as the personal home; profiles gain visibility-filtered distance
-  bars over fourteen days; all recording tools live in Track. Native background GPS, durable point journals and
-  WebView recovery are implemented; Apple SDK build and physical-device acceptance remain. Not merged or released.
+## Now — Milestone 1: food-first launch shape
 
-- Owner queue: [#86 native owner-only workout notifications](https://github.com/BenCBanks/kinetta/issues/86),
-  [#87 responsive Comments and Cheers](https://github.com/BenCBanks/kinetta/issues/87), and
-  [#88 long-press Cheers people list](https://github.com/BenCBanks/kinetta/issues/88) are in development.
-  Native delivery requires APNs account setup and a newly signed iPhone build; see [notification setup](docs/ios-notifications.md).
+Work in this order. Each workstream is one or more PRs that reference #122 and the letter, follow the
+"UX rules for every workstream" in #122, and attach light/dark/large-text phone screenshots.
 
-- Owner-requested social/activity polish is implemented in [PR #75](https://github.com/BenCBanks/kinetta/pull/75): double-tap Cheers people, live user search, user profiles constrained by activity visibility, visible gear deletion, shorter Me AI text and equal-sized photo/map slides. Fresh API/privacy, migration upgrade and phone/desktop browser checks passed. Native compilation and server deployment passed; physical-device acceptance remains separate.
-- Evergreen UI, keyboard navigation, persistent setup/discovery, Meals and optional food/coach access controls have shipped. Website prose is now editable through [Markdown content](docs/website-content.md).
-- Food logging simplification and the deterministic Kit/evaluation foundation have merged. The new tool coach stays disabled until reviewed accuracy results pass its rollout gate.
-- [#63: Direct Garmin access](https://github.com/BenCBanks/kinetta/issues/63). Owner identity and provider intake/approval required. Apple Health and intervals.icu beta work can proceed independently.
+1. **A. Restore Apple Health setup and add goal-first onboarding.** Fix the native Me regression first (no "Connect
+   Apple Health" step; an empty "Finish setup" card), then a skippable goal setup that suggests calories and protein.
+2. **B. Food-first home (Me).** The Today card leads; no empty "0.0 mi" charts.
+3. **C. Navigation built around logging.** Me · Nutrition · ＋ Log · Activity · Progress; Log food and Record a workout
+   as equal choices in ＋ Log; Progress switch Food & weight | Training.
+4. **D. One food chat thread** (as easy as ChatGPT, more accurate), including the addendum:
+   - a persistent private thread; one composer for text, dictation, photos, screenshots, barcodes and links;
+   - the conversation is the log (auto-log with Undo; asks instead of logging when unsure);
+   - never make the person rephrase (AI fallback for unparsed parts, at most one question per message);
+   - **feedback and reassurance** after every log: a warm, specific line from real numbers, generated by code with
+     no AI; number-led answers to "am I doing ok?", with optional Kit; an optional end-of-day note; tone and
+     low-intake safety rules; a Supportive / Just the numbers setting;
+   - token discipline (most messages make no AI call; learn each new food once);
+   - acceptance: the private switch test with a real ChatGPT user.
+5. **E. Apple Health first in connections**, with the Garmin "add the map from the original file" path.
+6. **F. Honest wording for estimates.**
+7. **G. Weekly check-in** with an adaptive target suggestion (explicit Accept).
 
-## Later — candidates, not scheduled commitments
+## Next — Milestone 2: five-person beta
 
-- Additional Apple Health data: weight, resting heart rate and sleep.
-- Android Health Connect.
-- App Store release after beta acceptance.
-- Adaptive nutrition targets from food intake and weight trends.
+8. Run the beta in [beta-readiness.md](docs/beta-readiness.md) on the Milestone 1 build, with the items it needs from
+   [#98](https://github.com/BenCBanks/kinetta/issues/98). Testers include at least one person with no watch, one
+   recording on the phone, one Apple Watch owner and one Garmin owner. Gate: all five log food on most days for two
+   weeks without developer help, and workouts arrive or are recorded without help.
+
+## Then — Milestone 3: nutrition depth, food meets training
+
+9. **N.** Recipe from a link. 10. **O.** Sodium, sugar, saturated fat. 11. **Q.** Weekly food review without AI.
+12. **J.** Cook once, everyone logs their plate. 13. **I.** Apple Health: nutrition out, weight in.
+14. **K.** Logging reminders (needs APNs, see #98). 15. **P.** Restaurant integration (provider choice needs the
+owner's sign-off first). 16. **T.** iPhone quick action, Share to Kinetta and Shortcuts.
+17. **R.** Activity for everyone without Garmin (includes #108's physical-iPhone recording acceptance).
+18. **H.** Food on training days.
+
+## Then — Milestone 4: public launch
+
+19. **L.** Website, README and App Store copy. 20. **M.** Keep `docs/design.md`, this file and `FEATURES.md` current.
+21. The [#98](https://github.com/BenCBanks/kinetta/issues/98) go/no-go.
+
+## Open acceptance on shipped work
+
+- [#108: Me, profile mileage and Track](https://github.com/BenCBanks/kinetta/issues/108): merged and deployed; physical
+  iPhone background/locked-screen GPS acceptance remains (now part of R).
+- [#109: Apple Health resting calories](https://github.com/BenCBanks/kinetta/issues/109): merged and deployed; the
+  read crash is fixed in TestFlight build 290; physical-iPhone comparison remains.
+- Native workout notifications are built; delivery needs the APNs key configured on the server and a device check (#98).
+
+## Later — optional, not required for success
+
+- Android through Health Connect.
+- Apple Watch quick logging.
+- A direct Garmin connection, only if Garmin reopens developer intake and the owner has a business identity
+  (see [beta-readiness.md](docs/beta-readiness.md#direct-garmin-access)).
 
 ## How to select the next task
 
-Read this file and the linked issue, then inspect recent work and the actual branch/release state. Select the first unfinished item in **Now** whose dependencies are satisfied. If it is blocked on the owner or a provider, record the exact missing input and work on the next ready item. Update this file after a milestone: implemented, tested, merged and released are different states.
+Read #122 (body and addendum), this file and the linked issue, then inspect recent work and the actual branch/release
+state. Select the first unfinished item in **Now** whose dependencies are satisfied. If it is blocked on the owner or a
+provider, record the exact missing input and work on the next item. Update this file after a milestone:
+implemented, tested, merged and released are different states.
 
 Roadmap placement expresses priority. It does not itself authorize publishing, deployment, contacting people, spending money or changing real user data; follow the current owner instructions and repository rules.
 
-## #122 implementation record — Workstream A
+## Next review and acceptance order
 
-The accepted order is [#122 section 5](https://github.com/BenCBanks/kinetta/issues/122): A → B → C → D → E → F → G,
-then its later milestones. This supersedes the historical queue above while the roadmap rewrite in PR #123 is pending.
-A restores optional Apple Health setup and adds skippable, explicit-save goal/target estimates. Implemented on the
-Workstream A branch; review, merge, release and physical-iPhone acceptance remain separate. No other workstream is
-included in that change. Nutrition leads, activity is a strong second, and no Garmin integration is required.
+1. Verify the final production and TestFlight release; on physical iPhones check onboarding, food logging,
+   offline send/Undo, logout cleanup, Shortcut recovery, Health imports and nutrition consent, and recording
+   while backgrounded/locked. Browser and unsigned-build evidence cannot close these checks.
+2. Close Milestone 1 acceptance: review the deterministic food-thread phrase fixtures, complete the private
+   ChatGPT switch study, and obtain reviewed real-model evidence before enabling gated AI paths. Existing
+   consent, cost and release gates stay in force; do not run paid evaluations automatically.
+3. Run the five-person, two-week beta and record help needed, food-log retention and workout arrival.
+   Keep #98, #108 and #109 open until their actual acceptance evidence exists.
+4. Resolve public-launch operations under #98: app-wide security review, recovery and abuse limits, tested
+   backup restoration, monitoring and capacity/rollback evidence; confirm support, provider/audience rights,
+   maps/food-data quotas and store privacy metadata. These remain separate from merging feature PRs.
+5. When feature implementation is explicitly resumed, finish T3 Share extension UI/runtime and provisioning;
+   resolve P2 provider rights/cost before integration; then reconcile L launch copy and M decision records.
+   Do not call completed foundations a finished Share extension or a public-launch go decision.
+
+The A–K/N/O/Q/R/H code and later T foundations were built ahead of these acceptance gates. Their presence does
+not move the beta or public-launch gate forward without evidence. #122 remains open for the unfinished scope.
