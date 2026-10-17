@@ -152,3 +152,5 @@ See [Recording activities](docs/activity-tracking.md).
   retries work offline. Held previews retain sources/estimates, blank Quick macros
   stay unknown, and delayed corrections remember their original food context
   (#122 D).
+
+- **Optional food-chat Kit answer (release gated):** code answers remain available with AI off. An explicit food-only question can save a labelled AI interpretation, verified food facts and an existing-recipe/usual proposal; confirming a proposal saves an atomic conversation receipt with source and fibre retained. Retry, Undo and message deletion do not duplicate or resurrect food. This capability needs a matching human-reviewed food-chat evaluation report before it becomes available.

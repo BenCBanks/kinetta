@@ -309,5 +309,15 @@
       "text": "2 eggs and a slice of grandma's cake",
       "expected": "Preserve eggs when entering cake nutrition"
     }
+  ],
+  "review_phrases_137_146": [
+    {
+      "text": "How many calories can I have left today?",
+      "expected": "remaining totals, not advice"
+    },
+    {
+      "text": "How much protein could I have remaining today?",
+      "expected": "remaining totals, not advice"
+    }
   ]
 }

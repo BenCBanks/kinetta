@@ -134,7 +134,7 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
 def remove(mid: int, user=Depends(current_user)):
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
-        found=c.execute('SELECT client_id,kind FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,user['id'])).fetchone()
+        found=c.execute('SELECT client_id,kind,reply_to FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,user['id'])).fetchone()
         if not found:raise HTTPException(404,'Message not found')
         if found['kind']=='user':
             c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(user['id'],found['client_id']))
@@ -358,3 +358,13 @@ def manual_food(mid:int,body:ManualIn,response:Response,user=Depends(current_use
         result=choices.manual(c,user['id'],message,body)
         if result.get('changed'):response.status_code=409
         return result
+
+
+class KitIn(AnswerIn):
+    refresh: StrictBool=False
+
+
+@router.post('/messages/{mid}/kit')
+def kit_message(mid:int,body:KitIn,user=Depends(current_user)):
+    from . import food_thread_kit
+    return food_thread_kit.generate(user['id'],mid,refresh=body.refresh)

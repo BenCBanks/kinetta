@@ -1821,3 +1821,8 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 #thread-usual-suggestion button { width: 100%; }
 /* Primary action can move between Send and a held food card without a pale colour flash. */
 .food-thread button { transition: transform .1s ease, opacity .15s; }
+
+/* Optional, food-scoped Kit interpretation follows the deterministic answer. */
+.thread-kit{border-top:1px solid var(--line);margin-top:1rem;padding-top:.75rem;}
+.thread-kit h3{font-size:1rem;}
+.thread-kit dd{margin-inline-start:.5rem;overflow-wrap:anywhere;}

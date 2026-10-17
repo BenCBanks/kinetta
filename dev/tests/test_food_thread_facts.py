@@ -74,3 +74,6 @@ check(f.classify('weekly average calories',anchor)['weekly'],'weekly adjective r
 check(f.classify('calories last week',anchor)['day']==dt.date(2026,10,11),'last week ends last Sunday')
 check(f.answer(f.classify('how many calories at lunch today?',anchor),S)['facts']['logged'] is None,'empty requested meal is not whole-day totals')
 check(f.feedback(S,{'kcal':None},seed=1),'unknown added calories do not crash feedback')
+
+for text in ['How many calories can I have left today?','How much protein could I have remaining today?']:
+ assert f.classify(text,anchor)['kind']=='left'

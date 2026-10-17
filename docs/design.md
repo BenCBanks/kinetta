@@ -506,3 +506,5 @@ a draft reload and delayed upload. Newer activity on another device cannot retar
 choice instead of silently changing another card. Numbers questions remain code
 only. Edits/removals suppress old feedback whose nutrition no longer matches the
 card. Legacy food sheets close or block submission after an account change.
+
+Food chat offers a quiet “Ask Kit for a food suggestion” after a food-advice, reassurance or day-review answer, only when access, consent and the separately reviewed food-chat release gate allow it. The code answer stays first. AI interpretation is labelled, verified food records and limits can be expanded, and suggested meals use the shared explicit review/confirmation sheet. Asking never logs food. Provider work runs outside database locks; one durable job and one saved answer prevent duplicate calls. Retry preserves message and draft. Deleted messages/replies cannot be resurrected by late answers. Unknown nutrition stays unknown in tools; food-only Kit cannot access activity, body, weight or Health records. Generic Kit retains its Health consent gate. No new prompts or models; device checks and human accuracy review remain required.

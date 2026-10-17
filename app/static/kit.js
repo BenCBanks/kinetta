@@ -15,7 +15,7 @@ route(/^\/me\/kit$/, 'me', async (el) => {
   try {
     const me = await api('/api/me');
     if (!valid() || me.id !== account) return;
-    App.me = me; keep('/api/me', me);
+    refreshMe(me);
   } catch (e) { if (valid()) error.textContent = e.message; return; }
   if (App.me.ai_paused) { form.innerHTML = '<p>AI is paused. Search, barcodes and manual logging still work.</p>'; return; }
   if (!aiCan('coach')) { form.innerHTML = '<p>AI coaching is unavailable for this account or consent is off. Your training plan, activity history and food tools still work.</p><a href="/me/explore">Explore Kinetta</a>'; return; }
@@ -47,31 +47,36 @@ route(/^\/me\/kit$/, 'me', async (el) => {
   };
 });
 
-function kitReview(selection) {
+function kitReview(selection, options = {}) {
   const candidate = selection.candidate;
   sheet('Review proposed change', `<p class="small">Nothing changes until you confirm.</p>
     ${selection.kind === 'plan' ? `<p>${esc(candidate.reason)}</p>${candidate.changes.map((w) => `<div class="card"><b>${esc(w.title)}</b><p class="small">${esc(w.day)} · ${esc(w.detail)}</p></div>`).join('')}`
       : `<p class="small">${esc(selection.day)}</p>${candidate.foods.map((f) => `<div class="kv"><span>${esc(f.name)}<small> ${esc(f.amount)} ${esc(f.unit)}</small></span><b>${r0(f.kcal)} kcal</b></div>`).join('')}
         ${nutGrid(candidate.totals)}<label>Log to<select id="kit-meal">${Object.entries(MEAL_NAMES).map(([key, name]) => `<option value="${key}">${name}</option>`).join('')}</select></label>`}
     <p class="err" role="alert"></p><button class="primary wide" id="kit-confirm">${selection.kind === 'plan' ? 'Confirm plan adjustment' : 'Confirm and log food'}</button>`, (body, close) => {
-    const confirm = $('#kit-confirm', body), error = $('.err', body), owner = App.me?.id;
-    let proposal = null; // Keep the same proposal ID when an acknowledgement is lost; confirmation is idempotent.
+    const confirm = $('#kit-confirm', body), error = $('.err', body), owner = readOwner();
+    const key=options.scopeKey?'fit.kit.proposal:'+JSON.stringify([Native.base||location.origin,App.me.id])+':'+options.scopeKey:null;
+    let proposal = key?store.get(key):null; // Keep the same proposal ID when an acknowledgement is lost; confirmation is idempotent.
+    const meal=$('#kit-meal',body);if(meal&&proposal){meal.value=proposal.payload.meal;meal.disabled=true;}
     const stable = (value) => Array.isArray(value) ? value.map(stable) : value && typeof value === 'object'
       ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])])) : value;
     confirm.onclick = async () => {
-      if (owner !== App.me?.id) { close(); return; }
+      if (owner !== readOwner()) { close(); return; }
       confirm.disabled = true; error.textContent = ''; confirm.textContent = 'Checking and saving…';
       try {
         if (!proposal) proposal = await api('/api/coach/proposals', json('POST', {kind: selection.kind, candidate_id: selection.candidate_id,
           ...(selection.day ? {day: selection.day, meal: $('#kit-meal', body).value} : {})}));
-        if (owner !== App.me?.id) return;
+        if (owner !== readOwner()) return;
+        if(meal){meal.value=proposal.payload.meal;meal.disabled=true;}
+        if(key){try{localStorage.setItem(key,JSON.stringify(proposal));}catch(e){throw Error('This phone could not keep the confirmation. Free some storage, or log from your usuals.');}}
         // The proposal endpoint recomputes current candidates. Never apply a different proposal from the one shown.
-        if (JSON.stringify(stable(proposal.payload.candidate)) !== JSON.stringify(stable(candidate))) throw new Error('The proposal changed. Ask Kit again to review the latest version.');
-        await api(`/api/coach/proposals/${proposal.id}/confirm`, json('POST', {confirmed: true}));
-        if (owner !== App.me?.id) return;
-        close(); invalidate('/api/'); toast(selection.kind === 'plan' ? 'Plan adjustment saved' : 'Food logged');
-        go(selection.kind === 'plan' ? '/plan' : '/food');
-      } catch (e) { if (owner === App.me?.id) { error.textContent = e.message; confirm.disabled = false; confirm.textContent = 'Try confirmation again'; } }
+        if (JSON.stringify(stable(proposal.payload.candidate)) !== JSON.stringify(stable(candidate))) throw Object.assign(new Error('The proposal changed. Ask Kit again to review the latest version.'),{status:409});
+        const saved=await api(`/api/coach/proposals/${proposal.id}/confirm${selection.kind==='food'&&options.scopeKey?'?thread=true':''}`, json('POST', {confirmed: true}));
+        if (owner !== readOwner()) return;
+        if(key)store.del(key);proposal=null;
+        close(); invalidate('/api/'); toast(selection.kind==='plan'?'Plan adjustment saved':saved.removed_after_apply?'Already confirmed; that food was removed later.':'Food logged');
+        if(options.onSaved)await options.onSaved(saved);else go(selection.kind === 'plan' ? '/plan' : '/food');
+      } catch (e) { if(e.status===409){if(key)store.del(key);proposal=null;if(options.onStale){close();await options.onStale();return;}} if (owner === readOwner()) { error.textContent = e.message; confirm.disabled = false; confirm.textContent = 'Try confirmation again'; } }
     };
   });
 }
