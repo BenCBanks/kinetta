@@ -1,8 +1,9 @@
-"""Private, durable food conversation storage (#122 D, foundation).
+"""Private, durable food conversation storage and deterministic processing (#122 D).
 
-This module stores text, not photos or model prompts. It never logs food or calls a
-provider. Deterministic numbers answers are supported; food logging follows
-separately. Pending messages survive a reload and a lost acknowledgement can be retried with the same client identity.
+Text and owner-bound food links are kept; photos are not retained. Numbers answers
+and fully resolved own-food logging use code only. Food/reply changes commit
+together, with replay protection, an optional explicit Log tap and durable Undo.
+Unknown-food processing and the visible thread follow separately.
 """
 import datetime as dt
 import json
@@ -149,15 +150,29 @@ def finish_reply(c, uid, message, result):
     """The caller holds the account and message locks. Reply and state commit together."""
     row = c.execute(f'''INSERT INTO food_chat_messages
                         (user_id,client_id,kind,body,captured_at,local_day,state,reply_to,result)
-                        VALUES (%s,%s,'reply',%s,%s,%s,'answered',%s,%s) RETURNING {COLUMNS}''',
-                    (uid,uuid4(),result['text'],message['captured_at'],message['local_day'],message['id'],json.dumps(result))).fetchone()
+                        VALUES (%s,%s,'reply',%s,%s,%s,'answered',%s,%s)
+                        ON CONFLICT (user_id,reply_to) DO UPDATE SET body=excluded.body,result=excluded.result,state='answered' WHERE %s RETURNING {COLUMNS}''',
+                    (uid,uuid4(),result['text'],message['captured_at'],message['local_day'],message['id'],json.dumps(result),message['state']=='answered')).fetchone()
+    if row is None: raise HTTPException(409,'A reply already exists; reload this message')
     updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
                              WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
                         (json.dumps({'kind':result['kind'],'reply_id':row['id']}),message['id'],uid)).fetchone()
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 
-def answer_with(c, uid, message):
+def locked_message(c,uid,mid):
+    c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+    message=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,uid)).fetchone()
+    if not message:raise HTTPException(404,'Message not found')
+    if message['kind']!='user':raise HTTPException(400,'Choose a message you sent')
+    return message
+
+
+def stored_reply(c,uid,message):
+    return c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=%s',(uid,message['id'])).fetchone()
+
+
+def answer_with(c, uid, message, question=None):
     from . import food_thread_facts as facts
     if message['kind'] != 'user':
         raise HTTPException(400,'Only a message you sent can be answered')
@@ -166,7 +181,7 @@ def answer_with(c, uid, message):
         return {'handled':True,'messages':message_entries(c,uid,[message]+([reply] if reply else []))}
     if message['state']!='pending':
         raise HTTPException(409,'This message is no longer pending')
-    question=facts.classify(message['body'],message['local_day'])
+    question=question or facts.classify(message['body'],message['local_day'])
     if question is None:
         return {'handled':False,'messages':message_entries(c,uid,[message])}
     if question['kind']=='clarify':
@@ -180,8 +195,37 @@ def answer_with(c, uid, message):
 @router.post('/messages/{mid}/answer')
 def answer_message(mid: int, body: AnswerIn, user=Depends(current_user)):
     with db.connect() as c:
-        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
-        message=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,user['id'])).fetchone()
-        if not message:
-            raise HTTPException(404,'Message not found')
+        message=locked_message(c,user['id'],mid)
         return answer_with(c,user['id'],message)
+
+
+class LogIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    confirm: StrictBool
+
+
+@router.post('/messages/{mid}/process')
+def process_message(mid: int, body: AnswerIn, user=Depends(current_user)):
+    from . import food_thread_log as engine
+    with db.connect() as c:
+        message=engine.locked_message(c,user['id'],mid)
+        return engine.process(c,user['id'],message)
+
+
+@router.post('/messages/{mid}/log')
+def log_message(mid: int, body: LogIn, response: Response, user=Depends(current_user)):
+    from . import food_thread_log as engine
+    if body.confirm is not True:raise HTTPException(400,'Tap Log to confirm these foods')
+    with db.connect() as c:
+        message=engine.locked_message(c,user['id'],mid)
+        result,changed=engine.explicit_log(c,user['id'],message)
+        if changed:response.status_code=409
+        return result
+
+
+@router.post('/messages/{mid}/undo')
+def undo_message(mid: int, body: AnswerIn, user=Depends(current_user)):
+    from . import food_thread_log as engine
+    with db.connect() as c:
+        message=engine.locked_message(c,user['id'],mid)
+        return engine.undo(c,user['id'],message)
