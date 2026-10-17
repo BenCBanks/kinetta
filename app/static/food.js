@@ -518,7 +518,8 @@ function recentToFood(r){
   const ref=r.ref||{},count=Number(r.amount),per=Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,count>0&&nutrientKnown(r,k)?r[k]/count:null]));
   const sourceGrams=Number(ref.serving?.g),mass={g:1,kg:1000,oz:28.349523125,lb:453.59237}[r.unit];
   const grams=mass||(r.unit==='dish'?ref.weight_g:r.unit==='serving'&&sourceGrams>0?sourceGrams:null);
-  const per100=grams>0?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,per[k]==null?null:per[k]*100/grams])):ref.per100||null;
+  const reference100=ref.per100||(sourceGrams>0&&ref.per_serving?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,ref.per_serving[k]==null?null:ref.per_serving[k]*100/sourceGrams])):null);
+  const per100=grams>0?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,per[k]==null?null:per[k]*100/grams])):reference100;
   const servingGrams=sourceGrams>0?sourceGrams:r.unit==='g'?count:null;
   const servingValues=servingGrams&&per100?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,per100[k]==null?null:per100[k]*servingGrams/100])):ref.per_serving||per;
   const original=ref.source||r.source||'recent',source=original==='dish'&&!ref.dish_id?'recent':original;
