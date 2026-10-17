@@ -198,3 +198,5 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 - **Entered nutrition in food chat (#122 D12):** calorie/macro/nutrient text becomes a held Your numbers review, with all8 values, units and unknown/zero meaning preserved. It is never catalog-matched as protein/carbs/fat foods. Explicit Log is required; unclear amounts/bases/dates stay held with a prefilled manual review. No AI or automatic target changes.
 
 - **Undo queued food (#122 D13):** Quick, usual, combination, yesterday and Log again saves offer Undo, including offline. Stable-ID cancellation prevents an interrupted upload from restoring removed food; failures retain a retryable pending operation.
+
+- **Food and training week (#122 R):** a private shared7-completed-day summary on Me and Progress; own today's workout links to the existing food-log energy calculation without double counting. My activities shows optional Health last-sync/pending/retry status, with bounded foreground catch-up and Garmin delay explanation. Physical GPS acceptance remains pending.

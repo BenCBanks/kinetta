@@ -1994,3 +1994,26 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 #h-body h2 {font-size:1.15rem}
 #h-body button,#h-body a.primary,#h-body .check {font-size:1rem;line-height:1.4;min-height:44px;white-space:normal}
 .weight-history-row .num {font-size:1rem}
+
+/* Optional logging reminders and current-meal shortcuts. */
+.meal-reminders h2 {display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;font-size:1.2rem}
+.meal-reminders p,.meal-reminders label,.meal-reminders dl {font-size:1rem;line-height:1.5;overflow-wrap:anywhere}
+.meal-reminders dl>div {display:flex;flex-wrap:wrap;justify-content:space-between;gap:.3rem;padding:.5rem 0;border-bottom:1px solid var(--line)}
+.meal-reminders dd {margin:0}
+.meal-reminders .check {min-height:44px}
+.empty-meal-ways {display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+.empty-meal-ways button {font-size:1rem;min-height:44px;flex:1 1 9rem;white-space:normal}
+
+.reminder-how summary {font-size:1rem;min-height:44px;display:flex;align-items:center;cursor:pointer}
+
+/* Private combined-week and Health-import controls remain thumb sized. */
+.combined-week > summary, .workout-sync > summary { min-height: 44px; display: flex; align-items: center; }
+.combined-week .linkbtn, .workout-sync .linkbtn, .combined-week-retry { min-height: 44px; display: inline-flex; align-items: center; }
+
+.combined-week, .workout-sync, .workout-energy { font-size: 1rem; }
+.combined-week .small, .workout-sync .small, .workout-energy .small { font-size: .9em; }
+.combined-week > summary, .workout-sync > summary, .combined-week .linkbtn, .workout-sync .linkbtn, .workout-sync .ghost { font-size: 1em; }
+.combined-week .stats3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.5em), 1fr)); }
+.combined-week .stat small { font-size: .75em; }
+.combined-week .stat b { font-size: 1.2em; }
+.combined-week .stat b i { font-size: .7em; }

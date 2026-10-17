@@ -227,5 +227,6 @@ function device(background = null, push = null) {
   finishAvailability({available:true});
   await assert.rejects(connecting, /account changed/);
   assert.equal(changing.n.healthProgress, '', 'late availability cannot repopulate another account’s progress');
+  const throttled=device();await throttled.n.ready;throttled.n.base='https://example.test';throttled.n.token='token';await throttled.n.connectHealth();await throttled.n.syncHealth();const count=throttled.queries.length;throttled.n.autoSync({foreground:true});await Promise.resolve();assert.equal(throttled.queries.length,count,'a render after completed import cannot start another full sync');
   console.log('native sync: consent, history retry, offline, incomplete reads/acks and in-flight logout passed');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

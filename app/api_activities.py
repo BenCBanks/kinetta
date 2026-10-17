@@ -770,3 +770,9 @@ def coach_week_get(user=Depends(current_user)):
 def coach_week_make(user=Depends(current_user)):
     try: return {'text': coach.week_review(user['id'])}
     except ValueError as e: raise HTTPException(400, str(e))
+
+
+@router.get('/activity-food')
+def activity_food_summary(user=Depends(current_user)):
+    from . import activity_food
+    with db.connect() as c:return activity_food.read(c,user['id'])

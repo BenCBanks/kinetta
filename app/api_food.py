@@ -234,32 +234,13 @@ def day_data(c, uid, d=None):
     entries = c.execute("""SELECT id, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref
                            FROM food_entries WHERE user_id = %s AND day = %s ORDER BY position, id""", (uid, day_)).fetchall()
     t = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
-    # exercise today vs a usual day (last 4 weeks): big training days get extra calories on top of the target
-    ctx = energy.context(c, uid)
-    ex = energy.exercise_by_day(c, uid, ctx['tz'], day_ - dt.timedelta(days=28), day_, ctx['kg'])
-    w = c.execute('SELECT kg FROM weights WHERE user_id = %s AND day = %s', (uid, day_)).fetchone()
-    today_ex = ex.get(day_) or {'kcal': 0, 'n': 0, 'estimated': False, 'items': []}
-    usual = sum(v['kcal'] for d, v in ex.items() if d != day_) / 28
-    burned = {**today_ex, 'kcal': round(today_ex['kcal']), 'usual': round(usual),
-              'extra': max(0, min(1500, round((today_ex['kcal'] - usual) / 10) * 10))}
-    totals = {k: round(sum((e[k] or 0) for e in entries), 1) for k in NUM}
-    info = energy.tdee(c, uid)
-    least = energy.full_day_min(c, uid, info['base'])
-    over = energy.burn_overrides(c, uid, day_, day_).get(day_)
-    resting = energy.resting_by_day(c, uid, ctx['tz'], day_, day_) if info['resting_source'] == 'apple_health' else {}
-    burn = energy.burn_for_day(info, today_ex['kcal'], day_, resting, {day_: over} if over is not None else {})
-    burned['day_burn'] = round(burn['total']) if burn['total'] is not None else None
-    burned['source'] = burn['source']; burned['observed_at'] = burn['observed_at']; burned['synced_at'] = burn['synced_at']
-    burned['missing'] = burn['total'] is None
-    burned['imported'] = burn['source'] == 'imported'
-    burned['deficit'] = round(burned['day_burn'] - totals['kcal']) if entries and burned['day_burn'] is not None else None
-    burned['partly'] = bool(entries) and day_ < ctx['today'] and totals['kcal'] < least   # left out of averages and totals
-    # burn breakdown: resting (BMR, needs height) + daily activity (the rest of the base) + exercise
-    burned['base'] = burn['resting'] if burn['source'] == 'apple_health' else info['base']
-    burned['bmr'] = burn['resting']; burned['bmr_exact'] = info['bmr_exact']
-    burned['daily_life'] = 0 if burn['source'] == 'apple_health' else info['base'] - info['bmr']
-    burned['activity'] = info['activity']
-    burned['tdee_confidence'] = info['confidence']
+    ctx=energy.context(c,uid)
+    w=c.execute('SELECT kg FROM weights WHERE user_id=%s AND day=%s',(uid,day_)).fetchone()
+    totals={k:round(sum((e[k] or 0) for e in entries),1) for k in NUM}
+    info=energy.tdee(c,uid)
+    burned=energy.day_burn(c,uid,day_,ctx=ctx,info=info)
+    burned['deficit']=round(burned['day_burn']-totals['kcal']) if entries and burned['day_burn'] is not None else None
+    burned['partly']=bool(entries) and day_<ctx['today'] and totals['kcal']<energy.full_day_min(c,uid,info['base'])
     # the day's goal: a goal set for this date wins; otherwise the daily target + the training-day extra
     g = c.execute('SELECT kcal FROM day_goals WHERE user_id = %s AND day = %s', (uid, day_)).fetchone()
     default = t.get('kcal_target')

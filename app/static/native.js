@@ -19,7 +19,7 @@ const Native = (() => {
     Promise.resolve(promise).then(resolve, reject).finally(() => clearTimeout(timer));
   });
   N.healthProgress = '';
-  const progress = (text) => { N.healthProgress = text; if (N.onHealthProgress) N.onHealthProgress(text); };
+  const progress = (text) => { N.healthProgress = text; if (N.onHealthProgress) N.onHealthProgress(text); N.onWorkoutStatus?.(); };
   // the server and login token live in the app's own settings (Capacitor Preferences), which iOS doesn't clear the way it
   // can clear a web view's storage when the phone runs low on space
   N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); })().catch(() => {}) : Promise.resolve();
@@ -289,9 +289,10 @@ const Native = (() => {
         await put('health.status', JSON.stringify({...sum, at: new Date(to).toISOString(), last_success_at: previous?.last_success_at || null, error: e.message || 'Sync failed. Please try again.'}));
       throw e;
     } finally {
+      if(account===owner()&&token===N.token)N.lastAuto=Date.now();
       if ((sum.added || sum.updated) && account === owner() && token === N.token) invalidate('/api/');
     }
-  })().finally(() => { N.syncing = null; }));
+  })().finally(() => { N.syncing = null; N.onWorkoutStatus?.(); }));
   // ---------- Optional Health weight/nutrition, independent of workouts ----------
   const foodHealth = P.KinettaHealthFood;
   N.foodHealthSupported = !!foodHealth;
@@ -447,18 +448,18 @@ const Native = (() => {
   N.autoFoodEntry=()=>{const account=owner(),version=foodEntryGeneration;return N.consumeFoodEntries().catch(error=>{if(App.me&&account===owner()&&version===foodEntryGeneration&&!error.stale)toast(error.message||'Food entry is waiting. Open Kinetta again to retry.');});};
   if(foodEntry)foodEntry.addListener('foodEntryReady',()=>N.autoFoodEntry());
   // quietly, when the app opens and comes back to the front (at most every 10 minutes)
-  N.autoSync = () => {
+  N.autoSync = ({foreground=false}={}) => {
     N.flushHealthOff?.().catch(()=>{});
     if(N.healthPaused)return;
     N.autoRestingEnergy();
     N.autoFoodHealth();
     N.autoFoodEntry();
-    if (!on || !App.me || Date.now() - (N.lastAuto || 0) < 600000) return;
+    if (!on || !App.me || Date.now() - (N.lastAuto || 0) < (foreground?15000:600000)) return;
     N.lastAuto = Date.now();
     N.syncHealth().then((s) => { if (s && (s.added || s.updated)) { toast(s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} from Apple Health` : 'Apple Health workout details updated'); render(); } }).catch(() => { N.lastAuto = 0; });
   };
   if (on) window.addEventListener('online', () => N.autoSync());
-  if (on) document.addEventListener('visibilitychange', () => { if (!document.hidden) N.autoSync(); });
+  if (on) document.addEventListener('visibilitychange', () => { if (!document.hidden) N.autoSync({foreground:true}); });
   return N;
 })();
 
