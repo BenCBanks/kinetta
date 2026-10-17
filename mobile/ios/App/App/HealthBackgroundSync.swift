@@ -690,6 +690,7 @@ class KinettaBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(KinettaHealthSyncPlugin())
         bridge?.registerPluginInstance(KinettaHealthFoodPlugin())
+        bridge?.registerPluginInstance(KinettaFoodEntryPlugin())
         bridge?.registerPluginInstance(KinettaPushPlugin())
         bridge?.registerPluginInstance(KinettaTrackPlugin())
         bridge?.registerPluginInstance(KinettaHapticsPlugin())

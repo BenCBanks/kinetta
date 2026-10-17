@@ -1,0 +1,23 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');const source=fs.readFileSync('app/static/thread.js','utf8');
+let owner='a',full=false,focus=0;const saved=new Map(),field={value:'Existing draft',focus(){focus++},oninput(){}},ctx={owner:'a',nativeEntries:[],el:{}};
+const c={current:ctx,active:x=>x.owner===owner,$:()=>field,draftKey:o=>'draft:'+o,localStorage:{setItem:(k,v)=>{if(full)throw Error('Fictional storage full');saved.set(k,v);}},status:()=>{}};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function saveDraft'),source.indexOf('  async function eraseDevice')),c);
+const id='aaaaaaaa-1111-4111-8111-111111111111';assert(c.receiveNative({id,source:'quick-action'}));assert.equal(field.value,'Existing draft');assert.equal(saved.size,0);
+assert(c.receiveNative({id,source:'shortcut',text:'Fictional eggs and toast'}));assert.equal(field.value,'Existing draft\nFictional eggs and toast');let draft=JSON.parse(saved.get('draft:a'));assert.equal(draft.nativeEntries[0],id);assert.equal(draft.text,field.value);
+assert(c.receiveNative({id,source:'shortcut',text:'Fictional eggs and toast'}));assert.equal(field.value,draft.text,'replayed delivery does not duplicate text');
+field.value='';c.saveDraft(ctx,'');assert(c.receiveNative({id,source:'shortcut',text:'Fictional eggs and toast'}));assert.equal(field.value,'','accepted identity survives sending/clearing the draft');
+field.value='Keep this';full=true;assert.equal(c.receiveNative({id:'bbbbbbbb-1111-4111-8111-111111111111',source:'shortcut',text:'Waiting text'}),false);assert.equal(field.value,'Keep this');assert.equal(ctx.nativeEntries.length,1);full=false;
+field.value='x'.repeat(3999);assert.equal(c.receiveNative({id:'cccccccc-1111-4111-8111-111111111111',source:'shortcut',text:'too long'}),false);assert.equal(field.value.length,3999);
+owner='b';assert.equal(c.receiveNative({id,source:'shortcut',text:'Old account'}),false);assert.equal(field.value.length,3999);
+console.log('Food entry composer: no implicit send, quick-action focus preserves draft, atomic text+accepted ID, replay/after-send dedupe, full-storage/overflow preservation and owner guard PASS');
+const native=fs.readFileSync('app/static/native.js','utf8');
+function client(){let who='a',received=0;const calls=[],entry={id,source:'shortcut',text:'Fictional lunch'};const plugin={bind:async()=>calls.push('bind'),pending:async()=>({entries:[entry]}),acknowledge:async()=>calls.push('ack'),stop:async()=>calls.push('stop'),addListener(){}};const x={N:{token:'a-token',healthCall:async p=>p},P:{KinettaFoodEntry:plugin},App:{me:{id:1}},owner:()=>who,api:async()=>{calls.push('auth');return {id:1}},refreshMe:me=>x.App.me=me,location:{pathname:'/me'},go:path=>{x.location.pathname=path;calls.push('open')},FoodThread:{receiveNative:()=>{received++;calls.push('draft');return true}},toast:()=>{}};vm.createContext(x);vm.runInContext(native.slice(native.indexOf('  // ---------- Native home-screen / Shortcuts'),native.indexOf('  // quietly, when the app opens')),x);return {x,plugin,calls,received:()=>received,switch:()=>{who='b';x.N.token='b-token';x.App.me={id:2};}};}
+(async()=>{let f=client();await f.x.N.consumeFoodEntries();assert(f.calls.indexOf('auth')<f.calls.indexOf('draft')&&f.calls.indexOf('draft')<f.calls.indexOf('ack'));
+ f=client();f.x.FoodThread.receiveNative=()=>false;await f.x.N.consumeFoodEntries();assert(!f.calls.includes('ack'),'unsaved draft stays native pending');
+ f=client();f.x.api=async()=>{f.switch();return {id:2}};await assert.rejects(f.x.N.consumeFoodEntries(),/account changed/);assert.equal(f.received(),0);assert(!f.calls.includes('ack'));
+ f=client();f.x.api=async()=>{throw Error('Fictional expired login')};await assert.rejects(f.x.N.consumeFoodEntries(),/expired login/);assert.equal(f.received(),0);
+ f=client();f.x.App.me=null;await f.x.N.consumeFoodEntries();assert.equal(f.calls.length,0);
+ f=client();await f.x.N.stopFoodEntry();assert(f.calls.includes('stop'));const stopped=f.calls.length;await f.x.N.consumeFoodEntries();assert.equal(f.calls.length,stopped,'logout/401 suspension prevents auto-rebinding');f.x.N.resumeFoodEntry();await f.x.N.consumeFoodEntries();assert(f.calls.includes('ack'));
+ f=client();f.x.api=async()=>{f.x.location.pathname='/activity';return {id:1};};await f.x.N.consumeFoodEntries();assert.equal(f.x.location.pathname,'/activity');assert(!f.calls.includes('ack'),'late shortcut keeps pending rather than replacing a new navigation');
+ console.log('Food entry client: signed-out no-op, fresh auth before draft, save-before-native acknowledgement, pending preservation and old-account rejection PASS');
+})().catch(e=>{console.error(e);process.exitCode=1});

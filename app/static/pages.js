@@ -1151,7 +1151,7 @@ route(/^\/me$/, 'me', async (el) => {
   $('#logout', el).onclick = async () => {
     const n = Q.mine().length;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
-    try { await Native.stopFoodHealth?.(); } catch(x) { toast(x.message);return; }
+    try { await Native.stopFoodEntry?.(); await Native.stopFoodHealth?.(); } catch(x) { toast(x.message);return; }
     if (typeof Track !== 'undefined') await Track.pause();
     try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
     await Native.forget();
@@ -1222,7 +1222,7 @@ function deleteSheet() {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
         if(account!==readOwner())return;
-        if(Native.on)await Native.disconnectHealth();
+        if(Native.on){await Native.stopFoodEntry?.();await Native.disconnectHealth();}
         if(account!==readOwner())return;
         await api('/api/account/delete', json('POST', {password: f.pw.value}));
         await Native.stopFoodHealth?.({clear:true});
