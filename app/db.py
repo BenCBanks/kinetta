@@ -1015,6 +1015,46 @@ MIGRATIONS = [
        CREATE INDEX ai_attempts_day ON ai_food_attempts(day);
        CREATE INDEX ai_attempts_owner_day ON ai_food_attempts(user_id,day);""",
 
+    # 48: learn-once private foods and short-lived thread processing leases; no images.
+    """ALTER TABLE custom_foods ADD COLUMN origin text NOT NULL DEFAULT 'manual'
+          CHECK (origin IN ('manual','ai','catalog','label'));
+       ALTER TABLE custom_foods ADD COLUMN origin_notes text;
+       ALTER TABLE custom_foods ADD COLUMN origin_model text;
+       ALTER TABLE custom_foods ADD COLUMN origin_edited boolean NOT NULL DEFAULT false;
+       ALTER TABLE custom_foods ADD COLUMN origin_ref jsonb;
+       CREATE TABLE food_chat_aliases (
+         user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         key text NOT NULL,
+         templates jsonb NOT NULL, created timestamptz NOT NULL DEFAULT now(),
+         PRIMARY KEY(user_id,key));
+       CREATE TABLE food_chat_cancellations (
+         user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         client_id uuid NOT NULL, created timestamptz NOT NULL DEFAULT now(),
+         PRIMARY KEY(user_id,client_id));
+       CREATE TABLE food_chat_jobs (
+         user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         message_id bigint NOT NULL, lease uuid NOT NULL, expires timestamptz NOT NULL,
+         state text NOT NULL CHECK (state IN ('running','done','failed','cancelled')),
+         input_hash text, created timestamptz NOT NULL DEFAULT now(),
+         PRIMARY KEY(user_id,message_id),
+         FOREIGN KEY(user_id,message_id) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE);
+       DO $$ DECLARE t text; BEGIN
+         FOREACH t IN ARRAY ARRAY['food_chat_aliases','food_chat_jobs','food_chat_cancellations'] LOOP
+           EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+           EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())',t);
+           EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+           EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+         END LOOP;
+       END $$;
+       UPDATE ai_food_attempts SET request_id=NULL WHERE user_id IS NULL;
+       CREATE FUNCTION clear_ai_request_reference() RETURNS trigger LANGUAGE plpgsql AS $$
+       BEGIN
+         UPDATE ai_food_attempts SET request_id=NULL WHERE user_id=OLD.id;
+         RETURN OLD;
+       END $$;
+       CREATE TRIGGER clear_ai_request_reference BEFORE DELETE ON users
+         FOR EACH ROW EXECUTE FUNCTION clear_ai_request_reference();""",
+
 ]
 
 

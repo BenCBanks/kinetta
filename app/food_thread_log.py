@@ -1,5 +1,6 @@
 """Food-thread logging from resolved own records. No provider or network work."""
 import datetime as dt
+import time
 import hashlib
 import json
 from zoneinfo import ZoneInfo
@@ -106,10 +107,14 @@ def commit_log(c,uid,message,result):
 
 def process(c,uid,message):
     if message['state']!='pending':return food_thread.answer_with(c,uid,message)
+    if (message.get('result') or {}).get('input'):
+        from . import food_thread_compose as compose
+        return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
     question=facts.classify(message['body'],message['local_day'])
     if question is not None:return food_thread.answer_with(c,uid,message,question=question)
     from . import food_thread_edit as edits, food_thread_refs as refs
-    for handler in (edits.handle_pending,refs.handle,edits.try_correction):
+    from . import food_thread_choices as choices
+    for handler in (choices.follow_up,edits.handle_pending,refs.handle,edits.try_correction):
         try:
             with c.transaction(): outcome=handler(c,uid,message)
             if outcome is not None:return outcome
@@ -117,12 +122,15 @@ def process(c,uid,message):
             if isinstance(error,HTTPException) and error.status_code not in (400,422):raise
             return needs_detail(c,uid,message,{},error)
     resolution=resolve(c,uid,message);result=make_result(c,uid,message,resolution)
+    if result['kind']=='needs':
+        from . import food_thread_compose as compose
+        return compose.begin(c,uid,message,resolution)
     p=food_thread.preferences(c,uid) or {}
     if result['kind']=='preview' and p.get('auto_log',True):
         try:
             with c.transaction(): return commit_log(c,uid,message,result)
         except (HTTPException,ValidationError) as error:
-            if isinstance(error,HTTPException) and error.status_code not in (400,404,409,422): raise
+            if isinstance(error,HTTPException) and error.status_code not in (400,404,409,422):raise
             return needs_detail(c,uid,message,result,error)
     return food_thread.finish_reply(c,uid,message,result)
 
@@ -130,6 +138,10 @@ def process(c,uid,message):
 def explicit_log(c,uid,message):
     reply=stored_reply(c,uid,message)
     if not reply:raise HTTPException(409,'Open the message’s food details first')
+    if reply['result'].get('composed'):
+        from . import food_thread_compose as compose
+        response=compose.write(c,uid,message,dict(reply['result']),force=True)
+        return response,response.get('changed',False)
     if reply['result'].get('kind')=='log':
         return food_thread.answer_with(c,uid,message),False
     if reply['result'].get('kind')!='preview':

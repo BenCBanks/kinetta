@@ -127,3 +127,10 @@ See [Recording activities](docs/activity-tracking.md).
 - Coach notes/reviews and every Kit tool-loop turn use the same durable provider
   budget and kill switch as food estimates, with per-account/service attempt and
   concurrency caps. Paid unbounded search grounding is paused; USDA lookups remain.
+- **Thread source resolution API (interface follows):** ready parts save once while
+  remaining foods use public catalog choices, barcodes, photos or manual nutrition.
+  Unknown estimates use the existing consent/access/budget-gated model; clear own
+  matches retain stored nutrition with an estimated portion. Logged AI foods become
+  editable private foods with origin/assumption labels and zero-model reuse. Cancel,
+  delete and retry guards keep late work from recreating food or text; photos are
+  not retained. Omitted manual macros remain unknown in factual answers.

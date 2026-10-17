@@ -30,11 +30,18 @@ Information we collect
 
 We store the account details you provide, including your username, display name, password hash, optional photo and biography.
 
+## collect-food
+
+Food conversation text and links to logged foods are private account records. They are included in your download and removed with your account. Logged AI estimates may become reusable private foods with their source and assumptions marked. You can edit or remove saved foods in My foods.
+
+## collect-processing
+
+Reuse mappings store a hash of the food words rather than another copy of your conversation. Processing metadata and cancellation identifiers prevent duplicate or cancelled uploads. Deleting a message removes its text and processing job; already logged and saved foods remain until you remove them. No food-photo thumbnails or full photos are kept in thread history.
+
+## collect-imports
+
 We also store workouts and original activity files, GPS routes, recorded measurements, food entries, recipes, weight entries, goals, plans and settings that you add or import. Optional body details help calculate personal estimates. Beta requests include your name, email, device information and message.
 
-## food-thread
-
-Food conversation text and links to logged foods are private account records. They are included in your download and removed with your account. Deleting a message keeps already logged foods. No food-photo thumbnails or full photos are kept in thread history.
 
 ## use-heading
 
@@ -114,7 +121,11 @@ Storage and retention
 
 ## retention
 
-The hosted beta stores account records in the United States until you remove them or delete your account. Beta requests and related response history are kept for administration until removed; requests linked to a joined account are removed when that account is deleted. Operational logs rotate using size limits, rather than a guaranteed number of days. Service providers apply their own retention terms.
+The hosted beta stores account records in the United States until you remove them or delete your account. Beta requests and related response history are kept for administration until removed; requests linked to a joined account are removed when that account is deleted. Operational logs rotate using size limits, rather than a guaranteed number of days.
+
+## retention-ai
+
+AI usage records contain model names, token counts and estimated costs, without food text or photos. Account deletion removes their account and message references; usage and cost records may remain to enforce service budgets and keep operational totals. Service providers apply their own retention terms.
 
 ## backups-heading
 

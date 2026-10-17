@@ -153,7 +153,8 @@ def _custom_food(r):
     sg = r['serving_g']
     f = sg / 100 if sg else None
     per = lambda v: round(v / f, 2) if (f and v is not None) else None
-    return {'source': 'custom', 'id': r['id'], 'name': r['name'], 'brand': r['brand'], 'favorite': r['favorite'],
+    return {'source': 'custom', 'origin': r.get('origin','manual'), 'origin_notes':r.get('origin_notes'),
+            'origin_model':r.get('origin_model'), 'origin_ref':r.get('origin_ref'), 'origin_edited':r.get('origin_edited',False), 'id': r['id'], 'name': r['name'], 'brand': r['brand'], 'favorite': r['favorite'],
             'per_serving': {k: r[k] for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')},
             'per100': {k: per(r[k]) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')} if f else None,
             'serving': {'label': r['serving_label'], 'g': sg}}
@@ -269,7 +270,8 @@ def day_data(c, uid, d=None):
     meal_hours = {}
     for r in hours:   # most common meal logged (same day) in each hour, needs 3+ entries to count
         if r['n'] >= 3 and r['n'] > meal_hours.get(r['h'], (None, 0))[1]: meal_hours[r['h']] = (r['meal'], r['n'])
-    return {'day': day_.isoformat(), 'entries': entries, 'totals': totals, 'targets': t, 'burned': burned, 'goal': goal, 'weight_kg': w['kg'] if w else None,
+    return {'day': day_.isoformat(), 'entries': entries, 'totals': totals,
+            'unknown_nutrients':{k:sum(e.get(k) is None or (isinstance((e.get('ref') or {}).get('unknown_nutrients'),list) and k in e['ref']['unknown_nutrients']) for e in entries) for k in NUM}, 'targets': t, 'burned': burned, 'goal': goal, 'weight_kg': w['kg'] if w else None,
             'last_meals': last_meals, 'meal_hours': {h: m for h, (m, _) in meal_hours.items()}}
 
 
@@ -339,9 +341,20 @@ def edit_entry(eid: int, body: EntryEdit, user=Depends(current_user)):
     vals = body.model_dump(exclude_unset=True)
     if not vals: return {'ok': True}
     with db.connect() as c:
-        if not c.execute(f"UPDATE food_entries SET {', '.join(f'{k} = %s' for k in vals)}, updated = now() WHERE id = %s AND user_id = %s RETURNING id",
-                         (*vals.values(), eid, user['id'])).fetchone():
-            raise HTTPException(404, 'Not found')
+        old=c.execute('SELECT ref,source FROM food_entries WHERE id=%s AND user_id=%s FOR UPDATE',(eid,user['id'])).fetchone()
+        if not old:raise HTTPException(404,'Not found')
+        ref=dict(old['ref'] or {})
+        missing={k for k in ref['unknown_nutrients'] if isinstance(k,str) and k in NUM} if isinstance(ref.get('unknown_nutrients'),list) else set()
+        for key,value in list(vals.items()):
+            if value is None:
+                if key not in NUM or key=='kcal':raise HTTPException(422,'Keep a value for calories and the food’s name, amount and destination')
+                missing.add(key)
+                if key!='fiber_g':vals[key]=0
+            elif key in NUM:missing.discard(key)
+        if missing or 'unknown_nutrients' in ref:ref['unknown_nutrients']=sorted(missing)
+        if (old['source']=='ai' or ref.get('origin')=='ai') and set(vals)&{'name','amount','unit',*NUM}:ref['origin_edited']=True
+        c.execute(f"UPDATE food_entries SET {', '.join(f'{k} = %s' for k in vals)},ref=%s,updated=now() WHERE id=%s AND user_id=%s",
+                  (*vals.values(),json.dumps(ref),eid,user['id']))
     return {'ok': True}
 
 
@@ -404,7 +417,7 @@ def food_add(body: FoodIn, user=Depends(current_user)):
 def food_edit(fid: int, body: FoodIn, user=Depends(current_user)):
     v = body.model_dump()
     with db.connect() as c:
-        if not c.execute(f"UPDATE custom_foods SET {', '.join(f'{k} = %s' for k in v)} WHERE id = %s AND user_id = %s RETURNING id",
+        if not c.execute(f"UPDATE custom_foods SET {', '.join(f'{k} = %s' for k in v)}, origin_edited=(origin='ai' OR origin_edited) WHERE id = %s AND user_id = %s RETURNING id",
                          (*v.values(), fid, user['id'])).fetchone(): raise HTTPException(404, 'Not found')
     return {'ok': True}
 

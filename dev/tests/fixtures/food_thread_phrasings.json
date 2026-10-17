@@ -247,5 +247,62 @@
       "text": "same as breakfast for dinner",
       "intent": "copy-source-breakfast"
     }
+  ],
+  "review_phrases_132_141": [
+    {
+      "pr": 133,
+      "text": "2",
+      "expected": "Ambiguous brand choice never fails a new message"
+    },
+    {
+      "pr": 133,
+      "text": "200 g rice, banana",
+      "expected": "One invalid source does not lose other parts"
+    },
+    {
+      "pr": 133,
+      "text": "2 eggs and a slice of grandma\u2019s cake",
+      "expected": "Manual entry preserves known eggs and logs only selected part"
+    },
+    {
+      "pr": 133,
+      "text": "Try a different food",
+      "expected": "Bypasses learned alias and cached processing job"
+    },
+    {
+      "pr": 133,
+      "text": "https://recipe.example/private?token=fictional",
+      "expected": "No public catalog request"
+    },
+    {
+      "pr": 135,
+      "text": "yesterday \u00b7 Dinner",
+      "expected": "Explicit destination persists"
+    },
+    {
+      "pr": 136,
+      "text": "make it half",
+      "expected": "After Undo choose an available card"
+    },
+    {
+      "pr": 137,
+      "text": "How many calories can I have left today?",
+      "expected": "Deterministic remaining calories"
+    },
+    {
+      "pr": 137,
+      "text": "New dish",
+      "expected": "Recipe identity confirms"
+    },
+    {
+      "pr": 141,
+      "text": "Week of Today",
+      "expected": "Week headings use calendar date"
+    },
+    {
+      "pr": 141,
+      "text": "Week of Yesterday",
+      "expected": "Week headings use calendar date"
+    }
   ]
 }

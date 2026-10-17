@@ -27,7 +27,7 @@ for text in ('I had 500 calories total for dinner','2 eggs and toast','a protein
 for text in ('what did I eat today and yesterday?','what did I eat 2026-02-30?','what did I eat for lunch and dinner?'):
  q=f.classify(text,anchor);check(q['kind']=='clarify' and q['text'].count('?')==1,'one short clarification')
 rows=[{'day':(anchor-dt.timedelta(days=i)).isoformat(),'eaten':1800,'today':i==0} for i in range(5)]
-S={'day':{'day':str(anchor),'entries':[{'id':1,'name':'Fictional oats','meal':'breakfast','kcal':400,'fiber_g':None,'source':'custom'}],
+S={'day':{'day':str(anchor),'entries':[{'id':1,'name':'Fictional oats','meal':'breakfast','kcal':400,'protein_g':25,'carbs_g':50,'fat_g':12,'fiber_g':None,'source':'custom'}],
  'totals':{'kcal':400,'protein_g':25,'carbs_g':50,'fat_g':12,'fiber_g':0},'goal':{'kcal':1800,'custom':None},'targets':{'protein_target':110},'burned':{'kcal':540,'day_burn':2300,'source':'formula'}},
  'week':{'rows':rows,'summary':{'logged':4,'avg_eaten':1800,'trend_change_kg':-.2}},'needs':{'today':anchor,'bmr':1500,'kg':75,'trend_kg_per_week':-.3},'profile':{'units':'imperial','food_chat_tone':'supportive'}}
 q=f.classify('protein left?',anchor);a=f.answer(q,S);check('85 g left' in a['text'] and a['facts']['logged']==25,'protein arithmetic')
@@ -59,6 +59,12 @@ S['period_rows']=[{'kcal':1800,'protein_g':100,'carbs_g':200,'fat_g':60,'fiber_g
 check('2,200 kcal logged' in f.answer(f.classify('how many calories this week?',anchor),S)['text'],'week sum uses logged days')
 check('1,100 kcal per logged day' in f.answer(f.classify('average calories this week?',anchor),S)['text'],'week average labelled per logged day')
 check(f.answer(f.classify('how much fiber this week?',anchor),S)['facts']['logged'] is None,'week unknown fiber is not zero')
+missing=copy.deepcopy(S);missing['day']['entries'][0]['ref']={'unknown_nutrients':['protein_g','carbs_g','fat_g']}
+check(f.answer(f.classify('protein left?',anchor),missing)['facts']['logged'] is None,'manual missing protein never becomes zero or a remaining number')
+check('incomplete' in f.feedback(missing,{'kcal':400},1),'feedback explains missing protein')
+missing['period_rows'][0]['protein_g_unknown']=True
+check(f.answer(f.classify('how much protein this week?',anchor),missing)['facts']['logged'] is None,'week missing protein is incomplete')
+check(f.answer(f.classify('how many calories this week?',anchor),missing)['facts']['logged']==2200,'unknown macros preserve known calorie total')
 print(f'food thread facts: {checks} pure checks passed; no model/provider imports or calls')
 
 for text in ['Chicken salad for lunch, about 450 calories total','Had 2 eggs, 300 calories so far']:

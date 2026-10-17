@@ -28,6 +28,8 @@ class MessageIn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     client_id: UUID
     body: str = Field(min_length=1, max_length=4000)
+    media: Literal['text','photo','barcode'] = 'text'
+    barcode: str | None = Field(None,pattern=r'^\d{6,14}$')
     captured_at: AwareDatetime | None = None
 
     @field_validator('body')
@@ -54,7 +56,7 @@ def message_entries(c, uid, messages):
     if messages:
         ids = [m['id'] for m in messages]
         rows = c.execute('''SELECT l.message_id, e.id, e.day, e.meal, e.name, e.amount, e.unit,
-                              e.kcal, e.protein_g, e.carbs_g, e.fat_g, e.fiber_g, e.source
+                              e.kcal, e.protein_g, e.carbs_g, e.fat_g, e.fiber_g, e.source, e.ref
                             FROM food_chat_entries l JOIN food_entries e
                               ON e.id = l.entry_id AND e.user_id = l.user_id
                             WHERE l.user_id = %s AND l.message_id = ANY(%s)
@@ -91,6 +93,9 @@ def history(before: int | None = Query(None, gt=0), limit: int = Query(30, ge=1,
 def append(body: MessageIn, response: Response, user=Depends(current_user)):
     uid = user['id']
     with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+        if c.execute('SELECT 1 FROM food_chat_cancellations WHERE user_id=%s AND client_id=%s',(uid,body.client_id)).fetchone():
+            raise HTTPException(409,{'code':'message_cancelled','message':'This message was cancelled or deleted; it will not be sent again'})
         p = c.execute('SELECT tz FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
         captured = body.captured_at or dt.datetime.now(dt.timezone.utc)
         # A phone clock ahead of the server must not strand an offline message.
@@ -101,16 +106,19 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
             local_day = captured.astimezone(ZoneInfo(db.valid_tz(p.get('tz')) or db.DEFAULT_TZ)).date()
         except (ValueError, OverflowError):
             raise HTTPException(400, 'Message time is outside the supported range')
+        if body.media=='barcode' and not body.barcode:raise HTTPException(422,'Scan or type a barcode')
+        if body.media!='barcode' and body.barcode:raise HTTPException(422,'Use barcode input for a scanned product')
+        metadata={'input':{'kind':body.media,**({'barcode':body.barcode} if body.barcode else {})}} if body.media!='text' else None
         row = c.execute(f'''INSERT INTO food_chat_messages
-                            (user_id, client_id, kind, body, captured_at, local_day, state)
-                            VALUES (%s, %s, 'user', %s, %s, %s, 'pending')
+                            (user_id, client_id, kind, body, captured_at, local_day, state, result)
+                            VALUES (%s, %s, 'user', %s, %s, %s, 'pending', %s)
                             ON CONFLICT (user_id, client_id) DO NOTHING RETURNING {COLUMNS}''',
-                        (uid, body.client_id, body.body, captured, local_day)).fetchone()
+                        (uid, body.client_id, body.body, captured, local_day,json.dumps(metadata) if metadata else None)).fetchone()
         created = row is not None
         if not created:
             row = c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id = %s AND client_id = %s',
                             (uid, body.client_id)).fetchone()
-            if row['body'] != body.body or row['kind'] != 'user':
+            if row['body'] != body.body or row['kind'] != 'user' or (row.get('result') or {}).get('input') != (metadata or {}).get('input'):
                 raise HTTPException(409, 'That message identity was already used for different text')
         response.status_code = 201 if created else 200
         return {'message': message_entries(c, uid, [row])[0], 'created': created}
@@ -119,10 +127,12 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
 @router.delete('/messages/{mid}')
 def remove(mid: int, user=Depends(current_user)):
     with db.connect() as c:
-        found = c.execute('DELETE FROM food_chat_messages WHERE id = %s AND user_id = %s RETURNING id',
-                          (mid, user['id'])).fetchone()
-        if not found:
-            raise HTTPException(404, 'Message not found')
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+        found=c.execute('SELECT client_id,kind FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,user['id'])).fetchone()
+        if not found:raise HTTPException(404,'Message not found')
+        if found['kind']=='user':
+            c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(user['id'],found['client_id']))
+        c.execute('DELETE FROM food_chat_messages WHERE id=%s AND user_id=%s',(mid,user['id']))
     # Deleting conversation text is independent of deleting a logged food.
     return {'deleted': True, 'food_kept': True}
 
@@ -165,7 +175,7 @@ def finish_reply(c, uid, message, result):
     if row is None: raise HTTPException(409,'A reply already exists; reload this message')
     updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
                              WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
-                        (json.dumps({'kind':result['kind'],'reply_id':row['id']}),message['id'],uid)).fetchone()
+                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**({'input':message['result']['input']} if (message.get('result') or {}).get('input') else {})}),message['id'],uid)).fetchone()
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 
@@ -247,6 +257,9 @@ class ChoiceIn(BaseModel):
     portion: meal_chat.Portion | None = None
     select: int | None = Field(None,ge=0,lt=100)
     omit: list[int] | None = Field(None,max_length=100)
+    catalog: int | None = Field(None,ge=0,lt=10)
+    factor: float | None = Field(None,gt=0,le=100,allow_inf_nan=False)
+    new: StrictBool = False
 
 
 @router.post('/messages/{mid}/choose')
@@ -254,7 +267,9 @@ def choose_message(mid: int, body: ChoiceIn, response: Response, user=Depends(cu
     from . import food_thread_log as engine, food_thread_edit as edits
     with db.connect() as c:
         message=engine.locked_message(c,user['id'],mid)
-        result=edits.choose(c,user['id'],message,body.part,body.pick,body.portion,body.select,body.omit)
+        from . import food_thread_choices as choices
+        result=choices.choose(c,user['id'],message,body.part,body.pick,body.portion,body.catalog,body.factor,body.new)
+        if result is None:result=edits.choose(c,user['id'],message,body.part,body.pick,body.portion,body.select,body.omit)
         if result.get('changed'):response.status_code=409
         return result
 
@@ -271,3 +286,69 @@ def move_message(mid: int, body: DestinationIn, user=Depends(current_user)):
     with db.connect() as c:
         message=engine.locked_message(c,user['id'],mid)
         return edits.destination(c,user['id'],message,body.day,body.meal)
+
+
+class CancelIn(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    client_id: UUID
+
+
+@router.post('/cancel')
+def cancel_pending(body: CancelIn,user=Depends(current_user)):
+    from . import food_thread_log as engine
+    uid=user['id']
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+        message=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,body.client_id)).fetchone()
+        if message:
+            if message['kind']!='user':raise HTTPException(409,'Choose a message you sent')
+            reply=engine.stored_reply(c,uid,message)
+            result=(reply or {}).get('result') or {}
+            if message['state']=='answered' and not result.get('pending_count') and not result.get('cancelled'):
+                raise HTTPException(409,'This food is already saved. Use Undo on its card to remove it.')
+            c.execute("UPDATE food_chat_messages SET state='cancelled' WHERE id=%s AND user_id=%s",(message['id'],uid))
+            c.execute("UPDATE food_chat_jobs SET state='cancelled' WHERE message_id=%s AND user_id=%s",(message['id'],uid))
+            if reply:
+                result.update({'cancelled':True,'pending_count':0,'can_resolve':False,'text':'Stopped checking the remaining food. Already logged food is kept; use Undo to remove it.' if result.get('entry_ids') else 'Cancelled this food message.'})
+                c.execute('UPDATE food_chat_messages SET body=%s,result=%s WHERE id=%s AND user_id=%s',(result['text'],json.dumps(result,default=str),reply['id'],uid))
+        c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(uid,body.client_id))
+        return {'cancelled':True,'food_kept':bool(message and result.get('entry_ids'))}
+
+
+from .food_thread_models import ResolveIn as ThreadResolveIn
+
+
+@router.post('/messages/{mid}/resolve')
+def resolve_foods(mid: int,body: ThreadResolveIn,user=Depends(current_user)):
+    from . import food_thread_resolve as resolver
+    return resolver.resolve(user['id'],mid,body)
+
+
+class ManualItem(BaseModel):
+    model_config=ConfigDict(extra='forbid',allow_inf_nan=False)
+    name: str = Field(min_length=1,max_length=200)
+    amount: float = Field(1,gt=0,le=100000)
+    unit: str = Field('serving',max_length=40)
+    kcal: float = Field(ge=0,le=20000)
+    protein_g: float | None = Field(None,ge=0,le=2000)
+    carbs_g: float | None = Field(None,ge=0,le=2000)
+    fat_g: float | None = Field(None,ge=0,le=2000)
+    fiber_g: float | None = Field(None,ge=0,le=1000)
+
+
+class ManualIn(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    part: int = Field(0,ge=0,lt=100)
+    items: list[ManualItem] = Field(min_length=1,max_length=30)
+    confirm: StrictBool
+
+
+@router.post('/messages/{mid}/manual')
+def manual_food(mid:int,body:ManualIn,response:Response,user=Depends(current_user)):
+    if body.confirm is not True:raise HTTPException(400,'Tap Save to log these nutrition numbers')
+    from . import food_thread_choices as choices,food_thread_log as engine
+    with db.connect() as c:
+        message=engine.locked_message(c,user['id'],mid)
+        result=choices.manual(c,user['id'],message,body)
+        if result.get('changed'):response.status_code=409
+        return result
