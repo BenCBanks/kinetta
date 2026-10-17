@@ -19,8 +19,7 @@ that workstream T, Milestone 3 or the overall roadmap has passed acceptance or b
 
 **Release checkpoint:** The owner has authorized merging the reviewed PRs #124–163, production deployment and
 one TestFlight build from the final main commit. Review fixes, fresh isolated suites, fictional browser checks,
-actual database-upgrade checks and applicable unsigned iPhone builds passed. The final README correction is
-being checked before merging. Application PRs merge in dependency order, waiting for each next main retarget;
+actual database-upgrade checks and applicable unsigned iPhone builds passed. Final-head checks are required before each merge. Application PRs merge in dependency order, waiting for each next main retarget;
 #123 and #157 are independent documentation. Production and TestFlight outcomes belong in the release record;
 merge authorization alone does not mean a deployment or Apple processing has completed.
 
@@ -112,7 +111,10 @@ Roadmap placement expresses priority. It does not itself authorize publishing, d
    consent, cost and release gates stay in force; do not run paid evaluations automatically.
 3. Run the five-person, two-week beta and record help needed, food-log retention and workout arrival.
    Keep #98, #108 and #109 open until their actual acceptance evidence exists.
-4. When feature implementation is explicitly resumed, finish T3 Share extension UI/runtime and provisioning;
+4. Resolve public-launch operations under #98: app-wide security review, recovery and abuse limits, tested
+   backup restoration, monitoring and capacity/rollback evidence; confirm support, provider/audience rights,
+   maps/food-data quotas and store privacy metadata. These remain separate from merging feature PRs.
+5. When feature implementation is explicitly resumed, finish T3 Share extension UI/runtime and provisioning;
    resolve P2 provider rights/cost before integration; then reconcile L launch copy and M decision records.
    Do not call completed foundations a finished Share extension or a public-launch go decision.
 
