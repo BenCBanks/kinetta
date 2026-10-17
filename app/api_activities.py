@@ -763,7 +763,7 @@ def coach_week_get(user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute("SELECT period_start, text, created FROM coach_notes WHERE user_id = %s AND kind = 'week' ORDER BY period_start DESC LIMIT 1",
                       (user['id'],)).fetchone()
-    return {'enabled': coach.allowed(user['id']), 'latest': r}
+    return {'paused': not coach.ai_budget.enabled(), 'enabled': coach.allowed(user['id']), 'latest': r}
 
 
 @router.post('/coach/week')

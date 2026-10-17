@@ -100,3 +100,10 @@ Corrections remember the food visible when you began typing, including after a
 draft reload or an offline delay. If that card disappeared, choose one of your
 logged foods. A changed held preview refreshes its numbers and asks you to tap Log
 again; it does not save changed numbers in the first tap.
+
+Picker receipts are opt-in for food logged from the conversation. Ordinary day-view
+adds and copies do not create chat messages. Restoring a deleted item relinks the
+restored food to its original conversation card without creating a second card.
+A completed server save stays successful even if a phone cannot redraw its card.
+When an earlier correction target was removed, the conversation offers up to five
+recent foods to choose from, preserving the requested correction.

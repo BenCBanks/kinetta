@@ -24,7 +24,7 @@ function todayFoodCard(box) {
     if (!box.isConnected) return;
     App.mealHours = D.meal_hours || App.mealHours;
     const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
-    const meal = [guessMeal(), ...Object.keys(MEAL_NAMES)].find(m => !D.entries.some(e => e.meal === m));
+    const meal = Object.keys(MEAL_NAMES).slice(Object.keys(MEAL_NAMES).indexOf(guessMeal())).find(m => !D.entries.some(e => e.meal === m));
     const workouts = D.burned?.items || [];
     const macroEnergy = (T.protein_g || 0)*4 + (T.carbs_g || 0)*4 + (T.fat_g || 0)*9;
     box.innerHTML = `<section class="card home-today" aria-label="Today’s food"><h2>Today<a class="more" href="/food">Food log ›</a></h2>
@@ -67,10 +67,11 @@ function yesterdayMeal(day, meal) {
           close(); Native.haptic('light');
           if (!result.queued) {
             let busy = false, done = false;
+            const remaining = new Set(result.ids);
             const undo = async () => {
               if (busy || done || readOwner() !== owner) return;
               busy = true;
-              try { await Promise.all(result.ids.map(id => api(`/api/food/entries/${id}`, {method:'DELETE'}))); done = true; refresh(); toast('Meal removed'); }
+              try { for (const id of remaining) { if (readOwner() !== owner) return; try { await api(`/api/food/entries/${id}`, {method:'DELETE'}); } catch(e) { if(e.status !== 404) throw e; } remaining.delete(id); } done = true; refresh(); toast('Meal removed'); }
               catch(x) { if (readOwner() === owner) toast('Could not undo · try again',undo); }
               finally { busy = false; }
             };
@@ -237,9 +238,10 @@ function drawDay(el, D) {
 const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit === 'dish' ? 'meal' : e.unit}`);
 const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
 
-async function addEntries(items) {   // each item gets a client_id, so a resend after a lost connection never doubles it
+async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
   items = items.map((it) => ({...it, client_id: it.client_id || newId()}));
-  const r = await sendOrQueue('/api/food/entries?thread=true&captured_at='+encodeURIComponent(new Date().toISOString()), 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
+  const query=new URLSearchParams();if(thread){query.set('thread','true');query.set('captured_at',new Date().toISOString());}if(restoreFrom)query.set('restore_from',restoreFrom);
+  const r = await sendOrQueue('/api/food/entries'+(query.size?'?'+query:''), 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
   if (r.queued) {   // offline: show them now, marked "waiting to send"
     for (const it of items) patchDay(it.day, (d) => {
       d.entries.push({...it, id: 'q-' + it.client_id, pending: true});
@@ -247,7 +249,7 @@ async function addEntries(items) {   // each item gets a client_id, so a resend 
     });
     if(location.pathname!=='/food/describe')render(); toast('Saved on this phone - it sends when you are back online'); return {queued: true};
   }
-  if(typeof FoodThread!=='undefined'&&r.messages)await FoodThread.accept(r);
+  if(typeof FoodThread!=='undefined'&&r.messages){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
   refresh(); return r;
 }
 async function copyDay(from, to, meal) {
@@ -299,7 +301,7 @@ async function removeFoodEntry(e, {button, after} = {}) {
     const undo = async () => {
       if (restoring || restored || readOwner() !== owner) return;
       restoring = true;
-      try { await addEntries([entry]); restored = true; }
+      try { await addEntries([entry],{restoreFrom:e.id}); restored = true; }
       catch (x) { if (readOwner() === owner) toast(`Couldn’t restore ${e.name}: ${x.message}`, undo); }
       finally { restoring = false; }
     };
@@ -349,7 +351,7 @@ function entrySheet(e, day) {
       if(owner!==readOwner()){close();return;}
       const btn = $('#es-again', b); if (btn.disabled) return; btn.disabled = true;
       try { await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
-        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g, source: e.source, ref: e.ref}]); close(); toast(`Logged ${e.name} again today`); }
+        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g, source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(`Logged ${e.name} again today`); }
       catch (x) { toast(x.message); if (btn.isConnected) btn.disabled = false; }
     };
   });
@@ -456,7 +458,7 @@ async function tUsuals(body, where, close) {
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
       try { const result=await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
-        fat_g: l.fat_g, fiber_g: l.fiber_g, source: 'recent', ref: l.ref || null}]); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
+        fat_g: l.fat_g, fiber_g: l.fiber_g, source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
@@ -521,7 +523,7 @@ function savedSheet(m, w, closeParent, after) {
       if (!k) { toast('How many servings?'); return; }
       const sc = (v) => (v == null ? null : v * k);
       const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}));
-      try { await addEntries(items); close(); closeParent(); toast(`Added ${m.name}`); } catch (x) { toast(x.message); }
+      try { await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
       if (!confirm(`Delete the saved meal ${m.name}?`)) return;
@@ -545,7 +547,7 @@ function tQuick(body, where, close) {
     it.kcal = f.kcal.value.trim() ? n(f.kcal) : Math.round(it.protein_g * 4 + it.carbs_g * 4 + it.fat_g * 9);
     if (!it.kcal && !it.protein_g) { toast('Enter calories or macros'); return; }
     button.disabled=true;
-    try { const result=await addEntries([{...it, ...where()}]); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`); } catch (x) { toast(x.message);button.disabled=false; }
+    try { const result=await addEntries([{...it, ...where()}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`); } catch (x) { toast(x.message);button.disabled=false; }
   };
 }
 
@@ -596,7 +598,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
       e.preventDefault(); const a = parseFloat(fm.amount.value); if (!(a > 0)) { toast('Enter an amount'); return; }
       const v = calc();
       const ref = {origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
-      try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}]);
+      try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}],{thread:location.pathname==='/food/describe'});
         close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`); } catch (x) { toast(x.message); }
     };
   });
@@ -661,7 +663,7 @@ function describeSheet(day, meal) {
   go(`/food/describe?d=${encodeURIComponent(day)}&meal=${encodeURIComponent(meal)}`);
 }
 route(/^\/food\/describe$/, 'food', (el) => {
-  if(typeof FoodThread!=='undefined')return FoodThread.page(el);
+  if(typeof FoodThread!=='undefined')return FoodThread.page(el,{day:new URLSearchParams(location.search).get('d'),meal:new URLSearchParams(location.search).get('meal')});
   const q = new URLSearchParams(location.search), day = /^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '') ? q.get('d') : isoDay(new Date());
   describePage(el, day, Object.hasOwn(MEAL_NAMES, q.get('meal')) ? q.get('meal') : guessMeal());
 });
@@ -1341,6 +1343,7 @@ function dietCoachContent(box) {
         <button class="primary wide" id="dc-go">${svg('sparkle')}Review my eating</button></div>`;
     const b = $('#dc-go', box);
     if (!aiCan('coach')) { if (L) b.remove(); else box.innerHTML = ''; return; }
+    if (r.paused) { b.replaceWith(Object.assign(document.createElement('p'), {className:'small muted',textContent:'AI is paused. Search, barcodes and manual logging still work.'})); return; }
     b.onclick = async () => {
       if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
       b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';

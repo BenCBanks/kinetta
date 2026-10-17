@@ -18,6 +18,8 @@ buttons[1].onclick();assert.equal(calls.pop(),'camera');assert.deepEqual(calls.p
 buttons[2].onclick();assert.deepEqual(calls.pop(),['scan','2026-10-17','lunch']);buttons[3].onclick();assert.deepEqual(calls.pop(),['usual','2026-10-17','lunch']);
 context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:431,protein_g:25,carbs_g:54,fat_g:13},goal:{kcal:2000},targets:{protein_target:120},burned:{items:[{id:42,name:'Morning run',sport:'run',distance_m:5200,kcal:541,estimated:true}]}};
 context.todayFoodCard(box);assert.match(box.innerHTML,/Calories left/);assert.match(box.innerHTML,/1?570|1570/);assert.match(box.innerHTML,/home-macro-bar/);assert.match(box.innerHTML,/25 g \/ 120 g/);assert.match(box.innerHTML,/activity\/42/);assert.match(box.innerHTML,/540 kcal burned · estimated/);
+context.day.entries=[{meal:'lunch'}];context.todayFoodCard(box);assert.match(box.innerHTML,/Dinner · nothing yet/);assert.doesNotMatch(box.innerHTML,/Breakfast · nothing yet/);
+context.day.entries.push({meal:'dinner'},{meal:'snacks'});context.todayFoodCard(box);assert.doesNotMatch(box.innerHTML,/Same as yesterday/);
 box.isConnected=false;box.innerHTML='left';context.todayFoodCard(box);assert.equal(box.innerHTML,'left');
 console.log('home food: useful empty state, totals, macros, direct describe/camera/scan/usual meal and day, workout link, detached-view guard PASS');
 

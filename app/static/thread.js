@@ -2,7 +2,7 @@
 // the outbox keeps user intent durable before clearing the composer.
 'use strict';
 const FoodThread = (() => {
-  let current = null;
+  let current = null, privacyEpoch = 0;
   const ownerKey = () => App.me ? JSON.stringify([Native.base || location.origin, App.me.id]) : null;
   const uuid = () => { if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(n=>n.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`; };
   const cacheKey = owner => 'fit.thread.history:'+owner;
@@ -11,16 +11,15 @@ const FoodThread = (() => {
   const active = ctx => current===ctx && ctx.el.isConnected && ctx.owner===ownerKey() && ctx.session===readOwner();
   function remember(ctx) { store.set(cacheKey(ctx.owner),ctx.messages.slice(-80)); }
   async function merge(owner,data,write=true) {
-    if(owner===ownerKey())invalidate('/api/food');
+    if(write&&owner===ownerKey())invalidate('/api/food');
     const ctx=current;
     if(!ctx || ctx.owner!==owner || !active(ctx))return;
     if(write)ctx.epoch++;
     const rows=[...(data.messages||[]),...(data.message?[data.message]:[]),...(data.updated_message?[data.updated_message]:[])];
     for(const m of rows){const i=ctx.messages.findIndex(x=>x.id===m.id);if(i<0)ctx.messages.push(m);else ctx.messages[i]=m;}
     ctx.messages.sort((a,b)=>a.id-b.id);remember(ctx);draw(ctx);
-    invalidate('/api/food');
   }
-  const outbox=foodOutbox({db:ThreadDB,request:(path,body)=>api(path,json('POST',body)),session:readOwner,changed:merge});
+  const outbox=foodOutbox({db:ThreadDB,request:(path,body)=>api(path,json('POST',body)),session:()=>readOwner()+':'+privacyEpoch,changed:merge});
   async function flush(ctx=null) {
     const owner=ctx?.owner||ownerKey();
     if(!owner||owner!==ownerKey()||(ctx&&ctx.session!==readOwner()))return;
@@ -70,8 +69,8 @@ const FoodThread = (() => {
     return `<div class="thread-card" data-mid="${root.id}">${meal&&day&&!removed?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
       ${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':'Saved on this phone. Waiting to send…'))}</p>`:''}
       ${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
-      ${r.error?`<p class="thread-error">${esc(r.error)}</p>`:''}${!r.cancelled&&(r.kind==='needs'||r.pending_count)?choices(r):''}
-      <div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${r.error?'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>':''}<button type="button" class="linkbtn" data-more>More</button></div></div>`;
+      ${r.error?`<p class="thread-error">${esc(r.error.message||r.error)}</p>`:''}${!r.cancelled&&(r.kind==='needs'||r.pending_count)?choices(r):''}
+      <div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${r.error||r.parts?.some(p=>p.needs_photo)?(root.result?.input?.kind==='photo'?'<button type="button" class="linkbtn" data-reattach>Add the photo again</button>':'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>'):''}<button type="button" class="linkbtn" data-more>More</button></div></div>`;
   }
   function primary(ctx){
     if(!active(ctx))return;$('#thread-suggestions',ctx.el).hidden=!!$('#thread-text',ctx.el).value.trim();const logs=$$('[data-action="log"]',ctx.el),held=!$('#thread-text',ctx.el).value.trim()?logs.at(-1):null;
@@ -123,6 +122,7 @@ const FoodThread = (() => {
   }
   function wireCard(ctx,node,m,reply){
     const r={...(reply?.result||{}),...(reply?.entries?.[0]?{day:reply.entries[0].day,meal:reply.entries[0].meal}:{})};
+    const reattach=$('[data-reattach]',node);if(reattach)reattach.onclick=()=>{ctx.photoRetry=m.id;const file=$('#ql-file',ctx.el);file.removeAttribute('capture');file.click();};
     $$('[data-action]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,b.dataset.action,b.dataset.action==='log'?{confirm:true}:b.dataset.action==='resolve'?{retry:true}:{});}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
     $$('[data-choice]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,'choose',JSON.parse(b.dataset.choice));}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
     $$('[data-entry]',node).forEach(b=>b.onclick=()=>{entrySheet(reply.entries[+b.dataset.entry],reply.entries[+b.dataset.entry].day);});
@@ -136,7 +136,7 @@ const FoodThread = (() => {
   }
   function destination(ctx,m,r){sheet('Meal and day',`<form class="form" id="thread-destination"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k,v])=>`<option value="${k}"${k===r.meal?' selected':''}>${v}</option>`).join('')}</select></label><label>Day<input name="day" type="date" value="${esc(r.day)}" required></label><button class="primary wide">Save</button></form>`,(b,close)=>{$('#thread-destination',b).onsubmit=async e=>{e.preventDefault();try{await action(ctx,m.id,'destination',{meal:e.target.meal.value,day:e.target.day.value},'PUT');close();}catch(e){toast(e.message);}};});}
   function portion(ctx,m,index){sheet('Set portion','<form class="form" id="thread-portion"><label>Amount<input name="amount" type="number" min="0.01" step="any" required inputmode="decimal"></label><label>Unit<select name="unit"><option value="count">Servings</option><option value="grams">Grams</option><option value="share">Share of the whole (0.5 = half)</option></select></label><button class="primary wide">Use this portion</button></form>',(b,close)=>{$('#thread-portion',b).onsubmit=async e=>{e.preventDefault();try{await action(ctx,m.id,'choose',{part:index,portion:{[e.target.unit.value]:+e.target.amount.value}});close();}catch(e){toast(e.message);}};});}
-  function manual(ctx,m,index){sheet('Enter nutrition',`<form class="form" id="thread-manual"><label>Food<input name="name" value="${esc(m.body.slice(0,200))}" maxlength="200" required></label>${macroInputs()}<p>Enter calories. Leave nutrients blank if you don’t know them; blank means unknown.</p><button class="primary wide">Log these numbers</button></form>`,(b,close)=>{$('#thread-manual',b).onsubmit=async e=>{e.preventDefault();const f=e.target,item={name:f.name.value,amount:1,unit:'serving'};for(const k of ['kcal','protein_g','carbs_g','fat_g','fiber_g'])item[k]=f[k].value.trim()===''?null:Number(f[k].value);try{await action(ctx,m.id,'manual',{part:index,items:[item],confirm:true});close();}catch(e){toast(e.message);}};});}
+  function manual(ctx,m,index){sheet('Enter nutrition',`<form class="form" id="thread-manual"><label>Food<input name="name" value="${esc(m.body.slice(0,200))}" maxlength="200" required></label>${macroInputs()}<p>Enter calories. Leave nutrients blank if you don’t know them; blank means unknown.</p><button class="primary wide">Log these numbers</button></form>`,(b,close)=>{$('#thread-manual',b).onsubmit=async e=>{e.preventDefault();const f=e.target,item={name:f.name.value,amount:1,unit:'serving'};for(const k of ['kcal','protein_g','carbs_g','fat_g','fiber_g'])item[k]=f[k].value.trim()===''?null:Number(f[k].value);if(item.kcal===null||!Number.isFinite(item.kcal)||item.kcal<0){f.kcal.setCustomValidity('Enter calories before logging.');f.kcal.reportValidity();f.kcal.oninput=()=>f.kcal.setCustomValidity('');return;}try{await action(ctx,m.id,'manual',{part:index,items:[item],confirm:true});close();}catch(e){toast(e.message);}};});}
   async function refresh(ctx,before=null){
     if(!active(ctx))return;
     const epoch=ctx.epoch,version=++ctx.readVersion;
@@ -153,41 +153,42 @@ const FoodThread = (() => {
   async function send(ctx,{body,media='text',barcode,images}={}) {
     if(!active(ctx))return;const field=$('#thread-text',ctx.el),text=(body||field.value).trim();if(!text)return;
     if(text.length>4000){status(ctx,'Keep this message under 4,000 characters.');return;}
-    const job={id:uuid(),body:text,at:new Date().toISOString(),media,barcode,images,phase:'process',context:ctx.context||latestContext(ctx)};
+    const job={id:uuid(),body:text,at:new Date().toISOString(),media,barcode,images,phase:'process',context:ctx.context||latestContext(ctx),...(ctx.day?{day:ctx.day}:{}),...(ctx.meal?{meal:ctx.meal}:{})};
     const button=$('#thread-send',ctx.el);if(button.disabled)return;button.disabled=true;
     try{await ThreadDB.put(ctx.owner,job.id,job);if(!active(ctx))return;
-      if(!body||field.value.trim()===text){field.value='';store.del(draftKey(ctx.owner));ctx.context=null;store.del(contextKey(ctx.owner));}
+      if(!body||field.value.trim()===text){field.value='';store.del(draftKey(ctx.owner));}ctx.context=null;store.del(contextKey(ctx.owner));
       ctx.jobs=await ThreadDB.list(ctx.owner);ctx.follow=true;draw(ctx);status(ctx,'Saved on this phone.');Native.haptic();flush(ctx);
     }catch(e){status(ctx,e.message);}finally{if(active(ctx))button.disabled=false;}
   }
   function preferences(ctx){const p=ctx.preferences||{auto_log:true,tone:'supportive'};sheet('Food chat settings',`<form class="form" id="thread-preferences"><label class="check"><input type="checkbox" name="auto"${p.auto_log?' checked':''}>Log ready foods automatically</label><p>Uncertain food waits for a detail. Every logged card has Undo and Edit.</p><label>Feedback<select name="tone"><option value="supportive"${p.tone==='supportive'?' selected':''}>Supportive</option><option value="numbers"${p.tone==='numbers'?' selected':''}>Just the numbers</option></select></label><button class="primary wide">Save settings</button></form>`,(b,close)=>{$('#thread-preferences',b).onsubmit=async e=>{e.preventDefault();if(!active(ctx))return;try{const value={auto_log:e.target.auto.checked,tone:e.target.tone.value};await api('/api/food/thread/preferences',json('PUT',value));ctx.preferences=value;close();toast('Food chat settings saved');}catch(e){toast(e.message);}};});}
-  function page(el){
-    const owner=ownerKey(),ctx={el,owner,session:readOwner(),messages:store.get(cacheKey(owner))||[],context:store.get(contextKey(owner)),jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current=ctx;
+  function page(el,{day,meal}={}){
+    const owner=ownerKey(),ctx={el,owner,day:/^\d{4}-\d{2}-\d{2}$/.test(day||'')?day:null,meal:Object.hasOwn(MEAL_NAMES,meal)?meal:null,session:readOwner(),messages:store.get(cacheKey(owner))||[],context:store.get(contextKey(owner)),jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current=ctx;
     el.classList.add('food-thread');el.setAttribute('aria-live','off');
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><button type="button" class="linkbtn" id="thread-settings">Settings</button></header><h1>Food chat</h1><p class="thread-intro">Your food, in your words.</p><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Say “2 eggs and toast” or ask how your day is going. Use your keyboard’s microphone to dictate.</p></div><form id="thread-composer" class="thread-composer"><div class="thread-shortcuts" id="thread-suggestions"><div id="thread-usual-suggestion"></div><button type="button" class="ghost" id="thread-usuals">Your usuals</button><button type="button" class="ghost" id="thread-recipes">My Recipes</button></div><div class="thread-tools"><button type="button" class="linkbtn" data-tool="snap">${svg('camera')}Snap</button><button type="button" class="linkbtn" data-tool="library">Photo library</button><button type="button" class="linkbtn" data-tool="scan">${svg('barcode')}Scan</button><button type="button" class="linkbtn" data-tool="paste">Paste</button><button type="button" class="linkbtn" id="thread-search">Search / numbers</button></div><label class="vh" for="thread-text">Message about your food</label><div class="thread-compose-row"><textarea id="thread-text" rows="2" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary" id="thread-send">Send</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><button type="button" class="linkbtn" id="thread-settings">Settings</button></header><h1>Food chat</h1><p class="thread-intro">${ctx.day||ctx.meal?`Logging to ${esc(MEAL_NAMES[ctx.meal]||'your chosen meal')} · ${esc(dayLabel(ctx.day||isoDay(new Date())))}`:'Your food, in your words.'}</p><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Say “2 eggs and toast” or ask how your day is going. Use your keyboard’s microphone to dictate.</p></div><form id="thread-composer" class="thread-composer"><div class="thread-shortcuts" id="thread-suggestions"><div id="thread-usual-suggestion"></div><button type="button" class="ghost" id="thread-usuals">Your usuals</button><button type="button" class="ghost" id="thread-recipes">My Recipes</button></div><div class="thread-tools"><button type="button" class="linkbtn" data-tool="snap">${svg('camera')}Snap</button><button type="button" class="linkbtn" data-tool="library">Photo library</button><button type="button" class="linkbtn" data-tool="scan">${svg('barcode')}Scan</button><button type="button" class="linkbtn" data-tool="paste">Paste</button><button type="button" class="linkbtn" id="thread-search">Search / numbers</button></div><label class="vh" for="thread-text">Message about your food</label><div class="thread-compose-row"><textarea id="thread-text" rows="2" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary" id="thread-send">Send</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
     const field=$('#thread-text',el);field.value=store.get(draftKey(owner))||'';
     field.oninput=()=>{if(!field.value.trim()){ctx.context=null;store.del(contextKey(owner));}else if(!ctx.context){ctx.context=latestContext(ctx);if(ctx.context)store.set(contextKey(owner),ctx.context);}primary(ctx);try{localStorage.setItem(draftKey(owner),JSON.stringify(field.value));}catch(e){status(ctx,'Draft storage is full. Keep this screen open until you send.');}};
     $('#thread-composer',el).onsubmit=e=>{e.preventDefault();send(ctx);};
     $('#thread-settings',el).onclick=()=>preferences(ctx);
-    $('#thread-usuals',el).onclick=()=>addSheet(isoDay(new Date()),guessMeal());
-    $('#thread-recipes',el).onclick=()=>addSheet(isoDay(new Date()),guessMeal(),'','saved');
-    $('#thread-search',el).onclick=()=>addSheet(isoDay(new Date()),guessMeal(),'','search');
+    $('#thread-usuals',el).onclick=()=>addSheet(ctx.day||isoDay(new Date()),ctx.meal||guessMeal());
+    $('#thread-recipes',el).onclick=()=>addSheet(ctx.day||isoDay(new Date()),ctx.meal||guessMeal(),'','saved');
+    $('#thread-search',el).onclick=()=>addSheet(ctx.day||isoDay(new Date()),ctx.meal||guessMeal(),'','search');
     $('#thread-older',el).onclick=async()=>{const list=$('#thread-messages',el),h=list.scrollHeight,y=list.scrollTop;ctx.pauseFollow=true;try{await refresh(ctx,ctx.before);if(active(ctx))list.scrollTop=y+list.scrollHeight-h;}finally{ctx.pauseFollow=false;}};
-    const file=$('#ql-file',el);file.onchange=()=>{const files=[...file.files];file.value='';reviewFoodPhotos(files,images=>send(ctx,{body:field.value.trim()||'Photo of food',media:'photo',images}),{active:()=>active(ctx)});};
+    const file=$('#ql-file',el);file.onchange=()=>{const files=[...file.files];file.value='';const retry=ctx.photoRetry;ctx.photoRetry=null;reviewFoodPhotos(files,images=>retry?action(ctx,retry,'resolve',{retry:true,images}).catch(e=>toast(e.message)):send(ctx,{body:field.value.trim()||'Photo of food',media:'photo',images}),{active:()=>active(ctx)});};
     $$('[data-tool]',el).forEach(b=>b.onclick=()=>{const tool=b.dataset.tool;
       if(tool==='snap'||tool==='library'){if(!aiCan('food')){status(ctx,'Food photos need AI access and your consent. You can type, search or enter numbers instead.');return;}if(tool==='snap')file.setAttribute('capture','environment');else file.removeAttribute('capture');file.click();}
-      if(tool==='scan')scanSheet(isoDay(new Date()),guessMeal(),null,code=>send(ctx,{body:'Scanned product '+code,media:'barcode',barcode:code}));
+      if(tool==='scan')scanSheet(ctx.day||isoDay(new Date()),ctx.meal||guessMeal(),null,code=>send(ctx,{body:'Scanned product '+code,media:'barcode',barcode:code}));
       if(tool==='paste'){field.focus();status(ctx,'Paste text with your keyboard, or choose a photo from Photo library.');if(navigator.clipboard?.readText)navigator.clipboard.readText().then(text=>{if(active(ctx)&&text){field.value=(field.value+text).slice(0,4000);field.oninput();}}).catch(()=>{});}
     });
     draw(ctx);const tool=new URLSearchParams(location.search).get('tool');
-    if(tool&&['snap','scan','library'].includes(tool)) $('[data-tool="'+tool+'"]',el).click();else field.focus({preventScroll:true});
+    if(tool&&['snap','scan','library'].includes(tool)){const url=new URL(location.href);url.searchParams.delete('tool');history.replaceState(history.state,'',url.pathname+url.search+url.hash);$('[data-tool="'+tool+'"]',el).click();}else field.focus({preventScroll:true});
     ThreadDB.list(owner).then(jobs=>{if(active(ctx)){ctx.jobs=jobs;draw(ctx);flush(ctx);}}).catch(e=>status(ctx,e.message));
-    api('/api/food/usual').then(foods=>{if(!active(ctx)||!foods.length)return;const food=foods[0],box=$('#thread-usual-suggestion',el);box.innerHTML=`<button type="button" class="ghost">Log ${esc(food.name)} · ${esc(fmtAmount(food))}</button>`;box.querySelector('button').onclick=async e=>{if(!active(ctx))return;const button=e.currentTarget;button.disabled=true;try{const {name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}=food;const result=await addEntries([{day:isoDay(new Date()),meal:guessMeal(),name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}]);toast(result.queued?'Usual portion saved on this phone · waiting to send':'Usual portion logged. Undo is on its card.');}catch(e){toast(e.message);}finally{if(button.isConnected)button.disabled=false;}};}).catch(()=>{});
+    api('/api/food/usual').then(foods=>{if(!active(ctx)||!foods.length)return;const food=foods[0],box=$('#thread-usual-suggestion',el);box.innerHTML=`<button type="button" class="ghost">Log ${esc(food.name)} · ${esc(fmtAmount(food))}</button>`;box.querySelector('button').onclick=async e=>{if(!active(ctx))return;const button=e.currentTarget;button.disabled=true;try{const {name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}=food;const result=await addEntries([{day:ctx.day||isoDay(new Date()),meal:ctx.meal||guessMeal(),name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source:'recent',ref}],{thread:true});toast(result.queued?'Usual portion saved on this phone · waiting to send':'Usual portion logged. Undo is on its card.');}catch(e){toast(e.message);}finally{if(button.isConnected)button.disabled=false;}};}).catch(()=>{});
     refresh(ctx);
   }
   addEventListener('online',()=>flush());
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&current&&active(current)){refresh(current);flush(current);}});
   setInterval(()=>flush(),5000);
-  async function eraseDevice(){const owner=ownerKey();if(!owner)return;await ThreadDB.erase(owner);store.del(cacheKey(owner));store.del(draftKey(owner));store.del(contextKey(owner));if(current?.owner===owner){current.messages=[];current.jobs=[];draw(current);}}
-  return {page,eraseDevice,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
+  async function pendingCount(){const owner=ownerKey();return owner?(await ThreadDB.list(owner)).length+(String(store.get(draftKey(owner))||'').trim()?1:0):0;}
+  async function eraseDevice(){const owner=ownerKey();if(!owner)return;privacyEpoch++;const view=current;if(view?.owner===owner){view.messages=[];view.jobs=[];view.el.replaceChildren();current=null;}let failure;try{await ThreadDB.erase(owner);}catch(e){failure=e;}finally{for(const key of [cacheKey(owner),draftKey(owner),contextKey(owner)]){try{localStorage.removeItem(key);}catch(e){failure=failure||e;}}}if(failure)throw failure;}
+  return {page,eraseDevice,pendingCount,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
 })();

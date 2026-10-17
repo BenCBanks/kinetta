@@ -14,9 +14,17 @@ function goalDraft() {
     const m = App.me;
     goalDrafts.set(key, {goal: m.nutrition_goal || '', pace_percent: m.goal_pace_percent ?? .5,
       activity_factor: m.activity_factor || 1.2, weight_kg: m.weight_kg ?? null,
-      height_cm: m.height_cm ?? null, birth_year: m.birth_year ?? null, sex: m.sex || null});
+      height_cm: m.height_cm ?? null, birth_year: m.birth_year ?? null, sex: m.sex || null, edited: new Set()});
   }
-  return goalDrafts.get(key);
+  const draft = goalDrafts.get(key);
+  for (const k of ['activity_factor','weight_kg','height_cm','birth_year','sex']) {
+    if (!draft.edited.has(k)) draft[k] = App.me[k] ?? (k === 'activity_factor' ? 1.2 : null);
+  }
+  return draft;
+}
+function goalPayload(draft) {
+  return {goal:draft.goal, pace_percent:draft.pace_percent,
+    ...Object.fromEntries([...draft.edited].map(k=>[k,draft[k]]))};
 }
 const watchSetupNote = 'Have a watch? Apple Watch, Garmin and others can send workouts through Apple Health. Optional.';
 route(/^\/food\/setup$/, 'food', async (el) => {
@@ -35,10 +43,10 @@ route(/^\/food\/setup$/, 'food', async (el) => {
       <div id="gs-pace" hidden><label>Weekly pace<select name="pace_percent">
         ${[[0, 'Keep weight steady'], [.25, 'Gentle · 0.25% of body weight'], [.5, 'Steady · 0.5% of body weight'], [1, 'Up to 1% of body weight']].map(([n,label]) => `<option value="${n}"${draft.pace_percent === n ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
         <p class="small muted">Per week. Your calorie suggestion will never go below estimated resting burn; that may mean a slower pace.</p></div>
-      <label>Everyday activity<select name="activity_factor">${[[1.2,'Mostly sitting'],[1.3,'Some walking and standing'],[1.45,'On my feet a lot']].map(([n,label]) => `<option value="${n}"${draft.activity_factor === n ? ' selected' : ''}>${label}</option>`).join('')}</select><small class="muted">Outside workouts; exercise is not included in this estimate.</small></label>
+      <label>Everyday activity<select name="activity_factor">${ACTIVITY_LEVELS.map(([n,label]) => `<option value="${n}"${Math.abs(draft.activity_factor - n) < .01 ? ' selected' : ''}>${label}</option>`).join('')}</select><small class="muted">Outside workouts; exercise is not included in this estimate.</small></label>
       <details class="goal-body"><summary>Body details · optional</summary><p class="small muted">Private. These improve the estimate. Leaving them out is fine.</p>
-        <div class="goal-fields"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" type="number" inputmode="decimal" step="any" min="${imp() ? 55.116 : 25}" max="${imp() ? 661.386 : 300}" value="${draft.weight_kg == null ? '' : +(draft.weight_kg * (imp() ? 2.20462 : 1)).toFixed(1)}"></label>
-        <label>Height (${imp() ? 'in' : 'cm'})<input name="height" type="number" inputmode="decimal" step="any" min="${imp() ? 39.37 : 100}" max="${imp() ? 98.43 : 250}" value="${draft.height_cm == null ? '' : +(draft.height_cm / (imp() ? 2.54 : 1)).toFixed(1)}"></label>
+        <div class="goal-fields"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" type="number" inputmode="decimal" step="any" min="${imp() ? 25 * 2.20462 : 25}" max="${imp() ? 300 * 2.20462 : 300}" value="${draft.weight_kg == null ? '' : +(draft.weight_kg * (imp() ? 2.20462 : 1)).toFixed(1)}"></label>
+        <label>Height (${imp() ? 'in' : 'cm'})<input name="height" type="number" inputmode="decimal" step="any" min="${imp() ? 100 / 2.54 : 100}" max="${imp() ? 250 / 2.54 : 250}" value="${draft.height_cm == null ? '' : +(draft.height_cm / (imp() ? 2.54 : 1)).toFixed(1)}"></label>
         <label>Birth year<input name="birth_year" type="number" inputmode="numeric" min="1920" max="${new Date().getFullYear() - 18}" value="${draft.birth_year ?? ''}"></label>
         <label>Sex for estimates<select name="sex"><option value="">Not specified</option><option value="female"${draft.sex === 'female' ? ' selected' : ''}>Female</option><option value="male"${draft.sex === 'male' ? ' selected' : ''}>Male</option></select></label></div></details>
       <p class="small muted">${watchSetupNote}</p>
@@ -46,18 +54,20 @@ route(/^\/food\/setup$/, 'food', async (el) => {
       <div class="goal-actions"><button class="primary wide" type="submit">See my estimate</button><button type="button" class="linkbtn wide" id="gs-skip">Not now</button></div></form></div>`;
     wireBack(el, '/food');
     const f = $('#gs-form', el), initialWeight = f.elements.weight.value, initialHeight = f.elements.height.value;
-    const capture = () => {
+    const capture = (event) => {
+      const key = {weight:'weight_kg',height:'height_cm',birth_year:'birth_year',sex:'sex',activity_factor:'activity_factor'}[event?.target?.name];
+      if (key) draft.edited.add(key);
       const num = name => f.elements[name].value === '' ? null : Number(f.elements[name].value);
       Object.assign(draft, {goal:f.elements.goal.value, pace_percent:Number(f.elements.pace_percent.value), activity_factor:Number(f.elements.activity_factor.value),
         weight_kg:f.elements.weight.value === initialWeight ? original.weight_kg : num('weight') == null ? null : num('weight') / (imp() ? 2.20462 : 1), height_cm:f.elements.height.value === initialHeight ? original.height_cm : num('height') == null ? null : num('height') * (imp() ? 2.54 : 1), birth_year:num('birth_year'), sex:f.elements.sex.value || null});
       $('#gs-pace', el).hidden = !['lose_weight','build_muscle'].includes(draft.goal);
     };
     f.oninput = capture;
-    f.onchange = e => { capture(); if (e.target.name === 'goal') Native.haptic?.('selection'); };
+    f.onchange = e => { capture(e); if (e.target.name === 'goal') Native.haptic?.('selection'); };
     capture(); $('#gs-skip', el).onclick = skip;
     f.onsubmit = async e => {
       e.preventDefault(); capture(); if (!f.reportValidity()) return;
-      const sent = ++revision, data = {...draft};
+      const sent = ++revision, data = goalPayload(draft);
       if (!['lose_weight','build_muscle'].includes(data.goal)) data.pace_percent = 0;
       const button = f.querySelector('[type=submit]'); button.disabled = true;
       // Immediate in-place feedback while retaining the draft and all navigation.
@@ -98,8 +108,10 @@ route(/^\/food\/setup$/, 'food', async (el) => {
       const button = f.querySelector('[type=submit]'); button.disabled = true; button.textContent = 'Saving…';
       try {
         const saved = await api('/api/food/goal-setup',json('PUT',body));
+        goalDrafts.delete(owner);
+        if (readOwner() !== owner) return;
+        refreshMe({...App.me,...saved.profile}); invalidate('/api/food');
         if (!here()) return;
-        refreshMe({...App.me,...saved.profile}); invalidate('/api/food'); goalDrafts.delete(owner);
         Native.haptic?.('success'); toast('Targets saved'); go('/food');
       } catch (x) { if (here()) message(x.message); }
       finally { if (button.isConnected) { button.disabled = false; button.textContent = 'Save targets'; } }
