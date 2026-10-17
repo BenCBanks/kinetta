@@ -71,11 +71,12 @@ def bmr(kg, height_cm, birth_year, sex, year):
     return 10 * kg + 6.25 * height_cm - 5 * (year - birth_year) + {'male': 5, 'female': -161}.get(sex, -78)
 
 
-def context(c, user_id):
+def context(c, user_id, *, completed=False):
     p = c.execute('SELECT tz, weight_kg, sex, height_cm, birth_year, resting_source FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
     tz = p.get('tz') or db.DEFAULT_TZ
     today = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
     weights = c.execute('SELECT day, kg FROM weights WHERE user_id = %s ORDER BY day', (user_id,)).fetchall()
+    weights = [w for w in weights if w['day'] < today] if completed else weights
     pts = weight_trend(weights)
     kg = pts[-1][2] if pts else (p.get('weight_kg') or 75.0)
     return {'tz': tz, 'today': today, 'resting_source': p.get('resting_source', 'formula'), 'points': pts, 'kg': kg, 'sex': p.get('sex'),
@@ -137,17 +138,23 @@ def full_day_min(c, user_id, base):
     return PARTLY * float(goal or base)
 
 
-def tdee(c, user_id, days=28):
+def unknown_sql(key):
+    if key not in ("kcal","protein_g","carbs_g","fat_g","fiber_g"):raise ValueError("Unknown nutrient")
+    return f"({key} IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? '{key}')"
+
+
+def tdee(c, user_id, days=28, *, excluded_days=(), completed=False):
     """Daily needs from BMR (see the top of this file) + the measured check. Key 'tdee' = daily needs WITHOUT exercise."""
-    ctx = context(c, user_id)
+    ctx = context(c, user_id, completed=completed)
     factor = float((c.execute('SELECT activity_factor FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}).get('activity_factor') or 1.2)
     bmr = ctx['bmr'] or ctx['kg'] * (20 if ctx['sex'] == 'female' else 22)
     base = bmr * factor
     end = ctx['today'] - dt.timedelta(days=1)            # today isn't finished
     start = end - dt.timedelta(days=days - 1)
     intake = {r['day']: float(r['kcal']) for r in c.execute(
-        'SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day',
+        f"SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day HAVING NOT bool_or({unknown_sql('kcal')})",
         (user_id, start, end)).fetchall()}
+    intake = {day:kcal for day,kcal in intake.items() if day not in excluded_days}
     typical = median(intake.values()) if intake else 0
     least = full_day_min(c, user_id, base)
     full = {d: k for d, k in intake.items() if k >= 0.5 * typical and k >= least}     # partly logged days left out
@@ -161,7 +168,7 @@ def tdee(c, user_id, days=28):
         rate = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)   # kg per day
         observed = sum(full.values()) / len(full) - rate * KCAL_PER_KG
     expected = base + avg_ex           # what the model says was burned on average, workouts included
-    return {'today': ctx['today'], 'resting_source': ctx['resting_source'], 'tdee': round(base), 'base': round(base), 'bmr': round(bmr), 'bmr_exact': bool(ctx['bmr']),
+    return {'today': ctx['today'], 'resting_source': ctx['resting_source'], 'tdee': round(base), 'base': round(base), 'bmr': round(bmr), 'resting_burn': bmr, 'bmr_exact': bool(ctx['bmr']),
             'activity_factor': factor, 'activity': ACTIVITY.get(round(factor, 2), f'x{factor:g}'),
             'confidence': 'bmr' if ctx['bmr'] else 'rough',
             'observed': round(observed) if observed is not None else None, 'expected': round(expected),
@@ -213,7 +220,7 @@ def deficits(c, user_id, since=None):
     if not since: return {'since': None, 'days': [], 'tdee': info['tdee']}
     since = min(since, ctx['today'])
     intake = {r['day']: float(r['kcal']) for r in c.execute(
-        'SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day',
+        f"SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day HAVING NOT bool_or({unknown_sql('kcal')})",
         (user_id, since, ctx['today'])).fetchall()}
     done = [k for d, k in intake.items() if d < ctx['today']]
     typical = median(done) if done else 0

@@ -7,6 +7,7 @@ USDA FoodData Central needs a key: FDC_API_KEY setting (falls back to the low-vo
 """
 import datetime as dt
 import json
+from uuid import UUID
 import os
 import re
 import threading
@@ -15,7 +16,7 @@ import urllib.parse
 import urllib.request
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import AwareDatetime, BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
 from . import db, energy
 from .auth import current_user
@@ -687,3 +688,29 @@ def day_goal(body: DayGoalIn, user=Depends(current_user)):
         else: c.execute("""INSERT INTO day_goals (user_id, day, kcal) VALUES (%s, %s, %s)
                            ON CONFLICT (user_id, day) DO UPDATE SET kcal = excluded.kcal""", (user['id'], body.day, body.kcal))
     return {'ok': True}
+
+
+# Weekly check-in reads are code only; only the explicit Accept endpoint changes a calorie target.
+class CheckinAcceptIn(BaseModel):
+    model_config = {'extra':'forbid'}
+    baseline: str = Field(pattern=r'^[0-9a-f]{64}$')
+    confirmed: StrictBool
+
+
+@router.get('/check-in')
+def weekly_checkin(user=Depends(current_user)):
+    from . import nutrition_checkin
+    return nutrition_checkin.current(user['id'])
+
+
+@router.post('/check-in/{cid}/accept')
+def accept_checkin(cid:UUID,body:CheckinAcceptIn,user=Depends(current_user)):
+    from . import nutrition_checkin
+    if body.confirmed is not True:raise HTTPException(400,'Tap Accept to change your calorie target')
+    return nutrition_checkin.act(user['id'],cid,'accept',body.baseline)
+
+
+@router.post('/check-in/{cid}/later')
+def defer_checkin(cid:UUID,user=Depends(current_user)):
+    from . import nutrition_checkin
+    return nutrition_checkin.act(user['id'],cid,'later')

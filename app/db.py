@@ -1059,6 +1059,17 @@ MIGRATIONS = [
     """ALTER TABLE profile ADD COLUMN food_chat_daily_note text NOT NULL DEFAULT 'off'
          CHECK (food_chat_daily_note IN ('off','code','ai'));""",
 
+    # 50: private weekly target suggestions and explicit decisions; no automatic target changes.
+    """CREATE TABLE nutrition_checkins (
+         id uuid PRIMARY KEY,user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         week date NOT NULL,state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','accepted','deferred')),
+         data jsonb NOT NULL,baseline text NOT NULL,created timestamptz NOT NULL DEFAULT now(),
+         updated timestamptz NOT NULL DEFAULT now(),acted_at timestamptz,UNIQUE(user_id,week));
+       ALTER TABLE nutrition_checkins ENABLE ROW LEVEL SECURITY;
+       CREATE POLICY own_rows ON nutrition_checkins FOR SELECT TO fit_readers USING(user_id=fit_me());
+       CREATE POLICY all_rows ON nutrition_checkins FOR SELECT TO fit_all_readers USING(true);
+       GRANT SELECT ON nutrition_checkins TO fit_readers;""",
+
 ]
 
 
