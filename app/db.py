@@ -950,9 +950,10 @@ MIGRATIONS = [
       state text NOT NULL CHECK (state IN ('pending','answered','cancelled')),
       reply_to bigint,
       result jsonb,
+      CHECK ((kind = 'reply') = (reply_to IS NOT NULL)),
       UNIQUE (user_id,client_id), UNIQUE (user_id,id), UNIQUE (user_id,reply_to),
       FOREIGN KEY (user_id,reply_to) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE);
-    CREATE INDEX food_chat_history ON food_chat_messages(user_id,id DESC);
+    CREATE INDEX food_chat_history ON food_chat_messages(user_id,coalesce(reply_to,id),id);
     CREATE UNIQUE INDEX food_entries_user_identity ON food_entries(user_id,id);
     CREATE TABLE food_chat_entries (
       user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,

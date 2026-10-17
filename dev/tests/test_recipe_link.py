@@ -17,6 +17,13 @@ FIX=pathlib.Path(__file__).parent/'fixtures'/'recipes'
 URL='https://recipes.example/bowls'
 
 class Parser(unittest.TestCase):
+    def test_optional_nutrition_forms(self):
+        for value in (240,'240','240 kcal'):
+            self.assertEqual(s._quantity(value,'kcal'),240)
+        for value in (240,'240',True):self.assertIsNone(s._quantity(value,'g'))
+        self.assertEqual(s._quantity('1,200 mg','mg'),1200)
+        self.assertIsNone(s._quantity('1,20 mg','mg'))
+        self.assertIsNone(s._quantity(True,'kcal'))
     def test_published(self):
         r=s.parse((FIX/'published.html').read_text(),URL)[0]
         self.assertEqual(r['servings'],6);self.assertFalse(r['needs_servings_review'])
@@ -44,7 +51,7 @@ class Parser(unittest.TestCase):
         page=lambda data:'<script type="application/ld+json">'+json.dumps(data)+'</script>'
         self.assertEqual(len(s.parse(page([r,r]),URL)),1)
         self.assertEqual(len(s.parse(page([dict(r,name=str(n)) for n in range(10)]),URL)),5)
-        self.assertEqual(s.parse(page(dict(r,recipeIngredient=['x']*201)),URL),[])
+        self.assertEqual(s.parse(page(dict(r,recipeIngredient=['x']*61)),URL),[])
         with self.assertRaises(s.RecipeSchemaError):s.parse('x'*(1024*1024+1),URL)
         with self.assertRaises(s.RecipeSchemaError):s.parse(page([{}]*5001),URL)
         self.assertEqual(s.parse('<script type></script>'+page(r),URL)[0]['servings'],3)

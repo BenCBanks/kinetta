@@ -200,7 +200,7 @@ class AccountTools:
         return {'day': r.day, 'eaten': eaten, 'remaining': {
             'kcal': round(float(kcal) - float(eaten['kcal']), 1) if kcal and not unknown['kcal'] else None,
             'protein_g': round(float(p['protein_target']) - float(eaten['protein_g']), 1) if p.get('protein_target') and not unknown['protein'] else None},
-            'candidates': candidates, 'limitations': ['Remaining targets use the logged intake; incomplete logging can overstate what remains. Dietary preferences/allergies are not recorded: check before choosing.']}
+            'candidates': [] if unknown['kcal'] else candidates, 'limitations': ['Remaining targets use the logged intake; incomplete logging can overstate what remains. Dietary preferences/allergies are not recorded: check before choosing.']}
 
 
 def complete_dish(raw):

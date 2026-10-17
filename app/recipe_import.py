@@ -1,6 +1,8 @@
 """Explicit authenticated recipe-link reads. Network work never holds a database lock."""
 import datetime as dt
 import json
+import time
+import threading
 from uuid import UUID
 from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel,Field
@@ -9,6 +11,27 @@ from .auth import current_user
 
 router=APIRouter(prefix='/api/recipe-links')
 DAILY_LIMIT=30
+
+MATCH_LIMIT=20
+WORKER_LIMIT=recipe_fetch.TIME_LIMIT+MATCH_LIMIT+5
+
+def worker_key(uid,identity):
+    import hashlib
+    return int.from_bytes(hashlib.sha256(f'recipe:{uid}:{identity}'.encode()).digest()[:8],'big',signed=True)
+
+
+def purge(c):
+    # Rate identities need only the current UTC window. Saved meals are independent.
+    c.execute("DELETE FROM recipe_link_drafts WHERE created < date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'")
+    c.execute("UPDATE recipe_link_drafts SET url='',data='{}',state=CASE WHEN state='saved' THEN state ELSE 'cancelled' END WHERE expires<=now() AND (url<>'' OR data<>'{}'::jsonb)")
+
+
+def cleanup(stop):
+    while not stop.is_set():
+        try:
+            with db.connect() as c:purge(c)
+        except Exception:pass # next bounded pass retries; never log private draft contents
+        stop.wait(300)
 
 
 class ReadIn(BaseModel):
@@ -25,10 +48,10 @@ def _owned(c,uid,identity,lock=False):
 def _expire(c,row):
     now=dt.datetime.now(dt.timezone.utc)
     if row['state'] in ('pending','ready') and row['expires']<=now:
-        c.execute("UPDATE recipe_link_drafts SET state='cancelled',data='{}',error_code='expired',error_message='This draft expired. Read the link again to start a new draft.' WHERE user_id=%s AND id=%s",(row['user_id'],row['id']))
+        c.execute("UPDATE recipe_link_drafts SET state='cancelled',url='',data='{}',error_code='expired',error_message='This draft expired. Read the link again to start a new draft.' WHERE user_id=%s AND id=%s",(row['user_id'],row['id']))
         return _owned(c,row['user_id'],row['id'])
-    if row['state']=='pending' and row['created']<now-dt.timedelta(seconds=30):
-        c.execute("UPDATE recipe_link_drafts SET state='failed',error_code='timeout',error_message='This read was interrupted. Try again to start a new draft.' WHERE user_id=%s AND id=%s",(row['user_id'],row['id']))
+    if row['state']=='pending' and row['created']<now-dt.timedelta(seconds=WORKER_LIMIT) and c.execute('SELECT pg_try_advisory_xact_lock(%s) AS gone',(worker_key(row['user_id'],row['id']),)).fetchone()['gone']:
+        c.execute("UPDATE recipe_link_drafts SET state='failed',data='{}',error_code='timeout',error_message='This read was interrupted. Try again to start a new draft.' WHERE user_id=%s AND id=%s",(row['user_id'],row['id']))
         return _owned(c,row['user_id'],row['id'])
     return row
 
@@ -44,16 +67,23 @@ def _claim(uid,body):
     except recipe_fetch.RecipeFetchError as e:raise HTTPException(422,str(e)) from None
     with db.connect() as c:
         # Same-person concurrent reads and rate checks serialize; no network here.
-        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+        c.execute('SELECT id FROM users WHERE id=%s FOR NO KEY UPDATE',(uid,))
+        purge(c)
         old=c.execute('SELECT * FROM recipe_link_drafts WHERE user_id=%s AND id=%s FOR UPDATE',(uid,body.client_id)).fetchone()
         if old:
+            if old['state']=='cancelled':return old,False
             if old['url']!=url:raise HTTPException(409,'This draft identity belongs to another link. Start a new draft.')
-            return _expire(c,old),False
+            old=_expire(c,old)
+            if old['state']=='failed' and old['error_code'] in ('busy','timeout'):
+                count=c.execute("SELECT count(*) AS n FROM recipe_link_drafts WHERE user_id=%s AND coalesce(error_code,'') NOT IN ('busy','timeout')",(uid,)).fetchone()['n']
+                if count>=DAILY_LIMIT:raise HTTPException(429,f'The {DAILY_LIMIT} recipe-read allowance resets at midnight UTC.')
+                return c.execute("UPDATE recipe_link_drafts SET state='pending',created=now(),data='{}',error_code=NULL,error_message=NULL WHERE user_id=%s AND id=%s RETURNING *",(uid,body.client_id)).fetchone(),True
+            return old,False
         # Count attempts including failed/discarded reads; changing UUID cannot evade the cap.
-        count=c.execute("SELECT count(*) AS n FROM recipe_link_drafts WHERE user_id=%s AND created >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",(uid,)).fetchone()['n']
-        if count>=DAILY_LIMIT:raise HTTPException(429,'You have read 30 recipe links today. Try again tomorrow, or use a screenshot or type the recipe.')
+        count=c.execute("SELECT count(*) AS n FROM recipe_link_drafts WHERE user_id=%s AND coalesce(error_code,'') NOT IN ('busy','timeout') AND created >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",(uid,)).fetchone()['n']
+        if count>=DAILY_LIMIT:raise HTTPException(429,f'You have read {DAILY_LIMIT} recipe links in this UTC day. Try after midnight UTC, or use a screenshot or type the recipe.')
         # Expired drafts lose parsed text when their owner next starts a read.
-        c.execute("UPDATE recipe_link_drafts SET data='{}' WHERE user_id=%s AND expires<=now() AND data<>'{}'::jsonb",(uid,))
+        
         row=c.execute('INSERT INTO recipe_link_drafts(user_id,id,url) VALUES(%s,%s,%s) RETURNING *',(uid,body.client_id,url)).fetchone()
         return row,True
 
@@ -61,21 +91,29 @@ def _claim(uid,body):
 def _match(c,uid,candidates):
     """Reuse own-food matching without calling catalog providers or models."""
     from . import cook_chat,meal_chat
+    deadline=time.monotonic()+MATCH_LIMIT
+    c.execute("SET LOCAL statement_timeout='2s'")
     memory=cook_chat.memory(c,uid);catalog=meal_chat.catalog_for(c,uid)
     for recipe in candidates:
         matched=[]
         for text in recipe['ingredients'][:60]:
+            if time.monotonic()>deadline:raise recipe_fetch.RecipeFetchError('timeout','Ingredient matching took too long. Try again.')
             # Prior recipe ingredient measurements keep their established units.
             known=cook_chat.from_memory(text,memory)
             if known:
                 matched.append({'text':text,'status':'ready','source':'your recipe ingredients','ingredients':known})
                 continue
-            result=meal_chat.item_for(c,uid,{'text':text,'new':False},catalog)
+            try:result=meal_chat.item_for(c,uid,{'text':text,'new':False},catalog)
+            except HTTPException as exc:
+                if exc.status_code!=404:raise
+                result={'text':text,'status':'unknown','message':'This saved food is no longer available.'}
             if result.get('status')=='ready':
-                source=meal_chat.source_row(c,uid,result['kind'],result['id'])
-                entries,why=meal_chat.compute(c,uid,result['kind'],source,result['portion'])
-                if why:result={'text':text,'status':'quantity','message':why}
-                else:result.update({'entries':entries,'source':'your saved foods'})
+                totals=result['totals'];portion=result['portion']
+                result['entries']=[{'name':result['name'],**totals,'amount':portion.get('grams') or portion.get('count') or 1,
+                                    'unit':'g' if portion.get('grams') else 'serving','source':'saved',
+                                    'ref':{'unknown_nutrients':[k for k,v in totals.items() if v is None]}}]
+                result['source']='your saved foods'
+            if 'choices' in result:result['choices']=[{k:v for k,v in choice.items() if k in ('id','kind','name','detail')} for choice in result['choices'][:3]]
             matched.append(result)
         recipe['matches']=matched
         recipe['ingredient_limit_exceeded']=len(recipe['ingredients'])>60
@@ -86,24 +124,37 @@ def _match(c,uid,candidates):
 def read(body:ReadIn,user=Depends(current_user)):
     row,fresh=_claim(user['id'],body)
     if not fresh:return _out(row)
+    key=worker_key(user['id'],body.client_id)
+    with db.connect() as worker:
+        locked=worker.execute('SELECT pg_try_advisory_lock(%s) AS ok',(key,)).fetchone()['ok']
+        worker.commit()
+        if not locked:return _out(row)
+        try:return _read_work(worker,user['id'],body,row)
+        finally:
+            worker.rollback()
+            worker.execute('SELECT pg_advisory_unlock(%s)',(key,));worker.commit()
+
+
+def _read_work(c,uid,body,row):
     error=None;candidates=[]
     try:
         page=recipe_fetch.fetch(row['url'])
         candidates=recipe_schema.parse(page['html'],page['url'])
         del page
         if not candidates:raise recipe_fetch.RecipeFetchError('no_recipe','No structured recipe was found. Try a recipe screenshot or paste the ingredients.')
-        with db.connect() as c:candidates=_match(c,user['id'],candidates)
+        candidates=_match(c,uid,candidates)
+        c.commit()
     except recipe_fetch.RecipeFetchError as e:error=(e.code,str(e))
     except recipe_schema.RecipeSchemaError as e:error=('complex',str(e))
-    except Exception:
-        # Store no exception text: a page, URL or private food might be in it.
-        error=('unavailable','This recipe could not be read. Try again, use a screenshot or paste ingredients.')
-    with db.connect() as c:
-        row=_expire(c,_owned(c,user['id'],body.client_id,True))
-        if row['state']=='pending':
-            c.execute('UPDATE recipe_link_drafts SET state=%s,data=%s,error_code=%s,error_message=%s WHERE user_id=%s AND id=%s',
-                      ('failed' if error else 'ready',json.dumps({'candidates':candidates}) if not error else '{}',error[0] if error else None,error[1] if error else None,user['id'],body.client_id))
-        return _out(_owned(c,user['id'],body.client_id))
+    except Exception:error=('unavailable','This recipe could not be read. Try again, use a screenshot or paste ingredients.')
+    c.rollback()
+    row=_owned(c,uid,body.client_id,True)
+    if row['state']=='pending':
+        c.execute('UPDATE recipe_link_drafts SET state=%s,data=%s,error_code=%s,error_message=%s WHERE user_id=%s AND id=%s',
+                  ('failed' if error else 'ready',json.dumps({'candidates':candidates}) if not error else '{}',error[0] if error else None,error[1] if error else None,uid,body.client_id))
+    result=_out(_owned(c,uid,body.client_id))
+    c.commit()
+    return result
 
 
 @router.get('/{identity}')
@@ -116,5 +167,5 @@ def discard(identity:UUID,user=Depends(current_user)):
     with db.connect() as c:
         row=_owned(c,user['id'],identity,True)
         # A saved recipe is independent; discarding its preview never deletes food.
-        if row['state']!='saved':c.execute("UPDATE recipe_link_drafts SET state='cancelled',data='{}',error_code=NULL,error_message=NULL WHERE user_id=%s AND id=%s",(user['id'],identity))
+        if row['state']!='saved':c.execute("UPDATE recipe_link_drafts SET state='cancelled',url='',data='{}',error_code=NULL,error_message=NULL WHERE user_id=%s AND id=%s",(user['id'],identity))
         return _out(_owned(c,user['id'],identity))
