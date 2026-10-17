@@ -106,3 +106,10 @@ When separately enabled after evaluation, food advice, reassurance and day revie
 Daily note is off in Food chat settings. Choose Code summary to get a saved note when visiting chat after 8 pm in your account's time zone, or tap Daily note earlier. It states when the numbers were calculated, and later food stays in the live log. Supportive/Just the numbers also applies to the note. Code summary + optional Kit adds a separately requested richer version when evaluated AI access and consent allow it. It can be attempted only once per local day, including a failed request; refresh, toggling and deleting do not create extra attempts. Nothing is pushed to your phone and no food or target changes. Turning Off stops future notes; old notes remain individually deletable/exportable. From Me, chat → Settings → select mode → Save enables the setting (four taps plus native selector choice); once enabled, chat → Daily note is two taps from Me.
 
 The daily Kit cap also covers requests for older notes made on the same current local day. A separate durable local-day counter survives message/reply deletion; existing UTC service/provider budgets still apply independently.
+
+Picker receipts are opt-in for food logged from the conversation. Ordinary day-view
+adds and copies do not create chat messages. Restoring a deleted item relinks the
+restored food to its original conversation card without creating a second card.
+A completed server save stays successful even if a phone cannot redraw its card.
+When an earlier correction target was removed, the conversation offers up to five
+recent foods to choose from, preserving the requested correction.
