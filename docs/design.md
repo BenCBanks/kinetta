@@ -621,3 +621,11 @@ No model, prompt, provider request, new table or target change is involved. Expl
 Quick numbers, usual foods, amount review, combinations, yesterday's meal and Log again return an Undo action after saving, including when queued offline. Undo cancels the original stable upload IDs in one account-scoped transaction; delayed retries through either current or older clients cannot recreate removed food. An intentional new log receives new IDs. Pending cancellation is saved before the original queued upload is removed, and a storage failure leaves that upload intact with Retry. Other accounts and unmatched items in a batch are preserved. Existing durable food-chat card Undo remains available after the toast ends. No migration, model or target change.
 
 The offline/pending banner occupies document space above the page, with a rectangular shape that accommodates large text. It must not cover the heading or first controls.
+
+### Food and activity together (#122 R)
+
+Me and both Progress focuses share one private, folded summary of the last7 completed local days: workout count, distance, moving time (elapsed fallback), days with any food and days reaching the current protein target. Unknown protein is counted separately. Logged days are not described as complete, and a current-target comparison is not a historical adherence claim. No AI or writes happen on open.
+
+Own activity detail links today's workout to its food-log energy number. Recorded calories take precedence over the existing distance/time estimate; imported daily burn is never incremented again, and missing Health resting calories keep total burn unknown. The food log links back to those same workouts even before any food is entered. Targets and resting-source choices remain independent. The friends feed receives no food information.
+
+My activities shows optional Health sync status, latest successful native/foreground sync, pending uploads and Retry/Manage. Returning to the app catches up after a15-second rapid-event bound instead of waiting10minutes; quiet polling remains bounded. Sync never asks for permissions on launch. Garmin source delays and absent Health maps are explained. These are import improvements, not new recording features. Physical locked/background/poor-signal/offline recording acceptance remains required.

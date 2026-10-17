@@ -115,6 +115,35 @@ function mileageChart(box, series) {
     ${total ? '' : '<p class="small muted">No distance recorded in the last 14 days. Timed activities still appear below.</p>'}`;
 }
 
+// A shared private reader keeps Me and both Progress halves consistent.
+function combinedWeek(box) {
+  if(!box)return;const owner=readOwner();
+  load('/api/activity-food',data=>{
+    if(!box.isConnected||owner!==readOwner())return;const w=data.week;
+    box.innerHTML=`<details class="card"><summary>Your week · food &amp; training</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p><div class="stats3">${stat('Workouts',w.workouts)}${stat('Distance',U.dist(w.distance_m),U.du())}${stat('Time',dur(w.seconds))}</div><p>${w.days_logged} of 7 days with food logged.</p><p>${w.protein_target?`${w.protein_days_reached} days reached your current ${r0(w.protein_target)} g protein target. ${w.protein_days_unknown?`${w.protein_days_unknown} logged days have unknown protein.`:''}`:'Set a protein target when you want to compare your recorded intake.'}</p><p class="small muted">Food logged does not mean the whole day is complete. Protein compares known recorded amounts with your current target.</p><a class="linkbtn" href="/food?view=overview">Food review</a> <a class="linkbtn" href="/activity?view=mine">Your workouts</a></details>`;
+  }).catch(()=>{if(box.isConnected&&owner===readOwner()){if(!box.innerHTML)box.innerHTML='<p class="small muted">Your week could not load.</p>';const b=document.createElement('button');b.className='linkbtn';b.textContent='Retry weekly summary';b.onclick=()=>{b.remove();combinedWeek(box);};box.append(b);}});
+}
+function workoutEnergy(box,aid) {
+  const owner=readOwner();load('/api/activity-food',data=>{
+    if(!box.isConnected||owner!==readOwner())return;
+    const t=data.today,a=t.items.find(x=>String(x.id)===String(aid));if(!a){box.innerHTML='';return;}
+    box.innerHTML=`<a class="card tap" href="${esc(t.food_href)}"><h2>Today’s energy</h2><p>${t.day_burn==null?`${r0(a.kcal)} activity kcal recorded${a.estimated?' · estimate':''}. Total burn is waiting for resting data.`:t.included_in_day_burn?`Today: +${r0(a.kcal)} kcal burned${a.estimated?' · estimate':''}.`:`${r0(a.kcal)} activity kcal recorded${a.estimated?' · estimate':''}. Your imported total burn takes priority, so these calories are not added again.`}</p><span class="small more-link">See this workout in your food log ›</span></a>`;
+  }).catch(()=>{if(box.isConnected&&owner===readOwner())box.innerHTML='<p class="small muted">Today’s energy is unavailable. <a href="/food">Open food log</a></p>';});
+}
+function workoutSyncStatus(box) {
+  if(!Native.on||!box)return;const owner=readOwner();let version=0;
+  const draw=async()=>{
+    const v=++version;const [enabled,status,bg]=await Promise.all([Native.healthOn(),Native.healthStatus(),Native.backgroundStatus()]);
+    if(v!==version||!box.isConnected||owner!==readOwner())return;
+    if(!enabled){box.innerHTML='';return;}
+    const dates=[status?.last_success_at,bg?.lastSuccess].filter(Boolean).map(x=>new Date(x)).filter(x=>Number.isFinite(+x));const last=dates.sort((a,b)=>b-a)[0];
+    box.innerHTML=`<details class="card"><summary>Apple Health · ${Native.syncing?'syncing':bg?.pending?`${bg.pending} pending`:status?.error||bg?.error?'needs attention':last?'last synced '+esc(last.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):'waiting for first sync'}</summary>${last?`<p class="small muted">Last successful sync: ${esc(last.toLocaleString())}</p>`:''}<p class="small muted">${esc(Native.syncing?Native.healthProgress:status?.error||bg?.error||'Only workouts already available in Apple Health can be imported.')}</p>${bg?.needsLogin?'<p>Sign in again to resume background uploads.</p>':''}${bg?.pending?`<p>${bg.pending} workouts waiting to upload.</p>`:''}<p class="small muted">Garmin Connect can take an hour or more to send workouts to Health and does not send route maps.</p><button class="ghost" data-sync-now${Native.syncing?' disabled':''}>Sync now</button> <a class="linkbtn" href="/track/health">Manage Apple Health</a></details>`;
+    $('[data-sync-now]',box).onclick=async()=>{try{await Native.syncHealth();}catch(e){toast(e.message);}await draw();};
+  };
+  Native.onWorkoutStatus=()=>{if(!box.isConnected||owner!==readOwner()){Native.onWorkoutStatus=null;return;}draw().catch(()=>{});};
+  draw().catch(()=>{});Native.autoSync({foreground:true});
+}
+
 // ---------- Today ----------
 // First steps use food or activity history. Health remains optional; the Home Screen
 // tip appears only on an iPhone browser that isn't already the Home Screen app.
@@ -141,9 +170,10 @@ async function meOverview(el) {
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <div id="t-food">${skel(1)}</div><div id="t-checkin"></div>
-    <div id="t-plan"></div><div id="t-friends"></div>
+    <div id="t-combined-week"></div><div id="t-plan"></div><div id="t-friends"></div>
     <section id="t-week" aria-label="Last 14 days"></section>
     <div id="t-setup"></div><div id="t-goals"></div>`;
+  combinedWeek($('#t-combined-week',el));
   let foodHistory=null,activityHistory=null,healthConnected=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null)return;
@@ -243,11 +273,11 @@ route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
   if (q.get('view') !== 'mine') return homeFeed(el);
   const sports = ['', 'run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
-  el.innerHTML = `${actTop(true)}${whoseSeg('mine')}
+  el.innerHTML = `${actTop(true)}${whoseSeg('mine')}<div id="workout-sync"></div>
     <form id="f-sform" class="${term ? '' : 'hidden'}" role="search"><input type="search" name="q" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form>
     <div class="chips" role="group" aria-label="Sport">${sports.map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s === 'other' ? 'Other' : s ? SPORT_NAMES[s] + 's' : 'All'}</button>`).join('')}</div>
     <div class="feed-list" id="f-list">${skel(4)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
-  wireWhose(el);
+  wireWhose(el);workoutSyncStatus($('#workout-sync',el));
   const sf = $('#f-sform', el); if (!term) sf.hidden = true;
   $('#f-search', el).onclick = () => { sf.hidden = !sf.hidden; if (!sf.hidden) $('input', sf).focus(); };
   sf.onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(location.search); const v = $('input', sf).value.trim(); v ? p.set('q', v) : p.delete('q'); go('/activity' + (p.toString() ? '?' + p : ''), {replace: true}); };
@@ -324,7 +354,7 @@ function sportStats(a) {
 route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>${skel(2)}`;
   wireBack(el, '/activity');
-  await load(`/api/activities/${id}`, (a) => drawDetail(el, a), {maxAge: 60000});
+  await load(`/api/activities/${id}`, (a) => {drawDetail(el,a);const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}, {maxAge:60000});
 });
 
 // Sections (2026-10-12, Ben: "one huge long list"): the map, title and headline numbers stay on top; the rest is
@@ -763,7 +793,8 @@ async function foodProgress(el,q) {
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
   el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
-    <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav><div class="pbar">${filters}</div><div id="p-body">${skel(2)}</div>`;
+    <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav><div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skel(2)}</div>`;
+  combinedWeek($('#p-combined-week',el));
   $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
     if (k === 'plan') return go('/plan');
     const keep = new URLSearchParams(); const s = new URLSearchParams(location.search).get('sport'); if (s) keep.set('sport', s);
