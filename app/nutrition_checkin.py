@@ -76,7 +76,7 @@ def preview_id(uid,week):
 
 def preview(uid,week,data,baseline):
     return {'id':preview_id(uid,week),'week':week,'state':'pending','data':data,'baseline':baseline,
-            'created':week,'updated':week,'acted_at':None}
+            'created':week,'updated':dt.datetime.now(dt.timezone.utc),'acted_at':None}
 
 
 def current(uid):
