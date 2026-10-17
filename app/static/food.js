@@ -255,7 +255,7 @@ function drawDay(el, D) {
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
       <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div><div class="macro-line"><b>${n}</b><span class="num">${macroTotal(D,k,target)}</span></div>${target && !D.unknown_nutrients?.[k] ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
       ${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
-      ${B.items.length?`<p class="small">${today?'Today’s workouts':'Workouts'} · ${B.items.map(a=>`<a href="/activity/${a.id}">${esc(a.name)} · ${r0(a.kcal)} kcal${a.estimated?' estimated':''}</a>`).join(' · ')}${B.imported?' · your imported daily burn takes priority':''}</p>`:''}
+      ${B.items.length?`<p class="small">${today?'Today’s workouts':'Workouts'} · ${B.items.map(a=>`<a href="/activity/${a.id}">${esc(a.name)} · ${a.kcal>0?r0(homeCalories(a.kcal))+' kcal'+(a.estimated?' estimated':' recorded'):'calories unavailable'}</a>`).join(' · ')}${B.imported?' · your imported daily burn takes priority':''}</p>`:''}
       ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
       ${!watchResting && B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>' : B.day_burn == null ? `<p class="small muted tc-bal">Resting calories have not synced for this day. Activities: ${r0(B.kcal)} kcal. Total burn is waiting for resting data.</p>`

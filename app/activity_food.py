@@ -24,14 +24,15 @@ def read(c,uid):
     from . import energy,api_food
     ctx=energy.context(c,uid);today=ctx['today'];start=today-dt.timedelta(days=7)
     p=c.execute('SELECT protein_target FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
-    workouts=c.execute('''SELECT id,name,sport,distance_m,moving_s,elapsed_s,
+    workouts=c.execute('''SELECT id,name,sport,source,distance_m,moving_s,elapsed_s,
         (start_time AT TIME ZONE %s)::date AS day FROM activities
         WHERE user_id=%s AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s''',
         (ctx['tz'],uid,ctx['tz'],start,today)).fetchall()
     foods=c.execute('SELECT day,protein_g,ref FROM food_entries WHERE user_id=%s AND day>=%s AND day<%s',(uid,start,today)).fetchall()
     week=summarize(today,workouts,foods,p.get('protein_target'))
+    sources={a['id']:a['source'] for a in workouts}
     # Same transaction and energy calculation as the food log, including imported total-burn precedence.
     day=api_food.day_data(c,uid,today.isoformat());burned=day['burned']
-    return {'week':week,'today':{'day':today.isoformat(),'items':burned['items'],'exercise_kcal':burned['kcal'],
+    return {'week':week,'today':{'day':today.isoformat(),'items':[{**a,'source':sources.get(a['id'])} for a in burned['items']],'exercise_kcal':burned['kcal'],
             'estimated':burned['estimated'],'burn_source':burned['source'],'day_burn':burned['day_burn'],
             'included_in_day_burn':not burned['imported'],'food_href':'/food?d='+today.isoformat()}}

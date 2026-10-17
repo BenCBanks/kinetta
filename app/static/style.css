@@ -1995,3 +1995,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .empty-meal-ways button {font-size:1rem;min-height:44px;flex:1 1 9rem;white-space:normal}
 
 .reminder-how summary {font-size:1rem;min-height:44px;display:flex;align-items:center;cursor:pointer}
+
+/* Private combined-week and Health-import controls remain thumb sized. */
+.combined-week > summary, .workout-sync > summary { min-height: 44px; display: flex; align-items: center; }
+.combined-week .linkbtn, .workout-sync .linkbtn, .combined-week-retry { min-height: 44px; display: inline-flex; align-items: center; }
