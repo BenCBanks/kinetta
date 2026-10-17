@@ -45,8 +45,9 @@ def resolve(c,uid,message):
 
 
 def make_result(c,uid,message,resolution):
-    day=resolution.get('day') or message['local_day'].isoformat()
-    meal=resolution.get('meal') or expected_meal(c,uid,message['captured_at'])
+    destination=(message.get('result') or {}).get('destination') or {}
+    day=destination.get('day') or resolution.get('day') or message['local_day'].isoformat()
+    meal=destination.get('meal') or resolution.get('meal') or expected_meal(c,uid,message['captured_at'])
     items=resolution.get('items',[])
     ready=resolution.get('status')=='ready' and bool(items)
     if ready:

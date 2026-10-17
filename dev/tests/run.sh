@@ -37,6 +37,9 @@ node dev/tests/test_navigation.js
 python3 dev/tests/test_food_thread_facts.py
 node dev/tests/test_async_reads.js
 node dev/tests/test_offline_queue.js
+node dev/tests/test_thread_outbox.js
+node dev/tests/test_thread_privacy.js
+node dev/tests/test_thread_nutrients.js
 node dev/tests/test_food_search.js
 node dev/tests/test_food_remove.js
 node dev/tests/test_feed_cache.js

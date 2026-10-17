@@ -449,3 +449,34 @@ no access. Legacy browser queues migrate only on their own origin. Older native
 queues without a server identity remain retained and are not automatically sent;
 they require a future recovery path that can establish their original server.
 This is a supporting fix; the permanent conversation screen follows separately.
+
+### Permanent food conversation interface (#122 Workstream D)
+
+`Log food` opens one conversation at `/food/describe`, with the keyboard focused
+and the previous conversation cached by server and account. The composer remains
+the same DOM element as replies arrive. There is no meal/day form before Send;
+each food card exposes its inferred destination for correction in the shared sheet.
+Ready foods log according to the person's preference, with Edit and Undo. The
+require-tap preference makes the latest ready card the primary action when the
+composer is empty. Supportive and Just the numbers use the existing deterministic
+feedback preference. A short status region announces changes; history is not live.
+
+Send first commits a stable UUID, capture time and message to an account-bound
+IndexedDB outbox. Network interruption preserves it. Account/session changes stop
+processing; server-side identities and expected-account checks prevent cross-account
+writes. Failed messages remain visible with Retry and Cancel. Pending photos remain
+only in the device outbox until processing/cancellation, with no server image history.
+Cancel is persisted before requesting the server tombstone. Reordered responses
+cannot replace a cancellation with a new upload. Conversation deletion keeps food.
+
+Snap, Photo library, Scan and Paste are labelled composer tools; keyboard dictation
+uses the operating system microphone. Me's direct Snap/Scan actions enter this same
+conversation. Search, usuals and My Recipes remain reachable through their shared
+picker. Completing legacy-picker receipts and the optional daily note is separate
+work; the private switch test and physical-iPhone acceptance remain release gates.
+
+Calorie-only entries keep missing nutrients unknown in the thread, shared editor,
+Me and daily totals. Incomplete totals show only the known amount and suppress
+misleading target progress. Editing or rescaling a calorie-only entry keeps blank
+macros unknown. Deleting an account also erases its on-device conversation cache,
+draft and photo/message outbox; another server/account is unaffected.

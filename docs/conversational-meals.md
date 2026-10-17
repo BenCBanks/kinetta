@@ -69,3 +69,23 @@ change.
 ## Edit saved food
 
 Open **Nutrition → My Recipes & foods · edit or create**. Recipe rows have a visible **Edit** button for ingredients, weight and totals; My foods has its own **Edit** buttons. Tapping the row still logs a portion. Nutrition’s help icon links to **Me → Body & heart rate** for weight, height, birth year and sex.
+
+## Permanent conversation
+
+Open Log food to type naturally, or use Snap, Photo library, Scan or Paste. The
+keyboard's microphone can dictate into the same text box. Send stores the message
+on this device before attempting upload. Its capture time determines the day,
+including after an offline delay. Pending messages remain visible with Retry or
+Cancel, and each server/account has its own outbox and cached conversation.
+
+Ready items are logged automatically unless Food chat settings requires a tap.
+Uncertain food offers one source/portion question; Enter numbers remains available
+without AI. Cards retain source/estimate labels and their inferred meal/day. Edit
+uses the shared food editor; Undo removes that card's food. Deleting message text
+keeps already logged food. Clearing the app's local storage deletes unsent messages.
+Photos kept for pending uploads are removed from the on-device outbox after
+processing or cancellation, and do not appear in server conversation history.
+
+Your usuals, My Recipes and Search use the established shared pickers. Their
+conversation receipts and the optional daily note follow separately; this interface
+alone does not establish the private tester's one-week switch acceptance.

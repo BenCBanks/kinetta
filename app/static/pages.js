@@ -1156,8 +1156,10 @@ route(/^\/me$/, 'me', async (el) => {
     history.replaceState(null, '', '/me'); $('.me-settings', el).open = true; bodySheet();
   }
   $('#logout', el).onclick = async () => {
-    const n = Q.mine().length;
+    let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){toast('Could not check unsent food messages. Try logging out again.');return;}
+    const n = Q.mine().length + chat;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
+    if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
     if (typeof Track !== 'undefined') await Track.pause();
     try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
     await Native.forget();
@@ -1227,6 +1229,7 @@ function deleteSheet() {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
         await api('/api/account/delete', json('POST', {password: f.pw.value}));
+        if (typeof FoodThread !== 'undefined') { try { await FoodThread.eraseDevice(); } catch (e) { toast('Your account was deleted. Clear this app’s storage to remove its unsent food messages from this phone.'); } }
         if (typeof Track !== 'undefined') Track.forgetDraft();
         close(); store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
         App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin('Your account and all your data were deleted.');

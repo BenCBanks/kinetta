@@ -140,3 +140,9 @@ See [Recording activities](docs/activity-tracking.md).
   expected-account check blocks a changed cookie from receiving another account's
   queued write. Older native queues without a recorded server are retained without
   automatic upload. Permanent conversation UI remains in progress (#122 D).
+- [x] Permanent private Food chat interface with cached history, stable composer,
+  durable text/photo outbox, capture timestamps, explicit retry/cancel, meal/day
+  correction, source labels, Edit/Undo, require-tap logging and tone settings.
+  Snap, Photo library, Scan, Paste and keyboard dictation share the conversation.
+  Legacy picker receipts, optional daily note and private switch acceptance remain
+  separate #122 D requirements.

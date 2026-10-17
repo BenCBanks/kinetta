@@ -36,7 +36,7 @@ Food conversation text and links to logged foods are private account records. Th
 
 ## collect-processing
 
-Reuse mappings store a hash of the food words rather than another copy of your conversation. Processing metadata and cancellation identifiers prevent duplicate or cancelled uploads. Deleting a message removes its text and processing job; already logged and saved foods remain until you remove them. No food-photo thumbnails or full photos are kept in thread history.
+Reuse mappings store a hash of the food words rather than another copy of your conversation. Processing metadata and cancellation identifiers prevent duplicate or cancelled uploads. Deleting a message removes its text and processing job; already logged and saved foods remain until you remove them. No food-photo thumbnails or full photos are kept in server thread history. Pending food messages and selected photos may be kept in the app’s private storage on your device so an interrupted upload can resume. Pending photos are removed from that outbox after processing or cancellation; clearing the app’s local data also removes unsent messages. Saved conversation copies and drafts on the device are bound to the selected server and account.
 
 ## collect-imports
 

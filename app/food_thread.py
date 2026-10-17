@@ -28,6 +28,8 @@ class MessageIn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     client_id: UUID
     body: str = Field(min_length=1, max_length=4000)
+    day: dt.date | None = None
+    meal: Literal['breakfast','lunch','dinner','snacks'] | None = None
     media: Literal['text','photo','barcode'] = 'text'
     barcode: str | None = Field(None,pattern=r'^\d{6,14}$')
     captured_at: AwareDatetime | None = None
@@ -109,6 +111,8 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if body.media=='barcode' and not body.barcode:raise HTTPException(422,'Scan or type a barcode')
         if body.media!='barcode' and body.barcode:raise HTTPException(422,'Use barcode input for a scanned product')
         metadata={'input':{'kind':body.media,**({'barcode':body.barcode} if body.barcode else {})}} if body.media!='text' else None
+        destination={k:v for k,v in {'day':body.day.isoformat() if body.day else None,'meal':body.meal}.items() if v is not None}
+        if destination:metadata={**(metadata or {}),'destination':destination}
         row = c.execute(f'''INSERT INTO food_chat_messages
                             (user_id, client_id, kind, body, captured_at, local_day, state, result)
                             VALUES (%s, %s, 'user', %s, %s, %s, 'pending', %s)
@@ -118,7 +122,7 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if not created:
             row = c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id = %s AND client_id = %s',
                             (uid, body.client_id)).fetchone()
-            if row['body'] != body.body or row['kind'] != 'user' or (row.get('result') or {}).get('input') != (metadata or {}).get('input'):
+            if row['body'] != body.body or row['kind'] != 'user' or (row.get('result') or {}).get('input') != (metadata or {}).get('input') or (row.get('result') or {}).get('destination') != (metadata or {}).get('destination'):
                 raise HTTPException(409, 'That message identity was already used for different text')
         response.status_code = 201 if created else 200
         return {'message': message_entries(c, uid, [row])[0], 'created': created}
@@ -175,7 +179,7 @@ def finish_reply(c, uid, message, result):
     if row is None: raise HTTPException(409,'A reply already exists; reload this message')
     updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
                              WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
-                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**({'input':message['result']['input']} if (message.get('result') or {}).get('input') else {})}),message['id'],uid)).fetchone()
+                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**{k:message['result'][k] for k in ('input','destination') if k in (message.get('result') or {})}}),message['id'],uid)).fetchone()
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 

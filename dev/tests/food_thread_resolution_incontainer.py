@@ -275,5 +275,14 @@ class Resolution(unittest.TestCase):
   self.own_food();m,r=self.send('rice');changed,r=self.send('make it half')
   self.post('/api/food/thread/cancel',{'client_id':str(changed['client_id'])},status=409)
 
+ def test_29_explicit_destination_and_replay(self):
+  self.own_food();day=(dt.date.today()-dt.timedelta(days=1)).isoformat()
+  m,r=self.send('rice',day=day,meal='dinner')
+  rows=self.a.get('/api/food/day?d='+day).json()['entries'];self.assertEqual(len(rows),1);self.assertEqual(rows[0]['meal'],'dinner')
+  self.assertEqual(self.post('/api/food/thread/messages',{'client_id':m['client_id'],'body':'rice','day':day,'meal':'dinner'})['created'],False)
+  self.post('/api/food/thread/messages',{'client_id':m['client_id'],'body':'rice','day':day,'meal':'lunch'},status=409)
+  m,r=self.send('Photo of food',media='photo',day=day,meal='dinner')
+  self.resolve(m,images=[JPEG]);rows=self.a.get('/api/food/day?d='+day).json()['entries'];self.assertEqual(len(rows),2);self.assertTrue(all(e['meal']=='dinner' for e in rows))
+
 # review regressions use the production API and fictional provider/catalog stand-ins
 unittest.main()
