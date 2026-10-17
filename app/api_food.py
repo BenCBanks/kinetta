@@ -219,7 +219,9 @@ NUM = ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')
 @router.get('/day')
 def day(d: str | None = None, user=Depends(current_user)):
     with db.connect() as c:
-        return day_data(c, user['id'], d)
+        result=day_data(c, user['id'], d)
+        result['has_history']=c.execute('SELECT EXISTS(SELECT 1 FROM food_entries WHERE user_id=%s) AS yes',(user['id'],)).fetchone()['yes']
+        return result
 
 
 def day_data(c, uid, d=None):

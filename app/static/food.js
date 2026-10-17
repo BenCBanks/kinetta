@@ -61,9 +61,10 @@ async function weeklyCheckinCard(box,{home=false}={}){
   try{await load('/api/food/check-in',draw,{maxAge:30000});}catch(e){if(valid()){if(home){const page=box.closest('#page');if(page){page.dataset.checkinPending='false';syncCheckinPrimary(page);}}box.innerHTML=home?'':`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>Check-in could not load. Your food log is still available.</p><button class="ghost wide" type="button" data-checkin-retry>Retry</button></section>`;const retry=$('[data-checkin-retry]',box);if(retry)retry.onclick=()=>weeklyCheckinCard(box,{home});}}
 }
 
-function todayFoodCard(box) {
+function todayFoodCard(box, {onHistory} = {}) {
   return load('/api/food/day', (D) => {
     if (!box.isConnected) return;
+    onHistory?.(!!D.has_history || D.entries.length>0);
     App.mealHours = D.meal_hours || App.mealHours;
     const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
     const meal = Object.keys(MEAL_NAMES).slice(Object.keys(MEAL_NAMES).indexOf(guessMeal())).find(m => !D.entries.some(e => e.meal === m));
