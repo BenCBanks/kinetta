@@ -26,6 +26,12 @@
 		AB1800000000000000000010 /* NativeHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1800000000000000000000 /* NativeHaptics.swift */; };
 		AB1900000000000000000010 /* HealthFoodState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000000 /* HealthFoodState.swift */; };
 		AB1900000000000000000011 /* HealthFood.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000001 /* HealthFood.swift */; };
+		AB2000000000000000000010 /* FoodEntryState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000000 /* FoodEntryState.swift */; };
+		AB2000000000000000000011 /* NativeFoodEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000001 /* NativeFoodEntry.swift */; };
+		AB2000000000000000000012 /* FoodEntryIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000002 /* FoodEntryIntent.swift */; };
+		AB2100000000000000000010 /* ShareFoodState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2100000000000000000000 /* ShareFoodState.swift */; };
+		AB2100000000000000000011 /* ShareFoodStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2100000000000000000001 /* ShareFoodStore.swift */; };
+		AB2100000000000000000012 /* ShareFoodKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2100000000000000000002 /* ShareFoodKeychain.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +56,12 @@
 		AB1800000000000000000000 /* NativeHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeHaptics.swift; sourceTree = "<group>"; };
 		AB1900000000000000000000 /* HealthFoodState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthFoodState.swift; sourceTree = "<group>"; };
 		AB1900000000000000000001 /* HealthFood.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthFood.swift; sourceTree = "<group>"; };
+		AB2000000000000000000000 /* FoodEntryState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodEntryState.swift; sourceTree = "<group>"; };
+		AB2000000000000000000001 /* NativeFoodEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFoodEntry.swift; sourceTree = "<group>"; };
+		AB2000000000000000000002 /* FoodEntryIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodEntryIntent.swift; sourceTree = "<group>"; };
+		AB2100000000000000000000 /* ShareFoodState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFoodState.swift; sourceTree = "<group>"; };
+		AB2100000000000000000001 /* ShareFoodStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFoodStore.swift; sourceTree = "<group>"; };
+		AB2100000000000000000002 /* ShareFoodKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFoodKeychain.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,6 +103,12 @@
 				AB1500000000000000000001 /* NativePush.swift */,
 				AB1900000000000000000000 /* HealthFoodState.swift */,
 				AB1900000000000000000001 /* HealthFood.swift */,
+				AB2000000000000000000000 /* FoodEntryState.swift */,
+				AB2000000000000000000001 /* NativeFoodEntry.swift */,
+				AB2000000000000000000002 /* FoodEntryIntent.swift */,
+				AB2100000000000000000002 /* ShareFoodKeychain.swift */,
+				AB2100000000000000000001 /* ShareFoodStore.swift */,
+				AB2100000000000000000000 /* ShareFoodState.swift */,
 				AB1700000000000000000000 /* HealthRestingEnergy.swift */,
 				AB1800000000000000000000 /* NativeHaptics.swift */,
 				AB1600000000000000000001 /* NativeTrack.swift */,
@@ -195,6 +213,12 @@
 				AB1500000000000000000011 /* NativePush.swift in Sources */,
 				AB1900000000000000000010 /* HealthFoodState.swift in Sources */,
 				AB1900000000000000000011 /* HealthFood.swift in Sources */,
+				AB2000000000000000000010 /* FoodEntryState.swift in Sources */,
+				AB2000000000000000000011 /* NativeFoodEntry.swift in Sources */,
+				AB2000000000000000000012 /* FoodEntryIntent.swift in Sources */,
+				AB2100000000000000000012 /* ShareFoodKeychain.swift in Sources */,
+				AB2100000000000000000011 /* ShareFoodStore.swift in Sources */,
+				AB2100000000000000000010 /* ShareFoodState.swift in Sources */,
 				AB1700000000000000000010 /* HealthRestingEnergy.swift in Sources */,
 				AB1800000000000000000010 /* NativeHaptics.swift in Sources */,
 				AB1600000000000000000011 /* NativeTrack.swift in Sources */,

@@ -199,3 +199,17 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 - **Native Health food bridge foundation (#122 I3):** separate optional weight-read/nutrition-write permission methods, anchored weight acknowledgement and account-bound nutrition reconciliation with app-owned deletion and protected cursors. Registered but awaiting UI wiring in I4; physical-iPhone acceptance remains pending.
 
 - **Optional Apple Health nutrition and weight (#122 I4):** independent Read weight and Share nutrition setup, no launch prompt, open/resume catch-up, status/retry/off and partial-permission feedback. Food edits/deletions/Undo update this app's allowed Health quantities; imported weight shows its source and respects manual entries. Account changes/disconnect stop native work first. Budgets and resting-calorie choices stay unchanged. Browser/native stand-in checks do not replace physical-iPhone acceptance.
+
+- **Optional meal-time reminders (#122 K):** off-by-default native reminders around your own logging habits, only7am–9pm, skipping meals already logged. No guilt streaks or calorie alerts. Me → Notification settings shows the usual times, setup status and off switch. Today's current empty meal offers yesterday's meal or your usuals; copying preserves all8 nutrients and needs explicit confirmation. The weekly food review supplies the days-logged count. Real APNs/device acceptance remains pending #98.
+
+- **iPhone food entry (#122 T1):** signed-in home-screen Log food action and a device-authenticated Log food in Kinetta Shortcuts/Siri text action open the permanent food chat for review. Existing drafts are preserved, interrupted handoffs deduplicate and nothing logs before Send. Physical entry-point/keyboard acceptance remains pending; Share to Kinetta follows in T2.
+
+- **Entered nutrition in food chat (#122 D12):** calorie/macro/nutrient text becomes a held Your numbers review, with all8 values, units and unknown/zero meaning preserved. It is never catalog-matched as protein/carbs/fat foods. Explicit Log is required; unclear amounts/bases/dates stay held with a prefilled manual review. No AI or automatic target changes.
+
+- **Undo queued food (#122 D13):** Quick, usual, combination, yesterday and Log again saves offer Undo, including offline. Stable-ID cancellation prevents an interrupted upload from restoring removed food; failures retain a retryable pending operation.
+
+- **Food and training week (#122 R):** a private shared7-completed-day summary on Me and Progress; own today's workout links to the existing food-log energy calculation without double counting. My activities shows optional Health last-sync/pending/retry status, with bounded foreground catch-up and Garmin delay explanation. Physical GPS acceptance remains pending.
+
+- **Optional food on training days (#122 H):** adult plan/recent-workout guidance and explicit-save target controls. Fuel training/active-plan defaults, conservative nonnegative extra allowance, accepted-check-in average protected, explicit day goals preserved. Folded published athlete reference ranges and a dismissible late long-day note; no AI, medical claims or macro changes.
+
+- **Native food-share foundation (#122 T2):** owner-bound durable job storage, immutable retry IDs, image integrity and bounded cross-process writes; separate unlocked/device-only credential storage. Runtime, Share-sheet UI, provisioning and physical acceptance follow separately.

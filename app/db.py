@@ -1181,6 +1181,30 @@ MIGRATIONS = [
         ON CONFLICT(user_id,day) DO UPDATE SET revision=nextval('health_nutrition_revision'),changed_at=now();
       END IF;
     END $$;""",
+    # 58: optional private logging reminders; each local meal/day attempted at most once.
+    """ALTER TABLE profile ADD COLUMN food_reminders boolean NOT NULL DEFAULT false;
+    CREATE TABLE meal_reminder_attempts (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL,meal text NOT NULL CHECK(meal IN ('breakfast','lunch','dinner')),
+      attempted_at timestamptz NOT NULL DEFAULT now(),delivered integer NOT NULL DEFAULT 0,
+      PRIMARY KEY(user_id,day,meal));
+    ALTER TABLE meal_reminder_attempts ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON meal_reminder_attempts FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON meal_reminder_attempts FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON meal_reminder_attempts TO fit_readers;""",
+
+    # 59: optional training-day target override; NULL follows the owner-approved goal/plan default.
+    """ALTER TABLE profile ADD COLUMN training_day_targets boolean;
+    ALTER TABLE profile ADD COLUMN training_food_adult_confirmed boolean NOT NULL DEFAULT false;
+    ALTER TABLE profile ADD COLUMN training_target_average real CHECK(training_target_average BETWEEN 0 AND 20000);
+    ALTER TABLE profile ADD COLUMN training_target_kcal real CHECK(training_target_kcal BETWEEN 0 AND 10000);
+    UPDATE profile p SET training_target_average=(x.data->>'avg_exercise')::real,training_target_kcal=p.kcal_target
+    FROM (SELECT DISTINCT ON(user_id) user_id,data FROM nutrition_checkins WHERE state='accepted'
+          ORDER BY user_id,acted_at DESC,id DESC) x
+    WHERE p.user_id=x.user_id AND jsonb_typeof(x.data->'avg_exercise')='number'
+      AND jsonb_typeof(x.data->'suggested_kcal')='number'
+      AND (x.data->>'suggested_kcal')::real=p.kcal_target
+      AND (x.data->>'avg_exercise')::real BETWEEN 0 AND 20000;""",
 
 ]
 

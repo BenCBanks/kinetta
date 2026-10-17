@@ -115,6 +115,58 @@ function mileageChart(box, series) {
     ${total ? '' : '<p class="small muted">No distance recorded in the last 14 days. Timed activities still appear below.</p>'}`;
 }
 
+// A shared private reader keeps Me and both Progress halves consistent.
+function combinedWeekHtml(w) {
+  const stats=[];
+  if(w.workouts)stats.push(stat('Workouts',w.workouts));
+  if(w.distance_m>0)stats.push(stat('Distance',U.dist(w.distance_m),U.du()));
+  if(w.seconds>0)stats.push(stat('Time',dur(w.seconds)));
+  const food=w.days_logged?`${w.days_logged} of 7 days with food logged.`:'Your food consistency will appear as you log meals.';
+  const protein=w.days_logged&&w.protein_target?`${w.protein_days_reached?`${w.protein_days_reached} ${w.protein_days_reached===1?'day':'days'} reached`:'No logged days reached'} your current ${r0(w.protein_target)} g protein target.${w.protein_days_unknown?` ${w.protein_days_unknown} logged ${w.protein_days_unknown===1?'day has':'days have'} unknown protein.`:''}`:'';
+  return `<details class="card combined-week"><summary>Your week · food &amp; training</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}${w.days_logged?'<p class="small muted">Food logged does not mean the whole day is complete. Protein compares known recorded amounts with your current target.</p>':''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?' <a class="linkbtn" href="/activity?view=mine">Your workouts</a>':''}</details>`;
+}
+function combinedWeek(box) {
+  if(!box)return;const owner=readOwner();
+  load('/api/activity-food',data=>{
+    if(!box.isConnected||owner!==readOwner())return;const w=data.week;
+    box.innerHTML=combinedWeekHtml(w);
+  }).catch(()=>{if(box.isConnected&&owner===readOwner()){if(!box.innerHTML)box.innerHTML='<p class="small muted">Your week could not load.</p>';const b=document.createElement('button');b.className='linkbtn combined-week-retry';b.textContent='Retry weekly summary';b.onclick=()=>{b.remove();combinedWeek(box);};box.append(b);}});
+}
+function workoutEnergy(box,aid) {
+  const owner=readOwner();load('/api/activity-food',data=>{
+    if(!box.isConnected||owner!==readOwner())return;
+    const t=data.today,a=t.items.find(x=>String(x.id)===String(aid));if(!a){box.innerHTML='';return;}
+    box.innerHTML=`<a class="card tap workout-energy" href="${esc(t.food_href)}"><h2>Today’s energy</h2><p>${a.kcal<=0?'Calories are unavailable for this workout.':t.day_burn==null?`${r0(homeCalories(a.kcal))} activity kcal recorded${a.estimated?' · estimate':''}. Total burn is waiting for resting data.`:t.included_in_day_burn?`Today: +${r0(homeCalories(a.kcal))} kcal burned${a.estimated?' · estimate':''}.`:`${r0(homeCalories(a.kcal))} activity kcal recorded${a.estimated?' · estimate':''}. Your imported total burn takes priority, so these calories are not added again.`}</p>${a.kcal>0?`<p class="small muted">${a.estimated?'Estimated from recorded distance/time and weight.':a.source==='healthkit'?'Recorded calories from Apple Health.':a.source==='track'?'Calories from your phone recording.':'Calories from your workout record.'}</p>`:''}<span class="small more-link">See this workout in your food log ›</span></a>`;
+  }).catch(()=>{if(box.isConnected&&owner===readOwner())box.innerHTML='<p class="small muted">Today’s energy is unavailable. <a href="/food">Open food log</a></p>';});
+}
+function workoutSyncStatus(box) {
+  if(!Native.on||!box)return;const owner=readOwner();let version=0,wasSyncing=false;
+  const valid=()=>box.isConnected&&owner===readOwner();
+  const progress=()=>{
+    if(!valid()){if(Native.onWorkoutStatus===progress)Native.onWorkoutStatus=null;return;}
+    const text=$('[data-sync-progress]',box),summary=$('[data-sync-summary]',box),button=$('[data-sync-now]',box);
+    if(text&&Native.syncing)text.textContent=Native.healthProgress||'Syncing…';
+    if(summary&&Native.syncing)summary.textContent='Apple Health · syncing';
+    if(button)button.disabled=!!Native.syncing;
+    if(Native.syncing)wasSyncing=true;else if(wasSyncing){wasSyncing=false;draw().catch(()=>{});}
+  };
+  const draw=async()=>{
+    const v=++version;const [enabled,status,bg]=await Promise.all([Native.healthOn(),Native.healthStatus(),Native.backgroundStatus()]);
+    if(v!==version||!valid())return;
+    if(!enabled){box.innerHTML='';return;}
+    if(!$('.workout-sync',box))box.innerHTML='<details class="card workout-sync"><summary data-sync-summary></summary><p class="small muted" data-sync-last></p><p class="small muted" data-sync-progress></p><p data-sync-login></p><p data-sync-pending></p><p class="small muted">Garmin Connect can take an hour or more to send workouts to Health and does not send route maps.</p><button class="ghost" data-sync-now>Sync now</button> <a class="linkbtn" href="/track/health">Manage Apple Health</a></details>';
+    const dates=[status?.last_success_at,bg?.lastSuccess].filter(Boolean).map(x=>new Date(x)).filter(x=>Number.isFinite(+x));const last=dates.sort((a,b)=>b-a)[0];
+    $('[data-sync-summary]',box).textContent='Apple Health · '+(Native.syncing?'syncing':bg?.pending?`${bg.pending} pending`:status?.error||bg?.error?'needs attention':last?'last synced '+last.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'waiting for first sync');
+    $('[data-sync-last]',box).textContent=last?'Last successful sync: '+last.toLocaleString():'';
+    $('[data-sync-progress]',box).textContent=Native.syncing?Native.healthProgress:status?.error||bg?.error||'Only workouts already available in Apple Health can be imported.';
+    $('[data-sync-login]',box).textContent=bg?.needsLogin?'Sign in again to resume background uploads.':'';
+    $('[data-sync-pending]',box).textContent=bg?.pending?`${bg.pending} workouts waiting to upload.`:'';
+    $('[data-sync-now]',box).onclick=async()=>{try{const result=await Native.syncHealth();if(!valid())return;if(result?.added||result?.updated){render();return;}}catch(e){if(valid())toast(e.message);}await draw();};
+    progress();
+  };
+  Native.onWorkoutStatus=progress;draw().catch(()=>{});Native.autoSync({foreground:true});
+}
+
 // ---------- Today ----------
 // First steps use food or activity history. Health remains optional; the Home Screen
 // tip appears only on an iPhone browser that isn't already the Home Screen app.
@@ -141,9 +193,10 @@ async function meOverview(el) {
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <div id="t-food">${skel(1)}</div><div id="t-checkin"></div>
-    <div id="t-plan"></div><div id="t-friends"></div>
+    <div id="t-combined-week"></div><div id="t-plan"></div><div id="t-friends"></div>
     <section id="t-week" aria-label="Last 14 days"></section>
     <div id="t-last"></div><div id="t-form"></div><div id="t-setup"></div><div id="t-goals"></div>`;
+  combinedWeek($('#t-combined-week',el));
   let foodHistory=null,activityHistory=null,healthConnected=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null)return;
@@ -258,11 +311,11 @@ route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
   if (q.get('view') !== 'mine') return homeFeed(el);
   const sports = ['', 'run', 'ride', 'walk', 'hike', 'swim', 'workout', 'other'];
-  el.innerHTML = `${actTop(true)}${whoseSeg('mine')}
+  el.innerHTML = `${actTop(true)}${whoseSeg('mine')}<div id="workout-sync"></div>
     <form id="f-sform" class="${term ? '' : 'hidden'}" role="search"><input type="search" name="q" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form>
     <div class="chips" role="group" aria-label="Sport">${sports.map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s === 'other' ? 'Other' : s ? SPORT_NAMES[s] + 's' : 'All'}</button>`).join('')}</div>
     <div class="feed-list" id="f-list">${skel(4)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
-  wireWhose(el);
+  wireWhose(el);workoutSyncStatus($('#workout-sync',el));
   const sf = $('#f-sform', el); if (!term) sf.hidden = true;
   $('#f-search', el).onclick = () => { sf.hidden = !sf.hidden; if (!sf.hidden) $('input', sf).focus(); };
   sf.onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(location.search); const v = $('input', sf).value.trim(); v ? p.set('q', v) : p.delete('q'); go('/activity' + (p.toString() ? '?' + p : ''), {replace: true}); };
@@ -339,7 +392,7 @@ function sportStats(a) {
 route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>${skel(2)}`;
   wireBack(el, '/activity');
-  await load(`/api/activities/${id}`, (a) => drawDetail(el, a), {maxAge: 60000});
+  await load(`/api/activities/${id}`, (a) => {drawDetail(el,a);if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}}, {maxAge:60000});
 });
 
 // Sections (2026-10-12, Ben: "one huge long list"): the map, title and headline numbers stay on top; the rest is
@@ -778,7 +831,8 @@ async function foodProgress(el,q) {
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
   el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
-    <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav><div class="pbar">${filters}</div><div id="p-body">${skel(2)}</div>`;
+    <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav><div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skel(2)}</div>`;
+  combinedWeek($('#p-combined-week',el));
   $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
     if (k === 'plan') return go('/plan');
     const keep = new URLSearchParams(); const s = new URLSearchParams(location.search).get('sport'); if (s) keep.set('sport', s);
@@ -1165,7 +1219,8 @@ route(/^\/me$/, 'me', async (el) => {
   }
   $('#logout', el).onclick = async () => {
     let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){toast('Could not check unsent food messages. Try logging out again.');return;}
-    const n = Q.mine().length + chat;
+    let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){toast(e.message);return;}
+    const n = Q.mine().length + chat + shortcuts;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
     if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
     if (typeof Track !== 'undefined') await Track.pause();
@@ -1238,7 +1293,7 @@ function deleteSheet() {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
         if(account!==readOwner())return;
-        if(Native.on)await Native.pauseHealth();
+        if(Native.on)await (Native.pauseSession||Native.pauseHealth)();
         if(account!==readOwner())return;
         try { await api('/api/account/delete', json('POST', {password: f.pw.value})); }
         catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}
@@ -1246,6 +1301,7 @@ function deleteSheet() {
         const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
         await cleanup(()=>Native.forget({deleted:true}));
         await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
+        await cleanup(()=>typeof TrainingFood!=='undefined'?TrainingFood.eraseDevice():null);
         await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
         await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
         await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));

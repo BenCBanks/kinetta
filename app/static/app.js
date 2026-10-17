@@ -44,7 +44,7 @@ async function api(path, opts = {}) {
     const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
     const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
     e.status = r.status; e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;
-    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { Native.pauseHealth?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
+    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { (Native.pauseSession||Native.pauseHealth)?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
     throw e;
   }
 
@@ -222,7 +222,7 @@ function netState(off) { if (App.offline !== off) { App.offline = off; netbar();
 function netbar() {
   let b = $('#netbar'); const n = Q.mine().length;
   if (!App.offline && !n) { if (b) b.remove(); return; }
-  if (!b) { b = document.createElement('div'); b.id = 'netbar'; b.className = 'netbar'; b.setAttribute('role', 'status'); document.body.append(b); }
+  if (!b) { b = document.createElement('div'); b.id = 'netbar'; b.className = 'netbar'; b.setAttribute('role', 'status'); document.body.prepend(b); }
   b.replaceChildren(); const status = document.createElement('span');
   status.textContent = App.offline ? `Offline - showing what's saved on this phone${n ? ` · ${n} waiting to send` : ''}` : `${n} item${n > 1 ? 's' : ''} waiting to send${Q.mine().some(o => o.error) ? ' · needs attention' : '…'}`;
   b.append(status);
@@ -365,7 +365,7 @@ function softFocus(el) { if (el && !matchMedia('(pointer: coarse)').matches) el.
 function toast(msg, undo) {
   let t = $('#toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
-  if (Date.now() - (App.queuedAt || 0) < 2000 && !undo) msg += ' - saved on this phone, it sends when you are back online';
+  if (Date.now() - (App.queuedAt || 0) < 2000 && !undo && !/saved on this phone|waiting to send/i.test(msg)) msg += ' - saved on this phone, it sends when you are back online';
   t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
   if (undo) $('button', t).onclick = () => { t.classList.remove('on'); undo(); };
   t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
@@ -984,7 +984,7 @@ async function start() {
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/me');
-    render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
+    Native.resumeFoodEntry?.();render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
   const saved = kept('/api/me');

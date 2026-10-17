@@ -27,6 +27,13 @@ echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_track.js
 node dev/tests/test_track_native.js
 node dev/tests/test_native_sync.js
+node dev/tests/test_activity_sync_ui.js
+python3 dev/tests/test_activity_food.py
+node dev/tests/test_combined_week_ui.js
+
+python3 dev/tests/test_training_food.py
+node dev/tests/test_training_food_ui.js
+node dev/tests/test_workout_sync_status.js
 node dev/tests/test_native_resting.js
 node dev/tests/test_social_gestures.js
 node dev/tests/test_card_taps.js
@@ -47,6 +54,12 @@ node dev/tests/test_extra_nutrients.js
 node dev/tests/test_recent_nutrients.js
 node dev/tests/test_shared_recipes.js
 node dev/tests/test_health_food_client.js
+node dev/tests/test_food_entry.js
+node dev/tests/test_food_numbers_ui.js
+node dev/tests/test_food_upload_undo.js
+python3 dev/tests/test_food_number_parser.py
+node dev/tests/test_meal_reminders_ui.js
+python3 dev/tests/test_meal_reminder_times.py
 node dev/tests/test_health_session.js
 node dev/tests/test_weekly_food_review.js
 node dev/tests/test_thread_sources.js
@@ -100,6 +113,12 @@ docker compose -p "$P" exec -T app python - < dev/tests/weekly_food_review_incon
 docker compose -p "$P" exec -T app python - < dev/tests/shared_recipes_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weights_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_nutrition_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/meal_reminders_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_numbers_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_incontainer.py
+
+docker compose -p "$P" exec -T app python - < dev/tests/activity_food_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/training_food_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
 echo "== all passed"

@@ -241,7 +241,7 @@ def _write(c,uid,message,result,*,force=False,only=None):
         response=food_thread.finish_reply(c,uid,message,result);response['changed']=True;return response
     if auto or force:
         for part in result['parts']:
-            if (only is None or part['index'] in only) and part['status']=='ready' and not part.get('logged'):added+=log_part(c,uid,message,result,part)
+            if (only is None or part['index'] in only) and part['status']=='ready' and not part.get('logged') and (force or not part.get('requires_tap')):added+=log_part(c,uid,message,result,part)
     linked=[r['entry_id'] for r in c.execute('SELECT entry_id FROM food_chat_entries WHERE user_id=%s AND message_id=%s',(uid,message['id']))]
     ids=list(dict.fromkeys(linked+added));pending=[p for p in result['parts'] if p['status']!='ready']
     ready=[p for p in result['parts'] if p['status']=='ready' and not p.get('logged')]

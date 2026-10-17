@@ -5,6 +5,8 @@ session; logout revokes them. Browser notification delivery has been retired.
 """
 import json
 import threading
+import datetime as dt
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -222,7 +224,6 @@ def push(nid, send=None):
         p = c.execute('SELECT notify FROM profile WHERE user_id = %s', (r['user_id'],)).fetchone() or {}
         want = _prefs(p.get('notify'))
         if not any(want[g] for g, kinds in PUSH_KINDS.items() if r['kind'] in kinds): return 0
-        subs = c.execute('SELECT token, environment FROM native_push_devices WHERE user_id = %s', (r['user_id'],)).fetchall()
         badge = unread(c, r['user_id'])
     text, link = _words(r)
     title, _, said = text.partition(': "') if r['kind'] == 'comment' else (text, '', '')
@@ -230,22 +231,40 @@ def push(nid, send=None):
     if r['kind'] == 'activity_ready':
         title, body = f"Nice work! {r['activity'] or 'Your workout'} saved", _activity_summary(r)
     payload = {'title': title[:180], 'body': body[:600], 'url': link, 'badge': badge, 'tag': f"{r['kind']}-{nid}"}
-    sent = 0
+    def prepare(c):
+        return payload if c.execute('SELECT 1 FROM notifications n WHERE n.id=%s AND '+NOTICE_VISIBLE,(nid,)).fetchone() else None
+    return _deliver_native(r['user_id'],payload,prepare,send)
+
+
+def _deliver_native(uid,payload,prepare,send):
+    """One shared device/session/transfer/token-removal boundary for native pushes."""
+    with db.connect() as c:subs=c.execute('SELECT token,environment FROM native_push_devices WHERE user_id=%s',(uid,)).fetchall()
+    count=0
     for device in subs:
-        # Serialize account transfers/unsubscribe with delivery, and reject expired or deleted login sessions.
         with db.connect() as c:
-            current = c.execute(f"""SELECT d.* FROM native_push_devices d JOIN sessions s ON s.token_hash = d.session_hash
-                          WHERE d.token = %s AND d.environment = %s AND d.user_id = %s AND s.user_id = d.user_id
-                          AND s.last_seen > now() - interval '{SESSION_DAYS} days'
-                          AND EXISTS(SELECT 1 FROM notifications n WHERE n.id=%s AND {NOTICE_VISIBLE}) FOR UPDATE OF d""",
-                                (device['token'], device['environment'], r['user_id'],nid)).fetchone()
-            if not current: continue
+            current=c.execute(f"""SELECT d.* FROM native_push_devices d JOIN sessions s ON s.token_hash=d.session_hash
+              WHERE d.token=%s AND d.environment=%s AND d.user_id=%s AND s.user_id=d.user_id
+              AND s.last_seen>now()-interval '{SESSION_DAYS} days' FOR UPDATE OF d""",(device['token'],device['environment'],uid)).fetchone()
+            if not current:continue
+            ready=prepare(c)
+            if ready is None:continue
             try:
-                ok = send(device, payload) if send else apns.deliver(device, payload)
-                if ok is False:
-                    c.execute('DELETE FROM native_push_devices WHERE token = %s AND environment = %s',
-                              (device['token'], device['environment']))
-                else: sent += 1
-            except Exception as e:
-                print('native push failed', nid, type(e).__name__, flush=True)
-    return sent
+                accepted=send(device,ready) if send else apns.deliver(device,ready)
+                if accepted is False:c.execute('DELETE FROM native_push_devices WHERE token=%s AND environment=%s',(device['token'],device['environment']))
+                else:count+=1
+            except Exception as error:print('native push failed',type(error).__name__,flush=True)
+    return count
+
+
+def private_meal_push(uid,day,meal,payload,send=None):
+    """Private nudge with a final non-locking preference/date/meal check per device."""
+    if send is None and not apns.ready():return 0
+    def prepare(c):
+        p=c.execute("""SELECT tz FROM profile WHERE user_id=%s AND food_reminders
+          AND NOT EXISTS(SELECT 1 FROM food_entries WHERE user_id=%s AND day=%s AND meal=%s)
+          AND EXISTS(SELECT 1 FROM meal_reminder_attempts WHERE user_id=%s AND day=%s AND meal=%s AND attempted_at>now()-interval '5 minutes')""",(uid,uid,day,meal,uid,day,meal)).fetchone()
+        if not p:return None
+        local=dt.datetime.now(dt.timezone.utc).astimezone(ZoneInfo(db.valid_tz(p['tz']) or db.DEFAULT_TZ))
+        if local.date()!=day or not 7<=local.hour<21:return None
+        return {**payload,'badge':unread(c,uid),'expires_at':int(dt.datetime.now(dt.timezone.utc).timestamp())+300}
+    return _deliver_native(uid,payload,prepare,send)

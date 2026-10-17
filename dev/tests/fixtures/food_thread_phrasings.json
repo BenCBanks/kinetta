@@ -786,5 +786,177 @@
       "text": "more history waiting",
       "expected": "Review example retained; covered by corresponding nutrient/Health regression"
     }
+  ],
+  "review_phrases_156_163": [
+    {
+      "pr": 156,
+      "text": "Log breakfast?",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 156,
+      "text": "First turn on iPhone notifications above",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 156,
+      "text": "Open the Kinetta iPhone app to turn on notifications",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 156,
+      "text": "tested on a device once APNs is configured",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 157,
+      "text": "no diet/nutrition advice",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 157,
+      "text": "diet/nutrition advice",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 157,
+      "text": "roughly203,000 items across860",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 157,
+      "text": "below$1m",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 157,
+      "text": "within24hours",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 157,
+      "text": "Assume two…",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 158,
+      "text": "Log food in Kinetta: chicken salad",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "450 calories, 30 g protein",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "per serving",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "1/2 sandwich, 300 calories",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "1/2 cup oats 150 calories",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "may be per serving or per 100 g",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "/100 g",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "/serving",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "1 serving of oatmeal, 150 calories",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "serving",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "per serving",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "a serving",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 159,
+      "text": "2 eggs, 140 calories each",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 160,
+      "text": "unchanged since logging",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 161,
+      "text": "workout-sync",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 161,
+      "text": "unknown",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 161,
+      "text": "in progress",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 161,
+      "text": "Today's workouts",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 162,
+      "text": "Never lowers the normal target",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 162,
+      "text": "800 over",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 162,
+      "text": "within your usual training",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 162,
+      "text": "long day",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 162,
+      "text": "recent workouts",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    },
+    {
+      "pr": 162,
+      "text": "Done when",
+      "expected": "Review example retained; covered by its corresponding reminder/native/food regression"
+    }
   ]
 }

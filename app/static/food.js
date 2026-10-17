@@ -23,7 +23,7 @@ const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
 const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}); };
 function guessMeal() {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
-  const h = new Date().getHours(), mine = App.mealHours && App.mealHours[h];
+  const h = Number(new Intl.DateTimeFormat('en-US',{timeZone:tz(),hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = App.mealHours && App.mealHours[h];
   return mine || (h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snacks' : h < 21 ? 'dinner' : 'snacks');
 }
 
@@ -130,23 +130,12 @@ function yesterdayMeal(day, meal) {
       if (!rows.length) { $('#ym-usual', b).onclick = () => { close(); addSheet(day, meal); }; return; }
       $('#ym-save', b).onclick = async e => {
         e.currentTarget.disabled = true;
-        const items = rows.map(({name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}) => ({day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}));
+        const items = rows.map(({name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}));
         try {
           const result = await addEntries(items);
           if (readOwner() !== owner) return;
           close(); Native.haptic('light');
-          if (!result.queued) {
-            let busy = false, done = false;
-            const remaining = new Set(result.ids);
-            const undo = async () => {
-              if (busy || done || readOwner() !== owner) return;
-              busy = true;
-              try { for (const id of remaining) { if (readOwner() !== owner) return; try { await api(`/api/food/entries/${id}`, {method:'DELETE'}); } catch(e) { if(e.status !== 404) throw e; } remaining.delete(id); } done = true; refresh(); toast('Meal removed'); }
-              catch(x) { if (readOwner() === owner) toast('Could not undo · try again',undo); }
-              finally { busy = false; }
-            };
-            toast('Meal logged',undo);
-          }
+          toast(result.queued?'Meal saved on this phone · waiting to send':'Meal logged',result.undo);
         }
         catch(x) { if (b.isConnected) { $('#ym-save',b).disabled = false; toast(x.message); } }
       };
@@ -186,7 +175,8 @@ const NRANGED = ['overview', 'energy', 'macros'];
 function nHead(el, view, filters) {
   const v = [...NLOG, ...NPROG].find((m) => m[0] === view), inProgress = location.pathname === '/progress';
   el.innerHTML = `<div class="top"><h1>${inProgress ? 'Progress' : 'Nutrition'}</h1><div class="acts"><button class="icon-btn" id="n-help" aria-label="Nutrition help">${svg('help')}</button>${bellBtn()}</div></div>
-    ${inProgress ? progressSwitch('food') + `<nav class="view-nav" aria-label="Food and weight views">${[['overview','Overview'],['weight','Weight'],['calendar','Calendar']].map(([k,n]) => `<a href="${nutritionHref(k)}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('n-view', '', 'More', 'More food and weight views')}</nav>` : `<nav class="view-nav" aria-label="Nutrition views">${[['log','Food log'],['overview','Overview'],['weight','Weight']].map(([k,n]) => `<a href="${k === 'log' ? '/food' : '/food?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('n-view', '', 'More', 'More nutrition views')}</nav>`}<div class="pbar nbar">${filters}</div><div id="n-body"></div>`;
+    ${inProgress ? progressSwitch('food') + `<nav class="view-nav" aria-label="Food and weight views">${[['overview','Overview'],['weight','Weight'],['calendar','Calendar']].map(([k,n]) => `<a href="${nutritionHref(k)}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('n-view', '', 'More', 'More food and weight views')}</nav>` : `<nav class="view-nav" aria-label="Nutrition views">${[['log','Food log'],['overview','Overview'],['weight','Weight']].map(([k,n]) => `<a href="${k === 'log' ? '/food' : '/food?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('n-view', '', 'More', 'More nutrition views')}</nav>`}<div class="pbar nbar">${filters}</div>${inProgress?'<div id="n-combined-week"></div>':''}<div id="n-body"></div>`;
+  if(inProgress)combinedWeek($('#n-combined-week',el));
   $('#n-help', el).onclick = () => sheet('About your nutrition', `<p>For more accurate calorie estimates, update your weight, height, birth year (age) and sex in <a href="/me?setup=body">Me → Body &amp; heart rate</a>.</p><p class="small muted">Your daily balance compares food logged with estimated burn for the whole day. It becomes useful when you’ve finished logging.</p><p class="small">Edit ingredients and totals in <a href="/food/meals">My Recipes</a>. Tap a logged food to change just that entry.</p>`, (b, close) => $$('a', b).forEach(a => a.addEventListener('click', close)));
   $('#n-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your log</h3>${pickRows(NLOG, view)}<h3 class="ghead">Progress</h3>${pickRows(NPROG, view)}<h3 class="ghead">More</h3>${pickRows(NMORE, view)}`,
     (k) => (k === 'import' ? go('/food/import') : go(k === 'log' ? '/food' : nutritionHref(k), {replace: true})));
@@ -201,7 +191,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
   body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <p class="small food-library-link"><a href="/food/meals">My Recipes &amp; foods · edit or create</a> · <a href="/food/setup">${App.me.kcal_target ? 'Review goal' : 'Set a goal'}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
+    <p class="small food-library-link"><a href="/food/meals">My Recipes &amp; foods · edit or create</a> · <a href="/food/setup">${App.me.kcal_target ? 'Review goal' : 'Set a goal'}</a> · <a href="/me/notifications">Reminders · optional</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-training"></div><div id="fd-meals"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -286,10 +276,11 @@ function drawDay(el, D) {
   const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
   $('#fd-goal', el).onclick = () => goalSheet(D);
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
+  $('#fd-training',el).innerHTML=TrainingFood.card(D);TrainingFood.wire(el,D);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
-      </section>`;
+      ${D.day===isoDay(new Date())&&m===guessMeal()?`<div class="empty-meal-ways"><button class="ghost" data-yesterday-meal="${m}">Same as yesterday</button><button class="ghost" data-usual-meal="${m}">Your usuals</button></div>`:''}</section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`;
@@ -297,6 +288,8 @@ function drawDay(el, D) {
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('edit')}Edit</button>` : ''}</div></section>`;
   }).join('') + (D.entries.length ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
+  $$('[data-yesterday-meal]',el).forEach(b=>b.onclick=()=>yesterdayMeal(D.day,b.dataset.yesterdayMeal));
+  $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
   $$('[data-add]', el).forEach((b) => b.onclick = () => addSheet(D.day, b.dataset.add));
   $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
   $$('.meal', el).forEach((card) => swipeRows(card, (id) => removeFoodEntry(D.entries.find((e) => String(e.id) === id), {button: $(`.sw-del[data-del="${id}"]`, card)})));
@@ -311,18 +304,43 @@ const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.u
 const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
 
 async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
+  const owner=readOwner();
   items = items.map((it) => ({...foodStorage(it), client_id: it.client_id || newId()}));
   const query=new URLSearchParams();if(thread){query.set('thread','true');query.set('captured_at',new Date().toISOString());}if(restoreFrom)query.set('restore_from',restoreFrom);
   const r = await sendOrQueue('/api/food/entries'+(query.size?'?'+query:''), 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
+  if(readOwner()!==owner)return r;
+  r.undo=foodUploadUndo(items,owner);
   if (r.queued) {   // offline: show them now, marked "waiting to send"
     for (const it of items) patchDay(it.day, (d) => {
       d.entries.push({...it, id: 'q-' + it.client_id, pending: true});
-      for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) d.totals[k] = (d.totals[k] || 0) + (it[k] || 0);
+      for(const k of FOOD_NUTRIENTS){d.totals[k]=(d.totals[k]||0)+(it[k]||0);if(d.unknown_nutrients&&(it[k]==null||it.ref?.unknown_nutrients?.includes(k)))d.unknown_nutrients[k]=(d.unknown_nutrients[k]||0)+1;}
     });
-    if(location.pathname!=='/food/describe')render(); toast('Saved on this phone - it sends when you are back online'); return {queued: true};
+    if(location.pathname!=='/food/describe')render(); toast('Saved on this phone · waiting to send',r.undo); return r;
   }
   if(typeof FoodThread!=='undefined'&&r.messages){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
-  refresh(); return r;
+  refresh(); toast(items.length===1?`Logged ${items[0].name}`:'Meal logged',r.undo); return r;
+}
+// Keep the cancellation durable before removing an upload: it may already be in flight.
+function foodUploadUndo(items,owner) {
+  const ids=new Set(items.map(it=>it.client_id));let busy=false,done=false;
+  const undo=async()=>{
+    if(busy||done||readOwner()!==owner)return;busy=true;
+    try {
+      const r=await sendOrQueue('/api/food/entries/undo','POST',{client_ids:[...ids],confirm:true},'Undo food');
+      if(readOwner()!==owner)return;
+      Q.save(Q.all().flatMap(op=>{
+        if(!Q.owns(op)||op.path.split('?')[0]!=='/api/food/entries'||!Array.isArray(op.body))return [op];
+        const body=op.body.filter(it=>!ids.has(it.client_id));return body.length?[{...op,body}]:[];
+      }));netbar();
+      for(const day of new Set(items.map(it=>it.day)))patchDay(day,d=>{
+        const removed=d.entries.filter(e=>ids.has(e.client_id));d.entries=d.entries.filter(e=>!ids.has(e.client_id));
+        for(const e of removed)for(const k of FOOD_NUTRIENTS){d.totals[k]=Math.max(0,(d.totals[k]||0)-(e[k]||0));if(d.unknown_nutrients&&(e[k]==null||e.ref?.unknown_nutrients?.includes(k)))d.unknown_nutrients[k]=Math.max(0,(d.unknown_nutrients[k]||0)-1);}
+      });
+      done=true;if(r.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(r);
+      if(!r.queued)refresh();else if(location.pathname!=='/food/describe')render();
+      toast(r.queued?'Undo saved on this phone · waiting to send':r.kept?'Later-edited foods were kept. Check your food log.':'Food removed');
+    }catch(e){if(readOwner()===owner)toast('Could not undo · try again',undo);}finally{busy=false;}
+  };return undo;
 }
 async function copyDay(from, to, meal) {
   try { const r = await api('/api/food/copy', json('POST', {from_day: from, to_day: to, meal: meal || null})); refresh(); toast(r.copied ? `Copied ${r.copied} item${r.copied > 1 ? 's' : ''}` : 'Nothing to copy'); }
@@ -422,8 +440,8 @@ function entrySheet(e, day) {
     $('#es-again', b).onclick = async () => {   // the same food and amount, today in the meal for now
       if(owner!==readOwner()){close();return;}
       const btn = $('#es-again', b); if (btn.disabled) return; btn.disabled = true;
-      try { await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
-        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,e[k]??null])), source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(`Logged ${e.name} again today`); }
+      try { const result=await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
+        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,e[k]??null])), source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Logged ${e.name} again today`,result.undo); }
       catch (x) { toast(x.message); if (btn.isConnected) btn.disabled = false; }
     };
   });
@@ -556,7 +574,7 @@ async function tUsuals(body, where, close) {
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
       try { const result=await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
-        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
+        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
@@ -622,7 +640,7 @@ function savedSheet(m, w, closeParent, after) {
       if (!k) { toast('How many servings?'); return; }
       const sc = (v) => (v == null ? null : v * k);
       const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}));
-      try { await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`); } catch (x) { toast(x.message); }
+      try { const result=await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`,result.undo); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
       if (!confirm(`Delete the saved meal ${m.name}?`)) return;
@@ -646,7 +664,7 @@ function tQuick(body, where, close) {
     it.kcal = f.kcal.value.trim() ? n(f.kcal) : Math.round(it.protein_g * 4 + it.carbs_g * 4 + it.fat_g * 9);
     if (!it.kcal && !it.protein_g) { toast('Enter calories or macros'); return; }
     button.disabled=true;
-    try { const result=await addEntries([{...it, ...where()}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`); } catch (x) { toast(x.message);button.disabled=false; }
+    try { const result=await addEntries([{...it, ...where()}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`,result.undo); } catch (x) { toast(x.message);button.disabled=false; }
   };
 }
 
@@ -698,7 +716,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
       const v = calc();
       const ref = {...(f.dish_id?{dish_id:f.dish_id,weight_g:f.weight_g,dish_kcal:f.dish_kcal}:{}),origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
       try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}],{thread:location.pathname==='/food/describe'});
-        close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`); } catch (x) { toast(x.message); }
+        close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`,result.undo); } catch (x) { toast(x.message); }
     };
   });
 }

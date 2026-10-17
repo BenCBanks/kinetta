@@ -311,6 +311,14 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .netbar { position: fixed; left: 50%; transform: translateX(-50%); top: max(8px, env(safe-area-inset-top)); z-index: 60; max-width: calc(100% - 24px);
   padding: 6px 14px; border-radius: 999px; background: var(--ink); color: var(--onink); font-size: 12px; font-weight: 600; box-shadow: var(--lift); }
 
+/* Optional logging reminders and current-meal shortcuts. */
+.meal-reminders h2 {display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;font-size:1.2rem}
+.meal-reminders p,.meal-reminders label,.meal-reminders dl {font-size:1rem;line-height:1.5;overflow-wrap:anywhere}
+.meal-reminders dl>div {display:flex;flex-wrap:wrap;justify-content:space-between;gap:.3rem;padding:.5rem 0;border-bottom:1px solid var(--line)}
+.meal-reminders dd {margin:0}
+.meal-reminders .check {min-height:44px}
+.reminder-how summary {font-size:1rem;min-height:44px;display:flex;align-items:center;cursor:pointer}
+
 /* ---------- sheet (bottom dialog) ---------- */
 .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.36); display: flex; align-items: flex-end; justify-content: center; animation: fade .18s ease-out; }
 @keyframes fade { from { opacity: 0; } }
@@ -1760,7 +1768,7 @@ nav.tabs [data-quick-log] { color:var(--accent); }
 #quick-weight label { font-size:.9rem; }
 
 /* Pending food and weight writes remain reviewable after errors. */
-.netbar { width: max-content; display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.netbar { position: sticky; left: auto; transform: none; top: 0; width: calc(100% - 24px); max-width: 620px; margin: 8px auto; border-radius: 12px; display: flex; align-items: center; gap: 8px; font-size: .85rem; }
 .netbar .linkbtn { color: inherit; min-width: 44px; min-height: 44px; flex-shrink: 0; text-decoration: underline; }
 .pending-item { padding-block: 12px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 #pending-items { font-size: 1rem; }
@@ -1769,6 +1777,9 @@ nav.tabs [data-quick-log] { color:var(--accent); }
 #pending-items .actions { flex-wrap: wrap; }
 
 /* ---------- Permanent food conversation (#122 D) ---------- */
+.empty-meal-ways {display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+.empty-meal-ways button {font-size:1rem;min-height:44px;flex:1 1 9rem;white-space:normal}
+
 .food-thread { font-size: 1rem; height: calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom)); min-height: 0; display: flex; flex-direction: column; padding-bottom: 8px; }
 .thread-heading { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .food-thread h1 { margin: 20px 0 4px; }
@@ -1983,3 +1994,37 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 #h-body h2 {font-size:1.15rem}
 #h-body button,#h-body a.primary,#h-body .check {font-size:1rem;line-height:1.4;min-height:44px;white-space:normal}
 .weight-history-row .num {font-size:1rem}
+
+/* Optional logging reminders and current-meal shortcuts. */
+.meal-reminders h2 {display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;font-size:1.2rem}
+.meal-reminders p,.meal-reminders label,.meal-reminders dl {font-size:1rem;line-height:1.5;overflow-wrap:anywhere}
+.meal-reminders dl>div {display:flex;flex-wrap:wrap;justify-content:space-between;gap:.3rem;padding:.5rem 0;border-bottom:1px solid var(--line)}
+.meal-reminders dd {margin:0}
+.meal-reminders .check {min-height:44px}
+.empty-meal-ways {display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+.empty-meal-ways button {font-size:1rem;min-height:44px;flex:1 1 9rem;white-space:normal}
+
+.reminder-how summary {font-size:1rem;min-height:44px;display:flex;align-items:center;cursor:pointer}
+
+/* Private combined-week and Health-import controls remain thumb sized. */
+.combined-week > summary, .workout-sync > summary { min-height: 44px; display: flex; align-items: center; }
+.combined-week .linkbtn, .workout-sync .linkbtn, .combined-week-retry { min-height: 44px; display: inline-flex; align-items: center; }
+
+.combined-week, .workout-sync, .workout-energy { font-size: 1rem; }
+.combined-week .small, .workout-sync .small, .workout-energy .small { font-size: .9em; }
+.combined-week > summary, .workout-sync > summary, .combined-week .linkbtn, .workout-sync .linkbtn, .workout-sync .ghost { font-size: 1em; }
+.combined-week .stats3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.5em), 1fr)); }
+.combined-week .stat small { font-size: .75em; }
+.combined-week .stat b { font-size: 1.2em; }
+.combined-week .stat b i { font-size: .7em; }
+
+/* Optional food guidance follows the user's text size. */
+.training-food-card, #training-settings { font-size: 1rem; }
+.training-food-card p { margin-block: 12px; }
+.training-food-card summary { font-size: 1em; line-height: 1.4; }
+.training-food-card details { border-top: 1px solid var(--line); padding-block: 12px; }
+.training-food-card .small, #training-settings .small { font-size: .9em; }
+#training-settings label, #training-settings button { font-size: 1em; }
+
+.training-food-card summary, #training-settings summary, #training-settings label.check { min-height: 44px; display: flex; align-items: center; gap: 12px; }
+.training-food-card .linkbtn, .training-food-card a.small, #training-settings .linkbtn { min-height: 44px; display: inline-flex; align-items: center; }

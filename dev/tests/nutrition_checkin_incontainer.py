@@ -71,10 +71,14 @@ try:
   assert target()==2250 and get()['current']['state']=='pending'
   with ThreadPoolExecutor(max_workers=6) as pool:results=list(pool.map(lambda _:W.act(uid,uuid.UUID(row['id']),'accept',fresh['baseline']),range(6)))
   assert all(r['current']['state']=='accepted' for r in results) and target()==2200
+  with db.connect() as c:
+   training_baseline=c.execute('SELECT training_target_average,training_target_kcal FROM profile WHERE user_id=%s',(uid,)).fetchone();assert training_baseline=={'training_target_average':0,'training_target_kcal':2200}
   assert a.get('/api/food/day').json()['goal']['kcal']==1900
   me=a.get('/api/me').json();assert [me[k] for k in ['protein_target','carbs_target','fat_target','fiber_target','resting_source']]==[120,200,60,25,'apple_health']
   # A later manual change remains intact when an old accepted request is replayed.
   assert a.put('/api/food/targets',json={'kcal_target':2300,'protein_target':120,'carbs_target':200,'fat_target':60,'fiber_target':25}).status_code==200
+  with db.connect() as c:
+   assert c.execute('SELECT training_target_average,training_target_kcal FROM profile WHERE user_id=%s',(uid,)).fetchone()=={'training_target_average':None,'training_target_kcal':None}
   replay=a.post(path,json=body);assert replay.status_code==200 and replay.json()['already_decided'] and target()==2300
   with db.connect() as c:c.execute('UPDATE nutrition_checkins SET id=gen_random_uuid(),week=week-7 WHERE user_id=%s AND id=%s',(uid,row['id']))
   with db.connect() as c:old_id=c.execute("SELECT id FROM nutrition_checkins WHERE user_id=%s AND state='accepted'",(uid,)).fetchone()['id']

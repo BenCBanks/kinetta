@@ -45,6 +45,14 @@ jobs:
         run: |
           swiftc ios/App/App/HealthFoodState.swift tests/healthfood/main.swift -o "$RUNNER_TEMP/health-food-tests"
           "$RUNNER_TEMP/health-food-tests"
+      - name: Test food entry inbox
+        run: |
+          swiftc ios/App/App/FoodEntryState.swift tests/foodentry/main.swift -o "$RUNNER_TEMP/food-entry-tests"
+          "$RUNNER_TEMP/food-entry-tests"
+      - name: Test native food-share account and durability state
+        run: |
+          swiftc ios/App/App/ShareFoodState.swift ios/App/App/ShareFoodStore.swift ios/App/App/ShareFoodKeychain.swift tests/sharefood/main.swift -o "$RUNNER_TEMP/share-food-tests"
+          "$RUNNER_TEMP/share-food-tests"
       - name: Test the durable activity recorder
         run: |
           swiftc ios/App/App/TrackRecordingState.swift tests/track/main.swift -o "$RUNNER_TEMP/track-state-tests"

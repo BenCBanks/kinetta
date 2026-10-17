@@ -595,6 +595,7 @@ def calendar(month: str, user=Depends(current_user)):
 
 @router.get('/calendar/month')
 def calendar_month(month: str, user=Depends(current_user)):
+    from . import energy
     """The month at a glance (2026-10-11): each day's workouts, food against that day's calorie goal and weigh-in,
     plus each week's totals. A day counts as on target within 10 % of its goal; a day logged at under half a usual
     day's calories is 'partial' (probably not fully logged), so it isn't judged."""
@@ -615,8 +616,7 @@ def calendar_month(month: str, user=Depends(current_user)):
         food = {r['day']: r for r in c.execute("""SELECT day, round(sum(kcal)) AS kcal, round(sum(protein_g)) AS protein_g, count(*) AS n
                                                   FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day""",
                                                (user['id'], mon, sun)).fetchall()}
-        goals = {r['day']: r['kcal'] for r in c.execute('SELECT day, kcal FROM day_goals WHERE user_id = %s AND day BETWEEN %s AND %s',
-                                                         (user['id'], mon, sun)).fetchall()}
+        goals=energy.day_goals(c,user['id'],mon,sun)
         weights = {r['day']: r['kg'] for r in c.execute('SELECT day, kg FROM weights WHERE user_id = %s AND day BETWEEN %s AND %s',
                                                          (user['id'], mon, sun)).fetchall()}
         typical = c.execute("""SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY k) AS k FROM (SELECT sum(kcal) AS k FROM food_entries
@@ -625,7 +625,7 @@ def calendar_month(month: str, user=Depends(current_user)):
     for a in acts: by.setdefault(a['d'], []).append({k: a[k] for k in ('id', 'sport', 'name', 'distance_m', 'moving_s')})
     days, d = [], mon
     while d < sun + dt.timedelta(days=1):
-        f, goal = food.get(d), goals.get(d, p.get('kcal_target'))
+        f, goal = food.get(d), goals[d]['kcal']
         status = None
         if f and d <= today:
             if typical and f['kcal'] < 0.5 * typical and d < today: status = 'partial'
@@ -770,3 +770,9 @@ def coach_week_get(user=Depends(current_user)):
 def coach_week_make(user=Depends(current_user)):
     try: return {'text': coach.week_review(user['id'])}
     except ValueError as e: raise HTTPException(400, str(e))
+
+
+@router.get('/activity-food')
+def activity_food_summary(user=Depends(current_user)):
+    from . import activity_food
+    with db.connect() as c:return activity_food.read(c,user['id'])
