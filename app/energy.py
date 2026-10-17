@@ -101,7 +101,8 @@ def target_suggestion(profile, goal, pace_percent, year):
         raise ValueError('Choose a pace between 0 and 1% of body weight per week.')
     kg = float(profile.get('weight_kg') or 75)
     factor = float(profile.get('activity_factor') or 1.2)
-    if factor not in ACTIVITY:
+    factor = next((n for n in ACTIVITY if abs(factor - n) < .01), None)
+    if factor is None:
         raise ValueError('Choose an everyday activity level.')
     birth = profile.get('birth_year')
     if birth and year - birth < 18:
@@ -123,7 +124,7 @@ def target_suggestion(profile, goal, pace_percent, year):
             'activity_factor': factor, 'activity': ACTIVITY[factor], 'weight_kg': kg,
             'weight_assumed': not bool(profile.get('weight_kg')), 'method': 'mifflin' if exact else 'weight_only',
             'protein_g_per_kg': protein_factor, 'pace_percent': pace,
-            'effective_kg_per_week': round(effective, 2), 'floor_applied': raw < resting}
+            'effective_kg_per_week': round(effective, 2), 'floor_applied': raw < floor}
 
 
 # A day with only a snack logged isn't a 2,000 kcal deficit: days under 40% of the calorie goal (or of daily needs, without
