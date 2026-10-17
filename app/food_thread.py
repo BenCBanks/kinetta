@@ -3,12 +3,14 @@
 Text and owner-bound food links are kept; photos are not retained. Numbers answers
 and fully resolved own-food logging use code only. Food/reply changes commit
 together, with replay protection, an optional explicit Log tap and durable Undo.
-Unknown-food processing and the visible thread follow separately.
+Choices, corrections and own-log references also use code. Unknown-food model
+processing and the visible thread follow separately.
 """
 import datetime as dt
 import json
 import re
 from typing import Literal
+from . import meal_chat
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -60,6 +62,13 @@ def message_entries(c, uid, messages):
         for row in rows:
             grouped.setdefault(row.pop('message_id'), []).append(row)
     return [{**m, 'entries': grouped.get(m['id'], [])} for m in messages]
+
+
+def link_entries(c,uid,messages,ids):
+    if ids:
+        c.execute("""INSERT INTO food_chat_entries(user_id,message_id,entry_id)
+                     SELECT %s,m,e FROM unnest(%s::bigint[]) m CROSS JOIN unnest(%s::bigint[]) e
+                     ON CONFLICT (message_id,entry_id) DO NOTHING""",(uid,[m['id'] for m in messages],ids))
 
 
 @router.get('')
@@ -229,3 +238,36 @@ def undo_message(mid: int, body: AnswerIn, user=Depends(current_user)):
     with db.connect() as c:
         message=engine.locked_message(c,user['id'],mid)
         return engine.undo(c,user['id'],message)
+
+
+class ChoiceIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    part: int = Field(0,ge=0,lt=12)
+    pick: meal_chat.Pick | None = None
+    portion: meal_chat.Portion | None = None
+    select: int | None = Field(None,ge=0,lt=100)
+    omit: list[int] | None = Field(None,max_length=100)
+
+
+@router.post('/messages/{mid}/choose')
+def choose_message(mid: int, body: ChoiceIn, response: Response, user=Depends(current_user)):
+    from . import food_thread_log as engine, food_thread_edit as edits
+    with db.connect() as c:
+        message=engine.locked_message(c,user['id'],mid)
+        result=edits.choose(c,user['id'],message,body.part,body.pick,body.portion,body.select,body.omit)
+        if result.get('changed'):response.status_code=409
+        return result
+
+
+class DestinationIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    day: dt.date
+    meal: Literal['breakfast','lunch','dinner','snacks']
+
+
+@router.put('/messages/{mid}/destination')
+def move_message(mid: int, body: DestinationIn, user=Depends(current_user)):
+    from . import food_thread_log as engine, food_thread_edit as edits
+    with db.connect() as c:
+        message=engine.locked_message(c,user['id'],mid)
+        return edits.destination(c,user['id'],message,body.day,body.meal)

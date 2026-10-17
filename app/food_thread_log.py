@@ -8,10 +8,15 @@ from pydantic import Field, ValidationError
 from . import db, meal_chat, food_thread, food_thread_facts as facts
 
 
+class ThreadPartIn(meal_chat.PartIn):
+    text: str = Field(min_length=1,max_length=4000)
+
+
 class ThreadResolveIn(meal_chat.ResolveIn):
     # The permanent thread accepts longer paragraphs; the legacy endpoint keeps
     # its existing 400-character contract. Both use the same bounded parser.
     say: str | None = Field(None,max_length=4000)
+    parts: list[ThreadPartIn] = Field(default_factory=list,max_length=meal_chat.MAX_PARTS)
 
 
 locked_message=food_thread.locked_message
@@ -50,6 +55,7 @@ def make_result(c,uid,message,resolution):
     else:
         first=next((i for i in items if i['status']!='ready'),None)
         text=(first or {}).get('message') or resolution.get('message') or 'Which food would you like to add?'
+        if len(text)>1000:text='Choose a food for that part, or enter its nutrition numbers.'
     return {'kind':'preview' if ready else 'needs','day':day,'meal':meal,'resolution':resolution,
             'text':text,'source':'your foods','as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
 
@@ -72,20 +78,28 @@ def commit_log(c,uid,message,result):
     body=meal_chat.ConfirmIn(items=[{k:item[k] for k in ('kind','id','portion','expected')} for item in resolution['items']],
                              issued=resolution['issued'],client_id=str(message['client_id']),
                              day=result['day'],meal=result['meal'],confirm=True)
-    saved=meal_chat.confirm_data(c,uid,body)
+    saved=meal_chat.confirm_data(c,uid,body,include_groups=True)
     if not saved['ids']:raise HTTPException(400,'This food has no items to log yet')
+    groups=saved.get('groups')
+    if groups is None:
+        groups=[];offset=0
+        for item in resolution['items']:
+            source=meal_chat.source_row(c,uid,item['kind'],item['id'])
+            pieces,why=meal_chat.compute(c,uid,item['kind'],source,item['portion'])
+            if why:raise HTTPException(409,'The food details changed')
+            count=len(pieces)
+            groups.append({'name':item['name'],'ids':saved['ids'][offset:offset+count],'portion':item['portion']})
+            offset+=count
+        if offset!=len(saved['ids']):raise RuntimeError('Food group identities do not match')
     totals=c.execute('''SELECT sum(kcal) AS kcal,sum(protein_g) AS protein_g FROM food_entries
                         WHERE user_id=%s AND id=ANY(%s)''',(uid,saved['ids'])).fetchone()
     saved_rows=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,saved['ids'])).fetchall()
-    result={**result,'kind':'log','entry_ids':saved['ids'],'entry_digests':{str(r['id']):entry_digest(r) for r in saved_rows},
+    result={**result,'kind':'log','entry_ids':saved['ids'],'entry_digests':{str(r['id']):entry_digest(r) for r in saved_rows},'groups':groups,
             'text':result['text'].removesuffix(' Tap Log to add it.'),
             'feedback':facts.feedback(facts.snapshot(c,uid,body.day),dict(totals),seed=message['id']),
             'as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
     response=food_thread.finish_reply(c,uid,message,result)
-    for mid in (message['id'],response['messages'][-1]['id']):
-        for eid in saved['ids']:
-            c.execute('''INSERT INTO food_chat_entries(user_id,message_id,entry_id) VALUES (%s,%s,%s)
-                         ON CONFLICT (message_id,entry_id) DO NOTHING''',(uid,mid,eid))
+    food_thread.link_entries(c,uid,[message,response['messages'][-1]],saved['ids'])
     response['messages']=food_thread.message_entries(c,uid,response['messages'])
     return response
 
@@ -94,6 +108,14 @@ def process(c,uid,message):
     if message['state']!='pending':return food_thread.answer_with(c,uid,message)
     question=facts.classify(message['body'],message['local_day'])
     if question is not None:return food_thread.answer_with(c,uid,message,question=question)
+    from . import food_thread_edit as edits, food_thread_refs as refs
+    for handler in (edits.handle_pending,refs.handle,edits.try_correction):
+        try:
+            with c.transaction(): outcome=handler(c,uid,message)
+            if outcome is not None:return outcome
+        except (HTTPException,ValidationError) as error:
+            if isinstance(error,HTTPException) and error.status_code not in (400,422):raise
+            return needs_detail(c,uid,message,{},error)
     resolution=resolve(c,uid,message);result=make_result(c,uid,message,resolution)
     p=food_thread.preferences(c,uid) or {}
     if result['kind']=='preview' and p.get('auto_log',True):
@@ -112,6 +134,9 @@ def explicit_log(c,uid,message):
         return food_thread.answer_with(c,uid,message),False
     if reply['result'].get('kind')!='preview':
         raise HTTPException(409,'Resolve the food’s details before logging')
+    if reply['result'].get('reference'):
+        from . import food_thread_refs as refs
+        return refs.confirm(c,uid,message,reply['result'])
     try:
         with c.transaction(): return commit_log(c,uid,message,reply['result']),False
     except HTTPException as error:
@@ -119,7 +144,10 @@ def explicit_log(c,uid,message):
         if error.status_code in (400,422): return needs_detail(c,uid,message,reply['result'],error),False
         # Keep the words and refresh the card, without logging a changed or expired
         # preview. The next explicit tap approves these refreshed details.
-        result=make_result(c,uid,message,resolve(c,uid,message))
+        resolution=meal_chat.resolve_data(c,uid,ThreadResolveIn(parts=reply['result']['resolution']['parts']),anchor=message['local_day'])
+        result=make_result(c,uid,message,resolution)
+        result.update({k:reply['result'][k] for k in ('day','meal')})
+        if reply['result'].get('destination_override'):result['destination_override']=True
         if 'expired' in str(error.detail).lower():
             fields=lambda r:[{k:i.get(k) for k in ('kind','id','portion','totals')} for i in r.get('items',[])]
             if fields(result['resolution'])==fields(reply['result']['resolution']) and result['kind']=='preview':
