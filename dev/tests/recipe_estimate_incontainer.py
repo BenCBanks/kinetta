@@ -7,7 +7,7 @@ from app import auth,db,recipe_fetch as F,recipe_import as R,food_photo
 from app.main import app
 PW='green teapot on the hill';uids=[];clients=[]
 URL='https://recipes.example/fictional-pots'
-RECIPE={'@type':'Recipe','name':'Fictional pots','recipeYield':'2 servings','recipeIngredient':['100 g fictional beans','a handful of fictional leaves'],'nutrition':{'calories':'300 kcal'}}
+RECIPE={'@type':'Recipe','name':'Fictional pots','recipeYield':'2 servings','recipeIngredient':['100 g fictional beans','  a   handful of fictional leaves &amp; herbs  '],'nutrition':{'calories':'300 kcal'}}
 EST={'items':[{'name':'Fictional leaves','amount':'1 handful','grams':30,'kcal':50,'protein_g':2,'carbs_g':8,'fat_g':1,'fiber_g':3}],'notes':'Assumed one 30 g handful.','model':'stand-in'}
 try:
  for _ in range(2):
@@ -37,7 +37,7 @@ try:
   assert a.post(path+'/estimate',json=body).status_code==403 and estimate.call_count==0
   with db.connect() as c:c.execute('UPDATE profile SET ai_ok=true WHERE user_id=%s',(uid,))
   result=a.post(path+'/estimate',json=body);assert result.status_code==200,result.text
-  assert estimate.call_count==1 and estimate.call_args.args[0].note==RECIPE['recipeIngredient'][1]
+  assert estimate.call_count==1 and estimate.call_args.args[0].note==__import__('app.recipe_schema',fromlist=['text']).text(RECIPE['recipeIngredient'][1])
   assert estimate.call_args.args[0].image is None and not estimate.call_args.args[0].images
   assert a.post(path+'/estimate',json=body).json()['replayed'] and estimate.call_count==1
  updated=review(path);assert updated['per_serving']['kcal']==300 and updated['sources']['kcal']=='site'
