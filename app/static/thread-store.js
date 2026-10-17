@@ -44,7 +44,7 @@ function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
       try {
         for (let job of await db.list(owner)) {
           if (session()!==guard || !online()) break;
-          if (job.error) break; // Preserve conversational order until Retry or Cancel.
+          if (job.error && job.phase!=='cancel') break; // Preserve conversational order until Retry or Cancel.
           const write = async patch => {
             job=await db.update(owner,job.id,current=>current.phase==='cancel'?current:{...current,...patch});
             if(!job||job.phase==='cancel')throw Object.assign(Error('Stopped sending this message.'),{interrupted:true});
@@ -56,9 +56,10 @@ function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
             await changed(owner,r);return r;
           };
           try {
+            if(job.offline)await db.update(owner,job.id,current=>({...current,offline:false}));
             if (job.phase==='cancel') { await call('/api/food/thread/cancel',{client_id:job.id});await db.remove(owner,job.id);continue; }
             if (!job.mid) {
-              const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.barcode?{barcode:job.barcode}:{}),...(job.context?{context:job.context}:{})});
+              const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.day?{day:job.day}:{}),...(job.meal?{meal:job.meal}:{}),...(job.context?{context:job.context}:{}),...(job.barcode?{barcode:job.barcode}:{})});
               await write({mid:r.message.id,phase:'process'});
             }
             let r;
@@ -75,6 +76,7 @@ function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
               await db.remove(owner,job.id); // Source errors remain on the server card with explicit Retry.
             }
           } catch(e) {
+            if(job.phase==='cancel' && e.status===409){await db.remove(owner,job.id);continue;}
             if(e.code==='message_cancelled'){await db.remove(owner,job.id);continue;}
             if(e.offline)await db.update(owner,job.id,current=>current.phase==='cancel'?current:{...current,offline:true});
             if(!e.offline&&!e.stale&&!e.interrupted) {

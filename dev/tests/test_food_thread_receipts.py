@@ -47,6 +47,23 @@ try:
  _,result=send('how many calories so far?',second['messages'][0]['client_id']);assert result['messages'][-1]['result']['kind']=='answer'
  pending=post('/api/food/thread/messages',{'body':'Pending fictional plate','client_id':str(uuid.uuid4())},status=201)['message']
  _,result=send('make it half',pending['client_id']);assert result['messages'][-1]['result']['kind']=='needs','an unprocessed context asks which food rather than failing'
+ # Deleting in the day view and restoring updates the original card, with no new conversation.
+ restore_item=entry('Restore original plate');rr=post('/api/food/entries?thread=true',[restore_item]);old_id=rr['ids'][0];original_mid=rr['messages'][0]['id'];before_roots=len(roots())
+ deleted=a.delete('/api/food/entries/'+str(old_id))[1]['deleted'];deleted['client_id']=str(uuid.uuid4())
+ restored=post('/api/food/entries?restore_from='+str(old_id),[deleted]);new_id=restored['ids'][0]
+ assert len(roots())==before_roots
+ assert next(m for m in history() if m.get('reply_to')==original_mid)['entries'][0]['id']==new_id
+ assert post('/api/food/entries?restore_from='+str(old_id),[deleted])['ids']==[new_id]
+ assert len(roots())==before_roots
+ # A removed/undone explicit context offers a bounded, actionable correction choice.
+ post(f'/api/food/thread/messages/{original_mid}/undo',{})
+ _,question=send('make it half',rr['messages'][0]['client_id']);detail=question['messages'][-1]['result']
+ assert detail.get('correction') and 0<len(detail['choices'])<=5,detail
+ choice=detail['choices'][0]
+ post(f"/api/food/thread/messages/{question['messages'][0]['id']}/choose",{'select':0})
+ # Ordinary writes/copies produce no cards; cross-account restore cannot relink another person's cards.
+ old_count=len(roots());post('/api/food/entries',[entry('Plain day-view save')]);assert len(roots())==old_count
+ b_count=len(roots(b));post('/api/food/entries?restore_from='+str(old_id),[entry('Other account restore')],b);assert len(roots(b))==b_count
  print('Food picker receipts: replay/Undo/text deletion, recipe portion identity, context/account isolation and deterministic questions PASS')
 finally:
  for c in (a,b):c.post('/api/account/delete',{'password':PW})

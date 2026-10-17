@@ -30,13 +30,16 @@ def create(uid,*,now=None):
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
         p=c.execute('SELECT tz,food_chat_daily_note FROM profile WHERE user_id=%s',(uid,)).fetchone()
         if not p or p['food_chat_daily_note']=='off':raise HTTPException(409,'Turn on the optional daily note in Food chat settings first')
-        instant=now or dt.datetime.now(dt.timezone.utc);day=instant.astimezone(ZoneInfo(p['tz'] or db.DEFAULT_TZ)).date()
+        instant=now or dt.datetime.now(dt.timezone.utc);day=instant.astimezone(ZoneInfo(db.valid_tz(p['tz']) or db.DEFAULT_TZ)).date()
         key=uuid5(NAMESPACE_URL,f'kinetta:food-daily-note:{uid}:{day.isoformat()}')
         if c.execute('SELECT 1 FROM food_chat_cancellations WHERE user_id=%s AND client_id=%s',(uid,key)).fetchone():return {'messages':[],'deleted':True}
         old=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND client_id=%s',(uid,key)).fetchone()
-        if old:return food_thread.answer_with(c,uid,old)
         S=facts.snapshot(c,uid,day);as_of=instant.isoformat()
         result={'kind':'answer','intent':'review','daily_note':True,'text':note(S),'as_of':as_of}
+        if old:
+            previous=(__import__('app.food_thread_log',fromlist=['stored_reply']).stored_reply(c,uid,old) or {}).get('result') or {}
+            result={**previous,**result}
+            return food_thread.finish_reply(c,uid,old,result)
         root=c.execute(f'''INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state,result)
                           VALUES (%s,%s,'user',%s,%s,%s,'pending',%s) RETURNING {food_thread.COLUMNS}''',
                        (uid,key,f'Review my food for {day.isoformat()}.',instant,day,json.dumps({'daily_note':True}))).fetchone()
