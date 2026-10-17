@@ -339,3 +339,9 @@ One main action per step, quieter Not now/Change details, explicit labels/units,
 shared theme tokens, wrapping and relative-sized text. Goal choices give a selection haptic and saving a success haptic,
 with visible selection/confirmation. Browser evidence is distinct from physical Dynamic Type/VoiceOver/haptic/Health
 permission acceptance, which requires an iPhone.
+
+### Food-first Me — #122 Workstream B
+
+Home opens with the greeting, Today’s food, the check-in slot (populated by G), today’s plan session when present, friends’ shared activities when present, and the 14-day distance chart when distance exists. Setup and tools follow. Training details remain in Progress and Activity; home does not show empty training cards or zero-distance charts.
+
+Today has one primary Log food action and direct Describe, Snap, Scan and Usual shortcuts. They use the existing food logging paths and the expected meal; no extra meal form is required. The calorie hero shows calories remaining, with eaten and goal underneath. Without a goal it shows eaten totals and optional Set a goal. A completely empty log starts with an invitation, not zero totals. One macro bar has text equivalents for protein, carbs and fat. Today’s workouts link to their owner’s activity and label estimated calories. The next empty meal offers a preview of yesterday’s foods before logging, using the existing offline-capable entry path with Undo after an online save. Food is never added to the friends feed.

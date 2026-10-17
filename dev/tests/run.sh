@@ -32,6 +32,7 @@ node dev/tests/test_social_gestures.js
 node dev/tests/test_card_taps.js
 node dev/tests/test_ui_state.js
 node dev/tests/test_onboarding.js
+node dev/tests/test_home_food.js
 node dev/tests/test_async_reads.js
 node dev/tests/test_food_search.js
 node dev/tests/test_food_remove.js
