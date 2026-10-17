@@ -34,6 +34,7 @@ node dev/tests/test_ui_state.js
 node dev/tests/test_onboarding.js
 node dev/tests/test_home_food.js
 node dev/tests/test_navigation.js
+python3 dev/tests/test_food_thread_facts.py
 node dev/tests/test_async_reads.js
 node dev/tests/test_food_search.js
 node dev/tests/test_food_remove.js
@@ -46,7 +47,7 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details test_resting_energy test_onboarding test_food_thread; do python3 "$t.py"; done
+for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details test_resting_energy test_onboarding test_food_thread test_food_thread_answers; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"
@@ -60,4 +61,5 @@ docker compose -p "$P" exec -T app python - < dev/tests/meal_chat_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_photo_batches_corrections.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_facts_incontainer.py
 echo "== all passed"
