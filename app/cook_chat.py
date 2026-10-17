@@ -6,15 +6,14 @@ Cheap first, AI only when needed:
    said it as a count or a spoon ("2 apples", "1 tbsp oil"), its grams per piece or spoon. A message made only of foods
    they've used before is added straight away, with no AI.
 2. Otherwise one Gemini Flash-Lite call reads the whole message (adds, corrections and removals at once). Text only, so
-   it costs about half a photo: roughly $0.0005 a message (~700 tokens in, ~250 out; a photo measured ~$0.001). What it
-   adds goes into memory, so the next "2 apples" is free. Brake: 150 messages per person per day (at most ~$0.08).
+   its cost depends on input, output and retries. What it adds goes into memory, so the next "2 apples" is free.
+   Durable brake: 60 messages per UTC day, plus the shared AI budget (docs/ai-budgets.md).
 3. No AI (no key on the server, or AI features off for this person): the app falls back to search-and-pick.
 
 The cook's own dish only (api_dishes._get checks user_id). Nothing about the person is sent: just the dish's
 ingredient names and amounts and their message.
 """
 import concurrent.futures
-import datetime as dt
 import difflib
 import json
 import os
@@ -28,12 +27,12 @@ import urllib.request
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from . import nutrients as N
 from . import api_dishes as D, api_food, coach, db, food_photo
 from .auth import current_user
 
 router = APIRouter(prefix='/api/dishes')
 DAILY_LIMIT = 60          # messages to the AI per person per day (2026-10-12, was 150): plenty for cooking, a brake on misuse
-WEB_LIMIT = 25            # web product searches per person per day; after that only the free USDA lookup
 WEIGHTS = {'g', 'kg', 'oz', 'lb', 'ml', 'cl', 'dl', 'l'}    # units that already say the grams
 
 # ---------- reading the message ----------
@@ -90,7 +89,7 @@ def memory(c, uid):
         for it in d['items']:
             if not it.get('per100') or it['per100'].get('kcal') is None: continue
             for k in {key(it['name']), it.get('key') or ''} - {''}:
-                m = mem.setdefault(k, {'name': it['name'], 'per100': it['per100'], 'units': {}})
+                m = mem.setdefault(k, {'name': it['name'], 'per100': it['per100'], 'units': {},'source':it.get('source'),'ref':it.get('ref') or {}})
                 for u, g in (it.get('units') or {}).items(): m['units'].setdefault(u, g)
     return mem
 
@@ -112,7 +111,7 @@ def from_memory(text, mem):
         grams = p['grams'] or (p['amount'] * m['units'][p['unit'] or 'each'] if (p['unit'] or 'each') in m['units'] else None)
         if not grams or grams >= 20000: return None
         said = f"{p['amount']:g} {p['unit']}" if p['unit'] else f"{p['amount']:g}"
-        out.append({'name': m['name'], 'amount': said, 'grams': round(grams, 1), 'per100': m['per100'], 'source': 'memory',
+        out.append({'name': m['name'], 'amount': said, 'grams': round(grams, 1), 'per100': m['per100'], 'source': 'memory','ref':{**{k:v for k,v in m.get('ref',{}).items() if k in ('id','barcode','fdc_id','origin','origin_model')},**({'origin':'ai'} if m.get('source')=='ai' or m.get('ref',{}).get('origin')=='ai' else {})},
                     'key': key(p['query']), 'units': units_of(said, grams)})
     return out
 
@@ -189,7 +188,6 @@ def packaged(text):
 
 
 _FILLER = re.compile(r'\b(a|an|one|two|three|half|of|the|whole|full|\d+(\.\d+)?)\b', re.I)
-_web_off_until = [0.0]       # Google said no to web search: don't ask again until then
 
 
 def package_grams(s):
@@ -218,46 +216,6 @@ def _usda_products(q):
     return out[:5]
 
 
-def _web_product(text):
-    """Google search through Gemini (grounding), like asking ChatGPT. The free plan allows a small number a day; when
-    Google says no (429), it waits a while before asking again, and the USDA lookup still works."""
-    if not os.environ.get('GEMINI_API_KEY') or time.time() < _web_off_until[0]: return None
-    prompt = ('The person is in the United States and may misspell words: work out the product they mean, search the web for it '
-              '(a US product, from a US shop), and read its package size and its nutrition label. Answer JSON only, no other text: '
-              '{"name": product name with brand, "package_g": grams in the package, "per100": {"kcal": n, "protein_g": n, "carbs_g": n, '
-              '"fat_g": n, "fiber_g": n}, "source": the shop or site}. Food: ' + text)
-    model = os.environ.get('GEMINI_SEARCH_MODEL', 'gemini-3.8-flash')
-    req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
-                                 json.dumps({'contents': [{'parts': [{'text': prompt}]}], 'tools': [{'google_search': {}}],
-                                             'generationConfig': {'temperature': 0.1}}).encode(),
-                                 {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r: d = json.load(r)    # slower than that: USDA's answer will do
-        t = ''.join(p.get('text', '') for p in d['candidates'][0]['content']['parts'])
-        x = json.loads(t[t.index('{'):t.rindex('}') + 1])
-        per = api_food._sane({k: _n((x.get('per100') or {}).get(k)) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')})
-        if not per: return None
-        print('cook chat: web lookup found a product', flush=True)
-        return {'source': 'web: ' + str(x.get('source') or '')[:60], 'brand': None, 'name': str(x.get('name') or '')[:120], 'per100': per,
-                'package_g': _n(x.get('package_g'))}
-    except urllib.error.HTTPError as e:
-        print('cook chat: web lookup HTTP', e.code, flush=True)
-        # busy or over the plan's search allowance: rest a while (a key without web search at all: a long while)
-        if e.code in (429, 403, 400): _web_off_until[0] = time.time() + (15 * 60 if e.code == 429 else 6 * 3600)
-    except Exception as e:
-        print('cook chat: web lookup failed', type(e).__name__, flush=True)
-    return None
-
-
-def _web_allowed(uid):
-    """A quiet daily brake on web searches (they cost more than a message): over it, USDA alone answers."""
-    if uid is None: return True
-    k = (uid, 'web', dt.date.today())
-    if food_photo._used.get(k, 0) >= WEB_LIMIT: return False
-    food_photo._used[k] = food_photo._used.get(k, 0) + 1
-    return True
-
-
 def product_refs(text, uid=None):
     """Reference products for each packaged amount in the message, as prompt lines ('' when there's nothing to look up).
     "2 apples which weigh 100 grams and a box of food lion penne" looks up only the penne, with its own words."""
@@ -266,23 +224,23 @@ def product_refs(text, uid=None):
     jobs = []
     for part in [p for p in parts if packaged(p)][:3]:       # a few lookups at most per message
         q = ' '.join(w for w in _FILLER.sub(' ', part).split() if not _package_word(w))
-        if len(q) >= 3: jobs += ([(_web_product, part)] if _web_allowed(uid) else []) + [(_usda_products, q)]
+        if len(q) >= 3: jobs += [(_usda_products, q)]
     if not jobs: return ''
     with concurrent.futures.ThreadPoolExecutor(len(jobs)) as pool:      # all at once: a message waits for the slowest, not the sum
         for r in pool.map(lambda j: j[0](j[1]), jobs):
             found += [r] if isinstance(r, dict) else (r or [])[:3]
     if not found: return ''
     line = lambda f: (f"{f.get('brand') or ''} | {f['name']} | package {f['package_g']:g} g | " if f.get('package_g') else f"{f.get('brand') or ''} | {f['name']} | package size unknown | ") + \
-        ' '.join(f"{k} {f['per100'][k]:g}" for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g') if f['per100'].get(k) is not None) + \
-        (f" ({f['source']})" if str(f.get('source', '')).startswith('web') else '')
+        ' '.join(f"{k} {f['per100'][k]:g}" for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g') if f['per100'].get(k) is not None)
     return REFS.format(lines='\n'.join(line(f) for f in found[:10]))
 
 
 def ai_actions(text, items, uid=None):
     """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent (and, for a packaged
-    amount, the product words to USDA / a web search)."""
-    lines = '\n'.join(f"{i['id']} | {i['name']} | {i['grams']:g}" for i in items) or '(nothing yet)'
-    out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text, uid))}], SCHEMA, 'cook chat', timeout=45)
+    amount, the product words to USDA)."""
+    lines = '\n'.join(f"{i['id']} | {i['name']} | " + (f"{i['grams']:g} g" if i.get('grams') else 'weight unknown') for i in items) or '(nothing yet)'
+    with food_photo.ai_budget.scope(uid):
+        out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text, uid))}], SCHEMA, 'cook chat', timeout=45)
     u = data.get('usageMetadata', {})
     print(f"cook chat: model {model} actions {len(out.get('actions') or [])} tokens in {u.get('promptTokenCount')} "
           f"out {u.get('candidatesTokenCount')}", flush=True)
@@ -294,9 +252,8 @@ def _ai_item(a):
     g, kcal = _n(a.get('grams')), _n(a.get('kcal'))
     name = ' '.join(str(a.get('name') or '').split())[:80]
     if not (name and g and 0 < g < 20000 and kcal is not None and kcal >= 0): return None
-    per = {k: (max(_n(a.get(k)) or 0, 0) * 100 / g) for k in D.NUM}
-    if a.get('fiber_g') is None: per['fiber_g'] = None
-    if per['kcal'] > 950 or any((per[k] or 0) > 100 for k in D.NUM if k != 'kcal'): return None
+    per = {k: (_n(a.get(k))*100/g if _n(a.get(k)) is not None else None) for k in D.NUM}
+    if per['kcal'] > 950 or any(v is not None and (v<0 or v>N.PER100_LIMITS[k]) for k,v in per.items()): return None
     amount = ' '.join(str(a.get('amount') or '').split())[:40]
     return {'name': name, 'amount': amount, 'grams': round(g, 1), 'source': 'ai', 'key': key(name), 'units': units_of(amount, g),
             'per100': {k: (round(v, 3) if v is not None else None) for k, v in per.items()}}
@@ -304,7 +261,7 @@ def _ai_item(a):
 
 def _as_item(x):
     return {'id': secrets.token_hex(4), 'name': x['name'], 'grams': x['grams'], **D._item_values(x['per100'], x['grams']),
-            'per100': x['per100'], 'source': x['source'], 'ref': None, 'amount': x.get('amount') or '',
+            'per100': x['per100'], 'source': x['source'], 'ref': x.get('ref'), 'amount': x.get('amount') or '',
             'key': x.get('key') or key(x['name']), 'units': x.get('units') or {}}
 
 
@@ -345,7 +302,12 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
                 if x: new.append(_as_item(x))
                 else: skipped += 1
             elif op == 'change' and it and (g := _n(a.get('grams'))) and 0 < g < 20000:
-                it.update(grams=round(g, 1), **D._item_values(it['per100'], g)); changed.append(it['id'])
+                if not it.get('per100'):
+                    per={k:it.get(k)*100/g if it.get(k) is not None else None for k in D.NUM}
+                    if any(v is not None and v>(1000 if k=='kcal' else 100) for k,v in per.items()):skipped+=1;continue
+                    it.update(grams=round(g,1),per100=per)
+                else:it.update(grams=round(g,1),**D._item_values(it['per100'],g))
+                changed.append(it['id'])
             elif op == 'remove' and it and it['id'] not in removed:
                 removed.append(it['id'])
         items = [i for i in items if i['id'] not in removed] + new

@@ -11,6 +11,8 @@ Only opted-in unknown words go to the existing estimator with AI access and cons
 Resolve is read-only and stateless: the phone sends back the conversation (`parts`) with each new message. Confirm
 recalculates every item on the server under lock, checks each item's 15-minute preview fingerprint, and uses
 per-account client IDs so a retried Add never logs twice (even after the source is edited or deleted).
+The persistent thread reuses the internal transaction-sharing readers/writers under
+its own auto-log or require-a-tap preference; the legacy confirmation API stays explicit.
 """
 import datetime as dt
 import hashlib
@@ -24,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
+from . import nutrients as N
 from . import db
 from . import api_dishes as dishes
 from .api_food import _custom_food, _search_off, _search_usda
@@ -31,7 +34,7 @@ from .auth import current_user
 
 router = APIRouter(prefix='/api/food/meals-chat')
 NUM = dishes.NUM
-LIMITS = {'kcal': 20000, 'protein_g': 2000, 'carbs_g': 2000, 'fat_g': 2000, 'fiber_g': 1000}   # the normal entry limits
+LIMITS = N.ENTRY_MAX   # the normal entry limits
 MAX_PARTS = 12
 WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 MASS = {'g': 1, 'gr': 1, 'gm': 1, 'gram': 1, 'gramme': 1, 'kg': 1000, 'kilo': 1000, 'kilogram': 1000,
@@ -57,7 +60,7 @@ FILLER = {'i', 'id', 'ive', 'im', 'we', 'had', 'have', 'has', 'having', 'ate', '
           'little', 'on', 'in', 'at', 'to', 'got', 'grabbed', 'drank', 'drink', 'also', 'again', 'usual', 'same', 'as',
           'time', 'last', 'other', 'day', 'one', 'today', 'did', 'do', 'so', 'and', 'or', 'there', 'then', 'still', 'only',
           'whole', 'entire', 'all', 'instead', 'actually', 'change', 'should', 'make', 'cook', 'dish', 'batch', 'up'}
-LEAD = re.compile(r'^(?:(?:no|nope|nah|actually|sorry|wait|oh|oops|ok|okay|um|umm|hmm|well|so|yes|yeah)\b[\s,.!]*)+')
+LEAD = re.compile(r'^(?:(?:no|nope|nah|actually|sorry|wait|oh|oops|ok|okay|um|umm|hmm|well|so|yes|yeah|yep|yup)\b[\s,.!]*)+')
 TOKEN = re.compile(r"\d+(?:\.\d+)?(?:/\d+)?|[a-z]+|[,;&+]")
 UNICODE_FRACTIONS = {'½': ' 1/2', '¼': ' 1/4', '¾': ' 3/4', '⅓': ' 1/3', '⅔': ' 2/3', '⅛': ' 1/8'}
 
@@ -155,6 +158,9 @@ def when(s, today):
             days.add(day)
             if meal: meals.add(meal)
     for a, b, *_ in sorted(found, reverse=True): s = s[:a] + ' ' + s[b:]
+    # A dated meal lead: ‘yesterday’s breakfast was …’ still names the meal.
+    m = MEAL_LEAD.match(s)
+    if m: meals.add(MEAL_WORDS[m[1]]); s = s[m.end():]
     if len(meals) > 1: return None, 'Which meal should I add this to? Add one meal at a time.'
     if len(days) > 1 or len(saved) > 1: return None, 'Use one day at a time.'
     if days and max(days) > today: return None, "That day hasn't happened yet."
@@ -238,7 +244,7 @@ def split(ts):
     return out
 
 
-OPENERS = {'i', 'we', 'had', 'have', 'has', 'ate', 'eaten', 'just', 'also', 'got', 'grabbed', 'drank', 'then', 'and', 'log', 'add', 'please'}
+OPENERS = {'i', 'we', 'had', 'have', 'has', 'ate', 'eaten', 'just', 'also', 'got', 'grabbed', 'drank', 'then', 'and', 'log', 'add', 'please', 'only'}
 
 
 def text_of(ts, catalog):
@@ -250,8 +256,17 @@ def describe(s, today, catalog):
     s = LEAD.sub('', norm(s).strip())
     s, info = when(s, today)
     if s is None: return None, info
-    parts = []
-    for p in split(protect(raw(s), catalog)):
+    parts, joined, joined_portions = [], [], []
+    for fragment in split(protect(raw(s), catalog)):
+        portion, rest = amount(fragment)
+        previous = joined_portions[-1] if joined else None
+        # ‘Garden pasta, 200 grams’: an amount-only fragment belongs to the
+        # preceding exact own-food reference when it has no other amount.
+        if joined and portion and rest is not None and all(isinstance(t,str) and t in FILLER for t in rest) and previous is None and any(not isinstance(t,str) for t in joined[-1]):
+            joined[-1] += fragment; joined_portions[-1] = portion
+        else: joined.append(fragment); joined_portions.append(portion)
+    for p in joined:
+        if p and p[-1] == 'total' and any(not isinstance(t,str) for t in p) and amount(p[:-1])[0]: p = p[:-1]
         while p and isinstance(p[0], str) and p[0] in OPENERS: p = p[1:]                  # "i had", "we ate"
         while p and isinstance(p[-1], str) and p[-1] in FILLER and p[-1] not in COUNTS: p = p[:-1]   # "...i cooked on"
         if p: parts.append({'text': text_of(p, catalog), 'pick': None, 'portion': None, 'removed': False})
@@ -350,7 +365,7 @@ def near(part, catalog):
 
 # ---------- how much: arithmetic on stored values only ----------
 def scaled(values, f):
-    return {k: dishes._r(values[k] * f) if values.get(k) is not None else (None if k == 'fiber_g' else 0) for k in NUM}
+    return {k: N.rounded(k,values[k]*f) if N.known(values,k) else None for k in NUM}
 
 
 def fmt(n): return f'{n:g}' if n == int(n) else f'{round(n, 2):g}'
@@ -396,20 +411,20 @@ def settle(c, uid, e, p):
 def compute(c, uid, kind, row, p):
     """Entries to log for one food at portion p, from stored values only. Returns (entries, None) or (None, why)."""
     if kind == 'dish':
-        if not row['items'] and row['known_kcal'] is None: return None, 'Add nutrition to this meal first in My Recipes.'
+        if (row.get('recipe_source') and dishes._totals(row)['kcal'] is None) or (not row['items'] and row['known_kcal'] is None): return None, 'Add nutrition to this meal first in My Recipes.'
         weight = dishes._weight(row)
         if 'grams' in p:
             if not weight: return None, 'This meal has no total weight. Say half, a quarter or a number of servings, or add its weight in My Recipes.'
             f, amount_, unit = p['grams'] / weight, round(p['grams'], 1), 'g'
         elif 'count' in p:
             if p['count'] > 20: return None, 'Use up to 20 whole-meal servings.'
-            f, amount_, unit = p['count'], round(p['count'], 2), 'serving'
+            f, amount_, unit = p['count'] / dishes.serving_count(row), round(p['count'], 2), 'serving'
         elif weight: f, amount_, unit = p['share'], round(weight * p['share'], 1), 'g'
         else: f, amount_, unit = p['share'], round(p['share'], 3), 'dish'
         if amount_ <= 0: return None, 'Use a bigger amount.'
         totals = dishes._totals(row)
         return [{'name': row['name'], 'brand': None, 'amount': amount_, 'unit': unit, **scaled(totals, f), 'source': 'dish',
-                 'ref': {'dish_id': row['id'], 'weight_g': weight, 'dish_kcal': totals['kcal']}}], None
+                 'ref': {'dish_id': row['id'], 'weight_g': weight, 'dish_kcal': totals['kcal'],'unknown_nutrients':[k for k,v in totals.items() if v is None]}}], None
     if kind == 'combo':
         if 'count' not in p: return None, 'Say how many, like "2" or "half".'
         f = p['count']
@@ -424,7 +439,7 @@ def compute(c, uid, kind, row, p):
         return [{'name': row['name'], 'brand': row['brand'], 'amount': round(p['count'], 2), 'unit': 'serving', **scaled(food['per_serving'], p['count']),
                  'source': 'custom', 'ref': food}], None
     # a food logged before (kind 'food'): scale the last entry
-    base = {k: row[k] for k in NUM}
+    base = {k:row.get(k) if N.known(row,k) else None for k in NUM}
     ref = row['ref'] or {}
     if 'grams' in p:
         g = p['grams']
@@ -467,7 +482,7 @@ def fingerprint(uid, kind, fid, p, snap, issued):
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def too_big(entries): return any((x[k] or 0) > LIMITS[k] for x in entries for k in NUM)
+def too_big(entries): return any((x.get(k) or 0) > LIMITS[k] for x in entries for k in NUM)
 
 
 # ---------- the conversation ----------
@@ -551,37 +566,40 @@ def follow_up(say, parts, today, catalog):
 
 @router.post('/resolve')
 def resolve(body: ResolveIn, user=Depends(current_user)):
-    uid = user['id']
     with db.connect() as c:
-        today = dishes._today(c, uid).date()
-        catalog = catalog_for(c, uid)
-        parts = [{'text': p.text, 'pick': p.pick.model_dump() if p.pick else None, 'saved_day': p.saved_day,
-                  'portion': p.portion.clean() if p.portion else None, 'removed': p.removed, 'new': p.new} for p in body.parts]
-        say = (body.say or '').strip()
-        info, note = {'meal': None, 'day': None, 'saved_day': None}, None
-        if parts and say:
-            for p in parts:            # what each part is now, so "remove the pasta" / "make it 300 g" can find it
-                e = pick_entry(p, catalog)
-                p['_name_words'] = list(e['words']) if e else []
-                p['_status'] = None if p['removed'] else item_for(c, uid, p, catalog)['status']
-            parts, info, note = follow_up(say, parts, today, catalog)
-            if parts is None: return {'status': 'clarify', 'message': info}
-        elif say:
-            parts, info = describe(say, today, catalog)
-            if parts is None: return {'status': 'clarify', 'message': info}
-            note = 'new'
-        for p in parts:
-            if 'saved_day' not in p: p['saved_day'] = info['saved_day']     # new parts from this message
-        if not any(not p['removed'] for p in parts):
-            return {'status': 'clarify', 'message': 'Tell me what you ate, for example: 2 eggs and toast for breakfast.', 'parts': [], 'items': []}
-        issued = int(time.time())
-        items = []
-        for i, p in enumerate(parts):
-            if p['removed']: continue
-            it = item_for(c, uid, p, catalog, issued)
-            it['index'] = i
-            if it.get('kind') and not p.get('pick'): p['pick'] = {'kind': it['kind'], 'id': it['id']}   # keep the match for follow-ups
-            items.append(it)
+        return resolve_data(c, user['id'], body)
+
+
+def resolve_data(c, uid, body, anchor=None):
+    today = anchor or dishes._today(c, uid).date()
+    catalog = catalog_for(c, uid)
+    parts = [{'text': p.text, 'pick': p.pick.model_dump() if p.pick else None, 'saved_day': p.saved_day,
+              'portion': p.portion.clean() if p.portion else None, 'removed': p.removed, 'new': p.new} for p in body.parts]
+    say = (body.say or '').strip()
+    info, note = {'meal': None, 'day': None, 'saved_day': None}, None
+    if parts and say:
+        for p in parts:            # what each part is now, so "remove the pasta" / "make it 300 g" can find it
+            e = pick_entry(p, catalog)
+            p['_name_words'] = list(e['words']) if e else []
+            p['_status'] = None if p['removed'] else item_for(c, uid, p, catalog)['status']
+        parts, info, note = follow_up(say, parts, today, catalog)
+        if parts is None: return {'status': 'clarify', 'message': info}
+    elif say:
+        parts, info = describe(say, today, catalog)
+        if parts is None: return {'status': 'clarify', 'message': info}
+        note = 'new'
+    for p in parts:
+        if 'saved_day' not in p: p['saved_day'] = info['saved_day']     # new parts from this message
+    if not any(not p['removed'] for p in parts):
+        return {'status': 'clarify', 'message': 'Tell me what you ate, for example: 2 eggs and toast for breakfast.', 'parts': [], 'items': []}
+    issued = int(time.time())
+    items = []
+    for i, p in enumerate(parts):
+        if p['removed']: continue
+        it = item_for(c, uid, p, catalog, issued)
+        it['index'] = i
+        if it.get('kind') and not p.get('pick'): p['pick'] = {'kind': it['kind'], 'id': it['id']}   # keep the match for follow-ups
+        items.append(it)
     state = [{'text': p['text'], 'pick': p['pick'], 'portion': p['portion'], 'removed': p['removed'], 'new': bool(p.get('new')),
               'saved_day': p['saved_day'] and p['saved_day'].isoformat()} for p in parts]
     status = 'ready' if all(i['status'] == 'ready' for i in items) else 'needs'
@@ -708,7 +726,7 @@ def item_for(c, uid, p, catalog, issued=None):
     entries, why = compute(c, uid, e['kind'], e['row'], portion)
     if not why and too_big(entries): why = 'That portion is too large. Check the amount.'
     if why: return {**head, 'status': 'quantity', 'message': why, 'options': quick_amounts(e)}
-    totals = {k: round(sum(x[k] or 0 for x in entries), 1) for k in NUM}
+    totals = {k: None if any(x.get(k) is None or k in ((x.get('ref') or {}).get('unknown_nutrients') or []) for x in entries) else N.rounded(k,sum(x[k] for x in entries)) for k in NUM}
     if all(x['fiber_g'] is None for x in entries): totals['fiber_g'] = None
     out = {**head, 'status': 'ready', 'portion': portion, 'amount': amount_label(entries, e['kind'], portion), 'note': note, 'totals': totals}
     if issued is not None: out['expected'] = fingerprint(uid, e['kind'], e['id'], portion, snapshot(e), issued)
@@ -765,34 +783,46 @@ def source_row(c, uid, kind, fid):
 
 @router.post('/confirm')
 def confirm(body: ConfirmIn, user=Depends(current_user)):
+    with db.connect() as c:
+        return confirm_data(c, user['id'], body)
+
+
+def confirm_data(c, uid, body, include_groups=False):
     if body.confirm is not True: raise HTTPException(400, 'Confirm before adding')
-    uid = user['id']
     items = [(i.kind, i.id, i.portion.clean(), i.expected) for i in body.items]
     request_key = hashlib.sha256(json.dumps([[k, f, p, x] for k, f, p, x in items] + [str(body.day), body.meal], sort_keys=True).encode()).hexdigest()
-    with db.connect() as c:
-        # Serialize same-account retries. No provider calls or second pooled connection inside this lock.
-        c.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (uid,))
-        old = c.execute('SELECT id, ref FROM food_entries WHERE user_id = %s AND client_id LIKE %s', (uid, body.client_id + '-__')).fetchall()
-        if old:
-            if any((o['ref'] or {}).get('chat_request') != request_key for o in old): raise HTTPException(409, 'This confirmation was already used for a different entry')
-            return {'ids': [o['id'] for o in sorted(old, key=lambda o: o['id'])], 'replayed': True}
-        if not 0 <= time.time() - body.issued <= 900: raise HTTPException(409, 'This preview expired. Describe it again.')
-        rows = []
-        for kind, fid, p, expected in items:
-            row = source_row(c, uid, kind, fid)
-            e = {'kind': kind, 'id': fid, 'row': row}
-            if expected != fingerprint(uid, kind, fid, p, snapshot(e), body.issued):
-                raise HTTPException(409, f"{row['name']} changed. Describe it again to see its current nutrition.")
-            entries, why = compute(c, uid, kind, row, p)
-            if why: raise HTTPException(400, why)
-            if too_big(entries): raise HTTPException(400, 'That portion is too large. Check the amount.')
-            rows += entries
-        pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (uid, body.day)).fetchone()['p']
-        ids = []
-        for n, x in enumerate(rows):
-            ref = {**(x['ref'] or {}), 'chat_request': request_key}
-            ids.append(c.execute('''INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position, client_id)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
-                                 (uid, body.day, body.meal, x['name'], x['brand'], x['amount'], x['unit'], *(x[k] for k in NUM),
-                                  x['source'], json.dumps(ref, default=str), pos + n, f'{body.client_id}-{n:02d}')).fetchone()['id'])
-        return {'ids': ids, 'replayed': False}
+    # Serialize same-account retries. No provider calls or second pooled connection inside this lock.
+    c.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (uid,))
+    old = c.execute('SELECT id, ref FROM food_entries WHERE user_id = %s AND client_id LIKE %s', (uid, body.client_id + '-__')).fetchall()
+    if old:
+        if any((o['ref'] or {}).get('chat_request') != request_key for o in old): raise HTTPException(409, 'This confirmation was already used for a different entry')
+        return {'ids': [o['id'] for o in sorted(old, key=lambda o: o['id'])], 'replayed': True}
+    if not 0 <= time.time() - body.issued <= 900: raise HTTPException(409, 'This preview expired. Describe it again.')
+    rows = []; group_specs=[]
+    for kind, fid, p, expected in items:
+        row = source_row(c, uid, kind, fid)
+        e = {'kind': kind, 'id': fid, 'row': row}
+        if expected != fingerprint(uid, kind, fid, p, snapshot(e), body.issued):
+            raise HTTPException(409, f"{row['name']} changed. Describe it again to see its current nutrition.")
+        entries, why = compute(c, uid, kind, row, p)
+        if why: raise HTTPException(400, why)
+        if too_big(entries): raise HTTPException(400, 'That portion is too large. Check the amount.')
+        rows += entries
+        group_specs.append((row['name'],len(entries),p))
+    pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (uid, body.day)).fetchone()['p']
+    ids = []
+    for n, x in enumerate(rows):
+        # Legacy core zeros require unknown_nutrients; readers must honor coverage/N.known.
+        x=N.storage(x)
+        ref = {**(x['ref'] or {}), 'chat_request': request_key}
+        ids.append(c.execute('''INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position, client_id)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
+                             (uid, body.day, body.meal, x['name'], x['brand'], x['amount'], x['unit'], *(x[k] for k in NUM),
+                              x['source'], json.dumps(ref, default=str), pos + n, f'{body.client_id}-{n:02d}')).fetchone()['id'])
+    result={'ids':ids,'replayed':False}
+    if include_groups:
+        groups=[];offset=0
+        for name,count,portion in group_specs:
+            groups.append({'name':name,'ids':ids[offset:offset+count],'portion':portion});offset+=count
+        result['groups']=groups
+    return result

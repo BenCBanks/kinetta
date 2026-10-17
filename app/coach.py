@@ -13,7 +13,7 @@ import json
 import os
 import threading
 
-from . import db
+from . import db, ai_budget
 
 MODEL = 'claude-opus-5-5'
 DAILY_LIMIT = 30
@@ -47,7 +47,7 @@ def enabled():
 
 def allowed(user_id, feature='coach', connection=None):
     """Provider, per-feature product access and AI consent must all allow generation."""
-    if not enabled(): return False
+    if not enabled() or not ai_budget.enabled(): return False
     from . import ai_access
     if not ai_access.has(user_id, feature, connection): return False
     if connection is not None:
@@ -61,16 +61,21 @@ def allowed(user_id, feature='coach', connection=None):
 OFF = 'AI features are off for you - turn them on under Me > AI features.'
 
 
-HEALTH_NO = 'Kit needs your OK to read Apple Health data first: Track > Apple Health.'
+def off():
+    return ai_budget.FALLBACK if not ai_budget.enabled() else OFF
 
 
-def health_ok(c, user_id):
-    """Apple's rules: health data goes to an AI service only with the person's explicit consent."""
-    r = c.execute("""SELECT coalesce((SELECT health_ai_ok FROM profile WHERE user_id = %s), false) AS ok,
-                       (EXISTS (SELECT 1 FROM activities WHERE user_id = %s AND (source = 'healthkit' OR healthkit_id IS NOT NULL))
-                        OR EXISTS (SELECT 1 FROM health_resting h JOIN profile p ON p.user_id = h.user_id
-                                   WHERE h.user_id = %s AND p.resting_source = 'apple_health')) AS has""", (user_id, user_id, user_id)).fetchone()
-    return r['ok'] or not r['has']
+HEALTH_NO = 'Review Apple Health data sharing with Kit under Me > Connections > Apple Health first.'
+
+
+def health_ok(c,user_id):
+    """A new Health data category cannot inherit the older workout-only consent."""
+    r=c.execute("""SELECT coalesce(p.health_ai_ok,false) AS ok,coalesce(p.health_weight_ai_ok,false) AS weight_ok,
+      (EXISTS(SELECT 1 FROM activities WHERE user_id=%s AND (source='healthkit' OR healthkit_id IS NOT NULL))
+       OR EXISTS(SELECT 1 FROM health_resting h WHERE h.user_id=%s AND p.resting_source='apple_health')) AS has,
+      (coalesce(p.weight_health_derived,false) OR EXISTS(SELECT 1 FROM weights WHERE user_id=%s AND source='healthkit')) AS has_weight
+      FROM (SELECT %s::bigint AS id) me LEFT JOIN profile p ON p.user_id=me.id""",(user_id,user_id,user_id,user_id)).fetchone()
+    return (not r['has'] or r['ok']) and (not r['has_weight'] or (r['ok'] and r['weight_ok']))
 
 
 def _gemini(ctx, system=None):
@@ -83,18 +88,23 @@ def _gemini(ctx, system=None):
                        'generationConfig': {'maxOutputTokens': 2000, 'temperature': 0.6}}).encode()
     tries = [main, main, os.environ.get('GEMINI_FALLBACK_MODEL', 'gemini-3.1-flash-lite')]
     for n, model in enumerate(tries):
+        attempt = ai_budget.reserve(model,'coach note',payload=body)
         req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', body,
                                      {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
         last = n == len(tries) - 1
         try:
-            with urllib.request.urlopen(req, timeout=60) as r: d = json.loads(r.read())
+            with ai_budget.lease(attempt), urllib.request.urlopen(req, timeout=60) as r: d = json.loads(r.read())
+            ai_budget.settle(attempt,d)
             break
         except urllib.error.HTTPError as e:
+            ai_budget.release_failed(attempt,e.code)
             print(f'coach: gemini {model} HTTP {e.code}', flush=True)
             if last or (e.code != 429 and e.code < 500): raise ValueError(f'Kit is unavailable right now ({e.code}) - try again in a minute.')
         except (urllib.error.URLError, TimeoutError) as e:
             print(f'coach: gemini {model} failed {type(e).__name__}', flush=True)
             if last: raise ValueError("Couldn't reach Kit - try again in a minute.")
+        finally:
+            ai_budget.finish(attempt)
         time.sleep(2)
     cands = d.get('candidates') or []
     if not cands: raise ValueError('Kit declined to comment on this one.')
@@ -105,7 +115,7 @@ def client():
     global _client
     if _client is None:
         import anthropic
-        _client = anthropic.Anthropic(timeout=60.0, max_retries=2)
+        _client = anthropic.Anthropic(timeout=60.0, max_retries=0)
     return _client
 
 
@@ -181,14 +191,15 @@ def week_review(user_id, week_start=None):
     from . import ai_access
     ai_access.require(user_id, 'coach')
     if not enabled(): raise ValueError('Kit is not switched on yet (needs an AI key on the server).')
-    if not allowed(user_id): raise ValueError(OFF)
+    if not allowed(user_id): raise ValueError(off())
     if week_start is None:
         today = dt.date.today(); week_start = today - dt.timedelta(days=today.weekday())
     with db.coach_connect(user_id) as c:
         if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         ctx = _week_context(c, user_id, week_start)
     if not ctx['activities'] and not ctx['food_days']: raise ValueError('Nothing logged this week yet.')
-    text = _gemini(ctx, WEEK_SYSTEM) if provider() == 'gemini' else _claude(ctx, WEEK_SYSTEM)
+    with ai_budget.scope(user_id,feature='weekly review'):
+        text = _gemini(ctx, WEEK_SYSTEM) if provider() == 'gemini' else _claude(ctx, WEEK_SYSTEM)
     if not text: raise ValueError('Kit returned an empty review.')
     with db.connect() as c:
         c.execute("""INSERT INTO coach_notes (user_id, kind, period_start, text) VALUES (%s, 'week', %s, %s)
@@ -217,7 +228,7 @@ def note(user_id, aid):
     from . import ai_access
     ai_access.require(user_id, 'coach')
     if not enabled(): raise ValueError('Kit is not switched on yet (needs an AI key on the server).')
-    if not allowed(user_id): raise ValueError(OFF)
+    if not allowed(user_id): raise ValueError(off())
     with db.connect() as c:
         if not health_ok(c, user_id): raise ValueError(HEALTH_NO)
         # every note counts, the ones written after an import too (2026-10-12 review: imports could run up the bill)
@@ -226,7 +237,8 @@ def note(user_id, aid):
     with db.coach_connect(user_id) as c:
         ctx = _context(c, user_id, aid)
     if not ctx: raise ValueError('Activity not found')
-    text = _gemini(ctx) if provider() == 'gemini' else _claude(ctx)
+    with ai_budget.scope(user_id):
+        text = _gemini(ctx) if provider() == 'gemini' else _claude(ctx)
     if not text: raise ValueError('Kit returned an empty note.')
     with db.connect() as c:
         c.execute('UPDATE activities SET ai_note = %s, ai_note_at = now() WHERE id = %s AND user_id = %s', (text, aid, user_id))
@@ -235,18 +247,22 @@ def note(user_id, aid):
 
 def _claude(ctx, system=None):
     import anthropic
+    payload = dict(model=MODEL,max_tokens=2000,system=system or SYSTEM,output_config={'effort':'low'},messages=[{'role':'user','content':json.dumps(ctx,default=str)}])
+    attempt = ai_budget.reserve(MODEL,'coach note',payload=payload)
     try:
-        r = client().beta.messages.create(
-            model=MODEL, max_tokens=2000, system=system or SYSTEM,
-            output_config={'effort': 'low'},
-            betas=['server-side-fallback-2026-07-01'], fallbacks='default',
-            messages=[{'role': 'user', 'content': json.dumps(ctx, default=str)}])
+        with ai_budget.lease(attempt): r = client().beta.messages.create(**payload)
     except anthropic.RateLimitError:
+        ai_budget.release_failed(attempt,429)
         raise ValueError('Kit is busy - try again in a minute.')
     except anthropic.APIStatusError as e:
+        ai_budget.release_failed(attempt,e.status_code)
         raise ValueError(f'Kit is unavailable right now ({e.status_code}).')
     except anthropic.APIConnectionError:
         raise ValueError("Couldn't reach Kit - check the server's internet connection.")
+    else:
+        ai_budget.settle_claude(attempt,r)
+    finally:
+        ai_budget.finish(attempt)
     if r.stop_reason == 'refusal':
         raise ValueError('Kit declined to comment on this one.')
     return ''.join(b.text for b in r.content if b.type == 'text').strip()

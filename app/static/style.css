@@ -189,12 +189,12 @@ nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: max(10
   display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 6px; border-radius: 32px;
   background: color-mix(in srgb, var(--card) 92%, transparent); -webkit-backdrop-filter: saturate(1.8) blur(22px); backdrop-filter: saturate(1.8) blur(22px);
   box-shadow: 0 10px 30px rgba(17,21,20,.12), 0 0 0 .5px rgba(17,21,20,.05); }
-nav.tabs a { position: relative; display: grid; justify-items: center; align-content: center; gap: 1px; min-height: 52px; border-radius: 26px;
+nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 1px; min-height: 52px; border-radius: 26px;
   color: var(--tx3); font-size: 10.5px; font-weight: 650; letter-spacing: .01em; transition: color .15s, background-color .15s; }
-nav.tabs a svg { width: 23px; height: 23px; stroke-width: 1.9; }
-nav.tabs a[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750; }
-nav.tabs a[aria-current="page"] svg { stroke-width: 2.3; }
-nav.tabs a:active { transform: scale(.94); }
+nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; }
+nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750; }
+nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
+nav.tabs :is(a,button):active { transform: scale(.94); }
 @media (prefers-color-scheme: dark) { nav.tabs { box-shadow: 0 10px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07); } }
 .tab-n { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
   background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
@@ -1312,10 +1312,10 @@ html.keyboard-open nav.tabs { display: none; }
 .meal-library-row > .icon-btn { flex: none; }
 .health-progress:empty { display: none; }
 .health-progress { color: var(--accent); font-weight: 600; }
-nav.tabs a { border-radius: 0; font-size: 12px; min-height: 54px; gap: 4px; }
-nav.tabs a[aria-current="page"] { background: transparent; }
-nav.tabs a[aria-current="page"]::after { content: ''; width: 24px; height: 3px; border-radius: 2px; background: var(--accent); position: absolute; bottom: 0; }
-nav.tabs a svg { width: 23px; height: 23px; }
+nav.tabs :is(a,button) { border-radius: 0; font-size: 12px; min-height: 54px; gap: 4px; }
+nav.tabs :is(a,button)[aria-current="page"] { background: transparent; }
+nav.tabs :is(a,button)[aria-current="page"]::after { content: ''; width: 24px; height: 3px; border-radius: 2px; background: var(--accent); position: absolute; bottom: 0; }
+nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .brand-line { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .wordmark { font: 650 32px/1.1 var(--display); color: var(--accent); letter-spacing: -.04em; }
 .today-head { margin-bottom: 22px; }
@@ -1368,7 +1368,7 @@ nav.tabs a svg { width: 23px; height: 23px; }
 .macro-bars .macro-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
 .macro-bars .track { margin-top: 6px; height: 6px; }
 .tfood { background: var(--card); }
-@media (max-width: 360px) { .shell { padding-inline: 16px; } .stats3 { gap: 6px; } nav.tabs a { font-size: 10.5px; } .top .acts { gap: 0; } .week-metrics { gap: 6px; } .week-metrics .stat + .stat { padding-left: 6px; } }
+@media (max-width: 360px) { .shell { padding-inline: 16px; } .stats3 { gap: 6px; } nav.tabs :is(a,button) { font-size: 10.5px; } .top .acts { gap: 0; } .week-metrics { gap: 6px; } .week-metrics .stat + .stat { padding-left: 6px; } }
 @media (min-width: 1000px) { .shell { padding-inline: 32px; } .feed-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: start; } }
 
 /* Compact agenda and trustworthy metric wrapping at narrow widths. */
@@ -1618,8 +1618,8 @@ html.keyboard-open .kb-done { display: flex; }
 .track-saved { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
 .track-saved a { display: inline-flex; gap: 6px; align-items: center; }
 .track-saved svg { width: 16px; }
-nav.tabs a.has-recording { position: relative; }
-nav.tabs a.has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
+nav.tabs :is(a,button).has-recording { position: relative; }
+nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
 
 /* ---------- Quicker feel (2026-10-16, Ben: snappier, slicker, taps land where expected) ---------- */
 /* Feed cards: only the photo and the name open the profile; anywhere else on the card opens the activity. */
@@ -1639,8 +1639,8 @@ nav.tabs a.has-recording::before { content: ''; width: 6px; height: 6px; border-
 @keyframes cheer-ring { 0% { opacity: .7; transform: scale(.6); } 100% { opacity: 0; transform: scale(1.9); } }
 /* Tabs switch instantly (no page fade); the bar is solid, so the costly blur behind it is switched off. */
 nav.tabs { -webkit-backdrop-filter: none; backdrop-filter: none; }
-nav.tabs a { transition: color .12s; }
-nav.tabs a[aria-current="page"] svg { animation: tab-pick .28s cubic-bezier(.2, 1.5, .4, 1); }
+nav.tabs :is(a,button) { transition: color .12s; }
+nav.tabs :is(a,button)[aria-current="page"] svg { animation: tab-pick .28s cubic-bezier(.2, 1.5, .4, 1); }
 @keyframes tab-pick { 0% { transform: scale(.82); } 100% { transform: scale(1); } }
 /* Opening something inside a tab slides it in from the side, quickly, like an iPhone push. */
 #page.enter { animation: page-push .18s cubic-bezier(.2, .8, .2, 1) both; }
@@ -1679,3 +1679,307 @@ nav.tabs a[aria-current="page"] svg { animation: tab-pick .28s cubic-bezier(.2, 
 .me-form-nums small { font-size: 12px; color: var(--tx3); }
 .me-form .callout { margin: 0; }
 .me-tools { margin-top: 24px; }
+
+/* Optional goal setup (#122 A): existing Evergreen controls, one main action per step. */
+.goal-setup { max-width:560px; margin-inline:auto; }
+.goal-setup h1 { overflow-wrap:anywhere; }
+.goal-setup p { line-height:1.5; }
+.goal-options { padding:0; margin:12px 0; border:0; display:grid; gap:8px; }
+.goal-choice { display:flex !important; flex-direction:row !important; align-items:center; gap:12px; min-height:64px; padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--card); cursor:pointer; }
+.goal-choice:has(input:checked) { border-color:var(--accent); background:var(--accent2); }
+.goal-choice input { width:20px !important; min-height:20px !important; flex:0 0 20px; accent-color:var(--accent); }
+.goal-choice span { min-width:0; }
+.goal-choice b,.goal-choice small { display:block; }
+.goal-choice small { color:var(--tx3); font-weight:400; margin-top:4px; }
+.goal-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.goal-fields label { min-width:0; }
+.goal-fields input,.goal-fields select { width:100%; min-width:0; box-sizing:border-box; font-size:max(16px,1em); }
+.goal-setup summary { min-height:44px; display:flex; align-items:center; cursor:pointer; color:var(--accent); }
+.goal-setup .goal-actions { position:sticky; bottom:calc(76px + env(safe-area-inset-bottom)); padding:12px 0 4px; display:grid; gap:4px; background:var(--bg); }
+html.keyboard-open .goal-setup .goal-actions { position:static; }
+.goal-setup .goal-actions button { min-height:44px; white-space:normal; }
+.goal-error { color:var(--alert); }
+.goal-error:empty { display:none; }
+@media(max-width:360px) { .goal-fields { grid-template-columns:minmax(0,1fr); } }
+
+.goal-setup { font-size:1rem; }
+.goal-setup label,.goal-setup .goal-actions button { font-size:1em; }
+.goal-setup .small,.goal-choice small { font-size:.875em; }
+.goal-setup .goal-options legend { margin-bottom:8px; }
+
+/* Nutrition-first home (#122 B). One food action, with direct capture shortcuts. */
+.home-today { padding: 20px; }
+.home-today h2, .home-friends h2 { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; justify-content:space-between; }
+.home-energy > small { color:var(--tx2); font-size:.9rem; }
+.home-energy .hero-num { margin-top:4px; }
+.home-energy p { margin:4px 0 16px; }
+.home-set-goal { display:inline-flex; align-items:center; min-height:44px; margin-bottom:8px; }
+.home-macro-bar { margin-top:16px; }
+.home-macros { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:10px 0 20px; font-size:.8rem; }
+.home-macros > span { display:grid; gap:4px; overflow-wrap:anywhere; }
+.home-macros b { font-weight:600; }
+.home-macros .num { color:var(--tx2); }
+.home-food-ways { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,4.5rem),1fr)); gap:6px; margin:10px 0; }
+.home-food-ways button { min-width:0; overflow-wrap:anywhere; min-height:48px; display:flex; flex-direction:column; gap:4px; padding:10px 2px; font-size:.8rem; }
+.home-food-ways svg { width:18px; height:18px; }
+.home-empty-meal { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; font-size:.85rem; border-top:1px solid var(--line); padding-top:8px; margin-top:12px; }
+.home-empty-meal .linkbtn { min-height:44px; text-align:left; }
+.home-workout { display:flex; align-items:center; gap:12px; min-height:56px; padding:12px 0; color:inherit; border-top:1px solid var(--line); }
+.home-workout > span:not(.av) { flex:1; min-width:0; overflow-wrap:anywhere; }
+.home-workout small { display:block; color:var(--tx2); margin-top:4px; }
+.home-workout > svg { width:20px; height:20px; flex-shrink:0; }
+@media(max-width:360px) { .home-today { padding:16px; } .home-food-ways { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(prefers-reduced-motion:reduce) { .home-today * { animation:none; transition:none; } }
+
+/* Shared logging and the two Progress focuses (#122 C). */
+nav.tabs button { border:0; cursor:pointer; background:transparent; font-family:inherit; }
+nav.tabs [data-quick-log] { color:var(--accent); }
+.log-choices { display:grid; gap:12px; }
+.log-choice { display:flex; align-items:center; text-align:left; gap:14px; width:100%; min-height:88px; padding:18px; border:1px solid var(--line); border-radius:18px; background:var(--card2); color:var(--tx); }
+.log-choice > span { flex:1; min-width:0; }
+.log-choice b { display:block; font-size:1.05rem; }
+.log-choice small { display:block; font-size:.85rem; color:var(--tx2); margin-top:6px; }
+.log-choice > svg { width:24px; height:24px; flex-shrink:0; }
+.log-weight { margin-top:12px; width:100%; }
+.progress-switch { display:flex; gap:4px; padding:4px; border-radius:14px; background:var(--card2); margin-bottom:16px; }
+.progress-switch a { flex:1; min-height:44px; display:grid; align-content:center; text-align:center; border-radius:10px; padding:8px; font-size:.95rem; color:var(--tx2); }
+.progress-switch a[aria-current] { background:var(--card); color:var(--accent); font-weight:700; }
+.ql-capture-shortcuts { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.ql-capture-shortcuts button { min-height:44px; }
+.food-calendar { display:grid; grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr)); gap:8px; }
+.food-calendar a { display:grid; text-align:center; min-height:72px; padding:8px 4px; border-radius:12px; color:var(--tx2); background:var(--card2); }
+.food-calendar a.logged { color:var(--accent); background:var(--accent2); }
+.food-calendar small { font-size:.7rem; }
+
+.log-weight > svg, .connections-shortcuts > a > svg { width:24px; height:24px; flex:none; }
+
+.me-heading .kit-help { width:44px; padding:0; justify-content:center; }
+.me-heading .kit-help::after { display:none; }
+
+.log-weight, #quick-weight input, #quick-weight button { font-size:1rem; }
+#quick-weight label { font-size:.9rem; }
+
+/* Pending food and weight writes remain reviewable after errors. */
+.netbar { width: max-content; display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.netbar .linkbtn { color: inherit; min-width: 44px; min-height: 44px; flex-shrink: 0; text-decoration: underline; }
+.pending-item { padding-block: 12px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+#pending-items { font-size: 1rem; }
+#pending-items .small { font-size: .9em; }
+#pending-items button, .netbar .linkbtn { font-size: 1em; }
+#pending-items .actions { flex-wrap: wrap; }
+
+/* ---------- Permanent food conversation (#122 D) ---------- */
+.food-thread { font-size: 1rem; height: calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom)); min-height: 0; display: flex; flex-direction: column; padding-bottom: 8px; }
+.thread-heading { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.food-thread h1 { margin: 20px 0 4px; }
+.thread-intro { margin: 0 0 24px; color: var(--tx2); }
+#thread-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 24px; padding-bottom: 8px; }
+#thread-messages article { min-width: 0; overflow-wrap: anywhere; }
+.thread-user { margin: 0 0 10px auto; max-width: 90%; padding: 12px 16px; border-radius: 18px 18px 4px 18px; background: var(--card2); }
+.thread-user p { margin: 0; white-space: pre-wrap; }
+.thread-user time { display: block; font-size: .8rem; color: var(--tx2); margin-top: 6px; }
+.thread-card { padding: 16px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
+.thread-card p { margin: 10px 0; }
+.thread-food { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-block: 10px; }
+.thread-food div { min-width: 0; }
+.thread-food strong, .thread-food span { display: block; }
+.thread-food span { font-size: .85rem; color: var(--tx2); margin-top: 4px; }
+.thread-feedback { color: var(--tx); }
+.thread-error { color: var(--alert); }
+.thread-actions, .thread-choices, .thread-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; }
+.thread-choices { margin-block: 12px; }
+.thread-pending { padding: 12px 16px; border-left: 3px solid var(--accent); background: var(--card); border-radius: var(--r2); }
+.thread-pending p { margin: 0; }
+.thread-destination { color: var(--tx2); text-align: left; justify-content: flex-start; }
+#thread-empty { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 0; }
+#thread-empty h2 { font-size: 1.4rem; }
+#thread-empty p { max-width: 36ch; color: var(--tx2); }
+.thread-composer { flex-shrink: 0; position: relative; margin-top: 12px; padding: 12px 0 4px; background: var(--bg); border-top: 1px solid var(--line); z-index: 3; }
+.thread-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding-bottom: 8px; }
+.thread-compose-row { display: flex; align-items: flex-end; gap: 8px; }
+.thread-compose-row textarea { flex: 1; min-height: 64px; max-height: 28dvh; resize: vertical; font-size: max(16px, 1rem); }
+.thread-compose-row button { min-height: 48px; }
+#thread-status { margin: 6px 0; min-height: 1.5em; font-size: .85rem; color: var(--tx2); }
+.food-thread button { min-height: 44px; min-width: 44px; font-size: 1rem; white-space: normal; }
+html.keyboard-open .thread-composer { bottom: env(safe-area-inset-bottom); }
+html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
+
+@media (max-height: 650px) { .food-thread > h1, .food-thread > .thread-intro { display: none; } .thread-tools { gap: 2px 8px; } }
+
+.food-thread.has-messages > .thread-intro { display: none; }
+.food-thread.has-messages > h1 { font-size: 1.1rem; margin: 8px 2px 12px; }
+
+.thread-day { font: 650 .9rem/1.4 var(--font); margin: 12px 0; text-align: center; color: var(--tx2); }
+#thread-suggestions { margin-bottom: 8px; }
+@media (max-height: 650px) { .food-thread .thread-tools button, .food-thread .thread-shortcuts button { font-size: .85rem; } }
+.thread-food > div { flex: 1; }
+.thread-food > button { flex-shrink: 0; }
+
+.thread-updated { font-size: .85rem; color: var(--tx2); }
+#thread-usual-suggestion:empty { display: none; }
+#thread-usual-suggestion { width: 100%; }
+#thread-usual-suggestion button { width: 100%; }
+/* Primary action can move between Send and a held food card without a pale colour flash. */
+.food-thread button { transition: transform .1s ease, opacity .15s; }
+
+/* Optional, food-scoped Kit interpretation follows the deterministic answer. */
+.thread-kit{border-top:1px solid var(--line);margin-top:1rem;padding-top:.75rem;}
+.thread-kit h3{font-size:1rem;}
+.thread-kit dd{margin-inline-start:.5rem;overflow-wrap:anywhere;}
+
+/* Connections and original-map upload: scalable text, restrained shared rows. */
+.connections-page,.activity-import,.activity-map-help{font-size:1rem;}
+.connections-page p,.activity-import p,.activity-map-help p,.activity-map-help li{font-size:1em;overflow-wrap:anywhere;}
+.connections-page .small,.activity-import .small,.activity-map-help .small{font-size:.875em;}
+.connections-page h2,.activity-import h2{font-size:1.375em;}
+.connections-page .primary,.connections-page .ghost,.activity-map-help .primary{font-size:1em;white-space:normal;}
+.connections-page summary{font-size:1em;min-height:44px;display:flex;align-items:center;cursor:pointer;}
+.connections-page .card.tap.row-link{font-size:1em;}
+.connections-page .card.tap p{margin-bottom:0;}
+
+/* Explain energy estimates without implying measured weight or fat change. */
+.estimate-note{font-size:1rem;line-height:1.5;overflow-wrap:anywhere;}
+.insight.estimate-note>div>span{font-size:1em;line-height:1.5;}
+
+/* Weekly check-in shares the same card on Me and Progress. */
+.checkin-card,.checkin-explanation{font-size:1rem;}
+.checkin-card h2{font-size:1.4em;}
+.checkin-card p,.checkin-explanation p{font-size:1em;line-height:1.5;overflow-wrap:anywhere;}
+.checkin-card .small{font-size:.875em;}
+.checkin-numbers{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,5em),1fr));gap:10px;margin:18px 0;}
+.checkin-numbers div{min-width:0;}
+.checkin-numbers dt{font-size:.8em;color:var(--tx2);}
+.checkin-numbers dd{margin:6px 0 0;}
+.checkin-numbers b{display:block;font-size:clamp(1rem,5.5vw,1.3rem);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.checkin-numbers small{display:block;font-size:.75em;color:var(--tx2);}
+.checkin-actions{display:flex;flex-wrap:wrap;gap:8px;}
+.checkin-actions button{flex:1;min-width:96px;min-height:48px;font-size:1em;white-space:normal;}
+.checkin-card .linkbtn,.checkin-card .primary,.checkin-history summary{font-size:1em;min-height:44px;white-space:normal;}
+.checkin-history summary{display:flex;align-items:center;cursor:pointer;color:var(--accent);}
+
+/* Recipe import: readable review with one primary action; no fixed-height text. */
+.recipe-import { max-width:42rem; margin-inline:auto; display:grid; gap:var(--s3, 12px); padding-bottom:1rem; }
+.recipe-import .card { margin:0; }
+.recipe-import .form { margin:0; }
+.recipe-import input,.recipe-import textarea,.recipe-import select { max-width:100%; min-width:0; font-size:1rem; }
+.recipe-import textarea { resize:vertical; line-height:1.5; }
+.recipe-import button,.recipe-import summary,.recipe-import .linkbtn,.recipe-source summary { min-height:44px; }
+.recipe-import summary,.recipe-source summary { display:flex; align-items:center; cursor:pointer; }
+.recipe-import .small,.recipe-source .small { font-size:.9rem; line-height:1.5; }
+.recipe-import h2 { font-size:1.2rem; line-height:1.35; overflow-wrap:anywhere; }
+.recipe-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr)); gap:12px; }
+.recipe-nutrients { margin:0; }
+.recipe-nutrients>div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; padding:12px 0; border-bottom:1px solid var(--line); }
+.recipe-nutrients dt { flex:1 1 6rem; }
+.recipe-nutrients dd { margin:0; text-align:right; flex:1 1 9rem; }
+.recipe-nutrients dd small { display:block; font-size:.85rem; color:var(--tx2); }
+.recipe-pending { display:grid; gap:8px; padding-block:12px; border-top:1px solid var(--line); overflow-wrap:anywhere; }
+.recipe-import .callout,.recipe-matches p,.recipe-source p { overflow-wrap:anywhere; }
+.recipe-import .row { width:100%; text-align:left; }
+.recipe-import .row small { display:block; }
+.recipe-source { margin-bottom:1rem; }
+.imported-recipe .top { flex-wrap:wrap; }
+.imported-recipe .top .acts { margin-left:auto; max-width:100%; flex-wrap:wrap; }
+.imported-recipe .top button { min-height:44px; }
+.imported-recipe .dish-name-in { font-size:1.35rem; line-height:1.3; }
+.imported-recipe .dish-sum,.imported-recipe .m-note,.imported-recipe .ig-n { font-size:1rem; }
+.imported-recipe .ig-g,.imported-recipe .ig b { font-size:.9rem; }
+.imported-recipe .ig-n { white-space:normal; overflow-wrap:anywhere; }
+.imported-recipe .measure button { font-size:1rem; min-height:44px; white-space:normal; }
+.recipe-import label,.recipe-import button,.recipe-import summary { font-size:.95rem; line-height:1.4; }
+.recipe-import .primary,.recipe-import .ghost { padding-block:12px; }
+.recipe-source summary,.recipe-source .linkbtn { font-size:.9rem; }
+.imported-recipe .top .primary.sm { font-size:1rem; }
+.recipe-import summary,.recipe-source summary { display:list-item; padding-block:10px; }
+.recipe-library-actions .linkbtn { min-height:44px; justify-content:center; }
+
+/* Optional nutrient detail stays behind one familiar disclosure. */
+.extra-nutrients {margin-top:1rem;border-top:1px solid var(--line);padding-top:.65rem;}
+.extra-nutrients > summary {min-height:44px;display:list-item;cursor:pointer;font-weight:600;line-height:1.5;padding:.35rem 0;}
+.extra-nutrients dl {margin:.4rem 0;}
+.extra-nutrients dl > div {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.5rem;padding:.65rem 0;border-bottom:1px solid var(--line);}
+.extra-nutrients dt {overflow-wrap:anywhere;}
+.extra-nutrients dd {margin:0;text-align:right;overflow-wrap:anywhere;}
+.extra-nutrients dd small {display:block;font-size:.85rem;color:var(--tx2);line-height:1.5;}
+.extra-fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));gap:.8rem;}
+.extra-fields label {min-width:0;line-height:1.5;font-size:1rem;}
+.extra-fields input {width:100%;min-height:44px;font-size:1rem;}
+.macpreview > .extra-nutrients {grid-column:1 / -1;text-align:left;}
+.macpreview .extra-nutrients b {font:600 1rem var(--numf);}
+.tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
+.tcard .extra-nutrients dd small {display:block;font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);}
+
+/* Weekly food records are separate from estimates and optional Kit advice. */
+.weekly-food-review h2 {margin-bottom:.4rem;}
+.weekly-food-lead {font-size:1.1rem;line-height:1.5;}
+.weekly-food-fold {border-top:1px solid var(--line);padding:.35rem 0;}
+.weekly-food-fold > summary {display:list-item;cursor:pointer;min-height:44px;padding:.4rem 0;font-weight:600;line-height:1.5;}
+.weekly-food-fold dl {margin:.25rem 0;}
+.weekly-food-fold dl > div {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.5rem;padding:.65rem 0;border-bottom:1px solid var(--line);}
+.weekly-food-fold dt,.weekly-food-fold dd {min-width:0;overflow-wrap:anywhere;}
+.weekly-food-fold dd {margin:0;text-align:right;}
+.weekly-food-fold small,.weekly-top-foods small {display:block;font-size:.85rem;color:var(--tx2);line-height:1.5;}
+.weekly-top-foods {padding:0;margin:0;list-style:none;}
+.weekly-top-foods li {display:flex;flex-wrap:wrap;gap:.4rem .75rem;justify-content:space-between;padding:.65rem 0;border-bottom:1px solid var(--line);}
+.weekly-top-foods li > span {flex:1 1 9rem;min-width:0;overflow-wrap:anywhere;}
+.weekly-top-foods b {font-size:1rem;}
+.weekly-food-suggestions {border-top:1px solid var(--line);padding-top:.65rem;}
+.weekly-food-suggestions h3 {font-size:1rem;margin:.5rem 0;}
+.weekly-food-suggestions p {line-height:1.6;}
+.weekly-food-review {font-size:1rem;}
+.weekly-food-review h2 {font-size:1.5rem;}
+.weekly-food-review p.small {font-size:.85rem;}
+.weekly-food-suggestions p {margin:.65rem 0;}
+.weekly-food-review {overflow-wrap:anywhere;}
+
+/* Deliberate recipe sharing, with a compact shared portion picker. */
+.recipe-page #dk-done {min-height:44px;min-width:44px;}
+.recipe-page .share-row {width:100%;text-align:left;min-height:60px;}
+.shared-friends .person .grow {min-width:0;overflow-wrap:anywhere;}
+.shared-friends [data-sd] {min-height:44px;white-space:normal;}
+.shared-recipes {margin:.5rem 0 .8rem;min-width:0;}
+.shared-recipes h3 {font-size:1rem;margin:.3rem 0;}
+.shared-recipe-list {display:flex;gap:.5rem;overflow-x:auto;max-width:100%;padding:.25rem 0;scroll-snap-type:x proximity;}
+.shared-recipe-row {flex:0 0 min(16rem,90%);min-height:56px;display:flex;gap:.5rem;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);text-align:left;padding:.6rem .75rem;scroll-snap-align:start;}
+.shared-recipe-row span {min-width:0;flex:1;}
+.shared-recipe-row b,.shared-recipe-row small {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.shared-recipe-row b {font-size:1rem;}
+.shared-recipe-row small {font-size:.85rem;color:var(--tx2);}
+.shared-recipe-row svg {width:16px;height:16px;flex:none;}
+.food-thread .shared-recipes {display:block;margin:.2rem 0;}
+.food-thread .shared-recipes h3 {font-size:.85rem;line-height:1.4;}
+.food-thread .shared-recipe-list {flex:1;min-width:0;}
+.food-thread .shared-recipe-row {flex-basis:min(13rem,95%);}
+
+.food-thread:has(.shared-recipe-row) > .thread-intro {display:none;}
+.food-thread:has(.shared-recipe-row) #thread-empty {padding:0;visibility:hidden;}
+
+.shared-friends .person {display:grid;grid-template-columns:40px minmax(0,1fr);gap:.65rem;align-items:center;padding:.65rem 0;}
+.shared-friends .person b,.shared-friends .person small {display:block;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
+.shared-friends .person b {font-size:1rem;}
+.shared-friends .person small {font-size:.85rem;}
+.shared-friends [data-sd] {grid-column:2;justify-self:start;}
+
+.shared-saved {display:inline;font-size:.75rem;font-weight:400;color:var(--tx2);}
+
+#dl-n {width:4.5rem;text-align:center;font:700 1.6rem/1.2 var(--numf);padding:.4rem .25rem;}
+
+html.keyboard-open .food-thread:has(.shared-recipe-row) {padding-bottom:52px;}
+html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-shrink:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
+
+/* Optional Health categories and source-labelled weigh-ins. */
+.health-food-card p {font-size:1rem;overflow-wrap:anywhere}
+.health-food-card h2 {display:flex;flex-wrap:wrap;gap:.4rem;align-items:baseline}
+.weight-source {display:block;font-size:.8rem;line-height:1.4;overflow-wrap:anywhere}
+.weight-history-row {align-items:start;flex-wrap:wrap;gap:.5rem}
+.weight-history-row>span:first-child {flex:1 1 8rem;min-width:0}
+.weight-history-row>span.num {flex:0 1 auto}
+
+#h-body .small {font-size:.9rem;line-height:1.5}
+.health-details summary {min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:.9rem}
+.health-details[open] summary {margin-bottom:.5rem}
+
+.health-page h1 {font-size:1.7rem}
+#h-body h2 {font-size:1.15rem}
+#h-body button,#h-body a.primary,#h-body .check {font-size:1rem;line-height:1.4;min-height:44px;white-space:normal}
+.weight-history-row .num {font-size:1rem}

@@ -1,0 +1,17 @@
+# Share a recipe, log your own plate
+
+A saved recipe has a visible **Share with…** action while you cook or edit it. Sharing is optional and private until you choose an approved friend. Each Share button is explicit; Done closes the sheet without choosing anyone else. Stop sharing names its action clearly. Friend names and usernames wrap so the person is identifiable. The old duplicate share action is removed from Meal options.
+
+The chosen friend sees **Shared with you** at the top of Your usuals and the food-chat composer. A compact horizontal list leaves the message field usable. Choose the recipe, adjust the portion if needed and tap Add: two taps for the default serving, excluding typing. Imported recipes keep their declared serving count, so one of four logs one quarter. Weight-based recipes accept grams; a recipient of an unweighed recipe can use its declared servings instead. A legacy recipe without a serving count still treats one serving as the whole recipe. The count is editable, including a fraction such as0.25 for a quarter; no new serving-size assumption is made.
+
+Each person gets their own private food entry and conversation receipt. Logging a plate does not change the cook's food log, targets or recipe. A friend cannot edit the recipe, see another person's food entries or pass the recipe on through the sharing API. The existing portion toast offers Undo and retains its owner-bound cancellation during offline replay. Ordinary recent foods also retain all eight nutrients and their actual logged edits rather than older catalog numbers.
+
+A dish notification uses the existing native notification preference and explicit device permission/registration. An in-app notice is created once for a share, and a retry at the sharing limit still succeeds without adding a duplicate. Tests replace delivery with a stand-in; physical APNs acceptance remains separate.
+
+Stopping sharing removes the recipe from discovery and prevents a new portion from a stale chip. Blocking or losing the approved friendship also removes access. In-app notices/unread counts and queued push delivery check current sharing permission, so a later private recipe name is not exposed through an old notice. An already delivered notification cannot be recalled. A portion already logged belongs to its recipient and remains in their private history; it can still be undone after the recipe is unshared. Historical personal copies are not erased by stopping sharing.
+
+While the app remains open, an owner-bound memory cache keeps the last loaded list usable during a failed refresh, labelled Saved. A fresh launch can need a connection. A queued portion checks sharing permission again when uploaded.
+
+The shared discovery API returns a compact list of up to100 recently updated, loggable recipes rather than ingredients, AI reviews or food logs. Full recipe access uses the same explicit share/approved-friend/block rule. No new table or migration is introduced.
+
+Fictional three-account HTTP/SQL tests cover approval, isolation, portions, source nutrients, notifications with delivery blocked, replay, block/unshare and Undo. Browser evidence uses fictional friends at330/390px, light/dark and large text. A480px visible viewport with keyboard-open styles and the native keep-visible behavior is also checked in the browser, including28px text; the composer can scroll and keeps Send above the Done strip. Actual keyboard/safe areas, VoiceOver, real haptics and physical notification delivery still need an iPhone check.

@@ -116,18 +116,22 @@ function mileageChart(box, series) {
 }
 
 // ---------- Today ----------
-// A new person's first steps, until their first workout arrives: automatic syncing first, so testers don't have to
-// upload files every week; the Home Screen tip only on an iPhone browser that isn't already the Home Screen app.
+// First steps use food or activity history. Health remains optional; the Home Screen
+// tip appears only on an iPhone browser that isn't already the Home Screen app.
 // the next step for someone with nothing here yet (2026-10-12): an empty page says what to do, with the button for it
 const startCta = () => '';
 function getStarted(healthConnected = false, hasHistory = false) {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
   const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  return `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">
-    ${!hasHistory ? step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or enter known nutrition.') : ''}
-    ${!hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', 'See each other\'s runs and rides, and send cheers.') : ''}
-    ${ios && !home && !Native.on ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : ''}</div>`;
+  const rows = [
+    !App.me?.kcal_target ? step('/food/setup', 'target', 'c-brand', 'Set a nutrition goal', 'An optional starting point for calories and protein.') : '',
+    Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
+    !hasHistory ? step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or enter known nutrition.') : '',
+    !hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
+    ios && !home && !Native.on && !hasHistory ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
+  ].filter(Boolean);
+  return rows.length ? `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">${rows.join('')}</div>` : '';
 }
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 async function meOverview(el) {
@@ -136,28 +140,45 @@ async function meOverview(el) {
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
-    <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
-    <div id="t-last"></div>
-    <section class="me-agenda"><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div>
-      <div class="me-day-links"><a href="/plan">${svg('calendar')}Training plan${svg('chev')}</a><a href="/food">${svg('food')}Log food${svg('chev')}</a></div></section>
-    <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
-  // The two shortcut rows only stay when the cards above don't already offer them (2026-10-16: Log food and the plan
-  // link showed twice on one screen).
-  Promise.allSettled([planCard($('#t-plan', el)), todayFoodCard($('#t-food', el))]).then(() => {
-    const links = $('.me-day-links', el); if (!links) return;
-    if ($('#t-plan a[href="/plan"]', el)) $('a[href="/plan"]', links)?.remove();
-    if ($('#t-food #tf-add', el)) $('a[href="/food"]', links)?.remove();
-    if (!links.children.length) links.remove();
+    <div id="t-food">${skel(1)}</div><div id="t-checkin"></div>
+    <div id="t-plan"></div><div id="t-friends"></div>
+    <section id="t-week" aria-label="Last 14 days"></section>
+    <div id="t-last"></div><div id="t-form"></div><div id="t-setup"></div><div id="t-goals"></div>`;
+  let foodHistory=null,activityHistory=null,healthConnected=false;
+  const drawSetup=()=>{
+    if(!el.isConnected||foodHistory===null||activityHistory===null)return;
+    const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
+    $('#t-setup', el).innerHTML = getStarted(healthConnected, activityHistory||foodHistory) +
+      (missing.length ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+  };
+  todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();}}).catch(() => {
+    if (!el.isConnected) return;
+    foodHistory=false;drawSetup();
+    $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="primary wide" id="tf-retry">Try again</button></div>';
+    $('#tf-retry',el).onclick = () => { invalidate('/api/food/day'); render(); };
   });
+  weeklyCheckinCard($('#t-checkin',el),{home:true});
+  // The existing feed applies friendship and sharing rules on the server; food never enters it.
+  load('/api/feed/friends?limit=3', rows => {
+    if (!el.isConnected) return;
+    $('#t-friends',el).innerHTML = rows.length ? `<section class="card home-friends"><h2>Friends recently<a class="more" href="/activity">Feed ›</a></h2>${rows.map(a => `<a class="home-workout" href="/activity/friends/${a.id}">${avatar(a.owner)}<span><b>${esc(a.owner.name)}</b><small>${esc(a.name)} · ${esc(when(a.start_time))}</small></span>${svg('chev')}</a>`).join('')}</section>` : '';
+  }).catch(() => {});
+  load('/api/plans/current', d => {
+    if (!el.isConnected || !d.today_workout) return;
+    const w = d.today_workout;
+    $('#t-plan',el).innerHTML = `<section class="card"><h2>Today’s plan</h2><button class="row-link" data-wday="${esc(w.day)}">${svg('calendar')}<span class="grow">${esc(w.title)}<small>${w.status === 'done' ? 'Completed' : 'View session'}</small></span>${svg('chev')}</button></section>`;
+    wireWorkouts($('#t-plan',el),d);
+  }).catch(() => {});
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
-    if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
+    if (!r.enabled && !r.paused && !r.latest) { box.innerHTML = ''; return; }
     const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
     async function reviewNow(btn, close) {
       btn.disabled = true; btn.textContent = 'Thinking…';
       try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
       catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
     }
+    if (r.paused) { box.innerHTML = `<p class="small muted">AI is paused. Search, barcodes and manual logging still work.</p>${r.latest ? `<p>${esc(r.latest.text)}</p>` : ''}`; return; }
     box.innerHTML = `<button class="icon-btn kit-help" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}</button>`;
     $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', wk
       ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text">${esc(r.latest.text)}</p>
@@ -169,21 +190,23 @@ async function meOverview(el) {
   }).catch(() => {});
   const overviewLoads = await Promise.allSettled([
     load('/api/activities?limit=3', (d) => {
-      $('#t-last', el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
-      Promise.resolve(Native.on ? Native.healthOn() : false).catch(() => false).then((connected) => {
+      if (!el.isConnected) return;
+      $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
+      Promise.resolve(Native.on ? (Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()) : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
-        const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
-        $('#t-setup', el).innerHTML = (!d.length || Native.on && !connected ? getStarted(connected, !!d.length) : '') +
-          (missing.length ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+        activityHistory=!!d.length;healthConnected=connected;drawSetup();
       });
     }),
     load('/api/stats', (s) => {
+      if (!el.isConnected) return;
+      if (!(s.recent_days || []).some(r => r.distance_m > 0)) { $('#t-week',el).innerHTML = ''; return; }
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
       mileageChart($('#me-distance', el), {days:s.recent_days || []});
     }),
     load('/api/fitness?days=60', (f) => {
+      if (!el.isConnected) return;
       const last = f.days[f.days.length - 1];
-      if (!last) { $('#t-form', el).innerHTML = ''; return; }
+      if (!last || !f.days.some(day => day.fitness > 0)) { $('#t-form', el).innerHTML = ''; return; }
       // the status word leads (like Garmin's training status); the numbers sit under it, the definitions on the Fitness page
       const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
       // one compact row (2026-10-16): the status word and its numbers; the explanations live on the Fitness page
@@ -194,6 +217,7 @@ async function meOverview(el) {
         ${f.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</a>`;
     }),
     load('/api/goals', (g) => {
+      if (!el.isConnected) return;
       $('#t-goals', el).innerHTML = g.length ? `<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>${g.map(goalRow).join('')}</div>` : '';
     }),
   ]);
@@ -351,7 +375,7 @@ function drawDetail(el, a) {
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}
-      <div class="hero">${hero}</div><div id="d-photos"></div><div class="cpile"></div></div>
+      <div class="hero">${hero}</div>${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div id="d-photos"></div><div class="cpile"></div></div>
     <div class="seg wide dtabs" role="tablist" aria-label="Sections"${DTABS.filter(([k]) => has(k)).length < 2 ? ' hidden' : ''}>${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
     ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
   let drawCharts = null;
@@ -368,6 +392,7 @@ function drawDetail(el, a) {
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
   $('#d-send', el).onclick = () => shareOut(a);
+  const addMap=$('#d-add-map',el);if(addMap)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   ownSocial(el, a);
   photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
@@ -729,10 +754,30 @@ function wireSport(el, cur) {
     const u = new URLSearchParams(location.search); u.set('sport', k); go(location.pathname + '?' + u.toString(), {replace: true});
   });
 }
+// Keep the two halves of Progress together; explicit old training URLs still open Training.
+const progressKey = () => 'fit.progress:' + JSON.stringify([Native.base || location.origin,App.me.id]);
+const progressChoice = () => store.get(progressKey()) || 'food';
+function progressSwitch(section) {
+  store.set(progressKey(),section);
+  return `<nav class="progress-switch" aria-label="Progress focus"><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a></nav>`;
+}
+function nutritionHref(view, params = '') {
+  return location.pathname === '/progress' ? `/progress?section=food&foodview=${view}${params ? '&' + params : ''}` : `/food?view=${view}${params ? '&' + params : ''}`;
+}
+async function foodProgress(el,q) {
+  const requested = q.get('foodview') || 'overview', view = NPROG.some(v => v[0] === requested) || requested === 'calendar' ? requested : 'overview';
+  if (view !== 'calendar') return nutritionView(el,view,q);
+  const box = nHead(el,'calendar','');
+  await load('/api/food/insights?days=90',I => {
+    if (!box.isConnected) return;
+    const rows = (I.rows || []).slice().sort((a,b)=>b.day.localeCompare(a.day)), logged = rows.filter(r => r.eaten > 0);
+    box.innerHTML = `<section class="card"><h2>Food calendar</h2><p class="small muted">${logged.length} days with food logged in the last 90 days. Newest first · open a day to review it.</p>${logged.length ? `<div class="food-calendar">${rows.map(r => `<a href="/food?d=${esc(r.day)}" aria-label="${esc(dayLabel(r.day))}, ${r.eaten ? homeCalories(r.eaten) + ' kcal logged' : 'no foods logged'}"${r.eaten ? ' class="logged"' : ''}><small>${esc(new Date(r.day+'T12:00').toLocaleDateString([],{month:'short'}))}</small><b>${new Date(r.day+'T12:00').getDate()}</b><small>${r.eaten ? r0(homeCalories(r.eaten)) + ' kcal' : '—'}</small></a>`).join('')}</div>` : '<p>Log something you ate to start your calendar.</p><a class="primary wide" href="/food">Open food log</a>'}</section>`;
+  });
+}
 // the header every Progress view shares: title + bell, then View and the filters this view uses
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
-  el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
+  el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
     <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav><div class="pbar">${filters}</div><div id="p-body">${skel(2)}</div>`;
   $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
     if (k === 'plan') return go('/plan');
@@ -744,7 +789,9 @@ function pHead(el, view, filters) {
 // each view takes the sports it can show: the shared choice, mapped to the nearest one it has
 const forView = (sport, view) => ({totals: {hike: 'walk'}, records: {all: 'run'}, trends: {hike: 'walk', all: 'run'}, heatmap: {all: ''}}[view] || {})[sport] ?? sport;
 route(/^\/progress$/, 'progress', async (el) => {
-  const q = new URLSearchParams(location.search), v0 = q.get('view') || 'totals';
+  const q = new URLSearchParams(location.search);
+  if (q.get('section') === 'food' || (!q.has('section') && !q.has('view') && progressChoice() === 'food')) return foodProgress(el,q);
+  const v0 = q.get('view') || 'totals';
   if (v0 === 'plan') return go('/plan', {replace: true});
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
   const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
@@ -1062,9 +1109,9 @@ route(/^\/me$/, 'me', async (el) => {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
+    <div class="card list me-tools">${row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`)}${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
     <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
-    <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
+    <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
       </div>
     <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
@@ -1080,7 +1127,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       </div>
-    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Optional training notes and food estimates. AI consent is separate from access.</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
+    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
@@ -1117,8 +1164,10 @@ route(/^\/me$/, 'me', async (el) => {
     history.replaceState(null, '', '/me'); $('.me-settings', el).open = true; bodySheet();
   }
   $('#logout', el).onclick = async () => {
-    const n = Q.mine().length;
+    let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){toast('Could not check unsent food messages. Try logging out again.');return;}
+    const n = Q.mine().length + chat;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
+    if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
     if (typeof Track !== 'undefined') await Track.pause();
     try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
     await Native.forget();
@@ -1177,6 +1226,7 @@ function accountSheet(field) {
 }
 // delete my own account and everything in it (2026-10-11); needs the password, can't be undone
 function deleteSheet() {
+  const account=readOwner(),login=App.me.login;
   sheet('Delete my account', `<form class="form" id="del">
     <input name="username" value="${esc(App.me.login)}" autocomplete="username" hidden>
     <p>This deletes your account and <b>everything</b> in it straight away: activities, routes, food log, weigh-ins, plans and the files you uploaded. It can't be undone.</p>
@@ -1187,10 +1237,22 @@ function deleteSheet() {
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
-        await api('/api/account/delete', json('POST', {password: f.pw.value}));
-        if (typeof Track !== 'undefined') Track.forgetDraft();
-        close(); store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
-        App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin('Your account and all your data were deleted.');
+        if(account!==readOwner())return;
+        if(Native.on)await Native.pauseHealth();
+        if(account!==readOwner())return;
+        try { await api('/api/account/delete', json('POST', {password: f.pw.value})); }
+        catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}
+        // Once the server confirms deletion, every cleanup gets its own chance.
+        const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
+        await cleanup(()=>Native.forget({deleted:true}));
+        await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
+        await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
+        await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
+        await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));
+        await cleanup(()=>forgetKept());await cleanup(()=>close());
+        App.me=null;App.cache.clear();
+        await cleanup(()=>netbar());await cleanup(()=>history.replaceState(null,'','/'));
+        showLogin('Your account and all your data were deleted.');
       } catch (x) { toast(x.message); btn.disabled = false; }
     };
   });
@@ -1219,7 +1281,11 @@ route(/^\/me\/people$/, 'me', async (el) => {
 // admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
 route(/^\/me\/import$/, 'track', async () => go('/track/import', {replace:true}));
 route(/^\/track\/import$/, 'track', async (el) => {
+  el.classList.add('activity-import');
+  const owner=readOwner(),account=App.me?.id,valid=()=>el.isConnected&&owner===readOwner();
+  const mapFor=new URLSearchParams(location.search).get('map_for'),mapId=/^[1-9]\d*$/.test(mapFor||'')?mapFor:null;
   el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Upload activities</h1><p class="muted">FIT, GPX or TCX files (also .gz), or your whole Strava export .zip. Duplicates are skipped automatically.</p>
+    ${mapId?`<p class="small">Choose the original ZIP or FIT for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
     <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
       <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
       <div id="u-prog" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
@@ -1228,18 +1294,20 @@ route(/^\/track\/import$/, 'track', async (el) => {
   wireBack(el, '/track');
   const input = $('#u-file', el), drop = $('#u-drop', el);
   const send = (files) => {
-    if (!files.length) return;
+    if (!valid()||!files.length) return;
     const fd = new FormData(); for (const f of files) fd.append('files', f, f.name);
     const xhr = new XMLHttpRequest(); xhr.open('POST', Native.base + '/api/import');
     for (const [k, v] of Object.entries(Native.headers())) xhr.setRequestHeader(k, v);
+    if(account)xhr.setRequestHeader('X-Kinetta-Account',String(account));
     $('#u-prog', el).hidden = false;
     const total = [...files].reduce((s, f) => s + f.size, 0);
-    xhr.upload.onprogress = (e) => { const p = e.lengthComputable ? e.loaded / e.total : 0; $('#u-bar', el).style.setProperty('--w', p); $('#u-text', el).textContent = `Uploading ${(e.loaded / 1048576).toFixed(1)} of ${(total / 1048576).toFixed(1)} MB…`; };
+    xhr.upload.onprogress = (e) => { if(!valid())return;const p = e.lengthComputable ? e.loaded / e.total : 0; $('#u-bar', el).style.setProperty('--w', p); $('#u-text', el).textContent = `Uploading ${(e.loaded / 1048576).toFixed(1)} of ${(total / 1048576).toFixed(1)} MB…`; };
     xhr.onload = () => {
+      if(!valid())return;
       if (xhr.status === 200) { $('#u-text', el).textContent = 'Uploaded. Processing below.'; invalidate('/api/'); poll(); }
       else { let m = 'Upload failed'; try { m = JSON.parse(xhr.responseText).detail || m; } catch (e) { /* */ } $('#u-text', el).textContent = m; }
     };
-    xhr.onerror = () => { $('#u-text', el).textContent = 'Upload failed. Check your connection and try again.'; };
+    xhr.onerror = () => { if(valid())$('#u-text', el).textContent = 'Upload failed. Check your connection and try again.'; };
     xhr.send(fd);
   };
   input.onchange = () => send(input.files);
@@ -1249,9 +1317,10 @@ route(/^\/track\/import$/, 'track', async (el) => {
   let timer;
   const poll = async () => {
     clearTimeout(timer);
-    if (!document.body.contains(el)) return;
+    if (!valid()) return;
     try {
       const jobs = await api('/api/imports');
+      if(!valid())return;
       $('#u-jobs', el).innerHTML = jobs.length ? jobs.map((j) => `<div class="job"><b>${esc(j.label)}</b>
         <small>${j.status === 'running' || j.status === 'queued' ? `${j.status === 'queued' ? 'Waiting' : 'Processing'} ${j.done} of ${j.total || '?'}` : j.status === 'done' ? 'Finished' : 'Stopped'} · ${j.added} added · ${j.duplicates} duplicates${j.failed ? ` · ${j.failed} couldn't be read` : ''}</small>
         ${j.total ? `<div class="prog"><div class="bar" data-w="${(j.done / j.total).toFixed(3)}"></div></div>` : ''}
@@ -1264,32 +1333,48 @@ route(/^\/track\/import$/, 'track', async (el) => {
 
 route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{replace:true}));
 route(/^\/track\/connections$/, 'track', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Watch connections</h1><p class="muted">Activities arrive on their own. Your Strava posts are not affected.</p><div id="c-body">${skel(2)}</div>`;
+  el.classList.add('connections-page');
+  const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Bring in workouts from Apple Health or files. A watch is optional.</p>
+    <div class="card" id="c-health"><h2>Apple Health</h2>${skel(1)}</div>
+    <a class="card tap row-link" href="/track/import"><div class="grow"><h2>Upload files</h2><p>FIT, GPX, TCX or ZIP · your original watch files or activity history.</p></div><span class="chev">${svg('chev')}</span></a>
+    <details class="card" id="c-advanced"><summary>Advanced</summary><p class="small muted">For self-hosted installs and power users.</p><div id="c-body">${skel(2)}</div></details>`;
   wireBack(el, '/track');
-  const C = await api('/api/connections');
+  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Apple Health</h2>
+    <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · share nutrition, read weight or import workouts.':'Available in the Kinetta iPhone app.'}</p>
+    ${st?.at?`<p class="small muted">Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.</p>`:''}${error?`<p class="err">${esc(error)}</p>`:''}
+    <a class="${Native.on?'primary':'ghost'} wide" href="/track/health">${Native.on?isOn?'Manage Apple Health':'Connect Apple Health':'About Apple Health'}</a>
+    <details><summary>Using a Garmin?</summary><p class="small">Enable Apple Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send the GPS map to Health; you can add the original file later.</p></details>`;};
+  if(Native.on)Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open Apple Health to review setup.'));
+  else healthCard(false,null);
+  let C;
+  try{C=await api('/api/connections');}catch(e){if(valid())$('#c-body',el).innerHTML=`<p class="err">${esc(e.message)}</p>`;return;}
+  if(!valid())return;
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
-  $('#c-body', el).innerHTML = `<div class="card"><h2>Garmin (through intervals.icu)</h2>
-      <p class="small">intervals.icu is a free site with an official Garmin link. Connect Garmin there once, then paste your athlete ID and API key (intervals.icu → Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
+  $('#c-body', el).innerHTML = `<div class="card"><h2>intervals.icu</h2>
+      <p class="small">Garmin owners: intervals.icu can bring in maps automatically. For an existing intervals.icu account, enter your athlete ID and API key (Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
       <form class="form" id="c-icu"><div class="two"><label>Athlete ID<input name="athlete_id" placeholder="i123456" autocapitalize="none" value="${esc(C.intervals ? C.intervals.athlete_id : '')}"></label>
       <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved (paste to change)' : ''}"></label></div>
-      <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="primary">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>
-    <div class="card"><h2>Apple Watch (Health Auto Export)</h2>
+      <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>
+    <div class="card"><h2>Health Auto Export</h2>
       <p class="small">In the iPhone app <b>Health Auto Export</b> (Premium), add an automation: <b>REST API</b>, format <b>JSON</b>, data <b>Workouts</b> (and optionally <b>Body Mass</b>), with the address and header below.</p>${st('apple')}
-      <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="primary" id="c-apple">${C.apple ? 'Make a new secret' : 'Create my upload link'}</button></div></div>`;
+      <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost" id="c-apple">${C.apple ? 'Make a new secret' : 'Create my upload link'}</button></div></div>`;
   $('#c-icu', el).onsubmit = async (e) => {
-    e.preventDefault(); const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your API key'); return; }
+    e.preventDefault(); if(!valid())return;const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your API key'); return; }
     try { await api('/api/connections/intervals', json('POST', {athlete_id: f.athlete_id.value.trim(), api_key: f.api_key.value.trim()})); toast('Connected. First sync running'); render(); } catch (x) { toast(x.message); }
   };
-  const sy = $('#c-icu-sync', el); if (sy) sy.onclick = async () => { try { await api('/api/connections/intervals/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
+  const sy = $('#c-icu-sync', el); if (sy) sy.onclick = async () => { if(!valid())return;try { await api('/api/connections/intervals/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
   $('#c-apple', el).onclick = async () => {
+    if(!valid())return;
     if (C.apple && !confirm('Make a new secret? The old one stops working.')) return;
     try {
       const r = await api('/api/connections/apple', json('POST', {}));
+      if(!valid())return;
       $('#c-apple-out', el).innerHTML = `<div class="callout"><div><p class="small">Copy these into Health Auto Export now. The secret is shown only once.</p>
         <p class="small"><b>URL</b><br><code>${esc((Native.base || location.origin) + r.url)}</code></p><p class="small"><b>Header</b> Authorization<br><b>Value</b> <code>Bearer ${esc(r.token)}</code></p></div></div>`;
     } catch (x) { toast(x.message); }
   };
-  $$('[data-off]', el).forEach((b) => b.onclick = async () => { if (!confirm('Disconnect? Activities already imported stay.')) return; try { await api(`/api/connections/${b.dataset.off}`, {method: 'DELETE'}); render(); } catch (x) { toast(x.message); } });
+  $$('[data-off]', el).forEach((b) => b.onclick = async () => { if(!valid())return;if (!confirm('Disconnect? Activities already imported stay.')) return; try { await api(`/api/connections/${b.dataset.off}`, {method: 'DELETE'}); render(); } catch (x) { toast(x.message); } });
 });
 
 route(/^\/me\/gear$/, 'me', async (el) => {

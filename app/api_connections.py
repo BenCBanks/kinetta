@@ -149,19 +149,30 @@ def _ingest_apple(uid, data):
             else: dup += 1
         except Exception as e:
             failed += 1; print('apple workout failed', e, flush=True)
+    # Health Auto Export is Health-derived too: use the same opt-in, UUID storage,
+    # manual priority, deletion fences and AI-consent provenance as native reads.
+    from . import api_health_weights as H
+    from uuid import uuid5,NAMESPACE_URL
+    import datetime as dt
+    samples=[]
     for m in data.get('metrics') or []:
-        if (m.get('name') or '').lower() in ('weight_body_mass', 'body_mass', 'weight_&_body_mass', 'weight'):
-            unit = (m.get('units') or 'kg').lower()
-            for p in m.get('data') or []:
-                t, q = _t(p.get('date')), p.get('qty')
-                if not t or q is None: continue
-                kg = float(q) * (0.45359237 if unit in ('lb', 'lbs') else 1)
-                with db.connect() as c:
-                    tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
-                    from zoneinfo import ZoneInfo
-                    c.execute("""INSERT INTO weights (user_id, day, kg) VALUES (%s, %s, %s) ON CONFLICT (user_id, day) DO UPDATE SET kg = excluded.kg""",
-                              (uid, t.astimezone(ZoneInfo(tz)).date(), kg))
-                weights += 1
+        if (m.get('name') or '').lower() not in ('weight_body_mass','body_mass','weight_&_body_mass','weight'):continue
+        unit=(m.get('units') or 'kg').lower()
+        if unit not in ('kg','lb','lbs'):continue
+        for point in m.get('data') or []:
+            try:
+                stamp=_t(point.get('date'));kg=float(point['qty'])*(.45359237 if unit in ('lb','lbs') else 1)
+                if not stamp or stamp.tzinfo is None or stamp>dt.datetime.now(dt.timezone.utc)+dt.timedelta(minutes=5) or not 20<=kg<=400:continue
+                identity=uuid5(NAMESPACE_URL,f'kinetta:health-auto-export:{uid}:{stamp.isoformat()}:{kg:.6f}')
+                samples.append(H.Sample(sample_id=identity,sampled_at=stamp,kg=kg,source_name='Health Auto Export',source_bundle='health-auto-export'))
+            except (ValueError,TypeError,KeyError):continue
+    with db.connect() as c:p=H.profile(c,uid)
+    if p['health_weight_read']:
+        unique={s.sample_id:s for s in samples}
+        values=list(unique.values())
+        for start in range(0,len(values),500):
+            H.import_weights(H.Batch(epoch=p['health_weight_epoch'],tz=p['tz'] or db.DEFAULT_TZ,observed_at=dt.datetime.now(dt.timezone.utc),samples=values[start:start+500]),{'id':uid})
+            weights+=len(values[start:start+500])
     with db.connect() as c:
         c.execute("""UPDATE connections SET status = %s, last_sync = now(), last_count = %s WHERE user_id = %s AND kind = 'apple'""",
                   (f'{added} added, {dup} already here' + (f', {failed} failed' if failed else '') + (f', {weights} weigh-ins' if weights else ''), added, uid))

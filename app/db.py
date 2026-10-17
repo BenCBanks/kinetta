@@ -928,6 +928,260 @@ MIGRATIONS = [
     GRANT SELECT ON health_resting TO fit_readers;
     """,
 
+    # 44: optional goal-first setup; existing targets, body settings and Health choices stay unchanged.
+    """ALTER TABLE profile ADD COLUMN nutrition_goal text
+         CHECK (nutrition_goal IN ('lose_weight','maintain','build_muscle','eat_healthier','fuel_training'));
+       ALTER TABLE profile ADD COLUMN goal_pace_percent double precision
+         CHECK (goal_pace_percent >= 0 AND goal_pace_percent <= 1);""",
+    # 45: private food conversation text and owner-bound links; images are not retained.
+    """
+    ALTER TABLE profile ADD COLUMN food_chat_auto_log boolean NOT NULL DEFAULT true;
+    ALTER TABLE profile ADD COLUMN food_chat_tone text NOT NULL DEFAULT 'supportive'
+      CHECK (food_chat_tone IN ('supportive','numbers'));
+    CREATE TABLE food_chat_messages (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id uuid NOT NULL,
+      kind text NOT NULL CHECK (kind IN ('user','reply')),
+      body text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 4000),
+      captured_at timestamptz NOT NULL,
+      created timestamptz NOT NULL DEFAULT now(),
+      local_day date NOT NULL,
+      state text NOT NULL CHECK (state IN ('pending','answered','cancelled')),
+      reply_to bigint,
+      result jsonb,
+      CHECK ((kind = 'reply') = (reply_to IS NOT NULL)),
+      UNIQUE (user_id,client_id), UNIQUE (user_id,id), UNIQUE (user_id,reply_to),
+      FOREIGN KEY (user_id,reply_to) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE);
+    CREATE INDEX food_chat_history ON food_chat_messages(user_id,coalesce(reply_to,id),id);
+    CREATE UNIQUE INDEX food_entries_user_identity ON food_entries(user_id,id);
+    CREATE TABLE food_chat_entries (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message_id bigint NOT NULL,
+      entry_id bigint NOT NULL,
+      PRIMARY KEY (message_id,entry_id),
+      FOREIGN KEY (user_id,message_id) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id,entry_id) REFERENCES food_entries(user_id,id) ON DELETE CASCADE);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['food_chat_messages','food_chat_entries'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    """,
+
+    # 46: durable AI request caps, service food-estimator reservations and token-only audit.
+    """
+    CREATE TABLE ai_daily_usage (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL, kind text NOT NULL, requests int NOT NULL CHECK (requests > 0),
+      PRIMARY KEY(user_id,day,kind));
+    CREATE TABLE ai_service_budget (
+      day date PRIMARY KEY, charged_micros bigint NOT NULL DEFAULT 0 CHECK (charged_micros >= 0));
+    CREATE TABLE ai_food_attempts (
+      id uuid PRIMARY KEY, user_id bigint REFERENCES users(id) ON DELETE SET NULL,
+      day date NOT NULL REFERENCES ai_service_budget(day), model text NOT NULL, kind text NOT NULL,
+      created timestamptz NOT NULL DEFAULT now(), state text NOT NULL DEFAULT 'reserved'
+        CHECK (state IN ('reserved','measured')),
+      reserved_micros bigint NOT NULL CHECK (reserved_micros >= 0),
+      charged_micros bigint NOT NULL CHECK (charged_micros >= 0),
+      input_tokens bigint CHECK (input_tokens >= 0), output_tokens bigint CHECK (output_tokens >= 0),
+      thinking_tokens bigint CHECK (thinking_tokens >= 0));
+    CREATE INDEX ai_food_attempts_owner ON ai_food_attempts(user_id,created DESC);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['ai_daily_usage','ai_food_attempts'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    ALTER TABLE ai_service_budget ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON ai_service_budget FROM PUBLIC,fit_readers,fit_all_readers;
+    """,
+
+    # 47: all-provider attempt leases; failures retain cost but release concurrency.
+    """ALTER TABLE ai_food_attempts DROP CONSTRAINT ai_food_attempts_state_check;
+       ALTER TABLE ai_food_attempts ADD CONSTRAINT ai_food_attempts_state_check
+         CHECK (state IN ('reserved','measured','failed'));
+       ALTER TABLE ai_food_attempts ADD COLUMN lease_until timestamptz;
+       ALTER TABLE ai_food_attempts ADD COLUMN finished_at timestamptz;
+       ALTER TABLE ai_food_attempts ADD COLUMN request_id uuid;
+       ALTER TABLE ai_service_budget ADD COLUMN warned_at timestamptz;
+       CREATE INDEX ai_attempts_request ON ai_food_attempts(user_id,request_id);
+       CREATE INDEX ai_attempts_inflight ON ai_food_attempts(lease_until) WHERE state='reserved';
+       CREATE INDEX ai_attempts_day ON ai_food_attempts(day);
+       CREATE INDEX ai_attempts_owner_day ON ai_food_attempts(user_id,day);""",
+
+    # 48: learn-once private foods and short-lived thread processing leases; no images.
+    """ALTER TABLE custom_foods ADD COLUMN origin text NOT NULL DEFAULT 'manual'
+          CHECK (origin IN ('manual','ai','catalog','label'));
+       ALTER TABLE custom_foods ADD COLUMN origin_notes text;
+       ALTER TABLE custom_foods ADD COLUMN origin_model text;
+       ALTER TABLE custom_foods ADD COLUMN origin_edited boolean NOT NULL DEFAULT false;
+       ALTER TABLE custom_foods ADD COLUMN origin_ref jsonb;
+       CREATE TABLE food_chat_aliases (
+         user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         key text NOT NULL,
+         templates jsonb NOT NULL, created timestamptz NOT NULL DEFAULT now(),
+         PRIMARY KEY(user_id,key));
+       CREATE TABLE food_chat_cancellations (
+         user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         client_id uuid NOT NULL, created timestamptz NOT NULL DEFAULT now(),
+         PRIMARY KEY(user_id,client_id));
+       CREATE TABLE food_chat_jobs (
+         user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         message_id bigint NOT NULL, lease uuid NOT NULL, expires timestamptz NOT NULL,
+         state text NOT NULL CHECK (state IN ('running','done','failed','cancelled')),
+         input_hash text, created timestamptz NOT NULL DEFAULT now(),
+         PRIMARY KEY(user_id,message_id),
+         FOREIGN KEY(user_id,message_id) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE);
+       DO $$ DECLARE t text; BEGIN
+         FOREACH t IN ARRAY ARRAY['food_chat_aliases','food_chat_jobs','food_chat_cancellations'] LOOP
+           EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+           EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())',t);
+           EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+           EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+         END LOOP;
+       END $$;
+       UPDATE ai_food_attempts SET request_id=NULL WHERE user_id IS NULL;
+       CREATE FUNCTION clear_ai_request_reference() RETURNS trigger LANGUAGE plpgsql AS $$
+       BEGIN
+         UPDATE ai_food_attempts SET request_id=NULL WHERE user_id=OLD.id;
+         RETURN OLD;
+       END $$;
+       CREATE TRIGGER clear_ai_request_reference BEFORE DELETE ON users
+         FOR EACH ROW EXECUTE FUNCTION clear_ai_request_reference();""",
+
+    # 49: optional food-chat end-of-day note; off until explicitly selected.
+    """ALTER TABLE profile ADD COLUMN food_chat_daily_note text NOT NULL DEFAULT 'off'
+         CHECK (food_chat_daily_note IN ('off','code','ai'));""",
+
+    # 50: private weekly target suggestions and explicit decisions; no automatic target changes.
+    """CREATE TABLE nutrition_checkins (
+         id uuid PRIMARY KEY,user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         week date NOT NULL,state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','accepted','deferred')),
+         data jsonb NOT NULL,baseline text NOT NULL,created timestamptz NOT NULL DEFAULT now(),
+         updated timestamptz NOT NULL DEFAULT now(),acted_at timestamptz,UNIQUE(user_id,week));
+       ALTER TABLE nutrition_checkins ENABLE ROW LEVEL SECURITY;
+       CREATE POLICY own_rows ON nutrition_checkins FOR SELECT TO fit_readers USING(user_id=fit_me());
+       CREATE POLICY all_rows ON nutrition_checkins FOR SELECT TO fit_all_readers USING(true);
+       GRANT SELECT ON nutrition_checkins TO fit_readers;""",
+
+    # 51: explicit recipe-link reads; parsed data only, private replay/cancellation identities.
+    """CREATE TABLE recipe_link_drafts (
+         user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,id uuid NOT NULL,
+         url text NOT NULL,state text NOT NULL DEFAULT 'pending'
+           CHECK(state IN ('pending','ready','failed','cancelled','saved')),
+         data jsonb NOT NULL DEFAULT '{}'::jsonb,error_code text,error_message text,
+         created timestamptz NOT NULL DEFAULT now(),expires timestamptz NOT NULL DEFAULT now()+interval '24 hours',
+         saved_dish_id bigint REFERENCES dishes(id) ON DELETE SET NULL,PRIMARY KEY(user_id,id));
+       CREATE INDEX recipe_link_owner_day ON recipe_link_drafts(user_id,created DESC);
+       ALTER TABLE recipe_link_drafts ENABLE ROW LEVEL SECURITY;
+       CREATE POLICY own_rows ON recipe_link_drafts FOR SELECT TO fit_readers USING(user_id=fit_me());
+       CREATE POLICY all_rows ON recipe_link_drafts FOR SELECT TO fit_all_readers USING(true);
+       GRANT SELECT ON recipe_link_drafts TO fit_readers;""",
+
+    # 52: imported-recipe source and nullable known fiber; old recipes retain whole-meal servings.
+    """ALTER TABLE dishes ADD COLUMN known_fiber_g real,
+         ADD COLUMN recipe_source jsonb NOT NULL DEFAULT '{}'::jsonb;""",
+
+    # 53: provided extra nutrients and opt-in limits; old rows remain unknown, not zero.
+    """ALTER TABLE food_entries ADD COLUMN sodium_mg real CHECK(sodium_mg BETWEEN 0 AND 1000000),
+         ADD COLUMN sugar_g real CHECK(sugar_g BETWEEN 0 AND 2000),ADD COLUMN saturated_fat_g real CHECK(saturated_fat_g BETWEEN 0 AND 2000);
+       ALTER TABLE custom_foods ADD COLUMN sodium_mg real CHECK(sodium_mg BETWEEN 0 AND 1000000),
+         ADD COLUMN sugar_g real CHECK(sugar_g BETWEEN 0 AND 2000),ADD COLUMN saturated_fat_g real CHECK(saturated_fat_g BETWEEN 0 AND 2000);
+       ALTER TABLE dishes ADD COLUMN known_sodium_mg real CHECK(known_sodium_mg BETWEEN 0 AND 10000000),
+         ADD COLUMN known_sugar_g real CHECK(known_sugar_g BETWEEN 0 AND 5000),ADD COLUMN known_saturated_fat_g real CHECK(known_saturated_fat_g BETWEEN 0 AND 5000);
+       ALTER TABLE profile ADD COLUMN sodium_target_mg real CHECK(sodium_target_mg BETWEEN 0 AND 100000),
+         ADD COLUMN sugar_target_g real CHECK(sugar_target_g BETWEEN 0 AND 2000),ADD COLUMN saturated_fat_target_g real CHECK(saturated_fat_target_g BETWEEN 0 AND 1000);""",
+
+    # 54: explicit Health weight read, private UUID candidates and manual-deletion fences.
+    """    ALTER TABLE profile ADD COLUMN health_weight_read boolean NOT NULL DEFAULT false,
+      ADD COLUMN health_weight_epoch uuid NOT NULL DEFAULT gen_random_uuid(),
+      ADD COLUMN health_weight_last_synced timestamptz,
+      ADD COLUMN health_weight_ai_ok boolean NOT NULL DEFAULT false,
+      ADD COLUMN weight_health_derived boolean NOT NULL DEFAULT false;
+    CREATE TABLE health_weight_samples (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      sample_id uuid NOT NULL, sampled_at timestamptz, kg real CHECK(kg BETWEEN 20 AND 400),
+      source_name text, source_bundle text, deleted boolean NOT NULL DEFAULT false,
+      observed_at timestamptz NOT NULL, PRIMARY KEY(user_id,sample_id),
+      CHECK(deleted OR (sampled_at IS NOT NULL AND kg IS NOT NULL)));
+    CREATE INDEX health_weight_sample_dates ON health_weight_samples(user_id,sampled_at DESC);
+    CREATE TABLE health_weight_exclusions (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL, before_time timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,day));
+    ALTER TABLE weights ADD COLUMN health_sample_id uuid,
+      ADD COLUMN source_name text,
+      ADD CONSTRAINT weight_health_sample_owner FOREIGN KEY(user_id,health_sample_id)
+        REFERENCES health_weight_samples(user_id,sample_id) ON DELETE CASCADE;
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['health_weight_samples','health_weight_exclusions'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    UPDATE profile p SET weight_health_derived=true WHERE EXISTS (
+      SELECT 1 FROM weights w WHERE w.user_id=p.user_id AND w.source='healthkit'
+      AND w.day=(SELECT max(day) FROM weights WHERE user_id=p.user_id));
+""",
+
+    # 55: an explicitly removed Health sample stays excluded across calendar changes.
+    """ALTER TABLE health_weight_samples ADD COLUMN excluded boolean NOT NULL DEFAULT false;""",
+    # 56: optional Health nutrition output journal, including edits and deletion tombstones.
+    """    ALTER TABLE profile ADD COLUMN health_nutrition_write boolean NOT NULL DEFAULT false,
+      ADD COLUMN health_nutrition_epoch uuid NOT NULL DEFAULT gen_random_uuid();
+    CREATE SEQUENCE health_nutrition_revision;
+    CREATE TABLE health_nutrition_days (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL, revision bigint NOT NULL DEFAULT nextval('health_nutrition_revision'),
+      changed_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(user_id,day));
+    CREATE INDEX health_nutrition_pending ON health_nutrition_days(user_id,revision);
+    ALTER TABLE health_nutrition_days ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON health_nutrition_days FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON health_nutrition_days FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON health_nutrition_days TO fit_readers;
+    CREATE FUNCTION health_nutrition_touch(who bigint,which date) RETURNS void LANGUAGE plpgsql AS $$
+    BEGIN
+      PERFORM pg_advisory_xact_lock(155::integer,who::integer);
+      IF EXISTS(SELECT 1 FROM profile WHERE user_id=who AND health_nutrition_write) THEN
+        INSERT INTO health_nutrition_days(user_id,day) VALUES(who,which)
+        ON CONFLICT(user_id,day) DO UPDATE SET revision=nextval('health_nutrition_revision'),changed_at=now();
+      END IF;
+    END $$;
+    CREATE FUNCTION health_nutrition_changed() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP <> 'INSERT' THEN PERFORM health_nutrition_touch(OLD.user_id,OLD.day); END IF;
+      IF TG_OP <> 'DELETE' AND (TG_OP='INSERT' OR (NEW.user_id,NEW.day) IS DISTINCT FROM (OLD.user_id,OLD.day)) THEN
+        PERFORM health_nutrition_touch(NEW.user_id,NEW.day);
+      END IF;
+      RETURN NULL;
+    END $$;
+    CREATE TRIGGER health_nutrition_change AFTER INSERT OR UPDATE OR DELETE ON food_entries
+      FOR EACH ROW EXECUTE FUNCTION health_nutrition_changed();
+""",
+
+    # 57: explicit nutrition history scope and stable opaque Health account identity.
+    """ALTER TABLE profile ADD COLUMN health_nutrition_since date,
+      ADD COLUMN health_nutrition_older boolean NOT NULL DEFAULT false,
+      ADD COLUMN health_account_id uuid NOT NULL DEFAULT gen_random_uuid();
+    UPDATE profile SET health_nutrition_since=(now() AT TIME ZONE coalesce(tz,'America/New_York'))::date WHERE health_nutrition_write;
+    CREATE OR REPLACE FUNCTION health_nutrition_touch(who bigint,which date) RETURNS void LANGUAGE plpgsql AS $$
+    BEGIN
+      -- Keep commit ordering across concurrent enablement and direct SQL writes.
+      PERFORM pg_advisory_xact_lock(155::integer,who::integer);
+      IF EXISTS(SELECT 1 FROM profile WHERE user_id=who AND health_nutrition_write
+        AND (health_nutrition_older OR which>=health_nutrition_since)) THEN
+        INSERT INTO health_nutrition_days(user_id,day) VALUES(who,which)
+        ON CONFLICT(user_id,day) DO UPDATE SET revision=nextval('health_nutrition_revision'),changed_at=now();
+      END IF;
+    END $$;""",
+
 ]
 
 

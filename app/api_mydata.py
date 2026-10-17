@@ -28,6 +28,11 @@ _last_export = {}
 # table -> SQL giving one jsonb per row for the person (%s = user id). Personal tables only; secrets left out.
 DROP = " - 'user_id'"
 TABLES = {
+    'health_nutrition_days': "SELECT to_jsonb(t)" + DROP + " FROM health_nutrition_days t WHERE user_id = %s ORDER BY day",
+    'health_weight_samples': "SELECT to_jsonb(t)" + DROP + " FROM health_weight_samples t WHERE user_id = %s ORDER BY sample_id",
+    'health_weight_exclusions': "SELECT to_jsonb(t)" + DROP + " FROM health_weight_exclusions t WHERE user_id = %s ORDER BY day",
+    'recipe_link_drafts': "SELECT to_jsonb(t)" + DROP + " FROM recipe_link_drafts t WHERE user_id = %s ORDER BY created",
+    'nutrition_checkins': "SELECT to_jsonb(t)" + DROP + " FROM nutrition_checkins t WHERE user_id = %s ORDER BY week",
     'profile': "SELECT to_jsonb(t)" + DROP + " FROM profile t WHERE user_id = %s",
     'activities': """SELECT to_jsonb(t)""" + DROP + """ - 'geom' - 'start_pt' - 'end_pt' - 'file_path' - 'file_sha256'
                        || jsonb_build_object('track', ST_AsGeoJSON(t.geom)::jsonb) FROM activities t WHERE user_id = %s ORDER BY start_time""",
@@ -39,6 +44,11 @@ TABLES = {
     'training_plans': "SELECT to_jsonb(t)" + DROP + " FROM training_plans t WHERE user_id = %s ORDER BY id",
     'plan_marks': "SELECT to_jsonb(t)" + DROP + " FROM plan_marks t WHERE user_id = %s ORDER BY day",
     'coach_notes': "SELECT to_jsonb(t)" + DROP + " FROM coach_notes t WHERE user_id = %s ORDER BY created",
+    'food_chat_messages': "SELECT to_jsonb(t)" + DROP + " FROM food_chat_messages t WHERE user_id = %s ORDER BY id",
+    'food_chat_aliases': "SELECT to_jsonb(t)" + DROP + " FROM food_chat_aliases t WHERE user_id = %s ORDER BY created",
+    'food_chat_cancellations': "SELECT to_jsonb(t)" + DROP + " FROM food_chat_cancellations t WHERE user_id = %s ORDER BY created",
+    'food_chat_jobs': "SELECT to_jsonb(t)" + DROP + " FROM food_chat_jobs t WHERE user_id = %s ORDER BY created",
+    'food_chat_entries': "SELECT to_jsonb(t)" + DROP + " FROM food_chat_entries t WHERE user_id = %s ORDER BY message_id, entry_id",
     'food_entries': "SELECT to_jsonb(t)" + DROP + " FROM food_entries t WHERE user_id = %s ORDER BY day, position",
     'custom_foods': "SELECT to_jsonb(t)" + DROP + " FROM custom_foods t WHERE user_id = %s ORDER BY id",
     'saved_meals': "SELECT to_jsonb(t)" + DROP + " FROM saved_meals t WHERE user_id = %s ORDER BY id",
@@ -67,6 +77,8 @@ TABLES = {
     'lift_sets': "SELECT to_jsonb(t)" + DROP + " - 'id' FROM lift_sets t WHERE user_id = %s ORDER BY activity_id, pos, n",
     'activity_photos': "SELECT to_jsonb(t)" + DROP + " - 'img' - 'thumb' FROM activity_photos t WHERE user_id = %s ORDER BY id",
     'comments_written': "SELECT to_jsonb(t)" + DROP + " FROM comments t WHERE user_id = %s ORDER BY created",
+    'ai_daily_usage': "SELECT to_jsonb(t)" + DROP + " FROM ai_daily_usage t WHERE user_id = %s ORDER BY day,kind",
+    'ai_food_attempts': "SELECT to_jsonb(t)" + DROP + " FROM ai_food_attempts t WHERE user_id = %s ORDER BY created",
     'ai_food_requests': "SELECT to_jsonb(t)" + DROP + " FROM ai_requests t WHERE user_id = %s ORDER BY created",   # when you asked for AI food feedback
     # dishes shared with you by friends (cooking mode, 2026-10-11): which dish, from whom
     'dishes_shared_with_me': """SELECT jsonb_build_object('dish_id', s.dish_id, 'dish', d.name, 'from', u.login, 'created', s.created)
@@ -75,7 +87,7 @@ TABLES = {
 CSVS = {
     'activities.csv': """SELECT start_time, sport, name, distance_m, moving_s, elapsed_s, ascent_m, avg_hr, max_hr, calories, effort, device
                          FROM activities WHERE user_id = %s ORDER BY start_time""",
-    'food.csv': """SELECT day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g
+    'food.csv': """SELECT day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g
                    FROM food_entries WHERE user_id = %s ORDER BY day, position""",
     'weight.csv': 'SELECT day, kg, note, source FROM weights WHERE user_id = %s ORDER BY day',
 }

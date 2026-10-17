@@ -46,9 +46,9 @@
 		</dict>
 	</dict>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Kinetta reads the workouts, heart rate and routes you allow and sends them to your Kinetta server. If you choose Apple Health resting calories in Nutrition, it also reads Resting Energy. Your food goal stays unchanged.</string>
+	<string>Kinetta reads the workouts, heart rate and routes you allow and sends them to your Kinetta server. If you choose Apple Health resting calories in Nutrition, it also reads Resting Energy. Your food goal stays unchanged. If you separately choose Read weight, it reads body mass into your private weight log.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Kinetta doesn't save anything to Apple Health; it only reads your workouts.</string>
+	<string>If you choose Share nutrition, Kinetta saves your logged daily calories, protein, carbohydrates, fat and fiber to Apple Health, including your edits and deletions. This is optional and separate from reading workouts or weight.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Record your route during an activity you start in Track, including while the screen is locked or you use another app.</string>
 	<key>NSCameraUsageDescription</key>

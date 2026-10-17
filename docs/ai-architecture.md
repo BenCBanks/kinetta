@@ -95,3 +95,23 @@ Everyday unknown foods (plain or none) are sent together to the existing access/
 automatically, so describing a meal needs no extra tap. Named brands are never sent automatically; the person can
 choose "Use an AI estimate instead". Without AI access the plain matches are offered to pick from.
 Existing reviewed-evaluation release gates continue to apply to subsequent model or prompt changes.
+
+Structured food estimate transports now reserve durable service budget before each
+attempt and record token-only usage; per-account request brakes survive restarts.
+See [AI budgets](ai-budgets.md) for pricing review and all-provider coverage.
+Prompts, models and generation configuration are unchanged. The normal reviewed
+evaluation gate still applies.
+
+The shared provider budget now covers generated notes/reviews and each Kit turn as
+well as food estimates. Durable attempt/concurrency/spend limits and the kill switch
+run before provider work. Paid Google Search grounding is paused until its query
+charges can be bounded; the USDA path remains. See [AI budgets](ai-budgets.md).
+Claude's hidden SDK retries and unpriced server-side model fallback are disabled;
+Gemini's existing explicit, individually reserved retry sequence remains. No prompt
+or model selection was changed; real-provider acceptance and evaluation stay pending.
+
+Food-thread Kit reuses the existing prompt/model and bounded tool runner with a smaller code-enforced allowlist (`profile`, `nutrition_summary`, `meal_options`, `meal_combinations`). Its profile excludes body/heart-rate data; no activity/weight/Health tools are callable, including forged tool calls. The current question alone is sent, never the code answer or entire thread. Consent is checked before each provider turn/tool and before storing. A durable per-message lease commits before provider work, retains a saved answer, and drops late results after cancellation or deletion. Suggestions remain pending until explicit backend-validated confirmation; food and neutral thread receipt commit together. The existing general Kit Health gate is retained; food-only questions need no separate Health disclosure consent because that scope cannot read stored Health data. The fingerprint covers the food entrypoint and deterministic routing, with a separate reviewed food-chat block required to enable it.
+
+Daily code summaries are independently opt-in and never call a provider. Their root identity is deterministic per authenticated user/local day, preserved by delete tombstones. The richer version reuses food-only Kit with a durable attempted flag set before provider work. A failed or expired/crashed request consumes the local day's attempt; a later check recovers to the code note without another model request. Its prompt contains only the date-specific current food-review question, not the code summary, burn/body/Health data or conversation history. Usage is attributed separately as food chat daily note.
+
+The daily Kit cap also covers requests for older notes made on the same current local day. A separate durable local-day counter survives message/reply deletion; existing UTC service/provider budgets still apply independently.

@@ -31,7 +31,25 @@ node dev/tests/test_native_resting.js
 node dev/tests/test_social_gestures.js
 node dev/tests/test_card_taps.js
 node dev/tests/test_ui_state.js
+node dev/tests/test_onboarding.js
+node dev/tests/test_home_food.js
+node dev/tests/test_navigation.js
+python3 dev/tests/test_food_thread_facts.py
+python3 dev/tests/test_weekly_food_review.py
+python3 dev/tests/test_recipe_link.py
 node dev/tests/test_async_reads.js
+node dev/tests/test_offline_queue.js
+node dev/tests/test_client_uuid.js
+node dev/tests/test_thread_outbox.js
+node dev/tests/test_thread_privacy.js
+node dev/tests/test_thread_nutrients.js
+node dev/tests/test_extra_nutrients.js
+node dev/tests/test_recent_nutrients.js
+node dev/tests/test_shared_recipes.js
+node dev/tests/test_health_food_client.js
+node dev/tests/test_health_session.js
+node dev/tests/test_weekly_food_review.js
+node dev/tests/test_thread_sources.js
 node dev/tests/test_food_search.js
 node dev/tests/test_food_remove.js
 node dev/tests/test_feed_cache.js
@@ -43,7 +61,7 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details test_resting_energy; do python3 "$t.py"; done
+for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"
@@ -56,4 +74,32 @@ docker compose -p "$P" exec -T app python - < dev/tests/ai_access_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_chat_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_photo_batches_corrections.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_facts_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_log_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_edit_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/ai_budget_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/ai_service_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_sql.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_receipts_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_kit_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_daily_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/nutrition_copy_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/nutrition_checkin_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_import_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_estimate_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_imports_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_portion_undo_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/nutrients_source_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/nutrients_api_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/nutrients_pipeline_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/nutrients_range_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/weekly_food_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/shared_recipes_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/health_weights_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/health_nutrition_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
 echo "== all passed"
