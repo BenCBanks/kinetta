@@ -119,7 +119,7 @@ def diet_review_get(user=Depends(current_user)):
         r = c.execute("SELECT period_start, text, created FROM coach_notes WHERE user_id = %s AND kind = 'diet' ORDER BY period_start DESC LIMIT 1",
                       (user['id'],)).fetchone()
     latest = {'day': r['period_start'], 'created': r['created'], **json.loads(r['text'])} if r else None
-    return {'enabled': coach.allowed(user['id']), 'available': coach.enabled(), 'latest': latest}
+    return {'paused': not coach.ai_budget.enabled(), 'enabled': coach.allowed(user['id']), 'available': coach.enabled(), 'latest': latest}
 
 
 @router.post('/food/review')
