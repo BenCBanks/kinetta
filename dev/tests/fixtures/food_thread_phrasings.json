@@ -634,5 +634,157 @@
       "text": "a handful & leaves",
       "expected": "Recipe review regression"
     }
+  ],
+  "review_phrases_147_155": [
+    {
+      "pr": 147,
+      "text": "per serving",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 147,
+      "text": "same as yesterday's lunch",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 147,
+      "text": "migration53",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 147,
+      "text": "sodium1093/307",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 147,
+      "text": "sugar2000 or1063/269",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 149,
+      "text": "Unknown",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 149,
+      "text": "known for n of m foods",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 149,
+      "text": "<1 mg",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 149,
+      "text": "<.1 g",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 149,
+      "text": "<0.1 g",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 150,
+      "text": "calculated without AI",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 150,
+      "text": "missing … not zero",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 150,
+      "text": "Most recorded protein was at snacks",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 150,
+      "text": "at snack time",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "1 serving",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "1 of 4",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "Shared with friends",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "Saved recipe",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "Cup",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "1 serving = 1 g",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "serving",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "servings",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "½",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 151,
+      "text": "Done when",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 152,
+      "text": "Manual",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 153,
+      "text": "Include older days",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 153,
+      "text": "Also add older days",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 154,
+      "text": "weight read already running",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 155,
+      "text": "stop uploads before another login",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    },
+    {
+      "pr": 155,
+      "text": "more history waiting",
+      "expected": "Review example retained; covered by corresponding nutrient/Health regression"
+    }
   ]
 }

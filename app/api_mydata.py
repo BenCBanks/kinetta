@@ -84,7 +84,7 @@ TABLES = {
 CSVS = {
     'activities.csv': """SELECT start_time, sport, name, distance_m, moving_s, elapsed_s, ascent_m, avg_hr, max_hr, calories, effort, device
                          FROM activities WHERE user_id = %s ORDER BY start_time""",
-    'food.csv': """SELECT day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g
+    'food.csv': """SELECT day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g
                    FROM food_entries WHERE user_id = %s ORDER BY day, position""",
     'weight.csv': 'SELECT day, kg, note, source FROM weights WHERE user_id = %s ORDER BY day',
 }

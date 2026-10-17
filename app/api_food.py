@@ -18,7 +18,7 @@ import urllib.request
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
-from . import db, energy
+from . import db, energy, nutrients as N
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
@@ -75,7 +75,7 @@ def _off_food(p):
     n = p.get('nutriments') or {}
     per100 = {'kcal': _num(n.get('energy-kcal_100g')) or (_num(n.get('energy_100g')) and round(_num(n.get('energy_100g')) / 4.184, 1)),
               'protein_g': _num(n.get('proteins_100g')), 'carbs_g': _num(n.get('carbohydrates_100g')),
-              'fat_g': _num(n.get('fat_100g')), 'fiber_g': _num(n.get('fiber_100g'))}
+              'fat_g': _num(n.get('fat_100g')), 'fiber_g': _num(n.get('fiber_100g')),**N.off_values(n)}
     per100 = _sane(per100)
     if not per100: return None
     sq = _num(p.get('serving_quantity'))
@@ -97,6 +97,7 @@ def _fdc_food(f):
                 per100[k] = _num(n.get('value'))
         if per100['kcal'] is None and (nid in (2047, 2048) or num in ('957', '958')) and (n.get('unitName') or '').upper() == 'KCAL':
             per100['kcal'] = _num(n.get('value'))     # Foundation foods give Atwater energy instead of 1008
+    per100.update(N.fdc_values(f.get('foodNutrients') or []))
     per100 = _sane(per100)
     if not per100: return None
     sg = _num(f.get('servingSize')) if (f.get('servingSizeUnit') or '').lower() in ('g', 'grm', 'ml', 'mlt') else None
@@ -153,11 +154,11 @@ def _match(q, name):
 def _custom_food(r):
     sg = r['serving_g']
     f = sg / 100 if sg else None
-    per = lambda v: round(v / f, 2) if (f and v is not None) else None
+    per = lambda key: N.rounded(key,r.get(key)/f) if (f and r.get(key) is not None) else None
     return {'source': 'custom', 'origin': r.get('origin','manual'), 'origin_notes':r.get('origin_notes'),
             'origin_model':r.get('origin_model'), 'origin_ref':r.get('origin_ref'), 'origin_edited':r.get('origin_edited',False), 'id': r['id'], 'name': r['name'], 'brand': r['brand'], 'favorite': r['favorite'],
-            'per_serving': {k: r[k] for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')},
-            'per100': {k: per(r[k]) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')} if f else None,
+            'per_serving': {k:r.get(k) for k in N.ALL},
+            'per100': {k:per(k) for k in N.ALL} if f else None,
             'serving': {'label': r['serving_label'], 'g': sg}}
 
 
@@ -169,7 +170,7 @@ def search(q: str, sources: str = 'mine,off,usda', user=Depends(current_user)):
     with db.connect() as c:
         mine = [_custom_food(r) for r in c.execute("""SELECT * FROM custom_foods WHERE user_id = %s AND (name ILIKE %s OR brand ILIKE %s)
                                                       ORDER BY favorite DESC, name LIMIT 15""", (user['id'], f'%{q}%', f'%{q}%')).fetchall()]
-        recent = c.execute("""SELECT DISTINCT ON (lower(name)) name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, ref, source
+        recent = c.execute("""SELECT DISTINCT ON (lower(name)) name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, ref, source
                               FROM food_entries WHERE user_id = %s AND name ILIKE %s ORDER BY lower(name), created DESC LIMIT 10""",
                            (user['id'], f'%{q}%')).fetchall()
     return {'mine': mine if 'mine' in want else [], 'recent': recent if 'mine' in want else [],
@@ -196,7 +197,7 @@ def barcode(code: str, user=Depends(current_user)):
 def recent(user=Depends(current_user)):
     """Foods logged most often in the last 60 days, for one-tap re-logging."""
     with db.connect() as c:
-        return c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, ref, source, n
+        return c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, ref, source, n
                             FROM (SELECT DISTINCT ON (lower(name)) *, count(*) OVER (PARTITION BY lower(name)) AS n
                                   FROM food_entries WHERE user_id = %s AND day > current_date - 60
                                   ORDER BY lower(name), created DESC) x ORDER BY created DESC LIMIT 25""", (user['id'],)).fetchall()
@@ -206,7 +207,7 @@ def recent(user=Depends(current_user)):
 def usual(user=Depends(current_user)):
     """Foods logged 3+ times in the last 60 days, most often first, with the amount used last time (one-tap logging)."""
     with db.connect() as c:
-        return c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, ref, source, meal, n
+        return c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, ref, source, meal, n
                             FROM (SELECT DISTINCT ON (lower(name)) *, count(*) OVER (PARTITION BY lower(name)) AS n
                                   FROM food_entries WHERE user_id = %s AND day > current_date - 60
                                   ORDER BY lower(name), created DESC) x WHERE n >= 3 ORDER BY n DESC, created DESC LIMIT 12""", (user['id'],)).fetchall()
@@ -230,9 +231,9 @@ def day_data(c, uid, d=None):
     if day_ is None:
         tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
         day_ = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
-    entries = c.execute("""SELECT id, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref
+    entries = c.execute("""SELECT id, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref
                            FROM food_entries WHERE user_id = %s AND day = %s ORDER BY position, id""", (uid, day_)).fetchall()
-    t = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
+    t = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
     # exercise today vs a usual day (last 4 weeks): big training days get extra calories on top of the target
     ctx = energy.context(c, uid)
     ex = energy.exercise_by_day(c, uid, ctx['tz'], day_ - dt.timedelta(days=28), day_, ctx['kg'])
@@ -275,12 +276,12 @@ def day_data(c, uid, d=None):
         if r['n'] >= 3 and r['n'] > meal_hours.get(r['h'], (None, 0))[1]: meal_hours[r['h']] = (r['meal'], r['n'])
     return {'day': day_.isoformat(), 'entries': entries, 'totals': totals,
             'unknown_nutrients':{k:sum(e.get(k) is None or (isinstance((e.get('ref') or {}).get('unknown_nutrients'),list) and k in e['ref']['unknown_nutrients']) for e in entries) for k in NUM}, 'targets': t, 'burned': burned, 'goal': goal, 'weight_kg': w['kg'] if w else None,
-            'last_meals': last_meals, 'meal_hours': {h: m for h, (m, _) in meal_hours.items()}}
+            'extra_nutrients':N.day_values(entries,t),'last_meals': last_meals, 'meal_hours': {h: m for h, (m, _) in meal_hours.items()}}
 
 
 def _last_meals(c, uid, day_):
     """For each meal: the most recent earlier day (last 14) it was logged, with its items, for "Same as Tuesday" re-logging."""
-    rows = c.execute("""SELECT day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref
+    rows = c.execute("""SELECT day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref
                          FROM food_entries f WHERE user_id = %s AND day < %s AND day >= %s::date - 14
                            AND day = (SELECT max(day) FROM food_entries g WHERE g.user_id = f.user_id AND g.meal = f.meal AND g.day < %s AND g.day >= %s::date - 14)
                          ORDER BY meal, position, id""", (uid, day_, day_, day_, day_)).fetchall()
@@ -291,7 +292,7 @@ def _last_meals(c, uid, day_):
     return out
 
 
-class EntryIn(BaseModel):
+class EntryIn(N.ExtraValues):
     day: dt.date
     meal: str = Field('snacks', pattern='^(breakfast|lunch|dinner|snacks)$')
     name: str = Field(min_length=1, max_length=200)
@@ -318,12 +319,19 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
         from . import food_thread_receipts as receipts
         for e in items:
             if thread:receipts.guard(c,user['id'],e.client_id)
+            if e.ref is not None and isinstance(e.ref.get('unknown_nutrients'),list):
+                missing={k for k in e.ref['unknown_nutrients'] if isinstance(k,str)}
+                for k in N.EXTRA:
+                    if k in e.model_fields_set:
+                        if getattr(e,k) is None:missing.add(k)
+                        else:missing.discard(k)
+                e.ref={**e.ref,'unknown_nutrients':sorted(missing)}
             pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (user['id'], e.day)).fetchone()['p']
-            r = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position, client_id)
-                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            r = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position, client_id)
+                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                              ON CONFLICT (user_id, client_id) WHERE client_id IS NOT NULL DO NOTHING RETURNING id""",
                           (user['id'], e.day, e.meal, e.name.strip(), e.brand, e.amount, e.unit, e.kcal, e.protein_g, e.carbs_g, e.fat_g,
-                           e.fiber_g, e.source, json.dumps(e.ref) if e.ref else None, pos, e.client_id)).fetchone()
+                           e.fiber_g, e.sodium_mg,e.sugar_g,e.saturated_fat_g,e.source, json.dumps(e.ref) if e.ref else None, pos, e.client_id)).fetchone()
             if r is None:   # already received (offline resend)
                 r = c.execute('SELECT id FROM food_entries WHERE user_id = %s AND client_id = %s', (user['id'], e.client_id)).fetchone()
             ids.append(r['id'])
@@ -332,7 +340,7 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
     return {'ids':ids,**({'messages':messages} if thread or restore_from is not None else {})}
 
 
-class EntryEdit(BaseModel):
+class EntryEdit(N.ExtraValues):
     day: dt.date | None = None
     meal: str | None = Field(None, pattern='^(breakfast|lunch|dinner|snacks)$')
     name: str | None = Field(None, min_length=1, max_length=200)
@@ -350,18 +358,32 @@ def edit_entry(eid: int, body: EntryEdit, user=Depends(current_user)):
     vals = body.model_dump(exclude_unset=True)
     if not vals: return {'ok': True}
     with db.connect() as c:
-        old=c.execute('SELECT ref,source FROM food_entries WHERE id=%s AND user_id=%s FOR UPDATE',(eid,user['id'])).fetchone()
+        old=c.execute('SELECT ref,source,amount,unit,sodium_mg,sugar_g,saturated_fat_g FROM food_entries WHERE id=%s AND user_id=%s FOR UPDATE',(eid,user['id'])).fetchone()
         if not old:raise HTTPException(404,'Not found')
         ref=dict(old['ref'] or {})
-        missing={k for k in ref['unknown_nutrients'] if isinstance(k,str) and k in NUM} if isinstance(ref.get('unknown_nutrients'),list) else set()
+        missing={k for k in ref['unknown_nutrients'] if isinstance(k,str)} if isinstance(ref.get('unknown_nutrients'),list) else set()
+        if ('amount' in vals and vals['amount'] is not None and vals['amount']!=old['amount']) or ('unit' in vals and vals['unit'] is not None and vals['unit']!=old['unit']):
+            same_unit=vals.get('unit',old['unit'])==old['unit']
+            for key in N.EXTRA:
+                maximum=N.ENTRY_MAX[key]
+                if key not in vals:
+                    value=old[key]*vals.get('amount',old['amount'])/old['amount'] if same_unit and old['amount'] and old[key] is not None and key not in missing else None
+                    if not same_unit:
+                        unit=vals.get('unit',old['unit']);amount=vals.get('amount',old['amount'])
+                        source=ref.get('per100') if unit=='g' else ref.get('per_serving') if unit=='serving' else None
+                        if amount is None or unit is None:raise HTTPException(422,'Keep a value for the amount and unit')
+                        reference=N.number(source.get(key),N.PER100_MAX[key] if unit=='g' else N.ENTRY_MAX[key]) if isinstance(source,dict) else None
+                        if reference is not None:value=reference*amount/(100 if unit=='g' else 1)
+                    if value is not None and value>maximum:raise HTTPException(422,'That portion is too large. Check the amount and nutrient values.')
+                    vals[key]=value
         for key,value in list(vals.items()):
             if value is None:
-                if key not in NUM or key=='kcal':raise HTTPException(422,'Keep a value for calories and the food’s name, amount and destination')
+                if key not in N.ALL or key=='kcal':raise HTTPException(422,'Keep a value for calories and the food’s name, amount and destination')
                 missing.add(key)
-                if key!='fiber_g':vals[key]=0
-            elif key in NUM:missing.discard(key)
+                if key not in ('fiber_g',*N.EXTRA):vals[key]=0
+            elif key in N.ALL:missing.discard(key)
         if missing or 'unknown_nutrients' in ref:ref['unknown_nutrients']=sorted(missing)
-        if (old['source']=='ai' or ref.get('origin')=='ai') and set(vals)&{'name','amount','unit',*NUM}:ref['origin_edited']=True
+        if (old['source']=='ai' or ref.get('origin')=='ai') and set(vals)&{'name','amount','unit',*N.ALL}:ref['origin_edited']=True
         c.execute(f"UPDATE food_entries SET {', '.join(f'{k} = %s' for k in vals)},ref=%s,updated=now() WHERE id=%s AND user_id=%s",
                   (*vals.values(),json.dumps(ref),eid,user['id']))
     return {'ok': True}
@@ -371,7 +393,7 @@ def edit_entry(eid: int, body: EntryEdit, user=Depends(current_user)):
 def delete_entry(eid: int, user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute("""DELETE FROM food_entries WHERE id = %s AND user_id = %s
-                         RETURNING day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref""", (eid, user['id'])).fetchone()
+                         RETURNING day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref""", (eid, user['id'])).fetchone()
     if not r: raise HTTPException(404, 'Not found')
     return {'deleted': r}     # the phone keeps this for Undo
 
@@ -386,15 +408,15 @@ class CopyIn(BaseModel):
 @router.post('/copy')
 def copy(body: CopyIn, user=Depends(current_user)):
     with db.connect() as c:
-        n = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position)
-                         SELECT user_id, %s, coalesce(%s, meal), name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position + 1000
+        n = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position)
+                         SELECT user_id, %s, coalesce(%s, meal), name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position + 1000
                          FROM food_entries WHERE user_id = %s AND day = %s AND (%s::text IS NULL OR meal = %s)""",
                       (body.to_day, body.to_meal, user['id'], body.from_day, body.meal, body.meal)).rowcount
     return {'copied': n}
 
 
 # ---------- custom foods + saved meals ----------
-class FoodIn(BaseModel):
+class FoodIn(N.ExtraValues):
     name: str = Field(min_length=1, max_length=200)
     brand: str | None = Field(None, max_length=120)
     barcode: str | None = Field(None, pattern=r'^\d{6,14}$')
@@ -425,7 +447,17 @@ def food_add(body: FoodIn, user=Depends(current_user)):
 @router.put('/foods/{fid}')
 def food_edit(fid: int, body: FoodIn, user=Depends(current_user)):
     v = body.model_dump()
+    for key in N.EXTRA:
+        if key not in body.model_fields_set:v.pop(key)
     with db.connect() as c:
+        old=c.execute('SELECT * FROM custom_foods WHERE id=%s AND user_id=%s FOR UPDATE',(fid,user['id'])).fetchone()
+        if not old:raise HTTPException(404,'Not found')
+        if body.serving_g!=old['serving_g']:
+            for key in N.EXTRA:
+                if key not in body.model_fields_set:
+                    value=old.get(key)*body.serving_g/old['serving_g'] if old.get(key) is not None and old['serving_g'] and body.serving_g else None
+                    if value is not None and value>N.ENTRY_MAX[key]:raise HTTPException(422,'That serving is too large. Check the weight and nutrients.')
+                    v[key]=N.rounded(key,value)
         if not c.execute(f"UPDATE custom_foods SET {', '.join(f'{k} = %s' for k in v)}, origin_edited=(origin='ai' OR origin_edited) WHERE id = %s AND user_id = %s RETURNING id",
                          (*v.values(), fid, user['id'])).fetchone(): raise HTTPException(404, 'Not found')
     return {'ok': True}
@@ -461,10 +493,10 @@ def meal_save(body: MealIn, user=Depends(current_user)):
     """Save a meal from today's entries (a whole meal, or chosen entries)."""
     with db.connect() as c:
         if body.entry_ids:
-            rows = c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref FROM food_entries
+            rows = c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref FROM food_entries
                                 WHERE user_id = %s AND id = ANY(%s) ORDER BY position""", (user['id'], body.entry_ids)).fetchall()
         else:
-            rows = c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref FROM food_entries
+            rows = c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref FROM food_entries
                                 WHERE user_id = %s AND day = %s AND meal = %s ORDER BY position""", (user['id'], body.from_day, body.meal)).fetchall()
         if not rows: raise HTTPException(400, 'Nothing to save')
         return {'id': c.execute('INSERT INTO saved_meals (user_id, name, items) VALUES (%s, %s, %s) RETURNING id',
@@ -540,7 +572,7 @@ def weight_delete(day: dt.date, user=Depends(current_user)):
     return {'ok': True}
 
 
-class TargetsIn(BaseModel):
+class TargetsIn(N.ExtraTargets):
     kcal_target: float | None = Field(None, ge=0, le=10000)
     protein_target: float | None = Field(None, ge=0, le=1000)
     carbs_target: float | None = Field(None, ge=0, le=2000)
@@ -603,7 +635,8 @@ def goal_setup(body: GoalSaveIn, user=Depends(current_user)):
 
 @router.put('/targets')
 def targets(body: TargetsIn, user=Depends(current_user)):
-    v = body.model_dump()
+    v = body.model_dump(exclude_unset=True)
+    if not v:return {'ok':True}
     with db.connect() as c:
         c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in v)} WHERE user_id = %s", (*v.values(), user['id']))
     return {'ok': True}
