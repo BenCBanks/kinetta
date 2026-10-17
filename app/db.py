@@ -971,6 +971,36 @@ MIGRATIONS = [
     END $$;
     """,
 
+    # 46: durable AI request caps, service food-estimator reservations and token-only audit.
+    """
+    CREATE TABLE ai_daily_usage (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL, kind text NOT NULL, requests int NOT NULL CHECK (requests > 0),
+      PRIMARY KEY(user_id,day,kind));
+    CREATE TABLE ai_service_budget (
+      day date PRIMARY KEY, charged_micros bigint NOT NULL DEFAULT 0 CHECK (charged_micros >= 0));
+    CREATE TABLE ai_food_attempts (
+      id uuid PRIMARY KEY, user_id bigint REFERENCES users(id) ON DELETE SET NULL,
+      day date NOT NULL REFERENCES ai_service_budget(day), model text NOT NULL, kind text NOT NULL,
+      created timestamptz NOT NULL DEFAULT now(), state text NOT NULL DEFAULT 'reserved'
+        CHECK (state IN ('reserved','measured')),
+      reserved_micros bigint NOT NULL CHECK (reserved_micros >= 0),
+      charged_micros bigint NOT NULL CHECK (charged_micros >= 0),
+      input_tokens bigint CHECK (input_tokens >= 0), output_tokens bigint CHECK (output_tokens >= 0),
+      thinking_tokens bigint CHECK (thinking_tokens >= 0));
+    CREATE INDEX ai_food_attempts_owner ON ai_food_attempts(user_id,created DESC);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['ai_daily_usage','ai_food_attempts'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    ALTER TABLE ai_service_budget ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON ai_service_budget FROM PUBLIC,fit_readers,fit_all_readers;
+    """,
+
 ]
 
 

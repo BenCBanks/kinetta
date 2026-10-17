@@ -95,3 +95,9 @@ Everyday unknown foods (plain or none) are sent together to the existing access/
 automatically, so describing a meal needs no extra tap. Named brands are never sent automatically; the person can
 choose "Use an AI estimate instead". Without AI access the plain matches are offered to pick from.
 Existing reviewed-evaluation release gates continue to apply to subsequent model or prompt changes.
+
+Structured food estimate transports now reserve durable service budget before each
+attempt and record token-only usage; per-account request brakes survive restarts.
+See [AI budgets](ai-budgets.md) for exact scope, pricing review and the remaining
+coach/grounded-search coverage. Prompts, models and generation configuration are
+unchanged. The normal reviewed evaluation gate still applies.

@@ -119,3 +119,8 @@ See [Recording activities](docs/activity-tracking.md).
 - **Food-thread facts API:** private code-computed daily/weekly numbers, historic meals and burn-source explanations, plus supportive or numeric feedback helpers. Stored answers have an as-of time and safe retries. The visible conversation and food-processing integration are the next #122 D pieces.
 - **Own-food thread engine:** code-resolved foods can auto-log with durable Undo, or wait for an explicit Log tap. Destination inference, stale-preview refresh and atomic reply/food saves are supported. The visible thread, corrections and unknown-food processing remain in the next #122 D pieces.
 - **Thread corrections and references:** update current logged portions without losing manual edits, resolve owned-food/portion choices, move day/meal, copy recorded meals with explicit exclusions, and ask an honest remainder quantity. Retries are safe and require-a-tap remains effective. These APIs await the final #122 D interface.
+
+- Food-estimator request caps survive restarts and concurrent workers. Structured
+  estimates reserve a shared daily dollar budget for every attempt, with token-only
+  accounting and a pause switch; non-AI logging remains available. See
+  [AI budgets](docs/ai-budgets.md) for coverage and conservative failure behavior.

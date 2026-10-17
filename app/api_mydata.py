@@ -69,6 +69,8 @@ TABLES = {
     'lift_sets': "SELECT to_jsonb(t)" + DROP + " - 'id' FROM lift_sets t WHERE user_id = %s ORDER BY activity_id, pos, n",
     'activity_photos': "SELECT to_jsonb(t)" + DROP + " - 'img' - 'thumb' FROM activity_photos t WHERE user_id = %s ORDER BY id",
     'comments_written': "SELECT to_jsonb(t)" + DROP + " FROM comments t WHERE user_id = %s ORDER BY created",
+    'ai_daily_usage': "SELECT to_jsonb(t)" + DROP + " FROM ai_daily_usage t WHERE user_id = %s ORDER BY day,kind",
+    'ai_food_attempts': "SELECT to_jsonb(t)" + DROP + " FROM ai_food_attempts t WHERE user_id = %s ORDER BY created",
     'ai_food_requests': "SELECT to_jsonb(t)" + DROP + " FROM ai_requests t WHERE user_id = %s ORDER BY created",   # when you asked for AI food feedback
     # dishes shared with you by friends (cooking mode, 2026-10-11): which dish, from whom
     'dishes_shared_with_me': """SELECT jsonb_build_object('dish_id', s.dish_id, 'dish', d.name, 'from', u.login, 'created', s.created)

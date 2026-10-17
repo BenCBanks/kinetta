@@ -387,3 +387,11 @@ Unresolved foods accept an explicit owned-food or portion choice. Require-a-tap 
 “Same as yesterday’s lunch, but no cheese” reads the person’s own food log. Only a separately recorded matching item is excluded automatically; a composite food is not silently treated as if one ingredient could be subtracted. An uncertain exclusion asks which recorded foods to leave out, and a typed answer is an exclusion choice, not a new food log. A copied meal can be scaled before an explicit Log tap. “The rest of the chili” resolves the food from history but asks how much was left: saved recipes have no reliable cooking-batch identity, so remaining grams are not invented. Known portions then use recorded nutrition, with no model call.
 
 The final thread interface, unknown-food model fallback and durable AI cost controls remain the next D pieces. No full food photos are retained and no conversation history is sent to a provider by this layer.
+
+### Food estimator pauses (#122 D foundation)
+
+An AI limit response explains that food search, barcodes and manual nutrition still
+work. Do not discard the person's message or replace it with zero-calorie food.
+Structured estimates share a durable daily service reservation; a failed/unknown
+bill keeps its hold. This backend foundation adds no new screen. The thread UI must
+present its fallback and retained text inline when it is implemented.
