@@ -159,7 +159,8 @@ function scaleFood(f, amount, unit) {
   const out = {};
   for (const k of FOOD_NUTRIENTS) {
     let v = null;
-    if (f._unit && !f.per100 && f.per_serving) v = f.per_serving[k] == null ? null : f.per_serving[k] * amount;    // a recent food: per the unit it was logged in
+    if (f._per_unit && unit===f._unit) v=f._per_unit[k]==null?null:f._per_unit[k]*amount;
+    else if (f._unit && !f.per100 && f.per_serving) v = f.per_serving[k] == null ? null : f.per_serving[k] * amount;    // a recent food: per the unit it was logged in
     else if (unit === 'g' && f.per100 && f.per100[k] != null) v = f.per100[k] * amount / 100;
     else if (unit !== 'g' && f.per_serving && f.per_serving[k] != null) v = f.per_serving[k] * amount;
     else if (unit !== 'g' && f.per100 && f.per100[k] != null) v = f.per100[k] * (f.serving && f.serving.g ? f.serving.g : 100) / 100 * amount;
@@ -513,23 +514,49 @@ function tSearch(body, where, close) {
   };
   $('#ts-f', body).onsubmit = (e) => { e.preventDefault(); clearTimeout(timer); run(inp.value.trim()); inp.blur(); };
 }
-const recentToFood = (r) => (r.ref ? {...r.ref, name: r.name, brand: r.brand, _last: r} :
-  {source: 'recent', name: r.name, brand: r.brand, per_serving: {kcal: r.kcal / r.amount, protein_g: r.protein_g / r.amount, carbs_g: r.carbs_g / r.amount, fat_g: r.fat_g / r.amount, fiber_g: r.fiber_g == null ? null : r.fiber_g / r.amount},
-   serving: {label: r.unit === 'serving' ? '1 serving' : `1 ${r.unit}`, g: null}, _last: r, _unit: r.unit});
+function recentToFood(r){
+  const ref=r.ref||{},count=Number(r.amount),per=Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,count>0&&nutrientKnown(r,k)?r[k]/count:null]));
+  const sourceGrams=Number(ref.serving?.g),mass={g:1,kg:1000,oz:28.349523125,lb:453.59237}[r.unit];
+  const grams=mass||(r.unit==='dish'?ref.weight_g:r.unit==='serving'&&sourceGrams>0?sourceGrams:null);
+  const reference100=ref.per100||(sourceGrams>0&&ref.per_serving?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,ref.per_serving[k]==null?null:ref.per_serving[k]*100/sourceGrams])):null);
+  const per100=grams>0?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,per[k]==null?null:per[k]*100/grams])):reference100;
+  const servingGrams=sourceGrams>0?sourceGrams:r.unit==='g'?count:null;
+  const servingValues=servingGrams&&per100?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,per100[k]==null?null:per100[k]*servingGrams/100])):ref.per_serving||per;
+  const original=ref.source||r.source||'recent',source=original==='dish'&&!ref.dish_id?'recent':original;
+  return {...ref,source,name:r.name,brand:r.brand,per_serving:servingValues,per100,
+    serving:{label:ref.serving?.label||(r.unit==='g'?`${count} g logged portion`:r.unit==='serving'?'1 serving':`1 ${r.unit}`),g:servingGrams||null},
+    unknown_nutrients:FOOD_NUTRIENTS.filter(k=>!nutrientKnown(r,k)),_last:r,_unit:r.unit,_per_unit:per,_plain:!(ref.per100||ref.per_serving||ref.serving?.g||ref.dish_id)};
+}
+
+function sharedRecipeHtml(dishes){return `<section class="shared-recipes"><h3>Shared with you</h3><div class="shared-recipe-list">${dishes.map((d,i)=>`<button type="button" class="shared-recipe-row" data-shared-recipe="${i}" aria-label="Log a portion of ${esc(d.name)}, shared by ${esc(d.owner.name)}"><span><b>${esc(d.name)}</b><small>From ${esc(d.owner.name)} · ${d.serving==='one'||!d.weight_g?'Choose your servings':'Choose your portion in grams'}</small></span>${svg('chev')}</button>`).join('')}</div></section>`;}
+async function sharedRecipes(box,where,after=()=>{},isActive=()=>true){
+  const owner=readOwner();if(!box)return;const version=box._sharedVersion=(box._sharedVersion||0)+1,valid=()=>box.isConnected&&version===box._sharedVersion&&owner===readOwner()&&isActive();
+  if(!valid())return;const path='/api/dishes/shared',hit=App.cache.get(path),cached=hit?.owner===owner?hit.data:null;
+  const draw=dishes=>{if(!valid())return;box.innerHTML=dishes.length?sharedRecipeHtml(dishes):'';
+    $$('[data-shared-recipe]',box).forEach(button=>button.onclick=()=>{if(!valid())return;dishLogSheet(dishes[+button.dataset.sharedRecipe],where(),edit=>{if(!edit&&valid()){after();if(valid())sharedRecipes(box,where,after,isActive);}});});
+    if(typeof document!=='undefined'&&document.documentElement.classList.contains('keyboard-open')){const form=box.closest('.thread-composer'),field=form?.querySelector('textarea');if(field&&document.activeElement===field)requestAnimationFrame(()=>{if(valid())field.parentElement.scrollIntoView({block:'nearest'});});}
+  };
+  if(cached)draw(cached);const loading=setTimeout(()=>{if(valid()&&!box.innerHTML&&!cached)box.innerHTML=skel(1);},300);
+  try{const dishes=await api(path);if(!valid())return;App.cache.set(path,{data:dishes,owner,at:Date.now()});draw(dishes);}
+  catch(e){if(!valid())return;if(cached){draw(cached);box.querySelector('h3')?.insertAdjacentHTML('beforeend',' <small class="shared-saved">Saved</small>');return;}box.innerHTML='<p class="small muted">Shared recipes could not load. <button type="button" class="linkbtn" data-shared-retry>Retry</button></p>';box.querySelector('[data-shared-retry]').onclick=()=>sharedRecipes(box,where,after,isActive);}
+  finally{clearTimeout(loading);}
+}
+
 async function tUsuals(body, where, close) {
   body.innerHTML = skel(1);
   try {
     const usual = await api('/api/food/usual');
     const foods = usual.map(recentToFood);
     const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd" data-q="${i}" aria-label="Log ${esc(f.name)} now (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
-    body.innerHTML = usual.length ? `<p class="small muted">+ logs your usual amount</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
-      : '<p class="small muted">Foods you log often will appear here. Search to add something new.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>';
+    body.innerHTML = '<div data-shared-usuals></div>'+(usual.length ? `<p class="small muted">+ logs your usual amount</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
+      : '<p class="small muted">Foods you log often will appear here. Search to add something new.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>');
+    sharedRecipes($('[data-shared-usuals]',body),where,close);
     const ts = $('#tr-search', body); if (ts) ts.onclick = () => $('.sheet [data-t=search]').click();
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
       try { const result=await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
-        fat_g: l.fat_g, fiber_g: l.fiber_g, source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
+        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
@@ -547,7 +574,7 @@ async function tSaved(body, where, close) {
       (d.serving === 'one' && d.recipe_source?.servings ? d.per_serving.kcal : d.totals.kcal), d.serving === 'one' ? 'kcal a serving' : 'kcal total');
     body.innerHTML = `<p class="small muted">Tap a recipe to log a portion. Use Edit to change its ingredients, weight or nutrition for next time.</p><div class="btncol recipe-library-actions"><button class="ghost wide" id="tm-link">Recipe from a link</button><button class="linkbtn" id="tm-dish">+ Create a Recipe</button></div>
       ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="Edit ${esc(d.name)}">${svg('edit')} Edit</button></div>`).join('')}</div>` : '<p class="small muted">No saved recipes yet. Create one below, with or without AI.</p>'}
-      ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
+      ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
       <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button></div>
@@ -634,7 +661,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
   const nm = f.name && f.name !== 'Unnamed product' ? f.name : '', br = f.brand || '';
   const title = br && nm && !nm.toLowerCase().includes(br.toLowerCase().split(',')[0].trim()) ? `${br.split(',')[0].trim()} ${nm}` : nm || br || 'Food';
   // a recent food without a database entry only knows the unit it was logged in: no made-up serving size, no other units
-  const plain = f._unit && !f.per100;
+  const plain = f._plain || (f._unit && !f.per100);
   const sub = !plain && f.serving && f.serving.label ? `1 serving = ${f.serving.label}${f.serving.g && !/\d\s*g\b/.test(f.serving.label) ? ` (${r1(f.serving.g)} g)` : ''}` : '';
   const units = plain ? [startUnit] : unitList(f.per100 || f.per_serving ? f : null, startUnit).map(([k]) => k);
   const uName = (u) => (u === 'serving' ? 'Servings' : u === 'g' ? 'Grams' : u.charAt(0).toUpperCase() + u.slice(1));
@@ -669,7 +696,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
     fm.onsubmit = async (e) => {
       e.preventDefault(); const a = parseFloat(fm.amount.value); if (!(a > 0)) { toast('Enter an amount'); return; }
       const v = calc();
-      const ref = {origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
+      const ref = {...(f.dish_id?{dish_id:f.dish_id,weight_g:f.weight_g,dish_kcal:f.dish_kcal}:{}),origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
       try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}],{thread:location.pathname==='/food/describe'});
         close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`); } catch (x) { toast(x.message); }
     };

@@ -24,6 +24,7 @@ from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 from . import db, notify, nutrients as N
 from .api_food import MEALS
 from .auth import current_user
+from .dish_access import SHARED
 
 router = APIRouter(prefix='/api/dishes')
 NUM = N.ALL
@@ -145,7 +146,9 @@ def _sum_g(d):
     return round(g, 1) if g > 0 else None
 
 
-def serving_count(d):
+def serving_count(d,*,viewer=None):
+    if viewer is not None and d.get('user_id')!=viewer and not d.get('recipe_source'):
+        return float(d.get('servings') or 1)
     return (d.get('recipe_source') or {}).get('servings') or 1
 
 
@@ -169,9 +172,7 @@ def _out(d):
 
 
 COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, serving, servings, created, updated, ai_note, ai_note_at, recipe_updated, known_fiber_g, recipe_source, known_sodium_mg, known_sugar_g, known_saturated_fat_g'
-SHARED = """EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s)
-            AND EXISTS (SELECT 1 FROM friendships f WHERE f.status = 'accepted'
-              AND ((f.requester = dishes.user_id AND f.addressee = %(u)s) OR (f.addressee = dishes.user_id AND f.requester = %(u)s)))"""
+
 
 
 def _seen(c, uid, did, lock=False):
@@ -190,7 +191,11 @@ def _view(c, uid, d):
         o['shared_with'] = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo FROM dish_shares s JOIN users u ON u.id = s.user_id
                                         WHERE s.dish_id = %s ORDER BY u.name""", (d['id'],)).fetchall()
     else:
-        o['owner'] = c.execute('SELECT login::text AS login, name FROM users WHERE id = %s', (d['user_id'],)).fetchone()
+        o['owner'] = {'login':d['owner_login'],'name':d['owner_name']} if 'owner_login' in d else c.execute('SELECT login::text AS login, name FROM users WHERE id = %s', (d['user_id'],)).fetchone()
+        count=serving_count(d,viewer=uid);o['serving_count']=count
+        o['per_serving']={k:N.rounded(k,v/count) if v is not None else None for k,v in o['totals'].items()}
+        # Ingredients are deliberately shared; private source refs/memory metadata are not.
+        o['items']=[{k:(None if k in NUM and not N.known(i,k) else i.get(k)) for k in ('id','name','amount','grams','source',*NUM)} for i in o['items']]
     return o
 
 
@@ -251,6 +256,22 @@ def dishes(user=Depends(current_user)):
         rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE user_id = %(u)s OR ({SHARED})
                              ORDER BY user_id = %(u)s DESC, updated DESC, id DESC LIMIT %(n)s""", {'u': user['id'], 'n': MAX_DISHES + 50}).fetchall()
         return [_view(c, user['id'], d) for d in rows if not (d['user_id'] == user['id'] and _empty(d))]
+
+
+@router.get('/shared')
+def shared_dishes(user=Depends(current_user)):
+    """Discover only recipes explicitly shared by a currently approved friend."""
+    with db.connect() as c:
+        columns=', '.join('dishes.'+key.strip() for key in COLS.split(','))
+        rows=c.execute(f'SELECT {columns},owner.login::text AS owner_login,owner.name AS owner_name FROM dishes JOIN users owner ON owner.id=dishes.user_id WHERE ({SHARED}) ORDER BY dishes.updated DESC,dishes.id DESC LIMIT 100',{'u':user['id']}).fetchall()
+        out=[]
+        for d in rows:
+            if _totals(d)['kcal'] is None:continue
+            view=_view(c,user['id'],d)
+            item={k:view[k] for k in ('id','name','mine','owner','totals','per_serving','weight_g','serving','serving_count','updated')}
+            item['recipe_source']={k:view['recipe_source'][k] for k in ('import_id','servings') if k in view['recipe_source']}
+            out.append(item)
+        return out
 
 
 class DishIn(BaseModel):
@@ -454,7 +475,7 @@ def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool 
         weight = _weight(d)
         if body.grams is not None and not weight: raise HTTPException(400, "This meal has no weight yet - log a share of it, or add its weight")
         if body.count is not None:      # servings of the whole dish: by servings, the whole dish is one serving (Ben, 2026-10-12)
-            f, amount, unit = body.count / serving_count(d), round(body.count, 2), 'serving'
+            f, amount, unit = body.count / serving_count(d,viewer=user['id']), round(body.count, 2), 'serving'
         elif body.grams is not None: f, amount, unit = body.grams / weight, round(body.grams, 1), 'g'
         elif weight: f, amount, unit = body.share, round(body.share * weight, 1), 'g'
         else: f, amount, unit = body.share, round(body.share, 3), 'dish'     # "0.25 dish": a typed-in total with no weight
@@ -491,8 +512,8 @@ def share(did: int, body: ShareIn, user=Depends(current_user)):
         t = c.execute("""SELECT u.id, u.name FROM users u JOIN friendships f ON f.status = 'accepted'
                            AND ((f.requester = u.id AND f.addressee = %(me)s) OR (f.addressee = u.id AND f.requester = %(me)s))
                          WHERE u.login = %(l)s""", {'me': user['id'], 'l': body.login.strip().lower()}).fetchone()
-        if not t: raise HTTPException(404, 'You can share a meal only with friends')
-        if c.execute('SELECT count(*) AS n FROM dish_shares WHERE dish_id = %s', (did,)).fetchone()['n'] >= MAX_SHARES:
+        if not t or c.execute('SELECT 1 FROM blocks WHERE (user_id=%s AND blocked=%s) OR (user_id=%s AND blocked=%s)',(user['id'],t['id'],t['id'],user['id'])).fetchone(): raise HTTPException(404, 'You can share a meal only with friends')
+        if not c.execute('SELECT 1 FROM dish_shares WHERE dish_id=%s AND user_id=%s',(did,t['id'])).fetchone() and c.execute('SELECT count(*) AS n FROM dish_shares WHERE dish_id = %s', (did,)).fetchone()['n'] >= MAX_SHARES:
             raise HTTPException(400, f'A meal can be shared with up to {MAX_SHARES} people')
         if c.execute('INSERT INTO dish_shares (dish_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (did, t['id'])).fetchone():
             notify.add(c, t['id'], 'dish_shared', user['id'], dish_id=did)
@@ -507,6 +528,7 @@ def unshare(did: int, login: str, user=Depends(current_user)):
         t = c.execute('SELECT id FROM users WHERE login = %s', (login.strip().lower(),)).fetchone()
         if not t or (d['user_id'] != user['id'] and t['id'] != user['id']): raise HTTPException(404, 'Not found')
         c.execute('DELETE FROM dish_shares WHERE dish_id = %s AND user_id = %s', (did, t['id']))
+        c.execute("DELETE FROM notifications WHERE dish_id=%s AND user_id=%s AND kind='dish_shared'",(did,t['id']))
     return {'ok': True}
 
 

@@ -180,3 +180,5 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 - Optional sodium, total sugar and saturated-fat detail: folded daily totals with honest known/missing coverage, recorded totals in Overview, shared food/recipe entry and rescaling, and personal daily limits that start unset and require Save. Unknown is never displayed as zero. Existing label/photo AI does not infer missing extra nutrients.
 
 - Weekly food review without AI: seven completed local days, days with food logged, protein across meals, fiber/sodium/total-sugar/saturated-fat coverage, top recorded calorie sources and up to two suggestions from your own log. Missing data stays unknown, Kit is separate, and no targets change automatically.
+
+- Deliberate recipe sharing with approved friends: visible Share with…, Shared with you in usuals/food chat, two-tap default portions with Undo, separate private food logs, existing opt-in native alerts, and immediate access/notice revocation when sharing stops or a friend is blocked. Recent foods preserve current logged nutrition and all eight nutrients.
