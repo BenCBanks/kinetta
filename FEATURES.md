@@ -154,3 +154,5 @@ See [Recording activities](docs/activity-tracking.md).
   (#122 D).
 
 - **Optional food-chat Kit answer (release gated):** code answers remain available with AI off. An explicit food-only question can save a labelled AI interpretation, verified food facts and an existing-recipe/usual proposal; confirming a proposal saves an atomic conversation receipt with source and fibre retained. Retry, Undo and message deletion do not duplicate or resurrect food. This capability needs a matching human-reviewed food-chat evaluation report before it becomes available.
+
+- **Optional daily food note:** off by default; after enabling, code summarises the logged day with incomplete/low-intake safeguards and one practical idea. An explicit optional Kit version is limited to one attempt per local day behind the food-chat evaluation/consent/access gate. Saved notes show when calculated; ordinary history reads never spend AI tokens. No notification is sent.

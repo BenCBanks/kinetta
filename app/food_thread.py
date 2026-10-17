@@ -44,7 +44,7 @@ class MessageIn(BaseModel):
 
 
 def preferences(c, uid):
-    return c.execute('''SELECT food_chat_auto_log AS auto_log, food_chat_tone AS tone
+    return c.execute('''SELECT food_chat_auto_log AS auto_log, food_chat_tone AS tone,food_chat_daily_note AS daily_note
                         FROM profile WHERE user_id = %s''', (uid,)).fetchone()
 
 
@@ -132,6 +132,7 @@ class PreferencesIn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     auto_log: StrictBool | None = None
     tone: Literal['supportive', 'numbers'] | None = None
+    daily_note: Literal['off','code','ai'] | None = None
 
 
 @router.get('/preferences')
@@ -145,7 +146,7 @@ def set_preferences(body: PreferencesIn, user=Depends(current_user)):
     values = body.model_dump(exclude_unset=True)
     if not values or any(v is None for v in values.values()):
         raise HTTPException(422, 'Choose a logging or feedback preference')
-    names = {'auto_log': 'food_chat_auto_log', 'tone': 'food_chat_tone'}
+    names = {'auto_log': 'food_chat_auto_log', 'tone': 'food_chat_tone','daily_note':'food_chat_daily_note'}
     with db.connect() as c:
         sets = ', '.join(names[key] + ' = %s' for key in values)
         c.execute(f'UPDATE profile SET {sets} WHERE user_id = %s', (*values.values(), user['id']))
@@ -165,7 +166,7 @@ def finish_reply(c, uid, message, result):
                     (uid,uuid4(),result['text'],message['captured_at'],message['local_day'],message['id'],json.dumps(result))).fetchone()
     updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
                              WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
-                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**{k:message['result'][k] for k in ('input','receipt','context') if (message.get('result') or {}).get(k) is not None}}),message['id'],uid)).fetchone()
+                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**{k:message['result'][k] for k in ('input','receipt','context','daily_note') if (message.get('result') or {}).get(k) is not None}}),message['id'],uid)).fetchone()
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 
@@ -339,3 +340,9 @@ def manual_food(mid:int,body:ManualIn,response:Response,user=Depends(current_use
 def kit_message(mid:int,body:AnswerIn,user=Depends(current_user)):
     from . import food_thread_kit
     return food_thread_kit.generate(user['id'],mid)
+
+
+@router.post('/daily-note')
+def daily_note(body:AnswerIn,user=Depends(current_user)):
+    from . import food_thread_daily
+    return food_thread_daily.create(user['id'])

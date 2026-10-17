@@ -7,6 +7,7 @@ import datetime as dt
 import hashlib
 import json
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from . import ai_access,ai_budget,ai_release,coach,coach_chat,db,food_thread
 from . import food_thread_log as engine
@@ -25,12 +26,29 @@ def generate(uid,mid):
         if message['state']=='cancelled' or not reply or not (result.get('offer_kit') or result.get('intent')=='review'):
             raise HTTPException(409,'Ask a food question in the conversation first')
         if result.get('kit'):return response(c,uid,message)
+        daily=bool((message.get('result') or {}).get('daily_note'))
+        if daily:
+            pref=food_thread.preferences(c,uid)
+            if pref['daily_note']!='ai':raise HTTPException(409,'Choose the optional Kit version in Food chat settings first')
+            if result.get('kit_attempted'):
+                job=c.execute('SELECT state,expires FROM food_chat_jobs WHERE user_id=%s AND message_id=%s',(uid,mid)).fetchone()
+                if result.get('kit_processing') and (not job or job['state']!='running' or job['expires']<=dt.datetime.now(dt.timezone.utc)):
+                    result['kit_processing']=False;result['kit_error']='Kit did not finish this daily note. Your code summary is kept; another daily version can be requested tomorrow.'
+                    c.execute("UPDATE food_chat_jobs SET state='failed' WHERE user_id=%s AND message_id=%s",(uid,mid))
+                    return food_thread.finish_reply(c,uid,message,result)
+                return response(c,uid,message,processing=bool(result.get('kit_processing')))
         if not ai_release.enabled('food'):raise HTTPException(503,'Kit food questions are not available yet. Your food log and numbers still work.')
         ai_access.require(uid,'coach',c)
         if not coach.allowed(uid,connection=c):raise HTTPException(400,coach.off())
         old=c.execute('SELECT * FROM food_chat_jobs WHERE user_id=%s AND message_id=%s FOR UPDATE',(uid,mid)).fetchone()
         now=dt.datetime.now(dt.timezone.utc)
         if old and old['state']=='running' and old['expires']>now:return response(c,uid,message,processing=True)
+        if daily:
+            zone=c.execute('SELECT tz FROM profile WHERE user_id=%s',(uid,)).fetchone()['tz'] or db.DEFAULT_TZ
+            local_day=now.astimezone(ZoneInfo(zone)).date()
+            charged=c.execute("""INSERT INTO ai_daily_usage(user_id,day,kind,requests) VALUES (%s,%s,'food_daily_local',1)
+                                 ON CONFLICT(user_id,day,kind) DO NOTHING RETURNING requests""",(uid,local_day)).fetchone()
+            if not charged:raise HTTPException(429,'A Kit daily version was already attempted today. Your code note and food log still work.')
         lease=uuid4();question=f"Food question for logged day {message['local_day'].isoformat()} (the day meant by today in this message): {message['body']}"
         digest=hashlib.sha256((question+ai_release.fingerprint()).encode()).hexdigest()
         c.execute('''INSERT INTO food_chat_jobs(user_id,message_id,lease,expires,state,input_hash)
@@ -38,6 +56,7 @@ def generate(uid,mid):
                      ON CONFLICT(user_id,message_id) DO UPDATE SET lease=excluded.lease,expires=excluded.expires,
                      state='running',input_hash=excluded.input_hash''',(uid,mid,lease,digest))
         result.pop('kit_error',None);result['kit_processing']=True
+        if daily:result['kit_attempted']=True
         food_thread.finish_reply(c,uid,message,result)
         reply_id=reply['id']
     answer=None;error=None
@@ -45,7 +64,7 @@ def generate(uid,mid):
         # This counter can use a separate connection only after the account lock
         # commits; its foreign key must not wait on our own locked user row.
         brake(uid,limit=10,kind='coach_questions',what='questions for Kit')
-        with ai_budget.scope(uid,message['client_id'],feature='food chat Kit'):
+        with ai_budget.scope(uid,message['client_id'],feature='food chat daily note' if daily else 'food chat Kit'):
             answer=coach_chat.answer(uid,question,food_only=True)
     except HTTPException as exc:
         error=exc.detail if isinstance(exc.detail,str) else 'Kit is unavailable. Your food log is unchanged.'
@@ -62,7 +81,7 @@ def generate(uid,mid):
             if job and job['lease']==lease:c.execute("UPDATE food_chat_jobs SET state='cancelled' WHERE user_id=%s AND message_id=%s",(uid,mid))
             return {'cancelled':True,'messages':[]}
         result=dict(reply['result']);result['kit_processing']=False
-        if not coach.allowed(uid,connection=c) or not ai_release.enabled('food'):
+        if not coach.allowed(uid,connection=c) or not ai_release.enabled('food') or (daily and food_thread.preferences(c,uid)['daily_note']!='ai'):
             answer=None;error='AI access or consent changed. Your food log and code answer are kept.'
         if answer:
             result['kit']={k:answer[k] for k in ('interpretation','facts','selection','limitations','prompt_version') if k in answer}

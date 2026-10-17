@@ -1054,6 +1054,10 @@ MIGRATIONS = [
        CREATE TRIGGER clear_ai_request_reference BEFORE DELETE ON users
          FOR EACH ROW EXECUTE FUNCTION clear_ai_request_reference();""",
 
+    # 49: optional food-chat end-of-day note; off until explicitly selected.
+    """ALTER TABLE profile ADD COLUMN food_chat_daily_note text NOT NULL DEFAULT 'off'
+         CHECK (food_chat_daily_note IN ('off','code','ai'));""",
+
 ]
 
 
