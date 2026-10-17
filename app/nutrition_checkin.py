@@ -95,7 +95,7 @@ def act(uid,cid,action,baseline=None):
         row=c.execute('SELECT * FROM nutrition_checkins WHERE user_id=%s AND id=%s FOR UPDATE',(uid,cid)).fetchone()
         if not row:raise HTTPException(404,'Check-in not found')
         if row['week']!=week:raise HTTPException(409,'A new week has started. Review the latest check-in.')
-        if row['state']!='pending':return _response(c,uid,week,row)
+        if row['state']!='pending':return {**_response(c,uid,week,row),'already_decided':True}
         if action=='accept':
             data,latest=_make(c,uid,p,today)
             if not data['ready'] or baseline!=row['baseline'] or latest!=row['baseline']:

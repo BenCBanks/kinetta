@@ -69,7 +69,7 @@ try:
   me=a.get('/api/me').json();assert [me[k] for k in ['protein_target','carbs_target','fat_target','fiber_target','resting_source']]==[120,200,60,25,'apple_health']
   # A later manual change remains intact when an old accepted request is replayed.
   assert a.put('/api/food/targets',json={'kcal_target':2300,'protein_target':120,'carbs_target':200,'fat_target':60,'fiber_target':25}).status_code==200
-  assert a.post(path,json=body).status_code==200 and target()==2300
+  replay=a.post(path,json=body);assert replay.status_code==200 and replay.json()['already_decided'] and target()==2300
   with db.connect() as c:c.execute('UPDATE nutrition_checkins SET week=week-7 WHERE user_id=%s AND id=%s',(uid,row['id']))
   assert a.post(path,json=body).status_code==409
   pending=get()['current'];assert pending['id']!=row['id']
