@@ -70,6 +70,21 @@ async function weeklyCheckinCard(box,{home=false}={}){
   try{await load('/api/food/check-in',draw,{maxAge:30000});}catch(e){if(valid()){if(home){const page=box.closest('#page');if(page){page.dataset.checkinPending='false';syncCheckinPrimary(page);}}box.innerHTML=home?'':`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>Check-in could not load. Your food log is still available.</p><button class="ghost wide" type="button" data-checkin-retry>Retry</button></section>`;const retry=$('[data-checkin-retry]',box);if(retry)retry.onclick=()=>weeklyCheckinCard(box,{home});}}
 }
 
+function weeklyReviewHtml(data){
+  const dateLabel=day=>new Date(day+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  const nutrient=(key,label,unit)=>{const v=data.nutrients[key];return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Known subtotal · incomplete</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}</dd></div>`;};
+  return `<section class="card weekly-food-review"><h2>Your week in food</h2><p class="small muted">${esc(dateLabel(data.start))}–${esc(dateLabel(data.end))} · 7 completed days</p><p class="weekly-food-lead">Food logged on <b>${data.days_logged} of 7 days</b>.</p><p class="small muted">${esc(data.source)}. ${esc(data.note)}</p>
+    <details class="weekly-food-fold"><summary>Protein across meals</summary><p class="small muted">Recorded totals across these 7 days, not daily averages.</p><dl>${data.protein_by_meal.map(m=>`<div><dt>${esc(MEAL_NAMES[m.meal])}<small>Logged on ${m.days} day${m.days===1?'':'s'}</small></dt><dd><b class="num">${nutrientNumber(m.recorded,'g')}</b>${m.recorded!=null&&!m.complete?'<small>Known subtotal · incomplete</small>':''}${m.unknown_count?`<small>${m.unknown_count} food${m.unknown_count===1?'':'s'} with no value</small>`:''}</dd></div>`).join('')}</dl></details>
+    <details class="weekly-food-fold"><summary>Fiber and more nutrients</summary><p class="small muted">Recorded totals across these 7 days. Total sugar includes naturally occurring sugar.</p><dl>${nutrient('fiber_g','Fiber','g')}${EXTRA_NUTRIENTS.map(([k,label,unit])=>nutrient(k,label,unit)).join('')}</dl></details>
+    ${data.top_foods.length?`<details class="weekly-food-fold"><summary>Top recorded calorie sources</summary><ol class="weekly-top-foods">${data.top_foods.map(f=>`<li><span>${esc(f.name)}<small>${f.logs} log${f.logs===1?'':'s'}${f.complete?'':' · known subtotal'}</small></span><b class="num">${r0(homeCalories(f.recorded))} kcal</b></li>`).join('')}</ol></details>`:''}
+    ${data.suggestions.length?`<div class="weekly-food-suggestions"><h3>For the next few days</h3>${data.suggestions.map(s=>`<p>${esc(s.text)}</p>`).join('')}</div>`:''}</section>`;
+}
+async function weeklyFoodReviewCard(box){
+  const owner=readOwner(),valid=()=>box?.isConnected&&readOwner()===owner;
+  if(!valid())return;box.innerHTML=skel(1);let shown=false;
+  try{await load('/api/food/weekly-review',data=>{if(!valid())return;shown=!!data.entries;box.innerHTML=data.entries?weeklyReviewHtml(data):'';});}
+  catch(e){if(!valid())return;const error='<div class="card"><p>'+ (shown?'Saved review shown. It could not refresh.':'Your weekly food review could not load.')+'</p><button type="button" class="linkbtn" data-weekly-retry>Retry review</button></div>';if(shown)box.insertAdjacentHTML('beforeend',error);else box.innerHTML=error;box.querySelector('[data-weekly-retry]').onclick=()=>weeklyFoodReviewCard(box);}
+}
 function todayFoodCard(box, {onHistory} = {}) {
   return load('/api/food/day', (D) => {
     if (!box.isConnected) return;
@@ -1305,9 +1320,9 @@ async function nutritionView(el, view, q) {
   $('#n-range', el).onclick = () => pickSheet('Time range', pickRows([...NRANGES.map(([d, n]) => [String(d), n]),
     ['since', since ? `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'})}` : 'Since a date…', since ? 'Tap again to change the date' : 'For example the day you started a diet']], r),
     (k) => (k === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(k)));
-  root.innerHTML = `${view==='overview'&&location.pathname==='/progress'?'<div id="nt-checkin"></div>':''}<div id="nt-body">${skel(3)}</div>${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;
+  root.innerHTML = `${view==='overview'&&location.pathname==='/progress'?'<div id="nt-checkin"></div>':''}${view==='overview'?'<div id="nt-weekly-food"></div>':''}<div id="nt-body">${skel(3)}</div>${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;
   if(view==='overview'&&location.pathname==='/progress')weeklyCheckinCard($('#nt-checkin',root));   // the numbers first, then the coach
-  if (view === 'overview') dietCoach($('#nt-coach', root));
+  if (view === 'overview') {weeklyFoodReviewCard($('#nt-weekly-food',root));dietCoach($('#nt-coach', root));}
   const url = r === 'since' ? '/api/food/insights?days=30&since=' : `/api/food/insights?days=${r}`;
   if (r === 'since') {   // need the saved start date first
     const I0 = await api('/api/food/insights?days=7').catch(() => null); since = I0 && I0.deficit_start;
@@ -1357,7 +1372,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
         : tile('Estimated total balance', '–', '', 'counts fully logged days')}
       ${tile('Weight trend', pTr == null ? '–' : sgn(pTr) + wconv(Math.abs(pTr)).toFixed(1), pTr == null ? '' : wu, pTr == null ? 'log weight to see it' : 'over these days', '', '/food?view=weight')}
       ${tile('Avg protein', S.avg_protein_g == null ? '–' : r0(S.avg_protein_g), 'g', T.protein_target ? `target ${r0(T.protein_target)} g` : '')}
-      ${tile('Days logged', S.logged, `/ ${S.past_days}`, S.past_days ? `${Math.round(S.logged / S.past_days * 100)}%` : '')}</div>
+      ${tile('Days used in estimates', S.logged, `/ ${S.past_days}`, S.past_days ? `${Math.round(S.logged / S.past_days * 100)}%` : '')}</div>
     ${I.extra_nutrients?`<div class="card">${extraTotals(I.extra_nutrients,{period:true})}</div>`:''}
     ${I.insights.length ? `<div class="card"><h2>Insights</h2>${I.insights.map(([k, t]) => `<div class="insight estimate-note"><span class="dot ${k === 'good' ? 'good' : k === 'warn' ? 'warn' : 'info'}"></span><div><span>${esc(t)}</span></div></div>`).join('')}</div>` : ''}`,
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>

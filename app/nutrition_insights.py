@@ -152,3 +152,17 @@ def _insights(C, S, tg, top, ctx, raw_w, units='imperial'):
         a = sum(fib) / len(fib)
         if a < 25: out.append(('info', f"Reported fiber averages about {a:.0f} g across {len(fib)} days with fiber data. Foods without fiber values are missing data, not zero."))
     return out[:8]
+
+
+@router.get('/weekly-review')
+def weekly_food_review(user=Depends(current_user)):
+    """Separate reader: this does not extend any existing AI prompt/tool payload."""
+    from . import weekly_food_review as review
+    with db.connect() as c:
+        profile=c.execute('SELECT tz FROM profile WHERE user_id=%s',(user['id'],)).fetchone() or {}
+        from zoneinfo import ZoneInfo
+        today=dt.datetime.now(ZoneInfo(profile.get('tz') or db.DEFAULT_TZ)).date()
+        rows=c.execute('''SELECT day,meal,name,kcal,protein_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,ref
+                           FROM food_entries WHERE user_id=%s AND day>=%s AND day<%s ORDER BY day,id''',
+                       (user['id'],today-dt.timedelta(days=7),today)).fetchall()
+        return review.build(rows,today)
