@@ -1967,3 +1967,20 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 
 html.keyboard-open .food-thread:has(.shared-recipe-row) {padding-bottom:52px;}
 html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-shrink:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
+
+/* Optional Health categories and source-labelled weigh-ins. */
+.health-food-card p {font-size:1rem;overflow-wrap:anywhere}
+.health-food-card h2 {display:flex;flex-wrap:wrap;gap:.4rem;align-items:baseline}
+.weight-source {display:block;font-size:.8rem;line-height:1.4;overflow-wrap:anywhere}
+.weight-history-row {align-items:start;flex-wrap:wrap;gap:.5rem}
+.weight-history-row>span:first-child {flex:1 1 8rem;min-width:0}
+.weight-history-row>span.num {flex:0 1 auto}
+
+#h-body .small {font-size:.9rem;line-height:1.5}
+.health-details summary {min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:.9rem}
+.health-details[open] summary {margin-bottom:.5rem}
+
+.health-page h1 {font-size:1.7rem}
+#h-body h2 {font-size:1.15rem}
+#h-body button,#h-body a.primary,#h-body .check {font-size:1rem;line-height:1.4;min-height:44px;white-space:normal}
+.weight-history-row .num {font-size:1rem}

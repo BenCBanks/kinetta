@@ -167,6 +167,7 @@ const Native = (() => {
     if(!on || App.me?.resting_source!=='apple_health' || Date.now()-(N.lastResting||0)<600000) return;
     N.lastResting=Date.now();N.syncRestingEnergy().then(s=>{if(s?.days && location.pathname==='/food')render();}).catch(()=>{N.lastResting=0;});
   };
+  N.anyHealthOn=async()=>N.on&&((await N.healthOn())||(await N.foodHealthOn('weight'))||(await N.foodHealthOn('nutrition'))||(await N.restingOn()));
   N.healthOn = async () => on && !!owner() && (await get('health.owner')) === owner() && (await get('health.on')) === '1';
   N.healthStatus = async () => { try { return await N.healthOn() ? JSON.parse(await get('health.status')) : null; } catch (e) { return null; } };
   N.backgroundStatus = async () => {
@@ -201,6 +202,7 @@ const Native = (() => {
   })().finally(() => { N.connecting = null; }));
   N.disconnectHealth = async () => {
     generation++; N.lastAuto = 0;
+    await N.stopFoodHealth();
     await N.stopRestingEnergy();
     progress(''); N.onHealthProgress = null;
     // Native uploads must stop before a login can replace the selected account/server.
@@ -273,9 +275,103 @@ const Native = (() => {
       if ((sum.added || sum.updated) && account === owner() && token === N.token) invalidate('/api/');
     }
   })().finally(() => { N.syncing = null; }));
+  // ---------- Optional Health weight/nutrition, independent of workouts ----------
+  const foodHealth = P.KinettaHealthFood;
+  N.foodHealthSupported = !!foodHealth;
+  let foodHealthGeneration=0,foodHealthTimer=null;
+  const foodHealthKey=kind=>'health.food.'+kind;
+  N.foodHealthOn=async kind=>!!owner()&&(await get(foodHealthKey(kind)))===owner();
+  N.stopFoodHealth=async({clear=false,kind=null}={})=>{
+    foodHealthGeneration++;clearTimeout(foodHealthTimer);N.lastFoodHealth=0;N.foodHealthResult=null;
+    if(!on)return;
+    if(foodHealth) await N.healthCall(foodHealth.stop({clear}), 'Health is still finishing a save. Unlock your phone and try again.');
+    for(const k of kind?[kind]:['weight','nutrition']) await put(foodHealthKey(k),null);
+  };
+  N.foodHealthContext=()=>{
+    const account=owner(),token=N.token,version=foodHealthGeneration;
+    return {account,guard:()=>{if(!account||account!==owner()||token!==N.token||version!==foodHealthGeneration)throw new Error('Health sharing stopped because the account or settings changed.');}};
+  };
+  N.bindFoodHealth=async context=>{context.guard();await N.healthCall(foodHealth.bind({owner:context.account}),'Unlock your phone and try Health sharing again.');context.guard();};
+  N.connectFoodHealth=async kind=>{
+    if(!foodHealth||!['weight','nutrition'].includes(kind))throw new Error('Install the latest Kinetta iPhone build for Health weight and nutrition.');
+    const context=N.foodHealthContext();await N.bindFoodHealth(context);
+    await N.healthCall(kind==='weight'?foodHealth.requestWeightPermission({owner:context.account}):foodHealth.requestNutritionPermission({owner:context.account}), 'Finish the Health permission screen, then try again.',N.healthPermissionTimeout);context.guard();
+    const state=await api('/api/health/'+(kind==='weight'?'weights':'nutrition')+'/preferences',json('PUT',{enabled:true,confirmed:true}));context.guard();
+    await put(foodHealthKey(kind),context.account);context.guard();
+    App.me[kind==='weight'?'health_weight_read':'health_nutrition_write']=state.enabled;
+    if(kind==='weight')App.me.health_weight_ai_ok=state.health_weight_ai_ok;
+    N.lastFoodHealth=0;if(N.foodHealthSyncing)await N.foodHealthSyncing.catch(()=>{});context.guard();return N.syncFoodHealth();
+  };
+  N.disableFoodHealth=async kind=>{
+    const account=owner(),token=N.token;
+    await N.stopFoodHealth({kind});
+    if(account!==owner()||token!==N.token)throw new Error('The account changed.');
+    try { await api('/api/health/'+(kind==='weight'?'weights':'nutrition')+'/preferences',json('PUT',{enabled:false})); }
+    catch(e){e.message='Stopped on this iPhone. The server setting could not be updated; try Turn off again when online.';throw e;}
+    if(account!==owner()||token!==N.token)return;
+    App.me[kind==='weight'?'health_weight_read':'health_nutrition_write']=false;
+    if(kind==='weight')App.me.health_weight_ai_ok=false;
+  };
+  N.syncFoodHealth=({weight:includeWeight=true}={})=>N.foodHealthSyncing||(N.foodHealthSyncing=(async()=>{
+    if(!foodHealth||!App.me)return null;
+    if(!(await N.foodHealthOn('weight'))&&!(await N.foodHealthOn('nutrition')))return null;
+    const context=N.foodHealthContext();await N.bindFoodHealth(context);
+    const result={owner:context.account,at:new Date().toISOString()};
+    if(includeWeight&&await N.foodHealthOn('weight')){
+      try{
+        const state=await api('/api/health/weights');context.guard();
+        if(state.enabled){
+          let count=0,deletedCount=0,more=false;
+          for(let i=0;i<20;i++){
+            context.guard();const batch=await N.healthCall(foodHealth.readWeight({owner:context.account,epoch:state.epoch}),'Unlock your phone and try reading Health weight again.');context.guard();
+            if(!batch?.batch||!batch.observed_at||!Array.isArray(batch.samples)||!Array.isArray(batch.deleted))throw new Error('Health returned an incomplete weight result.');
+            const current=await api('/api/health/weights');context.guard();
+            if(!current.enabled||current.epoch!==state.epoch||current.tz!==state.tz)throw new Error('Weight sharing changed. Sync again.');
+            const receipt=await api('/api/health/weights',json('POST',{epoch:state.epoch,tz:state.tz,observed_at:batch.observed_at,samples:batch.samples,deleted:batch.deleted}));context.guard();
+            if(!receipt?.ok||receipt.epoch!==state.epoch||receipt.received!==batch.samples.length||receipt.deleted!==batch.deleted.length||!batch.samples.every(s=>receipt.sample_ids?.some(id=>id.toLowerCase()===s.sample_id.toLowerCase()))||!batch.deleted.every(id=>receipt.deleted_ids?.some(received=>received.toLowerCase()===id.toLowerCase())))throw new Error('Kinetta did not confirm that weight batch. Sync again.');
+            await N.healthCall(foodHealth.acknowledgeWeight({owner:context.account,batch:batch.batch}),'Weight upload was received; unlock your phone and sync again to confirm the cursor.');context.guard();
+            count+=batch.samples.length;deletedCount+=batch.deleted.length;more=!!batch.more;if(!more)break;
+          }
+          if(count||deletedCount){const me=await api('/api/me');context.guard();refreshMe(me);}
+          result.weight={count,pending:more};invalidate('/api/food',{health:false});
+        }else result.weight={off:true};
+      }catch(e){context.guard();result.weight={error:e.message||'Weight sync paused. Try again.'};}
+    }
+    if(await N.foodHealthOn('nutrition')){
+      try{
+        const state=await api('/api/health/nutrition');context.guard();
+        if(state.enabled){
+          const native=await N.healthCall(foodHealth.status({owner:context.account,epoch:state.epoch}),'Health nutrition status is unavailable.');context.guard();
+          let cursor=native.cursor,count=0,more=false;
+          if(!Number.isSafeInteger(cursor)||cursor<0||!Array.isArray(native.allowed)||!Array.isArray(native.blocked))throw new Error('Health returned an incomplete nutrition status.');
+          for(let i=0;i<20;i++){
+            const page=await api(`/api/health/nutrition/days?epoch=${encodeURIComponent(state.epoch)}&after=${cursor}&limit=50`);context.guard();
+            if(page.epoch!==state.epoch||page.tz!==state.tz||!page.enabled||!Array.isArray(page.days)||!Number.isSafeInteger(page.next)||page.next<cursor)throw new Error('Nutrition sharing changed. Sync again.');
+            const current=await api('/api/health/nutrition');context.guard();
+            if(!current.enabled||current.epoch!==state.epoch||current.tz!==state.tz)throw new Error('Nutrition sharing changed. Sync again.');
+            await N.healthCall(foodHealth.writeNutrition({owner:context.account,epoch:state.epoch,tz:state.tz,next:page.next,days:page.days}),'Nutrition is still waiting for Health. Unlock your phone and sync again.');context.guard();
+            count+=page.days.length;more=!!page.more;
+            if(more&&page.next<=cursor)throw new Error('Nutrition sync made no progress. Try again.');
+            cursor=page.next;if(!more)break;
+          }
+          result.nutrition={count,pending:more,allowed:native.allowed,blocked:native.blocked};
+        }else result.nutrition={off:true};
+      }catch(e){context.guard();result.nutrition={error:e.message||'Nutrition sync paused. Try again.'};}
+    }
+    context.guard();N.foodHealthResult=result;return result;
+  })().finally(()=>{N.foodHealthSyncing=null;}));
+  N.autoFoodHealth=()=>{
+    if(!on||!foodHealth||!App.me||Date.now()-(N.lastFoodHealth||0)<60000)return;
+    N.lastFoodHealth=Date.now();N.syncFoodHealth().then(r=>{if(r?.weight?.error||r?.nutrition?.error||r?.weight?.pending||r?.nutrition?.pending)N.lastFoodHealth=0;}).catch(()=>{N.lastFoodHealth=0;});
+  };
+  N.queueNutritionSync=()=>{
+    if(!on||!foodHealth||!App.me?.health_nutrition_write)return;
+    const context=N.foodHealthContext();clearTimeout(foodHealthTimer);foodHealthTimer=setTimeout(async()=>{try{if(N.foodHealthSyncing)await N.foodHealthSyncing.catch(()=>{});context.guard();await N.syncFoodHealth({weight:false});}catch(e){/* Status/Retry retains failures; unsent days stay in the server journal. */}},1000);
+  };
   // quietly, when the app opens and comes back to the front (at most every 10 minutes)
   N.autoSync = () => {
     N.autoRestingEnergy();
+    N.autoFoodHealth();
     if (!on || !App.me || Date.now() - (N.lastAuto || 0) < 600000) return;
     N.lastAuto = Date.now();
     N.syncHealth().then((s) => { if (s && (s.added || s.updated)) { toast(s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} from Apple Health` : 'Apple Health workout details updated'); render(); } }).catch(() => { N.lastAuto = 0; });
@@ -287,42 +383,46 @@ const Native = (() => {
 
 route(/^\/me\/health$/, 'track', async () => go('/track/health',{replace:true}));
 route(/^\/track\/health$/, 'track', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Apple Health</h1><div id="h-body">${skel(1)}</div>`;
-  wireBack(el, '/track');
+  el.classList.add('health-page');
+  el.innerHTML = `<div class="top">${backBtn('Connections')}</div><h1>Apple Health</h1><div id="h-body">${skel(1)}</div>`;
+  wireBack(el, '/track/connections');
   const box = $('#h-body', el);
   if (!Native.on) {
     box.innerHTML = `<div class="card"><p>Apple Health works in the Kinetta iPhone app. In a browser, use <a href="/track/import">Upload files</a> to add activity recordings.</p></div>`;
     return;
   }
+  const pageOwner=readOwner(),valid=()=>box.isConnected&&pageOwner===readOwner();
   const [isOn, st, bg] = await Promise.all([Native.healthOn(), Native.healthStatus(), Native.backgroundStatus()]);
-  const ai = !!App.me.health_ai_ok;
-  box.innerHTML = `<div class="card">
-      <h2>${isOn ? 'Sync enabled' : 'Bring in your workouts'}</h2>
+  if(!valid())return;
+  const ai = !!App.me.health_ai_ok && (!(App.me.health_weight_read||App.me.weight_health_derived)||!!App.me.health_weight_ai_ok);
+  box.innerHTML = `<div id="h-food">${skel(1)}</div><div class="card">
+      <h2>Workouts from Health</h2><p class="small">Optional. Import workouts with their recorded heart rate and routes. Your food and weight choices are separate.</p><details class="health-details"><summary>What’s read & how sync works</summary>
       <p class="small muted">Choose only the Health categories you want to share. Apple keeps your read-permission choices private; enabling sync does not mean every category was allowed.</p>
       <p id="h-progress" class="health-progress" role="status">${esc(Native.healthProgress || '')}</p>
       <p>Kinetta reads from Apple Health:</p>
       <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Resting Energy</b>, only if you choose Apple Health resting calories in Nutrition</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
       <p class="small muted">Kinetta can only import what the recording app saves to Health. Garmin Connect does not send GPS tracks to Apple Health; use Add the map on the workout to import its original file. Sync now also checks for details that arrived later.</p>
       <p class="small muted">${bg?.enabled ? 'iOS can sync new workouts in the background. Delivery timing depends on iOS; locked phones and force-quitting can delay it. Open Kinetta to catch up.' : 'Sync runs when you open Kinetta or return to it.'} Keep your phone unlocked until the first import finishes.</p>
-      <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Kinetta only reads; it never changes your Health data.</p>
+      <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Workout import only reads Health. Optional weight reading and nutrition writing have separate controls below.</p>
       <p class="small muted">Workouts go only to your Kinetta server${Native.base ? ` (${esc(Native.base.replace(/^https?:\/\//, ''))})` : ''} and are private to you.</p>
-      ${isOn ? `<p class="small">${st ? `Last ${st.error ? 'attempt' : 'sync'} ${esc(when(st.at))}: ${st.added} new, ${st.duplicates} already here${st.updated ? `, ${st.updated} with updated details` : ''}${st.failed ? `, ${st.failed} couldn't be read` : ''}.` : 'Not synced yet.'}</p>` : ''}
+      </details>${isOn ? `<p class="small">${st ? `Last ${st.error ? 'attempt' : 'sync'} ${esc(when(st.at))}: ${st.added} new, ${st.duplicates} already here${st.updated ? `, ${st.updated} with updated details` : ''}${st.failed ? `, ${st.failed} couldn't be read` : ''}.` : 'Not synced yet.'}</p>` : ''}
       <p class="err" role="alert">${esc(st?.error || '')}</p>
       ${bg && (bg.enabled || bg.pending > 0) ? `<p class="small">Background: ${bg.pending ? `${bg.pending} workout${bg.pending > 1 ? 's' : ''} waiting` : 'No workouts waiting'}${bg.lastSuccess ? ` · last upload ${esc(when(bg.lastSuccess))}` : ''}.</p>` : ''}
       ${bg?.error ? `<p class="err" role="alert">${esc(bg.error)}</p>` : ''}
-      ${isOn ? `<button class="primary wide" id="h-sync">Sync now</button>
+      ${isOn ? `<button class="ghost wide" id="h-sync">Sync now</button>
         <button class="ghost wide" id="h-year">Also bring in the past year</button>
-        <button class="ghost wide" id="h-settings">Manage Health access</button>
+
         <p class="small muted">In the Health app, tap your profile → Apps (or Apps and Services) → Kinetta to change individual switches. Settings may also list Health under Privacy & Security. Return here and tap Sync now.</p>
-        <button class="ghost wide danger" id="h-off">Stop syncing</button>`
-      : '<button class="primary wide" id="h-on">Connect Apple Health</button>'}</div>
+        <button class="ghost wide danger" id="h-off">Disconnect all Health sync</button>`
+      : '<button class="ghost wide" id="h-on">Import workouts from Health</button>'}</div>
     <div class="card"><h2>Kit, your AI coach</h2>
-      <p class="small">Kit writes notes about your training using an AI service. It reads your Apple Health workouts and resting calories only if you say yes. Until then training answers that use Health data stay off.</p>
-      <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health data</label></div>`;
+      <p class="small">Kit writes notes about your training using an AI service. It can read your Apple Health workouts, selected resting calories and imported weight only if you say yes. This sends those records to ${esc(App.me.ai_provider || 'the AI service configured on your server')}. Food-only answers do not read them. You can turn this off any time.</p>
+      <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health data</label></div><a class="primary wide" href="/track/connections">Done</a>`;
+  healthFoodControls($('#h-food',box),valid);
   const err = $('.err', box);
   Native.onHealthProgress = (text) => { if (box.isConnected) $('#h-progress', box).textContent = text; };
   const busy = async (b, label, fn) => {
-    const was = b.textContent; b.disabled = true; b.textContent = label; err.textContent = '';
+    if(!valid())return;const was = b.textContent; b.disabled = true; b.textContent = label; err.textContent = '';
     try { await fn(); } catch (x) { err.textContent = x.message || String(x); } finally { b.disabled = false; b.textContent = was; }
   };
   const done = (s) => { toast(s ? (s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} added` : s.updated ? `${s.updated} workout${s.updated > 1 ? 's' : ''} updated` : 'Up to date') : 'Nothing to sync'); render(); };
@@ -336,12 +436,50 @@ route(/^\/track\/health$/, 'track', async (el) => {
   const yr = $('#h-year', box); if (yr) yr.onclick = () => busy(yr, 'Bringing in the past year…', async () => done(await Native.syncHealth({days: 365})));
   const se = $('#h-settings', box); if (se) se.onclick = () => busy(se, 'Opening…', () => Native.openHealthSettings());
   const off = $('#h-off', box); if (off) off.onclick = () => {
-    if (!confirm('Stop syncing? Workouts already here stay. To remove Kinetta\'s access completely, use the Health app\'s settings.')) return;
-    return busy(off, 'Stopping…', async () => { await Native.disconnectHealth(); render(); });
+    if (!confirm('Disconnect all Health sync on this iPhone and turn off weight/nutrition sharing? Existing history stays. Change system permissions in the Health app.')) return;
+    return busy(off, 'Stopping…', async () => { for(const kind of ['weights','nutrition']) { await api('/api/health/'+kind+'/preferences',json('PUT',{enabled:false})); if(!valid())return; }
+      await Native.disconnectHealth();if(!valid())return;App.me.health_weight_read=false;App.me.health_nutrition_write=false;App.me.health_weight_ai_ok=false;render(); });
   };
   $('#h-ai', box).onchange = async (e) => {
-    const v = e.target.checked;
-    try { await api('/api/profile', json('PUT', {health_ai_ok: v})); App.me.health_ai_ok = v; toast(v ? 'Kit can read your Apple Health workouts' : 'Kit won\'t read your Apple Health workouts'); }
+    if(!valid())return;const v = e.target.checked;
+    try { await api('/api/profile', json('PUT', {health_ai_ok: v,health_weight_ai_ok:v})); if(!valid())return;App.me.health_ai_ok = v;App.me.health_weight_ai_ok=v;toast(v ? 'Health data sharing with Kit enabled' : 'Health data sharing with Kit off'); }
     catch (x) { e.target.checked = !v; toast(x.message); }
   };
 });
+
+// The controls are optional; each category needs its own deliberate permission action.
+async function healthFoodControls(box,parentValid=()=>true) {
+  const account=readOwner(),valid=()=>box.isConnected&&account===readOwner()&&parentValid();
+  const draw=async()=>{
+    if(!valid())return;
+    try{
+      const [weight,nutrition,weightLocal,nutritionLocal]=await Promise.all([api('/api/health/weights'),api('/api/health/nutrition'),Native.foodHealthOn('weight'),Native.foodHealthOn('nutrition')]);
+      if(!valid())return;
+      App.me.health_weight_read=weight.enabled;App.me.health_nutrition_write=nutrition.enabled;App.me.health_weight_ai_ok=weight.health_weight_ai_ok;
+      const ai=$('#h-ai',box.closest('#h-body'));if(ai)ai.checked=!!weight.health_ai_ok&&(!(weight.has_health_weight||weight.enabled)||!!weight.health_weight_ai_ok);
+      const result=Native.foodHealthResult?.owner===JSON.stringify([Native.base,App.me.id])?Native.foodHealthResult:null;
+      const card=(kind,state,local,title,copy)=>{
+        const r=result?.[kind],enabled=state.enabled&&local;
+        const status=!state.enabled?'Off':!local?'Set up on this iPhone':kind==='weight'?(state.last_sync?`Last read ${when(state.last_sync)}. An empty read may mean no accessible samples.`:'Waiting for the first read.'):(r?.blocked?.length?`${r.allowed.length} of 5 nutrient types allowed. Change individual switches in Health; other types stay private.`:r?.at||result?.at?`Last pass ${when(result.at)}. Shares recorded totals for allowed types.`:'Waiting for the first pass.');
+        return `<section class="card health-food-card"><h2>${title} <span class="small muted">Optional</span></h2><p class="small">${copy}</p><p class="small muted" role="status">${esc(status)}${r?.pending?' More history is waiting; sync again to continue.':''}</p>${r?.error?`<p class="err" role="alert">${esc(r.error)}</p>`:''}
+          ${Native.foodHealthSupported?`<button class="ghost wide" data-h-food="${kind}" data-h-action="${enabled?'sync':'connect'}">${enabled?'Sync now':state.enabled&&!local?'Set up on this iPhone':kind==='weight'?'Read weight from Health':'Share nutrition with Health'}</button>${state.enabled||local?`<button class="ghost wide" data-h-food="${kind}" data-h-action="off">Turn off ${kind==='weight'?'weight reading':'nutrition sharing'}</button>`:''}`:'<p class="small muted">Install the latest Kinetta iPhone build to set this up.</p>'}
+          <p class="err h-food-error" role="alert"></p></section>`;
+      };
+      box.innerHTML=card('nutrition',nutrition,nutritionLocal,'Nutrition to Health','Share your logged daily calories, protein, carbs, fat and fiber, including edits and deletions. Missing values stay unknown. Only Kinetta’s samples for this account change.')+
+        card('weight',weight,weightLocal,'Weight from Health','Bring smart-scale weight into your private log and weekly check-in. Manual weigh-ins take priority. Your calorie budget and resting-calorie choice stay unchanged.')+
+        (Native.foodHealthSupported?'<button class="ghost wide" id="h-food-settings">Manage Health permissions</button>':'')+
+        '<p class="small muted">These two categories catch up when you open or return to Kinetta. Unlock your phone and use Sync now if a read or write is waiting. Turning a category off keeps existing history; remove system access in Health → your profile → Apps → Kinetta.</p>';
+      const settings=$('#h-food-settings',box);if(settings)settings.onclick=async()=>{if(!valid())return;try{await Native.openHealthSettings();}catch(e){if(valid())toast(e.message);}};
+      $$('[data-h-food]',box).forEach(button=>button.onclick=async()=>{
+        if(!valid())return;const kind=button.dataset.hFood,action=button.dataset.hAction,section=button.closest('section'),error=$('.h-food-error',section),was=button.textContent;
+        $$('button',box).forEach(b=>b.disabled=true);button.textContent=action==='connect'?'Opening Health…':action==='off'?'Stopping…':'Syncing…';error.textContent='';
+        try{
+          if(action==='connect')await Native.connectFoodHealth(kind);
+          else if(action==='off')await Native.disableFoodHealth(kind);
+          else await Native.syncFoodHealth();
+          if(!valid())return;Native.haptic('light');await draw();
+        }catch(e){if(valid()){error.textContent=e.message||'Health sharing paused. Try again.';button.textContent=was;$$('button',box).forEach(b=>b.disabled=false);}}
+      });
+    }catch(e){if(valid()){box.innerHTML='<div class="card"><h2>Optional weight & nutrition</h2><p class="err" role="alert">Health sharing status could not be loaded.</p><button class="ghost wide">Try again</button></div>';$('button',box).onclick=draw;}}
+  };await draw();
+}

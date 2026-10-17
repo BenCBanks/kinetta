@@ -13,3 +13,11 @@ The native client must scope Health identifiers to server/account/day/type, use 
 Apple's [nutrition types](https://developer.apple.com/documentation/healthkit/nutrition-type-identifiers), [sync identifier](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncidentifier) and [sync version](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncversion) describe the required mapping/replacement metadata. [Deletion](https://developer.apple.com/documentation/healthkit/hkhealthstore/deleteobjects(of:predicate:withcompletion:)) is limited to samples the app wrote and depends on sharing permission. Disabling output does not revoke Apple's system permission or delete another app's records.
 
 The private journal has owner-only row-level reads, account export and deletion cascade; the AI SQL role has no access. No new provider, model, nutrition recommendation or target change is introduced. Physical-iPhone permission/edit/delete/retry/account-switch behavior remains pending.
+
+## iPhone setup (#122 I3/I4)
+
+Me → Connections → Apple Health → Share nutrition with Health requests write access to those five types only. Choose the system switches and Done. No read-weight or workout permission is required. Existing food history is reconciled; later logs, edits, moved entries, Undo and deletions schedule a new pass. Open/resume/online also catch up. Sync now retries pending work. This is optional and changes no calorie budget or resting-energy choice.
+
+The native bridge skips types without write permission and reports how many are allowed. Changing that set resets its cursor so older days are reconciled. No granted write type means no samples are written, and the status says0of5 rather than claiming full sharing. A failed/locked weight read does not block independently allowed nutrition. Turn off stops the device first; a failed server update is explained and can be retried online. It retains historical Health samples. Manage Health permissions changes Apple's switches.
+
+Browser evidence uses fictional native permission/read/write stand-ins with real authenticated journal/import endpoints. Actual permission sheets, Health writes/deletes/partial grants, lock/retry, account changes and cross-device Health synchronization remain physical-iPhone acceptance items. No TestFlight release is implied.

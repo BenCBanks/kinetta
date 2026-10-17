@@ -44,9 +44,10 @@ async function api(path, opts = {}) {
     const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
     const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
     e.status = r.status; e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;
-    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); App.me = null; showLogin('Please log in again.'); }
+    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); await Native.stopFoodHealth?.(); if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
     throw e;
   }
+  if (opts.method && !['GET','HEAD'].includes(opts.method.toUpperCase()) && !path.startsWith('/api/health/') && !path.startsWith('/api/login') && !path.startsWith('/api/logout')) Native.queueNutritionSync?.();
   return body;
 }
 const json = (method, body) => ({method, body: JSON.stringify(body)});
@@ -229,7 +230,8 @@ setInterval(() => { if (Q.mine().length) Q.flush().catch(e => toast(e.message));
 function invalidateFeed() {
   readEpochs.set('feed:home', readEpoch('feed:home') + 1); App.cache.delete('feed:home');
 }
-const invalidate = (prefix) => {
+const invalidate = (prefix, {health=true}={}) => {
+  if(health && prefix==='/api/food') Native.queueNutritionSync?.();
   if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) invalidateFeed();
   const paths = new Set([...App.cache.keys(), ...[...pendingReads.keys()].map((k) => JSON.parse(k)[1])]);
   for (const p of paths) if (p.startsWith(prefix)) { readEpochs.set(p, readEpoch(p) + 1); App.cache.delete(p); }
