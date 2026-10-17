@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from fastapi import HTTPException
+from . import nutrients as N
 from . import api_dishes, meal_chat, food_thread, food_thread_log as engine, food_thread_facts as facts
 
 
@@ -15,8 +16,10 @@ def insert(c,uid,message,rows,day,meal):
     pos=c.execute('SELECT coalesce(max(position),0)+1 AS p FROM food_entries WHERE user_id=%s AND day=%s',(uid,day)).fetchone()['p']
     ids=[]
     for i,row in enumerate(rows):
-        ids.append(c.execute('''INSERT INTO food_entries(user_id,day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref,position,client_id)
-                                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
+        # Legacy core zeros require unknown_nutrients; readers must honor coverage/N.known.
+        row=N.storage(row)
+        ids.append(c.execute('''INSERT INTO food_entries(user_id,day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,position,client_id)
+                                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
                              (uid,day,meal,row['name'],row.get('brand'),row['amount'],row['unit'],*(row[k] for k in api_dishes.NUM),row['source'],json.dumps(row.get('ref')),pos+i,f"{message['client_id']}-{i:02d}")).fetchone()['id'])
     return ids
 
@@ -135,7 +138,7 @@ def choose(c,uid,message,result,portion=None,omit=None):
 def preview(c,uid,message,rows,reference,day,meal):
     if not rows:raise HTTPException(400,'Choose at least one food to copy')
     result={'kind':'preview','reference':reference,'day':str(day),'meal':meal,'source':'your food log',
-            'preview_entries':[{k:r.get(k) for k in ('name','amount','unit','kcal','protein_g','carbs_g','fat_g','fiber_g','source')} for r in rows],
+            'preview_entries':[{k:r.get(k) for k in ('name','amount','unit',*N.ALL,'source')} for r in rows],
             'text':f"{meal.capitalize()} · about {facts.kcal(sum(r['kcal'] for r in rows)):,} kcal from your log. Tap Log to add it.",
             'as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
     return food_thread.finish_reply(c,uid,message,result)

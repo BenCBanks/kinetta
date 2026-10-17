@@ -75,6 +75,8 @@ def make_result(c,uid,message,resolution):
 
 def entry_digest(row):
     keys=('id','day','meal','name','brand','amount','unit','kcal','protein_g','carbs_g','fat_g','fiber_g','source','ref')
+    extras=('sodium_mg','sugar_g','saturated_fat_g')
+    if any(row.get(k) is not None for k in extras):keys+=extras
     return hashlib.sha256(json.dumps({k:row.get(k) for k in keys},default=str,sort_keys=True).encode()).hexdigest()
 
 

@@ -3,6 +3,7 @@ import copy
 import datetime as dt
 import time
 from fastapi import HTTPException
+from . import nutrients as N
 from . import meal_chat,food_thread,food_thread_log as engine
 from . import food_thread_compose as C,food_thread_sources as S,food_thread_resolve as resolver
 
@@ -76,7 +77,7 @@ def manual(c,uid,message,body):
     for item in body.items:
         data=item.model_dump();missing=[k for k in meal_chat.NUM if data.get(k) is None]
         entries.append({'name':data['name'].strip(),'brand':None,'amount':data['amount'],'unit':data['unit'],
-                        **{k:(data[k] if data.get(k) is not None else None if k=='fiber_g' else 0) for k in meal_chat.NUM},
+                        **{k:(data[k] if data.get(k) is not None else None if k in ('fiber_g',*N.EXTRA) else 0) for k in meal_chat.NUM},
                         'source':'quick','ref':{'origin':'manual','unknown_nutrients':missing}})
     if any(not e['name'] for e in entries):raise HTTPException(422,'Give the food a name')
     replacement={**part,'manual':True,'status':'ready','entries':entries,'looked_up':True}

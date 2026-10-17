@@ -85,3 +85,46 @@ def day_values(entries,targets):
                   'unknown_count':len(entries)-len(known),'complete':bool(entries) and len(known)==len(entries),
                   'unit':UNITS[key],'target':targets.get(TARGETS[key])}
     return out
+
+# Shared arithmetic/storage rules; source numbers remain nullable until the legacy
+# non-null calorie/macro columns need their explicit missing-value marker.
+
+PER100_LIMITS={**dict.fromkeys(CORE,100),'kcal':1000,**PER100_MAX}
+BATCH_MAX={**dict.fromkeys(ALL,5000),'kcal':50000,'sodium_mg':10000000}
+
+class ExtraPer100(ExtraValues):
+    sodium_mg:float|None=Field(None,ge=0,le=100000)
+    sugar_g:float|None=Field(None,ge=0,le=100)
+    saturated_fat_g:float|None=Field(None,ge=0,le=100)
+
+class KnownExtras(BaseModel):
+    model_config={'allow_inf_nan':False}
+    known_sodium_mg:float|None=Field(None,ge=0,le=10000000)
+    known_sugar_g:float|None=Field(None,ge=0,le=5000)
+    known_saturated_fat_g:float|None=Field(None,ge=0,le=5000)
+
+    @field_validator('known_sodium_mg','known_sugar_g','known_saturated_fat_g',mode='before')
+    @classmethod
+    def numeric_or_unknown(cls,value):
+        if isinstance(value,bool):raise ValueError('Enter a number, or leave it blank for unknown')
+        return value
+
+
+def known(entry,key):
+    missing=(entry.get('ref') or {}).get('unknown_nutrients')
+    return entry.get(key) is not None and not (isinstance(missing,list) and key in missing)
+
+
+
+
+
+def storage(entry):
+    result=dict(entry)
+    original=(entry.get('ref') or {}).get('unknown_nutrients')
+    future={k for k in original if isinstance(k,str) and k not in ALL} if isinstance(original,list) else set()
+    missing=sorted(future|{k for k in ALL if not known(entry,k)})
+    result.update({k:(0 if k in CORE[:4] else None) if k in missing else entry[k] for k in ALL})
+    ref=entry.get('ref')
+    if missing or (ref and 'unknown_nutrients' in ref):ref={**(ref or {}),'unknown_nutrients':missing}
+    result['ref']=ref
+    return result

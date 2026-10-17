@@ -475,7 +475,7 @@ function itemSheet(d, it, set) {
   });
 }
 function knownSheet(d, set) {
-  const k = d.known, v = (x) => (x == null ? '' : Math.round(x));
+  const k = d.known, v = (x) => (x == null ? '' : String(Math.round((x+Number.EPSILON)*10000)/10000));
   sheet('Total for the whole meal', `<form class="form" id="kn"><label>Calories<input name="kcal" inputmode="decimal" value="${v(k.kcal)}" required></label>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal" value="${v(k.protein_g)}"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal" value="${v(k.carbs_g)}"></label></div>
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal" value="${v(k.fat_g)}"></label><label>Fiber (g)<input name="fiber_g" inputmode="decimal" value="${v(k.fiber_g)}"></label></div>

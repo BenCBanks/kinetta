@@ -26,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
+from . import nutrients as N
 from . import db
 from . import api_dishes as dishes
 from .api_food import _custom_food, _search_off, _search_usda
@@ -33,7 +34,7 @@ from .auth import current_user
 
 router = APIRouter(prefix='/api/food/meals-chat')
 NUM = dishes.NUM
-LIMITS = {'kcal': 20000, 'protein_g': 2000, 'carbs_g': 2000, 'fat_g': 2000, 'fiber_g': 1000}   # the normal entry limits
+LIMITS = N.ENTRY_MAX   # the normal entry limits
 MAX_PARTS = 12
 WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 MASS = {'g': 1, 'gr': 1, 'gm': 1, 'gram': 1, 'gramme': 1, 'kg': 1000, 'kilo': 1000, 'kilogram': 1000,
@@ -364,7 +365,7 @@ def near(part, catalog):
 
 # ---------- how much: arithmetic on stored values only ----------
 def scaled(values, f):
-    return {k: dishes._r(values[k] * f) if values.get(k) is not None else (None if k == 'fiber_g' else 0) for k in NUM}
+    return {k: N.rounded(k,values[k]*f) if N.known(values,k) else None for k in NUM}
 
 
 def fmt(n): return f'{n:g}' if n == int(n) else f'{round(n, 2):g}'
@@ -438,7 +439,7 @@ def compute(c, uid, kind, row, p):
         return [{'name': row['name'], 'brand': row['brand'], 'amount': round(p['count'], 2), 'unit': 'serving', **scaled(food['per_serving'], p['count']),
                  'source': 'custom', 'ref': food}], None
     # a food logged before (kind 'food'): scale the last entry
-    base = {k: row[k] for k in NUM}
+    base = {k:row.get(k) if N.known(row,k) else None for k in NUM}
     ref = row['ref'] or {}
     if 'grams' in p:
         g = p['grams']
@@ -481,7 +482,7 @@ def fingerprint(uid, kind, fid, p, snap, issued):
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def too_big(entries): return any((x[k] or 0) > LIMITS[k] for x in entries for k in NUM)
+def too_big(entries): return any((x.get(k) or 0) > LIMITS[k] for x in entries for k in NUM)
 
 
 # ---------- the conversation ----------
@@ -725,7 +726,7 @@ def item_for(c, uid, p, catalog, issued=None):
     entries, why = compute(c, uid, e['kind'], e['row'], portion)
     if not why and too_big(entries): why = 'That portion is too large. Check the amount.'
     if why: return {**head, 'status': 'quantity', 'message': why, 'options': quick_amounts(e)}
-    totals = {k: None if any(x.get(k) is None or k in ((x.get('ref') or {}).get('unknown_nutrients') or []) for x in entries) else round(sum(x[k] for x in entries),1) for k in NUM}
+    totals = {k: None if any(x.get(k) is None or k in ((x.get('ref') or {}).get('unknown_nutrients') or []) for x in entries) else N.rounded(k,sum(x[k] for x in entries)) for k in NUM}
     if all(x['fiber_g'] is None for x in entries): totals['fiber_g'] = None
     out = {**head, 'status': 'ready', 'portion': portion, 'amount': amount_label(entries, e['kind'], portion), 'note': note, 'totals': totals}
     if issued is not None: out['expected'] = fingerprint(uid, e['kind'], e['id'], portion, snapshot(e), issued)
@@ -811,9 +812,11 @@ def confirm_data(c, uid, body, include_groups=False):
     pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (uid, body.day)).fetchone()['p']
     ids = []
     for n, x in enumerate(rows):
+        # Legacy core zeros require unknown_nutrients; readers must honor coverage/N.known.
+        x=N.storage(x)
         ref = {**(x['ref'] or {}), 'chat_request': request_key}
-        ids.append(c.execute('''INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position, client_id)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
+        ids.append(c.execute('''INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position, client_id)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
                              (uid, body.day, body.meal, x['name'], x['brand'], x['amount'], x['unit'], *(x[k] for k in NUM),
                               x['source'], json.dumps(ref, default=str), pos + n, f'{body.client_id}-{n:02d}')).fetchone()['id'])
     result={'ids':ids,'replayed':False}

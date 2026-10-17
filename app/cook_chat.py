@@ -27,6 +27,7 @@ import urllib.request
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from . import nutrients as N
 from . import api_dishes as D, api_food, coach, db, food_photo
 from .auth import current_user
 
@@ -251,9 +252,8 @@ def _ai_item(a):
     g, kcal = _n(a.get('grams')), _n(a.get('kcal'))
     name = ' '.join(str(a.get('name') or '').split())[:80]
     if not (name and g and 0 < g < 20000 and kcal is not None and kcal >= 0): return None
-    per = {k: (max(_n(a.get(k)) or 0, 0) * 100 / g) for k in D.NUM}
-    if a.get('fiber_g') is None: per['fiber_g'] = None
-    if per['kcal'] > 950 or any((per[k] or 0) > 100 for k in D.NUM if k != 'kcal'): return None
+    per = {k: (_n(a.get(k))*100/g if _n(a.get(k)) is not None else None) for k in D.NUM}
+    if per['kcal'] > 950 or any(v is not None and (v<0 or v>N.PER100_LIMITS[k]) for k,v in per.items()): return None
     amount = ' '.join(str(a.get('amount') or '').split())[:40]
     return {'name': name, 'amount': amount, 'grams': round(g, 1), 'source': 'ai', 'key': key(name), 'units': units_of(amount, g),
             'per100': {k: (round(v, 3) if v is not None else None) for k, v in per.items()}}
