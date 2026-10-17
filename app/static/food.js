@@ -93,7 +93,7 @@ function todayFoodCard(box, {onHistory} = {}) {
     onHistory?.(!!D.has_history || D.entries.length>0);
     App.mealHours = D.meal_hours || App.mealHours;
     const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
-    const currentMeal=guessMeal(),meal=D.entries.some(e=>e.meal===currentMeal)?null:currentMeal;
+    const meal = Object.keys(MEAL_NAMES).slice(Object.keys(MEAL_NAMES).indexOf(guessMeal())).find(m => !D.entries.some(e => e.meal === m));
     const workouts = D.burned?.items || [];
     const macroEnergy = (T.protein_g || 0)*4 + (T.carbs_g || 0)*4 + (T.fat_g || 0)*9;
     box.innerHTML = `<section class="card home-today" aria-label="Today’s food"><h2>Today<a class="more" href="/food">Food log ›</a></h2>
