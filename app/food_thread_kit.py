@@ -18,18 +18,18 @@ def response(c,uid,message,**extra):
     return {**food_thread.answer_with(c,uid,message),**extra}
 
 
-def generate(uid,mid):
+def generate(uid,mid,*,refresh=False):
     with db.connect() as c:
         message=engine.locked_message(c,uid,mid)
         reply=engine.stored_reply(c,uid,message)
         result=(reply or {}).get('result') or {}
         if message['state']=='cancelled' or not reply or not (result.get('offer_kit') or result.get('intent')=='review'):
             raise HTTPException(409,'Ask a food question in the conversation first')
-        if result.get('kit'):return response(c,uid,message)
+        if result.get('kit') and not refresh:return response(c,uid,message)
         daily=bool((message.get('result') or {}).get('daily_note'))
         if daily:
             pref=food_thread.preferences(c,uid)
-            if pref['daily_note']!='ai':raise HTTPException(409,'Choose the optional Kit version in Food chat settings first')
+            if (pref or {}).get('daily_note')!='ai':raise HTTPException(409,'Choose the optional Kit version in Food chat settings first')
             if result.get('kit_attempted'):
                 job=c.execute('SELECT state,expires FROM food_chat_jobs WHERE user_id=%s AND message_id=%s',(uid,mid)).fetchone()
                 if result.get('kit_processing') and (not job or job['state']!='running' or job['expires']<=dt.datetime.now(dt.timezone.utc)):
@@ -43,12 +43,6 @@ def generate(uid,mid):
         old=c.execute('SELECT * FROM food_chat_jobs WHERE user_id=%s AND message_id=%s FOR UPDATE',(uid,mid)).fetchone()
         now=dt.datetime.now(dt.timezone.utc)
         if old and old['state']=='running' and old['expires']>now:return response(c,uid,message,processing=True)
-        if daily:
-            zone=c.execute('SELECT tz FROM profile WHERE user_id=%s',(uid,)).fetchone()['tz'] or db.DEFAULT_TZ
-            local_day=now.astimezone(ZoneInfo(zone)).date()
-            charged=c.execute("""INSERT INTO ai_daily_usage(user_id,day,kind,requests) VALUES (%s,%s,'food_daily_local',1)
-                                 ON CONFLICT(user_id,day,kind) DO NOTHING RETURNING requests""",(uid,local_day)).fetchone()
-            if not charged:raise HTTPException(429,'A Kit daily version was already attempted today. Your code note and food log still work.')
         lease=uuid4();question=f"Food question for logged day {message['local_day'].isoformat()} (the day meant by today in this message): {message['body']}"
         digest=hashlib.sha256((question+ai_release.fingerprint()).encode()).hexdigest()
         c.execute('''INSERT INTO food_chat_jobs(user_id,message_id,lease,expires,state,input_hash)
@@ -56,7 +50,6 @@ def generate(uid,mid):
                      ON CONFLICT(user_id,message_id) DO UPDATE SET lease=excluded.lease,expires=excluded.expires,
                      state='running',input_hash=excluded.input_hash''',(uid,mid,lease,digest))
         result.pop('kit_error',None);result['kit_processing']=True
-        if daily:result['kit_attempted']=True
         food_thread.finish_reply(c,uid,message,result)
         reply_id=reply['id']
     answer=None;error=None
@@ -64,10 +57,27 @@ def generate(uid,mid):
         # This counter can use a separate connection only after the account lock
         # commits; its foreign key must not wait on our own locked user row.
         brake(uid,limit=10,kind='coach_questions',what='questions for Kit')
-        with ai_budget.scope(uid,message['client_id'],feature='food chat daily note' if daily else 'food chat Kit'):
+        charged=False
+        def charge(rid):
+            nonlocal charged
+            if not daily or charged:return
+            with db.connect() as c:
+                current=engine.locked_message(c,uid,mid)
+                profile=c.execute('SELECT tz FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
+                local_day=dt.datetime.now(dt.timezone.utc).astimezone(ZoneInfo(db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ)).date()
+                used=c.execute("INSERT INTO ai_daily_usage(user_id,day,kind,requests) VALUES (%s,%s,'food_daily_local',1) ON CONFLICT(user_id,day,kind) DO NOTHING RETURNING requests",(uid,local_day)).fetchone()
+                if not used:raise HTTPException(429,'A Kit daily version was already attempted today. Your code note still works.')
+                current_reply=engine.stored_reply(c,uid,current)
+                if current['state']=='cancelled' or not current_reply:raise HTTPException(409,'This message was cancelled')
+                updated=dict(current_reply['result']);updated['kit_attempted']=True
+                food_thread.finish_reply(c,uid,current,updated)
+            charged=True
+        with ai_budget.scope(uid,message['client_id'],feature='food chat daily note' if daily else 'food chat Kit'), ai_budget.after_reserve(charge):
             answer=coach_chat.answer(uid,question,food_only=True)
     except HTTPException as exc:
         error=exc.detail if isinstance(exc.detail,str) else 'Kit is unavailable. Your food log is unchanged.'
+    except ValueError as exc:
+        error=str(exc)[:500]
     except Exception:
         error='Kit could not finish this answer. Your food log and code answer are kept; you can try again.'
     with db.connect() as c:
@@ -81,7 +91,7 @@ def generate(uid,mid):
             if job and job['lease']==lease:c.execute("UPDATE food_chat_jobs SET state='cancelled' WHERE user_id=%s AND message_id=%s",(uid,mid))
             return {'cancelled':True,'messages':[]}
         result=dict(reply['result']);result['kit_processing']=False
-        if not coach.allowed(uid,connection=c) or not ai_release.enabled('food') or (daily and food_thread.preferences(c,uid)['daily_note']!='ai'):
+        if not coach.allowed(uid,connection=c) or not ai_release.enabled('food') or (daily and (food_thread.preferences(c,uid) or {}).get('daily_note')!='ai'):
             answer=None;error='AI access or consent changed. Your food log and code answer are kept.'
         if answer:
             result['kit']={k:answer[k] for k in ('interpretation','facts','selection','limitations','prompt_version') if k in answer}

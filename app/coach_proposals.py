@@ -7,7 +7,7 @@ import uuid
 from fastapi import HTTPException
 from pydantic import Field
 
-from . import db, plans
+from . import db, plans, nutrients as N
 from .api_food import EntryIn
 from .coach_tools import AccountTools, Empty, complete_food, complete_dish
 
@@ -158,22 +158,25 @@ def confirm(uid, pid, *, thread=False):
                     if not source or not complete_dish(source):raise HTTPException(409,'That recipe changed. Review a fresh proposal.')
                     from .api_dishes import _totals,_weight
                     current=_totals(source);share=food.get('share',food['amount'])
-                    if source['name']!=food['name'] or any(current.get(k) is None or round(current[k]*share,1)!=food[k] for k in ('kcal','protein_g','carbs_g','fat_g')):
+                    if ('New meal' if source['name']=='New dish' else source['name'])!=food['name'] or any(current.get(k) is None or round(current[k]*share,1)!=food[k] for k in ('kcal','protein_g','carbs_g','fat_g')):
                         raise HTTPException(409,'That recipe changed. Review a fresh proposal.')
                     ref={'dish_id':source['id'],'dish_kcal':_totals(source)['kcal'],'weight_g':_weight(source)};origin='dish';fiber=_totals(source).get('fiber_g')
                     fiber=fiber*food.get('share',food['amount']) if fiber is not None else None
+                    extras={k:N.rounded(k,current[k]*share) if N.known(current,k) else None for k in N.EXTRA}
                 else:
-                    source=c.execute('SELECT source,ref,fiber_g,amount,name,unit,kcal,protein_g,carbs_g,fat_g FROM food_entries WHERE user_id=%s AND id=%s FOR SHARE',(uid,food['source_id'])).fetchone()
+                    source=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=%s FOR SHARE',(uid,food['source_id'])).fetchone()
                     if not source or not complete_food(source,source.get('ref')) or any(source[k]!=food[k] for k in ('name','amount','unit','kcal','protein_g','carbs_g','fat_g')):
                         raise HTTPException(409,'That food changed. Review a fresh proposal.')
                     ref=source['ref'];origin=source['source'];fiber=source['fiber_g']
-                entry = EntryIn.model_validate({**{k: food[k] for k in ('name', 'amount', 'unit', 'kcal', 'protein_g', 'carbs_g', 'fat_g')},
-                                               'day': payload['day'], 'meal': payload['meal'], 'source':origin,'fiber_g':fiber,'ref':ref,'client_id':f'{pid}-{i}'})
-                saved=c.execute('''INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, client_id, position)
-                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    extras={k:source[k] if N.known(source,k) else None for k in N.EXTRA}
+                # Legacy core zeros require unknown_nutrients; readers must honor coverage/N.known.
+                entry = EntryIn.model_validate(N.storage({**extras,**{k: food[k] for k in ('name', 'amount', 'unit', 'kcal', 'protein_g', 'carbs_g', 'fat_g')},
+                                               'day': payload['day'], 'meal': payload['meal'], 'source':origin,'fiber_g':fiber,'ref':ref,'client_id':f'{pid}-{i}'}))
+                saved=c.execute('''INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, client_id, position)
+                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                (SELECT coalesce(max(position), 0) + 1 FROM food_entries WHERE user_id = %s AND day = %s)) RETURNING id''',
                           (uid, entry.day, entry.meal, entry.name, entry.amount, entry.unit, entry.kcal, entry.protein_g, entry.carbs_g,
-                           entry.fat_g, entry.fiber_g, entry.source, json.dumps(entry.ref) if entry.ref else None, entry.client_id, uid, entry.day)).fetchone()
+                           entry.fat_g, entry.fiber_g, entry.sodium_mg, entry.sugar_g, entry.saturated_fat_g, entry.source, json.dumps(entry.ref) if entry.ref else None, entry.client_id, uid, entry.day)).fetchone()
                 ids.append(saved['id'])
             if thread:messages=receipts.create(c,uid,ids)
         c.execute("UPDATE coach_proposals SET status = 'applied' WHERE user_id = %s AND id = %s", (uid, pid))

@@ -9,4 +9,4 @@ console.log('Recent food normalization: all8 nutrients, current manual edit vs o
 
 f=c.recentToFood({...row,amount:200,unit:'g'});assert.equal(f.serving.g,200);assert.equal(f.serving.label,'1 bowl');assert.equal(c.scaleFood(f,1,'serving').sodium_mg,800);assert.equal(c.scaleFood(f,100,'g').sodium_mg,400);assert.equal(c.scaleFood(f,1,'serving').sugar_g,0);
 
-f=c.recentToFood({...row,unit:'cup'});assert.equal(f.per100,null);assert.equal(f.serving.g,null);assert.equal(f.serving.label,'1 cup');assert.equal(c.scaleFood(f,2,'cup').sodium_mg,800);
+f=c.recentToFood({...row,unit:'cup'});assert.equal(f.per100.sodium_mg,499.5);assert.equal(f.serving.g,200);assert.equal(f.serving.label,'1 bowl');assert.equal(c.scaleFood(f,100,'g').sodium_mg,499.5);assert.equal(c.scaleFood(f,2,'cup').sodium_mg,800);

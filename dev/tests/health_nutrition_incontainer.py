@@ -16,8 +16,8 @@ try:
    c.execute("INSERT INTO profile(user_id,tz) VALUES(%s,'America/New_York')",(uid,))
   cl=TestClient(app,raise_server_exceptions=False);cl.headers['Origin']='http://testserver';assert cl.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200;clients.append(cl)
  a,b=clients;uid,other=uids
- def preferences(enabled=True,client=a):
-  r=client.put('/api/health/nutrition/preferences',json={'enabled':enabled,'confirmed':True});assert r.status_code==200,r.text;return r.json()
+ def preferences(enabled=True,client=a,older=False):
+  r=client.put('/api/health/nutrition/preferences',json={'enabled':enabled,'confirmed':True,'include_older':older});assert r.status_code==200,r.text;return r.json()
  def days(state,after=0,limit=50,client=a,status=200):
   r=client.get('/api/health/nutrition/days',params={'epoch':state['epoch'],'after':after,'limit':limit});assert r.status_code==status,(r.status_code,r.text);return r.json()
  def insert(day='2026-03-08',owner=uid,**values):
@@ -29,6 +29,9 @@ try:
  assert a.put('/api/health/nutrition/preferences',json={'enabled':True}).status_code==400
  assert a.put('/api/health/nutrition/preferences',json={'enabled':1,'confirmed':True}).status_code==422
  state=preferences();assert state['epoch']!=off['epoch'] and preferences()['epoch']==state['epoch']
+ assert not days(state)['days'] and not state['include_older']
+ assert state['since']==dt.datetime.now(__import__('zoneinfo').ZoneInfo('America/New_York')).date().isoformat()
+ stable=state['account_id'];state=preferences(older=True);assert state['include_older'] and state['account_id']==stable
  page=days(state);row=page['days'][0];assert row['day']=='2026-03-08' and row['values']==dict(kcal=300,protein_g=20,carbs_g=40,fat_g=10,fiber_g=5)
  assert row['start']=='2026-03-08T00:00:00-05:00' and row['end']=='2026-03-09T00:00:00-04:00' # 23h local DST day
  assert not row['deleted'] and not page['more'];cursor=page['next'];assert not days(state,cursor)['days']
@@ -58,13 +61,16 @@ try:
   result=future.result(timeout=10);assert result['days'] and result['next']>cursor
  # Pagination is bounded and includes deletion-only dates; no data from another person.
  for day in ['2026-03-10','2026-03-11','2026-03-12']:insert(day)
- otherstate=preferences(client=b);insert('2026-03-13',owner=other,kcal=999)
+ otherdefault=preferences(client=b);insert('2026-03-01',owner=other);assert not days(otherdefault,client=b)['days']
+ today=dt.datetime.now(__import__('zoneinfo').ZoneInfo('America/New_York')).date().isoformat();insert(today,owner=other);assert [r['day'] for r in days(otherdefault,client=b)['days']]==[today]
+ with db.connect() as c:c.execute('DELETE FROM food_entries WHERE user_id=%s',(other,))
+ otherstate=preferences(client=b,older=True);insert('2026-03-13',owner=other,kcal=999)
  seen=[];after=0
  while True:
   page=days(state,after,limit=1);seen+=page['days'];after=page['next']
   if not page['more']:break
  assert len(seen)==5 and '2026-03-13' not in [r['day'] for r in seen]
- assert len(days(otherstate,client=b)['days'])==1
+ assert any(r['day']=='2026-03-13' and not r['deleted'] for r in days(otherstate,client=b)['days'])
  days(otherstate,client=a,status=409)
  assert a.get('/api/health/nutrition/days',params={'epoch':state['epoch'],'after':-1}).status_code==422
  # Off retains the journal; changes while off are included after explicit re-enable,
@@ -74,7 +80,7 @@ try:
  state2=preferences();assert state2['epoch']!=state['epoch'];days(state,status=409)
  assert len(days(state2)['days'])==5 and all(r['deleted'] for r in days(state2)['days'])
  assert a.put('/api/profile',json={'tz':'Pacific/Honolulu'}).status_code==200
- days(state2,status=409);state3=a.get('/api/health/nutrition').json();assert state3['epoch']!=state2['epoch']
+ days(state2,status=409);state3=a.get('/api/health/nutrition').json();assert state3['epoch']!=state2['epoch'] and state3['account_id']==stable
  assert all(r['start'].endswith('-10:00') for r in days(state3)['days'])
  # Known zero is writable, unlike unknown; only the five expressly requested types.
  insert('2026-03-14',kcal=0,protein_g=0,carbs_g=0,fat_g=0,fiber_g=0)
