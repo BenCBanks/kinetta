@@ -129,7 +129,7 @@ function getStarted(healthConnected = false, hasHistory = false) {
     Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
     !hasHistory ? step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or enter known nutrition.') : '',
     !hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
-    ios && !home && !Native.on ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
+    ios && !home && !Native.on && !hasHistory ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
   ].filter(Boolean);
   return rows.length ? `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">${rows.join('')}</div>` : '';
 }
@@ -143,7 +143,7 @@ async function meOverview(el) {
     <div id="t-food">${skel(1)}</div><div id="t-checkin"></div>
     <div id="t-plan"></div><div id="t-friends"></div>
     <section id="t-week" aria-label="Last 14 days"></section>
-    <div id="t-setup"></div><div id="t-goals"></div>`;
+    <div id="t-last"></div><div id="t-form"></div><div id="t-setup"></div><div id="t-goals"></div>`;
   todayFoodCard($('#t-food',el)).catch(() => {
     if (!el.isConnected) return;
     $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="primary wide" id="tf-retry">Try again</button></div>';
@@ -162,13 +162,14 @@ async function meOverview(el) {
   }).catch(() => {});
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
-    if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
+    if (!r.enabled && !r.paused && !r.latest) { box.innerHTML = ''; return; }
     const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
     async function reviewNow(btn, close) {
       btn.disabled = true; btn.textContent = 'Thinking…';
       try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
       catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
     }
+    if (r.paused) { box.innerHTML = `<p class="small muted">AI is paused. Search, barcodes and manual logging still work.</p>${r.latest ? `<p>${esc(r.latest.text)}</p>` : ''}`; return; }
     box.innerHTML = `<button class="icon-btn kit-help" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}</button>`;
     $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', wk
       ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text">${esc(r.latest.text)}</p>
@@ -181,11 +182,12 @@ async function meOverview(el) {
   const overviewLoads = await Promise.allSettled([
     load('/api/activities?limit=3', (d) => {
       if (!el.isConnected) return;
+      $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
       Promise.resolve(Native.on ? Native.healthOn() : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
         const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
         $('#t-setup', el).innerHTML = getStarted(connected, !!d.length) +
-          (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+          (missing.length && (App.me.kcal_target || d.length) ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
       });
     }),
     load('/api/stats', (s) => {
@@ -193,6 +195,19 @@ async function meOverview(el) {
       if (!(s.recent_days || []).some(r => r.distance_m > 0)) { $('#t-week',el).innerHTML = ''; return; }
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
       mileageChart($('#me-distance', el), {days:s.recent_days || []});
+    }),
+    load('/api/fitness?days=60', (f) => {
+      if (!el.isConnected) return;
+      const last = f.days[f.days.length - 1];
+      if (!last || !f.days.some(day => day.fitness > 0)) { $('#t-form', el).innerHTML = ''; return; }
+      // the status word leads (like Garmin's training status); the numbers sit under it, the definitions on the Fitness page
+      const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
+      // one compact row (2026-10-16): the status word and its numbers; the explanations live on the Fitness page
+      const mini = (label, v) => `<span><b class="num">${esc(v)}</b><small>${esc(label)}</small></span>`;
+      $('#t-form', el).innerHTML = `<a class="card tap me-form" href="/progress?view=fitness" aria-label="Fitness and freshness: ${esc(word)}. ${esc(tip)}. Open details">
+        <span class="me-form-top"><span class="grow"><small>Fitness & freshness</small><b class="status-word ${k}">${esc(word)}</b></span>${svg('chev')}</span>
+        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? mini('Run score', f.vdot_now) : ''}</span>
+        ${f.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</a>`;
     }),
     load('/api/goals', (g) => {
       if (!el.isConnected) return;
@@ -1105,7 +1120,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       </div>
-    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Optional training notes and food estimates. AI consent is separate from access.</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
+    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
@@ -1142,8 +1157,10 @@ route(/^\/me$/, 'me', async (el) => {
     history.replaceState(null, '', '/me'); $('.me-settings', el).open = true; bodySheet();
   }
   $('#logout', el).onclick = async () => {
-    const n = Q.mine().length;
+    let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){toast('Could not check unsent food messages. Try logging out again.');return;}
+    const n = Q.mine().length + chat;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
+    if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
     if (typeof Track !== 'undefined') await Track.pause();
     try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
     await Native.forget();
@@ -1316,7 +1333,7 @@ route(/^\/track\/connections$/, 'track', async (el) => {
   if(!valid())return;
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
   $('#c-body', el).innerHTML = `<div class="card"><h2>intervals.icu</h2>
-      <p class="small">For an existing intervals.icu account, enter your athlete ID and API key (Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
+      <p class="small">Garmin owners: intervals.icu can bring in maps automatically. For an existing intervals.icu account, enter your athlete ID and API key (Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
       <form class="form" id="c-icu"><div class="two"><label>Athlete ID<input name="athlete_id" placeholder="i123456" autocapitalize="none" value="${esc(C.intervals ? C.intervals.athlete_id : '')}"></label>
       <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved (paste to change)' : ''}"></label></div>
       <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>

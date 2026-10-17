@@ -158,7 +158,7 @@ def confirm(uid, pid, *, thread=False):
                     if not source or not complete_dish(source):raise HTTPException(409,'That recipe changed. Review a fresh proposal.')
                     from .api_dishes import _totals,_weight
                     current=_totals(source);share=food.get('share',food['amount'])
-                    if source['name']!=food['name'] or any(current.get(k) is None or round(current[k]*share,1)!=food[k] for k in ('kcal','protein_g','carbs_g','fat_g')):
+                    if ('New meal' if source['name']=='New dish' else source['name'])!=food['name'] or any(current.get(k) is None or round(current[k]*share,1)!=food[k] for k in ('kcal','protein_g','carbs_g','fat_g')):
                         raise HTTPException(409,'That recipe changed. Review a fresh proposal.')
                     ref={'dish_id':source['id'],'dish_kcal':_totals(source)['kcal'],'weight_g':_weight(source)};origin='dish';fiber=_totals(source).get('fiber_g')
                     fiber=fiber*food.get('share',food['amount']) if fiber is not None else None
