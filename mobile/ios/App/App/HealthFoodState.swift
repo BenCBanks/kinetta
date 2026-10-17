@@ -27,7 +27,7 @@ struct HealthFoodState: Codable {
         (deleted.subtracting(ignoring),ignoring.subtracting(deleted))
     }
     mutating func prepareWeight(epoch: String) {
-        if weightEpoch != epoch { weightEpoch = epoch; weightAnchor = nil; ignoredWeightIDs = nil }
+        if weightEpoch != epoch { weightEpoch = epoch; weightAnchor = nil }
     }
     mutating func prepareNutrition(epoch: String, permissions: String) {
         if nutritionEpoch != epoch || nutritionPermissions != permissions {

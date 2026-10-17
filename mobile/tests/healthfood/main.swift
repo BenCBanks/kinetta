@@ -45,3 +45,6 @@ let removed = HealthFoodState.weightDeletions(["valid","ignored"],ignoring:["ign
 check(removed.send == ["valid"] && removed.keep == ["later"],"discarded weight identities never send deletion tombstones")
 check(HealthFoodError.weightBusy.localizedDescription.contains("weight"),"concurrent weight read has weight message")
 print("Health food review: corrupt/other-owner recovery, filtered/empty forward cursors, discarded weight deletion filtering PASS")
+
+state.ignoredWeightIDs=["ignored"];state.prepareWeight(epoch:"weight-next")
+check(state.ignoredWeightIDs == ["ignored"],"ignored weight IDs survive settings epoch changes")
