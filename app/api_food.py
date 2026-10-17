@@ -15,7 +15,7 @@ import time
 import urllib.parse
 import urllib.request
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
 from . import db, energy
@@ -307,8 +307,9 @@ class EntryIn(BaseModel):
 
 
 @router.post('/entries')
-def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool = False, captured_at: AwareDatetime | None = None):
+def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool = False, captured_at: AwareDatetime | None = None, restore_from: int | None = Query(None,gt=0)):
     if not 1 <= len(items) <= 100: raise HTTPException(400, '1-100 items')
+    if restore_from is not None and (thread or len(items)!=1):raise HTTPException(422,'Restore one food without creating a new chat card')
     ids = []; messages = []
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
@@ -325,7 +326,8 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
                 r = c.execute('SELECT id FROM food_entries WHERE user_id = %s AND client_id = %s', (user['id'], e.client_id)).fetchone()
             ids.append(r['id'])
         if thread:messages=receipts.create(c,user['id'],ids,captured_at)
-    return {'ids':ids,**({'messages':messages} if thread else {})}
+        elif restore_from is not None:messages=receipts.restore(c,user['id'],restore_from,ids[0])
+    return {'ids':ids,**({'messages':messages} if thread or restore_from is not None else {})}
 
 
 class EntryEdit(BaseModel):
@@ -504,6 +506,14 @@ def weights(days: int = 180, user=Depends(current_user)):
     return {'points': out, 'trend_kg': out[-1]['trend'] if out else None, 'rate_kg_per_week': rate}
 
 
+@router.get('/weights/latest')
+def latest_weight(user=Depends(current_user)):
+    """Small, owner-bound prefill read; no full weight history on opening a sheet."""
+    with db.connect() as c:
+        row = c.execute('SELECT day, kg, note FROM weights WHERE user_id = %s ORDER BY day DESC LIMIT 1', (user['id'],)).fetchone()
+    return {'points': [row] if row else []}
+
+
 @router.put('/weights')
 def weight_set(body: WeightIn, user=Depends(current_user)):
     if body.day > dt.date.today() + dt.timedelta(days=1): raise HTTPException(400, "That day hasn't happened yet")
@@ -544,7 +554,7 @@ class GoalSetupIn(BaseModel):
     height_cm: float | None = Field(None, ge=100, le=250, allow_inf_nan=False)
     birth_year: int | None = Field(None, ge=1920, le=2020)
     sex: str | None = Field(None, pattern='^(male|female)$')
-    activity_factor: float = Field(1.2, allow_inf_nan=False)
+    activity_factor: float | None = Field(None, allow_inf_nan=False)
 
 
 class GoalSaveIn(GoalSetupIn):
@@ -553,11 +563,14 @@ class GoalSaveIn(GoalSetupIn):
 
 
 def _goal_preview(c, uid, body):
-    profile = c.execute('SELECT weight_kg, height_cm, birth_year, sex FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
+    profile = c.execute('SELECT weight_kg, height_cm, birth_year, sex, activity_factor FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
     values = body.model_dump(exclude_unset=True)
     for key in ('weight_kg', 'height_cm', 'birth_year', 'sex'):
         if key in values: profile[key] = values[key]
-    profile['activity_factor'] = body.activity_factor
+    if body.activity_factor is not None: profile['activity_factor'] = body.activity_factor
+    if 'weight_kg' not in values:
+        rows = c.execute('SELECT day, kg FROM weights WHERE user_id = %s ORDER BY day', (uid,)).fetchall()
+        if rows: profile['weight_kg'] = energy.weight_trend(rows)[-1][2]
     try:
         return energy.target_suggestion(profile, body.goal, body.pace_percent, dt.datetime.now(dt.timezone.utc).year)
     except ValueError as exc:
@@ -579,7 +592,9 @@ def goal_setup(body: GoalSaveIn, user=Depends(current_user)):
         if body.kcal_target < suggestion['resting_floor']:
             raise HTTPException(400, f"Choose at least {suggestion['resting_floor']} kcal, your estimated resting burn.")
         values = body.model_dump(exclude_unset=True, exclude={'goal', 'pace_percent'})
-        values.update(nutrition_goal=body.goal, goal_pace_percent=suggestion['pace_percent'], activity_factor=body.activity_factor)
+        values.update(nutrition_goal=body.goal, goal_pace_percent=suggestion['pace_percent'])
+        if body.activity_factor is not None: values['activity_factor'] = suggestion['activity_factor']
+        else: values.pop('activity_factor', None)
         c.execute(f"UPDATE profile SET {', '.join(f'{key} = %s' for key in values)} WHERE user_id = %s", (*values.values(), user['id']))
     return {'ok': True, 'profile': values}
 

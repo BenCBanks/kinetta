@@ -41,6 +41,11 @@ try:
  with patch('app.coach_chat.answer',side_effect=AssertionError('No AI')),patch('app.food_photo.ask',side_effect=AssertionError('No AI')):
   data=get();row=data['current'];assert row['data']['suggested_kcal']==2200 and row['data']['observed_burn']==2200 and row['data']['avg_exercise']==0
   assert target()==2150 and get()['current']['id']==row['id']
+  with db.connect() as c:
+   assert c.execute('SELECT count(*) AS n FROM nutrition_checkins WHERE user_id=%s',(uid,)).fetchone()['n']==0
+   c.execute('INSERT INTO weights(user_id,day,kg) VALUES (%s,%s,95)',(uid,today))
+  assert get()['current']['baseline']==row['baseline']
+  with db.connect() as c:c.execute('DELETE FROM weights WHERE user_id=%s AND day=%s',(uid,today))
   assert get(b)['current'] is None and get(b)['readiness']['action']=='food'
   path=f'/api/food/check-in/{row["id"]}/accept';body={'baseline':row['baseline'],'confirmed':True}
   assert b.post(path,json=body).status_code==404
@@ -70,16 +75,19 @@ try:
   # A later manual change remains intact when an old accepted request is replayed.
   assert a.put('/api/food/targets',json={'kcal_target':2300,'protein_target':120,'carbs_target':200,'fat_target':60,'fiber_target':25}).status_code==200
   replay=a.post(path,json=body);assert replay.status_code==200 and replay.json()['already_decided'] and target()==2300
-  with db.connect() as c:c.execute('UPDATE nutrition_checkins SET week=week-7 WHERE user_id=%s AND id=%s',(uid,row['id']))
-  assert a.post(path,json=body).status_code==409
-  pending=get()['current'];assert pending['id']!=row['id']
+  with db.connect() as c:c.execute('UPDATE nutrition_checkins SET id=gen_random_uuid(),week=week-7 WHERE user_id=%s AND id=%s',(uid,row['id']))
+  with db.connect() as c:old_id=c.execute("SELECT id FROM nutrition_checkins WHERE user_id=%s AND state='accepted'",(uid,)).fetchone()['id']
+  assert a.post(f'/api/food/check-in/{old_id}/accept',json=body).json()['already_decided']
+  pending=get()['current'];assert pending['state']=='pending'
   later=a.post(f'/api/food/check-in/{pending["id"]}/later',json={});assert later.status_code==200 and later.json()['current']['state']=='deferred' and target()==2300
   assert get()['current']['state']=='deferred'
   with db.connect() as c:
-   c.execute('UPDATE nutrition_checkins SET week=week-21 WHERE user_id=%s',(uid,))
-  renewed=get()['current'];assert renewed['state']=='pending' and renewed['id']!=pending['id']
+   c.execute('UPDATE nutrition_checkins SET id=gen_random_uuid(),week=week-21 WHERE user_id=%s',(uid,))
+  renewed=get()['current'];assert renewed['state']=='pending'
   # Unknown calorie days cannot supply the seven complete food days needed for a suggestion.
   with db.connect() as c:c.execute("UPDATE food_entries SET ref=%s WHERE user_id=%s AND day<%s",(json.dumps({'unknown_nutrients':['kcal']}),uid,today-dt.timedelta(days=6)))
+  from app import energy
+  with db.connect() as c:assert energy.tdee(c,uid)['logged_days']==6
   no_data=get();assert no_data['current'] is None and not no_data['readiness']['ready']
   assert a.post(f'/api/food/check-in/{renewed["id"]}/accept',json={'baseline':renewed['baseline'],'confirmed':True}).status_code==409 and target()==2300
  with db.connect() as c:
@@ -88,7 +96,7 @@ try:
   c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)))
   c.execute('UPDATE users SET sql_role=%s WHERE id=%s',(role,uid))
  with psycopg.connect(db._conninfo(role,password),row_factory=psycopg.rows.dict_row) as reader:
-  rows=reader.execute('SELECT * FROM nutrition_checkins').fetchall();assert len(rows)==3 and all(r['user_id']==uid for r in rows)
+  rows=reader.execute('SELECT * FROM nutrition_checkins').fetchall();assert len(rows)==2 and all(r['user_id']==uid for r in rows)
   assert reader.execute('SELECT count(*) AS n FROM nutrition_checkins WHERE user_id=%s',(other,)).fetchone()['n']==0
   try:reader.execute('DELETE FROM nutrition_checkins')
   except errors.InsufficientPrivilege:reader.rollback()
@@ -99,7 +107,7 @@ try:
  else:raise AssertionError('Unapproved coach tool role could read new check-ins')
  export=a.get('/api/account/export');assert export.status_code==200
  with zipfile.ZipFile(io.BytesIO(export.content)) as z:
-  rows=[json.loads(x) for x in z.read('data/nutrition_checkins.jsonl').splitlines()];assert len(rows)==3 and all('user_id' not in r for r in rows)
+  rows=[json.loads(x) for x in z.read('data/nutrition_checkins.jsonl').splitlines()];assert len(rows)==2 and all('user_id' not in r for r in rows)
  print('Weekly API/SQL: no implicit target writes, no watch/workout/AI dependency, owner isolation/RLS/read-only, strict tap, stale re-review, forced decision-write rollback, day override, concurrent Accept/replay, later manual target, macro/Health preservation, defer/new-week/history, unknown-day exclusion/export PASS')
 finally:
  with db.connect() as c:

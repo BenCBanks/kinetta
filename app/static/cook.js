@@ -173,8 +173,8 @@ function dishLogSheet(d, w, done) {
       else { const g = num(f.g); if (!(g > 0)) { toast('How many grams did you have?'); return; } body.grams = g; }
       btn.disabled = true;
       try {
-        const r = await sendOrQueue(`/api/dishes/${d.id}/portion?thread=true&captured_at=${encodeURIComponent(new Date().toISOString())}`, 'POST', body, d.name);
-        if(!r.queued&&r.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(r);
+        const r = await sendOrQueue(`/api/dishes/${d.id}/portion${location.pathname==='/food/describe'?'?thread=true&captured_at='+encodeURIComponent(new Date().toISOString()):''}`, 'POST', body, d.name);
+        if(!r.queued&&r.messages&&typeof FoodThread!=='undefined'){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
         invalidate('/api/food/'); App.cache.delete('/api/dishes'); close(); done(false);
         if(r.queued)toast('Portion saved on this phone. It will send when connected.');else toast(`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${r0(r.entry.kcal)} kcal`);
       } catch (x) { toast(x.message); btn.disabled = false; }

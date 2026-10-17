@@ -17,6 +17,7 @@ route(/^\/me\/kit$/, 'me', async (el) => {
     if (!valid() || me.id !== account) return;
     refreshMe(me);
   } catch (e) { if (valid()) error.textContent = e.message; return; }
+  if (App.me.ai_paused) { form.innerHTML = '<p>AI is paused. Search, barcodes and manual logging still work.</p>'; return; }
   if (!aiCan('coach')) { form.innerHTML = '<p>AI coaching is unavailable for this account or consent is off. Your training plan, activity history and food tools still work.</p><a href="/me/explore">Explore Kinetta</a>'; return; }
   if (!App.me?.coach_tools) {
     form.innerHTML = '<p class="small">Kit questions are not available yet.</p><a class="ghost wide" href="/me">Back to Me</a>';
@@ -69,12 +70,13 @@ function kitReview(selection, options = {}) {
         if(meal){meal.value=proposal.payload.meal;meal.disabled=true;}
         if(key){try{localStorage.setItem(key,JSON.stringify(proposal));}catch(e){throw Error('This phone could not keep the confirmation. Free some storage, or log from your usuals.');}}
         // The proposal endpoint recomputes current candidates. Never apply a different proposal from the one shown.
-        if (JSON.stringify(stable(proposal.payload.candidate)) !== JSON.stringify(stable(candidate))) throw new Error('The proposal changed. Ask Kit again to review the latest version.');
-        const saved=await api(`/api/coach/proposals/${proposal.id}/confirm${selection.kind==='food'?'?thread=true':''}`, json('POST', {confirmed: true}));
+        if (JSON.stringify(stable(proposal.payload.candidate)) !== JSON.stringify(stable(candidate))) throw Object.assign(new Error('The proposal changed. Ask Kit again to review the latest version.'),{status:409});
+        const saved=await api(`/api/coach/proposals/${proposal.id}/confirm${selection.kind==='food'&&options.scopeKey?'?thread=true':''}`, json('POST', {confirmed: true}));
         if (owner !== readOwner()) return;
+        if(key)store.del(key);proposal=null;
         close(); invalidate('/api/'); toast(selection.kind==='plan'?'Plan adjustment saved':saved.removed_after_apply?'Already confirmed; that food was removed later.':'Food logged');
         if(options.onSaved)await options.onSaved(saved);else go(selection.kind === 'plan' ? '/plan' : '/food');
-      } catch (e) { if (owner === readOwner()) { error.textContent = e.message; confirm.disabled = false; confirm.textContent = 'Try confirmation again'; } }
+      } catch (e) { if(e.status===409){if(key)store.del(key);proposal=null;if(options.onStale){close();await options.onStale();return;}} if (owner === readOwner()) { error.textContent = e.message; confirm.disabled = false; confirm.textContent = 'Try confirmation again'; } }
     };
   });
 }

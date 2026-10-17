@@ -201,5 +201,123 @@
       "text": "2 protein bars total",
       "kcal": 400
     }
+  ],
+  "review_intent_cases": [
+    {
+      "text": "chicken salad, same as last time",
+      "intent": "new-food"
+    },
+    {
+      "text": "Actually I had 2 eggs",
+      "intent": "new-food"
+    },
+    {
+      "text": "Only had a coffee today",
+      "intent": "new-food"
+    },
+    {
+      "text": "lunch",
+      "intent": "new-food"
+    },
+    {
+      "text": "same as yesterday lunch but no cheddar",
+      "intent": "copy-question"
+    },
+    {
+      "text": "200g rice",
+      "intent": "new-food-after-copy-question"
+    },
+    {
+      "text": "cheese and crackers",
+      "intent": "new-food-after-copy-question"
+    },
+    {
+      "text": "make it two",
+      "intent": "absolute-count"
+    },
+    {
+      "text": "30000 g",
+      "intent": "bounded-clarification"
+    },
+    {
+      "text": "for dinner, same as yesterday\u2019s lunch",
+      "intent": "copy-source-lunch"
+    },
+    {
+      "text": "same as breakfast for dinner",
+      "intent": "copy-source-breakfast"
+    }
+  ],
+  "review_phrases_132_141": [
+    {
+      "pr": 133,
+      "text": "2",
+      "expected": "Ambiguous brand choice never fails a new message"
+    },
+    {
+      "pr": 133,
+      "text": "200 g rice, banana",
+      "expected": "One invalid source does not lose other parts"
+    },
+    {
+      "pr": 133,
+      "text": "2 eggs and a slice of grandma\u2019s cake",
+      "expected": "Manual entry preserves known eggs and logs only selected part"
+    },
+    {
+      "pr": 133,
+      "text": "Try a different food",
+      "expected": "Bypasses learned alias and cached processing job"
+    },
+    {
+      "pr": 133,
+      "text": "https://recipe.example/private?token=fictional",
+      "expected": "No public catalog request"
+    },
+    {
+      "pr": 135,
+      "text": "yesterday \u00b7 Dinner",
+      "expected": "Explicit destination persists"
+    },
+    {
+      "pr": 136,
+      "text": "make it half",
+      "expected": "After Undo choose an available card"
+    },
+    {
+      "pr": 137,
+      "text": "How many calories can I have left today?",
+      "expected": "Deterministic remaining calories"
+    },
+    {
+      "pr": 137,
+      "text": "New dish",
+      "expected": "Recipe identity confirms"
+    },
+    {
+      "pr": 141,
+      "text": "Week of Today",
+      "expected": "Week headings use calendar date"
+    },
+    {
+      "pr": 141,
+      "text": "Week of Yesterday",
+      "expected": "Week headings use calendar date"
+    },
+    {
+      "pr": 133,
+      "text": "2 eggs and a slice of grandma's cake",
+      "expected": "Preserve eggs when entering cake nutrition"
+    }
+  ],
+  "review_phrases_137_146": [
+    {
+      "text": "How many calories can I have left today?",
+      "expected": "remaining totals, not advice"
+    },
+    {
+      "text": "How much protein could I have remaining today?",
+      "expected": "remaining totals, not advice"
+    }
   ]
 }
