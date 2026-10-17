@@ -149,11 +149,19 @@ def try_correction(c,uid,message,intent=None,forced=None):
     if intent is None:return None
     if intent.get('invalid'):return _ask(c,uid,message,intent['invalid'],intent=intent)
     found=None
-    for root in _cards(c,uid):
+    roots=_cards(c,uid);root_ids=[r['id'] for r in roots]
+    grouped={};replies={}
+    if root_ids:
+        for row in c.execute('''SELECT e.*,l.message_id FROM food_entries e JOIN food_chat_entries l
+          ON l.entry_id=e.id AND l.user_id=e.user_id WHERE e.user_id=%s AND l.message_id=ANY(%s)
+          ORDER BY e.id FOR UPDATE OF e''',(uid,root_ids)).fetchall():
+            grouped.setdefault(row.pop('message_id'),[]).append(row)
+        replies={r['reply_to']:r for r in c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=ANY(%s)',(uid,root_ids)).fetchall()}
+    for root in roots:
         if forced and root['id']!=forced['message_id']:continue
-        rows=current_entries(c,uid,root['id'])
+        rows=grouped.get(root['id'],[])
         if not rows:continue
-        reply=engine.stored_reply(c,uid,root);groups=(reply['result'] if reply else {}).get('groups',[])
+        reply=replies.get(root['id']);groups=(reply['result'] if reply else {}).get('groups',[])
         words=set(intent.get('words',[]));matched=[r for r in rows if words and words<=set(meal_chat.name_words(r['name']))]
         group=next((g for g in groups if words and words<=set(meal_chat.name_words(g['name']))),None)
         exact=[r for r in matched if words==set(meal_chat.name_words(r['name']))]
