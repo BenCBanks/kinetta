@@ -42,7 +42,7 @@ try:
  export=client.get('/api/account/export');assert export.status_code==200
  with zipfile.ZipFile(io.BytesIO(export.content)) as z:
   messages=[json.loads(line) for line in z.read('data/food_chat_messages.jsonl').splitlines()]
-  assert len([m for m in messages if m.get('result',{}).get('receipt')])==2
+  assert len([m for m in messages if (m.get('result') or {}).get('receipt')])==2
   assert all('user_id' not in m for m in messages)
  print('Atomic receipts: food/reply failure rolls back food and recipe writes; retry succeeds; no provider calls PASS')
 finally:
