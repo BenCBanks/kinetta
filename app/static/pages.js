@@ -140,19 +140,26 @@ async function meOverview(el) {
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
-    <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
-    <div id="t-last"></div>
-    <section class="me-agenda"><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div>
-      <div class="me-day-links"><a href="/plan">${svg('calendar')}Training plan${svg('chev')}</a><a href="/food">${svg('food')}Log food${svg('chev')}</a></div></section>
-    <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
-  // The two shortcut rows only stay when the cards above don't already offer them (2026-10-16: Log food and the plan
-  // link showed twice on one screen).
-  Promise.allSettled([planCard($('#t-plan', el)), todayFoodCard($('#t-food', el))]).then(() => {
-    const links = $('.me-day-links', el); if (!links) return;
-    if ($('#t-plan a[href="/plan"]', el)) $('a[href="/plan"]', links)?.remove();
-    if ($('#t-food #tf-add', el)) $('a[href="/food"]', links)?.remove();
-    if (!links.children.length) links.remove();
+    <div id="t-food">${skel(1)}</div><div id="t-checkin"></div>
+    <div id="t-plan"></div><div id="t-friends"></div>
+    <section id="t-week" aria-label="Last 14 days"></section>
+    <div id="t-setup"></div><div id="t-goals"></div>`;
+  todayFoodCard($('#t-food',el)).catch(() => {
+    if (!el.isConnected) return;
+    $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="primary wide" id="tf-retry">Try again</button></div>';
+    $('#tf-retry',el).onclick = () => { invalidate('/api/food/day'); render(); };
   });
+  // The existing feed applies friendship and sharing rules on the server; food never enters it.
+  load('/api/feed/friends?limit=3', rows => {
+    if (!el.isConnected) return;
+    $('#t-friends',el).innerHTML = rows.length ? `<section class="card home-friends"><h2>Friends recently<a class="more" href="/activity">Feed ›</a></h2>${rows.map(a => `<a class="home-workout" href="/activity/friends/${a.id}">${avatar(a.owner)}<span><b>${esc(a.owner.name)}</b><small>${esc(a.name)} · ${esc(when(a.start_time))}</small></span>${svg('chev')}</a>`).join('')}</section>` : '';
+  }).catch(() => {});
+  load('/api/plans/current', d => {
+    if (!el.isConnected || !d.today_workout) return;
+    const w = d.today_workout;
+    $('#t-plan',el).innerHTML = `<section class="card"><h2>Today’s plan</h2><button class="row-link" data-wday="${esc(w.day)}">${svg('calendar')}<span class="grow">${esc(w.title)}<small>${w.status === 'done' ? 'Completed' : 'View session'}</small></span>${svg('chev')}</button></section>`;
+    wireWorkouts($('#t-plan',el),d);
+  }).catch(() => {});
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
     if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
@@ -173,7 +180,7 @@ async function meOverview(el) {
   }).catch(() => {});
   const overviewLoads = await Promise.allSettled([
     load('/api/activities?limit=3', (d) => {
-      $('#t-last', el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
+      if (!el.isConnected) return;
       Promise.resolve(Native.on ? Native.healthOn() : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
         const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
@@ -182,22 +189,13 @@ async function meOverview(el) {
       });
     }),
     load('/api/stats', (s) => {
+      if (!el.isConnected) return;
+      if (!(s.recent_days || []).some(r => r.distance_m > 0)) { $('#t-week',el).innerHTML = ''; return; }
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
       mileageChart($('#me-distance', el), {days:s.recent_days || []});
     }),
-    load('/api/fitness?days=60', (f) => {
-      const last = f.days[f.days.length - 1];
-      if (!last) { $('#t-form', el).innerHTML = ''; return; }
-      // the status word leads (like Garmin's training status); the numbers sit under it, the definitions on the Fitness page
-      const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
-      // one compact row (2026-10-16): the status word and its numbers; the explanations live on the Fitness page
-      const mini = (label, v) => `<span><b class="num">${esc(v)}</b><small>${esc(label)}</small></span>`;
-      $('#t-form', el).innerHTML = `<a class="card tap me-form" href="/progress?view=fitness" aria-label="Fitness and freshness: ${esc(word)}. ${esc(tip)}. Open details">
-        <span class="me-form-top"><span class="grow"><small>Fitness & freshness</small><b class="status-word ${k}">${esc(word)}</b></span>${svg('chev')}</span>
-        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? mini('Run score', f.vdot_now) : ''}</span>
-        ${f.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</a>`;
-    }),
     load('/api/goals', (g) => {
+      if (!el.isConnected) return;
       $('#t-goals', el).innerHTML = g.length ? `<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>${g.map(goalRow).join('')}</div>` : '';
     }),
   ]);

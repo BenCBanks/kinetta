@@ -16,22 +16,69 @@ function guessMeal() {   // the meal you usually log at this hour (learned from 
   return mine || (h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snacks' : h < 21 ? 'dinner' : 'snacks');
 }
 
-// Today page card (2026-10-10): calories left, protein, weigh-in - only for people who use the food log
+// Me leads with food even when there are no workouts or meals yet.
+const homeCalories = v => Math.round((v || 0) / 5) * 5;
 function todayFoodCard(box) {
   return load('/api/food/day', (D) => {
     if (!box.isConnected) return;
     App.mealHours = D.meal_hours || App.mealHours;
-    const g = D.goal && D.goal.kcal, T = D.totals, pt = D.targets && D.targets.protein_target;
-    // only on days with food logged (2026-10-12): people who don't track food never see it; the Nutrition tab is for starting
-    if (!D.entries.length) { box.innerHTML = ''; return; }
-    const left = g != null ? g - T.kcal : null;
-    box.innerHTML = `<div class="card tfood"><h2>Food today<a class="more" href="/food">Open log ›</a></h2>
-      <a class="tap" href="/food"><div class="stats3">${stat('Eaten', r0(T.kcal), 'kcal')}${g != null ? stat(left < 0 ? 'Over' : 'Left', r0(Math.abs(left)), 'kcal') : stat('Goal', 'not set')}${stat('Protein', r0(T.protein_g) + (pt ? '/' + r0(pt) : ''), 'g')}</div>
-      ${g != null ? `<div class="gbar${left < 0 ? ' over' : ''}"><div class="gfill" data-w="${Math.min(1, T.kcal / g).toFixed(3)}"></div></div>` : ''}
-      <p class="small muted">${D.weight_kg ? `${svg('check')} Weighed in: ${esc(U.weight(D.weight_kg))} ${imp() ? 'lb' : 'kg'}` : 'No weigh-in yet today'}${D.entries.some((e) => e.pending) ? ' · some items waiting to send' : ''}</p></a>
-      <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
-    $('#tf-add', box).onclick = () => addSheet(D.day, guessMeal());
+    const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
+    const meal = [guessMeal(), ...Object.keys(MEAL_NAMES)].find(m => !D.entries.some(e => e.meal === m));
+    const workouts = D.burned?.items || [];
+    const macroEnergy = (T.protein_g || 0)*4 + (T.carbs_g || 0)*4 + (T.fat_g || 0)*9;
+    box.innerHTML = `<section class="card home-today" aria-label="Today’s food"><h2>Today<a class="more" href="/food">Food log ›</a></h2>
+      ${D.entries.length || g != null ? `<div class="home-energy"><small>${g == null ? 'Eaten' : left < 0 ? 'Above goal' : 'Calories left'}</small><div class="hero-num num">${r0(homeCalories(g == null ? T.kcal : Math.abs(left)))}<i>kcal</i></div>
+      <p class="small muted">${r0(homeCalories(T.kcal))} eaten${g == null ? '' : ` · ${r0(homeCalories(g))} goal`}</p></div>` : '<p>Make room for what you enjoy. Start with something you ate.</p>'}
+      ${g == null ? '<a class="linkbtn home-set-goal" href="/food/setup">Set a goal · optional</a>' : ''}
+      ${D.entries.length ? `<div class="split home-macro-bar" aria-hidden="true">${MACROS.map(([k]) => `<i class="m-${k}" data-w="${macroEnergy ? ((T[k] || 0)*(k === 'fat_g' ? 9 : 4)/macroEnergy).toFixed(3) : 0}"></i>`).join('')}</div><div class="home-macros" aria-label="Macros eaten">${MACROS.map(([k,n]) => `<span><b>${n}</b><span class="num">${r0(T[k])} g${D.targets?.[k.replace('_g','_target')] ? ` / ${r0(D.targets[k.replace('_g','_target')])} g` : ''}</span></span>`).join('')}</div>` : ''}
+      <button class="primary wide" id="tf-add">${svg('plus')} Log food</button>
+      <div class="home-food-ways" role="group" aria-label="Ways to log food">${[['describe','Describe','comment'],['snap','Snap','camera'],['scan','Scan','barcode'],['usual','Usual','food']].map(([k,n,ico]) => `<button class="ghost" data-home-food="${k}">${svg(ico)}${n}</button>`).join('')}</div>
+      ${meal ? `<div class="home-empty-meal"><span>${esc(MEAL_NAMES[meal])} · nothing yet</span><button class="linkbtn" id="tf-yesterday">Same as yesterday</button></div>` : ''}
+      ${workouts.map(w => `<a class="home-workout" href="/activity/${w.id}">${svg(w.sport || 'activity')}<span>${esc(w.name)}${w.distance_m ? ` · ${U.dist(w.distance_m)} ${U.du()}` : ''}<small>+${r0(homeCalories(w.kcal))} kcal burned${w.estimated ? ' · estimated' : ''}</small></span>${svg('chev')}</a>`).join('')}
+      ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</section>`;
+    const day = D.day, expected = guessMeal();
+    $('#tf-add', box).onclick = () => describeSheet(day, expected);
+    $$('[data-home-food]', box).forEach(b => b.onclick = () => {
+      Native.haptic('selection');
+      if (b.dataset.homeFood === 'usual') addSheet(day, expected);
+      else if (b.dataset.homeFood === 'scan') scanSheet(day, expected, product => amountSheet(product, {day, meal:expected}));
+      else { describeSheet(day, expected); if (b.dataset.homeFood === 'snap') { const f = $('#ql-file'); if (f) { f.setAttribute('capture','environment'); if (aiCan('food')) f.click(); else toast('Enable food photo estimates in Me, or describe your food'); } } }
+    });
+    const yesterday = $('#tf-yesterday', box);
+    if (yesterday) yesterday.onclick = () => yesterdayMeal(D.day, meal);
   }, {maxAge: 5000});
+}
+function yesterdayMeal(day, meal) {
+  const owner = readOwner();
+  sheet(`Yesterday’s ${MEAL_NAMES[meal].toLowerCase()}`, skel(1), (b, close) => {
+    api(`/api/food/day?d=${addDays(day,-1)}`).then(D => {
+      if (!b.isConnected || readOwner() !== owner) return;
+      const rows = D.entries.filter(e => e.meal === meal && !e.pending);
+      b.innerHTML = rows.length ? `<p>Log these foods for ${esc(MEAL_NAMES[meal].toLowerCase())} today?</p><ul>${rows.map(e => `<li>${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">Log this meal</button>` : '<p>No foods were logged for this meal yesterday.</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>';
+      if (!rows.length) { $('#ym-usual', b).onclick = () => { close(); addSheet(day, meal); }; return; }
+      $('#ym-save', b).onclick = async e => {
+        e.currentTarget.disabled = true;
+        const items = rows.map(({name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}) => ({day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}));
+        try {
+          const result = await addEntries(items);
+          if (readOwner() !== owner) return;
+          close(); Native.haptic('light');
+          if (!result.queued) {
+            let busy = false, done = false;
+            const undo = async () => {
+              if (busy || done || readOwner() !== owner) return;
+              busy = true;
+              try { await Promise.all(result.ids.map(id => api(`/api/food/entries/${id}`, {method:'DELETE'}))); done = true; refresh(); toast('Meal removed'); }
+              catch(x) { if (readOwner() === owner) toast('Could not undo · try again',undo); }
+              finally { busy = false; }
+            };
+            toast('Meal logged',undo);
+          }
+        }
+        catch(x) { if (b.isConnected) { $('#ym-save',b).disabled = false; toast(x.message); } }
+      };
+    }).catch(x => { if (b.isConnected && readOwner() === owner) { b.innerHTML = '<p>Yesterday could not load.</p><button class="primary wide" id="ym-retry">Try again</button>'; $('#ym-retry',b).onclick = () => { close(); yesterdayMeal(day,meal); }; } });
+  });
 }
 
 // nutrition for an amount of a normalised food (per100 / per_serving + serving grams)
@@ -880,8 +927,10 @@ function scanSheet(day, meal, onFound) {
     try {
       if ('BarcodeDetector' in window) {
         const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}});
-        v.srcObject = stream; await v.play(); let on = true;
+        let on = true;
         stop = () => { on = false; stream.getTracks().forEach((t) => t.stop()); };
+        if (!b.isConnected) { stop(); return; }
+        v.srcObject = stream; await v.play();
         const det = new BarcodeDetector({formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e']});
         const tick = async () => { if (!on) return; try { const r = await det.detect(v); if (r.length) { found(r[0].rawValue); return; } } catch (e) { /* frame not ready */ } setTimeout(tick, 200); };
         tick();
@@ -889,9 +938,10 @@ function scanSheet(day, meal, onFound) {
         await new Promise((res, rej) => { if (window.ZXing) return res(); const s = document.createElement('script'); s.src = '/static/vendor/zxing.min.js'; s.onload = res; s.onerror = rej; document.head.append(s); });
         const reader = new ZXing.BrowserMultiFormatReader();
         stop = () => { try { reader.reset(); } catch (e) { /* */ } };
-        reader.decodeFromVideoDevice(null, v, (res) => { if (res) found(res.getText()); });
+        if (!b.isConnected) { stop(); return; }
+        await reader.decodeFromVideoDevice(null, v, (res) => { if (res) found(res.getText()); });
       }
-    } catch (e) { msg.textContent = 'Camera blocked. Allow camera access, or type the number.'; }
+    } catch (e) { stop(); if (b.isConnected) msg.textContent = 'Camera unavailable. Allow camera access, or type the number.'; }
   });
   // stop the camera when the sheet closes
   const obs = new MutationObserver(() => { if (!$('#sc-v')) { stop(); obs.disconnect(); } });

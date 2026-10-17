@@ -57,7 +57,8 @@ check('no future date',send(p,[{'day':str(today+dt.timedelta(days=1)),'resting_k
 check('no duplicate day in request',send(p,[rows[0],rows[0]])[0]==400)
 for value in (0,-1,10001,float('nan'),float('inf')):
     check('invalid calorie rejected '+str(value),send(p,[{'day':str(today),'resting_kcal':value}])[0]==422)
-check('wrong time zone rejected',send(p,rows,tz='America/New_York')[0]==409)
+# A past date is valid in both zones, including just after UTC midnight.
+check('wrong time zone rejected',send(p,[rows[1]],tz='America/New_York')[0]==409)
 check('missing timestamp zone rejected',send(p,rows,now.replace(tzinfo=None))[0]==400)
 check('other account empty',not other.get('/api/health/resting')[1]['days'])
 other.put('/api/profile',{'resting_source':'apple_health'})
