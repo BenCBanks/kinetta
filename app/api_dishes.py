@@ -19,7 +19,7 @@ import re
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import AwareDatetime, BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
 from . import db, notify
 from .api_food import MEALS
@@ -202,11 +202,20 @@ def _get(c, uid, did, lock=False):
     return d
 
 
+def _ingredient_totals(items,source):
+    return {k:_r(sum(i[k] for i in items)) if items and not source.get('pending') and all(i.get(k) is not None and k not in ((i.get('ref') or {}).get('unknown_nutrients') or []) for i in items) else None for k in NUM}
+
+
 def _save_items(c, uid, did, items):
     d=_get(c,uid,did);source=d.get('recipe_source') or {}
     if source.get('basis')=='ingredients':
-        values={k:_r(sum(i[k] for i in items)) if items and not source.get('pending') and all(i.get(k) is not None and k not in ((i.get('ref') or {}).get('unknown_nutrients') or []) for i in items) else None for k in NUM}
+        values=_ingredient_totals(items,source)
         c.execute(f"UPDATE dishes SET {', '.join('known_'+k+'=%s' for k in KNOWN)} WHERE user_id=%s AND id=%s",(*[values[k] for k in KNOWN],uid,did))
+    if source:
+        source['edited']=True
+        if source.get('basis')=='published':source['site_recipe_changed']=True
+        if source.get('basis')=='ingredients':source['sources']={k:('estimated_ingredients' if any(i.get('source')=='ai' for i in items) else 'ingredients') if values[k] is not None else 'unknown' for k in NUM}
+        c.execute('UPDATE dishes SET recipe_source=%s WHERE user_id=%s AND id=%s',(json.dumps(source),uid,did))
     c.execute('UPDATE dishes SET items = %s, updated = now(), recipe_updated = now() WHERE id = %s AND user_id = %s', (json.dumps(items), did, uid))
     return _get(c, uid, did)
 
@@ -273,6 +282,7 @@ class DishEdit(BaseModel):
     known_carbs_g: float | None = Field(None, ge=0, le=5000)
     known_fat_g: float | None = Field(None, ge=0, le=5000)
     known_fiber_g: float | None = Field(None, ge=0, le=5000)
+    use_ingredients:StrictBool=False
     serving: str | None = Field(None, pattern='^(one|portion)$')
     servings: int | None = Field(None, ge=1, le=50)
 
@@ -294,8 +304,15 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         if v.get('serving'): sets['serving'] = v['serving']
         if 'servings' in v: sets['servings'] = v['servings']
         if set(sets) & {'cooked_g', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
-        if d.get('recipe_source') and any('known_'+k in sets for k in KNOWN):
-            source=dict(d['recipe_source']);source['basis']='entered';source['edited']=True
+        if d.get('recipe_source') and (any('known_'+k in sets for k in KNOWN) or body.use_ingredients):
+            source=dict(d['recipe_source']);source['basis']='ingredients' if body.use_ingredients else 'entered';source['edited']=True
+            source['sources']={k:('entered' if sets.get('known_'+k) is not None else 'unknown') if 'known_'+k in sets else (source.get('sources') or {}).get(k,'unknown') for k in NUM}
+            if body.use_ingredients:
+                values=_ingredient_totals(d['items'],source);sets['recipe_updated']=dt.datetime.now(dt.timezone.utc)
+                estimated=any(i.get('source')=='ai' or (i.get('ref') or {}).get('origin')=='ai' for i in d['items'])
+                for k in KNOWN:
+                    sets['known_'+k]=values[k]
+                    source['sources'][k]=('estimated_ingredients' if estimated else 'ingredients') if values[k] is not None else 'unknown'
             sets['recipe_source']=json.dumps(source)
         if sets:
             c.execute(f"UPDATE dishes SET {', '.join(f'{k} = %s' for k in sets)}, updated = now() WHERE id = %s AND user_id = %s",
@@ -324,7 +341,7 @@ class Per100(BaseModel):
 class ItemIn(BaseModel):
     """Either per100 (a food picked from search) or kcal + macros typed in for this amount."""
     name: str = Field(min_length=1, max_length=200)
-    grams: float = Field(gt=0, lt=20000)
+    grams: float | None = Field(None,gt=0, lt=20000)
     per100: Per100 | None = None
     kcal: float | None = Field(None, ge=0, le=20000)
     protein_g: float | None = Field(None, ge=0, le=2000)
@@ -347,11 +364,13 @@ def _per100(body):
 @router.post('/{did:int}/items')
 def item_add(did: int, body: ItemIn, user=Depends(current_user)):
     if body.ref is not None and len(json.dumps(body.ref)) > 2000: raise HTTPException(400, 'ref is too big')
-    per100 = _per100(body)
+    if body.grams is None and body.per100 is not None:raise HTTPException(400,'Enter the ingredient weight to use per-100-gram nutrition')
+    per100 = _per100(body) if body.grams is not None else None
     with db.connect() as c:
-        items = _get(c, user['id'], did, lock=True)['items']
+        dish=_get(c,user['id'],did,lock=True);items=dish['items']
+        if body.grams is None and (not dish.get('recipe_source') or body.kcal is None):raise HTTPException(400,'Enter a weight, or keep this imported ingredient with its known amount nutrition')
         if len(items) >= MAX_ITEMS: raise HTTPException(400, f'A meal can have up to {MAX_ITEMS} ingredients')
-        item = {'id': secrets.token_hex(4), 'name': body.name.strip(), 'grams': round(body.grams, 1), **_item_values(per100, body.grams),
+        item = {'id': secrets.token_hex(4), 'name': body.name.strip(), 'grams': _r(body.grams), **(_item_values(per100,body.grams) if per100 else {k:getattr(body,k) for k in NUM}),
                 'per100': per100, 'source': body.source, 'ref': body.ref}
         return _view(c, user['id'], _save_items(c, user['id'], did, items + [item]))
 
@@ -369,9 +388,16 @@ def _find(items, iid):
 @router.patch('/{did:int}/items/{iid}')
 def item_edit(did: int, iid: str, body: ItemEdit, user=Depends(current_user)):
     with db.connect() as c:
-        items = _get(c, user['id'], did, lock=True)['items']
-        n = _find(items, iid)
-        items[n] = {**items[n], 'grams': round(body.grams, 1), **_item_values(items[n]['per100'], body.grams)}
+        dish=_get(c,user['id'],did,lock=True);items=dish['items']
+        n=_find(items,iid);old=items[n]
+        if not old.get('per100'):
+            if not dish.get('recipe_source'):raise HTTPException(400,'Enter nutrition for this ingredient before changing its weight')
+            per={k:old.get(k)*100/body.grams if old.get(k) is not None else None for k in NUM}
+            if any(v is not None and v>(1000 if k=='kcal' else 100) for k,v in per.items()):raise HTTPException(400,'Check the weight for this ingredient’s known nutrition')
+            items[n]={**old,'grams':_r(body.grams),'per100':per}
+        else:
+            values={k:_r(old['per100'].get(k)*body.grams/100) if old['per100'].get(k) is not None else None for k in NUM} if dish.get('recipe_source') else _item_values(old['per100'],body.grams)
+            items[n]={**old,'grams':_r(body.grams),**values}
         return _view(c, user['id'], _save_items(c, user['id'], did, items))
 
 
@@ -469,3 +495,28 @@ def unshare(did: int, login: str, user=Depends(current_user)):
         if not t or (d['user_id'] != user['id'] and t['id'] != user['id']): raise HTTPException(404, 'Not found')
         c.execute('DELETE FROM dish_shares WHERE dish_id = %s AND user_id = %s', (did, t['id']))
     return {'ok': True}
+
+
+class PortionCancelIn(BaseModel):
+    model_config={'extra':'forbid'}
+    client_id:str=Field(pattern=r'^[A-Za-z0-9-]{8,64}$')
+
+
+@router.post('/{did:int}/portion/cancel')
+def cancel_portion(did:int,body:PortionCancelIn,user=Depends(current_user)):
+    """Undo a sent or queued portion, including when its original upload is still in flight."""
+    from . import food_thread,food_thread_log as engine,food_thread_receipts as receipts
+    uid=user['id']
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+        entry=c.execute('SELECT id,source,ref FROM food_entries WHERE user_id=%s AND client_id=%s',(uid,body.client_id)).fetchone()
+        if entry and (entry['source']!='dish' or (entry['ref'] or {}).get('dish_id')!=did):raise HTTPException(409,'This Undo belongs to a different food')
+        key=receipts.identity(uid,body.client_id)
+        c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES(%s,%s) ON CONFLICT DO NOTHING',(uid,key))
+        root=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,key)).fetchone()
+        if root and ((root.get('result') or {}).get('receipt') or {}).get('client_id')==body.client_id:
+            reply=engine.stored_reply(c,uid,root)
+            if reply and (reply.get('result') or {}).get('kind') in ('log','undone'):
+                return {**engine.undo(c,uid,root),'cancelled':True}
+        removed=c.execute('DELETE FROM food_entries WHERE user_id=%s AND client_id=%s RETURNING id',(uid,body.client_id)).fetchall()
+        return {'cancelled':True,'removed':len(removed),'messages':[]}

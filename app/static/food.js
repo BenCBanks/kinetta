@@ -513,18 +513,19 @@ async function tSaved(body, where, close) {
     const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
       <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
     const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
-      d.totals.kcal, d.serving === 'one' ? 'kcal a serving' : 'kcal total');
-    body.innerHTML = `<p class="small muted">Tap a recipe to log a portion. Use Edit to change its ingredients, weight or nutrition for next time.</p>
+      (d.serving === 'one' && d.recipe_source?.servings ? d.per_serving.kcal : d.totals.kcal), d.serving === 'one' ? 'kcal a serving' : 'kcal total');
+    body.innerHTML = `<p class="small muted">Tap a recipe to log a portion. Use Edit to change its ingredients, weight or nutrition for next time.</p><div class="btncol recipe-library-actions"><button class="ghost wide" id="tm-link">Recipe from a link</button><button class="linkbtn" id="tm-dish">+ Create a Recipe</button></div>
       ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="Edit ${esc(d.name)}">${svg('edit')} Edit</button></div>`).join('')}</div>` : '<p class="small muted">No saved recipes yet. Create one below, with or without AI.</p>'}
       ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button><button class="ghost wide" id="tm-dish">+ Create a Recipe</button></div>
+      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button></div>
 `;
     const again = () => tSaved(body, where, close);
     $('#tm-describe', body).onclick = () => { const w = where(); close(); describeSheet(w.day, w.meal); };
     $$('[data-edit-food]', body).forEach(x => x.onclick = () => foodEditor(foods[+x.dataset.editFood], again));
     $('#tm-food', body).onclick = () => foodEditor(null, again);
+    $('#tm-link', body).onclick = () => { close(); go('/food/recipe-link'); };
     $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
     $$('[data-edit-meal]', body).forEach((b) => b.onclick = () => { close(); go('/food/cook/' + b.dataset.editMeal); });
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
@@ -679,7 +680,7 @@ async function shrinkPhoto(file, max = 1280) {
   } finally { URL.revokeObjectURL(url); }
 }
 // Selection stays local until the explicit confirmation; one request covers all retained views.
-async function reviewFoodPhotos(files,confirm,{label=false,active=()=>true}={}) {
+async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,active=()=>true}={}) {
   if (!files.length) return;
   if (files.length>6) { toast('Choose up to 6 photos at a time'); return; }
   let photos=[];
@@ -687,8 +688,8 @@ async function reviewFoodPhotos(files,confirm,{label=false,active=()=>true}={}) 
     if(photos.reduce((n,p)=>n+p.length,0)>10000000)throw Error('These photos are too large together. Choose fewer photos.');
   } catch(e) { if(active())toast(e.message||"A photo couldn't be opened"); return; }
   if(!active())return;
-  sheet(label?'Photos of one ingredient':'Review your food photos','<div id="photo-selection"></div>',(root,close)=>{
-    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div><button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(label?'Read these photos':'Use these photos')+'</button>';
+  sheet(recipe?'Review recipe screenshots':label?'Photos of one ingredient':'Review your food photos','<div id="photo-selection"></div>',(root,close)=>{
+    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(recipe?'Choose views of one recipe, including its ingredients and nutrition. Food AI will read them into a draft; check servings and numbers before saving.':label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div><button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(recipe?'Read recipe screenshots':label?'Read these photos':'Use these photos')+'</button>';
       $$('[data-remove-photo]',box).forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.removePhoto,1);draw()});$('#photos-use',box).onclick=()=>{if(!active())return;close();confirm(photos.slice())};};draw();
   });
 }

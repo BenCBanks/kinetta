@@ -38,6 +38,7 @@ python3 dev/tests/test_food_thread_facts.py
 python3 dev/tests/test_recipe_link.py
 node dev/tests/test_async_reads.js
 node dev/tests/test_offline_queue.js
+node dev/tests/test_client_uuid.js
 node dev/tests/test_thread_outbox.js
 node dev/tests/test_thread_nutrients.js
 node dev/tests/test_thread_sources.js
@@ -80,4 +81,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/nutrition_copy_incontain
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_checkin_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_import_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_estimate_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_imports_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_portion_undo_incontainer.py
 echo "== all passed"

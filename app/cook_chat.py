@@ -88,7 +88,7 @@ def memory(c, uid):
         for it in d['items']:
             if not it.get('per100') or it['per100'].get('kcal') is None: continue
             for k in {key(it['name']), it.get('key') or ''} - {''}:
-                m = mem.setdefault(k, {'name': it['name'], 'per100': it['per100'], 'units': {}})
+                m = mem.setdefault(k, {'name': it['name'], 'per100': it['per100'], 'units': {},'source':it.get('source'),'ref':it.get('ref') or {}})
                 for u, g in (it.get('units') or {}).items(): m['units'].setdefault(u, g)
     return mem
 
@@ -110,7 +110,7 @@ def from_memory(text, mem):
         grams = p['grams'] or (p['amount'] * m['units'][p['unit'] or 'each'] if (p['unit'] or 'each') in m['units'] else None)
         if not grams or grams >= 20000: return None
         said = f"{p['amount']:g} {p['unit']}" if p['unit'] else f"{p['amount']:g}"
-        out.append({'name': m['name'], 'amount': said, 'grams': round(grams, 1), 'per100': m['per100'], 'source': 'memory',
+        out.append({'name': m['name'], 'amount': said, 'grams': round(grams, 1), 'per100': m['per100'], 'source': 'memory','ref':{**m.get('ref',{}),**({'origin':'ai'} if m.get('source')=='ai' or m.get('ref',{}).get('origin')=='ai' else {})},
                     'key': key(p['query']), 'units': units_of(said, grams)})
     return out
 
@@ -272,7 +272,7 @@ def _ai_item(a):
 
 def _as_item(x):
     return {'id': secrets.token_hex(4), 'name': x['name'], 'grams': x['grams'], **D._item_values(x['per100'], x['grams']),
-            'per100': x['per100'], 'source': x['source'], 'ref': None, 'amount': x.get('amount') or '',
+            'per100': x['per100'], 'source': x['source'], 'ref': x.get('ref'), 'amount': x.get('amount') or '',
             'key': x.get('key') or key(x['name']), 'units': x.get('units') or {}}
 
 
