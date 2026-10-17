@@ -38,6 +38,8 @@ def classify(text, anchor):
         kind = 'burn' if re.search(r'\b(?:burned|burnt|burn)\b', text) else 'left' if re.search(r'\b(?:left|remaining)\b',text) else 'totals'
     elif re.search(r'\b(?:review|sum up|summary).*(?:day|today)\b', text):
         kind = 'review'
+    if kind is None and re.fullmatch(r'(?:calories?|protein|carbs?|fat|fib(?:er|re)) (?:last week|this week|today|yesterday)\??',text):
+        kind='totals'
     if kind is None:
         return None
     if kind in ('totals','left') and not re.search(r'^(?:(?:how|what)\b|(?:total|average|weekly)\b|(?:protein|carbs?|fat|fib(?:er|re)|calories?|cals?|kcal)\b|\d+(?:\.\d+)?\s+(?:calories?|protein|carbs?|fat)\s+(?:left|remaining)\b|(?:two|three|four|\d+) days ago\b)', text):
