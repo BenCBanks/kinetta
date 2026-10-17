@@ -1908,3 +1908,26 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .macpreview .extra-nutrients b {font:600 1rem var(--numf);}
 .tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
 .tcard .extra-nutrients dd small {display:block;font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);}
+
+/* Weekly food records are separate from estimates and optional Kit advice. */
+.weekly-food-review h2 {margin-bottom:.4rem;}
+.weekly-food-lead {font-size:1.1rem;line-height:1.5;}
+.weekly-food-fold {border-top:1px solid var(--line);padding:.35rem 0;}
+.weekly-food-fold > summary {display:list-item;cursor:pointer;min-height:44px;padding:.4rem 0;font-weight:600;line-height:1.5;}
+.weekly-food-fold dl {margin:.25rem 0;}
+.weekly-food-fold dl > div {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.5rem;padding:.65rem 0;border-bottom:1px solid var(--line);}
+.weekly-food-fold dt,.weekly-food-fold dd {min-width:0;overflow-wrap:anywhere;}
+.weekly-food-fold dd {margin:0;text-align:right;}
+.weekly-food-fold small,.weekly-top-foods small {display:block;font-size:.85rem;color:var(--tx2);line-height:1.5;}
+.weekly-top-foods {padding:0;margin:0;list-style:none;}
+.weekly-top-foods li {display:flex;flex-wrap:wrap;gap:.4rem .75rem;justify-content:space-between;padding:.65rem 0;border-bottom:1px solid var(--line);}
+.weekly-top-foods li > span {flex:1 1 9rem;min-width:0;overflow-wrap:anywhere;}
+.weekly-top-foods b {font-size:1rem;}
+.weekly-food-suggestions {border-top:1px solid var(--line);padding-top:.65rem;}
+.weekly-food-suggestions h3 {font-size:1rem;margin:.5rem 0;}
+.weekly-food-suggestions p {line-height:1.6;}
+.weekly-food-review {font-size:1rem;}
+.weekly-food-review h2 {font-size:1.5rem;}
+.weekly-food-review p.small {font-size:.85rem;}
+.weekly-food-suggestions p {margin:.65rem 0;}
+.weekly-food-review {overflow-wrap:anywhere;}
