@@ -22,7 +22,7 @@ for client in (a, b):
         client.delete('/api/food/thread/messages/' + str(message['id']))
 check(Client().get('/api/food/thread')[0] == 401, 'history requires sign in')
 check(Client().post('/api/food/thread/messages', {'client_id': str(uuid.uuid4()), 'body': 'Fictional oats'})[0] == 401, 'append requires sign in')
-check(a.get('/api/food/thread/preferences')[1] == {'auto_log': True, 'tone': 'supportive'}, 'owner-decided defaults')
+check(a.get('/api/food/thread/preferences')[1] == {'auto_log': True, 'tone': 'supportive', 'daily_note':'off'}, 'owner-decided defaults')
 check(a.put('/api/profile', {'tz': 'America/New_York'})[0] == 200, 'fictional capture timezone')
 before = a.get('/api/me')[1]
 key = str(uuid.uuid4())
@@ -62,11 +62,11 @@ clients = [login('zz_test_thread_a') for _ in range(4)]
 with concurrent.futures.ThreadPoolExecutor(4) as pool:
     replies = list(pool.map(lambda c: c.post('/api/food/thread/messages', {'client_id': retry_key, 'body': 'Fictional retry soup'}), clients))
 check(sum(status == 201 for status, _ in replies) == 1 and len({r['message']['id'] for _, r in replies}) == 1, 'concurrent retry stores one message')
-check(a.put('/api/food/thread/preferences', {'auto_log': False})[1] == {'auto_log': False, 'tone': 'supportive'}, 'explicit require-tap setting')
-check(a.put('/api/food/thread/preferences', {'tone': 'numbers'})[1] == {'auto_log': False, 'tone': 'numbers'}, 'explicit tone setting preserves auto-log')
+check(a.put('/api/food/thread/preferences', {'auto_log': False})[1] == {'auto_log': False, 'tone': 'supportive', 'daily_note':'off'}, 'explicit require-tap setting')
+check(a.put('/api/food/thread/preferences', {'tone': 'numbers'})[1] == {'auto_log': False, 'tone': 'numbers', 'daily_note':'off'}, 'explicit tone setting preserves auto-log')
 for value in ({}, {'tone': None}, {'auto_log': 'false'}, {'tone': 'shaming'}, {'user_id': 1}):
     check(a.put('/api/food/thread/preferences', value)[0] == 422, 'invalid settings do not write')
-check(b.get('/api/food/thread/preferences')[1] == {'auto_log': True, 'tone': 'supportive'}, 'preferences are account scoped')
+check(b.get('/api/food/thread/preferences')[1] == {'auto_log': True, 'tone': 'supportive', 'daily_note':'off'}, 'preferences are account scoped')
 with a.op.open(urllib.request.Request(BASE + '/api/account/export')) as response:
     z = zipfile.ZipFile(io.BytesIO(response.read()))
 exported = [json.loads(row) for row in z.read('data/food_chat_messages.jsonl').splitlines()]

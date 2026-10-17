@@ -14,6 +14,14 @@ from uuid import uuid4
 from fastapi import HTTPException
 from . import db
 
+_reserved_hook = ContextVar('ai_reserved_hook',default=None)
+
+@contextmanager
+def after_reserve(callback):
+    token=_reserved_hook.set(callback)
+    try:yield
+    finally:_reserved_hook.reset(token)
+
 _owner = ContextVar('food_estimator_owner', default=None)
 _request = ContextVar('ai_request_reference', default=None)
 _feature = ContextVar('ai_feature',default=None)
@@ -133,6 +141,11 @@ def reserve(model, label, payload=None):
         warning = c.execute("""UPDATE ai_service_budget SET warned_at=now() WHERE day=%s
                                  AND warned_at IS NULL AND charged_micros >= %s RETURNING day""",(row['day'],limit*8//10)).fetchone()
     if warning: print(f"AI budget warning: {warning['day']} UTC reserved/estimated spending reached 80% of the daily cap",flush=True)
+    hook=_reserved_hook.get()
+    if hook:
+        try:hook(rid)
+        except Exception:
+            release_failed(rid,400);finish(rid);raise
     return rid
 
 
