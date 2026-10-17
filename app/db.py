@@ -1163,6 +1163,18 @@ MIGRATIONS = [
       FOR EACH ROW EXECUTE FUNCTION health_nutrition_changed();
 """,
 
+    # 56: optional private logging reminders; each local meal/day attempted at most once.
+    """ALTER TABLE profile ADD COLUMN food_reminders boolean NOT NULL DEFAULT false;
+    CREATE TABLE meal_reminder_attempts (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL,meal text NOT NULL CHECK(meal IN ('breakfast','lunch','dinner')),
+      attempted_at timestamptz NOT NULL DEFAULT now(),delivered integer NOT NULL DEFAULT 0,
+      PRIMARY KEY(user_id,day,meal));
+    ALTER TABLE meal_reminder_attempts ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON meal_reminder_attempts FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON meal_reminder_attempts FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON meal_reminder_attempts TO fit_readers;""",
+
 ]
 
 

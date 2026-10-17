@@ -249,3 +249,33 @@ def push(nid, send=None):
             except Exception as e:
                 print('native push failed', nid, type(e).__name__, flush=True)
     return sent
+
+
+def private_meal_push(uid,day,meal,payload,send=None):
+    """Private optional nudge, with a final preference/session/account/meal check per device."""
+    if send is None and not apns.ready():return 0
+    count=0
+    with db.connect() as c:
+        subs=c.execute('SELECT token,environment FROM native_push_devices WHERE user_id=%s',(uid,)).fetchall()
+    for device in subs:
+        with db.connect() as c:
+            current=c.execute(f'''SELECT d.*,p.tz FROM native_push_devices d
+              JOIN sessions s ON s.token_hash=d.session_hash JOIN profile p ON p.user_id=d.user_id
+              WHERE d.token=%s AND d.environment=%s AND d.user_id=%s AND p.food_reminders
+              AND s.user_id=d.user_id AND s.last_seen>now()-interval '{SESSION_DAYS} days'
+              AND NOT EXISTS(SELECT 1 FROM food_entries WHERE user_id=d.user_id AND day=%s AND meal=%s)
+              AND EXISTS(SELECT 1 FROM meal_reminder_attempts r WHERE r.user_id=d.user_id AND r.day=%s AND r.meal=%s AND r.attempted_at>now()-interval '5 minutes')
+              FOR UPDATE OF d,p''',(device['token'],device['environment'],uid,day,meal,day,meal)).fetchone()
+            if not current:continue
+            # A stale job must not notify after a date/zone change or long provider delay.
+            import datetime as dt
+            from zoneinfo import ZoneInfo
+            local=dt.datetime.now(dt.timezone.utc).astimezone(ZoneInfo(current['tz'] or db.DEFAULT_TZ))
+            if local.date()!=day or not 7<=local.hour<21:continue
+            try:
+                payload={**payload,'badge':unread(c,uid),'expires_at':int(dt.datetime.now(dt.timezone.utc).timestamp())+300}
+                accepted=send(device,payload) if send else apns.deliver(device,payload)
+                if accepted is False:c.execute('DELETE FROM native_push_devices WHERE token=%s AND environment=%s',(device['token'],device['environment']))
+                else:count+=1
+            except Exception as error:print('meal push failed',type(error).__name__,flush=True)
+    return count

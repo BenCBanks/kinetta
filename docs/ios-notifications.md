@@ -48,3 +48,13 @@ No tests send alerts to real devices: transport tests use a generated key and a 
 References: [Registering your app](https://developer.apple.com/documentation/usernotifications/registering-your-app-with-apns),
 [Token authentication](https://developer.apple.com/documentation/usernotifications/establishing-a-token-based-connection-to-apns),
 [Sending alerts](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns).
+
+## Optional meal-time reminders (#122 K)
+
+Me → Notification settings contains a separate off-by-default reminder switch. Configure the existing production APNs identity/entitlement and enable notifications on a registered iPhone first; missing server/device setup leaves opt-in unavailable but never prevents turning it off. Nothing prompts on launch.
+
+Times come from3 or more distinct daytime logging days per breakfast/lunch/dinner across the last28 completed profile-local days. One first same-day observation per meal/day prevents multiple food rows from over-weighting one meal. Past-day uploads and night-time logs do not manufacture a daytime time; suggestions round to15minutes. No default meal time is invented. Alerts are restricted to7am–9pm and a5-minute window; a meal already logged stays quiet. There is at most one attempt per meal/local day, with a final preference/account/device/live-session/meal/quiet-hour/claim-age check.
+
+APNs receives only a generic invitation and food-chat destination, never logged foods, nutrients, weight or Health data. Existing unread badges are preserved; reminders create no bell or friends-feed row. Meal reminder expiry is5minutes so Apple cannot hold the alert until much later. Existing activity/social alerts retain their original expiry. Delivery is best effort; a failed/crashed attempt is not spammed repeatedly.
+
+The private attempt journal is exported to the account owner, has SQL row-level read restrictions and cascades with account deletion. Real acceptance still needs the intended signed build and a dedicated fictional account/device: grant/deny notifications, opt-in/off, usual-time delivery, already-logged silence, foreground/background/locked/offline expiry, duplicate workers, logout/account transfer, tap→food chat and current timezone. Transport stand-ins and a green build are not real-device acceptance. No keys or production changes are included in this workstream.

@@ -35,7 +35,7 @@ def deliver(device, payload, transport=None):
     headers = {'authorization': 'bearer ' + provider_token(),
                'apns-topic': os.environ.get('KINETTA_APNS_TOPIC', 'com.kinetta.app'),
                'apns-push-type': 'alert', 'apns-priority': '10',
-               'apns-expiration': str(int(time.time()) + 86400),
+               'apns-expiration': str(payload.get('expires_at', int(time.time()) + 86400)),
                'apns-collapse-id': payload['tag']}
     with httpx.Client(http2=True, timeout=10, transport=transport) as client:
         response = client.post(f'https://{host}/3/device/{device["token"]}', headers=headers,

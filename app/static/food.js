@@ -23,7 +23,7 @@ const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
 const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}); };
 function guessMeal() {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
-  const h = new Date().getHours(), mine = App.mealHours && App.mealHours[h];
+  const h = Number(new Intl.DateTimeFormat('en-US',{timeZone:tz(),hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = App.mealHours && App.mealHours[h];
   return mine || (h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snacks' : h < 21 ? 'dinner' : 'snacks');
 }
 
@@ -91,7 +91,7 @@ function todayFoodCard(box, {onHistory} = {}) {
     onHistory?.(!!D.has_history || D.entries.length>0);
     App.mealHours = D.meal_hours || App.mealHours;
     const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
-    const meal = [guessMeal(), ...Object.keys(MEAL_NAMES)].find(m => !D.entries.some(e => e.meal === m));
+    const currentMeal=guessMeal(),meal=D.entries.some(e=>e.meal===currentMeal)?null:currentMeal;
     const workouts = D.burned?.items || [];
     const macroEnergy = (T.protein_g || 0)*4 + (T.carbs_g || 0)*4 + (T.fat_g || 0)*9;
     box.innerHTML = `<section class="card home-today" aria-label="Today’s food"><h2>Today<a class="more" href="/food">Food log ›</a></h2>
@@ -128,7 +128,7 @@ function yesterdayMeal(day, meal) {
       if (!rows.length) { $('#ym-usual', b).onclick = () => { close(); addSheet(day, meal); }; return; }
       $('#ym-save', b).onclick = async e => {
         e.currentTarget.disabled = true;
-        const items = rows.map(({name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}) => ({day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref}));
+        const items = rows.map(({name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}));
         try {
           const result = await addEntries(items);
           if (readOwner() !== owner) return;
@@ -197,7 +197,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
   body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <p class="small food-library-link"><a href="/food/meals">My Recipes &amp; foods · edit or create</a> · <a href="/food/setup">${App.me.kcal_target ? 'Review goal' : 'Set a goal'}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
+    <p class="small food-library-link"><a href="/food/meals">My Recipes &amp; foods · edit or create</a> · <a href="/food/setup">${App.me.kcal_target ? 'Review goal' : 'Set a goal'}</a> · <a href="/me/notifications">Reminders · optional</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -285,7 +285,7 @@ function drawDay(el, D) {
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
-      </section>`;
+      ${D.day===isoDay(new Date())&&m===guessMeal()?`<div class="empty-meal-ways"><button class="ghost" data-yesterday-meal="${m}">Same as yesterday</button><button class="ghost" data-usual-meal="${m}">Your usuals</button></div>`:''}</section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`;
@@ -293,6 +293,8 @@ function drawDay(el, D) {
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('edit')}Edit</button>` : ''}</div></section>`;
   }).join('') + (D.entries.length ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
+  $$('[data-yesterday-meal]',el).forEach(b=>b.onclick=()=>yesterdayMeal(D.day,b.dataset.yesterdayMeal));
+  $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
   $$('[data-add]', el).forEach((b) => b.onclick = () => addSheet(D.day, b.dataset.add));
   $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
   $$('.meal', el).forEach((card) => swipeRows(card, (id) => removeFoodEntry(D.entries.find((e) => String(e.id) === id), {button: $(`.sw-del[data-del="${id}"]`, card)})));
