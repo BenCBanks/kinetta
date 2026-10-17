@@ -311,6 +311,14 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .netbar { position: fixed; left: 50%; transform: translateX(-50%); top: max(8px, env(safe-area-inset-top)); z-index: 60; max-width: calc(100% - 24px);
   padding: 6px 14px; border-radius: 999px; background: var(--ink); color: var(--onink); font-size: 12px; font-weight: 600; box-shadow: var(--lift); }
 
+/* Optional logging reminders and current-meal shortcuts. */
+.meal-reminders h2 {display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;font-size:1.2rem}
+.meal-reminders p,.meal-reminders label,.meal-reminders dl {font-size:1rem;line-height:1.5;overflow-wrap:anywhere}
+.meal-reminders dl>div {display:flex;flex-wrap:wrap;justify-content:space-between;gap:.3rem;padding:.5rem 0;border-bottom:1px solid var(--line)}
+.meal-reminders dd {margin:0}
+.meal-reminders .check {min-height:44px}
+.reminder-how summary {font-size:1rem;min-height:44px;display:flex;align-items:center;cursor:pointer}
+
 /* ---------- sheet (bottom dialog) ---------- */
 .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.36); display: flex; align-items: flex-end; justify-content: center; animation: fade .18s ease-out; }
 @keyframes fade { from { opacity: 0; } }
@@ -1769,6 +1777,9 @@ nav.tabs [data-quick-log] { color:var(--accent); }
 #pending-items .actions { flex-wrap: wrap; }
 
 /* ---------- Permanent food conversation (#122 D) ---------- */
+.empty-meal-ways {display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+.empty-meal-ways button {font-size:1rem;min-height:44px;flex:1 1 9rem;white-space:normal}
+
 .food-thread { font-size: 1rem; height: calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom)); min-height: 0; display: flex; flex-direction: column; padding-bottom: 8px; }
 .thread-heading { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .food-thread h1 { margin: 20px 0 4px; }
@@ -1935,7 +1946,6 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 /* Deliberate recipe sharing, with a compact shared portion picker. */
 .recipe-page #dk-done {min-height:44px;min-width:44px;}
 .recipe-page .share-row {width:100%;text-align:left;min-height:60px;}
-.shared-friends .person {display:flex;flex-wrap:wrap;gap:.65rem;align-items:center;padding:.65rem 0;}
 .shared-friends .person .grow {min-width:0;overflow-wrap:anywhere;}
 .shared-friends [data-sd] {min-height:44px;white-space:normal;}
 .shared-recipes {margin:.5rem 0 .8rem;min-width:0;}
@@ -1955,7 +1965,7 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .food-thread:has(.shared-recipe-row) > .thread-intro {display:none;}
 .food-thread:has(.shared-recipe-row) #thread-empty {padding:0;visibility:hidden;}
 
-.shared-friends .person {display:grid;grid-template-columns:40px minmax(0,1fr);}
+.shared-friends .person {display:grid;grid-template-columns:40px minmax(0,1fr);gap:.65rem;align-items:center;padding:.65rem 0;}
 .shared-friends .person b,.shared-friends .person small {display:block;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
 .shared-friends .person b {font-size:1rem;}
 .shared-friends .person small {font-size:.85rem;}

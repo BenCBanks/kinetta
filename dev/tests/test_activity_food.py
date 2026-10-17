@@ -10,5 +10,7 @@ s=summarize(now,a,f,110);assert s['workouts']==2 and s['distance_m']==5000 and s
 assert summarize(now,[],[],None)['days_logged']==0
 assert summarize(now,[],f,None)['protein_days_reached']==0
 assert summarize(now,[],[{'day':y,'protein_g':0}],110)['protein_days_known']==1
-assert summarize(now,[],[{'day':y,'protein_g':120},{'day':y,'protein_g':None}],110)['protein_days_reached']==0
+assert summarize(now,[],[{'day':y,'protein_g':120},{'day':y,'protein_g':None}],110)['protein_days_reached']==1
 print('Combined week synthetic local dates,7 completed days, workouts/distance/time, any-food consistency, protein unknown vs zero/current target and no-watch empty histories PASS')
+
+assert summarize(now,[],[{'day':y,'protein_g':120},{'day':y,'protein_g':None}],110)['protein_days_unknown']==0

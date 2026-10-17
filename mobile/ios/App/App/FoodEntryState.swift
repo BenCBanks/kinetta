@@ -10,8 +10,14 @@ struct FoodEntryRequest: Codable {
 struct FoodEntryState: Codable {
     let ownerDigest: String
     var requests: [FoodEntryRequest] = []
-    mutating func purge(now: Date) {
+    static func restored(_ data: Data, owner: String) -> Self {
+        if let old = try? JSONDecoder().decode(Self.self,from:data),old.ownerDigest == owner { return old }
+        return Self(ownerDigest:owner)
+    }
+    @discardableResult mutating func purge(now: Date) -> Bool {
+        let before = requests.count
         requests.removeAll { $0.created < now.addingTimeInterval(-86400) || $0.created > now.addingTimeInterval(300) }
+        return requests.count != before
     }
     mutating func add(text: String?,source: FoodEntryRequest.Source,now: Date) throws {
         purge(now:now)

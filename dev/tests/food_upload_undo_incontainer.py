@@ -33,6 +33,11 @@ try:
  assert add(pair).status_code==409
  fresh=entry();assert add([fresh],False).status_code==200
  assert cancel([fresh]).status_code==200 and not rows();assert add([fresh],False).status_code==409
+ # The shared upload endpoint must not bypass the chat receipt's later-edit guard.
+ edited=entry();response=add([edited]);eid=response.json()['ids'][0]
+ assert a.patch('/api/food/entries/'+str(eid),json={'sodium_mg':999}).status_code==200
+ result=cancel([edited]);assert result.status_code==200 and result.json()['kept']==1 and any(e['id']==eid for e in rows())
+ assert a.delete('/api/food/entries/'+str(eid),headers={'Content-Type':'application/json'}).status_code==200
  # Serialized concurrent arrival always leaves no food and a durable tombstone.
  for _ in range(6):
   e=entry()

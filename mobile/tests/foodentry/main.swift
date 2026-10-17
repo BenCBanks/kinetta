@@ -16,3 +16,7 @@ let restored = try JSONDecoder().decode(FoodEntryState.self,from:JSONEncoder().e
 guard restored.ownerDigest == state.ownerDigest,restored.requests.count == 5 else { fatalError("owner state roundtrip") }
 state.purge(now:now.addingTimeInterval(86401));guard state.requests.isEmpty else { fatalError("expiry") }
 print("Food entry native state: private owner digest, quick/text sources, bounded input/inbox, idempotent acknowledgement, persistence and24h expiry PASS")
+
+let fresh = FoodEntryState.restored(Data("corrupt".utf8),owner:"new")
+guard fresh.ownerDigest == "new",fresh.requests.isEmpty else {fatalError("corrupt inbox recovery")}
+guard !state.purge(now:now.addingTimeInterval(86401)) else {fatalError("unchanged purge must avoid file write")}

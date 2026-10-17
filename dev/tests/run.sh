@@ -30,6 +30,7 @@ node dev/tests/test_native_sync.js
 node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
 node dev/tests/test_combined_week_ui.js
+node dev/tests/test_workout_sync_status.js
 node dev/tests/test_native_resting.js
 node dev/tests/test_social_gestures.js
 node dev/tests/test_card_taps.js
@@ -44,6 +45,7 @@ node dev/tests/test_async_reads.js
 node dev/tests/test_offline_queue.js
 node dev/tests/test_client_uuid.js
 node dev/tests/test_thread_outbox.js
+node dev/tests/test_thread_privacy.js
 node dev/tests/test_thread_nutrients.js
 node dev/tests/test_extra_nutrients.js
 node dev/tests/test_recent_nutrients.js
@@ -55,6 +57,7 @@ node dev/tests/test_food_upload_undo.js
 python3 dev/tests/test_food_number_parser.py
 node dev/tests/test_meal_reminders_ui.js
 python3 dev/tests/test_meal_reminder_times.py
+node dev/tests/test_health_session.js
 node dev/tests/test_weekly_food_review.js
 node dev/tests/test_thread_sources.js
 node dev/tests/test_food_search.js
@@ -112,4 +115,6 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_numbers_incontainer
 docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_incontainer.py
 
 docker compose -p "$P" exec -T app python - < dev/tests/activity_food_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
 echo "== all passed"
