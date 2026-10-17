@@ -8,6 +8,7 @@ processing and the visible thread follow separately.
 """
 import datetime as dt
 import json
+import re
 from typing import Literal
 from . import meal_chat
 from uuid import UUID, uuid4
@@ -37,7 +38,9 @@ class MessageIn(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError('Write a message first')
-        if 'data:image/' in value.lower():
+        if re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', value):
+            raise ValueError('Remove control characters from this message')
+        if value.lower().startswith('data:image/') or re.fullmatch(r'(?:/9j/|iVBORw0KGgo|R0lGOD|UklGR)[A-Za-z0-9+/=\r\n]{80,}', value):
             raise ValueError('Use the photo tool; images are not saved in the thread')
         return value
 
@@ -63,16 +66,26 @@ def message_entries(c, uid, messages):
     return [{**m, 'entries': grouped.get(m['id'], [])} for m in messages]
 
 
+def link_entries(c,uid,messages,ids):
+    if ids:
+        c.execute("""INSERT INTO food_chat_entries(user_id,message_id,entry_id)
+                     SELECT %s,m,e FROM unnest(%s::bigint[]) m CROSS JOIN unnest(%s::bigint[]) e
+                     ON CONFLICT (message_id,entry_id) DO NOTHING""",(uid,[m['id'] for m in messages],ids))
+
+
 @router.get('')
 def history(before: int | None = Query(None, gt=0), limit: int = Query(30, ge=1, le=100), user=Depends(current_user)):
     with db.connect() as c:
+        roots = c.execute("""SELECT id FROM food_chat_messages WHERE user_id = %s AND kind = 'user'
+                             AND (%s::bigint IS NULL OR id < %s) ORDER BY id DESC LIMIT %s""",
+                          (user['id'], before, before, limit + 1)).fetchall()
+        more = len(roots) > limit
+        ids = [row['id'] for row in roots[:limit]]
         rows = c.execute(f'''SELECT {COLUMNS} FROM food_chat_messages WHERE user_id = %s
-                             AND (%s::bigint IS NULL OR id < %s)
-                             ORDER BY id DESC LIMIT %s''', (user['id'], before, before, limit + 1)).fetchall()
-        more = len(rows) > limit
-        rows = list(reversed(rows[:limit]))
+                             AND coalesce(reply_to,id) = ANY(%s)
+                             ORDER BY coalesce(reply_to,id), id''', (user['id'], ids)).fetchall() if ids else []
         return {'messages': message_entries(c, user['id'], rows),
-                'before': rows[0]['id'] if more else None, 'has_more': more,
+                'before': min(ids) if more else None, 'has_more': more,
                 'preferences': preferences(c, user['id'])}
 
 
@@ -87,10 +100,10 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         captured = body.captured_at or dt.datetime.now(dt.timezone.utc)
         # A phone clock ahead of the server must not strand an offline message.
         now = dt.datetime.now(dt.timezone.utc)
-        if captured > now + dt.timedelta(minutes=10):
+        if captured > now + dt.timedelta(minutes=10) or captured < now - dt.timedelta(days=7):
             captured = now
         try:
-            local_day = captured.astimezone(ZoneInfo(p.get('tz') or db.DEFAULT_TZ)).date()
+            local_day = captured.astimezone(ZoneInfo(db.valid_tz(p.get('tz')) or db.DEFAULT_TZ)).date()
         except (ValueError, OverflowError):
             raise HTTPException(400, 'Message time is outside the supported range')
         if body.media=='barcode' and not body.barcode:raise HTTPException(422,'Scan or type a barcode')
@@ -157,15 +170,28 @@ def finish_reply(c, uid, message, result):
     row = c.execute(f'''INSERT INTO food_chat_messages
                         (user_id,client_id,kind,body,captured_at,local_day,state,reply_to,result)
                         VALUES (%s,%s,'reply',%s,%s,%s,'answered',%s,%s)
-                        ON CONFLICT (user_id,reply_to) DO UPDATE SET body=excluded.body,result=excluded.result,state='answered' RETURNING {COLUMNS}''',
-                    (uid,uuid4(),result['text'],message['captured_at'],message['local_day'],message['id'],json.dumps(result))).fetchone()
+                        ON CONFLICT (user_id,reply_to) DO UPDATE SET body=excluded.body,result=excluded.result,state='answered' WHERE %s RETURNING {COLUMNS}''',
+                    (uid,uuid4(),result['text'],message['captured_at'],message['local_day'],message['id'],json.dumps(result),message['state']=='answered')).fetchone()
+    if row is None: raise HTTPException(409,'A reply already exists; reload this message')
     updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
                              WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
                         (json.dumps({'kind':result['kind'],'reply_id':row['id'],**({'input':message['result']['input']} if (message.get('result') or {}).get('input') else {})}),message['id'],uid)).fetchone()
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 
-def answer_with(c, uid, message):
+def locked_message(c,uid,mid):
+    c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+    message=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,uid)).fetchone()
+    if not message:raise HTTPException(404,'Message not found')
+    if message['kind']!='user':raise HTTPException(400,'Choose a message you sent')
+    return message
+
+
+def stored_reply(c,uid,message):
+    return c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=%s',(uid,message['id'])).fetchone()
+
+
+def answer_with(c, uid, message, question=None):
     from . import food_thread_facts as facts
     if message['kind'] != 'user':
         raise HTTPException(400,'Only a message you sent can be answered')
@@ -174,13 +200,13 @@ def answer_with(c, uid, message):
         return {'handled':True,'messages':message_entries(c,uid,[message]+([reply] if reply else []))}
     if message['state']!='pending':
         raise HTTPException(409,'This message is no longer pending')
-    question=facts.classify(message['body'],message['local_day'])
+    question=question or facts.classify(message['body'],message['local_day'])
     if question is None:
         return {'handled':False,'messages':message_entries(c,uid,[message])}
     if question['kind']=='clarify':
         result={'kind':'answer','intent':'clarify','text':question['text'],'source':'code'}
     else:
-        result=facts.answer(question,facts.snapshot(c,uid,question['day']))
+        result=facts.answer(question,facts.snapshot(c,uid,question['day'],question))
     result['as_of']=dt.datetime.now(dt.timezone.utc).isoformat()
     return finish_reply(c,uid,message,result)
 
@@ -188,10 +214,7 @@ def answer_with(c, uid, message):
 @router.post('/messages/{mid}/answer')
 def answer_message(mid: int, body: AnswerIn, user=Depends(current_user)):
     with db.connect() as c:
-        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
-        message=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,user['id'])).fetchone()
-        if not message:
-            raise HTTPException(404,'Message not found')
+        message=locked_message(c,user['id'],mid)
         return answer_with(c,user['id'],message)
 
 
@@ -281,7 +304,7 @@ def cancel_pending(body: CancelIn,user=Depends(current_user)):
             if message['kind']!='user':raise HTTPException(409,'Choose a message you sent')
             reply=engine.stored_reply(c,uid,message)
             result=(reply or {}).get('result') or {}
-            if result.get('kind')=='log' and not result.get('pending_count') and not result.get('cancelled'):
+            if message['state']=='answered' and not result.get('pending_count') and not result.get('cancelled'):
                 raise HTTPException(409,'This food is already saved. Use Undo on its card to remove it.')
             c.execute("UPDATE food_chat_messages SET state='cancelled' WHERE id=%s AND user_id=%s",(message['id'],uid))
             c.execute("UPDATE food_chat_jobs SET state='cancelled' WHERE message_id=%s AND user_id=%s",(message['id'],uid))
