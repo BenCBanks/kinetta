@@ -136,7 +136,7 @@ def full_day_min(c, user_id, base):
     return PARTLY * float(goal or base)
 
 
-def tdee(c, user_id, days=28):
+def tdee(c, user_id, days=28, *, excluded_days=()):
     """Daily needs from BMR (see the top of this file) + the measured check. Key 'tdee' = daily needs WITHOUT exercise."""
     ctx = context(c, user_id)
     factor = float((c.execute('SELECT activity_factor FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}).get('activity_factor') or 1.2)
@@ -147,6 +147,7 @@ def tdee(c, user_id, days=28):
     intake = {r['day']: float(r['kcal']) for r in c.execute(
         'SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day',
         (user_id, start, end)).fetchall()}
+    intake = {day:kcal for day,kcal in intake.items() if day not in excluded_days}
     typical = median(intake.values()) if intake else 0
     least = full_day_min(c, user_id, base)
     full = {d: k for d, k in intake.items() if k >= 0.5 * typical and k >= least}     # partly logged days left out

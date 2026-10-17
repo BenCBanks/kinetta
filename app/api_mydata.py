@@ -28,6 +28,7 @@ _last_export = {}
 # table -> SQL giving one jsonb per row for the person (%s = user id). Personal tables only; secrets left out.
 DROP = " - 'user_id'"
 TABLES = {
+    'nutrition_checkins': "SELECT to_jsonb(t)" + DROP + " FROM nutrition_checkins t WHERE user_id = %s ORDER BY week",
     'profile': "SELECT to_jsonb(t)" + DROP + " FROM profile t WHERE user_id = %s",
     'activities': """SELECT to_jsonb(t)""" + DROP + """ - 'geom' - 'start_pt' - 'end_pt' - 'file_path' - 'file_sha256'
                        || jsonb_build_object('track', ST_AsGeoJSON(t.geom)::jsonb) FROM activities t WHERE user_id = %s ORDER BY start_time""",

@@ -149,6 +149,7 @@ async function meOverview(el) {
     $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="primary wide" id="tf-retry">Try again</button></div>';
     $('#tf-retry',el).onclick = () => { invalidate('/api/food/day'); render(); };
   });
+  weeklyCheckinCard($('#t-checkin',el),{home:true});
   // The existing feed applies friendship and sharing rules on the server; food never enters it.
   load('/api/feed/friends?limit=3', rows => {
     if (!el.isConnected) return;

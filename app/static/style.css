@@ -1840,3 +1840,19 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 /* Explain energy estimates without implying measured weight or fat change. */
 .estimate-note{font-size:1rem;line-height:1.5;overflow-wrap:anywhere;}
 .insight.estimate-note>div>span{font-size:1em;line-height:1.5;}
+
+/* Weekly check-in shares the same card on Me and Progress. */
+.checkin-card,.checkin-explanation{font-size:1rem;}
+.checkin-card h2{font-size:1.4em;}
+.checkin-card p,.checkin-explanation p{font-size:1em;line-height:1.5;overflow-wrap:anywhere;}
+.checkin-card .small{font-size:.875em;}
+.checkin-numbers{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,5em),1fr));gap:10px;margin:18px 0;}
+.checkin-numbers div{min-width:0;}
+.checkin-numbers dt{font-size:.8em;color:var(--tx2);}
+.checkin-numbers dd{margin:6px 0 0;}
+.checkin-numbers b{display:block;font-size:clamp(1rem,5.5vw,1.3rem);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.checkin-numbers small{display:block;font-size:.75em;color:var(--tx2);}
+.checkin-actions{display:flex;flex-wrap:wrap;gap:8px;}
+.checkin-actions button{flex:1;min-width:96px;min-height:48px;font-size:1em;white-space:normal;}
+.checkin-card .linkbtn,.checkin-card .primary,.checkin-history summary{font-size:1em;min-height:44px;white-space:normal;}
+.checkin-history summary{display:flex;align-items:center;cursor:pointer;color:var(--accent);}

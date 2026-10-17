@@ -19,6 +19,46 @@ function guessMeal() {   // the meal you usually log at this hour (learned from 
 // Me leads with food even when there are no workouts or meals yet.
 const homeCalories = v => Math.round((v || 0) / 5) * 5;
 function macroTotal(D,k,target){const missing=D.unknown_nutrients?.[k]||0;if(missing)return missing>=D.entries.length?'Unknown':`${r0(D.totals[k])} g known · incomplete`;return `${r0(D.totals[k])} g${target?' / '+r0(target)+' g':''}`;}
+function syncCheckinPrimary(page){
+  if(!page)return;const log=$('#tf-add',page);
+  if(log){const pending=page.dataset.checkinPending==='true';log.classList.toggle('primary',!pending);log.classList.toggle('ghost',pending);}
+  const primary=!!$('#nt-checkin .primary',page);
+  if(primary)$$('#nt-body .primary',page).forEach(b=>{b.dataset.checkinQuiet='1';b.classList.replace('primary','ghost');});
+  else $$('#nt-body [data-checkin-quiet]',page).forEach(b=>{delete b.dataset.checkinQuiet;b.classList.replace('ghost','primary');});
+}
+function checkinDetails(row,actions=false){
+  const d=row.data,convert=kg=>imp()?kg*2.20462:kg,unit=imp()?'lb':'kg';
+  const rate=d.trend_kg_per_week,requested=convert(d.requested_kg_per_week||0);
+  const aim=requested>=.05&&['lose_weight','build_muscle'].includes(d.goal)?`For your goal of ${d.goal==='lose_weight'?'losing':'gaining'} about ${requested.toFixed(1)} ${unit} a week, `:'For your current goal, ';
+  return `<section class="card checkin-card" data-checkin="${esc(row.id)}"><h2>Your weekly check-in</h2><p class="small muted">Week of ${esc(dayLabel(row.week))} · last 28 completed days · as of ${esc(new Date(row.updated).toLocaleDateString([],{month:'short',day:'numeric',timeZone:tz()}))}</p>
+    <dl class="checkin-numbers"><div><dt>Average eaten</dt><dd><b>${r0(homeCalories(d.avg_intake))}</b><small>kcal / logged day</small></dd></div><div><dt>Weight trend</dt><dd><b>${rate>0?'+':''}${convert(rate).toFixed(1)}</b><small>${unit} / week</small></dd></div><div><dt>Observed burn</dt><dd><b>${r0(homeCalories(d.observed_burn))}</b><small>kcal / day · inferred</small></dd></div></dl>
+    <p>${actions?esc(aim)+'try ':'Saved suggestion: '}<b>${r0(d.suggested_kcal)} kcal a day</b>.</p>${d.floor_applied?'<p class="small">The estimated resting-burn floor limits this suggestion; the requested pace may be slower.</p>':''}
+    <p class="small muted">${d.logged_days} fully logged days · ${d.weigh_ins} weigh-ins over ${d.weigh_in_span_days} days. Formula estimate: about ${r0(homeCalories(d.estimated_burn))} kcal / day.${d.unknown_calorie_days?' Days with unknown calories are left out.':''}</p>
+    ${actions?'<div class="checkin-actions"><button type="button" class="primary" data-checkin-accept>Accept</button><button type="button" class="ghost" data-checkin-later>Not now</button></div>':`<p class="small">${row.state==='accepted'?'Accepted · calorie target updated at that time.':row.state==='deferred'?'Not now · hidden on Me until next week.':'Previous suggestion · not applied.'}</p>`}
+    <button type="button" class="linkbtn" data-checkin-help>How this works</button><p class="err" role="status" data-checkin-status></p></section>`;
+}
+async function weeklyCheckinCard(box,{home=false}={}){
+  if(!box?.isConnected)return;const owner=readOwner(),valid=()=>box.isConnected&&owner===readOwner();
+  if(!home)box.innerHTML=skel(1);
+  const draw=data=>{
+    if(!valid())return;const row=data.current,pending=row?.state==='pending';
+    const page=box.closest('#page');if(home&&page){page.dataset.checkinPending=String(!!pending);syncCheckinPrimary(page);}
+    if(home&&!pending){box.innerHTML='';return;}
+    if(row)box.innerHTML=checkinDetails(row,pending);
+    else{const r=data.readiness||{},action=r.action||'food';box.innerHTML=`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>${esc(r.reason||'Not enough data yet.')}</p>${action==='weight'?'<button class="primary wide" type="button" data-checkin-weight>Log weight</button>':`<a class="primary wide" href="${action==='goal'?'/food/setup':'/food/describe'}">${action==='goal'?'Choose a goal':'Log food'}</a>`}<p class="small muted">No watch or AI needed. Suggestions wait for complete enough food and weight records.</p></section>`;const weight=$('[data-checkin-weight]',box);if(weight)weight.onclick=()=>{if(valid())quickWeighIn();};}
+    if(!home){const history=(data.history||[]).filter(r=>r.id!==row?.id&&r.week<data.week);if(history.length)box.insertAdjacentHTML('beforeend',`<details class="checkin-history"><summary>Previous check-ins</summary>${history.map(r=>checkinDetails(r)).join('')}</details>`);}
+    $$('[data-checkin-help]',box).forEach(b=>b.onclick=()=>{if(!valid())return;sheet('How your check-in works',`<div class="checkin-explanation"><p>We use the last 28 completed days. At least 7 fully logged food days and 3 weigh-ins spanning 10 days are needed. Very partial days and today are left out.</p><p>Average food minus the energy equivalent of your weight trend gives an observed daily burn estimate. It includes your usual workouts; it is not a direct measurement. The formula estimate is shown for comparison.</p><p>Your chosen goal and pace shape the calorie suggestion. It cannot go below estimated resting burn. Water changes, missing food and scale variation can affect the result.</p><p>Accept changes only your calorie target. Your chosen resting-calorie source and macro targets stay as set. Not now hides the card on Me until next week; this record remains in Progress.</p><p>No AI or watch is needed. You can change your goal or target any time.</p></div>`);});
+    syncCheckinPrimary(page);
+    for(const [selector,action]of [['[data-checkin-accept]','accept'],['[data-checkin-later]','later']]){const button=$(selector,box);if(button)button.onclick=async()=>{
+      if(!valid())return;$$('.checkin-actions button',box).forEach(b=>b.disabled=true);const status=$('[data-checkin-status]',box);status.textContent=action==='accept'?'Updating your calorie target…':'Saving your choice…';
+      try{const result=await api(`/api/food/check-in/${row.id}/${action}`,json('POST',action==='accept'?{baseline:row.baseline,confirmed:true}:{}));if(!valid())return;
+        invalidate('/api/food');if(result.kcal_target!=null)refreshMe({...App.me,kcal_target:result.kcal_target});draw(result);toast(result.current?.state==='accepted'?'Calorie target saved.':'Check-in hidden until next week.');render();
+      }catch(e){if(!valid())return;if(e.status===409){invalidate('/api/food/check-in');await weeklyCheckinCard(box,{home});toast(e.message);}else{status.textContent=e.message;$$('.checkin-actions button',box).forEach(b=>b.disabled=false);}}
+    };}
+  };
+  try{await load('/api/food/check-in',draw,{maxAge:30000});}catch(e){if(valid()){if(home){const page=box.closest('#page');if(page){page.dataset.checkinPending='false';syncCheckinPrimary(page);}}box.innerHTML=home?'':`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>Check-in could not load. Your food log is still available.</p><button class="ghost wide" type="button" data-checkin-retry>Retry</button></section>`;const retry=$('[data-checkin-retry]',box);if(retry)retry.onclick=()=>weeklyCheckinCard(box,{home});}}
+}
+
 function todayFoodCard(box) {
   return load('/api/food/day', (D) => {
     if (!box.isConnected) return;
@@ -37,6 +77,7 @@ function todayFoodCard(box) {
       ${meal ? `<div class="home-empty-meal"><span>${esc(MEAL_NAMES[meal])} · nothing yet</span><button class="linkbtn" id="tf-yesterday">Same as yesterday</button></div>` : ''}
       ${workouts.map(w => `<a class="home-workout" href="/activity/${w.id}">${svg(w.sport || 'activity')}<span>${esc(w.name)}${w.distance_m ? ` · ${U.dist(w.distance_m)} ${U.du()}` : ''}<small>+${r0(homeCalories(w.kcal))} kcal burned${w.estimated ? ' · estimated' : ''}</small></span>${svg('chev')}</a>`).join('')}
       ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</section>`;
+    syncCheckinPrimary(box.closest?.('#page'));
     const day = D.day, expected = guessMeal();
     $('#tf-add', box).onclick = () => describeSheet(day, expected);
     $$('[data-home-food]', box).forEach(b => b.onclick = () => {
@@ -1249,7 +1290,8 @@ async function nutritionView(el, view, q) {
   $('#n-range', el).onclick = () => pickSheet('Time range', pickRows([...NRANGES.map(([d, n]) => [String(d), n]),
     ['since', since ? `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'})}` : 'Since a date…', since ? 'Tap again to change the date' : 'For example the day you started a diet']], r),
     (k) => (k === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(k)));
-  root.innerHTML = `<div id="nt-body">${skel(3)}</div>${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;   // the numbers first, then the coach
+  root.innerHTML = `${view==='overview'&&location.pathname==='/progress'?'<div id="nt-checkin"></div>':''}<div id="nt-body">${skel(3)}</div>${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;
+  if(view==='overview'&&location.pathname==='/progress')weeklyCheckinCard($('#nt-checkin',root));   // the numbers first, then the coach
   if (view === 'overview') dietCoach($('#nt-coach', root));
   const url = r === 'since' ? '/api/food/insights?days=30&since=' : `/api/food/insights?days=${r}`;
   if (r === 'since') {   // need the saved start date first
@@ -1266,7 +1308,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   if (!box || !box.isConnected) return;
   const S = I.summary, T = I.targets, lb = imp(), wu = lb ? 'lb' : 'kg', wconv = (kg) => (lb ? kg * 2.20462 : kg);
   const past = I.rows.filter((r) => !r.today);
-  if (!I.rows.some((r) => r.eaten != null)) { box.innerHTML = '<div class="card empty"><b>Nothing logged in this range</b><p>Start with something you ate to build your food and weight picture.</p><a class="primary wide" href="/food">Log food</a><p class="small muted">Have older records? <a href="/food/import">Add past days</a>.</p></div>'; return; }
+  if (!I.rows.some((r) => r.eaten != null)) { box.innerHTML = '<div class="card empty"><b>Nothing logged in this range</b><p>Start with something you ate to build your food and weight picture.</p><a class="primary wide" href="/food">Log food</a><p class="small muted">Have older records? <a href="/food/import">Add past days</a>.</p></div>';syncCheckinPrimary(box.closest?.('#page')); return; }
   const tile = (label, value, unit, sub, cls = '', href = '') => `<${href ? `a href="${href}"` : 'div'} class="ntile ${cls}"><small>${esc(label)}</small><b class="num">${value}<i>${esc(unit)}</i></b>${sub ? `<span>${sub}</span>` : ''}</${href ? 'a' : 'div'}>`;
   const sgn = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
   const weekly = days > 90;   // a year of daily bars is too thin: average by week
@@ -1312,7 +1354,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
       <div class="legend small"><span><i class="sw m-protein_g"></i>Protein ${pct(kcalP)}% · ${r0(S.avg_protein_g)} g</span><span><i class="sw m-carbs_g"></i>Carbs ${pct(kcalC)}% · ${r0(S.avg_carbs_g)} g</span><span><i class="sw m-fat_g"></i>Fat ${pct(kcalF)}% · ${r0(S.avg_fat_g)} g</span></div>` : ''}
       <h3 class="sub">By meal</h3>${Object.entries(S.meals || {}).map(([m, v]) => `<div class="mrow mealrow"><span>${esc(MEAL_NAMES[m])}</span><div class="track"><div class="bar meal-bar" data-w="${(v / 100).toFixed(3)}"></div></div><b class="num">${v}%</b></div>`).join('')}</div>
     ${I.top_foods.length ? `<div class="card"><h2>Top foods by calories</h2>${I.top_foods.map((f) => `<div class="mrow topf"><span title="${esc(f.name)}">${esc(f.name)}</span><div class="track"><div class="bar meal-bar" data-w="${(f.kcal / I.top_foods[0].kcal).toFixed(3)}"></div></div><b class="num">${r0(f.kcal)}<i> · ${f.n}×</i></b></div>`).join('')}</div>` : ''}`};
-  box.innerHTML = html[part];
+  box.innerHTML = html[part];syncCheckinPrimary(box.closest?.('#page'));
   requestAnimationFrame(() => {
     if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, partial: c.partial, segs: [{k: 's3', v: c.protein_g || 0}]})),
       {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150});
