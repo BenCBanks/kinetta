@@ -291,7 +291,7 @@ route(/^\/track\/health$/, 'track', async (el) => {
   wireBack(el, '/track');
   const box = $('#h-body', el);
   if (!Native.on) {
-    box.innerHTML = `<div class="card"><p>Apple Health works in the Kinetta iPhone app. In a browser, use <a href="/track/connections">Watch connections</a> instead.</p></div>`;
+    box.innerHTML = `<div class="card"><p>Apple Health works in the Kinetta iPhone app. In a browser, use <a href="/track/import">Upload files</a> to add activity recordings.</p></div>`;
     return;
   }
   const [isOn, st, bg] = await Promise.all([Native.healthOn(), Native.healthStatus(), Native.backgroundStatus()]);
@@ -302,7 +302,7 @@ route(/^\/track\/health$/, 'track', async (el) => {
       <p id="h-progress" class="health-progress" role="status">${esc(Native.healthProgress || '')}</p>
       <p>Kinetta reads from Apple Health:</p>
       <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Resting Energy</b>, only if you choose Apple Health resting calories in Nutrition</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
-      <p class="small muted">Kinetta can only import what the recording app saves to Health. Garmin Connect does not send GPS tracks to Apple Health; use Watch connections or import the original file for those maps. Sync now also checks for details that arrived later.</p>
+      <p class="small muted">Kinetta can only import what the recording app saves to Health. Garmin Connect does not send GPS tracks to Apple Health; use Add the map on the workout to import its original file. Sync now also checks for details that arrived later.</p>
       <p class="small muted">${bg?.enabled ? 'iOS can sync new workouts in the background. Delivery timing depends on iOS; locked phones and force-quitting can delay it. Open Kinetta to catch up.' : 'Sync runs when you open Kinetta or return to it.'} Keep your phone unlocked until the first import finishes.</p>
       <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Kinetta only reads; it never changes your Health data.</p>
       <p class="small muted">Workouts go only to your Kinetta server${Native.base ? ` (${esc(Native.base.replace(/^https?:\/\//, ''))})` : ''} and are private to you.</p>
@@ -317,7 +317,7 @@ route(/^\/track\/health$/, 'track', async (el) => {
         <button class="ghost wide danger" id="h-off">Stop syncing</button>`
       : '<button class="primary wide" id="h-on">Connect Apple Health</button>'}</div>
     <div class="card"><h2>Kit, your AI coach</h2>
-      <p class="small">Kit writes notes about your training using an AI service. It reads your Apple Health workouts and resting calories only if you say yes. Until then Kit stays off for you.</p>
+      <p class="small">Kit writes notes about your training using an AI service. It reads your Apple Health workouts and resting calories only if you say yes. Until then training answers that use Health data stay off.</p>
       <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health data</label></div>`;
   const err = $('.err', box);
   Native.onHealthProgress = (text) => { if (box.isConnected) $('#h-progress', box).textContent = text; };
