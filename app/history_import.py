@@ -138,6 +138,9 @@ class SaveIn(BaseModel):
 def save(body: SaveIn, user=Depends(current_user)):
     uid, n = user['id'], {'weights': 0, 'days_food': 0, 'skipped_food': 0, 'burned': 0}
     with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR NO KEY UPDATE',(uid,))
+        from . import api_health_weights as H
+        state=H.profile(c,uid)
         for r in body.rows:
             if r.day > dt.date.today(): continue
             if body.replace:   # only imported values are removed; food and weights logged in the app stay
@@ -145,8 +148,9 @@ def save(body: SaveIn, user=Depends(current_user)):
                 if r.eaten is None: c.execute("DELETE FROM food_entries WHERE user_id = %s AND day = %s AND source = 'import'", (uid, r.day))
                 if r.burned is None: c.execute("DELETE FROM day_energy WHERE user_id = %s AND day = %s AND source = 'import'", (uid, r.day))
             if r.weight_kg:
+                H.lift_exclusion(c,uid,r.day,state['tz'] or db.DEFAULT_TZ)
                 c.execute("""INSERT INTO weights (user_id, day, kg, source) VALUES (%s, %s, %s, 'import')
-                             ON CONFLICT (user_id, day) DO UPDATE SET kg = excluded.kg, source = 'import'""", (uid, r.day, r.weight_kg)); n['weights'] += 1
+                             ON CONFLICT (user_id, day) DO UPDATE SET kg = excluded.kg, source = 'import',health_sample_id=NULL,source_name=NULL""", (uid, r.day, r.weight_kg)); n['weights'] += 1
             if r.eaten is not None:
                 if c.execute("SELECT 1 FROM food_entries WHERE user_id = %s AND day = %s AND source <> 'import' LIMIT 1", (uid, r.day)).fetchone():
                     n['skipped_food'] += 1          # food already logged here that day: keep it, don't double count
@@ -165,6 +169,9 @@ def save(body: SaveIn, user=Depends(current_user)):
             if r.burned:
                 c.execute("""INSERT INTO day_energy (user_id, day, burned_kcal, source) VALUES (%s, %s, %s, 'import')
                              ON CONFLICT (user_id, day) DO UPDATE SET burned_kcal = excluded.burned_kcal, source = 'import'""", (uid, r.day, r.burned)); n['burned'] += 1
+        H.rebuild(c,uid,state['tz'] or db.DEFAULT_TZ,days=[r.day for r in body.rows])
+        from .api_food import _latest_weight
+        _latest_weight(c,uid)
     return {'ok': True, **n}
 
 
@@ -205,7 +212,12 @@ def summary(user=Depends(current_user)):
 def remove(user=Depends(current_user)):
     """Remove everything that came from an import (food logged in the app and normal weigh-ins stay)."""
     with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR NO KEY UPDATE',(user['id'],))
         a = c.execute("DELETE FROM food_entries WHERE user_id = %s AND source = 'import'", (user['id'],)).rowcount
-        b = c.execute("DELETE FROM weights WHERE user_id = %s AND source = 'import'", (user['id'],)).rowcount
+        removed = c.execute("DELETE FROM weights WHERE user_id = %s AND source = 'import' RETURNING day", (user['id'],)).fetchall();b=len(removed)
+        from . import api_health_weights as H
+        state=H.profile(c,user['id']);H.rebuild(c,user['id'],state['tz'] or db.DEFAULT_TZ,days=[r['day'] for r in removed])
+        from .api_food import _latest_weight
+        _latest_weight(c,user['id'])
         d = c.execute("DELETE FROM day_energy WHERE user_id = %s AND source = 'import'", (user['id'],)).rowcount
     return {'ok': True, 'days_food': a, 'weights': b, 'burned': d}
