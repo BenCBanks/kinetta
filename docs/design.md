@@ -534,3 +534,7 @@ The server has an unexposed, bounded public-HTTPS reader and JSON-LD Recipe pars
 ### Recipe links: authenticated drafts (#122 N2)
 
 An explicit authenticated recipe-link read now creates only a private parsed draft and deterministic own-food matches. Reopening/retrying its identity never refetches or logs food; discard prevents late responses from restoring it. Reads are capped per person and drafts expire. There is no new UI yet: the next slice adds candidate choice, editable My Recipes review, explicit save and source labels. A page with no schema offers the screenshot/typed-ingredient fallback. See [recipe-links.md](recipe-links.md).
+
+### Recipe-link review/save foundation (#122 N3)
+
+The authenticated draft API now separates Review from Save recipe. Review recalculates own-food matches and shows whole-recipe/per-serving values with per-nutrient site, matched-ingredient, entered or unknown sources. Save requires the displayed baseline and an explicit confirmation; changed source foods require another review/tap. Saving never logs food. Imported recipes remember their reviewed serving count; one logged serving is that fraction of the batch. Ordinary existing recipes keep their whole-meal serving convention. Unknown calories prevent logging; absent macros carry unknown flags rather than becoming recorded zeros. There is not yet a user-facing import screen; its UI and screenshots follow in N4.

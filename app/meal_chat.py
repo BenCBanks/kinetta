@@ -410,20 +410,20 @@ def settle(c, uid, e, p):
 def compute(c, uid, kind, row, p):
     """Entries to log for one food at portion p, from stored values only. Returns (entries, None) or (None, why)."""
     if kind == 'dish':
-        if not row['items'] and row['known_kcal'] is None: return None, 'Add nutrition to this meal first in My Recipes.'
+        if (row.get('recipe_source') and dishes._totals(row)['kcal'] is None) or (not row['items'] and row['known_kcal'] is None): return None, 'Add nutrition to this meal first in My Recipes.'
         weight = dishes._weight(row)
         if 'grams' in p:
             if not weight: return None, 'This meal has no total weight. Say half, a quarter or a number of servings, or add its weight in My Recipes.'
             f, amount_, unit = p['grams'] / weight, round(p['grams'], 1), 'g'
         elif 'count' in p:
             if p['count'] > 20: return None, 'Use up to 20 whole-meal servings.'
-            f, amount_, unit = p['count'], round(p['count'], 2), 'serving'
+            f, amount_, unit = p['count'] / dishes.serving_count(row), round(p['count'], 2), 'serving'
         elif weight: f, amount_, unit = p['share'], round(weight * p['share'], 1), 'g'
         else: f, amount_, unit = p['share'], round(p['share'], 3), 'dish'
         if amount_ <= 0: return None, 'Use a bigger amount.'
         totals = dishes._totals(row)
         return [{'name': row['name'], 'brand': None, 'amount': amount_, 'unit': unit, **scaled(totals, f), 'source': 'dish',
-                 'ref': {'dish_id': row['id'], 'weight_g': weight, 'dish_kcal': totals['kcal']}}], None
+                 'ref': {'dish_id': row['id'], 'weight_g': weight, 'dish_kcal': totals['kcal'],'unknown_nutrients':[k for k,v in totals.items() if v is None]}}], None
     if kind == 'combo':
         if 'count' not in p: return None, 'Say how many, like "2" or "half".'
         f = p['count']
@@ -725,7 +725,7 @@ def item_for(c, uid, p, catalog, issued=None):
     entries, why = compute(c, uid, e['kind'], e['row'], portion)
     if not why and too_big(entries): why = 'That portion is too large. Check the amount.'
     if why: return {**head, 'status': 'quantity', 'message': why, 'options': quick_amounts(e)}
-    totals = {k: round(sum(x[k] or 0 for x in entries), 1) for k in NUM}
+    totals = {k: None if any(x.get(k) is None or k in ((x.get('ref') or {}).get('unknown_nutrients') or []) for x in entries) else round(sum(x[k] for x in entries),1) for k in NUM}
     if all(x['fiber_g'] is None for x in entries): totals['fiber_g'] = None
     out = {**head, 'status': 'ready', 'portion': portion, 'amount': amount_label(entries, e['kind'], portion), 'note': note, 'totals': totals}
     if issued is not None: out['expected'] = fingerprint(uid, e['kind'], e['id'], portion, snapshot(e), issued)

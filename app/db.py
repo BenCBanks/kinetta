@@ -1083,6 +1083,10 @@ MIGRATIONS = [
        CREATE POLICY all_rows ON recipe_link_drafts FOR SELECT TO fit_all_readers USING(true);
        GRANT SELECT ON recipe_link_drafts TO fit_readers;""",
 
+    # 52: imported-recipe source and nullable known fiber; old recipes retain whole-meal servings.
+    """ALTER TABLE dishes ADD COLUMN known_fiber_g real,
+         ADD COLUMN recipe_source jsonb NOT NULL DEFAULT '{}'::jsonb;""",
+
 ]
 
 

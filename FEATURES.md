@@ -168,3 +168,5 @@ Me's setup hints recognise any of the person's own saved food history as well as
 Recipe-link foundation (#122 N1, pending review): bounded public-HTTPS fetching and non-AI schema.org Recipe parsing, with fictional parser and SSRF tests. No user-facing import action yet; draft review, ingredient matching, rate limiting and screenshots follow in N2. See [recipe link design](docs/recipe-links.md).
 
 Recipe-link draft API (#122 N2, pending review): authenticated, per-person rate-limited reads create private parsed drafts with matches to your own saved foods. No recipe or food entry is saved; retry, cancellation, expiry, data export and account deletion are covered. The review/save interface follows separately.
+
+Recipe-link review/save API (#122 N3, pending review): explicit review and confirmation, per-nutrient published/matched/entered sources, unknown-preserving totals and fiber, stale-source second review, atomic replay-safe saves and imported multi-serving portions. Saving a recipe does not log food. User-facing import/review screen follows in N4; existing recipes retain their serving convention.
