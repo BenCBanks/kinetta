@@ -115,3 +115,4 @@ See [Recording activities](docs/activity-tracking.md).
 
 - **Food-first home:** Today’s calories and macros, direct Describe/Snap/Scan/Usual logging, a preview of yesterday’s meal, and today’s workout calories. Friends and distance appear when there is something to show; all training tools remain available.
 - **Shared ＋ Log:** fast food entry, workout recording and a prefilled weigh-in from the centre tab. A recording indicator returns to your draft in one tap. Progress switches between Food & weight and Training, remembering your choice.
+- **Private food-thread API (foundation):** durable text messages, safe retries, older-history pagination, individual deletion, export and account deletion. Food links are owner-bound; no food-photo history is retained. Conversation processing and the visible thread follow in the remaining #122 D work.
