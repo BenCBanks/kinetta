@@ -7,7 +7,7 @@ const r0 = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
 const r1 = (v) => (v == null ? '–' : (Math.round(v * 10) / 10).toString());
 // a food's numbers in full, shown when you tap it (rows show calories only; 2026-10-12: "1P 50C 1F" meant nothing)
 const nutGrid = (v) => `<div class="nut"><span><b class="num">${r0(v.kcal)}</b><small>Calories</small></span>${MACROS.map(([k, n]) =>
-  `<span><b class="num">${r1(v[k])} g</b><small>${n}</small></span>`).join('')}</div>`;
+  `<span><b class="num">${(v.ref?.unknown_nutrients||[]).includes(k)?'Unknown':r1(v[k])+' g'}</b><small>${n}</small></span>`).join('')}</div>`;
 const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
 const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}); };
@@ -18,6 +18,7 @@ function guessMeal() {   // the meal you usually log at this hour (learned from 
 
 // Me leads with food even when there are no workouts or meals yet.
 const homeCalories = v => Math.round((v || 0) / 5) * 5;
+function macroTotal(D,k,target){const missing=D.unknown_nutrients?.[k]||0;if(missing)return missing>=D.entries.length?'Unknown':`${r0(D.totals[k])} g known · incomplete`;return `${r0(D.totals[k])} g${target?' / '+r0(target)+' g':''}`;}
 function todayFoodCard(box) {
   return load('/api/food/day', (D) => {
     if (!box.isConnected) return;
@@ -30,7 +31,7 @@ function todayFoodCard(box) {
       ${D.entries.length || g != null ? `<div class="home-energy"><small>${g == null ? 'Eaten' : left < 0 ? 'Above goal' : 'Calories left'}</small><div class="hero-num num">${r0(homeCalories(g == null ? T.kcal : Math.abs(left)))}<i>kcal</i></div>
       <p class="small muted">${r0(homeCalories(T.kcal))} eaten${g == null ? '' : ` · ${r0(homeCalories(g))} goal`}</p></div>` : '<p>Make room for what you enjoy. Start with something you ate.</p>'}
       ${g == null ? '<a class="linkbtn home-set-goal" href="/food/setup">Set a goal · optional</a>' : ''}
-      ${D.entries.length ? `<div class="split home-macro-bar" aria-hidden="true">${MACROS.map(([k]) => `<i class="m-${k}" data-w="${macroEnergy ? ((T[k] || 0)*(k === 'fat_g' ? 9 : 4)/macroEnergy).toFixed(3) : 0}"></i>`).join('')}</div><div class="home-macros" aria-label="Macros eaten">${MACROS.map(([k,n]) => `<span><b>${n}</b><span class="num">${r0(T[k])} g${D.targets?.[k.replace('_g','_target')] ? ` / ${r0(D.targets[k.replace('_g','_target')])} g` : ''}</span></span>`).join('')}</div>` : ''}
+      ${D.entries.length ? `<div class="split home-macro-bar"${MACROS.some(([k])=>D.unknown_nutrients?.[k])?' hidden':''} aria-hidden="true">${MACROS.map(([k]) => `<i class="m-${k}" data-w="${macroEnergy ? ((T[k] || 0)*(k === 'fat_g' ? 9 : 4)/macroEnergy).toFixed(3) : 0}"></i>`).join('')}</div><div class="home-macros" aria-label="Macros eaten">${MACROS.map(([k,n]) => `<span><b>${n}</b><span class="num">${macroTotal(D,k,D.targets?.[k.replace('_g','_target')])}</span></span>`).join('')}</div>` : ''}
       <button class="primary wide" id="tf-add">${svg('plus')} Log food</button>
       <div class="home-food-ways" role="group" aria-label="Ways to log food">${[['describe','Describe','comment'],['snap','Snap','camera'],['scan','Scan','barcode'],['usual','Usual','food']].map(([k,n,ico]) => `<button class="ghost" data-home-food="${k}">${svg(ico)}${n}</button>`).join('')}</div>
       ${meal ? `<div class="home-empty-meal"><span>${esc(MEAL_NAMES[meal])} · nothing yet</span><button class="linkbtn" id="tf-yesterday">Same as yesterday</button></div>` : ''}
@@ -41,6 +42,7 @@ function todayFoodCard(box) {
     $$('[data-home-food]', box).forEach(b => b.onclick = () => {
       Native.haptic('selection');
       if (b.dataset.homeFood === 'usual') addSheet(day, expected);
+      else if (['scan','snap'].includes(b.dataset.homeFood) && typeof FoodThread!=='undefined') go('/food/describe?tool='+b.dataset.homeFood);
       else if (b.dataset.homeFood === 'scan') scanSheet(day, expected, product => amountSheet(product, {day, meal:expected}));
       else { describeSheet(day, expected); if (b.dataset.homeFood === 'snap') { const f = $('#ql-file'); if (f) { f.setAttribute('capture','environment'); if (aiCan('food')) f.click(); else toast('Enable food photo estimates in Me, or describe your food'); } } }
     });
@@ -192,7 +194,7 @@ function drawDay(el, D) {
       <div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories eaten' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} eaten of ${r0(goal)}</p>`}</div>
         <button class="ghost" id="fd-goal" aria-label="Set the calorie goal for this day">${svg('edit')} ${goal == null ? 'Set goal' : 'Goal'}</button></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
-      <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div><div class="macro-line"><b>${n}</b><span class="num">${r0(v)}${target ? ' / ' + r0(target) : ''} g</span></div>${target ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
+      <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div><div class="macro-line"><b>${n}</b><span class="num">${macroTotal(D,k,target)}</span></div>${target && !D.unknown_nutrients?.[k] ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
       ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
       ${!watchResting && B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>' : B.day_burn == null ? `<p class="small muted tc-bal">Resting calories have not synced for this day. Activities: ${r0(B.kcal)} kcal. Total burn is waiting for resting data.</p>`
@@ -233,7 +235,7 @@ function drawDay(el, D) {
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => copyDay(addDays(D.day, -1), D.day);
 }
 const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit === 'dish' ? 'meal' : e.unit}`);
-const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); }; // keep a live full-page food conversation until its own confirmation navigates
+const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
 
 async function addEntries(items) {   // each item gets a client_id, so a resend after a lost connection never doubles it
   items = items.map((it) => ({...it, client_id: it.client_id || newId()}));
@@ -308,12 +310,13 @@ async function removeFoodEntry(e, {button, after} = {}) {
 
 // ---------- edit an entry ----------
 function entrySheet(e, day) {
+  const owner = readOwner();
   const ref = e.ref;
   sheet('Edit food', `<p class="entry-context"><b>${esc(e.name)}</b><small class="muted">${MEAL_NAMES[e.meal]} · ${esc(dayLabel(day))}</small></p><div id="es-nut">${nutGrid(e)}</div><form class="form" id="es">
     <label>Name<input name="name" value="${esc(e.name)}" maxlength="200"></label>
     <div class="two"><label>Amount<input name="amount" inputmode="decimal" value="${r1(e.amount)}"></label>
       <label>Unit<select name="unit">${unitOptions(ref, e.unit)}</select></label></div>
-    ${macroInputs(e)}
+    ${macroInputs({...e,...Object.fromEntries((e.ref?.unknown_nutrients||[]).map(k=>[k,null]))})}
     <details class="entry-move"><summary>Move this food</summary><div class="two entry-when"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === e.meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <label>Day<input class="datefield" name="day" type="date" value="${esc(day)}"></label></div></details>
     <div class="actions"><button class="primary wide">Save changes</button></div></form>
@@ -329,19 +332,20 @@ function entrySheet(e, day) {
       let v;
       if (ref && (ref.per100 || ref.per_serving)) v = scaleFood(ref, a, f.unit.value);
       else if (e.amount > 0 && f.unit.value === e.unit) { const k = a / e.amount; v = {kcal: e.kcal * k, protein_g: e.protein_g * k, carbs_g: e.carbs_g * k, fat_g: e.fat_g * k, fiber_g: e.fiber_g == null ? null : e.fiber_g * k}; }
-      if (v) for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) if (f[k]) f[k].value = v[k] == null ? '' : r1(v[k]);
-      if (v) $('#es-nut', b).innerHTML = nutGrid(v);
+      if (v) for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) if (f[k]) f[k].value = (e.ref?.unknown_nutrients||[]).includes(k) || v[k] == null ? '' : r1(v[k]);
+      if (v) $('#es-nut', b).innerHTML = nutGrid({...v,ref:e.ref});
     };
     f.amount.oninput = rescale; f.unit.onchange = rescale;
     f.onsubmit = async (ev) => {
-      ev.preventDefault();
+      ev.preventDefault(); if(owner!==readOwner()){close();return;}
       const n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value));
       const body = {name: f.name.value.trim() || e.name, amount: n(f.amount) || e.amount, unit: f.unit.value, meal: f.meal.value, day: f.day.value,
-        kcal: n(f.kcal) || 0, protein_g: n(f.protein_g) || 0, carbs_g: n(f.carbs_g) || 0, fat_g: n(f.fat_g) || 0, fiber_g: n(f.fiber_g)};
+        kcal: n(f.kcal) || 0, protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: n(f.fiber_g)};
       try { await api(`/api/food/entries/${e.id}`, json('PATCH', body)); close(); refresh(); } catch (x) { toast(x.message); }
     };
-    $('#es-del', b).onclick = () => removeFoodEntry(e, {button: $('#es-del', b), after: close});
+    $('#es-del', b).onclick = () => {if(owner!==readOwner()){close();return;}removeFoodEntry(e, {button: $('#es-del', b), after: close});};
     $('#es-again', b).onclick = async () => {   // the same food and amount, today in the meal for now
+      if(owner!==readOwner()){close();return;}
       const btn = $('#es-again', b); if (btn.disabled) return; btn.disabled = true;
       try { await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
         protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g, source: e.source, ref: e.ref}]); close(); toast(`Logged ${e.name} again today`); }
@@ -642,6 +646,7 @@ function describeSheet(day, meal) {
   go(`/food/describe?d=${encodeURIComponent(day)}&meal=${encodeURIComponent(meal)}`);
 }
 route(/^\/food\/describe$/, 'food', (el) => {
+  if(typeof FoodThread!=='undefined')return FoodThread.page(el);
   const q = new URLSearchParams(location.search), day = /^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '') ? q.get('d') : isoDay(new Date());
   describePage(el, day, Object.hasOwn(MEAL_NAMES, q.get('meal')) ? q.get('meal') : guessMeal());
 });
@@ -917,14 +922,14 @@ function reviewItems(box, list, {intro = '', add}) {
 
 // ---------- barcode ----------
 // onFound (a dish's + menu, 2026-10-12): hand the product back instead of logging it
-function scanSheet(day, meal, onFound) {
+function scanSheet(day, meal, onFound, onCode) {
   let stop = () => {};
   const closeSheet = sheet('Scan a barcode', `<div class="scan"><video id="sc-v" playsinline muted></video><div class="scanbox"></div></div>
     <p class="small muted" id="sc-msg">Point the camera at the barcode.</p>
     <form class="wform" id="sc-f"><input name="code" inputmode="numeric" placeholder="or type the number" aria-label="Barcode number"><button class="ghost">Look up</button></form>`, async (b, close) => {
     const v = $('#sc-v', b), msg = $('#sc-msg', b);
     const found = async (code) => {
-      stop(); msg.textContent = `Found ${code}. Looking it up…`;
+      stop(); if(onCode){close();onCode(String(code));return;} msg.textContent = `Found ${code}. Looking it up…`;
       try { const f = await api(`/api/food/barcode/${code}`); close(); if (onFound) onFound(f); else amountSheet(f, {day, meal}, () => {}); }
       catch (x) { msg.textContent = x.message; if (x.status === 404) { const go2 = confirm(`${x.message}. Create it now?`); if (go2) { close(); foodEditor({name: '', barcode: code, serving: {label: '1 serving'}}, null); } } }
     };

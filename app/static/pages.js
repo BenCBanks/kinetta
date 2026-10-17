@@ -1212,6 +1212,7 @@ function deleteSheet() {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
         await api('/api/account/delete', json('POST', {password: f.pw.value}));
+        if (typeof FoodThread !== 'undefined') { try { await FoodThread.eraseDevice(); } catch (e) { toast('Your account was deleted. Clear this app’s storage to remove its unsent food messages from this phone.'); } }
         if (typeof Track !== 'undefined') Track.forgetDraft();
         close(); store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
         App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin('Your account and all your data were deleted.');
