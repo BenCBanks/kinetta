@@ -615,3 +615,9 @@ Typed calorie/macro/nutrient clauses are nutrition facts to review, never separa
 Duplicate/conflicting values, malformed/out-of-range/negative numbers, ambiguous decimal separators, unsupported energy units, per-serving/per100g bases, missing calories and another food after the numbers stay held. Preserve the original text and usable values; ask for a whole-portion review without sending macro words to a provider. A day/meal ambiguity must be explicitly resolved on the card before manual save. Resolver retries cannot turn a held numeric card into an automatic log, and catalog/portion choices cannot bypass its numbers review. Questions and existing corrections still route first.
 
 No model, prompt, provider request, new table or target change is involved. Explicit save/reply/food rows commit together, source labels stay Your numbers, missing values do not become zero and existing Undo/replay/account protections apply.
+
+### Undo for deliberate food uploads (#122 D13)
+
+Quick numbers, usual foods, amount review, combinations, yesterday's meal and Log again return an Undo action after saving, including when queued offline. Undo cancels the original stable upload IDs in one account-scoped transaction; delayed retries through either current or older clients cannot recreate removed food. An intentional new log receives new IDs. Pending cancellation is saved before the original queued upload is removed, and a storage failure leaves that upload intact with Retry. Other accounts and unmatched items in a batch are preserved. Existing durable food-chat card Undo remains available after the toast ends. No migration, model or target change.
+
+The offline/pending banner occupies document space above the page, with a rectangular shape that accommodates large text. It must not cover the heading or first controls.

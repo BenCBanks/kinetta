@@ -317,7 +317,7 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         from . import food_thread_receipts as receipts
         for e in items:
-            if thread:receipts.guard(c,user['id'],e.client_id)
+            receipts.guard(c,user['id'],e.client_id)
             if e.ref is not None and isinstance(e.ref.get('unknown_nutrients'),list):
                 missing={k for k in e.ref['unknown_nutrients'] if isinstance(k,str) and k in N.ALL}
                 for k in N.EXTRA:
@@ -336,6 +336,33 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
             ids.append(r['id'])
         if thread:messages=receipts.create(c,user['id'],ids,captured_at)
     return {'ids':ids,**({'messages':messages} if thread else {})}
+
+
+class EntriesUndoIn(BaseModel):
+    model_config={'extra':'forbid'}
+    client_ids:list[str]=Field(min_length=1,max_length=100)
+    confirm:StrictBool
+
+
+@router.post('/entries/undo')
+def undo_entries(body:EntriesUndoIn,user=Depends(current_user)):
+    """Cancel stable upload IDs even before their first request reaches the server."""
+    if body.confirm is not True:raise HTTPException(400,'Confirm Undo')
+    if any(not re.fullmatch(r'[A-Za-z0-9-]{8,64}',v) for v in body.client_ids):raise HTTPException(422,'Use the original food upload IDs')
+    from . import food_thread,food_thread_log as engine,food_thread_receipts as receipts
+    uid=user['id'];messages=[];removed=0
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+        for client_id in dict.fromkeys(body.client_ids):
+            key=receipts.identity(uid,client_id)
+            c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES(%s,%s) ON CONFLICT DO NOTHING',(uid,key))
+            root=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,key)).fetchone()
+            if root and ((root.get('result') or {}).get('receipt') or {}).get('client_id')==client_id:
+                reply=engine.stored_reply(c,uid,root)
+                if reply and (reply.get('result') or {}).get('kind') in ('log','undone'):
+                    result=engine.undo(c,uid,root);removed+=result.get('removed',0);messages.extend(result.get('messages',[]))
+            removed+=len(c.execute('DELETE FROM food_entries WHERE user_id=%s AND client_id=%s RETURNING id',(uid,client_id)).fetchall())
+    return {'cancelled':True,'removed':removed,'messages':messages}
 
 
 class EntryEdit(N.ExtraValues):

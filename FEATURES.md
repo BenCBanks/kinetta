@@ -196,3 +196,5 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 - **iPhone food entry (#122 T1):** signed-in home-screen Log food action and a device-authenticated Log food in Kinetta Shortcuts/Siri text action open the permanent food chat for review. Existing drafts are preserved, interrupted handoffs deduplicate and nothing logs before Send. Physical entry-point/keyboard acceptance remains pending; Share to Kinetta follows in T2.
 
 - **Entered nutrition in food chat (#122 D12):** calorie/macro/nutrient text becomes a held Your numbers review, with all8 values, units and unknown/zero meaning preserved. It is never catalog-matched as protein/carbs/fat foods. Explicit Log is required; unclear amounts/bases/dates stay held with a prefilled manual review. No AI or automatic target changes.
+
+- **Undo queued food (#122 D13):** Quick, usual, combination, yesterday and Log again saves offer Undo, including offline. Stable-ID cancellation prevents an interrupted upload from restoring removed food; failures retain a retryable pending operation.

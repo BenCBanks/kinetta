@@ -1760,7 +1760,7 @@ nav.tabs [data-quick-log] { color:var(--accent); }
 #quick-weight label { font-size:.9rem; }
 
 /* Pending food and weight writes remain reviewable after errors. */
-.netbar { width: max-content; display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.netbar { position: sticky; left: auto; transform: none; top: 0; width: calc(100% - 24px); max-width: 620px; margin: 8px auto; border-radius: 12px; display: flex; align-items: center; gap: 8px; font-size: .85rem; }
 .netbar .linkbtn { color: inherit; min-width: 44px; min-height: 44px; flex-shrink: 0; text-decoration: underline; }
 .pending-item { padding-block: 12px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 #pending-items { font-size: 1rem; }

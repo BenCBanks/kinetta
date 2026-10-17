@@ -36,14 +36,14 @@ console.log('home food: useful empty state, totals, macros, direct describe/came
 })().catch(e=>{console.error(e);process.exitCode=1});
 (async()=>{
  let callback,owner='one',writes=0,undo,closed=0;
+ const uploadUndo=()=>{};
  const b={isConnected:true,innerHTML:''},save={disabled:false};
  const c={readOwner:()=>owner,skel:()=>'',esc:String,MEAL_NAMES:{lunch:'Lunch'},addDays:()=> '2026-10-16',fmtAmount:()=> '1 serving',
   sheet:(title,html,fn)=>{callback=fn(b,()=>closed++)},$:()=>save,Native:{haptic(){}},refresh(){},toast:(text,fn)=>{if(fn)undo=fn},
   api:async(path,options)=>{if(options){writes++;return {}}return {entries:[{meal:'lunch',name:'Fictional soup',amount:1,unit:'serving',kcal:400,sodium_mg:425,sugar_g:0,saturated_fat_g:null,source:'quick'}]}},
-  addEntries:async items=>{writes++;assert.equal(items[0].day,'2026-10-17');assert.equal(items[0].meal,'lunch');assert.equal(items[0].sodium_mg,425);assert.equal(items[0].sugar_g,0);assert.equal(items[0].saturated_fat_g,null);return {ids:[42]}}};
+  addEntries:async items=>{writes++;assert.equal(items[0].day,'2026-10-17');assert.equal(items[0].meal,'lunch');assert.equal(items[0].sodium_mg,425);assert.equal(items[0].sugar_g,0);assert.equal(items[0].saturated_fat_g,null);return {ids:[42],undo:uploadUndo}}};
  vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function yesterdayMeal'),source.indexOf('// nutrition for an amount')),c);
  c.yesterdayMeal('2026-10-17','lunch');await Promise.resolve();assert.match(b.innerHTML,/Fictional soup/);assert.equal(writes,0,'preview does not log');
  await save.onclick({currentTarget:save});assert.equal(writes,1);assert.equal(closed,1);assert.equal(typeof undo,'function');
- owner='two';await undo();assert.equal(writes,1,'Undo cannot act after switching account');owner='one';await undo();assert.equal(writes,2);
- await undo();assert.equal(writes,2,'Undo cannot delete twice');console.log('yesterday meal: preview before explicit save, correct day/meal, account guard and one-time Undo PASS');
+ assert.equal(undo,uploadUndo,'yesterday meal uses the shared durable upload Undo');console.log('yesterday meal: preview before explicit save, correct day/meal and shared durable Undo PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
