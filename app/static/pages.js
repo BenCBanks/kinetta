@@ -192,7 +192,7 @@ async function meOverview(el) {
     load('/api/activities?limit=3', (d) => {
       if (!el.isConnected) return;
       $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
-      Promise.resolve(Native.on ? Native.healthOn() : false).catch(() => false).then((connected) => {
+      Promise.resolve(Native.on ? (Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()) : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
         activityHistory=!!d.length;healthConnected=connected;drawSetup();
       });
@@ -1226,6 +1226,7 @@ function accountSheet(field) {
 }
 // delete my own account and everything in it (2026-10-11); needs the password, can't be undone
 function deleteSheet() {
+  const account=readOwner(),login=App.me.login;
   sheet('Delete my account', `<form class="form" id="del">
     <input name="username" value="${esc(App.me.login)}" autocomplete="username" hidden>
     <p>This deletes your account and <b>everything</b> in it straight away: activities, routes, food log, weigh-ins, plans and the files you uploaded. It can't be undone.</p>
@@ -1236,12 +1237,22 @@ function deleteSheet() {
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
-        await api('/api/account/delete', json('POST', {password: f.pw.value}));
-        if (typeof FoodThread !== 'undefined') { try { await FoodThread.eraseDevice(); } catch (e) { toast('Your account was deleted. Clear this app’s storage to remove its unsent food messages from this phone.'); } }
-        if (typeof RecipeImport !== 'undefined') RecipeImport.eraseDevice();
-        if (typeof Track !== 'undefined') Track.forgetDraft();
-        close(); store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
-        App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin('Your account and all your data were deleted.');
+        if(account!==readOwner())return;
+        if(Native.on)await Native.pauseHealth();
+        if(account!==readOwner())return;
+        try { await api('/api/account/delete', json('POST', {password: f.pw.value})); }
+        catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}
+        // Once the server confirms deletion, every cleanup gets its own chance.
+        const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
+        await cleanup(()=>Native.forget({deleted:true}));
+        await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
+        await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
+        await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
+        await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));
+        await cleanup(()=>forgetKept());await cleanup(()=>close());
+        App.me=null;App.cache.clear();
+        await cleanup(()=>netbar());await cleanup(()=>history.replaceState(null,'','/'));
+        showLogin('Your account and all your data were deleted.');
       } catch (x) { toast(x.message); btn.disabled = false; }
     };
   });
@@ -1330,11 +1341,11 @@ route(/^\/track\/connections$/, 'track', async (el) => {
     <details class="card" id="c-advanced"><summary>Advanced</summary><p class="small muted">For self-hosted installs and power users.</p><div id="c-body">${skel(2)}</div></details>`;
   wireBack(el, '/track');
   const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Apple Health</h2>
-    <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · bring in workouts from your iPhone.':'Available in the Kinetta iPhone app.'}</p>
+    <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · share nutrition, read weight or import workouts.':'Available in the Kinetta iPhone app.'}</p>
     ${st?.at?`<p class="small muted">Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.</p>`:''}${error?`<p class="err">${esc(error)}</p>`:''}
     <a class="${Native.on?'primary':'ghost'} wide" href="/track/health">${Native.on?isOn?'Manage Apple Health':'Connect Apple Health':'About Apple Health'}</a>
     <details><summary>Using a Garmin?</summary><p class="small">Enable Apple Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send the GPS map to Health; you can add the original file later.</p></details>`;};
-  if(Native.on)Native.healthCall(Promise.all([Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open Apple Health to review setup.'));
+  if(Native.on)Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open Apple Health to review setup.'));
   else healthCard(false,null);
   let C;
   try{C=await api('/api/connections');}catch(e){if(valid())$('#c-body',el).innerHTML=`<p class="err">${esc(e.message)}</p>`;return;}

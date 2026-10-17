@@ -14,4 +14,9 @@ Apple's [body mass type](https://developer.apple.com/documentation/healthkit/hkq
 
 Physical iPhone permission, background delivery, lock/unlock, account switching and deletion behavior remain unverified until the native implementation and device checks. No device data is used by backend contract tests.
 
+## iPhone setup (#122 I3/I4)
+
+Me → Connections → Apple Health → Read weight from Health requests only body mass. Choose the system switches and Done. It is optional; closing setup saves no new food target. The app then reads and uploads in bounded anchored batches, acknowledges only confirmed server receipts and catches up on open/resume. Manual weights win and current/history points show the source. Updating a Health point makes that day's point manual. An empty read does not identify denied permission.
+
+Turn off weight reading stops work on this iPhone before the server setting changes and removes Health-derived projected weight points while retaining private raw samples. If disconnected, the app says the local stop succeeded but the server setting needs a retry when online. Manage Health permissions opens the system access screen; weight reading remains separate from workout import, nutrition output, resting-energy selection and Health-to-Kit consent. New weight setup resets that AI scope and the consent checkbox reflects the server's current scope.
 Review corrections: legacy Health Auto Export weights use the same opt-in, source provenance, manual priority and AI consent as native weights. Deleting a Health point excludes its sample identities across time-zone changes; manual re-entry lifts the local-day fence. Manual history imports clear Health provenance and Undo restores eligible Health points. Normal upload pages rebuild only touched days. Turning reading off prevents projection rebuilds; saving the same effective time zone does not rotate the epoch.

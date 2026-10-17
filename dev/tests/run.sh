@@ -46,6 +46,8 @@ node dev/tests/test_thread_nutrients.js
 node dev/tests/test_extra_nutrients.js
 node dev/tests/test_recent_nutrients.js
 node dev/tests/test_shared_recipes.js
+node dev/tests/test_health_food_client.js
+node dev/tests/test_health_session.js
 node dev/tests/test_weekly_food_review.js
 node dev/tests/test_thread_sources.js
 node dev/tests/test_food_search.js
