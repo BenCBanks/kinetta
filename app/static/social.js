@@ -641,7 +641,8 @@ route(/^\/me\/notifications$/, 'me', async (el) => {
 async function pushCard(box, r) {
   if (!box) return;
   if (!Native.on) {
-    box.innerHTML = '<div class="card"><h2>iPhone notifications</h2><p>Open Kinetta’s native iPhone app to turn on phone notifications. Your notification history stays available here.</p></div>';
+    box.innerHTML = '<div class="card"><h2>iPhone notifications</h2><p>Open Kinetta’s native iPhone app to turn on phone notifications. Your notification history stays available here.</p></div><div id="np-meal-reminders"></div>';
+    mealReminderCard($('#np-meal-reminders',box));
     return;
   }
   if (!Native.pushSupported) {
@@ -660,7 +661,8 @@ async function pushCard(box, r) {
       : status.denied ? '<p class="small muted">Notifications are blocked for Kinetta. Allow them in iPhone Settings → Notifications → Kinetta, then return here.</p>'
       : `<p class="small muted">Get an alert on this iPhone for friend requests, ${esc(CHEER.many)}, comments, meals shared with you, and new workouts from your watch or Apple Health. Choose which ones after turning them on.</p>
         <button class="primary wide" id="np-on">Turn on iPhone notifications</button>`}
-    <p class="err" role="alert" id="np-error"></p></div>`;
+    <p class="err" role="alert" id="np-error"></p></div><div id="np-meal-reminders"></div>`;
+  mealReminderCard($('#np-meal-reminders',box));
   const error = $('#np-error', box), b = $('#np-on', box), off = $('#np-off', box);
   if (b) b.onclick = async () => {
     b.disabled = true; b.textContent = 'Connecting…'; error.textContent = '';
@@ -679,4 +681,25 @@ async function pushCard(box, r) {
     catch (x) { e.target.checked = !v; error.textContent = x.message; }
     finally { e.target.disabled = false; }
   };
+}
+
+async function mealReminderCard(box){
+  if(!box)return;const account=readOwner(),valid=()=>box.isConnected&&account===readOwner();
+  const draw=async()=>{
+    try{
+      const state=await api('/api/food/reminders');if(!valid())return;
+      const timeLabel=time=>new Date('2000-01-01T'+time+':00Z').toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:'UTC'});
+      box.innerHTML=`<section class="card meal-reminders"><h2>Meal-time reminders <span class="small muted">Optional</span></h2><p>A quiet invitation to log on your registered iPhones. Off by default. No streaks or calorie nudges.</p>
+        <dl>${state.times.map(row=>`<div><dt>${esc(MEAL_NAMES[row.meal])}</dt><dd>${row.ready?'Around '+esc(timeLabel(row.time)):'Building your usual time'}</dd></div>`).join('')}</dl>
+        <p class="small muted">Around your usual logging times · 7 am–9 pm (${esc(state.tz)}). A meal already logged stays quiet.</p><details class="reminder-how"><summary>How times work</summary><p>Uses your first same-day log for each meal across the last 28 completed days, rounded to about 15 minutes. Needs 3 daytime logging days. Past-day uploads do not set a time; no default time is invented.</p></details>
+        ${!state.push_ready?'<p class="small muted">The server’s Apple notification setup is not complete yet. Reminders cannot start until it is ready.</p>':!state.device_ready?`<p class="small muted">${Native.on?'First turn on iPhone notifications above. Allow Kinetta notifications in your phone’s Settings.':'Open the Kinetta iPhone app to turn on notifications.'}</p>`:''}
+        <label class="check"><input type="checkbox" data-meal-reminders${state.enabled?' checked':''}${!state.enabled&&(!state.push_ready||!state.device_ready)?' disabled':''}> Remind me around my usual meal times</label>
+        <p class="small muted">Turn this off here any time. An alert already delivered to a phone cannot be recalled.</p><p class="err" role="alert"></p></section>`;
+      const toggle=$('[data-meal-reminders]',box);toggle.onchange=async()=>{
+        if(!valid())return;const enabled=toggle.checked;toggle.disabled=true;$('.err',box).textContent='';
+        try{await api('/api/food/reminders',json('PUT',{enabled,confirmed:enabled}));if(!valid())return;Native.haptic('light');await draw();}
+        catch(error){if(valid()){toggle.checked=!enabled;toggle.disabled=false;$('.err',box).textContent=error.message||'Reminder setting could not be saved.';}}
+      };
+    }catch(error){if(valid()){box.innerHTML='<section class="card"><h2>Meal-time reminders</h2><p>Reminder settings could not load.</p><button class="ghost wide">Try again</button></section>';$('button',box).onclick=draw;}}
+  };box.innerHTML=skel(1);await draw();
 }
