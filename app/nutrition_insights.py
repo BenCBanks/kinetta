@@ -33,9 +33,9 @@ def insights_data(c, uid, days=30, since=None):
     days = max(1, min((today - since).days + 1, 731)) if since and since <= today else max(7, min(days, 366))
     start = today - dt.timedelta(days=days - 1)
     prof = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target, deficit_start, units FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
-    food = {r['day']: r for r in c.execute("""
-        SELECT day, sum(kcal) AS kcal, sum(protein_g) AS protein_g, sum(carbs_g) AS carbs_g, sum(fat_g) AS fat_g,
-               sum(fiber_g) AS fiber_g, count(fiber_g) AS fiber_n, count(*) AS n,
+    food = {r['day']: r for r in c.execute(f"""
+        SELECT day, CASE WHEN bool_or({energy.unknown_sql('kcal')}) THEN NULL ELSE sum(kcal) END AS kcal, CASE WHEN bool_or({energy.unknown_sql('protein_g')}) THEN NULL ELSE sum(protein_g) END AS protein_g, CASE WHEN bool_or({energy.unknown_sql('carbs_g')}) THEN NULL ELSE sum(carbs_g) END AS carbs_g, CASE WHEN bool_or({energy.unknown_sql('fat_g')}) THEN NULL ELSE sum(fat_g) END AS fat_g,
+               CASE WHEN bool_or({energy.unknown_sql('fiber_g')}) THEN NULL ELSE sum(fiber_g) END AS fiber_g, count(fiber_g) AS fiber_n, count(*) AS n,
                sum(kcal) FILTER (WHERE meal = 'breakfast' AND source <> 'import') AS m_breakfast, sum(kcal) FILTER (WHERE meal = 'lunch' AND source <> 'import') AS m_lunch,
                sum(kcal) FILTER (WHERE meal = 'dinner' AND source <> 'import') AS m_dinner, sum(kcal) FILTER (WHERE meal = 'snacks' AND source <> 'import') AS m_snacks
         FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day""", (uid, start, today)).fetchall()}
@@ -52,7 +52,7 @@ def insights_data(c, uid, days=30, since=None):
 
     usual = sum(v['kcal'] for d, v in ex.items() if start - dt.timedelta(days=28) <= d < start) / 28 if ex else 0
     usual = usual or info['avg_exercise']
-    past_kcal = [_f(r['kcal']) for d, r in food.items() if d < today]
+    past_kcal = [float(r['kcal']) for d, r in food.items() if d < today and r['kcal'] is not None]
     typical = median(past_kcal) if past_kcal else 0
     rows, total = [], 0.0
     d = start
@@ -62,27 +62,27 @@ def insights_data(c, uid, days=30, since=None):
         burned = burn['total']
         default = prof.get('kcal_target')
         goal = goals.get(d, default if default else None)      # workouts deepen the deficit, they don't raise the goal
-        eaten = _f(f['kcal']) if f else None
-        counted = bool(f) and d < today and not (typical and eaten < 0.5 * typical) and eaten >= least
+        eaten = float(f['kcal']) if f and f['kcal'] is not None else None
+        counted = eaten is not None and d < today and not (typical and eaten < 0.5 * typical) and eaten >= least
         deficit = burned - eaten if counted and burned is not None else None
         if deficit is not None: total += deficit
         rows.append({'day': d.isoformat(), 'imported_burn': burn['source'] == 'imported', 'burn_source': burn['source'], 'burn_missing': burned is None, 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burned) if burned is not None else None, 'exercise': round(exk),
                      'goal': round(goal) if goal else None, 'deficit': round(deficit) if deficit is not None else None, 'total': round(total),
                      'counted': counted, 'burn_counted': counted and burned is not None, 'today': d == today, 'training': exk > usual + 150,
-                     **{k: round(_f(f[k]), 1) if f else None for k in ('protein_g', 'carbs_g', 'fat_g')},
-                     'fiber_g': round(_f(f['fiber_g']), 1) if f and f['fiber_n'] else None,
+                     **{k: round(float(f[k]), 1) if f and f[k] is not None else None for k in ('protein_g', 'carbs_g', 'fat_g')},
+                     'fiber_g': round(_f(f['fiber_g']), 1) if f and f['fiber_n'] and f['fiber_g'] is not None else None,
                      'weight': raw_w.get(d), 'trend': round(energy.trend_on(ctx['points'], d), 2) if energy.trend_on(ctx['points'], d) is not None else None,
                      **({f'm_{m}': round(_f(f[f'm_{m}'])) for m in MEALS} if f else {})})
         d += dt.timedelta(days=1)
 
     C = [r for r in rows if r['counted']]
     B = [r for r in C if r['burn_counted']]
-    n = len(C); avg = lambda k: sum(r[k] or 0 for r in C) / n if n else None
+    n = len(C); avg = lambda k: sum(r[k] for r in C) / n if n and all(r[k] is not None for r in C) else None
     summary = {'days': days, 'logged': n, 'past_days': days - 1, 'avg_eaten': round(avg('eaten')) if n else None,
                'burn_counted_days': len(B), 'missing_burn_days': sum(r['burn_missing'] for r in C),
                'avg_burned': round(sum(r['burned'] for r in B) / len(B)) if B else None, 'avg_deficit': round(total / len(B)) if B else None, 'total_deficit': round(total),
                'avg_goal': round(sum(r['goal'] for r in C if r['goal']) / max(1, sum(1 for r in C if r['goal']))) if any(r['goal'] for r in C) else None,
-               **{f'avg_{k}': round(avg(k), 1) if n else None for k in ('protein_g', 'carbs_g', 'fat_g')},
+               **{f'avg_{k}': round(avg(k), 1) if avg(k) is not None else None for k in ('protein_g', 'carbs_g', 'fat_g')},
                'predicted_kg': round(-total / energy.KCAL_PER_KG, 2), 'tdee': info['tdee'], 'tdee_confidence': info['confidence'], 'kg': ctx['kg']}
     tr = [r['trend'] for r in rows if r['trend'] is not None]
     summary['trend_change_kg'] = round(tr[-1] - tr[0], 2) if len(tr) >= 2 and len(raw_w) >= 2 else None

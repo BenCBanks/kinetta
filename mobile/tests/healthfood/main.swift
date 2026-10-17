@@ -34,3 +34,14 @@ do { _ = try row.interval(timeZone: "UTC"); fatalError("wrong local day accepted
 let deleted = try JSONDecoder().decode(HealthFoodDay.self, from: Data(json.replacingOccurrences(of:"\"deleted\":false",with:"\"deleted\":true").utf8))
 check(deleted.quantity("kcal") == nil, "deleted day removes old own samples")
 print("Health food native state/mapping: owner-bound persistence, settings/permission reset, monotonic cursor, local DST, units/unknown-zero/deletion identity PASS")
+
+check(HealthFoodState.restored(Data("broken JSON".utf8),owner:"fresh").nutritionCursor == 0,"corrupt state recovers")
+let savedState = try JSONEncoder().encode(state)
+check(HealthFoodState.restored(savedState,owner:"other").owner == "other","other owner resets state")
+try state.validatePage([],next:99,zone:"UTC")
+try state.validatePage([row],next:99,zone:"America/New_York")
+do { try state.validatePage([row],next:21,zone:"America/New_York");fatalError("cursor below final revision") } catch {}
+let removed = HealthFoodState.weightDeletions(["valid","ignored"],ignoring:["ignored","later"])
+check(removed.send == ["valid"] && removed.keep == ["later"],"discarded weight identities never send deletion tombstones")
+check(HealthFoodError.weightBusy.localizedDescription.contains("weight"),"concurrent weight read has weight message")
+print("Health food review: corrupt/other-owner recovery, filtered/empty forward cursors, discarded weight deletion filtering PASS")

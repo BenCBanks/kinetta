@@ -244,7 +244,7 @@ def split(ts):
     return out
 
 
-OPENERS = {'i', 'we', 'had', 'have', 'has', 'ate', 'eaten', 'just', 'also', 'got', 'grabbed', 'drank', 'then', 'and', 'log', 'add', 'please'}
+OPENERS = {'i', 'we', 'had', 'have', 'has', 'ate', 'eaten', 'just', 'also', 'got', 'grabbed', 'drank', 'then', 'and', 'log', 'add', 'please', 'only'}
 
 
 def text_of(ts, catalog):
@@ -256,15 +256,15 @@ def describe(s, today, catalog):
     s = LEAD.sub('', norm(s).strip())
     s, info = when(s, today)
     if s is None: return None, info
-    parts, joined = [], []
+    parts, joined, joined_portions = [], [], []
     for fragment in split(protect(raw(s), catalog)):
         portion, rest = amount(fragment)
-        previous = amount(joined[-1])[0] if joined else None
+        previous = joined_portions[-1] if joined else None
         # ‘Garden pasta, 200 grams’: an amount-only fragment belongs to the
         # preceding exact own-food reference when it has no other amount.
         if joined and portion and rest is not None and all(isinstance(t,str) and t in FILLER for t in rest) and previous is None and any(not isinstance(t,str) for t in joined[-1]):
-            joined[-1] += fragment
-        else: joined.append(fragment)
+            joined[-1] += fragment; joined_portions[-1] = portion
+        else: joined.append(fragment); joined_portions.append(portion)
     for p in joined:
         if p and p[-1] == 'total' and any(not isinstance(t,str) for t in p) and amount(p[:-1])[0]: p = p[:-1]
         while p and isinstance(p[0], str) and p[0] in OPENERS: p = p[1:]                  # "i had", "we ate"
@@ -787,7 +787,7 @@ def confirm(body: ConfirmIn, user=Depends(current_user)):
         return confirm_data(c, user['id'], body)
 
 
-def confirm_data(c, uid, body):
+def confirm_data(c, uid, body, include_groups=False):
     if body.confirm is not True: raise HTTPException(400, 'Confirm before adding')
     items = [(i.kind, i.id, i.portion.clean(), i.expected) for i in body.items]
     request_key = hashlib.sha256(json.dumps([[k, f, p, x] for k, f, p, x in items] + [str(body.day), body.meal], sort_keys=True).encode()).hexdigest()
@@ -798,7 +798,7 @@ def confirm_data(c, uid, body):
         if any((o['ref'] or {}).get('chat_request') != request_key for o in old): raise HTTPException(409, 'This confirmation was already used for a different entry')
         return {'ids': [o['id'] for o in sorted(old, key=lambda o: o['id'])], 'replayed': True}
     if not 0 <= time.time() - body.issued <= 900: raise HTTPException(409, 'This preview expired. Describe it again.')
-    rows = []
+    rows = []; group_specs=[]
     for kind, fid, p, expected in items:
         row = source_row(c, uid, kind, fid)
         e = {'kind': kind, 'id': fid, 'row': row}
@@ -808,13 +808,21 @@ def confirm_data(c, uid, body):
         if why: raise HTTPException(400, why)
         if too_big(entries): raise HTTPException(400, 'That portion is too large. Check the amount.')
         rows += entries
+        group_specs.append((row['name'],len(entries),p))
     pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (uid, body.day)).fetchone()['p']
     ids = []
     for n, x in enumerate(rows):
+        # Legacy core zeros require unknown_nutrients; readers must honor coverage/N.known.
         x=N.storage(x)
         ref = {**(x['ref'] or {}), 'chat_request': request_key}
         ids.append(c.execute('''INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position, client_id)
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
                              (uid, body.day, body.meal, x['name'], x['brand'], x['amount'], x['unit'], *(x[k] for k in NUM),
                               x['source'], json.dumps(ref, default=str), pos + n, f'{body.client_id}-{n:02d}')).fetchone()['id'])
-    return {'ids': ids, 'replayed': False}
+    result={'ids':ids,'replayed':False}
+    if include_groups:
+        groups=[];offset=0
+        for name,count,portion in group_specs:
+            groups.append({'name':name,'ids':ids[offset:offset+count],'portion':portion});offset+=count
+        result['groups']=groups
+    return result

@@ -41,6 +41,7 @@ node dev/tests/test_async_reads.js
 node dev/tests/test_offline_queue.js
 node dev/tests/test_client_uuid.js
 node dev/tests/test_thread_outbox.js
+node dev/tests/test_thread_privacy.js
 node dev/tests/test_thread_nutrients.js
 node dev/tests/test_extra_nutrients.js
 node dev/tests/test_recent_nutrients.js
@@ -97,4 +98,6 @@ docker compose -p "$P" exec -T app python - < dev/tests/weekly_food_review_incon
 docker compose -p "$P" exec -T app python - < dev/tests/shared_recipes_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weights_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_nutrition_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
 echo "== all passed"

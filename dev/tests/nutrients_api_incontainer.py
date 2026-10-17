@@ -44,6 +44,15 @@ try:
  assert not b.get('/api/food/foods').json()
  assert a.put('/api/food/foods/'+str(food.json()['id']),json={'name':'Fictional renamed source portion','serving_g':50,'kcal':220}).status_code==200
  own=a.get('/api/food/foods').json()[0];assert own['per_serving']['sodium_mg']==250 and own['per_serving']['sugar_g']==0
+ assert a.put('/api/food/foods/'+str(food.json()['id']),json={'name':'Fictional resized source portion','serving_g':100,'kcal':440}).status_code==200
+ own=a.get('/api/food/foods').json()[0];assert own['per_serving']['sodium_mg']==500 and own['per100']['sodium_mg']==500 and own['per_serving']['sugar_g']==0
+ reference={'per100':{'sodium_mg':1000,'sugar_g':0,'saturated_fat_g':2},'unknown_nutrients':['future_nutrient']}
+ converted=a.post('/api/food/entries',json=[{'day':tomorrow,'meal':'breakfast','name':'Fictional referenced food','kcal':100,'amount':1,'unit':'serving','sodium_mg':100,'ref':reference}]);assert converted.status_code==200,converted.text
+ cid=converted.json()['ids'][0]
+ assert a.patch('/api/food/entries/'+str(cid),json={'amount':50,'unit':'g'}).status_code==200
+ with db.connect() as c:
+  row=c.execute('SELECT sodium_mg,sugar_g,ref FROM food_entries WHERE user_id=%s AND id=%s',(uid,cid)).fetchone()
+  assert row['sodium_mg']==500 and row['sugar_g']==0 and 'future_nutrient' in row['ref']['unknown_nutrients']
  # Old amount-edit forms scale the new known fields in the same unit; unconvertible unit changes clear them to unknown.
  assert a.patch('/api/food/entries/'+str(eid),json={'amount':2}).status_code==200
  edited=a.get('/api/food/day').json()['entries'][0];assert edited['saturated_fat_g']==5 and edited['sugar_g']==0
