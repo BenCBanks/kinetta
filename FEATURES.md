@@ -144,5 +144,11 @@ See [Recording activities](docs/activity-tracking.md).
   durable text/photo outbox, capture timestamps, explicit retry/cancel, meal/day
   correction, source labels, Edit/Undo, require-tap logging and tone settings.
   Snap, Photo library, Scan, Paste and keyboard dictation share the conversation.
-  Legacy picker receipts, optional daily note and private switch acceptance remain
-  separate #122 D requirements.
+  Optional daily note and private switch acceptance remain separate #122 D
+  requirements.
+
+- [x] Search, Quick, usual and recipe-portion logs can create neutral conversation
+  cards atomically; replays respect Undo and text deletion. Stable recipe-portion
+  retries work offline. Held previews retain sources/estimates, blank Quick macros
+  stay unknown, and delayed corrections remember their original food context
+  (#122 D).

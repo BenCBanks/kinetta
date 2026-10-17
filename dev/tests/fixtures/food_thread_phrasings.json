@@ -303,6 +303,11 @@
       "pr": 141,
       "text": "Week of Yesterday",
       "expected": "Week headings use calendar date"
+    },
+    {
+      "pr": 133,
+      "text": "2 eggs and a slice of grandma's cake",
+      "expected": "Preserve eggs when entering cake nutrition"
     }
   ]
 }

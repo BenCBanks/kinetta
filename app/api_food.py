@@ -14,8 +14,8 @@ import time
 import urllib.parse
 import urllib.request
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import AwareDatetime, BaseModel, Field
 
 from . import db, energy
 from .auth import current_user
@@ -306,11 +306,15 @@ class EntryIn(BaseModel):
 
 
 @router.post('/entries')
-def add_entries(items: list[EntryIn], user=Depends(current_user)):
+def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool = False, captured_at: AwareDatetime | None = None, restore_from: int | None = Query(None,gt=0)):
     if not 1 <= len(items) <= 100: raise HTTPException(400, '1-100 items')
-    ids = []
+    if restore_from is not None and (thread or len(items)!=1):raise HTTPException(422,'Restore one food without creating a new chat card')
+    ids = []; messages = []
     with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+        from . import food_thread_receipts as receipts
         for e in items:
+            if thread:receipts.guard(c,user['id'],e.client_id)
             pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (user['id'], e.day)).fetchone()['p']
             r = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position, client_id)
                              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -320,7 +324,9 @@ def add_entries(items: list[EntryIn], user=Depends(current_user)):
             if r is None:   # already received (offline resend)
                 r = c.execute('SELECT id FROM food_entries WHERE user_id = %s AND client_id = %s', (user['id'], e.client_id)).fetchone()
             ids.append(r['id'])
-    return {'ids': ids}
+        if thread:messages=receipts.create(c,user['id'],ids,captured_at)
+        elif restore_from is not None:messages=receipts.restore(c,user['id'],restore_from,ids[0])
+    return {'ids':ids,**({'messages':messages} if thread or restore_from is not None else {})}
 
 
 class EntryEdit(BaseModel):

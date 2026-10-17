@@ -238,16 +238,18 @@ function drawDay(el, D) {
 const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit === 'dish' ? 'meal' : e.unit}`);
 const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
 
-async function addEntries(items) {   // each item gets a client_id, so a resend after a lost connection never doubles it
+async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
   items = items.map((it) => ({...it, client_id: it.client_id || newId()}));
-  const r = await sendOrQueue('/api/food/entries', 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
+  const query=new URLSearchParams();if(thread){query.set('thread','true');query.set('captured_at',new Date().toISOString());}if(restoreFrom)query.set('restore_from',restoreFrom);
+  const r = await sendOrQueue('/api/food/entries'+(query.size?'?'+query:''), 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
   if (r.queued) {   // offline: show them now, marked "waiting to send"
     for (const it of items) patchDay(it.day, (d) => {
       d.entries.push({...it, id: 'q-' + it.client_id, pending: true});
       for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) d.totals[k] = (d.totals[k] || 0) + (it[k] || 0);
     });
-    render(); toast('Saved on this phone - it sends when you are back online'); return {queued: true};
+    if(location.pathname!=='/food/describe')render(); toast('Saved on this phone - it sends when you are back online'); return {queued: true};
   }
+  if(typeof FoodThread!=='undefined'&&r.messages){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
   refresh(); return r;
 }
 async function copyDay(from, to, meal) {
@@ -299,7 +301,7 @@ async function removeFoodEntry(e, {button, after} = {}) {
     const undo = async () => {
       if (restoring || restored || readOwner() !== owner) return;
       restoring = true;
-      try { await addEntries([entry]); restored = true; }
+      try { await addEntries([entry],{restoreFrom:e.id}); restored = true; }
       catch (x) { if (readOwner() === owner) toast(`Couldn’t restore ${e.name}: ${x.message}`, undo); }
       finally { restoring = false; }
     };
@@ -349,7 +351,7 @@ function entrySheet(e, day) {
       if(owner!==readOwner()){close();return;}
       const btn = $('#es-again', b); if (btn.disabled) return; btn.disabled = true;
       try { await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
-        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g, source: e.source, ref: e.ref}]); close(); toast(`Logged ${e.name} again today`); }
+        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g, source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(`Logged ${e.name} again today`); }
       catch (x) { toast(x.message); if (btn.isConnected) btn.disabled = false; }
     };
   });
@@ -371,7 +373,11 @@ const macroInputs = (e = {}) => `<div class="mac4">
   <label>Fiber g<input name="fiber_g" inputmode="decimal" value="${e.fiber_g != null ? r1(e.fiber_g) : ''}"></label></div>`;
 
 // ---------- add: usuals / saved dishes / search / quick ----------
+function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner())return;e.preventDefault();e.stopImmediatePropagation();close();toast('The account changed. Open this again.');};body.addEventListener('click',guard,true);body.addEventListener('submit',guard,true);
+  if(typeof MutationObserver!=='undefined'){const observer=new MutationObserver(()=>{if(!body.isConnected){observer.disconnect();return;}if(owner!==readOwner()){observer.disconnect();close();}});observer.observe(root,{childList:true,subtree:true});}
+}
 function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
+  const owner=readOwner();
   // One suggestions list inside Add food; meal cards show only what was actually logged.
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
@@ -381,6 +387,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
+    guardFoodSheet(b,close,owner);
     const dp = $('#as-day', b);     // a short label ("Today", "Sat, Oct 10") over the native picker: the full date field didn't fit
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
     dp.onchange = () => { if (dp.value) $('#as-dayl', b).textContent = dayLabel(dp.value); };
@@ -398,7 +405,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
   });
 }
-const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
+const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.origin==='ai'?'AI estimate'+(f.origin_edited?' · Edited':''):f.origin==='label'?'Nutrition label':f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
   <div class="r"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><small class="muted">kcal</small></div></button>`;
 function tSearch(body, where, close) {
   body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search foods, brands…" aria-label="Search foods and brands" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
@@ -450,8 +457,8 @@ async function tUsuals(body, where, close) {
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
-      try { await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
-        fat_g: l.fat_g, fiber_g: l.fiber_g, source: 'recent', ref: l.ref || null}]); close(); toast(`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
+      try { const result=await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
+        fat_g: l.fat_g, fiber_g: l.fiber_g, source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
@@ -516,7 +523,7 @@ function savedSheet(m, w, closeParent, after) {
       if (!k) { toast('How many servings?'); return; }
       const sc = (v) => (v == null ? null : v * k);
       const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}));
-      try { await addEntries(items); close(); closeParent(); toast(`Added ${m.name}`); } catch (x) { toast(x.message); }
+      try { await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
       if (!confirm(`Delete the saved meal ${m.name}?`)) return;
@@ -527,15 +534,20 @@ function savedSheet(m, w, closeParent, after) {
 }
 function tQuick(body, where, close) {
   body.innerHTML = `<form class="form" id="tq"><label>Name<input name="name" placeholder="e.g. Restaurant salad" maxlength="200"></label>${macroInputs()}
-    <p class="small muted">Leave calories blank to work them out from the macros.</p>
+    <p class="small muted">Enter calories, or all three macros to work them out. Other blank nutrients stay unknown.</p>
     <div class="actions"><button class="primary">Add</button></div></form>`;
   const f = $('#tq', body); softFocus(f.name);
+  const clientId=newId();
   f.onsubmit = async (e) => {
-    e.preventDefault(); const n = (x) => (x.value.trim() === '' ? 0 : parseFloat(x.value) || 0);
-    const it = {name: f.name.value.trim() || 'Quick add', amount: 1, unit: 'serving', protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: f.fiber_g.value ? n(f.fiber_g) : null, source: 'quick'};
+    e.preventDefault();const button=$('button.primary',f);if(button.disabled)return;
+    const missing=['protein_g','carbs_g','fat_g','fiber_g'].filter(k=>!f[k].value.trim());
+    if(!f.kcal.value.trim()&&missing.some(k=>k!=='fiber_g')){toast('Enter calories, or fill in protein, carbs and fat.');return;}
+    const n = (x) => (x.value.trim() === '' ? 0 : parseFloat(x.value) || 0);
+    const it = {client_id:clientId,ref:{origin:'manual',unknown_nutrients:missing},name: f.name.value.trim() || 'Quick add', amount: 1, unit: 'serving', protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: f.fiber_g.value ? n(f.fiber_g) : null, source: 'quick'};
     it.kcal = f.kcal.value.trim() ? n(f.kcal) : Math.round(it.protein_g * 4 + it.carbs_g * 4 + it.fat_g * 9);
     if (!it.kcal && !it.protein_g) { toast('Enter calories or macros'); return; }
-    try { await addEntries([{...it, ...where()}]); close(); toast(`Added ${it.name}`); } catch (x) { toast(x.message); }
+    button.disabled=true;
+    try { const result=await addEntries([{...it, ...where()}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`); } catch (x) { toast(x.message);button.disabled=false; }
   };
 }
 
@@ -544,6 +556,7 @@ function tQuick(body, where, close) {
 // product's full name as the title (brand + name), its serving size underneath, "Servings" with - and +, and small
 // buttons for the other units (grams) when the food has them.
 function amountSheet(f, w, closeParent, onEditFood) {
+  const owner=readOwner();
   const last = f._last;
   const startUnit = last ? last.unit : f._unit || 'serving', startAmt = last ? last.amount : 1;
   const nm = f.name && f.name !== 'Unnamed product' ? f.name : '', br = f.brand || '';
@@ -562,6 +575,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
     ${units.length > 1 ? `<div class="seg wide am-units" role="group" aria-label="Unit">${units.map((u) => `<button type="button" data-unit="${esc(u)}" aria-pressed="${u === startUnit}">${esc(uName(u))}</button>`).join('')}</div>` : ''}
     <div class="macpreview" id="am-p"></div>
     <div class="actions">${onEditFood ? '<button type="button" class="ghost" id="am-edit">Edit food</button><span class="spacer"></span>' : ''}<button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
+    guardFoodSheet(b,close,owner);
     const fm = $('#am', b);
     const calc = () => { const a = parseFloat(fm.amount.value) || 0; const v = f.per100 || f.per_serving ? scaleFood(f, a, fm.unit.value) : {kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0};
       $('#am-p', b).innerHTML = `<div><b class="num">${r0(v.kcal)}</b><small>kcal</small></div>${MACROS.map(([k, , s]) => `<div><b class="num">${r1(v[k])}</b><small>${s === 'P' ? 'protein' : s === 'C' ? 'carbs' : 'fat'} g</small></div>`).join('')}`; return v; };
@@ -583,21 +597,23 @@ function amountSheet(f, w, closeParent, onEditFood) {
     fm.onsubmit = async (e) => {
       e.preventDefault(); const a = parseFloat(fm.amount.value); if (!(a > 0)) { toast('Enter an amount'); return; }
       const v = calc();
-      const ref = {source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
-      try { await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}]);
-        close(); closeParent(); toast(`Added ${title}`); } catch (x) { toast(x.message); }
+      const ref = {origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
+      try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}],{thread:location.pathname==='/food/describe'});
+        close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`); } catch (x) { toast(x.message); }
     };
   });
 }
 function foodEditor(food, after) {
+  const owner=readOwner();
   const ps = food && food.per_serving || {};
-  sheet(food ? 'Edit my food' : 'New food', `<form class="form" id="fe">
+  sheet(food ? 'Edit my food' : 'New food', `${food?.origin==='ai'?`<p class="small">AI estimate${food.origin_edited?' · Edited':''}. ${esc(food.origin_notes||'Check the numbers and portion before using them.')}</p>`:''}<form class="form" id="fe">
     <label>Name<input name="name" required maxlength="200" value="${esc(food ? food.name : '')}"></label>
     <div class="two"><label>Brand<input name="brand" value="${esc(food && food.brand || '')}"></label><label>Barcode<input name="barcode" inputmode="numeric" value="${esc(food && food.barcode || '')}"></label></div>
     <div class="two"><label>Serving<input name="serving_label" value="${esc(food && food.serving ? food.serving.label : '1 serving')}"></label><label>Serving grams<input name="serving_g" inputmode="decimal" value="${food && food.serving && food.serving.g ? r1(food.serving.g) : ''}"></label></div>
     <p class="small muted">Nutrition per serving:</p>${macroInputs(ps)}
     <label class="check"><input type="checkbox" name="favorite"${food && food.favorite ? ' checked' : ''}> Favourite (shows first)</label>
     <div class="actions">${food ? '<button type="button" class="ghost danger" id="fe-del">Delete</button><span class="spacer"></span>' : ''}<button class="primary">Save</button></div></form>`, (b, close) => {
+    guardFoodSheet(b,close,owner);
     const f = $('#fe', b), n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value));
     f.onsubmit = async (e) => {
       e.preventDefault();

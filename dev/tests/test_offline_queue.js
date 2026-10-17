@@ -31,6 +31,7 @@ function client(storage=new Map()) {
  for(const failure of [{status:401},{status:409,code:'account_changed'}]) {
   c=client();c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[],label:'Food'});c.api=async()=>{throw Object.assign(Error('Sign in again'),failure)};await c.ui.Q.flush();assert.equal(c.ui.Q.mine()[0].error,null);let sent=0;c.api=async()=>{sent++;return {}};await c.ui.Q.flush();assert.equal(sent,1);assert.equal(c.ui.Q.mine().length,0);
  }
+ c=client();c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[],label:'Committed food'});c.api=async()=>({messages:[{}]});c.FoodThread={accept:async()=>{throw Error('Fictional render/quota failure')}};await c.ui.Q.flush();assert.equal(c.ui.Q.all().length,0,'post-commit drawing errors do not requeue saved food');
  assert([...storage.values()].every(v=>!v.includes('fictional-never-store')),'credentials never persist in owner keys');
  console.log('offline queue: failures/reload, explicit retry, owner/server binding, in-flight races, storage quota, API identity constraint and legacy compatibility PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

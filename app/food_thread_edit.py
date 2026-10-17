@@ -116,14 +116,21 @@ def _intent(text,anchor):
     return {'invalid':'Use a positive amount to change a portion.','words':words} if negative else {'portion':portion,'words':words}
 
 
-def _cards(c,uid):
+def _cards(c,uid,limit=50):
     return c.execute(f'''SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND kind='user'
                          AND result->>'kind'='log'
-                         ORDER BY coalesce((result->>'touched_at')::timestamptz,created) DESC,id DESC LIMIT 50 FOR UPDATE''',(uid,)).fetchall()
+                         ORDER BY coalesce((result->>'touched_at')::timestamptz,created) DESC,id DESC LIMIT %s''',(uid,limit)).fetchall()
 
 
 def _ask(c,uid,message,text,choices=None,intent=None):
-    return food_thread.finish_reply(c,uid,message,{'kind':'needs','text':text,'choices':choices or [],'correction':intent,'source':'your food log','as_of':dt.datetime.now(dt.timezone.utc).isoformat()})
+    if not choices and intent and not intent.get('invalid'):
+        choices=[]
+        for root in _cards(c,uid,limit=5):
+            for row in current_entries(c,uid,root['id']):
+                choices.append({'message_id':root['id'],'entry_id':row['id'],'name':row['name'],'day':row['day'].isoformat(),'meal':row['meal']})
+                if len(choices)>=5:break
+            if len(choices)>=5:break
+    return food_thread.finish_reply(c,uid,message,{'kind':'needs','text':text,'choices':(choices or [])[:5],'correction':intent,'source':'your food log','as_of':dt.datetime.now(dt.timezone.utc).isoformat()})
 
 
 def _scale(c,uid,row,portion):
@@ -149,6 +156,10 @@ def try_correction(c,uid,message,intent=None,forced=None):
     if intent is None:return None
     if intent.get('invalid'):return _ask(c,uid,message,intent['invalid'],intent=intent)
     found=None
+    explicit=(message.get('result') or {}).get('context')
+    previous=_context(c,uid,message) if explicit else None
+    bare=not intent.get('words')
+    if explicit and bare and (not previous or previous['result'].get('kind')!='log' or not current_entries(c,uid,previous['id'])) and not forced:return _ask(c,uid,message,'That food card is no longer available. Which logged food should change?',intent=intent)
     roots=_cards(c,uid);root_ids=[r['id'] for r in roots]
     grouped={};replies={}
     if root_ids:
@@ -158,6 +169,7 @@ def try_correction(c,uid,message,intent=None,forced=None):
             grouped.setdefault(row.pop('message_id'),[]).append(row)
         replies={r['reply_to']:r for r in c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=ANY(%s)',(uid,root_ids)).fetchall()}
     for root in roots:
+        if explicit and bare and not forced and root['id']!=previous['id']:continue
         if forced and root['id']!=forced['message_id']:continue
         rows=grouped.get(root['id'],[])
         if not rows:continue
@@ -181,7 +193,7 @@ def try_correction(c,uid,message,intent=None,forced=None):
             elif intent.get('destination'):matched=rows
             else:return _ask(c,uid,message,'Which food should change?',[{'message_id':root['id'],'entry_id':r['id'],'name':r['name']} for r in rows],intent)
         if matched:found=(root,reply,rows,matched,group,group_alias);break
-    if found is None:return _ask(c,uid,message,'Which logged food would you like to change?')
+    if found is None:return _ask(c,uid,message,'Which logged food would you like to change?',intent=intent)
     root,reply,rows,matched,group,group_alias=found
     if intent.get('destination'):
         info=_destination_info(intent['text'],message['local_day'])
@@ -233,6 +245,9 @@ def try_correction(c,uid,message,intent=None,forced=None):
 
 
 def _context(c,uid,message):
+    explicit=(message.get('result') or {}).get('context')
+    if explicit:
+        return c.execute(f"SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND kind='user' AND client_id=%s AND id<>%s AND result->>'kind' IN ('needs','preview','log','edit','undone')",(uid,explicit,message['id'])).fetchone()
     return c.execute(f'''SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND kind='user'
                            AND id<%s AND result->>'kind' IN ('needs','preview','log','edit','undone')
                            ORDER BY id DESC LIMIT 1''',(uid,message['id'])).fetchone()

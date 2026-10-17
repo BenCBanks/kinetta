@@ -41,8 +41,9 @@ async function api(path, opts = {}) {
   if (owner !== readOwner()) throw Object.assign(new Error('The account changed while this request was running. Please try again.'), {stale: true});
   if (!r.ok) {
     const d = body && body.detail;
-    const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : `Error ${r.status}`);
-    e.status = r.status; e.code = d && d.code; e.detail = d;
+    const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
+    const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
+    e.status = r.status; e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;
     if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); App.me = null; showLogin('Please log in again.'); }
     throw e;
   }
@@ -162,18 +163,19 @@ const Q = {
       for (const op of q) {
         if (owner !== readOwner() || !navigator.onLine) break;
         if (op.owner !== account || op.error || !Q.all().some(o => o.id === op.id)) continue;
-        let failed = null;
-        try { await api(op.path, {method: op.method, body: JSON.stringify(op.body)}); sent++; }
+        let failed = null, response;
+        try { response=await api(op.path, {method: op.method, body: JSON.stringify(op.body)});sent++; }
         catch (e) { failed = e; offline = !!e.offline; }
         // Even if the account changed, remove only the acknowledged original item.
         const current = Q.all();
         Q.save(failed ? current.map(o => o.id === op.id ? {...o, error: failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed' ? null : failed.message} : o)
           : current.filter(o => o.id !== op.id));
+        if (!failed && response?.messages && owner===readOwner() && typeof FoodThread!=='undefined') {try{await FoodThread.accept(response);}catch(e){invalidate('/api/food');}}
         if (failed && !failed.offline && !failed.stale && failed.status !== 401 && failed.code !== 'account_changed' && owner === readOwner()) toast(`Couldn't save ${op.label}. It is still on this phone.`);
         if (failed && (failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed')) break;
       }
     } finally { Q.busy = false; netState(offline); netbar(); }
-    if (sent && owner === readOwner()) { invalidate('/api/'); toast(`Sent ${sent} pending item${sent > 1 ? 's' : ''}`); render(); }
+    if (sent && owner === readOwner()) { invalidate('/api/'); toast(`Sent ${sent} pending item${sent > 1 ? 's' : ''}`); if(location.pathname==='/food/describe' && typeof FoodThread!=='undefined')FoodThread.refresh();else render(); }
   },
   review() {
     const owner = readOwner();

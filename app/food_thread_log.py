@@ -51,6 +51,17 @@ def make_result(c,uid,message,resolution):
     items=resolution.get('items',[])
     ready=resolution.get('status')=='ready' and bool(items)
     if ready:
+        for item in items:
+            try:
+                source=meal_chat.source_row(c,uid,item['kind'],item['id'])
+                item['preview_entries']=meal_chat.compute(c,uid,item['kind'],source,item['portion'])[0] or []
+            except HTTPException as error:
+                if error.status_code not in (400,404,409,422):raise
+                item.update({'status':'unknown','preview_entries':[],'message':'That saved food is no longer available. Choose another food or enter its nutrition.'})
+                ready=False
+        if not ready:
+            resolution['status']='needs'
+            return {'kind':'needs','day':day,'meal':meal,'resolution':resolution,'text':'That saved food changed or was removed. Choose another food or enter its nutrition.','source':'your foods'}
         kcal=facts.kcal(sum(i['totals']['kcal'] for i in items))
         names=', '.join(i['name'] for i in items[:3])+(' and more' if len(items)>3 else '')
         text=f"{meal.capitalize()} · {names} · about {kcal:,} kcal from your foods. Tap Log to add it."
