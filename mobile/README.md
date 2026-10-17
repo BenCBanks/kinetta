@@ -66,3 +66,7 @@ After sign-in, the native bridge installs a dynamic home-screen Log food action.
 Requests use a private app-container file with complete file protection and backup exclusion, a hashed server/account owner,5-item/4,000-UTF16-unit limits and24-hour expiry on read. No App Group or credential sharing is added. Sign-out/deletion/authentication failure clears the inbox/action. The WebView confirms its current authenticated account before accepting a request; unavailable sign-in leaves text pending. Text and accepted IDs persist atomically before native acknowledgement, including after sending/clearing a draft. Existing drafts append rather than disappear; overflow/storage failure keeps the native item waiting.
 
 The macOS workflow runs Foundation-only inbox contracts and unsigned builds. Physical acceptance: cold/warm home action, keyboard opening, Siri phrase and dictated Shortcuts input, locked authentication, signed-out no-op, existing/long draft, interrupted acknowledgement, unavailable server and account/server changes. Share extension is a separate T2; no private app-launch API is used.
+
+## Food Share storage foundation (#122 T2)
+
+`ShareFoodState`, `ShareFoodStore` and `ShareFoodKeychain` define private durable jobs and separate device-only credentials for a future Share extension. No Share action or runtime binding is enabled yet. macOS tests use fictional credentials and temporary files, never real Keychain/Health/network access. See [the food-sharing design](../docs/food-sharing.md).
