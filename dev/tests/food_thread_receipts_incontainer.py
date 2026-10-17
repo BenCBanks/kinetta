@@ -35,7 +35,7 @@ try:
  with db.connect() as c:
   resolution=meal_chat.resolve_data(c,uid,meal_chat.ResolveIn(parts=[{'text':'Deleted preview source','pick':{'kind':'dish','id':gone},'portion':{'count':1}}]))
   assert resolution['status']=='ready',resolution
- assert client.delete(f'/api/dishes/{gone}').status_code==200
+ assert client.delete(f'/api/dishes/{gone}',headers={'Content-Type':'application/json'}).status_code==200
  with db.connect() as c:
   message=engine.locked_message(c,uid,pending['id']);result=engine.make_result(c,uid,message,resolution)
   assert result['kind']=='needs' and 'removed' in result['text'],result
