@@ -14,26 +14,23 @@ class ThreadResolveIn(meal_chat.ResolveIn):
     say: str | None = Field(None,max_length=4000)
 
 
-def locked_message(c,uid,mid):
-    c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
-    message=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,uid)).fetchone()
-    if not message:raise HTTPException(404,'Message not found')
-    if message['kind']!='user':raise HTTPException(400,'Choose a message you sent')
-    return message
-
-
-def stored_reply(c,uid,message):
-    return c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=%s',(uid,message['id'])).fetchone()
+locked_message=food_thread.locked_message
+stored_reply=food_thread.stored_reply
 
 
 def expected_meal(c,uid,captured):
     p=c.execute('SELECT tz FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
     zone=db.valid_tz(p.get('tz')) or db.DEFAULT_TZ;hour=captured.astimezone(ZoneInfo(zone)).hour
-    learned=c.execute('''SELECT meal,count(DISTINCT day) AS n FROM food_entries
-                         WHERE user_id=%s AND created>now()-interval '60 days'
-                         AND day=(created AT TIME ZONE %s)::date
-                         AND extract(hour FROM created AT TIME ZONE %s)::int=%s
-                         GROUP BY meal HAVING count(DISTINCT day)>=3 ORDER BY count(DISTINCT day) DESC,meal LIMIT 1''',(uid,zone,zone,hour)).fetchone()
+    learned=c.execute('''WITH habits AS (
+        SELECT e.day,e.meal,coalesce(m.captured_at,e.created) AS eaten
+        FROM food_entries e LEFT JOIN LATERAL (
+          SELECT m.captured_at FROM food_chat_entries l JOIN food_chat_messages m
+          ON m.id=l.message_id AND m.user_id=l.user_id WHERE l.entry_id=e.id AND l.user_id=e.user_id
+          AND m.kind='user' AND m.local_day=e.day ORDER BY m.id LIMIT 1
+        ) m ON true WHERE e.user_id=%s AND e.day>=current_date-60
+      ) SELECT meal,count(DISTINCT day) AS n FROM habits
+        WHERE day=(eaten AT TIME ZONE %s)::date AND extract(hour FROM eaten AT TIME ZONE %s)::int=%s
+        GROUP BY meal HAVING count(DISTINCT day)>=3 ORDER BY count(DISTINCT day) DESC,meal LIMIT 1''',(uid,zone,zone,hour)).fetchone()
     return learned['meal'] if learned else ('breakfast' if hour<10 else 'lunch' if hour<14 else 'snacks' if hour<17 else 'dinner' if hour<21 else 'snacks')
 
 

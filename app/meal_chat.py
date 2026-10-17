@@ -255,15 +255,15 @@ def describe(s, today, catalog):
     s = LEAD.sub('', norm(s).strip())
     s, info = when(s, today)
     if s is None: return None, info
-    parts, joined = [], []
+    parts, joined, joined_portions = [], [], []
     for fragment in split(protect(raw(s), catalog)):
         portion, rest = amount(fragment)
-        previous = amount(joined[-1])[0] if joined else None
+        previous = joined_portions[-1] if joined else None
         # ‘Garden pasta, 200 grams’: an amount-only fragment belongs to the
         # preceding exact own-food reference when it has no other amount.
         if joined and portion and rest is not None and all(isinstance(t,str) and t in FILLER for t in rest) and previous is None and any(not isinstance(t,str) for t in joined[-1]):
-            joined[-1] += fragment
-        else: joined.append(fragment)
+            joined[-1] += fragment; joined_portions[-1] = portion
+        else: joined.append(fragment); joined_portions.append(portion)
     for p in joined:
         if p and p[-1] == 'total' and any(not isinstance(t,str) for t in p) and amount(p[:-1])[0]: p = p[:-1]
         while p and isinstance(p[0], str) and p[0] in OPENERS: p = p[1:]                  # "i had", "we ate"
