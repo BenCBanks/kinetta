@@ -60,3 +60,11 @@ check('2,200 kcal logged' in f.answer(f.classify('how many calories this week?',
 check('1,100 kcal per logged day' in f.answer(f.classify('average calories this week?',anchor),S)['text'],'week average labelled per logged day')
 check(f.answer(f.classify('how much fiber this week?',anchor),S)['facts']['logged'] is None,'week unknown fiber is not zero')
 print(f'food thread facts: {checks} pure checks passed; no model/provider imports or calls')
+
+for text in ['Chicken salad for lunch, about 450 calories total','Had 2 eggs, 300 calories so far']:
+ check(f.classify(text,anchor) is None, 'Food description is not a totals question: '+text)
+check(f.classify('How much protein is in a chicken breast?',anchor)['kind']=='advice','General food question never claims personal totals')
+check(f.classify('weekly average calories',anchor)['weekly'],'weekly adjective recognised')
+check(f.classify('calories last week',anchor)['day']==dt.date(2026,10,11),'last week ends last Sunday')
+check(f.answer(f.classify('how many calories at lunch today?',anchor),S)['facts']['logged'] is None,'empty requested meal is not whole-day totals')
+check(f.feedback(S,{'kcal':None},seed=1),'unknown added calories do not crash feedback')

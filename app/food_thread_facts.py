@@ -17,10 +17,17 @@ def num(value):
     return f'{round(float(value or 0)):,}'
 
 
+def fmt(value,unit):
+    return kcal(value) if unit=='kcal' else round(float(value or 0))
+
+
 def classify(text, anchor):
     """Recognize questions only; ordinary food descriptions stay with the food engine."""
     text = re.sub(r'\s+', ' ', text.lower().replace('’', "'")).strip()
     kind = None
+    food_question = bool(re.search(r'\b(?:how (?:much|many).*\bin (?:a |an |the )?|does .+ have)\b', text))
+    if food_question:
+        return {'kind':'advice','day':anchor,'meal':None,'nutrient':'calories','weekly':False,'average':False}
     if re.search(r'\b(?:what|which).*(?:did i (?:eat|have|log)|have i (?:eaten|had|logged)|was (?:my )?(?:breakfast|lunch|dinner))', text):
         kind = 'history'
     elif re.search(r'\b(?:am i doing (?:ok|okay|well)|how am i doing|was that (?:bad|okay|ok)|doing alright|on track)\b', text):
@@ -33,7 +40,7 @@ def classify(text, anchor):
         kind = 'review'
     if kind is None:
         return None
-    if kind in ('totals','left') and re.search(r'^(?:i (?:ate|had)|we (?:ate|had)|log\b|add\b|record\b)',text):
+    if kind in ('totals','left') and not re.search(r'^(?:(?:how|what)\b|(?:total|average|weekly)\b|(?:protein|carbs?|fat|fib(?:er|re)|calories?|cals?|kcal)\b|\d+(?:\.\d+)?\s+(?:calories?|protein|carbs?|fat)\s+(?:left|remaining)\b|(?:two|three|four|\d+) days ago\b)', text):
         return None
     nutrient = next((key for key,pattern in [('protein',r'\bprotein\b'),('carbs',r'\bcarb(?:s|ohydrates?)?\b'),('fat',r'\bfat\b'),('fiber',r'\bfib(?:er|re)\b'),('calories',r'\b(?:calories?|cals?|kcal)\b')] if re.search(pattern,text)),None)
     if kind in ('totals','left') and nutrient is None:
@@ -56,19 +63,35 @@ def classify(text, anchor):
     meals={MEALS[m] for m in re.findall(r'\b('+ '|'.join(MEALS) +r')\b',text)}
     if kind=='history' and len(meals)>1:
         return {'kind':'clarify','text':'Which meal would you like to see?'}
-    return {'kind':kind,'day':days[0] if days else anchor,'meal':next(iter(meals),None),'nutrient':nutrient or 'calories','weekly':bool(re.search(r'\bweek\b',text)),'average':bool(re.search(r'\baverage\b',text))}
+    selected = days[0] if days else anchor
+    if re.search(r'\blast week\b', text): selected = anchor-dt.timedelta(days=anchor.weekday()+1)
+    ago = re.search(r'\b(two|three|four|\d+) days ago\b', text)
+    if ago: selected = anchor-dt.timedelta(days={'two':2,'three':3,'four':4}.get(ago[1],int(ago[1]) if ago[1].isdigit() else 0))
+    return {'kind':kind,'day':selected,'meal':next(iter(meals),None),'nutrient':nutrient or 'calories','weekly':bool(re.search(r'\bweek(?:ly)?\b',text)),'average':bool(re.search(r'\baverage\b',text))}
 
 
-def snapshot(c, uid, day):
+def snapshot(c, uid, day, question=None):
     # Sharing these readers keeps replies and feedback on the caller's transaction,
     # including a food write that has not committed yet. There is no second connection.
     from . import api_food, energy, nutrition_insights
+    if question and question['kind']=='advice':
+        return {'day':{'entries':[]},'needs':{'today':day},'profile':{}}
     profile = c.execute('SELECT units, food_chat_tone FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
     week_start=day-dt.timedelta(days=day.weekday())
     period_rows=c.execute('''SELECT day, sum(kcal) AS kcal, sum(protein_g) AS protein_g, sum(carbs_g) AS carbs_g, sum(fat_g) AS fat_g, sum(fiber_g) AS fiber_g, count(*) AS n, count(fiber_g) AS fiber_n FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s GROUP BY day ORDER BY day''',(uid,week_start,day)).fetchall()
-    return {'period_rows':period_rows,'day':api_food.day_data(c,uid,day.isoformat()),
-            'week':nutrition_insights.insights_data(c,uid,7),
-            'needs':energy.tdee(c,uid), 'profile':profile}
+    D=api_food.day_data(c,uid,day.isoformat())
+    tz=(c.execute('SELECT tz FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}).get('tz')
+    today=c.execute('SELECT (now() AT TIME ZONE %s)::date AS day',(db_tz(tz),)).fetchone()['day']
+    deep = question is None or question['kind'] in ('review','reassurance')
+    current = day == today
+    return {'period_rows':period_rows,'day':D,
+            'week':nutrition_insights.insights_data(c,uid,7) if deep and current else {'rows':[],'summary':{}},
+            'needs':energy.tdee(c,uid) if deep and current else {'today':today}, 'profile':profile}
+
+
+def db_tz(value):
+    from . import db
+    return db.valid_tz(value) or db.DEFAULT_TZ
 
 
 def week_rows(S):
@@ -89,8 +112,9 @@ def caution(S):
     return None
 
 
-def feedback(S, added=None, seed=0, tone=None):
+def feedback(S, added=None, seed=None, tone=None):
     """One grounded line; suppress praise whenever the records call for a check-in."""
+    if seed is None: seed = sum(int(e.get('id') or 0) for e in S['day']['entries'])
     D=S['day'];T=D['totals'];goal=D['goal'].get('kcal');pt=D['targets'].get('protein_target');tone=tone or S['profile'].get('food_chat_tone','supportive')
     concern=caution(S)
     if concern:return concern
@@ -101,7 +125,7 @@ def feedback(S, added=None, seed=0, tone=None):
     if D['burned'].get('kcal') and seed%3==0:
         return f"Your recorded activities add about {kcal(D['burned']['kcal']):,} kcal burned; you’ve logged about {kcal(T['kcal']):,} kcal."
     rows=week_rows(S)
-    if added.get('kcal',0)>=700 and len(rows)>=3:
+    if (added.get('kcal') or 0)>=700 and len(rows)>=3:
         avg=sum(r['eaten'] for r in rows)/len(rows)
         return f"That meal adds about {kcal(added['kcal']):,} kcal; your logged average across {len(rows)} days this week is about {kcal(avg):,} kcal."
     if p and pt and T['protein_g'] < pt:
@@ -125,34 +149,38 @@ def answer(question, S):
         if not entries:text=f'No {meal} is logged for {label}.'
         else:
             names=', '.join(e['name'][:80] for e in entries[:12]);extra=f" and {len(entries)-12} more foods" if len(entries)>12 else ''
-            text=f"For {meal} on {label}: {names}{extra}. About {kcal(sum(e['kcal'] for e in entries)):,} kcal logged."
+            text=f"For {meal} {'today' if label=='today' else 'on '+label}: {names}{extra}. About {kcal(sum(e['kcal'] for e in entries)):,} kcal logged."
         result['facts']['entries']=[{k:e[k] for k in ('id','name','kcal','source')} for e in entries[:12]]
         result['open_day']=day.isoformat()
     elif kind in ('totals','left'):
         nutrient=question['nutrient'];key,target_key,unit=NUTRIENTS[nutrient]
         target=D['goal'].get('kcal') if key=='kcal' else D['targets'].get(target_key)
-        value=D['totals'].get(key)
+        if question.get('meal'):
+            entries=[e for e in entries if e['meal']==question['meal']]
+            value=sum(float(e.get(key) or 0) for e in entries)
+        else: value=D['totals'].get(key)
         if key=='fiber_g' and any(e.get('fiber_g') is None for e in entries):value=None
         if question.get('weekly'):
             rows=S.get('period_rows',[])
             unknown=key=='fiber_g' and any(r['fiber_n']<r['n'] for r in rows)
             value=sum(float(r[key] or 0) for r in rows) if rows and not unknown else None
             if value is not None and question.get('average'):value/=len(rows)
-            display=kcal if unit=='kcal' else lambda v:round(v)
+            display=lambda v:fmt(v,unit)
             what='per logged day' if question.get('average') else 'logged'
             text=f"About {display(value):,} {unit}{' ' + nutrient if nutrient!='calories' else ''} {what} across {len(rows)} days in the week through {day.isoformat()}." if value is not None else ('Fiber is missing for some foods in that week; the total is incomplete.' if unknown else 'No food is logged in that week yet.')
             if kind=='left':text+=' Targets are daily; open that day’s food log to see its remaining amount.'
             result['facts'].update({'nutrient':nutrient,'logged':value,'logged_days':len(rows),'target':None,'period':'week_to_date'})
             result['text']=text
             return result
+        if question.get('meal') and kind=='left': target=None
         if not entries:text=f'Nothing is logged for {label} yet.'
         elif key=='fiber_g' and any(e.get('fiber_g') is None for e in entries):text=f'Fiber is unknown for some foods logged for {label}; the total is incomplete.'
         elif kind=='left' and target:
-            remaining=target-value;display=kcal if unit=='kcal' else lambda v:round(v)
+            remaining=target-value;display=lambda v:fmt(v,unit)
             current='current ' if day!=today and not (key=='kcal' and D['goal'].get('custom') is not None) else ''
             text=f"About {display(abs(remaining)):,} {unit} {'left toward' if remaining>=0 else 'above'} your {current}{display(target):,} {unit}{' ' + nutrient if nutrient != 'calories' else ''} goal; {display(value):,} {unit} logged for {label}."
         else:
-            display=kcal if unit=='kcal' else lambda v:round(v)
+            display=lambda v:fmt(v,unit)
             text=f"About {display(value):,} {unit}{' ' + nutrient if nutrient != 'calories' else ''} logged for {label}." + (f' No {nutrient} goal is set.' if kind=='left' else '')
             if kind=='left' and not target:result['set_goal']=True
         result['facts'].update({'nutrient':nutrient,'logged':value if entries else None,'target':target})
@@ -176,5 +204,6 @@ def answer(question, S):
             text+=f" Your weight trend in this range is {'down' if change<0 else 'up' if change>0 else 'unchanged by'} {value:.1f} {'lb' if imperial else 'kg'}."
         result['facts']['past_logged_days']=n
         result['offer_kit']=kind=='reassurance'
+    text=text.replace('About 0 kcal left toward','At your calorie goal; 0 kcal left toward')
     result['text']=text
     return result

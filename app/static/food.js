@@ -23,7 +23,7 @@ function todayFoodCard(box) {
     if (!box.isConnected) return;
     App.mealHours = D.meal_hours || App.mealHours;
     const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
-    const meal = [guessMeal(), ...Object.keys(MEAL_NAMES)].find(m => !D.entries.some(e => e.meal === m));
+    const meal = Object.keys(MEAL_NAMES).slice(Object.keys(MEAL_NAMES).indexOf(guessMeal())).find(m => !D.entries.some(e => e.meal === m));
     const workouts = D.burned?.items || [];
     const macroEnergy = (T.protein_g || 0)*4 + (T.carbs_g || 0)*4 + (T.fat_g || 0)*9;
     box.innerHTML = `<section class="card home-today" aria-label="Today’s food"><h2>Today<a class="more" href="/food">Food log ›</a></h2>
@@ -65,10 +65,11 @@ function yesterdayMeal(day, meal) {
           close(); Native.haptic('light');
           if (!result.queued) {
             let busy = false, done = false;
+            const remaining = new Set(result.ids);
             const undo = async () => {
               if (busy || done || readOwner() !== owner) return;
               busy = true;
-              try { await Promise.all(result.ids.map(id => api(`/api/food/entries/${id}`, {method:'DELETE'}))); done = true; refresh(); toast('Meal removed'); }
+              try { for (const id of remaining) { if (readOwner() !== owner) return; try { await api(`/api/food/entries/${id}`, {method:'DELETE'}); } catch(e) { if(e.status !== 404) throw e; } remaining.delete(id); } done = true; refresh(); toast('Meal removed'); }
               catch(x) { if (readOwner() === owner) toast('Could not undo · try again',undo); }
               finally { busy = false; }
             };

@@ -6,6 +6,7 @@ separately. Pending messages survive a reload and a lost acknowledgement can be 
 """
 import datetime as dt
 import json
+import re
 from typing import Literal
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -32,7 +33,9 @@ class MessageIn(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError('Write a message first')
-        if 'data:image/' in value.lower():
+        if re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', value):
+            raise ValueError('Remove control characters from this message')
+        if value.lower().startswith('data:image/') or re.fullmatch(r'(?:/9j/|iVBORw0KGgo|R0lGOD|UklGR)[A-Za-z0-9+/=\r\n]{80,}', value):
             raise ValueError('Use the photo tool; images are not saved in the thread')
         return value
 
@@ -61,13 +64,16 @@ def message_entries(c, uid, messages):
 @router.get('')
 def history(before: int | None = Query(None, gt=0), limit: int = Query(30, ge=1, le=100), user=Depends(current_user)):
     with db.connect() as c:
+        roots = c.execute("""SELECT id FROM food_chat_messages WHERE user_id = %s AND kind = 'user'
+                             AND (%s::bigint IS NULL OR id < %s) ORDER BY id DESC LIMIT %s""",
+                          (user['id'], before, before, limit + 1)).fetchall()
+        more = len(roots) > limit
+        ids = [row['id'] for row in roots[:limit]]
         rows = c.execute(f'''SELECT {COLUMNS} FROM food_chat_messages WHERE user_id = %s
-                             AND (%s::bigint IS NULL OR id < %s)
-                             ORDER BY id DESC LIMIT %s''', (user['id'], before, before, limit + 1)).fetchall()
-        more = len(rows) > limit
-        rows = list(reversed(rows[:limit]))
+                             AND coalesce(reply_to,id) = ANY(%s)
+                             ORDER BY coalesce(reply_to,id), id''', (user['id'], ids)).fetchall() if ids else []
         return {'messages': message_entries(c, user['id'], rows),
-                'before': rows[0]['id'] if more else None, 'has_more': more,
+                'before': min(ids) if more else None, 'has_more': more,
                 'preferences': preferences(c, user['id'])}
 
 
@@ -79,10 +85,10 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         captured = body.captured_at or dt.datetime.now(dt.timezone.utc)
         # A phone clock ahead of the server must not strand an offline message.
         now = dt.datetime.now(dt.timezone.utc)
-        if captured > now + dt.timedelta(minutes=10):
+        if captured > now + dt.timedelta(minutes=10) or captured < now - dt.timedelta(days=7):
             captured = now
         try:
-            local_day = captured.astimezone(ZoneInfo(p.get('tz') or db.DEFAULT_TZ)).date()
+            local_day = captured.astimezone(ZoneInfo(db.valid_tz(p.get('tz')) or db.DEFAULT_TZ)).date()
         except (ValueError, OverflowError):
             raise HTTPException(400, 'Message time is outside the supported range')
         row = c.execute(f'''INSERT INTO food_chat_messages
@@ -166,7 +172,7 @@ def answer_with(c, uid, message):
     if question['kind']=='clarify':
         result={'kind':'answer','intent':'clarify','text':question['text'],'source':'code'}
     else:
-        result=facts.answer(question,facts.snapshot(c,uid,question['day']))
+        result=facts.answer(question,facts.snapshot(c,uid,question['day'],question))
     result['as_of']=dt.datetime.now(dt.timezone.utc).isoformat()
     return finish_reply(c,uid,message,result)
 
