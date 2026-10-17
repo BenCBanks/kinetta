@@ -44,7 +44,7 @@ def parse(text,limits):
     for match,_ in matches:spans.append((match.start()-offset,match.end()-offset))
     for start,end in reversed(spans):tail=tail[:start]+' '+tail[end:]
     # A basis or another food after the numbers is not a whole-portion total.
-    if re.search(r'\b(?:per|each|servings?)\b|/\s*\d',text,re.I):
+    if re.search(r'\b(?:per|each)\b',text,re.I) or re.search(r'/\s*(?:\d+(?:\.\d+)?\s*)?(?:g|grams?|mg|oz|servings?|portions?)\b|\ba\s+serving\b',text[matches[0][0].start():],re.I):
         problem='These numbers may be per serving or per 100 g. Enter numbers for the amount you ate.';values={}
     elif re.sub(r'\b(?:and|with|total|in\s+total|about|approximately|roughly|estimated)\b|[\s,;:()./=-]','',tail,flags=re.I):
         problem='Check that these numbers describe one whole portion. Keep other foods in a separate message.'
@@ -68,8 +68,9 @@ def preview(c,uid,message):
     part={'index':0,'text':message['body'],'status':'quantity' if problem else 'ready','item':{},'logged':False,
           'manual':True,'requires_tap':True,'looked_up':True,'entered_numbers':{'name':parsed['name'],'values':parsed['values']},
           'question':problem,'entries':[] if problem else [entry]}
-    result={'kind':'needs' if problem else 'preview','composed':True,'parts':[part],'day':str(when.get('day') or message['local_day']),
-            'meal':when.get('meal') or engine.expected_meal(c,uid,message['captured_at']),
+    destination=(message.get('result') or {}).get('destination') or {}
+    result={'kind':'needs' if problem else 'preview','composed':True,'parts':[part],'day':str(destination.get('day') or when.get('day') or message['local_day']),
+            'meal':destination.get('meal') or when.get('meal') or engine.expected_meal(c,uid,message['captured_at']),
             'destination_required':destination_required,'text':problem or 'Your nutrition numbers are ready to review. Tap Log when the whole portion is correct.',
             'source':'your numbers','entry_ids':[],'pending_count':1 if problem else 0,'can_resolve':False,
             'as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
