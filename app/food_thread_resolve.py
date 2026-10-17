@@ -59,7 +59,7 @@ def claim(uid,mid,body):
         media=(message.get('result') or {}).get('input') or {'kind':'text'}
         if (body.image or body.images) and media['kind']!='photo':
             raise HTTPException(409,'Use a new photo message for these images; this card keeps the foods already logged')
-        if media['kind']=='text':
+        if media['kind']=='text' and not any(p.get('skip_alias') for p in unknown):
             alias=_alias(c,uid,unknown)
             if alias:
                 _replace_group(result,{p['index'] for p in unknown},alias)
@@ -68,7 +68,7 @@ def claim(uid,mid,body):
         if media['kind']=='photo' and not raw_images:
             for p in unknown:p.update({'looked_up':True,'question':'Add the photo again, or describe the food.','needs_photo':True})
             return {'done':C.write(c,uid,message,result)}
-        digest=hashlib.sha256(json.dumps([[(p['index'],p['text']) for p in unknown],raw_images,body.allow_brand_estimate,body.part],sort_keys=True).encode()).hexdigest()
+        digest=hashlib.sha256(json.dumps([[(p['index'],p['text'],p.get('lookup_revision')) for p in unknown],raw_images,body.allow_brand_estimate,body.part],sort_keys=True).encode()).hexdigest()
         old=c.execute('SELECT * FROM food_chat_jobs WHERE user_id=%s AND message_id=%s FOR UPDATE',(uid,mid)).fetchone()
         now=dt.datetime.now(dt.timezone.utc)
         if old and old['state']=='running' and old['expires']>now:
@@ -89,15 +89,18 @@ def claim(uid,mid,body):
 def _catalog(food,part):
     parsed=meal_chat.read_part(part['text'],[])
     portion=part.get('portion_override') or parsed.get('portion')
-    draft=S.catalog_draft(food,portion)
+    try:draft=S.catalog_draft(food,portion)
+    except HTTPException:draft=None
     if draft:return {**part,'status':'ready','drafts':[draft],'entries':S.draft_entries([draft]),'looked_up':True}
-    return {**part,'status':'quantity','catalog':[food],'catalog_selected':0,'looked_up':True,
+    return {**part,'status':'quantity','catalog':part.get('catalog') or [food],'catalog_selected':part.get('catalog_selected',0),'looked_up':True,
             'question':'Which food and portion should I use?','source':food.get('source')}
 
 
 def resolve_outside(uid,work,body):
     message,result=work['message'],work['result'];unknown=_unknown(result);media=work['media']
     updates=[];estimate=[]
+    # Parsing normalizes punctuation, so also inspect the original untouched input.
+    has_link=bool(re.search(r'https?://|www\.',message['body'],re.I))
     if media['kind']=='barcode':
         food=api_food.barcode(media['barcode'],user={'id':uid})
         if food.get('source')=='custom':
@@ -108,11 +111,15 @@ def resolve_outside(uid,work,body):
     else:
         # Long loose paragraphs stay intact for the estimator; public catalog
         # queries are short food words, never a truncated private conversation.
-        short=[p for p in unknown if 2<=len(p['text'])<=200]
+        # Classify links before *any* public database lookup, including tokenized URLs.
+        short=[p for p in unknown if not has_link and 2<=len(p['text'])<=200 and not re.search(r'https?://|www\.',p['text'],re.I)]
+        def lookup_part(part):
+            try:return meal_chat.lookup(part['text'])
+            except Exception:return {'kind':'none','foods':[]}
         with ThreadPoolExecutor(max_workers=4) as pool:
-            lookups=dict(zip((p['index'] for p in short),pool.map(lambda p:meal_chat.lookup(p['text']),short)))
+            lookups=dict(zip((p['index'] for p in short),pool.map(lookup_part,short)))
         for part in unknown:
-            if re.search(r'https?://',part['text'],re.I):
+            if has_link or re.search(r'https?://|www\.',part['text'],re.I):
                 updates.append({'indices':[part['index']],'part':{**part,'looked_up':True,'recipe_url':True,
                                 'question':'Import this recipe or add its nutrition.'}});continue
             lookup=lookups.get(part['index']) or {'kind':'none','foods':[]}
@@ -175,7 +182,13 @@ def complete(uid,mid,work,updates,error=None):
                         if draft:replacement.update({'status':'ready','drafts':[draft],'entries':S.draft_entries([draft])})
                 except HTTPException:
                     replacement['status']='quantity';replacement['question']='Which food and portion should I use?'
-            if update.get('model'):C.ground_estimates(c,uid,replacement)
+            if update.get('model'):
+                original_estimate=copy.deepcopy(replacement)
+                try:
+                    with c.transaction(): C.ground_estimates(c,uid,replacement)
+                except (HTTPException,ValueError,KeyError):
+                    replacement=original_estimate
+                    replacement.update({'status':'quantity','question':'Your saved food changed. Check this estimate and choose its portion.'})
             _replace_group(result,set(update['indices']),replacement)
         if error:
             detail=error.detail if isinstance(error,HTTPException) else 'The food could not be checked. Your text is kept; search or enter nutrition instead.'

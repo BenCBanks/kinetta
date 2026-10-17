@@ -57,7 +57,8 @@ try:
   row=c.execute("SELECT * FROM food_entries WHERE user_id=%s AND name='Fictional ocean rice'",(uid,)).fetchone();rice=row['id'];values(row,[800,0,2])
  correction,r=send('only half the fictional ocean rice');values(entry(rice),[400,0,1])
  post(f"/api/food/thread/messages/{correction['id']}/process",{});values(entry(rice),[400,0,1])
- post(f"/api/food/thread/messages/{root['id']}/undo",{});assert entry(rice) is None
+ undone=post(f"/api/food/thread/messages/{root['id']}/undo",{});assert undone['kept']==1 and entry(rice) is not None
+ assert a.delete('/api/food/entries/'+str(rice),headers={'Content-Type':'application/json'}).status_code==200
  # Nullable manual fields and genuine zero must differ both in receipts and the saved row.
  with patch('app.meal_chat.lookup',return_value={'kind':'none','foods':[]}):root,r=send('fictional mystery plate')
  r=post(f"/api/food/thread/messages/{root['id']}/manual",{'part':0,'confirm':True,'items':[{'name':'Fictional entered plate','kcal':250,'sodium_mg':0,'sugar_g':None,'saturated_fat_g':1.2345}]})
@@ -75,6 +76,12 @@ try:
  portion=post('/api/dishes/'+str(saved['id'])+'/portion',{'count':1,'meal':'dinner'});values(portion['entry'],[600,0,1.5])
  assert a.patch('/api/dishes/'+str(did),json={'known_sodium_mg':True}).status_code==422
  assert a.post(f'/api/dishes/{did}/items',json={'name':'Too much','grams':100,'per100':{'kcal':200,'sodium_mg':100001}}).status_code==422
+ # Changing only an extra nutrient is still a later edit: original-card Undo keeps it.
+ logged=post('/api/food/entries?thread=true',[{'day':day,'meal':'lunch','name':'Fictional later nutrient edit','kcal':100,'sodium_mg':20,'client_id':str(uuid.uuid4())}])
+ eid=logged['ids'][0];root=next(m for m in logged['messages'] if m['kind']=='user')
+ assert a.patch('/api/food/entries/'+str(eid),json={'sodium_mg':30}).status_code==200
+ undone=post(f"/api/food/thread/messages/{root['id']}/undo",{});assert undone['kept']==1 and entry(eid)['sodium_mg']==30
+ assert 'future_nutrient' in N.storage({'kcal':1,'ref':{'unknown_nutrients':['future_nutrient']}})['ref']['unknown_nutrients']
  print('Eight-nutrient recipes/portions/chat/replay/private learning/catalog/source/old-client/unknown-vs-zero/unit bounds PASS')
 finally:
  with db.connect() as c:c.execute('DELETE FROM users WHERE id=ANY(%s)',(uids,))

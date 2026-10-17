@@ -14,7 +14,9 @@ final class HealthFood {
     private var generation = 0
     private var query: HKQuery?
     private var weightDone: ((Result<[String:Any],Error>) -> Void)?
-    private var pendingAnchor: (String, Data)?
+    private var pendingAnchor: (String, Data, Set<String>)?
+    private var statusWaiters: [() -> Void] = []
+    private static let iso: ISO8601DateFormatter = { let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime,.withFractionalSeconds]; return f }()
     private var writing = false
     private var stopWaiters: [() -> Void] = []
     private var permissionBusy = false // main-thread only
@@ -34,12 +36,7 @@ final class HealthFood {
     }
     private func persist() throws {
         guard let state = state else { return }
-        let folder = file.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories:true,
-            attributes:[.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication])
-        var url = folder; var resource = URLResourceValues(); resource.isExcludedFromBackup = true
-        try url.setResourceValues(resource)
-        try JSONEncoder().encode(state).write(to:file,options:[.atomic,.completeFileProtectionUntilFirstUserAuthentication])
+        try HealthProtectedFile.write(state,to:file)
     }
     func bind(_ expected: String, done: @escaping (Error?) -> Void) {
         serial.async {
@@ -49,8 +46,9 @@ final class HealthFood {
                 if self.owner == nil {
                     var saved = HealthFoodState(owner:expected)
                     if FileManager.default.fileExists(atPath:self.file.path) {
-                        let previous = try JSONDecoder().decode(HealthFoodState.self,from:Data(contentsOf:self.file))
-                        if previous.owner == expected { saved = previous }
+                        let data = try Data(contentsOf:self.file) // Locked/unreadable files must not be discarded.
+                        saved = HealthFoodState.restored(data,owner:expected)
+                        // Corrupt/old state safely restarts from cursor zero.
                     }
                     self.state = saved; self.owner = expected; try self.persist()
                 }
@@ -99,6 +97,7 @@ final class HealthFood {
     }
     func status(owner expected: String, epoch: String, done: @escaping (Result<[String:Any],Error>) -> Void) {
         serial.async {
+            if self.writing { self.statusWaiters.append { self.status(owner:expected,epoch:epoch,done:done) }; return }
             do {
                 try self.check(expected)
                 guard UUID(uuidString:epoch) != nil else { throw HealthFoodError.invalid }
@@ -113,7 +112,8 @@ final class HealthFood {
         serial.async {
             do {
                 try self.check(expected)
-                guard self.weightDone == nil, UUID(uuidString:epoch) != nil,
+                guard self.weightDone == nil else { throw HealthFoodError.weightBusy }
+                guard UUID(uuidString:epoch) != nil,
                       let type = HKObjectType.quantityType(forIdentifier:.bodyMass) else { throw HealthFoodError.invalid }
                 self.state?.prepareWeight(epoch:epoch);try self.persist()
                 var anchor: HKQueryAnchor?
@@ -130,17 +130,21 @@ final class HealthFood {
                             guard let next = next else { throw self.failure("Apple Health returned no weight cursor. Unlock and try again.") }
                             let batch = UUID().uuidString
                             let encoded = try NSKeyedArchiver.archivedData(withRootObject:next,requiringSecureCoding:true)
-                            let formatter = ISO8601DateFormatter();formatter.formatOptions = [.withInternetDateTime,.withFractionalSeconds]
+                            let formatter = Self.iso
+                            var ignored = self.state?.ignoredWeightIDs ?? []
                             let rows: [[String:Any]] = (samples ?? []).compactMap { value in
                                 guard let sample = value as? HKQuantitySample else { return nil }
                                 let kg = sample.quantity.doubleValue(for:.gramUnit(with:.kilo))
-                                guard kg.isFinite, kg >= 20, kg <= 400 else { return nil }
+                                guard kg.isFinite, kg >= 20, kg <= 400 else { ignored.insert(sample.uuid.uuidString); return nil }
                                 return ["sample_id":sample.uuid.uuidString,"sampled_at":formatter.string(from:sample.startDate),"kg":kg,
                                     "source_name":sample.sourceRevision.source.name,"source_bundle":sample.sourceRevision.source.bundleIdentifier]
                             }
-                            self.pendingAnchor = (batch,encoded)
+                            let removed = Set((deleted ?? []).map { $0.uuid.uuidString })
+                            let deletion = HealthFoodState.weightDeletions(removed,ignoring:ignored)
+                            let acceptedDeletes = deletion.send; ignored = deletion.keep
+                            self.pendingAnchor = (batch,encoded,ignored)
                             callback(.success(["batch":batch,"observed_at":formatter.string(from:Date()),"samples":rows,
-                                "deleted":(deleted ?? []).map { $0.uuid.uuidString },"more":(samples?.count ?? 0)+(deleted?.count ?? 0) >= 500]))
+                                "deleted":Array(acceptedDeletes),"more":(samples?.count ?? 0)+(deleted?.count ?? 0) >= 500]))
                         } catch { callback(.failure(error)) }
                     }
                 }
@@ -158,65 +162,81 @@ final class HealthFood {
             do {
                 try self.check(expected)
                 guard let pending = self.pendingAnchor,pending.0 == batch else { throw HealthFoodError.changed }
-                self.state?.weightAnchor = pending.1;try self.persist();self.pendingAnchor = nil;done(nil)
+                self.state?.weightAnchor = pending.1;self.state?.ignoredWeightIDs = pending.2;try self.persist();self.pendingAnchor = nil;done(nil)
             } catch { done(error) }
         }
     }
-    func write(owner expected: String, epoch: String, zone: String, next: Int64, rows: [HealthFoodDay], done: @escaping (Error?) -> Void) {
+    func write(owner expected: String, accountID: String, epoch: String, zone: String, next: Int64, rows: [HealthFoodDay], done: @escaping (Error?) -> Void) {
         serial.async {
             do {
                 try self.check(expected)
                 guard !self.writing, self.state?.nutritionEpoch == epoch, rows.count <= 100,
                       let cursor = self.state?.nutritionCursor, next >= cursor,
                       self.state?.nutritionPermissions == self.allowed().joined(separator:",") else { throw HealthFoodError.changed }
-                var previous = cursor
-                for row in rows { _ = try row.interval(timeZone:zone);guard row.revision > previous else { throw HealthFoodError.invalid };previous = row.revision }
-                guard next == previous else { throw HealthFoodError.invalid }
+                try self.state?.validatePage(rows,next:next,zone:zone)
+                guard UUID(uuidString:accountID) != nil else { throw HealthFoodError.invalid }
                 let version = self.generation
-                let digest = SHA256.hash(data:Data(expected.utf8)).map { String(format:"%02x",$0) }.joined()
-                self.writing = true
+                let digest = SHA256.hash(data:Data(accountID.lowercased().utf8)).map { String(format:"%02x",$0) }.joined()
                 func finish(_ error: Error?) {
                     self.writing = false
                     let waiting = self.stopWaiters;self.stopWaiters.removeAll()
                     done(error);for callback in waiting { callback() }
+                    let statuses = self.statusWaiters;self.statusWaiters.removeAll();for callback in statuses { callback() }
                 }
-                func operation(_ index: Int) {
-                    do {
-                        try self.check(expected,version)
-                        guard self.state?.nutritionEpoch == epoch,
-                              self.state?.nutritionPermissions == self.allowed().joined(separator:",") else { throw HealthFoodError.changed }
-                        if index >= rows.count*self.types.count {
-                            try self.state?.acknowledgeNutrition(epoch:epoch,cursor:next);try self.persist();finish(nil);return
-                        }
-                        let row = rows[index/self.types.count], item = self.types[index%self.types.count]
-                        guard let type = HKObjectType.quantityType(forIdentifier:item.1) else { throw HealthFoodError.invalid }
-                        // A user can grant only some types. Permission changes reset
-                        // the cursor on the next status call, replaying old dates.
-                        guard self.store.authorizationStatus(for:type) == .sharingAuthorized else { operation(index+1);return }
+                var saves: [HKObject] = []
+                var removals: [(HKQuantityType,NSPredicate)] = []
+                for item in self.types {
+                    guard let type = HKObjectType.quantityType(forIdentifier:item.1) else { throw HealthFoodError.invalid }
+                    guard self.store.authorizationStatus(for:type) == .sharingAuthorized else { continue }
+                    var predicates: [NSPredicate] = []
+                    for row in rows {
                         let identity = try row.identifier(ownerDigest:digest,field:item.0)
                         let interval = try row.interval(timeZone:zone)
-                        let completion: (Bool,Error?) -> Void = { success,error in
-                            self.serial.async {
-                                if let error = error { finish(error) }
-                                else if !success { finish(self.failure("Nutrition could not be saved to Health. Unlock your phone and sync again.")) }
-                                else { operation(index+1) }
-                            }
-                        }
                         if let value = row.quantity(item.0) {
                             let unit = HKUnit(from:HealthFoodDay.unitSymbols[item.0]!)
-                            let sample = HKQuantitySample(type:type,quantity:HKQuantity(unit:unit,doubleValue:value),start:interval.0,end:interval.1,
-                                metadata:[HKMetadataKeySyncIdentifier:identity,HKMetadataKeySyncVersion:NSNumber(value:row.revision)])
-                            self.store.save(sample,withCompletion:completion)
+                            saves.append(HKQuantitySample(type:type,quantity:HKQuantity(unit:unit,doubleValue:value),start:interval.0,end:interval.1,
+                                metadata:[HKMetadataKeySyncIdentifier:identity,HKMetadataKeySyncVersion:NSNumber(value:row.revision)]))
                         } else {
-                            let predicate = NSCompoundPredicate(andPredicateWithSubpredicates:[
-                                HKQuery.predicateForObjects(from:HKSource.default()),
+                            predicates.append(NSCompoundPredicate(andPredicateWithSubpredicates:[
                                 HKQuery.predicateForObjects(withMetadataKey:HKMetadataKeySyncIdentifier,allowedValues:[identity]),
-                                HKQuery.predicateForObjects(withMetadataKey:HKMetadataKeySyncVersion,operatorType:.lessThanOrEqualTo,value:NSNumber(value:row.revision))])
-                            self.store.deleteObjects(of:type,predicate:predicate) { success,_,error in completion(success,error) }
+                                HKQuery.predicateForObjects(withMetadataKey:HKMetadataKeySyncVersion,operatorType:.lessThanOrEqualTo,value:NSNumber(value:row.revision))]))
+                        }
+                    }
+                    if !predicates.isEmpty {
+                        removals.append((type,NSCompoundPredicate(andPredicateWithSubpredicates:[
+                            HKQuery.predicateForObjects(from:HKSource.default()),NSCompoundPredicate(orPredicateWithSubpredicates:predicates)])))
+                    }
+                }
+                func valid() throws {
+                    try self.check(expected,version)
+                    guard self.state?.nutritionEpoch == epoch, self.state?.nutritionPermissions == self.allowed().joined(separator:",") else { throw HealthFoodError.changed }
+                }
+                func remove(_ index: Int) {
+                    do {
+                        try valid()
+                        if index == removals.count {
+                            try self.state?.acknowledgeNutrition(epoch:epoch,cursor:next);try self.persist();finish(nil);return
+                        }
+                        let item = removals[index]
+                        self.store.deleteObjects(of:item.0,predicate:item.1) { success,_,error in
+                            self.serial.async {
+                                if let error = error { finish(error) }
+                                else if !success { finish(self.failure("Nutrition deletion is waiting for Health. Unlock and sync again.")) }
+                                else { remove(index+1) }
+                            }
                         }
                     } catch { finish(error) }
                 }
-                operation(0)
+                self.writing = true
+                if saves.isEmpty { remove(0) } else {
+                    self.store.save(saves) { success,error in
+                        self.serial.async {
+                            if let error = error { finish(error) }
+                            else if !success { finish(self.failure("Nutrition is waiting for Health. Unlock and sync again.")) }
+                            else { remove(0) }
+                        }
+                    }
+                }
             } catch { done(error) }
         }
     }
@@ -244,7 +264,7 @@ class KinettaHealthFoodPlugin: CAPPlugin, CAPBridgedPlugin {
         do {
             guard let values = call.getArray("days",JSObject.self), let next = call.getDouble("next"),next.isFinite,next >= 0,next <= 9_007_199_254_740_991,next.rounded() == next else { throw HealthFoodError.invalid }
             let rows = try JSONDecoder().decode([HealthFoodDay].self,from:JSONSerialization.data(withJSONObject:values))
-            HealthFood.shared.write(owner:call.getString("owner") ?? "",epoch:call.getString("epoch") ?? "",zone:call.getString("tz") ?? "",next:Int64(next),rows:rows,done:error(call))
+            HealthFood.shared.write(owner:call.getString("owner") ?? "",accountID:call.getString("account_id") ?? "",epoch:call.getString("epoch") ?? "",zone:call.getString("tz") ?? "",next:Int64(next),rows:rows,done:error(call))
         } catch { call.reject(error.localizedDescription) }
     }
 }

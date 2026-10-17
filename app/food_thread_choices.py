@@ -18,12 +18,18 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
     part=copy.deepcopy(part)
     if new:
         if part.get('drafts'):raise HTTPException(409,'Edit this estimate or Undo it before trying a different food')
-        part.update({'status':'unknown','looked_up':False,'item':{},'question':None});part.pop('catalog',None)
+        part={k:part[k] for k in ('index','text','logged') if k in part}
+        part.update({'status':'unknown','looked_up':False,'item':{},'question':None,'skip_alias':True,'lookup_revision':time.time()})
     elif pick:
-        source=meal_chat.source_row(c,uid,pick.kind,pick.id)
+        meal_chat.source_row(c,uid,pick.kind,pick.id)  # reject foreign/deleted picks before resolution fallback
         resolved=meal_chat.resolve_data(c,uid,engine.ThreadResolveIn(parts=[engine.ThreadPartIn(text=part['text'],pick=pick,portion=portion)]),anchor=message['local_day'])
         item=resolved['items'][0];item['index']=index
         part=C.own_part(c,uid,item,resolved['issued'])
+    elif catalog is not None and part.get('catalog'):
+        if not 0<=catalog<len(part['catalog']):raise HTTPException(422,'Choose the product you meant')
+        if portion:part['portion_override']=portion.clean()
+        part=resolver._catalog(part['catalog'][catalog],part)
+        part['catalog_selected']=catalog
     elif part.get('drafts'):
         if factor is not None:S.scale_drafts(part['drafts'],factor)
         elif portion:
@@ -59,7 +65,7 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
 
 def manual(c,uid,message,body):
     if message['state']=='pending':
-        C.begin(c,uid,message,{'items':[],'issued':time.time()},aliases=False)
+        C.begin(c,uid,message,engine.resolve(c,uid,message),aliases=False)
         message=engine.locked_message(c,uid,message['id'])
     result=C.card(c,uid,message)
     if not result:raise HTTPException(409,'Use a new food message for these nutrition numbers')
@@ -77,10 +83,18 @@ def manual(c,uid,message,body):
     replacement={**part,'manual':True,'status':'ready','entries':entries,'looked_up':True}
     replacement.pop('drafts',None);replacement.pop('templates',None)
     result['parts']=[replacement if p['index']==body.part else p for p in result['parts']]
-    return C.write(c,uid,message,result,force=True)
+    return C.write(c,uid,message,result,force=True,only={body.part})
 
 
 def follow_up(c,uid,message):
+    try:
+        with c.transaction(): return _follow_up(c,uid,message)
+    except HTTPException as error:
+        if error.status_code not in (400,404,409,422):raise
+        return None
+
+
+def _follow_up(c,uid,message):
     """One short choice/portion answer updates its original card, not a new meal."""
     from . import food_thread_edit as edits
     previous=edits._context(c,uid,message)

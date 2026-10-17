@@ -1935,7 +1935,6 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 /* Deliberate recipe sharing, with a compact shared portion picker. */
 .recipe-page #dk-done {min-height:44px;min-width:44px;}
 .recipe-page .share-row {width:100%;text-align:left;min-height:60px;}
-.shared-friends .person {display:flex;flex-wrap:wrap;gap:.65rem;align-items:center;padding:.65rem 0;}
 .shared-friends .person .grow {min-width:0;overflow-wrap:anywhere;}
 .shared-friends [data-sd] {min-height:44px;white-space:normal;}
 .shared-recipes {margin:.5rem 0 .8rem;min-width:0;}
@@ -1955,7 +1954,7 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .food-thread:has(.shared-recipe-row) > .thread-intro {display:none;}
 .food-thread:has(.shared-recipe-row) #thread-empty {padding:0;visibility:hidden;}
 
-.shared-friends .person {display:grid;grid-template-columns:40px minmax(0,1fr);}
+.shared-friends .person {display:grid;grid-template-columns:40px minmax(0,1fr);gap:.65rem;align-items:center;padding:.65rem 0;}
 .shared-friends .person b,.shared-friends .person small {display:block;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
 .shared-friends .person b {font-size:1rem;}
 .shared-friends .person small {font-size:.85rem;}

@@ -16,6 +16,7 @@ def insert(c,uid,message,rows,day,meal):
     pos=c.execute('SELECT coalesce(max(position),0)+1 AS p FROM food_entries WHERE user_id=%s AND day=%s',(uid,day)).fetchone()['p']
     ids=[]
     for i,row in enumerate(rows):
+        # Legacy core zeros require unknown_nutrients; readers must honor coverage/N.known.
         row=N.storage(row)
         ids.append(c.execute('''INSERT INTO food_entries(user_id,day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,position,client_id)
                                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
@@ -29,10 +30,11 @@ def save(c,uid,message,rows,day,meal):
     result={'kind':'log','entry_ids':insert(c,uid,message,rows,day,meal),'day':str(day),'meal':meal,
             'text':f"{meal.capitalize()} · {', '.join(r['name'] for r in rows[:3])} · about {facts.kcal(sum(r['kcal'] for r in rows)):,} kcal from your log.",
             'source':'your food log','as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
+    saved=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,result['entry_ids'])).fetchall()
+    result['entry_digests']={str(r['id']):engine.entry_digest(r) for r in saved}
     result['feedback']=facts.feedback(facts.snapshot(c,uid,day),{k:sum(r[k] or 0 for r in rows) for k in ('kcal','protein_g')},seed=message['id'])
     response=food_thread.finish_reply(c,uid,message,result)
-    for mid in (message['id'],response['messages'][-1]['id']):
-        for eid in result['entry_ids']:c.execute('INSERT INTO food_chat_entries VALUES (%s,%s,%s)',(uid,mid,eid))
+    food_thread.link_entries(c,uid,[message,response['messages'][-1]],result['entry_ids'])
     response['messages']=food_thread.message_entries(c,uid,response['messages']);return response
 
 
@@ -44,10 +46,13 @@ def _question(c,uid,message,text,reference,choices,day=None,meal=None):
 
 def handle(c,uid,message):
     text=meal_chat.norm(message['body']).strip()
-    if re.search(r'\b(?:same as|copy)\b',text):
-        _,info=meal_chat.when(text,message['local_day'])
+    copying=re.match(r'^(?:for (?:breakfast|lunch|dinner|supper|snacks?)[, ]+)?(?:same as|copy)\s+(.+)',text)
+    if copying:
+        source_text=re.split(r'\bfor (?:breakfast|lunch|dinner|supper|snacks?)\b',copying[1],maxsplit=1)[0]
+        if not re.search(r'\b(?:today|yesterday|'+ '|'.join(facts.WEEKDAYS) +r'|breakfast|lunch|dinner|supper|snacks?|\d{4}-\d{2}-\d{2})\b',source_text):return None
+        _,info=meal_chat.when(source_text,message['local_day'])
         if not isinstance(info,dict):return _question(c,uid,message,'Which logged meal would you like to copy?',{'kind':'copy'},[])
-        meals=meal_chat.MEAL_WORD.findall(text);source_meal=meal_chat.MEAL_WORDS[meals[0]] if meals else info.get('meal')
+        meals=meal_chat.MEAL_WORD.findall(source_text);source_meal=meal_chat.MEAL_WORDS[meals[0]] if meals else info.get('meal')
         source_day=info.get('day') or message['local_day']
         rows=c.execute('''SELECT * FROM food_entries WHERE user_id=%s AND day=%s AND (%s::text IS NULL OR meal=%s)
                           ORDER BY position,id FOR UPDATE''',(uid,source_day,source_meal,source_meal)).fetchall()
@@ -67,7 +72,7 @@ def handle(c,uid,message):
                              [{'entry_id':r['id'],'name':r['name']} for r in rows],meal=meal)
         chosen=[r for r in rows if r['id'] not in omit]
         if not chosen:return _question(c,uid,message,'That leaves no foods to copy. What would you like to add?',{'kind':'copy'},[])
-        if not food_thread.preferences(c,uid)['auto_log']:
+        if not (food_thread.preferences(c,uid) or {}).get('auto_log',True):
             return preview(c,uid,message,chosen,{'kind':'copy','ids':[r['id'] for r in rows],'expected':stamp(rows),'omit':omit},message['local_day'],meal)
         return save(c,uid,message,chosen,message['local_day'],meal)
     rest=re.search(r'\b(?:the )?(?:rest|remainder) of (?:the |my )?(.+)',text)
@@ -112,7 +117,7 @@ def choose(c,uid,message,result,portion=None,omit=None):
         if ref.get('scale',1)!=1:
             from . import food_thread_edit as edits
             candidates=[edits._scale(c,uid,row,{'share':ref['scale']}) for row in candidates]
-        if not food_thread.preferences(c,uid)['auto_log']:return preview(c,uid,message,candidates,ref,dt.date.fromisoformat(result['day']),result['meal'])
+        if not (food_thread.preferences(c,uid) or {}).get('auto_log',True):return preview(c,uid,message,candidates,ref,dt.date.fromisoformat(result['day']),result['meal'])
         return save(c,uid,message,candidates,dt.date.fromisoformat(result['day']),result['meal'])
     if kind=='remaining':
         if portion is None:raise HTTPException(422,'Choose the amount that was left')
@@ -125,7 +130,7 @@ def choose(c,uid,message,result,portion=None,omit=None):
         from . import food_thread_edit as edits
         value=edits._scale(c,uid,row,portion.clean())
         ref={**reference,'portion':portion.clean()}
-        if not food_thread.preferences(c,uid)['auto_log']:return preview(c,uid,message,[value],ref,dt.date.fromisoformat(result['day']),result['meal'])
+        if not (food_thread.preferences(c,uid) or {}).get('auto_log',True):return preview(c,uid,message,[value],ref,dt.date.fromisoformat(result['day']),result['meal'])
         return save(c,uid,message,[value],dt.date.fromisoformat(result['day']),result['meal'])
     raise HTTPException(422,'Choose a reference from your food log')
 
