@@ -1,0 +1,205 @@
+{
+  "note": "Fictional/de-identified phrasings and made-up own-food nutrition; no private tester material. Portions calculated independently from bar200/egg70/toast80/pasta2kcal-per-g.",
+  "cases": [
+    {
+      "text": "I had a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Had protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "I ate two protein bars",
+      "kcal": 400
+    },
+    {
+      "text": "Please add 1 protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Breakfast: a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Lunch was a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "I just had half a protein bar",
+      "kcal": 100
+    },
+    {
+      "text": "A protein bar as a snack",
+      "kcal": 200
+    },
+    {
+      "text": "For breakfast I had a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Today I had a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Yesterday\u2019s breakfast was a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Okay, I had a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Oh, a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Yep I had one protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Well, I ate a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Hmm, protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "I\u2019ve had a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "I grabbed a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "I was having a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Add one protein bar for dinner",
+      "kcal": 200
+    },
+    {
+      "text": "Two eggs and toast",
+      "kcal": 220
+    },
+    {
+      "text": "2 eggs plus toast",
+      "kcal": 220
+    },
+    {
+      "text": "For lunch: 2 eggs with toast",
+      "kcal": 220
+    },
+    {
+      "text": "I had toast alongside 2 eggs",
+      "kcal": 220
+    },
+    {
+      "text": "One egg and one toast",
+      "kcal": 150
+    },
+    {
+      "text": "A slice of toast",
+      "kcal": 80
+    },
+    {
+      "text": "Half a slice of toast",
+      "kcal": 40
+    },
+    {
+      "text": "2 slices of toast",
+      "kcal": 160
+    },
+    {
+      "text": "Please log my toast",
+      "kcal": 80
+    },
+    {
+      "text": "I had an egg for breakfast",
+      "kcal": 70
+    },
+    {
+      "text": "230 grams of Garden pasta for lunch",
+      "kcal": 460
+    },
+    {
+      "text": "230 g Garden pasta",
+      "kcal": 460
+    },
+    {
+      "text": "300g of the Garden pasta",
+      "kcal": 600
+    },
+    {
+      "text": "Half the Garden pasta",
+      "kcal": 1000
+    },
+    {
+      "text": "A quarter of Garden pasta",
+      "kcal": 500
+    },
+    {
+      "text": "Garden pasta, 200 grams",
+      "kcal": 400
+    },
+    {
+      "text": "I ate 150 g of Garden pasta yesterday",
+      "kcal": 300
+    },
+    {
+      "text": "Dinner was 250g Garden pasta",
+      "kcal": 500
+    },
+    {
+      "text": "Today for lunch, 200g Garden pasta",
+      "kcal": 400
+    },
+    {
+      "text": "I had 230 grams of Garden pasta on Tuesday",
+      "kcal": 460
+    },
+    {
+      "text": "Also a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Oh and I had a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Yeah, two eggs and toast",
+      "kcal": 220
+    },
+    {
+      "text": "Actually I had a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "Oops, just a protein bar",
+      "kcal": 200
+    },
+    {
+      "text": "I ate about 2 eggs",
+      "kcal": 140
+    },
+    {
+      "text": "Roughly 200 grams of Garden pasta",
+      "kcal": 400
+    },
+    {
+      "text": "I had one and a half protein bars",
+      "kcal": 300
+    },
+    {
+      "text": "\u00bd a protein bar",
+      "kcal": 100
+    },
+    {
+      "text": "2 protein bars total",
+      "kcal": 400
+    }
+  ]
+}

@@ -33,7 +33,7 @@ def classify(text, anchor):
         kind = 'review'
     if kind is None:
         return None
-    if kind in ('totals','left') and re.search(r'^(?:i (?:ate|had)|we (?:ate|had)|log\b|add\b|record\b)',text):
+    if kind in ('totals','left') and re.search(r'^(?:\d|half\b|quarter\b|one\b|two\b|three\b|i (?:ate|had)|we (?:ate|had)|log\b|add\b|record\b)',text):
         return None
     nutrient = next((key for key,pattern in [('protein',r'\bprotein\b'),('carbs',r'\bcarb(?:s|ohydrates?)?\b'),('fat',r'\bfat\b'),('fiber',r'\bfib(?:er|re)\b'),('calories',r'\b(?:calories?|cals?|kcal)\b')] if re.search(pattern,text)),None)
     if kind in ('totals','left') and nutrient is None:
