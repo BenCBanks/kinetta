@@ -21,13 +21,13 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
-from . import db, notify
+from . import db, notify, nutrients as N
 from .api_food import MEALS
 from .auth import current_user
 
 router = APIRouter(prefix='/api/dishes')
-NUM = ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')
-KNOWN = ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')     # what can be typed in for the whole dish
+NUM = N.ALL
+KNOWN = N.ALL     # what can be typed in for the whole dish
 MAX_ITEMS = 60
 MAX_DISHES = 300
 NEW_NAME = 'New meal'   # a dish not named yet (older ones were called after their meal)
@@ -127,18 +127,16 @@ def _r(v, n=1): return round(v, n) if v is not None else None
 
 
 def _item_values(per100, grams):
-    return {k: _r(per100[k] * grams / 100) if per100.get(k) is not None else (None if k == 'fiber_g' else 0) for k in NUM}
+    return {k:N.rounded(k,per100[k]*grams/100) if per100.get(k) is not None else None for k in NUM}
 
 
 def _totals(d):
-    """The dish's kcal + macros: a typed-in total wins, otherwise the ingredients' sum (fiber only if some has it)."""
-    items = d['items']
-    if d.get('recipe_source'):
-        return {k:_r(d.get('known_'+k)) for k in NUM}
-    out = {k: round(sum((i.get(k) or 0) for i in items), 1) for k in NUM}
-    if not any(i.get('fiber_g') is not None for i in items): out['fiber_g'] = None
+    """Whole-recipe values; a missing ingredient value cannot become a known zero."""
+    items=d['items']
+    if d.get('recipe_source'):return {k:N.rounded(k,d.get('known_'+k)) for k in NUM}
+    out={k:N.rounded(k,sum(i[k] for i in items)) if items and all(N.known(i,k) for i in items) else None for k in NUM}
     for k in KNOWN:
-        if d.get(f'known_{k}') is not None: out[k] = round(d[f'known_{k}'], 1)
+        if d.get('known_'+k) is not None:out[k]=N.rounded(k,d['known_'+k])
     return out
 
 
@@ -162,15 +160,15 @@ def _out(d):
     return {'id': d['id'], 'name': (NEW_NAME if d['name'] == 'New dish' else d['name']), 'items': d['items'],
             'known': {k: d.get(f'known_{k}') for k in KNOWN}, 'totals': totals,
             'recipe_source':d.get('recipe_source') or {},'serving_count':serving_count(d),
-            'per_serving':{k:_r(v/serving_count(d)) if v is not None else None for k,v in totals.items()},
+            'per_serving':{k:N.rounded(k,v/serving_count(d)) if v is not None else None for k,v in totals.items()},
             'cooked_g': d['cooked_g'], 'weight_g': weight, 'items_g': _sum_g(d), 'weighed': d['cooked_g'] is not None,
             'serving': d['serving'], 'servings': d['servings'], 'named': d['name'] not in PLACEHOLDERS,
-            'per_100g': {k: _r(v * 100 / weight) if v is not None else None for k, v in totals.items()} if weight else None,
+            'per_100g': {k: N.rounded(k,v * 100 / weight) if v is not None else None for k, v in totals.items()} if weight else None,
             'created': d['created'], 'updated': d['updated'],
             'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['recipe_updated'] > d['ai_note_at']} if d.get('ai_note') else None}
 
 
-COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, serving, servings, created, updated, ai_note, ai_note_at, recipe_updated, known_fiber_g, recipe_source'
+COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, serving, servings, created, updated, ai_note, ai_note_at, recipe_updated, known_fiber_g, recipe_source, known_sodium_mg, known_sugar_g, known_saturated_fat_g'
 SHARED = """EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s)
             AND EXISTS (SELECT 1 FROM friendships f WHERE f.status = 'accepted'
               AND ((f.requester = dishes.user_id AND f.addressee = %(u)s) OR (f.addressee = dishes.user_id AND f.requester = %(u)s)))"""
@@ -203,7 +201,7 @@ def _get(c, uid, did, lock=False):
 
 
 def _ingredient_totals(items,source):
-    return {k:_r(sum(i[k] for i in items)) if items and not source.get('pending') and all(i.get(k) is not None and k not in ((i.get('ref') or {}).get('unknown_nutrients') or []) for i in items) else None for k in NUM}
+    return {k:N.rounded(k,sum(i[k] for i in items)) if items and not source.get('pending') and all(N.known(i,k) for i in items) else None for k in NUM}
 
 
 def _save_items(c, uid, did, items):
@@ -226,12 +224,12 @@ def _today(c, uid):
 
 
 # ---------- dishes ----------
-EMPTY = "items = '[]'::jsonb AND cooked_g IS NULL AND known_kcal IS NULL AND name = ANY(%(p)s)"
+EMPTY = "items = '[]'::jsonb AND cooked_g IS NULL AND "+' AND '.join('known_'+k+' IS NULL' for k in KNOWN)+" AND name = ANY(%(p)s)"
 
 
 def _empty(d):
     """Opened but nothing added and not named: not a dish yet. Kept off the list; Start a new dish reopens it."""
-    return not d['items'] and d['cooked_g'] is None and d['known_kcal'] is None and d['name'] in PLACEHOLDERS
+    return not d['items'] and d['cooked_g'] is None and all(d.get('known_'+k) is None for k in KNOWN) and d['name'] in PLACEHOLDERS
 
 
 @router.get('')
@@ -274,7 +272,7 @@ def dish(did: int, user=Depends(current_user)):
         return _view(c, user['id'], _seen(c, user['id'], did))
 
 
-class DishEdit(BaseModel):
+class DishEdit(N.KnownExtras):
     name: str | None = Field(None, min_length=1, max_length=80)
     cooked_g: float | None = Field(None, gt=0, le=30000)      # the whole dish as weighed; null = the ingredients added up
     known_kcal: float | None = Field(None, ge=0, le=50000)    # a total from a recipe; null = use the ingredients
@@ -300,7 +298,7 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
             g = _r(v['cooked_g'])
             sets['cooked_g'] = None if g is not None and _sum_g(d) is not None and abs(g - _sum_g(d)) < 0.5 else g
         for k in KNOWN:
-            if f'known_{k}' in v: sets[f'known_{k}'] = _r(v[f'known_{k}'])
+            if f'known_{k}' in v: sets[f'known_{k}'] = N.rounded(k,v[f'known_{k}'])
         if v.get('serving'): sets['serving'] = v['serving']
         if 'servings' in v: sets['servings'] = v['servings']
         if set(sets) & {'cooked_g', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
@@ -330,15 +328,15 @@ def dish_delete(did: int, user=Depends(current_user)):
 
 
 # ---------- ingredients ----------
-class Per100(BaseModel):
+class Per100(N.ExtraPer100):
     kcal: float = Field(ge=0, le=1000)          # nothing has more than ~900 kcal per 100 g (pure fat)
-    protein_g: float | None = Field(0, ge=0, le=100)
-    carbs_g: float | None = Field(0, ge=0, le=100)
-    fat_g: float | None = Field(0, ge=0, le=100)
+    protein_g: float | None = Field(None, ge=0, le=100)
+    carbs_g: float | None = Field(None, ge=0, le=100)
+    fat_g: float | None = Field(None, ge=0, le=100)
     fiber_g: float | None = Field(None, ge=0, le=100)
 
 
-class ItemIn(BaseModel):
+class ItemIn(N.ExtraValues):
     """Either per100 (a food picked from search) or kcal + macros typed in for this amount."""
     name: str = Field(min_length=1, max_length=200)
     grams: float | None = Field(None,gt=0, lt=20000)
@@ -356,9 +354,9 @@ def _per100(body):
     if body.per100 is not None: return body.per100.model_dump()
     if body.kcal is None: raise HTTPException(400, 'Pick a food, or type its calories')
     per = {k: (getattr(body, k) * 100 / body.grams if getattr(body, k) is not None else None) for k in NUM}
-    if per['kcal'] > 1000 or any((per[k] or 0) > 100 for k in NUM if k != 'kcal'):
+    if any((per[k] or 0)>N.PER100_LIMITS[k] for k in NUM):
         raise HTTPException(400, f"That's more than {body.grams:g} g of food can hold - check the amount and the calories")
-    return {k: _r(v, 3) if (v is not None or k == 'fiber_g') else 0 for k, v in per.items()}
+    return {k:round(v,4 if k in N.EXTRA else 3) if v is not None else None for k,v in per.items()}
 
 
 @router.post('/{did:int}/items')
@@ -393,10 +391,10 @@ def item_edit(did: int, iid: str, body: ItemEdit, user=Depends(current_user)):
         if not old.get('per100'):
             if not dish.get('recipe_source'):raise HTTPException(400,'Enter nutrition for this ingredient before changing its weight')
             per={k:old.get(k)*100/body.grams if old.get(k) is not None else None for k in NUM}
-            if any(v is not None and v>(1000 if k=='kcal' else 100) for k,v in per.items()):raise HTTPException(400,'Check the weight for this ingredient’s known nutrition')
+            if any(v is not None and v>N.PER100_LIMITS[k] for k,v in per.items()):raise HTTPException(400,'Check the weight for this ingredient’s known nutrition')
             items[n]={**old,'grams':_r(body.grams),'per100':per}
         else:
-            values={k:_r(old['per100'].get(k)*body.grams/100) if old['per100'].get(k) is not None else None for k in NUM} if dish.get('recipe_source') else _item_values(old['per100'],body.grams)
+            values={k:N.rounded(k,old['per100'].get(k)*body.grams/100) if old['per100'].get(k) is not None else None for k in NUM} if dish.get('recipe_source') else _item_values(old['per100'],body.grams)
             items[n]={**old,'grams':_r(body.grams),**values}
         return _view(c, user['id'], _save_items(c, user['id'], did, items))
 
@@ -438,7 +436,7 @@ def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool 
                 messages=receipts.create(c,user['id'],[old['id']],captured_at) if thread else []
                 return {'entry':old,'replayed':True,**({'messages':messages} if thread else {})}
         d = _seen(c, user['id'], did)
-        if (d.get('recipe_source') and _totals(d)['kcal'] is None) or (not d['items'] and d['known_kcal'] is None): raise HTTPException(400, "Add the ingredients or the meal's total calories first")
+        if _totals(d)['kcal'] is None: raise HTTPException(400, "Add the ingredients or the meal's total calories first")
         weight = _weight(d)
         if body.grams is not None and not weight: raise HTTPException(400, "This meal has no weight yet - log a share of it, or add its weight")
         if body.count is not None:      # servings of the whole dish: by servings, the whole dish is one serving (Ben, 2026-10-12)
@@ -447,15 +445,16 @@ def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool 
         elif weight: f, amount, unit = body.share, round(body.share * weight, 1), 'g'
         else: f, amount, unit = body.share, round(body.share, 3), 'dish'     # "0.25 dish": a typed-in total with no weight
         totals = _totals(d)
-        vals = {k: _r(v * f) if v is not None else None for k, v in totals.items()}
+        vals = {k:N.rounded(k,v*f) if v is not None else None for k,v in totals.items()}
+        if any(v is not None and v>N.ENTRY_MAX[k] for k,v in vals.items() if k in N.EXTRA):raise HTTPException(400,'That portion is too large. Check the amount.')
         day = body.day or _today(c, user['id']).date()
         pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (user['id'], day)).fetchone()['p']
         ref = {'dish_id': did, 'weight_g': weight, 'dish_kcal': totals['kcal'],'unknown_nutrients':[k for k,v in vals.items() if v is None],**({'recipe_source':{k:d['recipe_source'].get(k) for k in ('source_url','basis','sources','servings','edited')}} if d.get('recipe_source') else {}),**({'portion_request':request} if body.client_id else {})}
-        entry = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position, client_id)
-                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'dish', %s, %s, %s)
-                             RETURNING id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref""",
+        entry = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position, client_id)
+                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'dish', %s, %s, %s)
+                             RETURNING id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref""",
                           (user['id'], day, body.meal, d['name'], amount, unit, vals['kcal'], vals['protein_g'] or 0, vals['carbs_g'] or 0,
-                           vals['fat_g'] or 0, vals['fiber_g'], json.dumps(ref), pos, body.client_id)).fetchone()
+                           vals['fat_g'] or 0, vals['fiber_g'],vals['sodium_mg'],vals['sugar_g'],vals['saturated_fat_g'],json.dumps(ref), pos, body.client_id)).fetchone()
         if body.of and d['user_id'] == user['id']:      # "1 of 4": the next time it offers 4 again
             c.execute('UPDATE dishes SET servings = %s WHERE id = %s AND user_id = %s', (body.of, did, user['id']))
         messages=receipts.create(c,user['id'],[entry['id']],captured_at) if thread else []

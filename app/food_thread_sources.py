@@ -6,6 +6,7 @@ missing weights remain a portion question rather than an invented zero or weight
 import math
 import re
 from fastapi import HTTPException
+from . import nutrients as N
 from . import api_food,meal_chat
 
 
@@ -16,12 +17,12 @@ def positive(value,maximum=20000):
 
 def numbers(item):
     result={}
-    for key,maximum in (('kcal',20000),('protein_g',2000),('carbs_g',2000),('fat_g',2000),('fiber_g',1000)):
+    for key,maximum in N.ENTRY_MAX.items():
         value=item.get(key)
-        if value is None and key=='fiber_g':result[key]=None;continue
+        if value is None and key in ('fiber_g',*N.EXTRA):result[key]=None;continue
         if type(value) not in (int,float) or not math.isfinite(value) or not 0<=value<=maximum:
             raise HTTPException(422,'Check the nutrition numbers; missing values cannot be logged as zero')
-        result[key]=round(value,3)
+        result[key]=N.rounded(key,value)
     return result
 
 

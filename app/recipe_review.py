@@ -3,10 +3,10 @@ import hashlib,json,math,secrets
 from typing import Annotated,Literal
 from pydantic import BaseModel,Field,StrictBool
 from fastapi import HTTPException
-from . import api_dishes as D,recipe_schema
-FIELDS={'kcal':'calories','protein_g':'protein','carbs_g':'carbs','fat_g':'fat','fiber_g':'fiber'}
+from . import api_dishes as D,recipe_schema,nutrients as N
+FIELDS={'kcal':'calories','protein_g':'protein','carbs_g':'carbs','fat_g':'fat','fiber_g':'fiber','sodium_mg':'sodium','sugar_g':'sugar','saturated_fat_g':'saturated_fat'}
 
-class Values(BaseModel):
+class Values(N.ExtraValues):
     model_config={'extra':'forbid','allow_inf_nan':False}
     kcal:float|None=Field(None,ge=0,le=20000)
     protein_g:float|None=Field(None,ge=0,le=2000)
@@ -65,16 +65,17 @@ def build(c,uid,row,body):
     items,pending=_items(matching)
     summed={k:round(sum(i[k] for i in items),4) if items and not pending and all(i.get(k) is not None for i in items) else None for k in D.NUM}
     site={k:original['nutrition'].get(field) for k,field in FIELDS.items()}
-    proposed=body.values.model_dump() if body.values else site
+    proposed=dict(site) if body.basis=='published' else dict.fromkeys(D.NUM)
+    if body.values:proposed.update(body.values.model_dump(exclude_unset=True))
     totals={};sources={}
     for k in D.NUM:
         if body.basis=='ingredients':v=summed[k];source=('estimated_ingredients' if any(i['source']=='ai' for i in items) else 'ingredients') if v is not None else 'unknown'
         else:
             per=proposed[k];v=per*body.servings if per is not None else (summed[k] if body.basis=='published' else None)
             source=('site' if per==site[k] and body.basis=='published' else 'entered') if per is not None else (('estimated_ingredients' if any(i['source']=='ai' for i in items) else 'ingredients') if v is not None else 'unknown')
-        if v is not None and (not math.isfinite(v) or v>(50000 if k=='kcal' else 5000)):raise HTTPException(422,'The whole recipe is too large. Check servings and nutrition.')
+        if v is not None and (not math.isfinite(v) or v>N.BATCH_MAX[k]):raise HTTPException(422,'The whole recipe is too large. Check servings and nutrition.')
         totals[k]=round(v,4) if v is not None else None;sources[k]=source
-    review={'input':body.model_dump(mode='json'),'name':name,'servings':body.servings,'items':items,'pending':pending,
+    review={'input':body.model_dump(mode='json',exclude_unset=True),'name':name,'servings':body.servings,'items':items,'pending':pending,
             'totals':totals,'per_serving':{k:round(v/body.servings,4) if v is not None else None for k,v in totals.items()},
             'sources':sources,'basis':body.basis,'source_url':original['source_url'],'yield_text':original['yield_text'],
             'ingredient_lines':lines,'site_nutrition':site,'matching':matching,

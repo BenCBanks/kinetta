@@ -4,6 +4,7 @@ import json
 import math
 import re
 from fastapi import HTTPException
+from . import nutrients as N
 from . import api_dishes, meal_chat, food_thread, food_thread_facts as facts, food_thread_log as engine
 
 
@@ -205,7 +206,8 @@ def try_correction(c,uid,message,intent=None,forced=None):
             if error.status_code!=400:raise
             return _ask(c,uid,message,str(error.detail),intent={**intent,'invalid':str(error.detail)})
         for row,value in changed:
-            c.execute('''UPDATE food_entries SET amount=%s,unit=%s,kcal=%s,protein_g=%s,carbs_g=%s,fat_g=%s,fiber_g=%s,ref=%s,updated=now()
+            value=N.storage(value)
+            c.execute('''UPDATE food_entries SET amount=%s,unit=%s,kcal=%s,protein_g=%s,carbs_g=%s,fat_g=%s,fiber_g=%s,sodium_mg=%s,sugar_g=%s,saturated_fat_g=%s,ref=%s,updated=now()
                          WHERE id=%s AND user_id=%s''',(value['amount'],value['unit'],*(value[k] for k in api_dishes.NUM),json.dumps(value.get('ref')),row['id'],uid))
         action='Updated '+', '.join(r['name'] for r in matched[:3])+(' and more' if len(matched)>3 else '')+'.'
     remaining=current_entries(c,uid,root['id']);ids=[r['id'] for r in remaining]

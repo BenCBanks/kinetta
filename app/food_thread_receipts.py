@@ -9,9 +9,10 @@ import json
 from uuid import uuid5, NAMESPACE_URL
 from zoneinfo import ZoneInfo
 from fastapi import HTTPException
+from . import nutrients as N
 from . import db
 
-ENTRY = 'id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, client_id'
+ENTRY = 'id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, client_id'
 
 
 def identity(uid,client_id):
@@ -54,7 +55,7 @@ def create(c,uid,ids,captured_at=None):
                             VALUES (%s,%s,'user',%s,%s,%s,'pending',%s) RETURNING {food_thread.COLUMNS}''',
                        (uid,key,'Logged '+entry['name'],captured,local_day,json.dumps(metadata))).fetchone()
         result={'kind':'log','text':'Saved from your food picker.','day':entry['day'].isoformat(),'meal':entry['meal'],
-                'entry_ids':[entry['id']],'logged_unknown':[k for k in ('kcal','protein_g','carbs_g','fat_g','fiber_g') if entry[k] is None or (isinstance((entry.get('ref') or {}).get('unknown_nutrients'),list) and k in entry['ref']['unknown_nutrients'])],'logged_totals':{k:entry[k] for k in ('kcal','protein_g','carbs_g','fat_g','fiber_g')},'source':'your food log','as_of':now.isoformat()}
+                'entry_ids':[entry['id']],'logged_unknown':[k for k in N.ALL if entry[k] is None or (isinstance((entry.get('ref') or {}).get('unknown_nutrients'),list) and k in entry['ref']['unknown_nutrients'])],'logged_totals':{k:entry[k] for k in N.ALL},'source':'your food log','as_of':now.isoformat()}
         if i==len(rows)-1:result['feedback']=facts.feedback(facts.snapshot(c,uid,entry['day']),seed=root['id'])
         saved=food_thread.finish_reply(c,uid,root,result)
         for mid in (root['id'],saved['messages'][-1]['id']):

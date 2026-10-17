@@ -10,6 +10,7 @@ import re
 import time
 from uuid import UUID,uuid5
 from fastapi import HTTPException
+from . import nutrients as N
 from . import meal_chat,food_thread,food_thread_log as engine,food_thread_facts as facts
 
 
@@ -121,13 +122,13 @@ def fresh_drafts(c,uid,part):
 
 def _custom(c,uid,draft):
     values=draft['food']
-    cols=('name','brand','serving_label','serving_g','kcal','protein_g','carbs_g','fat_g','fiber_g')
+    cols=('name','brand','serving_label','serving_g',*N.ALL)
     origin=draft.get('origin_ref') or {}
     barcode=str(origin.get('id') or '') if origin.get('source')=='off' else ''
     barcode=barcode if re.fullmatch(r'\d{6,14}',barcode) else None
-    fid=c.execute('''INSERT INTO custom_foods(user_id,name,brand,serving_label,serving_g,kcal,protein_g,carbs_g,fat_g,fiber_g,
+    fid=c.execute('''INSERT INTO custom_foods(user_id,name,brand,serving_label,serving_g,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,
                       origin,origin_notes,origin_model,origin_ref,barcode)
-                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
                       (uid,*(values.get(k) for k in cols),draft['origin'],draft.get('notes'),draft.get('model'),json.dumps(draft.get('origin_ref')),barcode)).fetchone()['id']
     row=meal_chat.source_row(c,uid,'custom',fid)
     entries,why=meal_chat.compute(c,uid,'custom',row,draft['portion'])
@@ -143,9 +144,10 @@ def _insert(c,uid,message,result,part,entries):
     prefix=str(uuid5(UUID(str(message['client_id'])),f"thread-part-{part['index']}"))
     ids=[]
     for i,e in enumerate(entries):
+        e=N.storage(e)
         pos=c.execute('SELECT coalesce(max(position),0)+1 AS p FROM food_entries WHERE user_id=%s AND day=%s',(uid,result['day'])).fetchone()['p']
-        row=c.execute('''INSERT INTO food_entries(user_id,day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref,position,client_id)
-                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        row=c.execute('''INSERT INTO food_entries(user_id,day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,position,client_id)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                           ON CONFLICT (user_id,client_id) WHERE client_id IS NOT NULL DO NOTHING RETURNING id''',
                           (uid,result['day'],result['meal'],e['name'],e.get('brand'),e['amount'],e['unit'],*(e.get(k) for k in meal_chat.NUM),
                            e.get('source','quick'),json.dumps(e.get('ref'),default=str),pos,f'{prefix}-{i:02d}')).fetchone()

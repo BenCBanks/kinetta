@@ -550,3 +550,6 @@ Recipe portion logging now gives immediate Saving feedback, an offline pending r
 ### Extra nutrient storage/source foundation (#122 O1)
 
 Sodium (mg), total sugar (g) and saturated fat (g) now have nullable food/custom/known-recipe storage and optional profile limits, unset by default. Source mappings and authenticated direct food APIs preserve unknown versus reported zero. Day coverage reports the recorded subtotal with known/unknown counts, never treating a partial subtotal as complete intake. There is no new UI yet; pipeline integration and collapsed detail/day/Overview controls follow. No energy algorithm or AI recognition schema changes. See [nutrients.md](nutrients.md).
+
+### Extra-nutrient logging pipeline (#122 O2)
+Recipes, imported published nutrition, logged portions, food chat, manually entered thread foods, learned catalog foods and corrections preserve sodium (mg), total sugar (g) and saturated fat (g). Unknown stays unknown through receipts and Undo, including calories-only recipes with missing macros. Existing five-field AI schemas remain unchanged, so they do not provide the extra nutrients. No new taps or UI controls in this backend part; the food detail/day/Overview controls follow separately.

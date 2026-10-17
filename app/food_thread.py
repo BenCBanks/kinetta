@@ -9,6 +9,7 @@ processing and the visible thread follow separately.
 import datetime as dt
 import json
 from typing import Literal
+from . import nutrients as N
 from . import meal_chat
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -54,7 +55,7 @@ def message_entries(c, uid, messages):
     if messages:
         ids = [m['id'] for m in messages]
         rows = c.execute('''SELECT l.message_id, e.id, e.day, e.meal, e.name, e.amount, e.unit,
-                              e.kcal, e.protein_g, e.carbs_g, e.fat_g, e.fiber_g, e.source, e.ref
+                              e.kcal, e.protein_g, e.carbs_g, e.fat_g, e.fiber_g, e.sodium_mg, e.sugar_g, e.saturated_fat_g, e.source, e.ref
                             FROM food_chat_entries l JOIN food_entries e
                               ON e.id = l.entry_id AND e.user_id = l.user_id
                             WHERE l.user_id = %s AND l.message_id = ANY(%s)
@@ -306,7 +307,7 @@ def resolve_foods(mid: int,body: ThreadResolveIn,user=Depends(current_user)):
     return resolver.resolve(user['id'],mid,body)
 
 
-class ManualItem(BaseModel):
+class ManualItem(N.ExtraValues):
     model_config=ConfigDict(extra='forbid',allow_inf_nan=False)
     name: str = Field(min_length=1,max_length=200)
     amount: float = Field(1,gt=0,le=100000)

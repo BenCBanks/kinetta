@@ -154,7 +154,9 @@ def save(identity:UUID,body:SaveIn,user=Depends(current_user)):
         if c.execute('SELECT count(*) AS n FROM dishes WHERE user_id=%s',(user['id'],)).fetchone()['n']>=D.MAX_DISHES:raise HTTPException(400,'Delete a saved recipe before adding another')
         source={k:fresh[k] for k in ('servings','pending','sources','basis','source_url','yield_text','ingredient_lines','site_nutrition','site_recipe_changed')}
         source['import_id']=str(identity)
-        did=c.execute('INSERT INTO dishes(user_id,name,items,known_kcal,known_protein_g,known_carbs_g,known_fat_g,known_fiber_g,serving,servings,recipe_source) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,\'one\',1,%s) RETURNING id',
+        known_columns=','.join('known_'+k for k in D.KNOWN)
+        placeholders=','.join(['%s']*(3+len(D.KNOWN)))
+        did=c.execute(f"INSERT INTO dishes(user_id,name,items,{known_columns},serving,servings,recipe_source) VALUES({placeholders},'one',1,%s) RETURNING id",
                       (user['id'],fresh['name'],json.dumps(V.with_ids(fresh['items'])),*[fresh['totals'][k] for k in D.KNOWN],json.dumps(source))).fetchone()['id']
         c.execute("UPDATE recipe_link_drafts SET state='saved',saved_dish_id=%s,data=%s WHERE user_id=%s AND id=%s",(did,json.dumps({'saved_baseline':body.baseline,**({'input_hash':row['data']['input_hash']} if row['data'].get('input_hash') else {})}),user['id'],identity))
         return {'dish':D._view(c,user['id'],D._get(c,user['id'],did)),'replayed':False}
