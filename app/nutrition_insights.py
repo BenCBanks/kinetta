@@ -32,7 +32,7 @@ def insights_data(c, uid, days=30, since=None):
     today = ctx['today']
     days = max(1, min((today - since).days + 1, 731)) if since and since <= today else max(7, min(days, 366))
     start = today - dt.timedelta(days=days - 1)
-    prof = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target, deficit_start FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
+    prof = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target, deficit_start, units FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
     food = {r['day']: r for r in c.execute("""
         SELECT day, sum(kcal) AS kcal, sum(protein_g) AS protein_g, sum(carbs_g) AS carbs_g, sum(fat_g) AS fat_g,
                sum(fiber_g) AS fiber_g, count(fiber_g) AS fiber_n, count(*) AS n,
@@ -91,54 +91,54 @@ def insights_data(c, uid, days=30, since=None):
     summary['meals'] = {m: round(v / all_kcal * 100) for m, v in meal_tot.items()}
     tg = {k: prof.get(k) for k in ('kcal_target', 'protein_target', 'carbs_target', 'fat_target', 'fiber_target')}
     summary['start'] = start.isoformat()
-    return {'rows': rows, 'summary': summary, 'targets': tg, 'deficit_start': prof['deficit_start'].isoformat() if prof.get('deficit_start') else None, 'insights': _insights(C, summary, tg, top, ctx, raw_w),
+    return {'rows': rows, 'summary': summary, 'targets': tg, 'deficit_start': prof['deficit_start'].isoformat() if prof.get('deficit_start') else None, 'insights': _insights(C, summary, tg, top, ctx, raw_w, prof.get('units') or 'imperial'),
             'top_foods': [{'name': t['name'], 'n': t['n'], 'kcal': round(_f(t['kcal'])), 'protein_g': round(_f(t['protein_g']))} for t in top]}
 
 
-def _insights(C, S, tg, top, ctx, raw_w):
+def _insights(C, S, tg, top, ctx, raw_w, units='imperial'):
     """Short plain sentences, most useful first; only when there is enough data to say it."""
     out, n = [], len(C)
     if S['missing_burn_days']: out.append(('info', f"Resting calories have not finished syncing for {S['missing_burn_days']} logged day(s). Food averages still count those days; deficit totals wait for resting data."))
-    lb = lambda kg: f'{abs(kg) * 2.20462:.1f} lb'
+    kcal = lambda value: f'{round(float(value)/5)*5:,}'
+    weight = lambda kg: f"{abs(kg) * (2.20462 if units=='imperial' else 1):.1f} {'lb' if units=='imperial' else 'kg'}"
     if S['past_days'] and n / S['past_days'] < 0.7:
-        out.append(('info', f"Logged {n} of the last {S['past_days']} days. The deficit and calorie needs get more accurate with each full day."))
+        out.append(('info', f"Logged {n} of the last {S['past_days']} days. Complete food records and weigh-ins help review the estimates; missing days are not zero intake."))
     if n < 3: return out
     if S['avg_goal']:
         diff = S['avg_eaten'] - S['avg_goal']
         out.append(('good' if abs(diff) <= S['avg_goal'] * .05 else 'warn' if diff > 0 else 'info',
-                    f"Average {S['avg_eaten']:,} kcal a day, "
-                    + ('on your goal.' if abs(diff) <= S['avg_goal'] * .05 else f"{abs(diff):,} {'over' if diff > 0 else 'under'} your {S['avg_goal']:,} goal.")))
+                    f"Logged about {kcal(S['avg_eaten'])} kcal a day on average, "
+                    + ('near your goal.' if abs(diff) <= S['avg_goal'] * .05 else f"about {kcal(abs(diff))} {'over' if diff > 0 else 'under'} your {kcal(S['avg_goal'])} kcal goal.")))
         hit = sum(1 for r in C if r['goal'] and abs(r['eaten'] - r['goal']) <= r['goal'] * .1)
         out.append(('info', f"Within 10% of your goal on {hit} of {n} days."))
     if S['trend_change_kg'] is not None and S['burn_counted_days'] >= 7:
-        out.append(('info', f"Your deficit predicts {lb(S['predicted_kg'])} {'lost' if S['predicted_kg'] <= 0 else 'gained'}; "
-                            f"the scale trend is {'down' if S['trend_change_kg'] <= 0 else 'up'} {lb(S['trend_change_kg'])}."
-                            + (" They match." if abs(S['predicted_kg'] - S['trend_change_kg']) < 0.6 else " Water weight usually explains a gap like this.")))
+        out.append(('info', f"Logged food and estimated burn suggest a rough change of {weight(S['predicted_kg'])} {'lost' if S['predicted_kg'] <= 0 else 'gained'}; "
+                            f"your recorded scale trend is {'down' if S['trend_change_kg'] <= 0 else 'up'} {weight(S['trend_change_kg'])}."
+                            + (" They are broadly consistent; neither proves why your weight changed." if abs(S['predicted_kg'] - S['trend_change_kg']) < 0.6
+                               else " A gap can reflect water changes, missed or underestimated food, or an inaccurate burn estimate. Use the weekly check-in to review your target.")))
     if tg.get('protein_target'):
         hit = sum(1 for r in C if (r['protein_g'] or 0) >= tg['protein_target'] * .95)
-        out.append(('good' if hit >= n * .7 else 'warn', f"Protein goal ({tg['protein_target']:.0f} g) hit on {hit} of {n} days. "
-                                                         f"Average {S['avg_protein_g']:.0f} g ({S['avg_protein_g'] / ctx['kg']:.1f} g per kg)."))
+        out.append(('good' if hit >= n * .7 else 'warn', f"Logged protein reached your {tg['protein_target']:.0f} g goal on {hit} of {n} days. "
+                                                         f"Logged average: about {S['avg_protein_g']:.0f} g."))
     else:
-        out.append(('info', f"Protein: {S['avg_protein_g']:.0f} g a day ({S['avg_protein_g'] / ctx['kg']:.1f} g per kg). "
-                            "Active people usually aim for 1.6-2.2 g per kg."))
+        out.append(('info', f"Logged protein: about {S['avg_protein_g']:.0f} g a day. Set a protein goal if you would like a comparison."))
     wk = [r['eaten'] for r in C if dt.date.fromisoformat(r['day']).weekday() >= 5]
     wd = [r['eaten'] for r in C if dt.date.fromisoformat(r['day']).weekday() < 5]
     if len(wk) >= 2 and len(wd) >= 3:
         diff = sum(wk) / len(wk) - sum(wd) / len(wd)
-        if abs(diff) >= 150: out.append(('warn' if diff > 0 else 'info', f"You eat about {abs(diff):,.0f} kcal {'more' if diff > 0 else 'less'} on weekends than on weekdays."))
+        if abs(diff) >= 150: out.append(('info', f"You logged about {kcal(abs(diff))} kcal {'more' if diff > 0 else 'less'} on weekends than on weekdays."))
     tr, rs = [r['eaten'] for r in C if r['training']], [r['eaten'] for r in C if not r['training']]
     if len(tr) >= 3 and len(rs) >= 3 and abs(sum(tr) / len(tr) - sum(rs) / len(rs)) >= 100:
         diff = sum(tr) / len(tr) - sum(rs) / len(rs)
-        out.append(('info', f"On bigger training days you eat {abs(diff):,.0f} kcal {'more' if diff >= 0 else 'less'} than on other days."
-                            + (" Try eating a little more around hard sessions." if diff < -100 else "")))
+        out.append(('info', f"On bigger training days you logged about {kcal(abs(diff))} kcal {'more' if diff >= 0 else 'less'} than on other days. Incomplete logging can affect this comparison."))
     if S['meals']:
         m, p = max(S['meals'].items(), key=lambda x: x[1])
-        if p >= 40: out.append(('info', f"{m.capitalize()} is {p}% of your calories."))
+        if p >= 40: out.append(('info', f"{m.capitalize()} accounts for about {p}% of your logged calories."))
     if top:
         t = top[0]; share = _f(t['kcal']) / max(1, sum(r['eaten'] for r in C)) * 100
-        if share >= 5: out.append(('info', f"Biggest calorie source: {t['name']} ({_f(t['kcal']):,.0f} kcal over {t['n']} time{'s' if t['n'] > 1 else ''}, {share:.0f}% of the total)."))
+        if share >= 5: out.append(('info', f"Biggest logged calorie source: {t['name']} (about {kcal(_f(t['kcal']))} kcal across {t['n']} log{'s' if t['n'] > 1 else ''}, about {share:.0f}% of the logged total)."))
     fib = [r['fiber_g'] for r in C if r['fiber_g'] is not None]
     if len(fib) >= max(3, n // 2):
         a = sum(fib) / len(fib)
-        if a < 25: out.append(('warn', f"Fiber averages {a:.0f} g a day; 25-35 g is the usual goal (beans, berries, whole grains, vegetables)."))
+        if a < 25: out.append(('info', f"Reported fiber averages about {a:.0f} g across {len(fib)} days with fiber data. Foods without fiber values are missing data, not zero."))
     return out[:8]

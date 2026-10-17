@@ -1286,21 +1286,26 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
       eaten: r.eaten, burned: r.eaten == null ? null : r.burned, goal: r.goal, protein_g: r.protein_g, partial: r.today, day: r.day, counted: r.counted, weight: r.weight == null ? null : wconv(r.weight), trend: r.trend == null ? null : wconv(r.trend)}));
   }
   const pDef = S.predicted_kg, pTr = S.trend_change_kg;
+  const burnNote=I.rows.some(r=>r.burn_source==='apple_health')
+    ? 'Burn uses synced Apple Health resting calories plus recorded activity calories, counted once. Missing resting data stays missing. These are source estimates, not a measurement of your exact needs.'
+    : I.rows.some(r=>r.burn_source==='imported')
+      ? 'Some days use imported daily burn; other days use the formula estimate plus recorded workouts. These source values are estimates.'
+      : `Burn is a formula estimate of daily needs (about ${r0(homeCalories(S.tdee))} kcal before recorded workouts), plus recorded activity calories. It is not a measurement of your exact needs.`;
   const kcalP = (S.avg_protein_g || 0) * 4, kcalC = (S.avg_carbs_g || 0) * 4, kcalF = (S.avg_fat_g || 0) * 9, kcalM = kcalP + kcalC + kcalF || 1;
   const pct = (v) => Math.round(v / kcalM * 100);
   const html = {overview: `<div class="ntiles">
-      ${tile('Avg eaten / day', S.avg_eaten == null ? '–' : r0(S.avg_eaten), 'kcal', S.avg_goal ? `goal ${r0(S.avg_goal)}` : '')}
-      ${tile('Avg deficit / day', S.avg_deficit == null ? '–' : r0(Math.abs(S.avg_deficit)), 'kcal', S.avg_deficit == null ? S.missing_burn_days ? 'waiting for resting data' : 'no full days logged' : S.avg_deficit >= 0 ? 'deficit' : 'surplus', S.avg_deficit == null ? '' : S.avg_deficit >= 0 ? 'good' : 'bad')}
-      ${S.burn_counted_days ? tile('Total deficit', r0(Math.abs(S.total_deficit)), 'kcal', `≈ ${wconv(Math.abs(pDef)).toFixed(1)} ${wu} ${pDef <= 0 ? 'lost' : 'gained'}`, S.total_deficit >= 0 ? 'good' : 'bad')
-        : tile('Total deficit', '–', '', 'counts fully logged days')}
+      ${tile('Avg eaten / day', S.avg_eaten == null ? '–' : r0(homeCalories(S.avg_eaten)), 'kcal', S.avg_goal ? `goal ${r0(homeCalories(S.avg_goal))}` : '')}
+      ${tile('Avg estimated balance', S.avg_deficit == null ? '–' : r0(homeCalories(Math.abs(S.avg_deficit))), 'kcal', S.avg_deficit == null ? S.missing_burn_days ? 'waiting for resting data' : 'no full days logged' : S.avg_deficit >= 0 ? 'estimated deficit / day' : 'estimated surplus / day')}
+      ${S.burn_counted_days ? tile('Estimated total balance', r0(homeCalories(Math.abs(S.total_deficit))), 'kcal', `rough model: ${wconv(Math.abs(pDef)).toFixed(1)} ${wu} ${pDef <= 0 ? 'loss' : 'gain'}`)
+        : tile('Estimated total balance', '–', '', 'counts fully logged days')}
       ${tile('Weight trend', pTr == null ? '–' : sgn(pTr) + wconv(Math.abs(pTr)).toFixed(1), pTr == null ? '' : wu, pTr == null ? 'log weight to see it' : 'over these days', '', '/food?view=weight')}
       ${tile('Avg protein', S.avg_protein_g == null ? '–' : r0(S.avg_protein_g), 'g', T.protein_target ? `target ${r0(T.protein_target)} g` : '')}
       ${tile('Days logged', S.logged, `/ ${S.past_days}`, S.past_days ? `${Math.round(S.logged / S.past_days * 100)}%` : '')}</div>
-    ${I.insights.length ? `<div class="card"><h2>Insights</h2>${I.insights.map(([k, t]) => `<div class="insight"><span class="dot ${k === 'good' ? 'good' : k === 'warn' ? 'warn' : 'info'}"></span><div><span>${esc(t)}</span></div></div>`).join('')}</div>` : ''}`,
+    ${I.insights.length ? `<div class="card"><h2>Insights</h2>${I.insights.map(([k, t]) => `<div class="insight estimate-note"><span class="dot ${k === 'good' ? 'good' : k === 'warn' ? 'warn' : 'info'}"></span><div><span>${esc(t)}</span></div></div>`).join('')}</div>` : ''}`,
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
-      <p class="small muted">Burned = your daily needs (${r0(S.tdee)} kcal: BMR × everyday activity) + that day's workouts. Bars below the goal line are a deficit.</p></div>
+      <p class="small muted estimate-note">${esc(burnNote)} The goal line is your food target; eating below it does not by itself establish a calorie deficit.</p></div>
     <div class="card"><h2>Running deficit</h2><div id="nt-cum"></div>
-      <p class="small muted">Adds up each fully logged day's deficit. 3,500 kcal ≈ 1 lb of fat.</p></div>`,
+      <p class="small muted estimate-note">Adds estimated burn minus logged food across fully logged days with burn data. The weight conversion is a rough energy model, not measured fat loss. Water changes, missing food and burn-estimate errors can affect the comparison.</p></div>`,
     macros: `<div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-protein"></div></div>
     <div class="card"><h2>Where your calories come from</h2>
       ${S.avg_protein_g != null ? `<div class="split" role="img" aria-label="Protein ${pct(kcalP)}%, carbs ${pct(kcalC)}%, fat ${pct(kcalF)}%"><i class="m-protein_g" data-w="${(kcalP / kcalM).toFixed(3)}"></i><i class="m-carbs_g" data-w="${(kcalC / kcalM).toFixed(3)}"></i><i class="m-fat_g" data-w="${(kcalF / kcalM).toFixed(3)}"></i></div>
