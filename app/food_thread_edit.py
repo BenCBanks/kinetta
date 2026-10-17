@@ -224,6 +224,7 @@ def handle_pending(c,uid,message):
     previous=_context(c,uid,message)
     if not previous or previous['result']['kind'] not in ('needs','preview'):return None
     reply=engine.stored_reply(c,uid,previous);old=reply['result'] if reply else {}
+    if old.get('composed'):return None
     portion,rest=meal_chat.amount(meal_chat.raw(meal_chat.LEAD.sub('',meal_chat.norm(message['body']).strip())))
     pure=portion and rest is not None and all(t in meal_chat.FILLER or t in meal_chat.CORRECTION for t in rest)
     words=set(meal_chat.name_words(message['body']))

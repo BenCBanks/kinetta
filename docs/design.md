@@ -386,7 +386,7 @@ Unresolved foods accept an explicit owned-food or portion choice. Require-a-tap 
 
 “Same as yesterday’s lunch, but no cheese” reads the person’s own food log. Only a separately recorded matching item is excluded automatically; a composite food is not silently treated as if one ingredient could be subtracted. An uncertain exclusion asks which recorded foods to leave out, and a typed answer is an exclusion choice, not a new food log. A copied meal can be scaled before an explicit Log tap. “The rest of the chili” resolves the food from history but asks how much was left: saved recipes have no reliable cooking-batch identity, so remaining grams are not invented. Known portions then use recorded nutrition, with no model call.
 
-The final thread interface, unknown-food model fallback and durable AI cost controls remain the next D pieces. No full food photos are retained and no conversation history is sent to a provider by this layer.
+The final thread interface, offline queue and optional daily review remain the next D pieces. Unknown-food processing and durable AI cost controls are provided by the later D backend foundations below. No full food photos are retained and no conversation history is sent to a provider by this layer.
 
 ### Food estimator pauses (#122 D foundation)
 
@@ -399,3 +399,38 @@ present its fallback and retained text inline when it is implemented.
 AI pause/busy replies apply consistently to food and Kit. Opening records never
 spends tokens. A busy response must preserve pending food text and show the normal
 search/manual fallback. Existing generated notes remain readable when AI is paused.
+
+### Thread food resolution (#122 D backend; interface follows)
+
+Ready parts of a message save once without waiting for unknown parts when automatic
+logging is on. Require a tap holds ready parts for explicit Log. Each original
+part keeps its identity as public catalog choices, portion chips, photos or manual
+numbers resolve the rest. There is one clarification on the original card, with
+all remaining choices below it; people keep their original words. Known calories
+are not discarded when another food/provider fails. Undo covers the linked foods.
+
+Stored nutrition wins when a model-identified food clearly matches a private food;
+the portion remains marked as estimated. Otherwise AI foods retain their estimate
+source, assumptions and model, and become editable private foods after logging.
+A repeated description uses the saved foods without a model call. Portion edits
+retain the original learned amount, so halving today's two bowls does not redefine
+what "two bowls" means tomorrow. Changed saved nutrition refreshes a held preview
+and needs another explicit Log tap. Published product values keep their source.
+
+Capture/meal/day inference is independent of slow/offline delivery. Processing
+leases and stable identities prevent duplicate estimates/saves; cancellation or
+message deletion blocks late results/uploads. Deleting conversation text keeps
+saved food but removes its job. Reuse aliases contain hashes, not another copy of
+the conversation. The server retains no photo pixels or thumbnails. A photo that
+never uploaded asks for the photo again while retaining its text.
+
+Calorie-only manual entries mark omitted macros unknown. Daily/weekly factual
+answers refuse to invent a remaining amount from incomplete nutrition; entering
+that nutrient later clears its unknown flag. Feedback keeps the low-intake safety
+check and explains incomplete protein rather than reporting zero.
+
+These APIs add no app navigation/composer yet. The final thread interface must show
+per-food origin/estimate and unknown-nutrient labels, quiet Edit/Undo and manual or
+search fallbacks, preserve queued text, and use the shared sheets/components. No
+real-provider accuracy, private switch test or physical-iPhone acceptance is implied
+by the backend's stand-in tests.

@@ -130,6 +130,10 @@ def brake(user_id, limit=DAILY_LIMIT, kind='photo', what='estimates'):
 
 @router.post('/photo')
 def photo(body: PhotoIn, user=Depends(current_user)):
+    return estimate(body,user)
+
+
+def estimate(body,user,*,strict=False):
     ai_budget.require_enabled()
     ai_access.require(user['id'], 'food')
     if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.off())
@@ -149,6 +153,22 @@ def photo(body: PhotoIn, user=Depends(current_user)):
     parts.extend({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs)
     with ai_budget.scope(user['id'],feature='food photo' if imgs else 'food description'):
         out, data, model = ask(parts, SCHEMA, 'food photo')
+    if strict:
+        import math
+        raw_items=out.get('items')
+        if not isinstance(raw_items,list) or not 1<=len(raw_items)<=30:
+            raise HTTPException(422,'No usable food estimate came back. Your text is kept; search or enter nutrition instead.')
+        for item in raw_items:
+            if not isinstance(item,dict) or not isinstance(item.get('name'),str) or not item['name'].strip():
+                raise HTTPException(422,'That estimate needs a food name. Search or enter nutrition instead.')
+            for key in ('kcal','protein_g','carbs_g','fat_g'):
+                value=item.get(key)
+                if type(value) not in (float,int) or not math.isfinite(value) or value<0 or value>{'kcal':5000,'protein_g':500,'carbs_g':1000,'fat_g':500}[key]:
+                    raise HTTPException(422,'That estimate has incomplete nutrition. Search or enter nutrition instead.')
+            for key in ('grams','fiber_g'):
+                value=item.get(key)
+                if value is not None and (type(value) not in (float,int) or not math.isfinite(value) or value<0 or value>{'grams':5000,'fiber_g':200}[key]):
+                    raise HTTPException(422,'That estimate has an invalid portion. Search or enter nutrition instead.')
     items = []
     for it in (out.get('items') or [])[:30]:
         name = ' '.join(str(it.get('name') or 'Food').split())[:80]

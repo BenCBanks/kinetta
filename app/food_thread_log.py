@@ -1,5 +1,6 @@
 """Food-thread logging from resolved own records. No provider or network work."""
 import datetime as dt
+import time
 from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from pydantic import Field
@@ -96,9 +97,15 @@ def commit_log(c,uid,message,result):
 
 def process(c,uid,message):
     if message['state']!='pending':return food_thread.answer_with(c,uid,message)
+    if (message.get('result') or {}).get('input'):
+        from . import food_thread_compose as compose
+        return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
     question=facts.classify(message['body'],message['local_day'])
     if question is not None:return food_thread.answer_with(c,uid,message)
     from . import food_thread_edit as edits, food_thread_refs as refs
+    from . import food_thread_choices as choices
+    pending=choices.follow_up(c,uid,message)
+    if pending is not None:return pending
     pending=edits.handle_pending(c,uid,message)
     if pending is not None:return pending
     reference=refs.handle(c,uid,message)
@@ -106,6 +113,9 @@ def process(c,uid,message):
     correction=edits.try_correction(c,uid,message)
     if correction is not None:return correction
     resolution=resolve(c,uid,message);result=make_result(c,uid,message,resolution)
+    if result['kind']=='needs':
+        from . import food_thread_compose as compose
+        return compose.begin(c,uid,message,resolution)
     p=food_thread.preferences(c,uid)
     if result['kind']=='preview' and p['auto_log']:
         return commit_log(c,uid,message,result)
@@ -115,6 +125,10 @@ def process(c,uid,message):
 def explicit_log(c,uid,message):
     reply=stored_reply(c,uid,message)
     if not reply:raise HTTPException(409,'Open the message’s food details first')
+    if reply['result'].get('composed'):
+        from . import food_thread_compose as compose
+        response=compose.write(c,uid,message,dict(reply['result']),force=True)
+        return response,response.get('changed',False)
     if reply['result'].get('kind')=='log':
         return food_thread.answer_with(c,uid,message),False
     if reply['result'].get('kind')!='preview':
