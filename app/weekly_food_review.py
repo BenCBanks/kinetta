@@ -5,6 +5,7 @@ from collections import defaultdict
 EXTRA=('sodium_mg','sugar_g','saturated_fat_g')
 
 MEALS=('breakfast','lunch','dinner','snacks')
+MEAL_LABELS={'breakfast':'breakfast','lunch':'lunch','dinner':'dinner','snacks':'snack time'}
 
 
 def value(entry,key):
@@ -48,9 +49,9 @@ def build(entries,today):
         if len(logged)>=3 and protein['recorded'] and known:
             biggest=max(known,key=lambda m:m['recorded'])
             if biggest['recorded']/protein['recorded']>=.65:
-                suggestions.append({'kind':'protein_spread','text':f"Most recorded protein was at {biggest['meal']}. Look at the meal breakdown if you want to spread your usual protein foods across the day. Missing meals or values can change this picture."})
+                suggestions.append({'kind':'protein_spread','text':f"Most recorded protein was at {MEAL_LABELS[biggest['meal']]}. Look at the meal breakdown if you want to spread your usual protein foods across the day. Missing meals or values can change this picture."})
         missing=nutrients['fiber_g']['unknown_count']
-        if missing:
+        if missing>len(rows)/2:
             suggestions.append({'kind':'coverage','text':f"Fiber is unknown for {missing} logged food{'s' if missing!=1 else ''}. Add the packet or recipe value when it is handy to make the next review more useful."})
         elif any(nutrients[k]['unknown_count'] for k in EXTRA):
             suggestions.append({'kind':'coverage','text':'Some logged foods have no sodium, total sugar or saturated-fat value. Add a known label or recipe value when it is handy; blank does not mean zero.'})
