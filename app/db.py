@@ -1097,6 +1097,39 @@ MIGRATIONS = [
        ALTER TABLE profile ADD COLUMN sodium_target_mg real CHECK(sodium_target_mg BETWEEN 0 AND 100000),
          ADD COLUMN sugar_target_g real CHECK(sugar_target_g BETWEEN 0 AND 2000),ADD COLUMN saturated_fat_target_g real CHECK(saturated_fat_target_g BETWEEN 0 AND 1000);""",
 
+    # 54: explicit Health weight read, private UUID candidates and manual-deletion fences.
+    """    ALTER TABLE profile ADD COLUMN health_weight_read boolean NOT NULL DEFAULT false,
+      ADD COLUMN health_weight_epoch uuid NOT NULL DEFAULT gen_random_uuid(),
+      ADD COLUMN health_weight_last_synced timestamptz,
+      ADD COLUMN health_weight_ai_ok boolean NOT NULL DEFAULT false,
+      ADD COLUMN weight_health_derived boolean NOT NULL DEFAULT false;
+    CREATE TABLE health_weight_samples (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      sample_id uuid NOT NULL, sampled_at timestamptz, kg real CHECK(kg BETWEEN 20 AND 400),
+      source_name text, source_bundle text, deleted boolean NOT NULL DEFAULT false,
+      observed_at timestamptz NOT NULL, PRIMARY KEY(user_id,sample_id),
+      CHECK(deleted OR (sampled_at IS NOT NULL AND kg IS NOT NULL)));
+    CREATE INDEX health_weight_sample_dates ON health_weight_samples(user_id,sampled_at DESC);
+    CREATE TABLE health_weight_exclusions (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL, before_time timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,day));
+    ALTER TABLE weights ADD COLUMN health_sample_id uuid,
+      ADD COLUMN source_name text,
+      ADD CONSTRAINT weight_health_sample_owner FOREIGN KEY(user_id,health_sample_id)
+        REFERENCES health_weight_samples(user_id,sample_id) ON DELETE CASCADE;
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['health_weight_samples','health_weight_exclusions'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    UPDATE profile p SET weight_health_derived=true WHERE EXISTS (
+      SELECT 1 FROM weights w WHERE w.user_id=p.user_id AND w.source='healthkit'
+      AND w.day=(SELECT max(day) FROM weights WHERE user_id=p.user_id));
+""",
+
 ]
 
 

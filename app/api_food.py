@@ -504,7 +504,7 @@ class WeightIn(BaseModel):
 def weights(days: int = 180, user=Depends(current_user)):
     """Weigh-ins plus a smoothed trend (exponential average, 10 % per day, like Happy Scale / MacroFactor) and the weekly rate."""
     with db.connect() as c:
-        rows = c.execute('SELECT day, kg, note FROM weights WHERE user_id = %s ORDER BY day', (user['id'],)).fetchall()
+        rows = c.execute('SELECT day, kg, note, source, source_name FROM weights WHERE user_id = %s ORDER BY day', (user['id'],)).fetchall()
     trend, out, prev_day = None, [], None
     for r in rows:
         if trend is None: trend = r['kg']
@@ -513,7 +513,7 @@ def weights(days: int = 180, user=Depends(current_user)):
             a = 1 - 0.9 ** max(gap, 1)
             trend += a * (r['kg'] - trend)
         prev_day = r['day']
-        out.append({'day': r['day'].isoformat(), 'kg': r['kg'], 'trend': round(trend, 2), 'note': r['note']})
+        out.append({'day': r['day'].isoformat(), 'kg': r['kg'], 'trend': round(trend, 2), 'note': r['note'],'source':r['source'] or 'manual','source_label':('Apple Health'+(' · '+r['source_name'] if r['source_name'] and r['source_name']!='Apple Health' else '')) if r['source']=='healthkit' else 'Manual' if not r['source'] else 'Imported'})
     cut = (dt.date.today() - dt.timedelta(days=days)).isoformat()
     out = [x for x in out if x['day'] >= cut]
     rate = None
@@ -527,21 +527,25 @@ def weights(days: int = 180, user=Depends(current_user)):
 def weight_set(body: WeightIn, user=Depends(current_user)):
     if body.day > dt.date.today() + dt.timedelta(days=1): raise HTTPException(400, "That day hasn't happened yet")
     with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         c.execute("""INSERT INTO weights (user_id, day, kg, note) VALUES (%s, %s, %s, %s)
-                     ON CONFLICT (user_id, day) DO UPDATE SET kg = excluded.kg, note = excluded.note, source = NULL""", (user['id'], body.day, body.kg, body.note))
+                     ON CONFLICT (user_id, day) DO UPDATE SET kg = excluded.kg, note = excluded.note, source = NULL,health_sample_id=NULL,source_name=NULL""", (user['id'], body.day, body.kg, body.note))
         _latest_weight(c, user['id'])
     return {'ok': True}
 
 
-def _latest_weight(c, uid):
-    """The profile weight (used for calorie burn) is the newest weigh-in, so adding an old one doesn't change it."""
-    c.execute('''UPDATE profile SET weight_kg = coalesce((SELECT kg FROM weights WHERE user_id = %s ORDER BY day DESC LIMIT 1), weight_kg)
-                 WHERE user_id = %s''', (uid, uid))
+def _latest_weight(c,uid):
+    """Newest daily point drives formulas; source provenance also guards AI use."""
+    row=c.execute('SELECT kg,source FROM weights WHERE user_id=%s ORDER BY day DESC LIMIT 1',(uid,)).fetchone()
+    if row:c.execute('UPDATE profile SET weight_kg=%s,weight_health_derived=%s WHERE user_id=%s',(row['kg'],row['source']=='healthkit',uid))
+    else:c.execute('UPDATE profile SET weight_kg=CASE WHEN weight_health_derived THEN NULL ELSE weight_kg END,weight_health_derived=false WHERE user_id=%s',(uid,))
 
 
 @router.delete('/weights/{day}')
 def weight_delete(day: dt.date, user=Depends(current_user)):
     with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+        c.execute('INSERT INTO health_weight_exclusions(user_id,day) VALUES(%s,%s) ON CONFLICT(user_id,day) DO UPDATE SET before_time=greatest(health_weight_exclusions.before_time,excluded.before_time)',(user['id'],day))
         c.execute('DELETE FROM weights WHERE user_id = %s AND day = %s', (user['id'], day))
         _latest_weight(c, user['id'])
     return {'ok': True}

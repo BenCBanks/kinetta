@@ -7,7 +7,7 @@ from starlette.middleware import gzip as _gzip
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts
 import threading
 from .auth import current_user
@@ -33,6 +33,8 @@ app.include_router(plans.router)
 app.include_router(api_beta.router)
 app.include_router(api_mydata.router)
 app.include_router(api_health.router)
+from . import api_health_weights
+app.include_router(api_health_weights.router)
 app.include_router(api_social.router)
 app.include_router(api_photos.router)
 app.include_router(api_dishes.router)
@@ -139,7 +141,7 @@ def logout(request: Request, response: Response):
 def me(user=Depends(current_user)):
     from . import ai_access
     with db.connect() as c:
-        p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, health_weight_read, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
     return {**user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
@@ -158,6 +160,7 @@ class ProfileIn(BaseModel):
     height_cm: float | None = Field(None, ge=100, le=250)
     activity_factor: float | None = Field(None, ge=1.1, le=1.7)
     resting_source: str | None = Field(None, pattern="^(formula|apple_health)$")
+    health_weight_ai_ok: StrictBool | None = None
     health_ai_ok: bool | None = None      # the AI coach may read workouts that came from Apple Health
 
 
@@ -166,13 +169,25 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
     vals = body.model_dump(exclude_unset=True)
     if vals.get('resting_source', False) is None: del vals['resting_source']
     if vals.get('health_ai_ok', False) is None: del vals['health_ai_ok']    # yes or no only
+    if vals.get('health_weight_ai_ok',False) is None:del vals['health_weight_ai_ok']
     if 'bio' in vals: vals['bio'] = (vals['bio'] or '').strip()
     if 'tz' in vals:
         vals['tz'] = db.valid_tz(vals['tz'])
         if not vals['tz']: raise HTTPException(400, 'Unknown time zone')
     if vals:
         with db.connect() as c:
+            c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+            old=c.execute('SELECT tz,health_ai_ok,weight_kg,weight_health_derived FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
+            if vals.get('health_ai_ok') is False:vals['health_weight_ai_ok']=False
+            if vals.get('health_weight_ai_ok') and not vals.get('health_ai_ok',old.get('health_ai_ok')):raise HTTPException(400,'Allow Health data for AI before including Health weight')
+            if 'weight_kg' in vals and vals['weight_kg']!=old.get('weight_kg'):vals['weight_health_derived']=False
+            changed_tz='tz' in vals and vals['tz']!=old.get('tz')
+            if changed_tz:
+                from uuid import uuid4
+                vals['health_weight_epoch']=uuid4()
             c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in vals)} WHERE user_id = %s", (*vals.values(), user['id']))
+            if changed_tz:
+                api_health_weights.rebuild(c,user['id'],vals['tz'])
     return {'ok': True}
 
 

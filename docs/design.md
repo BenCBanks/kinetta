@@ -563,3 +563,11 @@ Overview leads with a code-only review of seven completed local days; Kit's opti
 
 ### Shared recipes (#122 J)
 Saved/cooking recipes expose optional Share with… inline; the duplicate Meal options action is removed. Only approved friends can be chosen, identities wrap, each row says Share or Stop sharing, and Done is the sheet's single primary action. Recipients see Shared with you before their usual foods and at the top of the food-chat composer. Shared recipes use a compact horizontal list and the existing portion sheet, so default logging is two taps and includes toast Undo. The optional empty-chat introduction yields space when shared recipes are present; large text keeps the message field/Send above navigation. Full recipe and owner names appear in the portion sheet before logging. Native sharing confirmation uses a light haptic with visible text. Current permissions guard discovery, logs and notices; stale chips explain revoked sharing. No food log is shared. See `docs/shared-recipes.md`.
+
+### Apple Health weight input foundation (#122 I1)
+
+Weight reading is a separate, optional category, off by default. The authenticated backend requires an explicit confirmation before accepting an owner-bound Health sample batch. This foundation does not yet expose a permission button or run HealthKit queries; the native setup follows separately.
+
+A Health UUID identifies an immutable measurement. Keep one latest measurement per profile-local day, label its source, and give existing manual/imported points priority. Empty reads mean unknown, never zero or deletion. Explicit Health deletion tombstones prevent replay; deleting a Kinetta day excludes older Health measurements for that day. A later measurement remains eligible. Turning sync off preserves history and invalidates in-flight batches. Time-zone changes rebuild Health days and invalidate older batches too.
+
+Imported weight feeds existing weight/energy/check-in calculations without changing budgets, macros or the selected resting-calorie source. Health-derived profile weight retains its provenance. Earlier workout/resting AI permission cannot authorize this new weight category: generic Health-dependent AI stays blocked until explicit weight consent is also recorded. Food-only tools remain restricted to food.
