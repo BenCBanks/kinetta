@@ -1836,3 +1836,7 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .connections-page summary{font-size:1em;min-height:44px;display:flex;align-items:center;cursor:pointer;}
 .connections-page .card.tap.row-link{font-size:1em;}
 .connections-page .card.tap p{margin-bottom:0;}
+
+/* Explain energy estimates without implying measured weight or fat change. */
+.estimate-note{font-size:1rem;line-height:1.5;overflow-wrap:anywhere;}
+.insight.estimate-note>div>span{font-size:1em;line-height:1.5;}
