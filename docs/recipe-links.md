@@ -1,0 +1,17 @@
+# Recipe link imports
+
+Workstream N is split into a fetch/parser foundation and its authenticated review flow. This foundation is not an exposed endpoint or an enabled import feature. It makes no AI calls and adds no dependencies or stored personal data. The review flow must authenticate, apply a per-person rate limit, and show an editable draft before any save or food log.
+
+`recipe_fetch.fetch` accepts HTTPS URLs on port 443 only. It rejects credentials, local names and non-public addresses, including mixed public/private DNS answers and IPv6 transition routes. Each redirect is checked and resolved again. The socket connects to the validated IP while TLS certificate verification, SNI and the HTTP host retain the original hostname; DNS cannot change the destination between validation and connection. Environment proxies, cookies and authorization are not used.
+
+Reads have a ten-second overall deadline, bounded DNS waits and workers, four concurrent fetch slots, three redirects and a one-MiB body limit. Compression and non-HTML responses are refused. A deadline timer closes the socket to limit trickling headers/body; socket and TLS operations also have bounded waits. Unreachable or unsupported pages return a short fallback message without exposing internal network errors. The HTML stays in memory and must never be persisted, logged or included in an AI request.
+
+`recipe_schema.parse` reads bounded JSON-LD only, including arrays and `@graph`. It never executes scripts, follows linked schema nodes or downloads images. It returns at most five candidates, retaining names, ingredient strings, yield labels and published nutrient quantities. Instructions and the rest of the page are discarded. Text is treated as untrusted; consumers must render through text nodes rather than HTML.
+
+Published nutrition is labelled as the site's per-serving information, not an AI estimate or a verified measurement. Units are converted explicitly (kJ to kcal, mg/mcg to g or mg). Missing, bare-unit or ambiguous numbers remain unknown; a published zero remains zero. Original nutrient text is retained for review. A clear serving count is preferred over yield units such as cookies; ambiguous yields require the person to supply servings. Published nutrients are never divided by the yield again. Multiple candidates require a choice, not silent selection.
+
+The next slice adds the URL action, authenticated rate limit, My Recipes draft review, saved-food ingredient matching and published-source provenance. Unknown ingredients may use the existing AI path only with consent and its existing release/budget gates. Missing structured data falls back to the recipe screenshot path. Fetching must happen only on an explicit import action, not on opening history or a tab.
+
+Tests use fictional saved HTML and transport/DNS/TLS stand-ins; they make no external requests. They cover published/missing nutrition, odd units and yields, malformed/oversized/complex data, private addresses, DNS rebinding, redirects, deadlines, byte limits and resource cleanup. Browser screenshots belong to the subsequent UI slice. This foundation does not prove a particular recipe website is reachable or correctly publishes nutrition.
+
+References: [Google Recipe structured data](https://developers.google.com/search/docs/appearance/structured-data/recipe), [schema.org NutritionInformation](https://schema.org/NutritionInformation), [Python HTTPSConnection](https://docs.python.org/3.12/library/http.client.html), [Python TLS](https://docs.python.org/3.12/library/ssl.html).
