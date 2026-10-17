@@ -54,3 +54,12 @@ check('daily override preserved',day['goal']['custom']==2300)
 check('save retry idempotent',p.put('/api/food/goal-setup',{**base,'kcal_target':s['kcal_target']+10,'protein_target':135})[0]==200)
 check('explicit body changes can save',p.put('/api/food/goal-setup',{'goal':'maintain','weight_kg':90,'activity_factor':1.45,'kcal_target':3000,'protein_target':110})[0]==200 and p.get('/api/me')[1]['weight_kg']==90)
 print(f'onboarding: {ok} passed')
+
+other.put('/api/food/weights',{'day':dt.date.today().isoformat(),'kg':90})
+other.put('/api/profile',{'weight_kg':None,'activity_factor':1.45})
+r=other.post('/api/food/target-suggestion',{'goal':'maintain'})[1]
+check('preview uses stored weight trend and current activity',r['weight_kg']==90 and not r['weight_assumed'] and r['activity_factor']==1.45)
+check('float storage normalization',other.post('/api/food/target-suggestion',{'goal':'maintain','activity_factor':1.4500000477})[0]==200)
+other.put('/api/profile',{'weight_kg':85})
+check('save without body fields preserves concurrent profile',other.put('/api/food/goal-setup',{'goal':'maintain','kcal_target':3000,'protein_target':120})[0]==200 and other.get('/api/me')[1]['weight_kg']==85)
+print('onboarding review regressions: weight trend, stored float, untouched body/activity fields PASS')
