@@ -172,3 +172,9 @@ For how server releases, bundled screens and database migrations fit together, s
 Native iPhone alerts and APNs credentials: [notification setup](ios-notifications.md). Browser push delivery is retired.
 
 Resting Energy is a separate optional read for Nutrition; see [resting calories](resting-calories.md). Food goals stay independent, and recorded workout calories are not duplicated.
+
+### Health weight/nutrition native foundation (#122 I3)
+
+The registered HealthFood bridge provides independent permission requests, owner-bound anchored weight reading and app-owned nutrition reconciliation. UI setup/autosync follows separately; no new prompt appears on launch from this foundation. Updated Health usage descriptions cover optional weight reading and optional logged nutrition writing. The existing workout recorder/background importer remains separate.
+
+The macOS workflow runs Foundation-only HealthFood state/mapping checks before the unsigned simulator/device builds. Physical acceptance still must cover: allow/deny and partial permissions; unknown versus known-zero quantities; same-day edit/Undo/delete/re-enable; source-labelled weight/manual priority; interrupted upload and locked-phone retry; logout/account/server change during a read/write; current-account-only deletion; Health syncing between devices. A successful unsigned build cannot verify these behaviors.

@@ -689,6 +689,7 @@ class KinettaHealthSyncPlugin: CAPPlugin, CAPBridgedPlugin {
 class KinettaBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(KinettaHealthSyncPlugin())
+        bridge?.registerPluginInstance(KinettaHealthFoodPlugin())
         bridge?.registerPluginInstance(KinettaPushPlugin())
         bridge?.registerPluginInstance(KinettaTrackPlugin())
         bridge?.registerPluginInstance(KinettaHapticsPlugin())
