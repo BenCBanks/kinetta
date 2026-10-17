@@ -115,6 +115,9 @@ def process(c,uid,message):
     if reference is not None:return reference
     correction=edits.try_correction(c,uid,message)
     if correction is not None:return correction
+    from . import food_thread_numbers
+    numbers=food_thread_numbers.preview(c,uid,message)
+    if numbers is not None:return numbers
     resolution=resolve(c,uid,message);result=make_result(c,uid,message,resolution)
     if result['kind']=='needs':
         from . import food_thread_compose as compose

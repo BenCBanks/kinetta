@@ -47,6 +47,8 @@ node dev/tests/test_recent_nutrients.js
 node dev/tests/test_shared_recipes.js
 node dev/tests/test_health_food_client.js
 node dev/tests/test_food_entry.js
+node dev/tests/test_food_numbers_ui.js
+python3 dev/tests/test_food_number_parser.py
 node dev/tests/test_meal_reminders_ui.js
 python3 dev/tests/test_meal_reminder_times.py
 node dev/tests/test_weekly_food_review.js
@@ -102,4 +104,5 @@ docker compose -p "$P" exec -T app python - < dev/tests/shared_recipes_incontain
 docker compose -p "$P" exec -T app python - < dev/tests/health_weights_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_nutrition_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_reminders_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_numbers_incontainer.py
 echo "== all passed"

@@ -15,6 +15,7 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
     part=next((p for p in result['parts'] if p['index']==index),None)
     if not part:raise HTTPException(422,'Choose a food in this card')
     if part.get('logged'):return food_thread.answer_with(c,uid,message)
+    if part.get('entered_numbers'):raise HTTPException(409,'Use Review numbers on this card; nutrition numbers are not catalog foods')
     part=copy.deepcopy(part)
     if new:
         if part.get('drafts'):raise HTTPException(409,'Edit this estimate or Undo it before trying a different food')
@@ -64,6 +65,7 @@ def manual(c,uid,message,body):
     result=C.card(c,uid,message)
     if not result:raise HTTPException(409,'Use a new food message for these nutrition numbers')
     C.check_live(message,result)
+    if result.get('destination_required') and not result.get('destination_override'):raise HTTPException(409,'Choose the day and meal on this card before logging these numbers')
     part=next((p for p in result['parts'] if p['index']==body.part),None)
     if not part:raise HTTPException(422,'Choose the unresolved food for these numbers')
     if part.get('logged'):return food_thread.answer_with(c,uid,message)
