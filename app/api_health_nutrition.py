@@ -14,6 +14,7 @@ class Preference(BaseModel):
     model_config={'extra':'forbid'}
     enabled:StrictBool
     confirmed:StrictBool=False
+    include_older:StrictBool=False
 
 
 def lock(c,uid):
@@ -23,20 +24,21 @@ def lock(c,uid):
 
 
 def profile(c,uid):
-    p=c.execute('SELECT tz,health_nutrition_write,health_nutrition_epoch FROM profile WHERE user_id=%s',(uid,)).fetchone()
+    p=c.execute('SELECT tz,health_nutrition_write,health_nutrition_epoch,health_nutrition_since,health_nutrition_older,health_account_id FROM profile WHERE user_id=%s',(uid,)).fetchone()
     if not p:raise HTTPException(404,'Profile not found')
     return p
 
 
-def data(p):return {'enabled':p['health_nutrition_write'],'epoch':p['health_nutrition_epoch'],'tz':p['tz'] or db.DEFAULT_TZ}
+def data(p):return {'enabled':p['health_nutrition_write'],'epoch':p['health_nutrition_epoch'],'tz':p['tz'] or db.DEFAULT_TZ,'since':p['health_nutrition_since'],'include_older':p['health_nutrition_older'],'account_id':p['health_account_id']}
 
 
 def invalidate(c,uid):
-    """Re-enable/time-zone change replays all surviving days and prior deletions."""
+    """Re-enable/time-zone change replays surviving days and prior deletions within the chosen scope."""
     lock(c,uid)
+    p=profile(c,uid)
     c.execute('''INSERT INTO health_nutrition_days(user_id,day)
-      SELECT %s,day FROM food_entries WHERE user_id=%s GROUP BY day
-      ON CONFLICT(user_id,day) DO NOTHING''',(uid,uid))
+      SELECT %s,day FROM food_entries WHERE user_id=%s AND (%s OR day>=%s) GROUP BY day
+      ON CONFLICT(user_id,day) DO NOTHING''',(uid,uid,p['health_nutrition_older'],p['health_nutrition_since']))
     c.execute("UPDATE health_nutrition_days SET revision=nextval('health_nutrition_revision'),changed_at=now() WHERE user_id=%s",(uid,))
 
 
@@ -47,14 +49,15 @@ def status(user=Depends(current_user)):
 
 @router.put('/preferences')
 def preference(body:Preference,user=Depends(current_user)):
-    if body.enabled and not body.confirmed:raise HTTPException(400,'Confirm writing your nutrition to Apple Health before enabling it')
+    if (body.enabled or body.include_older) and not body.confirmed:raise HTTPException(400,'Confirm writing your nutrition to Apple Health before enabling it')
     uid=user['id']
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
         lock(c,uid)
         p=profile(c,uid)
-        if p['health_nutrition_write']!=body.enabled:
-            c.execute('UPDATE profile SET health_nutrition_write=%s,health_nutrition_epoch=%s WHERE user_id=%s',(body.enabled,uuid4(),uid))
+        if body.include_older and not body.enabled:raise HTTPException(400,'Enable nutrition sharing before adding older days')
+        if p['health_nutrition_write']!=body.enabled or (body.include_older and not p['health_nutrition_older']):
+            c.execute('UPDATE profile SET health_nutrition_write=%s,health_nutrition_epoch=%s,health_nutrition_since=coalesce(health_nutrition_since,%s),health_nutrition_older=health_nutrition_older OR %s WHERE user_id=%s',(body.enabled,uuid4(),dt.datetime.now(ZoneInfo(p['tz'] or db.DEFAULT_TZ)).date(),body.include_older,uid))
             if body.enabled:invalidate(c,uid)
         return data(profile(c,uid))
 
@@ -82,7 +85,7 @@ def days(epoch:UUID,after:int=Query(0,ge=0,le=9007199254740991),limit:int=Query(
         lock(c,uid);p=profile(c,uid)
         if not p['health_nutrition_write']:raise HTTPException(409,'Apple Health nutrition writing is off')
         if p['health_nutrition_epoch']!=epoch:raise HTTPException(409,'Nutrition sharing changed. Refresh settings before writing.')
-        changed=c.execute('SELECT day,revision FROM health_nutrition_days WHERE user_id=%s AND revision>%s ORDER BY revision LIMIT %s',(uid,after,limit+1)).fetchall()
+        changed=c.execute('SELECT day,revision FROM health_nutrition_days WHERE user_id=%s AND revision>%s AND (%s OR day>=%s) ORDER BY revision LIMIT %s',(uid,after,p['health_nutrition_older'],p['health_nutrition_since'],limit+1)).fetchall()
         selected=changed[:limit];more=len(changed)>limit
         entries=c.execute('SELECT day,kcal,protein_g,carbs_g,fat_g,fiber_g,ref FROM food_entries WHERE user_id=%s AND day=ANY(%s) ORDER BY day,id',(uid,[r['day'] for r in selected])).fetchall() if selected else []
         grouped={}

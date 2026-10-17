@@ -44,10 +44,10 @@ async function api(path, opts = {}) {
     const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
     const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
     e.status = r.status; e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;
-    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); await Native.stopFoodEntry?.(); await Native.stopFoodHealth?.(); if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
+    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { (Native.pauseSession||Native.pauseHealth)?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
     throw e;
   }
-  if (opts.method && !['GET','HEAD'].includes(opts.method.toUpperCase()) && !path.startsWith('/api/health/') && !path.startsWith('/api/login') && !path.startsWith('/api/logout')) Native.queueNutritionSync?.();
+
   return body;
 }
 const json = (method, body) => ({method, body: JSON.stringify(body)});
@@ -153,7 +153,9 @@ const Q = {
     catch (e) { throw Error("This phone couldn't save the pending item. Keep this screen open and try again when connected."); }
   },
   owns(op) { return !!App.me && (op.owner === queueOwner() || (!op.owner && !Native.on && op.who === App.me.login)); },
-  mine() { return Q.all().filter(Q.owns); },
+  legacy(op) { return !!App.me && !op.owner && Native.on && op.who === App.me.login; },
+  visible(op) { return Q.owns(op) || Q.legacy(op); },
+  mine() { return Q.all().filter(Q.visible); },
   add(op) { Q.save([...Q.all(), {...op, id: newId(), owner: queueOwner(), who: App.me.login, at: Date.now()}]); netbar(); },
   async flush() {
     if (Q.busy || !App.me || !navigator.onLine) return;
@@ -166,14 +168,15 @@ const Q = {
       for (const op of q) {
         if (owner !== readOwner() || !navigator.onLine) break;
         if (op.owner !== account || op.error || !Q.all().some(o => o.id === op.id)) continue;
-        let failed = null;
-        try { const r=await api(op.path, {method: op.method, body: JSON.stringify(op.body)});if(r?.messages && typeof FoodThread!=='undefined')await FoodThread.accept(r);sent++; }
+        let failed = null, response;
+        try { response=await api(op.path, {method: op.method, body: JSON.stringify(op.body)});sent++; }
         catch (e) { failed = e; offline = !!e.offline; }
         // Even if the account changed, remove only the acknowledged original item.
         const current = Q.all();
-        Q.save(failed ? current.map(o => o.id === op.id ? {...o, error: failed.offline || failed.stale ? null : failed.message} : o)
+        Q.save(failed ? current.map(o => o.id === op.id ? {...o, error: failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed' ? null : failed.message} : o)
           : current.filter(o => o.id !== op.id));
-        if (failed && !failed.offline && !failed.stale && owner === readOwner()) toast(`Couldn't save ${op.label}. It is still on this phone.`);
+        if (!failed && response?.messages && owner===readOwner() && typeof FoodThread!=='undefined') {try{await FoodThread.accept(response);}catch(e){invalidate('/api/food');}}
+        if (failed && !failed.offline && !failed.stale && failed.status !== 401 && failed.code !== 'account_changed' && owner === readOwner()) toast(`Couldn't save ${op.label}. It is still on this phone.`);
         if (failed && (failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed')) break;
       }
     } finally { Q.busy = false; netState(offline); netbar(); }
@@ -181,17 +184,18 @@ const Q = {
   },
   review() {
     const owner = readOwner();
-    Q.save(Q.all().map(o => Q.owns(o) ? {...o, owner: queueOwner(), id: o.id || newId()} : o));
+    Q.save(Q.all().map(o => Q.visible(o) ? {...o, ...(Q.owns(o) ? {owner:queueOwner()} : {}), id: o.id || newId()} : o));
     sheet('Pending items', '<div id="pending-items"></div>', (b, close) => {
       const draw = () => {
         if (owner !== readOwner()) { close(); return; }
         const ops = Q.mine(), box = $('#pending-items', b);
         box.innerHTML = ops.length ? '<p>Items stay on this phone until saved or discarded.</p>' + ops.map((o, i) =>
-          `<div class="pending-item"><p><strong>${esc(o.label)}</strong><br><span class="small">${esc(o.error || 'Waiting for a connection')}</span></p><div class="actions"><button class="ghost" data-pending-retry="${i}">Retry</button><button class="linkbtn" data-pending-discard="${i}">Discard</button></div></div>`).join('') : '<p>Everything has been sent.</p>';
+          `<div class="pending-item"><p><strong>${esc(o.label)}</strong><br><span class="small">${esc(Q.legacy(o) ? 'Saved before this update · review before sending' : o.error || 'Waiting for a connection')}</span></p><div class="actions"><button class="ghost" data-pending-retry="${i}">${Q.legacy(o) ? 'Send to this account' : 'Retry'}</button><button class="linkbtn" data-pending-discard="${i}">Discard</button></div></div>`).join('') : '<p>Everything has been sent.</p>';
         $$('[data-pending-retry]', box).forEach(btn => btn.onclick = async () => {
           if (owner !== readOwner()) return;
           const op = ops[+btn.dataset.pendingRetry];
-          Q.save(Q.all().map(o => o.id === op.id ? {...o, error: null} : o));
+          if (Q.legacy(op) && !confirm(`Send this older saved item to ${App.me.login} on this server?`)) return;
+          Q.save(Q.all().map(o => o.id === op.id ? {...o, owner:queueOwner(), error: null} : o));
           btn.disabled = true; btn.textContent = 'Sending…';
           try { await Q.flush(); } catch (e) { toast(e.message); } if (b.isConnected) draw();
         });
@@ -448,10 +452,10 @@ function quickLogSheet() {
 }
 function quickWeighIn() {
   const owner = readOwner(), day = isoDay(new Date()), unit = imp() ? 'lb' : 'kg';
-  sheet('Weigh in', `<form id="quick-weight" class="form"><p class="small muted">Today · ${esc(day)}</p><label>Weight (${unit})<input name="weight" inputmode="decimal" required value="${App.me.weight_kg ? esc(U.weight(App.me.weight_kg)) : ''}" aria-label="Today’s weight in ${unit}" enterkeyhint="done"></label><button class="primary wide">Save weight</button></form>`, (b,close) => {
+  sheet('Weigh in', `<form id="quick-weight" class="form"><p class="small muted">${esc(dayLabel(day))}</p><label>Weight (${unit})<input name="weight" inputmode="decimal" required value="${App.me.weight_kg ? esc(U.weight(App.me.weight_kg)) : ''}" aria-label="Today’s weight in ${unit}" enterkeyhint="done"></label><button class="primary wide">Save weight</button></form>`, (b,close) => {
     const f = $('#quick-weight',b), input = f.elements.weight; let touched = false;
     input.oninput = () => { touched = true; }; input.focus();
-    load('/api/food/weights?days=3650', W => {
+    load('/api/food/weights/latest', W => {
       if (!b.isConnected || touched || readOwner() !== owner) return;
       const latest = W.points?.slice().sort((a,b)=>a.day.localeCompare(b.day)).at(-1);
       if (latest) input.value = U.weight(latest.kg);

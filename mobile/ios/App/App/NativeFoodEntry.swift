@@ -8,6 +8,7 @@ final class NativeFoodEntryCenter {
     static let shared = NativeFoodEntryCenter()
     private let serial = DispatchQueue(label:"app.kinetta.food-entry")
     private var boundDigest: String?
+    private var quickActionsOwner: String?
     weak var plugin: KinettaFoodEntryPlugin?
     static let quickAction = "com.kinetta.log-food"
     private var file: URL {
@@ -29,20 +30,25 @@ final class NativeFoodEntryCenter {
             guard !owner.isEmpty,owner.count <= 2048 else { throw FoodEntryFailure.signedOut }
             let who = digest(owner)
             var state: FoodEntryState
+            var recovered = false
             if FileManager.default.fileExists(atPath:file.path) {
-                let old = try read();state = old.ownerDigest == who ? old : FoodEntryState(ownerDigest:who)
+                let data = try Data(contentsOf:file) // Locked files remain retryable.
+                let old = try? JSONDecoder().decode(FoodEntryState.self,from:data)
+                recovered = old?.ownerDigest != who
+                state = FoodEntryState.restored(data,owner:who)
             } else { state = FoodEntryState(ownerDigest:who) }
-            state.purge(now:Date());try save(state);boundDigest = who
-            DispatchQueue.main.async {
+            let purged = state.purge(now:Date())
+            if purged || recovered || boundDigest != who { try save(state) };boundDigest = who
+            if quickActionsOwner != who { quickActionsOwner = who;DispatchQueue.main.async {
                 UIApplication.shared.shortcutItems = [UIApplicationShortcutItem(type:Self.quickAction,localizedTitle:"Log food",localizedSubtitle:nil,icon:UIApplicationShortcutIcon(systemImageName:"fork.knife"),userInfo:nil)]
-            }
+            }}
         }
     }
     func add(text: String?,source: FoodEntryRequest.Source) throws {
         try serial.sync {
             // Intents/cold quick actions may run before the WebView starts. The
-            // last signed-in scope can stage locally; fresh server auth is required
-            // by the app before it ever delivers a draft to the composer.
+            // last signed-in scope can stage locally; the app may stage an owner-bound draft offline, while
+            // posting still requires authenticated server acceptance.
             var state = try read();try state.add(text:text,source:source,now:Date());try save(state)
             DispatchQueue.main.async { self.plugin?.notifyListeners("foodEntryReady",data:[:]) }
         }
@@ -51,7 +57,7 @@ final class NativeFoodEntryCenter {
         try serial.sync {
             let who = digest(owner);guard !owner.isEmpty,boundDigest == who else { throw FoodEntryFailure.signedOut }
             var state = try read();guard state.ownerDigest == who else { throw FoodEntryFailure.signedOut }
-            state.purge(now:Date());try save(state)
+            if state.purge(now:Date()) { try save(state) }
             return state.requests.map { row in
                 var result: [String:Any] = ["id":row.id.uuidString.lowercased(),"source":row.source.rawValue]
                 if let text = row.text { result["text"] = text };return result
@@ -65,11 +71,13 @@ final class NativeFoodEntryCenter {
             state.acknowledge(id);try save(state)
         }
     }
-    func stop() throws {
+    func stop(clear: Bool) throws {
         try serial.sync {
             boundDigest = nil
-            if FileManager.default.fileExists(atPath:file.path) { try FileManager.default.removeItem(at:file) }
-            DispatchQueue.main.async { UIApplication.shared.shortcutItems = [] }
+            if clear {
+                if FileManager.default.fileExists(atPath:file.path) { try FileManager.default.removeItem(at:file) }
+                quickActionsOwner = nil;DispatchQueue.main.async { UIApplication.shared.shortcutItems = [] }
+            }
         }
     }
 }
@@ -93,6 +101,6 @@ class KinettaFoodEntryPlugin: CAPPlugin,CAPBridgedPlugin {
         } catch { call.reject(error.localizedDescription) }
     }
     @objc func stop(_ call: CAPPluginCall) {
-        do { try NativeFoodEntryCenter.shared.stop();call.resolve() } catch { call.reject(error.localizedDescription) }
+        do { try NativeFoodEntryCenter.shared.stop(clear:call.getBool("clear") ?? false);call.resolve() } catch { call.reject(error.localizedDescription) }
     }
 }
