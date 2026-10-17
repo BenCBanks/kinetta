@@ -17,20 +17,23 @@ New roadmap implementation is paused at the owner's request. The last complete f
 only. It does **not** add the Share-sheet UI, runtime binding or App Group provisioning. Neither checkpoint means
 that workstream T, Milestone 3 or the overall roadmap has passed acceptance or been released.
 
-**Next work is review fixes and controlled merges, starting at the bottom of the dependency stack.** Address the
-posted review findings on [#124](https://github.com/BenCBanks/kinetta/pull/124) and
-[#125](https://github.com/BenCBanks/kinetta/pull/125), plus the minor findings on
-[#126](https://github.com/BenCBanks/kinetta/pull/126), and carry fixes into dependent branches. The application stack
-is #124 → #125 → … → #156 → #158 → #159 → #160 → #161 → #162 → #163. This roadmap PR (#123) and the
-[provider comparison (#157)](https://github.com/BenCBanks/kinetta/pull/157) are independent documents based on main.
-Review one change at a time; retarget/rebase its descendants and verify the resulting code before their merges.
-Passing CI is not review approval. Review, merge, deployment and TestFlight release remain separate steps.
+**Review and merge checkpoint:** PRs #124–155 are merged. Review fixes are prepared on the existing
+[#156](https://github.com/BenCBanks/kinetta/pull/156), [#158–162](https://github.com/BenCBanks/kinetta/pull/158)
+application stack, with corrected parents carried forward; final verification and owner merge approval remain
+separate gates. [#157](https://github.com/BenCBanks/kinetta/pull/157) is the independent provider comparison:
+its formatting is corrected, while provider selection, quotes and written licensing permission remain with the owner.
+[#163](https://github.com/BenCBanks/kinetta/pull/163) has the corrected parent and storage-contract checks;
+it still needs its external review and adds no Share extension UI or runtime.
+
+This roadmap PR (#123) is an independent document based on main. Merge the remaining application stack in order:
+#156 → #158 → #159 → #160 → #161 → #162 → #163, only after its review and verification gates pass and the owner
+approves. Wait for GitHub to retarget each next PR to main. Passing CI is not review approval. Review, merge,
+deployment and TestFlight release remain separate steps. No review fix in this batch has been deployed.
 
 **Deferred until implementation resumes:** T3 Share extension UI/runtime; P2 restaurant integration (licensed
 provider, terms and cost need owner approval); L website/README/App Store copy; and the remaining M decision-record
 cleanup. Physical-iPhone GPS/Health/APNs/accessibility acceptance, reviewed real-model evaluation, the private
-ChatGPT switch study and the five-person beta remain open. Existing A–K/N/O/Q/R/H PRs are implementations awaiting
-review and release, not proof that those external acceptance gates passed. Resume feature work only when the owner
+ChatGPT switch study and the five-person beta remain open. Existing A–K/N/O/Q/R/H changes are implementations with separate merge/release state, not proof that those external acceptance gates passed. Resume feature work only when the owner
 asks; the milestone order below does not start it automatically.
 
 ## Now — Milestone 1: food-first launch shape
