@@ -40,9 +40,10 @@ Reuse mappings store a hash of the food words rather than another copy of your c
 
 ## collect-imports
 
-When you explicitly read a recipe link, we keep only its parsed recipe draft, source URL, matched own-food references and processing identifiers, not the web page. Drafts expire after 24 hours; expired parsed text is cleared when you next start a read. Discard clears draft content immediately. Minimal retry/cancellation records remain private until account deletion to prevent duplicate work and enforce limits. Parsed drafts are included in your data download. Reading a link does not save a recipe or log food.
+When you explicitly read a recipe link, we keep only its parsed recipe draft, source URL, matched own-food references and processing identifiers, not the web page. Discard immediately clears the source URL and parsed content. Drafts and minimal rate-limit records are removed after their UTC day ends, within the next cleanup pass (normally five minutes); an expired draft also loses its URL and content. A saved recipe is independent of its temporary draft. Parsed drafts are included in your data download. Reading a link does not save a recipe or log food.
 
 We also store workouts and original activity files, GPS routes, recorded measurements, food entries, recipes, weight entries, goals, plans and settings that you add or import. Optional body details help calculate personal estimates. Beta requests include your name, email, device information and message.
+
 
 ## use-heading
 

@@ -143,7 +143,7 @@ function foodToDish(d, f, set) {
 function dishLogSheet(d, w, done) {
   const owner=readOwner();
   const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one';     // by servings: the whole dish is one serving
-  const vals = (k) => Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, (t[x] || 0) * k]));
+  const vals = (k) => Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, t[x]==null?null:t[x]*k]));
   const half = (x) => (x === 0.5 ? '½' : String(x).replace('.5', '½'));
   sheet(d.name, `<form class="form" id="dl">
     ${bySv ? `<div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
@@ -156,7 +156,7 @@ function dishLogSheet(d, w, done) {
     guardFoodSheet(b,close,owner);
     const f = $('#dl', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
     let n = 1;
-    const factor = () => (bySv ? n : num(f.g) > 0 && wt ? num(f.g) / wt : null);
+    const factor = () => (bySv ? n/(d.serving_count||1) : num(f.g) > 0 && wt ? num(f.g) / wt : null);
     const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k)) : ''; };
     if (bySv) $$('[data-st]', f).forEach((x) => x.onclick = () => {
       n = Math.max(0.5, Math.min(20, n + 0.5 * +x.dataset.st));
@@ -173,8 +173,8 @@ function dishLogSheet(d, w, done) {
       else { const g = num(f.g); if (!(g > 0)) { toast('How many grams did you have?'); return; } body.grams = g; }
       btn.disabled = true;
       try {
-        const r = await sendOrQueue(`/api/dishes/${d.id}/portion?thread=true&captured_at=${encodeURIComponent(new Date().toISOString())}`, 'POST', body, d.name);
-        if(!r.queued&&r.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(r);
+        const r = await sendOrQueue(`/api/dishes/${d.id}/portion${location.pathname==='/food/describe'?'?thread=true&captured_at='+encodeURIComponent(new Date().toISOString()):''}`, 'POST', body, d.name);
+        if(!r.queued&&r.messages&&typeof FoodThread!=='undefined'){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
         invalidate('/api/food/'); App.cache.delete('/api/dishes'); close(); done(false);
         if(r.queued)toast('Portion saved on this phone. It will send when connected.');else toast(`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${r0(r.entry.kcal)} kcal`);
       } catch (x) { toast(x.message); btn.disabled = false; }
