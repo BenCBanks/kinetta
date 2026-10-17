@@ -216,30 +216,32 @@ NUM = ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')
 
 @router.get('/day')
 def day(d: str | None = None, user=Depends(current_user)):
+    with db.connect() as c:
+        return day_data(c, user['id'], d)
+
+
+def day_data(c, uid, d=None):
     try: day_ = dt.date.fromisoformat(d) if d else None
     except ValueError: raise HTTPException(400, 'Date must be YYYY-MM-DD')
-    with db.connect() as c:
-        if day_ is None:
-            tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
-            day_ = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
-        entries = c.execute("""SELECT id, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref
-                               FROM food_entries WHERE user_id = %s AND day = %s ORDER BY position, id""", (user['id'], day_)).fetchall()
-        t = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
-        # exercise today vs a usual day (last 4 weeks): big training days get extra calories on top of the target
-        ctx = energy.context(c, user['id'])
-        ex = energy.exercise_by_day(c, user['id'], ctx['tz'], day_ - dt.timedelta(days=28), day_, ctx['kg'])
-        w = c.execute('SELECT kg FROM weights WHERE user_id = %s AND day = %s', (user['id'], day_)).fetchone()
+    if day_ is None:
+        tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
+        day_ = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
+    entries = c.execute("""SELECT id, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref
+                           FROM food_entries WHERE user_id = %s AND day = %s ORDER BY position, id""", (uid, day_)).fetchall()
+    t = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
+    # exercise today vs a usual day (last 4 weeks): big training days get extra calories on top of the target
+    ctx = energy.context(c, uid)
+    ex = energy.exercise_by_day(c, uid, ctx['tz'], day_ - dt.timedelta(days=28), day_, ctx['kg'])
+    w = c.execute('SELECT kg FROM weights WHERE user_id = %s AND day = %s', (uid, day_)).fetchone()
     today_ex = ex.get(day_) or {'kcal': 0, 'n': 0, 'estimated': False, 'items': []}
     usual = sum(v['kcal'] for d, v in ex.items() if d != day_) / 28
     burned = {**today_ex, 'kcal': round(today_ex['kcal']), 'usual': round(usual),
               'extra': max(0, min(1500, round((today_ex['kcal'] - usual) / 10) * 10))}
     totals = {k: round(sum((e[k] or 0) for e in entries), 1) for k in NUM}
-    with db.connect() as c:
-        info = energy.tdee(c, user['id'])
-        least = energy.full_day_min(c, user['id'], info['base'])
-    with db.connect() as c:
-        over = energy.burn_overrides(c, user['id'], day_, day_).get(day_)
-        resting = energy.resting_by_day(c, user['id'], ctx['tz'], day_, day_) if info['resting_source'] == 'apple_health' else {}
+    info = energy.tdee(c, uid)
+    least = energy.full_day_min(c, uid, info['base'])
+    over = energy.burn_overrides(c, uid, day_, day_).get(day_)
+    resting = energy.resting_by_day(c, uid, ctx['tz'], day_, day_) if info['resting_source'] == 'apple_health' else {}
     burn = energy.burn_for_day(info, today_ex['kcal'], day_, resting, {day_: over} if over is not None else {})
     burned['day_burn'] = round(burn['total']) if burn['total'] is not None else None
     burned['source'] = burn['source']; burned['observed_at'] = burn['observed_at']; burned['synced_at'] = burn['synced_at']
@@ -254,18 +256,16 @@ def day(d: str | None = None, user=Depends(current_user)):
     burned['activity'] = info['activity']
     burned['tdee_confidence'] = info['confidence']
     # the day's goal: a goal set for this date wins; otherwise the daily target + the training-day extra
-    with db.connect() as c:
-        g = c.execute('SELECT kcal FROM day_goals WHERE user_id = %s AND day = %s', (user['id'], day_)).fetchone()
+    g = c.execute('SELECT kcal FROM day_goals WHERE user_id = %s AND day = %s', (uid, day_)).fetchone()
     default = t.get('kcal_target')
     # workouts deepen the deficit; they don't raise the goal
     goal = {'custom': round(g['kcal']) if g else None, 'default': round(default) if default else None, 'extra': 0}
     goal['kcal'] = goal['custom'] if g else (goal['default'] if default else None)
     goal['deficit'] = round(burned['day_burn'] - goal['kcal']) if goal['kcal'] is not None and burned['day_burn'] is not None else None
-    with db.connect() as c:
-        last_meals = _last_meals(c, user['id'], day_)
-        hours = c.execute("""SELECT extract(hour FROM created AT TIME ZONE %s)::int AS h, meal, count(*) AS n FROM food_entries
-                               WHERE user_id = %s AND day > current_date - 60 AND day = (created AT TIME ZONE %s)::date
-                               GROUP BY 1, 2""", (ctx['tz'], user['id'], ctx['tz'])).fetchall()
+    last_meals = _last_meals(c, uid, day_)
+    hours = c.execute("""SELECT extract(hour FROM created AT TIME ZONE %s)::int AS h, meal, count(*) AS n FROM food_entries
+                           WHERE user_id = %s AND day > current_date - 60 AND day = (created AT TIME ZONE %s)::date
+                           GROUP BY 1, 2""", (ctx['tz'], uid, ctx['tz'])).fetchall()
     meal_hours = {}
     for r in hours:   # most common meal logged (same day) in each hour, needs 3+ entries to count
         if r['n'] >= 3 and r['n'] > meal_hours.get(r['h'], (None, 0))[1]: meal_hours[r['h']] = (r['meal'], r['n'])

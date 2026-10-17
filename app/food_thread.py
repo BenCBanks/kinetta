@@ -1,13 +1,14 @@
 """Private, durable food conversation storage (#122 D, foundation).
 
 This module stores text, not photos or model prompts. It never logs food or calls a
-provider. The processing layer follows separately; pending messages survive a
-reload and a lost acknowledgement can be retried with the same client identity.
+provider. Deterministic numbers answers are supported; food logging follows
+separately. Pending messages survive a reload and a lost acknowledgement can be retried with the same client identity.
 """
 import datetime as dt
+import json
 import re
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -138,3 +139,49 @@ def set_preferences(body: PreferencesIn, user=Depends(current_user)):
         sets = ', '.join(names[key] + ' = %s' for key in values)
         c.execute(f'UPDATE profile SET {sets} WHERE user_id = %s', (*values.values(), user['id']))
         return preferences(c, user['id'])
+
+
+class AnswerIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+
+def finish_reply(c, uid, message, result):
+    """The caller holds the account and message locks. Reply and state commit together."""
+    row = c.execute(f'''INSERT INTO food_chat_messages
+                        (user_id,client_id,kind,body,captured_at,local_day,state,reply_to,result)
+                        VALUES (%s,%s,'reply',%s,%s,%s,'answered',%s,%s) RETURNING {COLUMNS}''',
+                    (uid,uuid4(),result['text'],message['captured_at'],message['local_day'],message['id'],json.dumps(result))).fetchone()
+    updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
+                             WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
+                        (json.dumps({'kind':result['kind'],'reply_id':row['id']}),message['id'],uid)).fetchone()
+    return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
+
+
+def answer_with(c, uid, message):
+    from . import food_thread_facts as facts
+    if message['kind'] != 'user':
+        raise HTTPException(400,'Only a message you sent can be answered')
+    if message['state']=='answered':
+        reply=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=%s',(uid,message['id'])).fetchone()
+        return {'handled':True,'messages':message_entries(c,uid,[message]+([reply] if reply else []))}
+    if message['state']!='pending':
+        raise HTTPException(409,'This message is no longer pending')
+    question=facts.classify(message['body'],message['local_day'])
+    if question is None:
+        return {'handled':False,'messages':message_entries(c,uid,[message])}
+    if question['kind']=='clarify':
+        result={'kind':'answer','intent':'clarify','text':question['text'],'source':'code'}
+    else:
+        result=facts.answer(question,facts.snapshot(c,uid,question['day'],question))
+    result['as_of']=dt.datetime.now(dt.timezone.utc).isoformat()
+    return finish_reply(c,uid,message,result)
+
+
+@router.post('/messages/{mid}/answer')
+def answer_message(mid: int, body: AnswerIn, user=Depends(current_user)):
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+        message=c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,user['id'])).fetchone()
+        if not message:
+            raise HTTPException(404,'Message not found')
+        return answer_with(c,user['id'],message)

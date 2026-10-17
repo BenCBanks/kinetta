@@ -22,30 +22,33 @@ def _f(v): return float(v or 0)
 
 @router.get('/insights')
 def insights(days: int = 30, since: dt.date | None = None, user=Depends(current_user)):
-    """days = the last N days; since = from that date (e.g. the start of a diet) to today, at most 2 years."""
-    uid = user['id']
     with db.connect() as c:
-        ctx, info = energy.context(c, uid), energy.tdee(c, uid)
-        today = ctx['today']
-        days = max(1, min((today - since).days + 1, 731)) if since and since <= today else max(7, min(days, 366))
-        start = today - dt.timedelta(days=days - 1)
-        prof = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target, deficit_start FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
-        food = {r['day']: r for r in c.execute("""
-            SELECT day, sum(kcal) AS kcal, sum(protein_g) AS protein_g, sum(carbs_g) AS carbs_g, sum(fat_g) AS fat_g,
-                   sum(fiber_g) AS fiber_g, count(fiber_g) AS fiber_n, count(*) AS n,
-                   sum(kcal) FILTER (WHERE meal = 'breakfast' AND source <> 'import') AS m_breakfast, sum(kcal) FILTER (WHERE meal = 'lunch' AND source <> 'import') AS m_lunch,
-                   sum(kcal) FILTER (WHERE meal = 'dinner' AND source <> 'import') AS m_dinner, sum(kcal) FILTER (WHERE meal = 'snacks' AND source <> 'import') AS m_snacks
-            FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day""", (uid, start, today)).fetchall()}
-        top = c.execute("""SELECT min(name) AS name, count(*) AS n, sum(kcal) AS kcal, sum(protein_g) AS protein_g
-                           FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s AND day < %s AND source <> 'import'
-                           GROUP BY lower(regexp_replace(name, '\\s*\\(.*\\)$', '')) ORDER BY sum(kcal) DESC LIMIT 8""",
-                        (uid, start, today, today)).fetchall()
-        goals = {r['day']: float(r['kcal']) for r in c.execute('SELECT day, kcal FROM day_goals WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
-        ex = energy.exercise_by_day(c, uid, ctx['tz'], start - dt.timedelta(days=28), today, ctx['kg'])
-        over = energy.burn_overrides(c, uid, start, today)
-        resting = energy.resting_by_day(c, uid, ctx['tz'], start, today) if info['resting_source'] == 'apple_health' else {}
-        least = energy.full_day_min(c, uid, info['base'])
-        raw_w = {r['day']: float(r['kg']) for r in c.execute('SELECT day, kg FROM weights WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
+        return insights_data(c, user['id'], days, since)
+
+
+def insights_data(c, uid, days=30, since=None):
+    """days = the last N days; since = from that date (e.g. the start of a diet) to today, at most 2 years."""
+    ctx, info = energy.context(c, uid), energy.tdee(c, uid)
+    today = ctx['today']
+    days = max(1, min((today - since).days + 1, 731)) if since and since <= today else max(7, min(days, 366))
+    start = today - dt.timedelta(days=days - 1)
+    prof = c.execute('SELECT kcal_target, protein_target, carbs_target, fat_target, fiber_target, deficit_start FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
+    food = {r['day']: r for r in c.execute("""
+        SELECT day, sum(kcal) AS kcal, sum(protein_g) AS protein_g, sum(carbs_g) AS carbs_g, sum(fat_g) AS fat_g,
+               sum(fiber_g) AS fiber_g, count(fiber_g) AS fiber_n, count(*) AS n,
+               sum(kcal) FILTER (WHERE meal = 'breakfast' AND source <> 'import') AS m_breakfast, sum(kcal) FILTER (WHERE meal = 'lunch' AND source <> 'import') AS m_lunch,
+               sum(kcal) FILTER (WHERE meal = 'dinner' AND source <> 'import') AS m_dinner, sum(kcal) FILTER (WHERE meal = 'snacks' AND source <> 'import') AS m_snacks
+        FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day""", (uid, start, today)).fetchall()}
+    top = c.execute("""SELECT min(name) AS name, count(*) AS n, sum(kcal) AS kcal, sum(protein_g) AS protein_g
+                       FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s AND day < %s AND source <> 'import'
+                       GROUP BY lower(regexp_replace(name, '\\s*\\(.*\\)$', '')) ORDER BY sum(kcal) DESC LIMIT 8""",
+                    (uid, start, today, today)).fetchall()
+    goals = {r['day']: float(r['kcal']) for r in c.execute('SELECT day, kcal FROM day_goals WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
+    ex = energy.exercise_by_day(c, uid, ctx['tz'], start - dt.timedelta(days=28), today, ctx['kg'])
+    over = energy.burn_overrides(c, uid, start, today)
+    resting = energy.resting_by_day(c, uid, ctx['tz'], start, today) if info['resting_source'] == 'apple_health' else {}
+    least = energy.full_day_min(c, uid, info['base'])
+    raw_w = {r['day']: float(r['kg']) for r in c.execute('SELECT day, kg FROM weights WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
 
     usual = sum(v['kcal'] for d, v in ex.items() if start - dt.timedelta(days=28) <= d < start) / 28 if ex else 0
     usual = usual or info['avg_exercise']
