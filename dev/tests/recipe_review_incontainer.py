@@ -53,7 +53,7 @@ try:
  assert count()==0 and a.get(path).json()['state']=='ready'
  with ThreadPoolExecutor(max_workers=4) as pool:responses=list(pool.map(lambda _:R.save(uuid.UUID(path.rsplit('/',1)[1]),R.SaveIn(**body),user={'id':uid}),range(4)))
  assert len({x['dish']['id'] for x in responses})==1 and count()==1
- d=responses[0]['dish'];did=d['id'];assert d['serving_count']==6 and d['per_serving']['kcal']==210 and d['weight_g'] is None
+ d=responses[0]['dish'];did=d['id'];assert d['servings']==6 and d['serving_count']==6 and d['per_serving']['kcal']==210 and d['weight_g'] is None
  assert d['totals']['fat_g'] is None and d['recipe_source']['sources']['kcal']=='site'
  with db.connect() as c:
   row=c.execute('SELECT data FROM recipe_link_drafts WHERE user_id=%s AND id=%s',(uid,path.rsplit('/',1)[1])).fetchone()['data']
@@ -101,6 +101,19 @@ try:
  path=draft({**base,'nutrition':{}});r=review(path,basis='ingredients')
  saved=a.post(path+'/save',json={'baseline':r['baseline'],'confirmed':True}).json()['dish'];assert saved['totals']['kcal'] is None
  assert a.post('/api/dishes/'+str(saved['id'])+'/portion',json={'count':1,'meal':'dinner'}).status_code==400
+ # A calorie-only four-serving recipe logs unknown protein, never a zero reading.
+ path=draft({**base,'nutrition':{'calories':'240 kcal'}})
+ r=review(path,servings=4,basis='published')
+ unknown=a.post(path+'/save',json={'baseline':r['baseline'],'confirmed':True}).json()['dish']
+ assert unknown['servings']==4 and unknown['per_serving']['kcal']==240
+ logged=a.post(f"/api/dishes/{unknown['id']}/portion",json={'count':1,'meal':'dinner'});assert logged.status_code==200,logged.text
+ assert 'protein_g' in logged.json()['entry']['ref']['unknown_nutrients']
+ day=a.get('/api/food/day').json();assert day['unknown_nutrients']['protein_g']>=1
+ insights=a.get('/api/food/insights').json();assert insights['rows'][-1]['protein_g'] is None
+ from app import food_thread_facts as facts,energy
+ with db.connect() as c:
+  today=energy.context(c,uid)['today'];snapshot=facts.snapshot(c,uid,today)
+  assert any(facts._missing(e,'protein_g') for e in snapshot['day']['entries'])
  # Old recipes still treat one serving as the whole meal.
  old=a.post('/api/dishes',json={'name':'Fictional ordinary meal'}).json()
  a.patch('/api/dishes/'+str(old['id']),json={'known_kcal':400,'known_fiber_g':8})

@@ -3,6 +3,7 @@
 Only authenticated callers supply uid. Network resolution happens elsewhere. Ready
 parts use stable per-part identities; later choices cannot recreate earlier food.
 """
+import copy
 import datetime as dt
 import hashlib
 import json
@@ -10,6 +11,7 @@ import re
 import time
 from uuid import UUID,uuid5
 from fastapi import HTTPException
+from pydantic import ValidationError
 from . import meal_chat,food_thread,food_thread_log as engine,food_thread_facts as facts
 
 
@@ -206,11 +208,23 @@ def log_part(c,uid,message,result,part):
     return ids
 
 
-def write(c,uid,message,result,*,force=False):
+def write(c,uid,message,result,*,force=False,only=None):
+    check_live(message,result)
+    saved=copy.deepcopy(result)
+    try:
+        with c.transaction():return _write(c,uid,message,result,force=force,only=only)
+    except (HTTPException,ValidationError) as error:
+        if isinstance(error,HTTPException) and error.status_code not in (400,404,409,422):raise
+        saved.update({'processing':False,'error':{'message':'The food details changed. Check this card or enter its nutrition.','retryable':True}})
+        return food_thread.finish_reply(c,uid,message,saved)
+
+
+def _write(c,uid,message,result,*,force=False,only=None):
     check_live(message,result)
     auto=food_thread.preferences(c,uid)['auto_log']
     added=[];changed=False
     for part in result['parts']:
+        if only is not None and part['index'] not in only:continue
         if part['status']!='ready' or part.get('logged'):continue
         if part.get('drafts'):
             if not fresh_drafts(c,uid,part):changed=True
@@ -224,7 +238,7 @@ def write(c,uid,message,result,*,force=False):
         response=food_thread.finish_reply(c,uid,message,result);response['changed']=True;return response
     if auto or force:
         for part in result['parts']:
-            if part['status']=='ready' and not part.get('logged'):added+=log_part(c,uid,message,result,part)
+            if (only is None or part['index'] in only) and part['status']=='ready' and not part.get('logged'):added+=log_part(c,uid,message,result,part)
     linked=[r['entry_id'] for r in c.execute('SELECT entry_id FROM food_chat_entries WHERE user_id=%s AND message_id=%s',(uid,message['id']))]
     ids=list(dict.fromkeys(linked+added));pending=[p for p in result['parts'] if p['status']!='ready']
     ready=[p for p in result['parts'] if p['status']=='ready' and not p.get('logged')]
@@ -245,6 +259,8 @@ def write(c,uid,message,result,*,force=False):
     elif ready and not pending:result['text']='Ready to log. Check the portions, then tap Log.'
     else:result['text']=question or 'Choose a food or enter its nutrition.'
     if added:
+        rows=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,added)).fetchall()
+        result['entry_digests']={**result.get('entry_digests',{}),**{str(r['id']):engine.entry_digest(r) for r in rows}}
         totals=c.execute('SELECT sum(kcal) AS kcal,sum(protein_g) AS protein_g FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,added)).fetchone()
         result['feedback']=facts.feedback(facts.snapshot(c,uid,dt.date.fromisoformat(str(result['day']))),dict(totals),seed=message['id'])
     response=food_thread.finish_reply(c,uid,message,result)

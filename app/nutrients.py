@@ -9,11 +9,16 @@ TARGETS={'sodium_mg':'sodium_target_mg','sugar_g':'sugar_target_g','saturated_fa
 UNITS={'sodium_mg':'mg','sugar_g':'g','saturated_fat_g':'g'}
 PER100_MAX={'sodium_mg':100000,'sugar_g':100,'saturated_fat_g':100}
 
+ENTRY_MAX={'kcal':20000,'protein_g':2000,'carbs_g':2000,'fat_g':2000,'fiber_g':1000,'sodium_mg':1000000,'sugar_g':2000,'saturated_fat_g':2000}
+
+def rounded(key,value):
+    return round(value,4 if key in EXTRA else 1) if value is not None else None
+
 class ExtraValues(BaseModel):
     model_config={'allow_inf_nan':False}
-    sodium_mg:float|None=Field(None,ge=0,le=1000000)
-    sugar_g:float|None=Field(None,ge=0,le=2000)
-    saturated_fat_g:float|None=Field(None,ge=0,le=2000)
+    sodium_mg:float|None=Field(None,ge=0,le=ENTRY_MAX['sodium_mg'])
+    sugar_g:float|None=Field(None,ge=0,le=ENTRY_MAX['sugar_g'])
+    saturated_fat_g:float|None=Field(None,ge=0,le=ENTRY_MAX['saturated_fat_g'])
 
     @field_validator(*EXTRA,mode='before')
     @classmethod
@@ -46,7 +51,7 @@ def off_values(nutriments):
     # the contributor's input unit and must not be applied a second time.
     result={}
     for key,source in [('sodium_mg','sodium_100g'),('sugar_g','sugars_100g'),('saturated_fat_g','saturated-fat_100g')]:
-        n=number(nutriments.get(source),100)
+        n=number(nutriments.get(source),PER100_MAX[key]/(1000 if key=='sodium_mg' else 1))
         result[key]=round(n*(1000 if key=='sodium_mg' else 1),4) if n is not None else None
     return result
 
@@ -61,10 +66,10 @@ def fdc_values(rows):
             if identity not in ids and code!=legacy:continue
             rank=ids.index(identity) if identity in ids else len(ids)
             raw_unit=row.get('unitName');unit=(raw_unit if isinstance(raw_unit,str) and raw_unit else UNITS[key] if raw_unit in (None,'') else '').strip().lower().replace('μ','µ')
-            if unit not in ('g','mg','µg','mcg'):continue
+            if unit not in ('g','mg','µg','mcg','ug'):continue
             value=number(row.get('value'),100000000)
             if value is None:continue
-            grams=value*({'g':1,'mg':.001,'µg':.000001,'mcg':.000001}[unit])
+            grams=value*({'g':1,'mg':.001,'µg':.000001,'mcg':.000001,'ug':.000001}[unit])
             converted=grams*(1000 if key=='sodium_mg' else 1)
             if converted>PER100_MAX[key] or (key in ranks and rank>=ranks[key]):continue
             result[key]=round(converted,4);ranks[key]=rank
