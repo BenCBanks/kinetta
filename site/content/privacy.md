@@ -40,6 +40,8 @@ Reuse mappings store a hash of the food words rather than another copy of your c
 
 ## collect-imports
 
+When you explicitly read a recipe link, we keep only its parsed recipe draft, source URL, matched own-food references and processing identifiers, not the web page. Drafts expire after 24 hours; expired parsed text is cleared when you next start a read. Discard clears draft content immediately. Minimal retry/cancellation records remain private until account deletion to prevent duplicate work and enforce limits. Parsed drafts are included in your data download. Reading a link does not save a recipe or log food.
+
 We also store workouts and original activity files, GPS routes, recorded measurements, food entries, recipes, weight entries, goals, plans and settings that you add or import. Optional body details help calculate personal estimates. Beta requests include your name, email, device information and message.
 
 ## use-heading
@@ -79,6 +81,8 @@ Other members may find your name and username through people search and see your
 Service providers and connections
 
 ## providers
+
+When you explicitly import a public recipe link, the recipe website receives a server-side page request and the URL you supplied. Kinetta sends no account identity, cookies or login credentials to that website. The page is not sent to an AI service.
 
 Cloudflare processes network traffic to the hosted app. OpenStreetMap receives map-area requests from your device. USDA FoodData Central and Open Food Facts receive food-search words, product words or scanned barcodes, rather than your Kinetta account identity. Services you connect, such as intervals.icu or Health Auto Export, exchange information needed for the connection under their own policies. Disconnecting a source stops future imports through that connection; records already imported remain until you delete them.
 

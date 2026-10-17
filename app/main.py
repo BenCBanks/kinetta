@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts
 import threading
 from .auth import current_user
-from . import api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread
+from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread
 
 @asynccontextmanager
 async def lifespan(app):
@@ -42,6 +42,7 @@ app.include_router(notify.router)
 app.include_router(api_coach.router)
 app.include_router(meal_chat.router)
 app.include_router(food_thread.router)
+app.include_router(recipe_import.router)
 app.include_router(admin_auth.router)
 app.include_router(api_admin.router)
 

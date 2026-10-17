@@ -530,3 +530,7 @@ Me's setup hints recognise any of the person's own saved food history as well as
 ### Recipe links: fetch/parser foundation (#122 N1)
 
 The server has an unexposed, bounded public-HTTPS reader and JSON-LD Recipe parser; this does not yet add an import button. The following review flow must show an editable My Recipes draft before saving, label site-published per-serving nutrition, preserve unknown values and ambiguous servings, and offer the existing screenshot path when structured data is absent. Multiple recipe candidates need an explicit choice. See [recipe-links.md](recipe-links.md) for the safety boundaries and pending integration.
+
+### Recipe links: authenticated drafts (#122 N2)
+
+An explicit authenticated recipe-link read now creates only a private parsed draft and deterministic own-food matches. Reopening/retrying its identity never refetches or logs food; discard prevents late responses from restoring it. Reads are capped per person and drafts expire. There is no new UI yet: the next slice adds candidate choice, editable My Recipes review, explicit save and source labels. A page with no schema offers the screenshot/typed-ingredient fallback. See [recipe-links.md](recipe-links.md).
