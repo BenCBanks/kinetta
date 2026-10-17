@@ -7,18 +7,27 @@ failure; search, barcodes, recipes and manual logging still work.
 
 Structured food-estimator calls also share `KINETTA_FOOD_AI_DAILY_USD` (default
 `5`, USD per UTC day). Each primary attempt, retry and fallback reserves enough for
-the supported model's entire input/output context **before** making the request.
-Complete provider usage replaces that hold with estimated input + response +
-thinking cost, rounded up to a microdollar. Missing usage, a timeout, invalid JSON
-without usage, a crash or an HTTP failure keeps the hold: unknown bills are never
-silently treated as free. This is deliberately conservative and may pause AI early.
+a local padded estimate of the request **before** making it: twice the UTF-8 bytes
+of text/schema/configuration plus 1,024 overhead tokens and 16,384 tokens per image,
+with the request's actual `maxOutputTokens` (2,048 for food) reserved as output.
+Image base64 bytes are excluded from the text estimate. No extra provider count call
+is made. This margin is an engineering estimate, not an exact tokenizer or a strict
+provider invoice cap. Complete usage settles actual input, output and thinking cost;
+a larger actual charge can exceed an estimate and stops subsequent reservations.
+Explicit Gemini HTTP 4xx/5xx failures refund their holds once. Timeouts/network
+failures without a response, missing usage and crashes keep their request-sized
+holds because billing is uncertain. Per-person attempt slots remain consumed.
 Concurrent requests share the same database lock. Deleting an account removes its
 identity from attempt records but does not refund the service's spent budget.
 
 `KINETTA_AI_ENABLED=0` stops the shared food request brake before provider work.
 Only the literal `1` enables it. A zero/invalid dollar budget fails closed. New or
 renamed models are blocked until their rates and context bounds are reviewed in
-`app/ai_budget.py`; the bundled review expires January 1, 2027. No existing model,
+`app/ai_budget.py`; the bundled review expires January 1, 2027 (UTC). This is a scheduled AI pause,
+not just a reminder. Before then, review the documented rates and model limits and
+set `KINETTA_AI_PRICING_REVIEW_BY=YYYY-MM-DD` to the next reviewed expiry, or update
+the code default. Invalid or expired dates fail closed. This change does not set
+an environment variable or schedule a calendar event on anyone's behalf. No existing model,
 prompt, temperature or output limit was changed.
 
 Rates and context bounds checked October 17, 2026:
@@ -42,3 +51,5 @@ search has a durable per-account request cap but its search-query charges and
 separate coach transports still need the shared monetary reservation boundary
 before this can be described as a cap on **all** service AI spending. The remaining
 food-thread work must not claim that broader guarantee from this PR.
+
+Failure billing and token-estimate references: [Google billing](https://ai.google.dev/gemini-api/docs/billing#am-i-charged-for-failed-requests), [token counting](https://ai.google.dev/gemini-api/docs/tokens), [Gemini 3 media resolution](https://ai.google.dev/gemini-api/docs/gemini-3#media-resolution). UTC-day caps reset at midnight UTC (8 pm US Eastern during daylight time, 7 pm in standard time). Anonymous grounded-product calls remain denied; authenticated routes provide their current user through the existing scope.

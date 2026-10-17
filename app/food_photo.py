@@ -101,7 +101,7 @@ def ask(parts, schema, label, timeout=45):
                                             'maxOutputTokens': MAX_OUTPUT_TOKENS}}).encode()
     tries = [main, main, os.environ.get('GEMINI_FOOD_FALLBACK_MODEL', 'gemini-3.8-flash')]
     for n, model in enumerate(tries):
-        attempt = ai_budget.reserve(model, label)
+        attempt = ai_budget.reserve(model,label,payload=body)
         last = n == len(tries) - 1
         req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', body,
                                      {'Content-Type': 'application/json', 'x-goog-api-key': os.environ.get('GEMINI_API_KEY', '')})
@@ -110,6 +110,7 @@ def ask(parts, schema, label, timeout=45):
             ai_budget.settle(attempt, data)
             return json.loads(data['candidates'][0]['content']['parts'][-1]['text']), data, model
         except urllib.error.HTTPError as e:
+            ai_budget.release_failed(attempt,e.code)
             print(f'{label}: gemini {model} HTTP', e.code, flush=True)
             if last or (e.code != 429 and e.code < 500): raise HTTPException(502, 'The food estimator is busy - try again in a minute')
         except (urllib.error.URLError, TimeoutError) as e:

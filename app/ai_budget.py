@@ -1,11 +1,12 @@
 """Durable food-estimator limits. No prompts, photos, keys or food names in the ledger.
 
-Reserve a priced model's full context/output allowance before *each* attempt. A
+Reserve a padded estimate of each request before *each* attempt. A
 successful response with complete usage releases unused money; timeouts, missing
 usage and crashes keep the reservation. USD figures are estimates, not invoices.
 """
 import datetime as dt
 import os
+import json
 from contextlib import contextmanager
 from contextvars import ContextVar
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
@@ -64,15 +65,39 @@ def price(model, input_tokens, output_tokens):
     return int((rate_in * input_tokens + rate_out * output_tokens).to_integral_value(rounding=ROUND_CEILING))
 
 
-def reserve(model, label):
+def request_tokens(payload=None):
+    # Local, deliberately padded estimate. Never send a second counting request,
+    # retain a prompt/image, or charge base64 transport bytes as text tokens.
+    images=0
+    def compact(value):
+        nonlocal images
+        if isinstance(value,dict):
+            if 'inlineData' in value or 'inline_data' in value:
+                images+=1;return {'image':True}
+            return {k:compact(v) for k,v in value.items()}
+        if isinstance(value,list):return [compact(v) for v in value]
+        return value
+    if payload is None:return 8192,2048
+    body=json.loads(payload) if isinstance(payload,(str,bytes)) else payload
+    text_bytes=len(json.dumps(compact(body),ensure_ascii=False).encode())
+    output=(body.get('generationConfig') or {}).get('maxOutputTokens',2048)
+    if type(output) is not int or not 1<=output<=65536:raise HTTPException(503,FALLBACK)
+    return min(1_048_576,1024+2*text_bytes+images*16384),output
+
+
+def review_by():
+    try:return dt.date.fromisoformat(os.environ.get('KINETTA_AI_PRICING_REVIEW_BY',REVIEW_BY.isoformat()))
+    except ValueError:raise HTTPException(503,'AI pricing review date is invalid') from None
+
+
+def reserve(model, label, payload=None):
     require_enabled()
     uid = _owner.get()
     if uid is None: raise HTTPException(503, 'An authenticated AI request is required')
-    if model not in RATES or dt.datetime.now(dt.timezone.utc).date() >= REVIEW_BY:
+    if model not in RATES or dt.datetime.now(dt.timezone.utc).date() >= review_by():
         raise HTTPException(503, 'AI model pricing needs a server review. Search, barcodes and manual logging still work.')
-    # Both supported models have <=1,048,576 input /65,536 output tokens. Full
-    # output also bounds thinking without changing the existing generation config.
-    hold = price(model, 1_048_576, 65_536)
+    input_tokens,output_tokens=request_tokens(payload)
+    hold = price(model,input_tokens,output_tokens)
     limit = budget_micros()
     rid = uuid4()
     with db.connect() as c:
@@ -101,3 +126,9 @@ def settle(rid, data):
         c.execute('UPDATE ai_service_budget SET charged_micros=charged_micros+%s WHERE day=%s',(actual-row['charged_micros'],row['day']))
         c.execute("""UPDATE ai_food_attempts SET state='measured',input_tokens=%s,output_tokens=%s,
                       thinking_tokens=%s,charged_micros=%s WHERE id=%s""",(*values,actual,rid))
+
+
+def release_failed(rid,status):
+    """An explicit Gemini HTTP failure is not a bill; a timeout without response stays held."""
+    if type(status) is int and 400<=status<600:
+        settle(rid,{'usageMetadata':{'promptTokenCount':0,'candidatesTokenCount':0,'thoughtsTokenCount':0}})
