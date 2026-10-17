@@ -24,7 +24,7 @@ function todayFoodCard(box) {
     if (!box.isConnected) return;
     App.mealHours = D.meal_hours || App.mealHours;
     const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
-    const meal = [guessMeal(), ...Object.keys(MEAL_NAMES)].find(m => !D.entries.some(e => e.meal === m));
+    const meal = Object.keys(MEAL_NAMES).slice(Object.keys(MEAL_NAMES).indexOf(guessMeal())).find(m => !D.entries.some(e => e.meal === m));
     const workouts = D.burned?.items || [];
     const macroEnergy = (T.protein_g || 0)*4 + (T.carbs_g || 0)*4 + (T.fat_g || 0)*9;
     box.innerHTML = `<section class="card home-today" aria-label="Today’s food"><h2>Today<a class="more" href="/food">Food log ›</a></h2>
@@ -67,10 +67,11 @@ function yesterdayMeal(day, meal) {
           close(); Native.haptic('light');
           if (!result.queued) {
             let busy = false, done = false;
+            const remaining = new Set(result.ids);
             const undo = async () => {
               if (busy || done || readOwner() !== owner) return;
               busy = true;
-              try { await Promise.all(result.ids.map(id => api(`/api/food/entries/${id}`, {method:'DELETE'}))); done = true; refresh(); toast('Meal removed'); }
+              try { for (const id of remaining) { if (readOwner() !== owner) return; try { await api(`/api/food/entries/${id}`, {method:'DELETE'}); } catch(e) { if(e.status !== 404) throw e; } remaining.delete(id); } done = true; refresh(); toast('Meal removed'); }
               catch(x) { if (readOwner() === owner) toast('Could not undo · try again',undo); }
               finally { busy = false; }
             };
@@ -646,7 +647,7 @@ function describeSheet(day, meal) {
   go(`/food/describe?d=${encodeURIComponent(day)}&meal=${encodeURIComponent(meal)}`);
 }
 route(/^\/food\/describe$/, 'food', (el) => {
-  if(typeof FoodThread!=='undefined')return FoodThread.page(el);
+  if(typeof FoodThread!=='undefined')return FoodThread.page(el,{day:new URLSearchParams(location.search).get('d'),meal:new URLSearchParams(location.search).get('meal')});
   const q = new URLSearchParams(location.search), day = /^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '') ? q.get('d') : isoDay(new Date());
   describePage(el, day, Object.hasOwn(MEAL_NAMES, q.get('meal')) ? q.get('meal') : guessMeal());
 });
@@ -1326,6 +1327,7 @@ function dietCoachContent(box) {
         <button class="primary wide" id="dc-go">${svg('sparkle')}Review my eating</button></div>`;
     const b = $('#dc-go', box);
     if (!aiCan('coach')) { if (L) b.remove(); else box.innerHTML = ''; return; }
+    if (r.paused) { b.replaceWith(Object.assign(document.createElement('p'), {className:'small muted',textContent:'AI is paused. Search, barcodes and manual logging still work.'})); return; }
     b.onclick = async () => {
       if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
       b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';

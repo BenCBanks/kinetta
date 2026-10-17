@@ -66,3 +66,11 @@ missing['period_rows'][0]['protein_g_unknown']=True
 check(f.answer(f.classify('how much protein this week?',anchor),missing)['facts']['logged'] is None,'week missing protein is incomplete')
 check(f.answer(f.classify('how many calories this week?',anchor),missing)['facts']['logged']==2200,'unknown macros preserve known calorie total')
 print(f'food thread facts: {checks} pure checks passed; no model/provider imports or calls')
+
+for text in ['Chicken salad for lunch, about 450 calories total','Had 2 eggs, 300 calories so far']:
+ check(f.classify(text,anchor) is None, 'Food description is not a totals question: '+text)
+check(f.classify('How much protein is in a chicken breast?',anchor)['kind']=='advice','General food question never claims personal totals')
+check(f.classify('weekly average calories',anchor)['weekly'],'weekly adjective recognised')
+check(f.classify('calories last week',anchor)['day']==dt.date(2026,10,11),'last week ends last Sunday')
+check(f.answer(f.classify('how many calories at lunch today?',anchor),S)['facts']['logged'] is None,'empty requested meal is not whole-day totals')
+check(f.feedback(S,{'kcal':None},seed=1),'unknown added calories do not crash feedback')

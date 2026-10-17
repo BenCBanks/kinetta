@@ -215,16 +215,6 @@ def _usda_products(q):
     return out[:5]
 
 
-def _web_product(text):
-    """Paid grounding has unbounded per-call search charges; use USDA instead.
-
-    Re-enable only with a provider-enforced query bound and reviewed budget
-    accounting. A prompt asking for fewer searches cannot enforce a spend cap.
-    """
-    return None
-
-
-
 def product_refs(text, uid=None):
     """Reference products for each packaged amount in the message, as prompt lines ('' when there's nothing to look up).
     "2 apples which weigh 100 grams and a box of food lion penne" looks up only the penne, with its own words."""
@@ -240,14 +230,13 @@ def product_refs(text, uid=None):
             found += [r] if isinstance(r, dict) else (r or [])[:3]
     if not found: return ''
     line = lambda f: (f"{f.get('brand') or ''} | {f['name']} | package {f['package_g']:g} g | " if f.get('package_g') else f"{f.get('brand') or ''} | {f['name']} | package size unknown | ") + \
-        ' '.join(f"{k} {f['per100'][k]:g}" for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g') if f['per100'].get(k) is not None) + \
-        (f" ({f['source']})" if str(f.get('source', '')).startswith('web') else '')
+        ' '.join(f"{k} {f['per100'][k]:g}" for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g') if f['per100'].get(k) is not None)
     return REFS.format(lines='\n'.join(line(f) for f in found[:10]))
 
 
 def ai_actions(text, items, uid=None):
     """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent (and, for a packaged
-    amount, the product words to USDA / a web search)."""
+    amount, the product words to USDA)."""
     lines = '\n'.join(f"{i['id']} | {i['name']} | {i['grams']:g}" for i in items) or '(nothing yet)'
     with food_photo.ai_budget.scope(uid):
         out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text, uid))}], SCHEMA, 'cook chat', timeout=45)

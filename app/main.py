@@ -141,7 +141,7 @@ def me(user=Depends(current_user)):
         p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, ai_ok, health_ai_ok, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
-    return {**user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
+    return {**user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):
