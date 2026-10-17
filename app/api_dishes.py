@@ -164,7 +164,7 @@ def _out(d):
             'recipe_source':d.get('recipe_source') or {},'serving_count':serving_count(d),
             'per_serving':{k:_r(v/serving_count(d)) if v is not None else None for k,v in totals.items()},
             'cooked_g': d['cooked_g'], 'weight_g': weight, 'items_g': _sum_g(d), 'weighed': d['cooked_g'] is not None,
-            'serving': d['serving'], 'servings': serving_count(d), 'named': d['name'] not in PLACEHOLDERS,
+            'serving': d['serving'], 'servings': serving_count(d) if d.get('recipe_source') else d['servings'], 'named': d['name'] not in PLACEHOLDERS,
             'per_100g': {k: _r(v * 100 / weight) if v is not None else None for k, v in totals.items()} if weight else None,
             'created': d['created'], 'updated': d['updated'],
             'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['recipe_updated'] > d['ai_note_at']} if d.get('ai_note') else None}
