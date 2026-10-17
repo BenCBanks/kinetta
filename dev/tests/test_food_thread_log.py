@@ -74,7 +74,7 @@ with concurrent.futures.ThreadPoolExecutor(4) as pool:
  responses=list(pool.map(lambda c:c.post('/api/food/thread/messages/'+str(mid)+'/process',{}),clients))
 check(all(s==200 for s,_ in responses) and len({r['messages'][-1]['id'] for _,r in responses})==1,'concurrent processing replies once')
 check(len({tuple(e['id'] for e in r['messages'][-1]['entries']) for _,r in responses})==1,'concurrent processing logs once')
-mid=send('I had 40 protein bars');status,large=process(mid)
+mid=send('I had 101 protein bars');status,large=process(mid)
 check(status==200 and large['messages'][-1]['result']['kind']=='needs','oversize auto-log becomes durable clarification')
 mid=send('I had a protein bar');status,logged=process(mid)
 row=logged['messages'][-1]['entries'][0]
