@@ -40,6 +40,7 @@ try:
  def target():return a.get('/api/me').json()['kcal_target']
  with patch('app.coach_chat.answer',side_effect=AssertionError('No AI')),patch('app.food_photo.ask',side_effect=AssertionError('No AI')):
   data=get();row=data['current'];assert row['data']['suggested_kcal']==2200 and row['data']['observed_burn']==2200 and row['data']['avg_exercise']==0
+  assert row['updated'].startswith(today.isoformat())
   assert target()==2150 and get()['current']['id']==row['id']
   with db.connect() as c:
    assert c.execute('SELECT count(*) AS n FROM nutrition_checkins WHERE user_id=%s',(uid,)).fetchone()['n']==0
