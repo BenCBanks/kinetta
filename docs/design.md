@@ -645,6 +645,10 @@ A gentle note can appear after4pm following90+ recorded minutes when a positive,
 Copy reviewed against [Apple5.1.3](https://developer.apple.com/app-store/review/guidelines/#health-and-health-research): no advertising/data-mining use, no research/medical claims, no Health writes from these estimates. Health nutrition output remains the separately permitted record of food actually logged. Provider-age/region/project-tier and broader launch review remain #98 owner requirements; this change does not resolve them.
 
 Account deletion also removes only that server/account’s on-device training-note dismissal preferences. Other accounts and servers are preserved.
+
+### Native food-share durability foundation (#122 T2)
+
+Food Share jobs use immutable owner-bound UUIDs and a protected, backup-excluded local queue under a process-shared lock. Credentials live only in a separate device-only, unlocked Keychain item. Explicit jobs survive overnight and interruption; late acknowledgements and account changes cannot cross owners. Images commit before their checked metadata. No app/extension runtime path, entitlement or Share UI is enabled in this foundation. See [food-sharing.md](food-sharing.md); UI/runtime and physical-device acceptance follow separately.
 General protein-per-bodyweight ranges and training-day guidance belong in the H guidance flow. Nutrition insights show the account’s recorded totals and chosen targets; they do not add a generic g/kg recommendation. This keeps estimate wording separate from optional guidance and avoids advice based on fallback weight.
 
 Weekly check-in GETs use a read-only transaction and return an unsaved preview. Only an explicit Accept or Not now materializes a private decision row. The preview ignores today’s weigh-in and excludes unknown-calorie days through the shared energy reader; replaying a saved decision is successful even after a new week starts.
