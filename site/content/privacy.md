@@ -42,6 +42,7 @@ Reuse mappings store a hash of the food words rather than another copy of your c
 
 We also store workouts and original activity files, GPS routes, recorded measurements, food entries, recipes, weight entries, goals, plans and settings that you add or import. Optional body details help calculate personal estimates. Beta requests include your name, email, device information and message.
 
+
 ## use-heading
 
 How we use information

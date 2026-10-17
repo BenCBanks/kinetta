@@ -39,6 +39,7 @@ python3 dev/tests/test_recipe_link.py
 node dev/tests/test_async_reads.js
 node dev/tests/test_offline_queue.js
 node dev/tests/test_thread_outbox.js
+node dev/tests/test_thread_privacy.js
 node dev/tests/test_thread_nutrients.js
 node dev/tests/test_thread_sources.js
 node dev/tests/test_food_search.js

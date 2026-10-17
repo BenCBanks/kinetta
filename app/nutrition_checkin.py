@@ -1,7 +1,7 @@
 """Weekly target suggestions from own logs and weight. No AI, no implicit target writes."""
 import datetime as dt
 import hashlib,json,math
-from uuid import uuid4
+from uuid import uuid5,NAMESPACE_URL
 from fastapi import HTTPException
 from . import db,energy
 
@@ -48,14 +48,12 @@ def _dates(c,profile):
 
 
 def _make(c,uid,profile,today):
-    unknown=[r['day'] for r in c.execute("SELECT DISTINCT day FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s AND (kcal IS NULL OR coalesce(ref->'unknown_nutrients','[]'::jsonb) ? 'kcal')",(uid,today-dt.timedelta(days=28),today-dt.timedelta(days=1)))]
-    info=energy.tdee(c,uid,28,excluded_days=unknown);info['unknown_calorie_days']=len(unknown)
-    ctx=energy.context(c,uid)
-    info['kg']=float(ctx['kg']);info['resting_burn']=ctx['bmr'] or ctx['kg']*(20 if ctx['sex']=='female' else 22)
+    info=energy.tdee(c,uid,28,completed=True)
+    info['resting_burn']=info.get('resting_burn',info['bmr'])
     dates=c.execute('SELECT min(day) AS first,max(day) AS last FROM weights WHERE user_id=%s AND day BETWEEN %s AND %s',(uid,today-dt.timedelta(days=28),today-dt.timedelta(days=1))).fetchone()
     info['weigh_in_span_days']=(dates['last']-dates['first']).days if dates['first'] and dates['last'] else 0
     data=suggestion(info,profile,today.year)
-    return data,fingerprint(profile,info)
+    return data,fingerprint(profile,{k:v for k,v in info.items() if k!='today'})
 
 
 def _out(row):
@@ -63,29 +61,35 @@ def _out(row):
     return {k:row[k] for k in ('id','week','state','data','baseline','created','updated','acted_at')}
 
 
-def _history(c,uid):
-    return [_out(r) for r in c.execute('SELECT * FROM nutrition_checkins WHERE user_id=%s ORDER BY week DESC LIMIT 8',(uid,))]
+def _history(c,uid,week):
+    return [_out(r) for r in c.execute('SELECT * FROM nutrition_checkins WHERE user_id=%s AND week<%s ORDER BY week DESC LIMIT 8',(uid,week))]
 
 
 def _response(c,uid,week,current,readiness=None):
     return {'week':week,'next_week':week+dt.timedelta(days=7),'current':_out(current),'readiness':readiness,
-            'history':_history(c,uid),'kcal_target':_profile(c,uid).get('kcal_target')}
+            'history':_history(c,uid,week),'kcal_target':_profile(c,uid).get('kcal_target')}
+
+
+def preview_id(uid,week):
+    return uuid5(NAMESPACE_URL,f'kinetta:weekly-checkin:{uid}:{week}')
+
+
+def preview(uid,week,data,baseline):
+    return {'id':preview_id(uid,week),'week':week,'state':'pending','data':data,'baseline':baseline,
+            'created':week,'updated':week,'acted_at':None}
 
 
 def current(uid):
     with db.connect() as c:
-        c.execute('SELECT id FROM users WHERE id=%s FOR NO KEY UPDATE',(uid,))
+        c.execute('SET TRANSACTION READ ONLY')
         p=_profile(c,uid);today,week=_dates(c,p)
-        row=c.execute('SELECT * FROM nutrition_checkins WHERE user_id=%s AND week=%s FOR UPDATE',(uid,week)).fetchone()
+        row=c.execute('SELECT * FROM nutrition_checkins WHERE user_id=%s AND week=%s',(uid,week)).fetchone()
         if row and row['state']!='pending':return _response(c,uid,week,row)
         data,baseline=_make(c,uid,p,today)
         if not data['ready']:return _response(c,uid,week,None,data)
-        if row and row['baseline']==baseline:return _response(c,uid,week,row)
-        row=c.execute('''INSERT INTO nutrition_checkins(id,user_id,week,data,baseline) VALUES (%s,%s,%s,%s,%s)
-                         ON CONFLICT(user_id,week) DO UPDATE SET data=excluded.data,baseline=excluded.baseline,
-                         updated=CASE WHEN nutrition_checkins.baseline<>excluded.baseline THEN now() ELSE nutrition_checkins.updated END
-                         RETURNING *''',(uuid4(),uid,week,json.dumps(data),baseline)).fetchone()
-        return _response(c,uid,week,row)
+        candidate=preview(uid,week,data,baseline)
+        if row:candidate['id']=row['id']
+        return _response(c,uid,week,candidate)
 
 
 def act(uid,cid,action,baseline=None):
@@ -93,9 +97,13 @@ def act(uid,cid,action,baseline=None):
         c.execute('SELECT id FROM users WHERE id=%s FOR NO KEY UPDATE',(uid,))
         p=_profile(c,uid,lock=True);today,week=_dates(c,p)
         row=c.execute('SELECT * FROM nutrition_checkins WHERE user_id=%s AND id=%s FOR UPDATE',(uid,cid)).fetchone()
-        if not row:raise HTTPException(404,'Check-in not found')
-        if row['week']!=week:raise HTTPException(409,'A new week has started. Review the latest check-in.')
-        if row['state']!='pending':return {**_response(c,uid,week,row),'already_decided':True}
+        if row and row['state']!='pending':return {**_response(c,uid,week,row),'already_decided':True}
+        if row and row['week']!=week:raise HTTPException(409,'A new week has started. Review the latest check-in.')
+        if not row:
+            if cid!=preview_id(uid,week):raise HTTPException(404,'Check-in not found')
+            data,latest=_make(c,uid,p,today)
+            if not data['ready'] or (action=='accept' and baseline!=latest):raise HTTPException(409,'Your records or goal changed. Review the updated check-in, then tap Accept again.')
+            row=c.execute('''INSERT INTO nutrition_checkins(id,user_id,week,data,baseline) VALUES (%s,%s,%s,%s,%s) RETURNING *''',(cid,uid,week,json.dumps(data),latest)).fetchone()
         if action=='accept':
             data,latest=_make(c,uid,p,today)
             if not data['ready'] or baseline!=row['baseline'] or latest!=row['baseline']:

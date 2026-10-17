@@ -530,3 +530,6 @@ Me's setup hints recognise any of the person's own saved food history as well as
 ### Recipe links: fetch/parser foundation (#122 N1)
 
 The server has an unexposed, bounded public-HTTPS reader and JSON-LD Recipe parser; this does not yet add an import button. The following review flow must show an editable My Recipes draft before saving, label site-published per-serving nutrition, preserve unknown values and ambiguous servings, and offer the existing screenshot path when structured data is absent. Multiple recipe candidates need an explicit choice. See [recipe-links.md](recipe-links.md) for the safety boundaries and pending integration.
+General protein-per-bodyweight ranges and training-day guidance belong in the H guidance flow. Nutrition insights show the account’s recorded totals and chosen targets; they do not add a generic g/kg recommendation. This keeps estimate wording separate from optional guidance and avoids advice based on fallback weight.
+
+Weekly check-in GETs use a read-only transaction and return an unsaved preview. Only an explicit Accept or Not now materializes a private decision row. The preview ignores today’s weigh-in and excludes unknown-calorie days through the shared energy reader; replaying a saved decision is successful even after a new week starts.

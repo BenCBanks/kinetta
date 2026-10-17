@@ -56,8 +56,12 @@ def _servings(raw):
 
 
 def _quantity(value,unit):
-    # Bare numbers have no defensible unit. Keep them unknown for review.
+    # schema.org calories use kcal; other bare nutrients have no defensible unit.
+    if unit=='kcal' and isinstance(value,(int,float)) and not isinstance(value,bool):
+        return round(float(value),6) if math.isfinite(value) and 0<=value<=1000000 else None
     if not isinstance(value,str):return None
+    value=re.sub(r'(?<![\d,])\d{1,3}(?:,\d{3})+(?:\.\d+)?',lambda m:m[0].replace(',',''),value)
+    if unit=='kcal' and re.fullmatch(r'\s*\d+(?:\.\d+)?\s*',value):value=value.strip()+' kcal' 
     m=re.fullmatch(r'\s*(\d+(?:\.\d+)?)\s*(kcal|calories?|kilocalories?|kj|g|grams?|mg|milligrams?|µg|μg|mcg)\s*',value,re.I)
     if not m:return None
     n=float(m[1]);u=m[2].lower()
@@ -77,7 +81,7 @@ def _recipe(node,url):
     name=text(node.get('name'),200)
     raw=node.get('recipeIngredient')
     if isinstance(raw,str):raw=[raw]
-    if not name or not isinstance(raw,list) or not 1<=len(raw)<=200:return None
+    if not name or not isinstance(raw,list) or not 1<=len(raw)<=60:return None
     ingredients=[text(item) for item in raw]
     if not all(ingredients):return None
     raw_yield=node.get('recipeYield')
