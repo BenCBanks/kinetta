@@ -1999,3 +1999,11 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 /* Private combined-week and Health-import controls remain thumb sized. */
 .combined-week > summary, .workout-sync > summary { min-height: 44px; display: flex; align-items: center; }
 .combined-week .linkbtn, .workout-sync .linkbtn, .combined-week-retry { min-height: 44px; display: inline-flex; align-items: center; }
+
+.combined-week, .workout-sync, .workout-energy { font-size: 1rem; }
+.combined-week .small, .workout-sync .small, .workout-energy .small { font-size: .9em; }
+.combined-week > summary, .workout-sync > summary, .combined-week .linkbtn, .workout-sync .linkbtn, .workout-sync .ghost { font-size: 1em; }
+.combined-week .stats3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.5em), 1fr)); }
+.combined-week .stat small { font-size: .75em; }
+.combined-week .stat b { font-size: 1.2em; }
+.combined-week .stat b i { font-size: .7em; }
