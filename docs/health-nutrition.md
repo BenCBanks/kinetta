@@ -1,0 +1,15 @@
+# Apple Health nutrition output journal
+
+Part of #122 Workstream I. This server foundation makes no HealthKit calls. Native permissions and reconciliation follow separately.
+
+`GET /api/health/nutrition` returns the signed-in person's enabled state, settings epoch and profile time zone. `PUT /api/health/nutrition/preferences` requires boolean `enabled` and explicit `confirmed: true` when enabling. Writing defaults off and is independent of Health weight reading and AI permission. Disabling retains the private journal and existing device data.
+
+`GET /api/health/nutrition/days?epoch=<uuid>&after=<revision>&limit=50` returns changed days in revision order (maximum100/page). Each day includes its revision, local-midnight interval, deletion state, five nutrient totals and known-entry coverage. Calories use kcal; protein/carbs/fat/fiber use grams. A value is null if any recorded entry lacks it. A known zero remains zero. No entry means deletion of this app/account's own samples for that day; partial unknown means removal of any previously written quantity for that nutrient, not writing zero. These are recorded totals, not proof of complete intake.
+
+Database triggers cover all food-entry insert/update/delete paths, including moving an entry between days, recipe logs, chat, Undo and imports. Revisions and reads serialize per owner so a committed cursor cannot skip an earlier unfinished write. Failed transactions publish no change. Enabling backfills existing food history and refreshes older deletion days. Re-enabling and time-zone changes issue a fresh settings epoch and newer revisions, so native can reconcile days removed while output was off and update local-day timestamps.
+
+The native client must scope Health identifiers to server/account/day/type, use a monotonically increasing revision as the sync version, replace existing quantities and delete only its own matching samples. Persist a page cursor only after every operation succeeds. Recheck account and epoch immediately before writes; interrupted, locked or revoked-permission attempts retain pending work. A stale epoch receives409; refresh settings and restart its cursor. No sensitive credentials belong in extension payloads.
+
+Apple's [nutrition types](https://developer.apple.com/documentation/healthkit/nutrition-type-identifiers), [sync identifier](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncidentifier) and [sync version](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncversion) describe the required mapping/replacement metadata. [Deletion](https://developer.apple.com/documentation/healthkit/hkhealthstore/deleteobjects(of:predicate:withcompletion:)) is limited to samples the app wrote and depends on sharing permission. Disabling output does not revoke Apple's system permission or delete another app's records.
+
+The private journal has owner-only row-level reads, account export and deletion cascade; the AI SQL role has no access. No new provider, model, nutrition recommendation or target change is introduced. Physical-iPhone permission/edit/delete/retry/account-switch behavior remains pending.

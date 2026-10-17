@@ -33,8 +33,9 @@ app.include_router(plans.router)
 app.include_router(api_beta.router)
 app.include_router(api_mydata.router)
 app.include_router(api_health.router)
-from . import api_health_weights
+from . import api_health_weights,api_health_nutrition
 app.include_router(api_health_weights.router)
+app.include_router(api_health_nutrition.router)
 app.include_router(api_social.router)
 app.include_router(api_photos.router)
 app.include_router(api_dishes.router)
@@ -141,7 +142,7 @@ def logout(request: Request, response: Response):
 def me(user=Depends(current_user)):
     from . import ai_access
     with db.connect() as c:
-        p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, health_weight_read, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
     return {**user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
@@ -183,11 +184,14 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
             if 'weight_kg' in vals and vals['weight_kg']!=old.get('weight_kg'):vals['weight_health_derived']=False
             changed_tz='tz' in vals and vals['tz']!=old.get('tz')
             if changed_tz:
+                api_health_nutrition.lock(c,user['id'])
                 from uuid import uuid4
                 vals['health_weight_epoch']=uuid4()
+                vals['health_nutrition_epoch']=uuid4()
             c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in vals)} WHERE user_id = %s", (*vals.values(), user['id']))
             if changed_tz:
                 api_health_weights.rebuild(c,user['id'],vals['tz'])
+                if api_health_nutrition.profile(c,user['id'])['health_nutrition_write']:api_health_nutrition.invalidate(c,user['id'])
     return {'ok': True}
 
 

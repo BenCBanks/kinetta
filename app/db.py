@@ -1130,6 +1130,39 @@ MIGRATIONS = [
       AND w.day=(SELECT max(day) FROM weights WHERE user_id=p.user_id));
 """,
 
+    # 55: optional Health nutrition output journal, including edits and deletion tombstones.
+    """    ALTER TABLE profile ADD COLUMN health_nutrition_write boolean NOT NULL DEFAULT false,
+      ADD COLUMN health_nutrition_epoch uuid NOT NULL DEFAULT gen_random_uuid();
+    CREATE SEQUENCE health_nutrition_revision;
+    CREATE TABLE health_nutrition_days (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL, revision bigint NOT NULL DEFAULT nextval('health_nutrition_revision'),
+      changed_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(user_id,day));
+    CREATE INDEX health_nutrition_pending ON health_nutrition_days(user_id,revision);
+    ALTER TABLE health_nutrition_days ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON health_nutrition_days FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON health_nutrition_days FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON health_nutrition_days TO fit_readers;
+    CREATE FUNCTION health_nutrition_touch(who bigint,which date) RETURNS void LANGUAGE plpgsql AS $$
+    BEGIN
+      PERFORM pg_advisory_xact_lock(155::integer,who::integer);
+      IF EXISTS(SELECT 1 FROM profile WHERE user_id=who AND health_nutrition_write) THEN
+        INSERT INTO health_nutrition_days(user_id,day) VALUES(who,which)
+        ON CONFLICT(user_id,day) DO UPDATE SET revision=nextval('health_nutrition_revision'),changed_at=now();
+      END IF;
+    END $$;
+    CREATE FUNCTION health_nutrition_changed() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP <> 'INSERT' THEN PERFORM health_nutrition_touch(OLD.user_id,OLD.day); END IF;
+      IF TG_OP <> 'DELETE' AND (TG_OP='INSERT' OR (NEW.user_id,NEW.day) IS DISTINCT FROM (OLD.user_id,OLD.day)) THEN
+        PERFORM health_nutrition_touch(NEW.user_id,NEW.day);
+      END IF;
+      RETURN NULL;
+    END $$;
+    CREATE TRIGGER health_nutrition_change AFTER INSERT OR UPDATE OR DELETE ON food_entries
+      FOR EACH ROW EXECUTE FUNCTION health_nutrition_changed();
+""",
+
 ]
 
 

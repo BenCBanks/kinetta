@@ -28,6 +28,7 @@ _last_export = {}
 # table -> SQL giving one jsonb per row for the person (%s = user id). Personal tables only; secrets left out.
 DROP = " - 'user_id'"
 TABLES = {
+    'health_nutrition_days': "SELECT to_jsonb(t)" + DROP + " FROM health_nutrition_days t WHERE user_id = %s ORDER BY day",
     'health_weight_samples': "SELECT to_jsonb(t)" + DROP + " FROM health_weight_samples t WHERE user_id = %s ORDER BY sample_id",
     'health_weight_exclusions': "SELECT to_jsonb(t)" + DROP + " FROM health_weight_exclusions t WHERE user_id = %s ORDER BY day",
     'recipe_link_drafts': "SELECT to_jsonb(t)" + DROP + " FROM recipe_link_drafts t WHERE user_id = %s ORDER BY created",
