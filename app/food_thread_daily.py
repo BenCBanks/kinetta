@@ -4,7 +4,7 @@ import json
 from uuid import uuid5,NAMESPACE_URL
 from zoneinfo import ZoneInfo
 from fastapi import HTTPException
-from . import db,food_thread,food_thread_facts as facts
+from . import db,energy,food_thread,food_thread_log,food_thread_facts as facts
 
 
 def note(S):
@@ -34,10 +34,12 @@ def create(uid,*,now=None):
         key=uuid5(NAMESPACE_URL,f'kinetta:food-daily-note:{uid}:{day.isoformat()}')
         if c.execute('SELECT 1 FROM food_chat_cancellations WHERE user_id=%s AND client_id=%s',(uid,key)).fetchone():return {'messages':[],'deleted':True}
         old=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND client_id=%s',(uid,key)).fetchone()
-        S=facts.snapshot(c,uid,day);as_of=instant.isoformat()
+        S=facts.snapshot(c,uid,day)
+        if not S['needs'].get('bmr'):S['needs']['bmr']=energy.context(c,uid)['bmr']
+        as_of=instant.isoformat()
         result={'kind':'answer','intent':'review','daily_note':True,'text':note(S),'as_of':as_of}
         if old:
-            previous=(__import__('app.food_thread_log',fromlist=['stored_reply']).stored_reply(c,uid,old) or {}).get('result') or {}
+            previous=(food_thread_log.stored_reply(c,uid,old) or {}).get('result') or {}
             result={**previous,**result}
             return food_thread.finish_reply(c,uid,old,result)
         root=c.execute(f'''INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state,result)
