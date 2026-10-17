@@ -1165,7 +1165,8 @@ route(/^\/me$/, 'me', async (el) => {
   }
   $('#logout', el).onclick = async () => {
     let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){toast('Could not check unsent food messages. Try logging out again.');return;}
-    const n = Q.mine().length + chat;
+    let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){toast(e.message);return;}
+    const n = Q.mine().length + chat + shortcuts;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
     if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
     if (typeof Track !== 'undefined') await Track.pause();
@@ -1238,7 +1239,7 @@ function deleteSheet() {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
         if(account!==readOwner())return;
-        if(Native.on)await Native.pauseHealth();
+        if(Native.on)await (Native.pauseSession||Native.pauseHealth)();
         if(account!==readOwner())return;
         try { await api('/api/account/delete', json('POST', {password: f.pw.value})); }
         catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}

@@ -38,6 +38,7 @@ const Native = (() => {
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   N.login = async (server, login, password) => {
     if (typeof Track !== 'undefined' && App.me) await Track.leave();
+    N.pauseFoodEntry?.();
     await N.disconnectPush();
     const stopped=await N.disconnectHealth({preserve:true});
     if(stopped.some(r=>r.status==='rejected'))throw new Error('Health uploads are still stopping. Unlock your phone and try logging in again.');
@@ -63,7 +64,7 @@ const Native = (() => {
   N.forget = async ({deleted=false}={}) => {
     const tasks=[];N.token=null;
     if(typeof Track!=='undefined'&&App.me)tasks.push(Promise.resolve().then(()=>Track.leave()));
-    if(on){tasks.push(Promise.resolve().then(()=>N.disconnectPush({signedOut:true})));tasks.push(N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}));tasks.push(put('token',null));}
+    if(on){tasks.push(N.stopFoodEntry({clear:true}));tasks.push(Promise.resolve().then(()=>N.disconnectPush({signedOut:true})));tasks.push(N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}));tasks.push(put('token',null));}
     await Promise.allSettled(tasks.map(p=>N.healthCall(p,'Local sign-out cleanup is waiting.',1000)));
   };
 
@@ -215,7 +216,8 @@ const Native = (() => {
     if(background)jobs.push(Promise.resolve().then(()=>background.disconnect()));
     return Promise.allSettled(jobs.map(p=>N.healthCall(p,'Health stop is waiting.',1000)));
   };
-  N.resumeHealth = () => {N.healthPaused=false;N.lastAuto=0;N.lastResting=0;N.lastFoodHealth=0;N.autoSync();};
+  N.pauseSession=()=>{N.pauseFoodEntry?.();return N.pauseHealth();};
+  N.resumeHealth = () => {N.resumeFoodEntry?.();N.healthPaused=false;N.lastAuto=0;N.lastResting=0;N.lastFoodHealth=0;N.autoSync();};
   N.disconnectHealth = async ({preserve=false,clearFoodState=false}={}) => {
     const stopping=N.pauseHealth({clearFoodState});progress('');N.onHealthProgress=null;
     const tasks=[stopping];
@@ -415,12 +417,42 @@ const Native = (() => {
     if(!on||!foodHealth||!App.me?.health_nutrition_write)return;
     const context=N.foodHealthContext();clearTimeout(foodHealthTimer);foodHealthTimer=setTimeout(async()=>{try{if(N.foodHealthSyncing)await N.foodHealthSyncing.catch(()=>{});context.guard();await N.syncFoodHealth({weight:false});}catch(e){/* Status/Retry retains failures; unsent days stay in the server journal. */}},1000);
   };
+  // ---------- Native home-screen / Shortcuts food entry ----------
+  const foodEntry=P.KinettaFoodEntry;
+  let foodEntryGeneration=0,foodEntrySuspended=false;
+  N.resumeFoodEntry=()=>{foodEntryGeneration++;foodEntrySuspended=false;if(N.foodEntryTask)N.foodEntryTask.finally(()=>N.autoFoodEntry()).catch(()=>{});};
+  N.stopFoodEntry=async({clear=false}={})=>{
+    foodEntryGeneration++;foodEntrySuspended=true;
+    if(foodEntry)await N.healthCall(foodEntry.stop({clear}),'Food entry is still finishing. Unlock your phone and try again.',1000);
+  };
+  N.pauseFoodEntry=()=>{foodEntryGeneration++;foodEntrySuspended=true;};
+  N.foodEntryPendingCount=async()=>{if(!foodEntry||!owner())return 0;const p=await N.healthCall(foodEntry.pending({owner:owner()}),'Could not check waiting Shortcut drafts.',1000);return p.entries?.length||0;};
+  N.consumeFoodEntries=()=>N.foodEntryTask||(N.foodEntryTask=(async()=>{
+    if(!foodEntry||!App.me||foodEntrySuspended)return;
+    const account=owner(),token=N.token,version=foodEntryGeneration,view=location.pathname+(location.search||'');
+    const guard=()=>{if(!account||account!==owner()||token!==N.token||version!==foodEntryGeneration)throw Object.assign(new Error('Food entry stopped because the account changed.'),{stale:true});};
+    await N.healthCall(foodEntry.bind({owner:account}),'Unlock your phone to open food chat.');guard();
+    const pending=await N.healthCall(foodEntry.pending({owner:account}),'Food entry could not be read. Unlock and try again.');guard();
+    if(!Array.isArray(pending.entries)||pending.entries.length>5)throw new Error('Food entry was incomplete. Try opening Kinetta again.');
+    if(!pending.entries.length)return;
+    if(location.pathname!=='/food/describe'){if(location.pathname+(location.search||'')!==view)return;go('/food/describe');}
+    // Owner-bound local staging is safe offline; posting still requires server authentication.
+    for(const entry of pending.entries){
+      guard();if(typeof FoodThread==='undefined')throw new Error('Install the latest Kinetta app to open this food draft.');
+      if(location.pathname!=='/food/describe')return;guard();
+      const accepted=FoodThread.receiveNative(entry);if(!accepted)continue;guard();
+      await N.healthCall(foodEntry.acknowledge({owner:account,id:entry.id}),'The draft is saved. Open Kinetta again to finish acknowledging the shortcut.');guard();
+    }
+  })().finally(()=>{N.foodEntryTask=null;}));
+  N.autoFoodEntry=()=>{const account=owner(),version=foodEntryGeneration;return N.consumeFoodEntries().catch(error=>{if(App.me&&account===owner()&&version===foodEntryGeneration&&!error.stale)toast(error.message||'Food entry is waiting. Open Kinetta again to retry.');});};
+  if(foodEntry)foodEntry.addListener('foodEntryReady',()=>N.autoFoodEntry());
   // quietly, when the app opens and comes back to the front (at most every 10 minutes)
   N.autoSync = () => {
     N.flushHealthOff?.().catch(()=>{});
     if(N.healthPaused)return;
     N.autoRestingEnergy();
     N.autoFoodHealth();
+    N.autoFoodEntry();
     if (!on || !App.me || Date.now() - (N.lastAuto || 0) < 600000) return;
     N.lastAuto = Date.now();
     N.syncHealth().then((s) => { if (s && (s.added || s.updated)) { toast(s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} from Apple Health` : 'Apple Health workout details updated'); render(); } }).catch(() => { N.lastAuto = 0; });

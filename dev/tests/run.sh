@@ -47,6 +47,7 @@ node dev/tests/test_extra_nutrients.js
 node dev/tests/test_recent_nutrients.js
 node dev/tests/test_shared_recipes.js
 node dev/tests/test_health_food_client.js
+node dev/tests/test_food_entry.js
 node dev/tests/test_meal_reminders_ui.js
 python3 dev/tests/test_meal_reminder_times.py
 node dev/tests/test_health_session.js

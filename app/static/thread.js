@@ -8,6 +8,7 @@ const FoodThread = (() => {
   const cacheKey = owner => 'fit.thread.history:'+owner;
   const contextKey = owner => 'fit.thread.context:'+owner;
   const draftKey = owner => 'fit.thread.draft:'+owner;
+  const nativeKey = owner => 'fit.thread.native:'+owner;
   const active = ctx => current===ctx && ctx.el.isConnected && ctx.owner===ownerKey() && ctx.session===readOwner();
   function remember(ctx) { store.set(cacheKey(ctx.owner),ctx.messages.slice(-80)); }
   async function merge(owner,data,write=true) {
@@ -165,7 +166,7 @@ const FoodThread = (() => {
     if(text.length>4000){status(ctx,'Keep this message under 4,000 characters.');return;}
     const job={id:uuid(),body:text,at:new Date().toISOString(),media,barcode,images,phase:'process',context:ctx.context||latestContext(ctx),...(ctx.day?{day:ctx.day}:{}),...(ctx.meal?{meal:ctx.meal}:{})};
     const button=$('#thread-send',ctx.el);if(button.disabled)return;button.disabled=true;
-    try{await ThreadDB.put(ctx.owner,job.id,job);if(!active(ctx))return;
+    try{if(!body||field.value.trim()===text){finishNativeDraft(ctx);saveDraft(ctx,'');}await ThreadDB.put(ctx.owner,job.id,job);if(!active(ctx))return;
       if(!body||field.value.trim()===text){field.value='';store.del(draftKey(ctx.owner));}ctx.context=null;store.del(contextKey(ctx.owner));
       ctx.jobs=await ThreadDB.list(ctx.owner);ctx.follow=true;draw(ctx);status(ctx,'Saved on this phone.');Native.haptic();flush(ctx);
     }catch(e){status(ctx,e.message);}finally{if(active(ctx))button.disabled=false;}
@@ -183,8 +184,9 @@ const FoodThread = (() => {
     const owner=ownerKey(),ctx={el,owner,day:/^\d{4}-\d{2}-\d{2}$/.test(day||'')?day:null,meal:Object.hasOwn(MEAL_NAMES,meal)?meal:null,session:readOwner(),messages:store.get(cacheKey(owner))||[],context:store.get(contextKey(owner)),jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current=ctx;
     el.classList.add('food-thread');el.setAttribute('aria-live','off');
     el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><button type="button" class="linkbtn" id="thread-settings">Settings</button></header><h1>Food chat</h1><p class="thread-intro">${ctx.day||ctx.meal?`Logging to ${esc(MEAL_NAMES[ctx.meal]||'your chosen meal')} · ${esc(dayLabel(ctx.day||isoDay(new Date())))}`:'Your food, in your words.'}</p><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Say “2 eggs and toast” or ask how your day is going. Use your keyboard’s microphone to dictate.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-shortcuts" id="thread-suggestions"><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily note</button><div id="thread-usual-suggestion"></div><button type="button" class="ghost" id="thread-usuals">Your usuals</button><button type="button" class="ghost" id="thread-recipes">My Recipes</button></div><div class="thread-tools"><button type="button" class="linkbtn" data-tool="snap">${svg('camera')}Snap</button><button type="button" class="linkbtn" data-tool="library">Photo library</button><button type="button" class="linkbtn" data-tool="scan">${svg('barcode')}Scan</button><button type="button" class="linkbtn" data-tool="paste">Paste</button><button type="button" class="linkbtn" id="thread-search">Search / numbers</button></div><label class="vh" for="thread-text">Message about your food</label><div class="thread-compose-row"><textarea id="thread-text" rows="2" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary" id="thread-send">Send</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
-    const field=$('#thread-text',el);field.value=store.get(draftKey(owner))||'';
-    field.oninput=()=>{if(!field.value.trim()){ctx.context=null;store.del(contextKey(owner));}else if(!ctx.context){ctx.context=latestContext(ctx);if(ctx.context)store.set(contextKey(owner),ctx.context);}primary(ctx);try{localStorage.setItem(draftKey(owner),JSON.stringify(field.value));}catch(e){status(ctx,'Draft storage is full. Keep this screen open until you send.');}};
+    const field=$('#thread-text',el),oldDraft=store.get(draftKey(owner));field.value=typeof oldDraft==='string'?oldDraft:oldDraft?.text||'';
+    ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
+    field.oninput=()=>{if(!field.value.trim()){ctx.context=null;store.del(contextKey(owner));}else if(!ctx.context){ctx.context=latestContext(ctx);if(ctx.context)store.set(contextKey(owner),ctx.context);}primary(ctx);try{saveDraft(ctx,field.value);}catch(e){status(ctx,'Draft storage is full. Keep this screen open until you send.');}};
     $('#thread-composer',el).onsubmit=e=>{e.preventDefault();send(ctx);};
     $('#thread-daily-note',el).onclick=()=>daily(ctx,true);
     $('#thread-settings',el).onclick=()=>preferences(ctx);
@@ -207,7 +209,37 @@ const FoodThread = (() => {
   addEventListener('online',()=>flush());
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&current&&active(current)){const ctx=current;refresh(ctx);sharedRecipes($('#thread-shared-recipes',ctx.el),()=>({day:isoDay(new Date()),meal:guessMeal()}),()=>refresh(ctx),()=>active(ctx));flush(ctx);}});
   setInterval(()=>flush(),5000);
+  function saveDraft(ctx,text){
+    if(text)localStorage.setItem(draftKey(ctx.owner),JSON.stringify(text));else localStorage.removeItem(draftKey(ctx.owner));
+  }
+  function nativeReceipts(ctx){localStorage.setItem(nativeKey(ctx.owner),JSON.stringify(ctx.nativeEntries.slice(-100)));}
+  function finishNativeDraft(ctx){
+    if(!ctx.nativeEntries?.some(x=>x.pending))return;
+    const old=ctx.nativeEntries;ctx.nativeEntries=old.map(({id,at})=>({id,at}));
+    try{nativeReceipts(ctx);}catch(e){ctx.nativeEntries=old;throw e;}
+  }
+  function receiveNative(entry){
+    const ctx=current;if(!ctx||!active(ctx))return false;
+    if(!entry||typeof entry.id!=='string'||!/^[-a-f0-9]{36}$/i.test(entry.id)||!['shortcut','quick-action'].includes(entry.source)||(entry.text!=null&&(typeof entry.text!=='string'||entry.text.length>4000))){status(ctx,'A Shortcut entry was skipped because it was invalid.');return 'skip';}
+    const field=$('#thread-text',ctx.el),id=entry.id.toLowerCase(),previous=field.value;
+    ctx.nativeEntries=ctx.nativeEntries||[];
+    let receipt=ctx.nativeEntries.find(x=>x.id===id);
+    if(receipt&&!receipt.pending){field.focus({preventScroll:true});return true;}
+    if(entry.text){
+      const next=receipt?.pending?.next||(previous?previous+'\n'+entry.text:entry.text);
+      if(next.length>4000){status(ctx,'A Shortcut was skipped because it would exceed 4,000 characters. Your existing draft is kept.');return 'skip';}
+      if(receipt?.pending&&previous!==receipt.pending.before&&previous!==next){status(ctx,'Your edited draft is kept. Send or clear it before retrying the waiting Shortcut.');return false;}
+      try{
+        if(!receipt){receipt={id,at:Date.now(),pending:{before:previous,next}};const old=ctx.nativeEntries;ctx.nativeEntries=[...old,receipt];try{nativeReceipts(ctx);}catch(e){ctx.nativeEntries=old;throw e;}}
+        saveDraft(ctx,next);field.value=next;
+        // The pending receipt makes a crash between these writes replay-safe.
+        const old=ctx.nativeEntries;ctx.nativeEntries=old.map(x=>x.id===id?{id:x.id,at:x.at}:x);try{nativeReceipts(ctx);}catch(e){ctx.nativeEntries=old;/* durable text plus pending journal complete safely on retry */}
+      }catch(error){status(ctx,'This phone could not save the Shortcut draft. It stays waiting; later entries can still be reviewed.');return false;}
+      primary(ctx);status(ctx,previous?'Shortcut text added to your draft. Review it, then Send.':'Shortcut text ready. Review it, then Send.');
+    }
+    field.focus({preventScroll:true});return true;
+  }
   async function pendingCount(){const owner=ownerKey();return owner?(await ThreadDB.list(owner)).length+(String(store.get(draftKey(owner))||'').trim()?1:0):0;}
-  async function eraseDevice(){const owner=ownerKey();if(!owner)return;privacyEpoch++;const view=current;if(view?.owner===owner){view.messages=[];view.jobs=[];view.el.replaceChildren();current=null;}let failure;try{await ThreadDB.erase(owner);}catch(e){failure=e;}finally{let keys=[];try{keys=Object.keys(localStorage).filter(key=>key.startsWith('fit.kit.proposal:'+owner+':'));}catch(e){failure=failure||e;}for(const key of [...keys,cacheKey(owner),draftKey(owner),contextKey(owner)]){try{localStorage.removeItem(key);}catch(e){failure=failure||e;}}}if(failure)throw failure;}
-  return {page,eraseDevice,pendingCount,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
+  async function eraseDevice(){const owner=ownerKey();if(!owner)return;privacyEpoch++;const view=current;if(view?.owner===owner){view.messages=[];view.jobs=[];view.el.replaceChildren();current=null;}let failure;try{await ThreadDB.erase(owner);}catch(e){failure=e;}finally{let keys=[];try{keys=Object.keys(localStorage).filter(key=>key.startsWith('fit.kit.proposal:'+owner+':'));}catch(e){failure=failure||e;}for(const key of [...keys,cacheKey(owner),draftKey(owner),contextKey(owner),nativeKey(owner)]){try{localStorage.removeItem(key);}catch(e){failure=failure||e;}}}if(failure)throw failure;}
+  return {page,eraseDevice,pendingCount,receiveNative,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
 })();

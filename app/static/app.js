@@ -44,7 +44,7 @@ async function api(path, opts = {}) {
     const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
     const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
     e.status = r.status; e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;
-    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { Native.pauseHealth?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
+    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { (Native.pauseSession||Native.pauseHealth)?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
     throw e;
   }
 
@@ -984,7 +984,7 @@ async function start() {
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/me');
-    render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
+    Native.resumeFoodEntry?.();render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
   const saved = kept('/api/me');
