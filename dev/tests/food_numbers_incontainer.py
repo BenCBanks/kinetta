@@ -45,6 +45,9 @@ try:
   for text in ['Fictional lunch 500kcal, 30g protein, 40g protein','Fictional lunch 500kcal per 100g','Fictional lunch 500000kcal','Fictional lunch -500kcal','Fictional lunch 500kcal and toast','Fictional lunch 500kilojoules','30g protein']:
    item=root(text);r=reply(action(item));assert r['result']['kind']=='needs' and not r['entries'] and not r['result']['can_resolve'],(text,r)
    assert reply(action(item,'resolve'))['result']['kind']=='needs';assert not a.get('/api/food/day').json()['entries']
+  for text,kcal in [('1/2 sandwich, 300 calories',300),('1/2 cup oats 150 calories',150),('1 serving of oatmeal, 150 calories',150)]:
+   item=root(text);r=reply(action(item));assert r['result']['kind']=='preview' and r['result']['parts'][0]['entries'][0]['kcal']==kcal and not r['entries'],(text,r)
+  item=root('2 eggs, 140 calories each');assert reply(action(item))['result']['kind']=='needs'
   future=root('Tomorrow, Fictional plate 500kcal');r=reply(action(future));assert r['result']['destination_required']
   action(future,'manual',{'part':0,'items':[{'name':'Fictional plate','kcal':500}],'confirm':True},status=409)
   assert a.put('/api/food/thread/messages/'+str(future['id'])+'/destination',json={'day':now.date().isoformat(),'meal':'lunch'}).status_code==200

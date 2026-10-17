@@ -29,6 +29,22 @@ try:
    engine.process(c,uid,engine.locked_message(c,uid,mid))
    row=c.execute('SELECT amount,kcal FROM food_entries WHERE user_id=%s',(uid,)).fetchone();assert row['amount']==100 and row['kcal']==175
   finally:db.connect=original_connect;food_photo.ask=original_ask
+ # A correction against an older card uses bounded batch reads, not two queries
+ # for every intervening card while the account is locked.
+ with db.connect() as c:
+  for index in range(49):
+   extra=c.execute("INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state,result) VALUES (%s,%s,'user','Fictional unrelated meal',%s,%s,'answered',%s) RETURNING id",(uid,uuid.uuid4(),captured,day,__import__('json').dumps({'kind':'log'}))).fetchone()['id']
+   eid=c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal,amount,unit) VALUES (%s,%s,'lunch','Fictional unrelated item',100,1,'serving') RETURNING id",(uid,day)).fetchone()['id']
+   c.execute('INSERT INTO food_chat_entries VALUES (%s,%s,%s)',(uid,extra,eid))
+  request=c.execute("INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state) VALUES (%s,%s,'user','make the rice 150 grams',%s,%s,'pending') RETURNING id",(uid,uuid.uuid4(),captured,day)).fetchone()['id']
+  class Counted:
+   def __init__(self,connection):self.connection=connection;self.queries=0
+   def execute(self,*a,**k):self.queries+=1;return self.connection.execute(*a,**k)
+   def __getattr__(self,name):return getattr(self.connection,name)
+  counted=Counted(c)
+  output=engine.process(counted,uid,engine.locked_message(counted,uid,request))
+  assert output['messages'][-1]['result']['kind']=='edit'
+  assert counted.queries<35, 'Older-card correction must not query each intervening card separately'
  print('Food corrections: atomic rollback, current logged nutrition, same connection/no provider, replay once PASS')
 finally:
  db.connect=original_connect;food_thread.finish_reply=original_finish;food_photo.ask=original_ask

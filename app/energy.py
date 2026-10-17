@@ -52,7 +52,7 @@ def activity_kcal(a, kg):
 
 def exercise_by_day(c, user_id, tz, start, end, kg):
     """{date: {'kcal', 'n', 'estimated', 'items': [...]}} for start..end (local dates)."""
-    rows = c.execute("""SELECT id, name, sport, distance_m, moving_s, ascent_m, avg_power, calories,
+    rows = c.execute("""SELECT id, name, sport, distance_m, moving_s, elapsed_s, ascent_m, avg_power, calories,
                                (start_time AT TIME ZONE %s)::date AS d
                         FROM activities WHERE user_id = %s AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s
                         ORDER BY start_time""", (tz, user_id, tz, start, end)).fetchall()
@@ -61,7 +61,7 @@ def exercise_by_day(c, user_id, tz, start, end, kg):
         k, est = activity_kcal(a, kg)
         o = out.setdefault(a['d'], {'kcal': 0.0, 'n': 0, 'estimated': False, 'items': []})
         o['kcal'] += k; o['n'] += 1; o['estimated'] |= est
-        o['items'].append({'id': a['id'], 'name': a['name'], 'sport': a['sport'], 'distance_m': a['distance_m'], 'kcal': round(k), 'estimated': est})
+        o['items'].append({'id': a['id'], 'name': a['name'], 'sport': a['sport'], 'distance_m': a['distance_m'], 'kcal': round(k), 'estimated': est,'duration_s':a.get('moving_s') or a.get('elapsed_s') or 0})
     return out
 
 
@@ -71,14 +71,15 @@ def bmr(kg, height_cm, birth_year, sex, year):
     return 10 * kg + 6.25 * height_cm - 5 * (year - birth_year) + {'male': 5, 'female': -161}.get(sex, -78)
 
 
-def context(c, user_id):
-    p = c.execute('SELECT tz, weight_kg, sex, height_cm, birth_year, resting_source FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
+def context(c, user_id, *, completed=False):
+    p = c.execute('SELECT tz, weight_kg, sex, height_cm, birth_year, resting_source, protein_target FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
     tz = p.get('tz') or db.DEFAULT_TZ
     today = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
     weights = c.execute('SELECT day, kg FROM weights WHERE user_id = %s ORDER BY day', (user_id,)).fetchall()
+    weights = [w for w in weights if w['day'] < today] if completed else weights
     pts = weight_trend(weights)
     kg = pts[-1][2] if pts else (p.get('weight_kg') or 75.0)
-    return {'tz': tz, 'today': today, 'resting_source': p.get('resting_source', 'formula'), 'points': pts, 'kg': kg, 'sex': p.get('sex'),
+    return {'protein_target':p.get('protein_target'),'tz': tz, 'today': today, 'resting_source': p.get('resting_source', 'formula'), 'points': pts, 'kg': kg, 'sex': p.get('sex'),
             'bmr': bmr(kg, p.get('height_cm'), p.get('birth_year'), p.get('sex'), today.year)}
 
 
@@ -101,7 +102,8 @@ def target_suggestion(profile, goal, pace_percent, year):
         raise ValueError('Choose a pace between 0 and 1% of body weight per week.')
     kg = float(profile.get('weight_kg') or 75)
     factor = float(profile.get('activity_factor') or 1.2)
-    if factor not in ACTIVITY:
+    factor = next((n for n in ACTIVITY if abs(factor - n) < .01), None)
+    if factor is None:
         raise ValueError('Choose an everyday activity level.')
     birth = profile.get('birth_year')
     if birth and year - birth < 18:
@@ -123,7 +125,7 @@ def target_suggestion(profile, goal, pace_percent, year):
             'activity_factor': factor, 'activity': ACTIVITY[factor], 'weight_kg': kg,
             'weight_assumed': not bool(profile.get('weight_kg')), 'method': 'mifflin' if exact else 'weight_only',
             'protein_g_per_kg': protein_factor, 'pace_percent': pace,
-            'effective_kg_per_week': round(effective, 2), 'floor_applied': raw < resting}
+            'effective_kg_per_week': round(effective, 2), 'floor_applied': raw < floor}
 
 
 # A day with only a snack logged isn't a 2,000 kcal deficit: days under 40% of the calorie goal (or of daily needs, without
@@ -136,16 +138,21 @@ def full_day_min(c, user_id, base):
     return PARTLY * float(goal or base)
 
 
-def tdee(c, user_id, days=28, *, excluded_days=()):
+def unknown_sql(key):
+    if key not in ("kcal","protein_g","carbs_g","fat_g","fiber_g"):raise ValueError("Unknown nutrient")
+    return f"({key} IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? '{key}')"
+
+
+def tdee(c, user_id, days=28, *, excluded_days=(), completed=False):
     """Daily needs from BMR (see the top of this file) + the measured check. Key 'tdee' = daily needs WITHOUT exercise."""
-    ctx = context(c, user_id)
+    ctx = context(c, user_id, completed=completed)
     factor = float((c.execute('SELECT activity_factor FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}).get('activity_factor') or 1.2)
     bmr = ctx['bmr'] or ctx['kg'] * (20 if ctx['sex'] == 'female' else 22)
     base = bmr * factor
     end = ctx['today'] - dt.timedelta(days=1)            # today isn't finished
     start = end - dt.timedelta(days=days - 1)
     intake = {r['day']: float(r['kcal']) for r in c.execute(
-        'SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day',
+        f"SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day HAVING NOT bool_or({unknown_sql('kcal')})",
         (user_id, start, end)).fetchall()}
     intake = {day:kcal for day,kcal in intake.items() if day not in excluded_days}
     typical = median(intake.values()) if intake else 0
@@ -161,7 +168,7 @@ def tdee(c, user_id, days=28, *, excluded_days=()):
         rate = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)   # kg per day
         observed = sum(full.values()) / len(full) - rate * KCAL_PER_KG
     expected = base + avg_ex           # what the model says was burned on average, workouts included
-    return {'today': ctx['today'], 'resting_source': ctx['resting_source'], 'tdee': round(base), 'base': round(base), 'bmr': round(bmr), 'bmr_exact': bool(ctx['bmr']),
+    return {'today': ctx['today'], 'resting_source': ctx['resting_source'], 'tdee': round(base), 'base': round(base), 'bmr': round(bmr), 'resting_burn': bmr, 'bmr_exact': bool(ctx['bmr']),
             'activity_factor': factor, 'activity': ACTIVITY.get(round(factor, 2), f'x{factor:g}'),
             'confidence': 'bmr' if ctx['bmr'] else 'rough',
             'observed': round(observed) if observed is not None else None, 'expected': round(expected),
@@ -213,7 +220,7 @@ def deficits(c, user_id, since=None):
     if not since: return {'since': None, 'days': [], 'tdee': info['tdee']}
     since = min(since, ctx['today'])
     intake = {r['day']: float(r['kcal']) for r in c.execute(
-        'SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day',
+        f"SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day HAVING NOT bool_or({unknown_sql('kcal')})",
         (user_id, since, ctx['today'])).fetchall()}
     done = [k for d, k in intake.items() if d < ctx['today']]
     typical = median(done) if done else 0
@@ -238,3 +245,44 @@ def deficits(c, user_id, since=None):
     return {'since': since.isoformat(), 'first_food': first.isoformat() if first else None, 'tdee': info['tdee'], 'confidence': info['confidence'],
             'days': days, 'total': round(total), 'counted_days': counted, 'avg_deficit': round(total / counted) if counted else None,
             'predicted_kg': round(-total / KCAL_PER_KG, 2), 'trend_change_kg': round(t1 - t0, 2) if t0 is not None and t1 is not None else None}
+
+
+def day_burn(c,uid,day,*,ctx=None,info=None,exercise=None):
+    """The shared burn facts, without loading food, recipes, meal habits or chat."""
+    ctx=ctx or context(c,uid);info=info or tdee(c,uid)
+    exercise=exercise if exercise is not None else exercise_by_day(c,uid,ctx['tz'],day-dt.timedelta(days=28),day,ctx['kg'])
+    current=exercise.get(day) or {'kcal':0,'n':0,'estimated':False,'items':[]}
+    usual=sum(v['kcal'] for d,v in exercise.items() if d!=day)/28
+    overrides=burn_overrides(c,uid,day,day)
+    resting=resting_by_day(c,uid,ctx['tz'],day,day) if info['resting_source']=='apple_health' else {}
+    burn=burn_for_day(info,current['kcal'],day,resting,overrides)
+    return {**current,'kcal':round(current['kcal']),'usual':round(usual),
+
+        'day_burn':round(burn['total']) if burn['total'] is not None else None,
+        'source':burn['source'],'observed_at':burn['observed_at'],'synced_at':burn['synced_at'],
+        'missing':burn['total'] is None,'imported':burn['source']=='imported',
+        'base':burn['resting'] if burn['source']=='apple_health' else info['base'],
+        'bmr':burn['resting'],'bmr_exact':info['bmr_exact'],
+        'daily_life':0 if burn['source']=='apple_health' else info['base']-info['bmr'],
+        'activity':info['activity'],'tdee_confidence':info['confidence']}
+
+
+def day_goals(c,uid,start,end,*,ctx=None,exercise=None):
+    """One goal policy for food/calendar/insights/Kit; batch plan data once per read."""
+    from . import training_food
+    ctx=ctx or context(c,uid)
+    state=training_food.prepare(c,uid,ctx)
+    exercise=exercise if exercise is not None else exercise_by_day(c,uid,ctx['tz'],start-dt.timedelta(days=28),end,ctx['kg'])
+    custom={r['day']:r['kcal'] for r in c.execute('SELECT day,kcal FROM day_goals WHERE user_id=%s AND day BETWEEN %s AND %s',(uid,start,end))}
+    out={};day=start
+    while day<=end:
+        usual=sum(v['kcal'] for d,v in exercise.items() if day-dt.timedelta(days=28)<=d<day)/28
+        current=exercise.get(day) or {'kcal':0,'items':[]}
+        t=training_food.facts(c,uid,day,ctx,exercise=current,custom=custom.get(day),prepared=state,usual=usual)
+        out[day]={'kcal':round(t['kcal']) if t['kcal'] is not None else None,'extra':t['extra'],
+            'custom':round(t['custom']) if t['custom'] is not None else None,'default':round(t['normal']) if t['normal'] is not None else None,'training':t}
+        day+=dt.timedelta(days=1)
+    return out
+
+
+def day_goal(c,uid,day,**kwargs):return day_goals(c,uid,day,day,**kwargs)[day]
