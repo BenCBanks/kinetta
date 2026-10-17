@@ -50,7 +50,7 @@ def _expire(c,row):
     if row['state'] in ('pending','ready') and row['expires']<=now:
         c.execute("UPDATE recipe_link_drafts SET state='cancelled',url='',data='{}',error_code='expired',error_message='This draft expired. Read the link again to start a new draft.' WHERE user_id=%s AND id=%s",(row['user_id'],row['id']))
         return _owned(c,row['user_id'],row['id'])
-    if row['state']=='pending' and row['created']<now-dt.timedelta(seconds=WORKER_LIMIT) and c.execute('SELECT pg_try_advisory_xact_lock(%s) AS gone',(worker_key(row['user_id'],row['id']),)).fetchone()['gone']:
+    if row['state']=='pending' and row['created']<now-dt.timedelta(seconds=300 if row['url']=='photo:recipe' else WORKER_LIMIT) and c.execute('SELECT pg_try_advisory_xact_lock(%s) AS gone',(worker_key(row['user_id'],row['id']),)).fetchone()['gone']:
         c.execute("UPDATE recipe_link_drafts SET state='failed',data='{}',error_code='timeout',error_message='This read was interrupted. Try again to start a new draft.' WHERE user_id=%s AND id=%s",(row['user_id'],row['id']))
         return _owned(c,row['user_id'],row['id'])
     return row
@@ -59,11 +59,11 @@ def _expire(c,row):
 def _out(row):
     return {'id':str(row['id']),'state':row['state'],'url':row['url'],'candidates':row['data'].get('candidates',[]),
             'error_code':row['error_code'],'message':row['error_message'],'expires':row['expires'],
-            'saved_dish_id':row['saved_dish_id'],'retry_after':2 if row['state']=='pending' else None}
+            'saved_dish_id':row['saved_dish_id'],'review':row['data'].get('review'),'retry_after':2 if row['state']=='pending' else None}
 
 
-def _claim(uid,body):
-    try:url=recipe_fetch.checked_url(body.url)[0]
+def _claim(uid,body,*,photo=False,digest=None):
+    try:url='photo:recipe' if photo else recipe_fetch.checked_url(body.url)[0]
     except recipe_fetch.RecipeFetchError as e:raise HTTPException(422,str(e)) from None
     with db.connect() as c:
         # Same-person concurrent reads and rate checks serialize; no network here.
@@ -72,7 +72,7 @@ def _claim(uid,body):
         old=c.execute('SELECT * FROM recipe_link_drafts WHERE user_id=%s AND id=%s FOR UPDATE',(uid,body.client_id)).fetchone()
         if old:
             if old['state']=='cancelled':return old,False
-            if old['url']!=url:raise HTTPException(409,'This draft identity belongs to another link. Start a new draft.')
+            if old['url']!=url or (digest and old['data'].get('input_hash') and old['data']['input_hash']!=digest):raise HTTPException(409,'This draft identity belongs to another link. Start a new draft.')
             old=_expire(c,old)
             if old['state']=='failed' and old['error_code'] in ('busy','timeout'):
                 count=c.execute("SELECT count(*) AS n FROM recipe_link_drafts WHERE user_id=%s AND coalesce(error_code,'') NOT IN ('busy','timeout')",(uid,)).fetchone()['n']
@@ -84,7 +84,7 @@ def _claim(uid,body):
         if count>=DAILY_LIMIT:raise HTTPException(429,f'You have read {DAILY_LIMIT} recipe links in this UTC day. Try after midnight UTC, or use a screenshot or type the recipe.')
         # Expired drafts lose parsed text when their owner next starts a read.
 
-        row=c.execute('INSERT INTO recipe_link_drafts(user_id,id,url) VALUES(%s,%s,%s) RETURNING *',(uid,body.client_id,url)).fetchone()
+        row=c.execute('INSERT INTO recipe_link_drafts(user_id,id,url,data) VALUES(%s,%s,%s,%s) RETURNING *',(uid,body.client_id,url,json.dumps({'input_hash':digest} if digest else {}))).fetchone()
         return row,True
 
 
@@ -207,5 +207,23 @@ def save(identity:UUID,body:SaveIn,user=Depends(current_user)):
         source['import_id']=str(identity)
         did=c.execute('INSERT INTO dishes(user_id,name,items,known_kcal,known_protein_g,known_carbs_g,known_fat_g,known_fiber_g,serving,servings,recipe_source) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,\'one\',1,%s) RETURNING id',
                       (user['id'],fresh['name'],json.dumps(V.with_ids(fresh['items'])),*[fresh['totals'][k] for k in D.KNOWN],json.dumps(source))).fetchone()['id']
-        c.execute("UPDATE recipe_link_drafts SET state='saved',saved_dish_id=%s,data=%s WHERE user_id=%s AND id=%s",(did,json.dumps({'saved_baseline':body.baseline}),user['id'],identity))
+        c.execute("UPDATE recipe_link_drafts SET state='saved',saved_dish_id=%s,data=%s WHERE user_id=%s AND id=%s",(did,json.dumps({'saved_baseline':body.baseline,**({'input_hash':row['data']['input_hash']} if row['data'].get('input_hash') else {})}),user['id'],identity))
         return {'dish':D._view(c,user['id'],D._get(c,user['id'],did)),'replayed':False}
+
+
+from .recipe_estimate import EstimateIn
+
+
+@router.post('/{identity}/estimate')
+def estimate_ingredient(identity:UUID,body:EstimateIn,user=Depends(current_user)):
+    from . import recipe_estimate
+    return recipe_estimate.resolve(identity,body,user)
+
+
+from .recipe_photo import PhotoDraftIn
+
+
+@router.post('/photo')
+def photo_draft(body:PhotoDraftIn,user=Depends(current_user)):
+    from . import recipe_photo
+    return recipe_photo.read(body,user)

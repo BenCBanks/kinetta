@@ -88,7 +88,7 @@ def memory(c, uid):
         for it in d['items']:
             if not it.get('per100') or it['per100'].get('kcal') is None: continue
             for k in {key(it['name']), it.get('key') or ''} - {''}:
-                m = mem.setdefault(k, {'name': it['name'], 'per100': it['per100'], 'units': {}})
+                m = mem.setdefault(k, {'name': it['name'], 'per100': it['per100'], 'units': {},'source':it.get('source'),'ref':it.get('ref') or {}})
                 for u, g in (it.get('units') or {}).items(): m['units'].setdefault(u, g)
     return mem
 
@@ -110,7 +110,7 @@ def from_memory(text, mem):
         grams = p['grams'] or (p['amount'] * m['units'][p['unit'] or 'each'] if (p['unit'] or 'each') in m['units'] else None)
         if not grams or grams >= 20000: return None
         said = f"{p['amount']:g} {p['unit']}" if p['unit'] else f"{p['amount']:g}"
-        out.append({'name': m['name'], 'amount': said, 'grams': round(grams, 1), 'per100': m['per100'], 'source': 'memory',
+        out.append({'name': m['name'], 'amount': said, 'grams': round(grams, 1), 'per100': m['per100'], 'source': 'memory','ref':{**{k:v for k,v in m.get('ref',{}).items() if k in ('id','barcode','fdc_id','origin','origin_model')},**({'origin':'ai'} if m.get('source')=='ai' or m.get('ref',{}).get('origin')=='ai' else {})},
                     'key': key(p['query']), 'units': units_of(said, grams)})
     return out
 
@@ -237,7 +237,7 @@ def product_refs(text, uid=None):
 def ai_actions(text, items, uid=None):
     """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent (and, for a packaged
     amount, the product words to USDA)."""
-    lines = '\n'.join(f"{i['id']} | {i['name']} | {i['grams']:g}" for i in items) or '(nothing yet)'
+    lines = '\n'.join(f"{i['id']} | {i['name']} | " + (f"{i['grams']:g} g" if i.get('grams') else 'weight unknown') for i in items) or '(nothing yet)'
     with food_photo.ai_budget.scope(uid):
         out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text, uid))}], SCHEMA, 'cook chat', timeout=45)
     u = data.get('usageMetadata', {})
@@ -261,7 +261,7 @@ def _ai_item(a):
 
 def _as_item(x):
     return {'id': secrets.token_hex(4), 'name': x['name'], 'grams': x['grams'], **D._item_values(x['per100'], x['grams']),
-            'per100': x['per100'], 'source': x['source'], 'ref': None, 'amount': x.get('amount') or '',
+            'per100': x['per100'], 'source': x['source'], 'ref': x.get('ref'), 'amount': x.get('amount') or '',
             'key': x.get('key') or key(x['name']), 'units': x.get('units') or {}}
 
 
@@ -302,7 +302,12 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
                 if x: new.append(_as_item(x))
                 else: skipped += 1
             elif op == 'change' and it and (g := _n(a.get('grams'))) and 0 < g < 20000:
-                it.update(grams=round(g, 1), **D._item_values(it['per100'], g)); changed.append(it['id'])
+                if not it.get('per100'):
+                    per={k:it.get(k)*100/g if it.get(k) is not None else None for k in D.NUM}
+                    if any(v is not None and v>(1000 if k=='kcal' else 100) for k,v in per.items()):skipped+=1;continue
+                    it.update(grams=round(g,1),per100=per)
+                else:it.update(grams=round(g,1),**D._item_values(it['per100'],g))
+                changed.append(it['id'])
             elif op == 'remove' and it and it['id'] not in removed:
                 removed.append(it['id'])
         items = [i for i in items if i['id'] not in removed] + new

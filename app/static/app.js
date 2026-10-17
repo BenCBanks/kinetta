@@ -125,7 +125,11 @@ document.addEventListener('click', (e) => {
   if (body.hidden) store.set(card.dataset.coachKey, card.dataset.coachVersion); else store.del(card.dataset.coachKey);
   b.textContent = body.hidden ? 'Show' : 'Hide'; b.setAttribute('aria-expanded', String(!body.hidden));
 });
-const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12));
+const newId = () => {
+  if(crypto.randomUUID)return crypto.randomUUID();
+  const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+  const h=[...bytes].map(n=>n.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+};
 // change a day of the food log in every copy (screen cache + phone copy), e.g. to show an item saved offline
 function patchDay(day, fn) {
   const paths = new Set([...App.cache.keys()].filter((k) => k.startsWith('/api/food/day')));
