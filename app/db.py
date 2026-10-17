@@ -933,6 +933,45 @@ MIGRATIONS = [
          CHECK (nutrition_goal IN ('lose_weight','maintain','build_muscle','eat_healthier','fuel_training'));
        ALTER TABLE profile ADD COLUMN goal_pace_percent double precision
          CHECK (goal_pace_percent >= 0 AND goal_pace_percent <= 1);""",
+    # 45: private food conversation text and owner-bound links; images are not retained.
+    """
+    ALTER TABLE profile ADD COLUMN food_chat_auto_log boolean NOT NULL DEFAULT true;
+    ALTER TABLE profile ADD COLUMN food_chat_tone text NOT NULL DEFAULT 'supportive'
+      CHECK (food_chat_tone IN ('supportive','numbers'));
+    CREATE TABLE food_chat_messages (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id uuid NOT NULL,
+      kind text NOT NULL CHECK (kind IN ('user','reply')),
+      body text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 4000),
+      captured_at timestamptz NOT NULL,
+      created timestamptz NOT NULL DEFAULT now(),
+      local_day date NOT NULL,
+      state text NOT NULL CHECK (state IN ('pending','answered','cancelled')),
+      reply_to bigint,
+      result jsonb,
+      CHECK ((kind = 'reply') = (reply_to IS NOT NULL)),
+      UNIQUE (user_id,client_id), UNIQUE (user_id,id), UNIQUE (user_id,reply_to),
+      FOREIGN KEY (user_id,reply_to) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE);
+    CREATE INDEX food_chat_history ON food_chat_messages(user_id,coalesce(reply_to,id),id);
+    CREATE UNIQUE INDEX food_entries_user_identity ON food_entries(user_id,id);
+    CREATE TABLE food_chat_entries (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message_id bigint NOT NULL,
+      entry_id bigint NOT NULL,
+      PRIMARY KEY (message_id,entry_id),
+      FOREIGN KEY (user_id,message_id) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id,entry_id) REFERENCES food_entries(user_id,id) ON DELETE CASCADE);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['food_chat_messages','food_chat_entries'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    """,
+
 ]
 
 
