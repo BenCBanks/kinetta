@@ -27,7 +27,7 @@ from .auth import current_user
 
 router = APIRouter(prefix='/api/dishes')
 NUM = ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')
-KNOWN = ('kcal', 'protein_g', 'carbs_g', 'fat_g')     # what can be typed in for the whole dish
+KNOWN = ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')     # what can be typed in for the whole dish
 MAX_ITEMS = 60
 MAX_DISHES = 300
 NEW_NAME = 'New meal'   # a dish not named yet (older ones were called after their meal)
@@ -133,10 +133,12 @@ def _item_values(per100, grams):
 def _totals(d):
     """The dish's kcal + macros: a typed-in total wins, otherwise the ingredients' sum (fiber only if some has it)."""
     items = d['items']
+    if d.get('recipe_source'):
+        return {k:_r(d.get('known_'+k)) for k in NUM}
     out = {k: round(sum((i.get(k) or 0) for i in items), 1) for k in NUM}
     if not any(i.get('fiber_g') is not None for i in items): out['fiber_g'] = None
     for k in KNOWN:
-        if d[f'known_{k}'] is not None: out[k] = round(d[f'known_{k}'], 1)
+        if d.get(f'known_{k}') is not None: out[k] = round(d[f'known_{k}'], 1)
     return out
 
 
@@ -145,23 +147,30 @@ def _sum_g(d):
     return round(g, 1) if g > 0 else None
 
 
+def serving_count(d):
+    return (d.get('recipe_source') or {}).get('servings') or 1
+
+
 def _weight(d):
     """The whole dish in grams: as typed in, else the ingredients added up; None for a typed-in total with no weight."""
+    if d.get('recipe_source') and (d['recipe_source'].get('pending') or any(not i.get('grams') for i in d['items'])):return d['cooked_g']
     return d['cooked_g'] or _sum_g(d)
 
 
 def _out(d):
     totals, weight = _totals(d), _weight(d)
     return {'id': d['id'], 'name': (NEW_NAME if d['name'] == 'New dish' else d['name']), 'items': d['items'],
-            'known': {k: d[f'known_{k}'] for k in KNOWN}, 'totals': totals,
+            'known': {k: d.get(f'known_{k}') for k in KNOWN}, 'totals': totals,
+            'recipe_source':d.get('recipe_source') or {},'serving_count':serving_count(d),
+            'per_serving':{k:_r(v/serving_count(d)) if v is not None else None for k,v in totals.items()},
             'cooked_g': d['cooked_g'], 'weight_g': weight, 'items_g': _sum_g(d), 'weighed': d['cooked_g'] is not None,
-            'serving': d['serving'], 'servings': d['servings'], 'named': d['name'] not in PLACEHOLDERS,
+            'serving': d['serving'], 'servings': serving_count(d) if d.get('recipe_source') else d['servings'], 'named': d['name'] not in PLACEHOLDERS,
             'per_100g': {k: _r(v * 100 / weight) if v is not None else None for k, v in totals.items()} if weight else None,
             'created': d['created'], 'updated': d['updated'],
             'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['recipe_updated'] > d['ai_note_at']} if d.get('ai_note') else None}
 
 
-COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, serving, servings, created, updated, ai_note, ai_note_at, recipe_updated'
+COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, serving, servings, created, updated, ai_note, ai_note_at, recipe_updated, known_fiber_g, recipe_source'
 SHARED = """EXISTS (SELECT 1 FROM dish_shares s WHERE s.dish_id = dishes.id AND s.user_id = %(u)s)
             AND EXISTS (SELECT 1 FROM friendships f WHERE f.status = 'accepted'
               AND ((f.requester = dishes.user_id AND f.addressee = %(u)s) OR (f.addressee = dishes.user_id AND f.requester = %(u)s)))"""
@@ -194,6 +203,10 @@ def _get(c, uid, did, lock=False):
 
 
 def _save_items(c, uid, did, items):
+    d=_get(c,uid,did);source=d.get('recipe_source') or {}
+    if source.get('basis')=='ingredients':
+        values={k:_r(sum(i[k] for i in items)) if items and not source.get('pending') and all(i.get(k) is not None and k not in ((i.get('ref') or {}).get('unknown_nutrients') or []) for i in items) else None for k in NUM}
+        c.execute(f"UPDATE dishes SET {', '.join('known_'+k+'=%s' for k in KNOWN)} WHERE user_id=%s AND id=%s",(*[values[k] for k in KNOWN],uid,did))
     c.execute('UPDATE dishes SET items = %s, updated = now(), recipe_updated = now() WHERE id = %s AND user_id = %s', (json.dumps(items), did, uid))
     return _get(c, uid, did)
 
@@ -259,6 +272,7 @@ class DishEdit(BaseModel):
     known_protein_g: float | None = Field(None, ge=0, le=5000)
     known_carbs_g: float | None = Field(None, ge=0, le=5000)
     known_fat_g: float | None = Field(None, ge=0, le=5000)
+    known_fiber_g: float | None = Field(None, ge=0, le=5000)
     serving: str | None = Field(None, pattern='^(one|portion)$')
     servings: int | None = Field(None, ge=1, le=50)
 
@@ -280,6 +294,9 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         if v.get('serving'): sets['serving'] = v['serving']
         if 'servings' in v: sets['servings'] = v['servings']
         if set(sets) & {'cooked_g', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
+        if d.get('recipe_source') and any('known_'+k in sets for k in KNOWN):
+            source=dict(d['recipe_source']);source['basis']='entered';source['edited']=True
+            sets['recipe_source']=json.dumps(source)
         if sets:
             c.execute(f"UPDATE dishes SET {', '.join(f'{k} = %s' for k in sets)}, updated = now() WHERE id = %s AND user_id = %s",
                       (*sets.values(), did, user['id']))
@@ -395,11 +412,11 @@ def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool 
                 messages=receipts.create(c,user['id'],[old['id']],captured_at) if thread else []
                 return {'entry':old,'replayed':True,**({'messages':messages} if thread else {})}
         d = _seen(c, user['id'], did)
-        if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, "Add the ingredients or the meal's total calories first")
+        if (d.get('recipe_source') and _totals(d)['kcal'] is None) or (not d['items'] and d['known_kcal'] is None): raise HTTPException(400, "Add the ingredients or the meal's total calories first")
         weight = _weight(d)
         if body.grams is not None and not weight: raise HTTPException(400, "This meal has no weight yet - log a share of it, or add its weight")
         if body.count is not None:      # servings of the whole dish: by servings, the whole dish is one serving (Ben, 2026-10-12)
-            f, amount, unit = body.count, round(body.count, 2), 'serving'
+            f, amount, unit = body.count / serving_count(d), round(body.count, 2), 'serving'
         elif body.grams is not None: f, amount, unit = body.grams / weight, round(body.grams, 1), 'g'
         elif weight: f, amount, unit = body.share, round(body.share * weight, 1), 'g'
         else: f, amount, unit = body.share, round(body.share, 3), 'dish'     # "0.25 dish": a typed-in total with no weight
@@ -407,12 +424,12 @@ def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool 
         vals = {k: _r(v * f) if v is not None else None for k, v in totals.items()}
         day = body.day or _today(c, user['id']).date()
         pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (user['id'], day)).fetchone()['p']
-        ref = {'dish_id': did, 'weight_g': weight, 'dish_kcal': totals['kcal'],'unknown_nutrients':[k for k,v in vals.items() if v is None],**({'portion_request':request} if body.client_id else {})}
+        ref = {'dish_id': did, 'weight_g': weight, 'dish_kcal': totals['kcal'],'unknown_nutrients':[k for k,v in vals.items() if v is None],**({'recipe_source':{k:d['recipe_source'].get(k) for k in ('source_url','basis','sources','servings','edited')}} if d.get('recipe_source') else {}),**({'portion_request':request} if body.client_id else {})}
         entry = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position, client_id)
                              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'dish', %s, %s, %s)
                              RETURNING id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref""",
-                          (user['id'], day, body.meal, d['name'], amount, unit, vals['kcal'], vals['protein_g'], vals['carbs_g'],
-                           vals['fat_g'], vals['fiber_g'], json.dumps(ref), pos, body.client_id)).fetchone()
+                          (user['id'], day, body.meal, d['name'], amount, unit, vals['kcal'], vals['protein_g'] or 0, vals['carbs_g'] or 0,
+                           vals['fat_g'] or 0, vals['fiber_g'], json.dumps(ref), pos, body.client_id)).fetchone()
         if body.of and d['user_id'] == user['id']:      # "1 of 4": the next time it offers 4 again
             c.execute('UPDATE dishes SET servings = %s WHERE id = %s AND user_id = %s', (body.of, did, user['id']))
         messages=receipts.create(c,user['id'],[entry['id']],captured_at) if thread else []

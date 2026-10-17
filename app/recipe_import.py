@@ -83,7 +83,7 @@ def _claim(uid,body):
         count=c.execute("SELECT count(*) AS n FROM recipe_link_drafts WHERE user_id=%s AND coalesce(error_code,'') NOT IN ('busy','timeout') AND created >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",(uid,)).fetchone()['n']
         if count>=DAILY_LIMIT:raise HTTPException(429,f'You have read {DAILY_LIMIT} recipe links in this UTC day. Try after midnight UTC, or use a screenshot or type the recipe.')
         # Expired drafts lose parsed text when their owner next starts a read.
-        
+
         row=c.execute('INSERT INTO recipe_link_drafts(user_id,id,url) VALUES(%s,%s,%s) RETURNING *',(uid,body.client_id,url)).fetchone()
         return row,True
 
@@ -169,3 +169,43 @@ def discard(identity:UUID,user=Depends(current_user)):
         # A saved recipe is independent; discarding its preview never deletes food.
         if row['state']!='saved':c.execute("UPDATE recipe_link_drafts SET state='cancelled',url='',data='{}',error_code=NULL,error_message=NULL WHERE user_id=%s AND id=%s",(user['id'],identity))
         return _out(_owned(c,user['id'],identity))
+
+
+from .recipe_review import ReviewIn,SaveIn
+
+
+@router.post('/{identity}/review')
+def review(identity:UUID,body:ReviewIn,user=Depends(current_user)):
+    from . import recipe_review as V
+    with db.connect() as c:
+        row=_expire(c,_owned(c,user['id'],identity,True))
+        if row['state']!='ready':raise HTTPException(409,'This draft is no longer ready. Read the link again if needed.')
+        result=V.build(c,user['id'],row,body)
+        data={**row['data'],'review':result}
+        c.execute('UPDATE recipe_link_drafts SET data=%s WHERE user_id=%s AND id=%s',(json.dumps(data),user['id'],identity))
+        return result
+
+
+@router.post('/{identity}/save')
+def save(identity:UUID,body:SaveIn,user=Depends(current_user)):
+    from . import recipe_review as V,api_dishes as D
+    if body.confirmed is not True:raise HTTPException(400,'Tap Save recipe to keep this draft')
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+        row=_expire(c,_owned(c,user['id'],identity,True))
+        if row['state']=='saved':
+            if row['data'].get('saved_baseline')!=body.baseline:raise HTTPException(409,'That save identity belongs to an earlier review')
+            if row['saved_dish_id'] is None:raise HTTPException(410,'This saved recipe was deleted; start a new draft to save it again')
+            return {'dish':D._view(c,user['id'],D._get(c,user['id'],row['saved_dish_id'])),'replayed':True}
+        if row['state']!='ready':raise HTTPException(409,'This draft is no longer ready')
+        old=row['data'].get('review')
+        if not old or old['baseline']!=body.baseline:raise HTTPException(409,'Review this recipe before saving')
+        fresh=V.build(c,user['id'],row,V.ReviewIn.model_validate(old['input']))
+        if fresh['baseline']!=old['baseline']:raise HTTPException(409,'An ingredient changed. Review the updated nutrition, then tap Save again.')
+        if c.execute('SELECT count(*) AS n FROM dishes WHERE user_id=%s',(user['id'],)).fetchone()['n']>=D.MAX_DISHES:raise HTTPException(400,'Delete a saved recipe before adding another')
+        source={k:fresh[k] for k in ('servings','pending','sources','basis','source_url','yield_text','ingredient_lines','site_nutrition','site_recipe_changed')}
+        source['import_id']=str(identity)
+        did=c.execute('INSERT INTO dishes(user_id,name,items,known_kcal,known_protein_g,known_carbs_g,known_fat_g,known_fiber_g,serving,servings,recipe_source) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,\'one\',1,%s) RETURNING id',
+                      (user['id'],fresh['name'],json.dumps(V.with_ids(fresh['items'])),*[fresh['totals'][k] for k in D.KNOWN],json.dumps(source))).fetchone()['id']
+        c.execute("UPDATE recipe_link_drafts SET state='saved',saved_dish_id=%s,data=%s WHERE user_id=%s AND id=%s",(did,json.dumps({'saved_baseline':body.baseline}),user['id'],identity))
+        return {'dish':D._view(c,user['id'],D._get(c,user['id'],did)),'replayed':False}
