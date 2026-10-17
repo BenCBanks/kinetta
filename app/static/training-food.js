@@ -43,5 +43,10 @@ const TrainingFood=(()=>{
     }catch(e){if(owner!==readOwner()||!box.isConnected)return;box.innerHTML='<p>Training-day choices could not load.</p><button class="ghost">Try again</button>';$('button',box).onclick=()=>settings(el);}
   }
   route(/^\/food\/training-days$/,'food',settings);
-  return {card,wire};
+  function eraseDevice(){
+    if(!App.me)return true;
+    const prefix='fit.training-note:'+JSON.stringify([serverKey(),App.me.id]).slice(0,-1)+',';
+    try{for(const k of Object.keys(localStorage))if(k.startsWith(prefix))localStorage.removeItem(k);return true;}catch(e){return false;}
+  }
+  return {card,wire,eraseDevice};
 })();

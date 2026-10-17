@@ -643,3 +643,5 @@ The food log presents a folded rest/active/long-day explanation and optional set
 A gentle note can appear after4pm following90+ recorded minutes when a positive, known-calorie food log is below60% of available estimated burn. Empty/unknown food, missing burn, shorter or merely planned workouts stay silent. This is a conservative UI check-in, not a clinical threshold or diagnosis; it names incomplete logs/estimates. Dismiss for today takes one tap, scoped to account/server/day.
 
 Copy reviewed against [Apple5.1.3](https://developer.apple.com/app-store/review/guidelines/#health-and-health-research): no advertising/data-mining use, no research/medical claims, no Health writes from these estimates. Health nutrition output remains the separately permitted record of food actually logged. Provider-age/region/project-tier and broader launch review remain #98 owner requirements; this change does not resolve them.
+
+Account deletion also removes only that server/account’s on-device training-note dismissal preferences. Other accounts and servers are preserved.

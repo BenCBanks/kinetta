@@ -6,3 +6,6 @@ const el={isConnected:true};c.T.wire(el,d);owner='B';handler();assert(!removed&&
 console.log('Training food UI: no-training/minor silence, optional adult setup without nutrient guidance, escaped general-reference source and target explanation, account-scoped one-tap note dismissal PASS');
 
 assert(c.T.card({...d,training:{...d.training,normal:null,extra:0}}).includes('Set a nutrition goal'))
+
+const mine='fit.training-note:'+JSON.stringify(['https://fictional.invalid',1,'2026-10-17']),other='fit.training-note:'+JSON.stringify(['https://fictional.invalid',2,'2026-10-17']),server='fit.training-note:'+JSON.stringify(['https://other.invalid',1,'2026-10-17']);c.localStorage={[mine]:'true',[other]:'true',[server]:'true'};c.localStorage.removeItem=k=>delete c.localStorage[k];assert(c.T.eraseDevice());assert(!(mine in c.localStorage));assert(other in c.localStorage&&server in c.localStorage);
+console.log('Training-note deletion: remove only current server/account preferences, preserve other accounts/servers PASS');

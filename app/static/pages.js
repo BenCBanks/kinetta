@@ -1268,6 +1268,7 @@ function deleteSheet() {
         await Native.stopFoodHealth?.({clear:true});
         if (typeof FoodThread !== 'undefined') { try { await FoodThread.eraseDevice(); } catch (e) { toast('Your account was deleted. Clear this app’s storage to remove its unsent food messages from this phone.'); } }
         if (typeof RecipeImport !== 'undefined') RecipeImport.eraseDevice();
+        if(typeof TrainingFood!=='undefined'&&!TrainingFood.eraseDevice())toast('Account deleted. Clear this app’s storage to remove saved note preferences.');
         if (typeof Track !== 'undefined') Track.forgetDraft();
         close(); store.set('fit.queue', Q.all().filter((o) => o.who !== login)); forgetKept();
         try { await Native.forget(); } catch(e) { toast('Account deleted. Clear this app’s storage if old connection settings remain.'); }
