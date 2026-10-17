@@ -116,8 +116,8 @@ function mileageChart(box, series) {
 }
 
 // ---------- Today ----------
-// A new person's first steps, until their first workout arrives: automatic syncing first, so testers don't have to
-// upload files every week; the Home Screen tip only on an iPhone browser that isn't already the Home Screen app.
+// First steps use food or activity history. Health remains optional; the Home Screen
+// tip appears only on an iPhone browser that isn't already the Home Screen app.
 // the next step for someone with nothing here yet (2026-10-12): an empty page says what to do, with the button for it
 const startCta = () => '';
 function getStarted(healthConnected = false, hasHistory = false) {
@@ -144,8 +144,16 @@ async function meOverview(el) {
     <div id="t-plan"></div><div id="t-friends"></div>
     <section id="t-week" aria-label="Last 14 days"></section>
     <div id="t-setup"></div><div id="t-goals"></div>`;
-  todayFoodCard($('#t-food',el)).catch(() => {
+  let foodHistory=null,activityHistory=null,healthConnected=false;
+  const drawSetup=()=>{
+    if(!el.isConnected||foodHistory===null||activityHistory===null)return;
+    const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
+    $('#t-setup', el).innerHTML = getStarted(healthConnected, activityHistory||foodHistory) +
+      (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+  };
+  todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();}}).catch(() => {
     if (!el.isConnected) return;
+    foodHistory=false;drawSetup();
     $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="primary wide" id="tf-retry">Try again</button></div>';
     $('#tf-retry',el).onclick = () => { invalidate('/api/food/day'); render(); };
   });
@@ -184,9 +192,7 @@ async function meOverview(el) {
       if (!el.isConnected) return;
       Promise.resolve(Native.on ? Native.healthOn() : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
-        const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
-        $('#t-setup', el).innerHTML = getStarted(connected, !!d.length) +
-          (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+        activityHistory=!!d.length;healthConnected=connected;drawSetup();
       });
     }),
     load('/api/stats', (s) => {
