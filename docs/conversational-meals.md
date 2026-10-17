@@ -86,6 +86,17 @@ keeps already logged food. Clearing the app's local storage deletes unsent messa
 Photos kept for pending uploads are removed from the on-device outbox after
 processing or cancellation, and do not appear in server conversation history.
 
-Your usuals, My Recipes and Search use the established shared pickers. Their
-conversation receipts and the optional daily note follow separately; this interface
+Your usuals, My Recipes and Search use the established shared pickers. Their new food entries appear as ordinary cards in the same conversation, without
+pretending you typed a message. The optional daily note follows separately; this interface
 alone does not establish the private tester's one-week switch acceptance.
+
+A list or recipe portion is saved together with its conversation card. Retrying an
+interrupted save does not add the food twice; a retry after Undo cannot bring it
+back. Deleting only the message keeps food in the food log and does not restore
+the message when an old upload retries. Pending portions stay visible in the
+phone’s pending-items banner until they are accepted or discarded.
+
+Corrections remember the food visible when you began typing, including after a
+draft reload or an offline delay. If that card disappeared, choose one of your
+logged foods. A changed held preview refreshes its numbers and asks you to tap Log
+again; it does not save changed numbers in the first tap.

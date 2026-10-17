@@ -1814,3 +1814,10 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 @media (max-height: 650px) { .food-thread .thread-tools button, .food-thread .thread-shortcuts button { font-size: .85rem; } }
 .thread-food > div { flex: 1; }
 .thread-food > button { flex-shrink: 0; }
+
+.thread-updated { font-size: .85rem; color: var(--tx2); }
+#thread-usual-suggestion:empty { display: none; }
+#thread-usual-suggestion { width: 100%; }
+#thread-usual-suggestion button { width: 100%; }
+/* Primary action can move between Send and a held food card without a pale colour flash. */
+.food-thread button { transition: transform .1s ease, opacity .15s; }

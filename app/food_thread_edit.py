@@ -122,6 +122,13 @@ def _cards(c,uid):
 
 
 def _ask(c,uid,message,text,choices=None,intent=None):
+    if not choices and intent and not intent.get('invalid'):
+        choices=[]
+        for root in _cards(c,uid):
+            for row in current_entries(c,uid,root['id']):
+                choices.append({'message_id':root['id'],'entry_id':row['id'],'name':row['name'],'day':row['day'].isoformat(),'meal':row['meal']})
+                if len(choices)>=100:break
+            if len(choices)>=100:break
     return food_thread.finish_reply(c,uid,message,{'kind':'needs','text':text,'choices':choices or [],'correction':intent,'source':'your food log','as_of':dt.datetime.now(dt.timezone.utc).isoformat()})
 
 
@@ -144,7 +151,12 @@ def try_correction(c,uid,message,intent=None,forced=None):
     if intent is None:return None
     if intent.get('invalid'):return _ask(c,uid,message,intent['invalid'],intent=intent)
     found=None
+    explicit=(message.get('result') or {}).get('context')
+    previous=_context(c,uid,message) if explicit else None
+    bare=not intent.get('words')
+    if explicit and bare and not previous and not forced:return _ask(c,uid,message,'That food card is no longer available. Which logged food should change?',intent=intent)
     for root in _cards(c,uid):
+        if explicit and bare and not forced and root['id']!=previous['id']:continue
         if forced and root['id']!=forced['message_id']:continue
         rows=current_entries(c,uid,root['id'])
         if not rows:continue
@@ -215,6 +227,9 @@ def try_correction(c,uid,message,intent=None,forced=None):
 
 
 def _context(c,uid,message):
+    explicit=(message.get('result') or {}).get('context')
+    if explicit:
+        return c.execute(f"SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND kind='user' AND client_id=%s AND id<>%s AND result->>'kind' IN ('needs','preview','log','edit','undone')",(uid,explicit,message['id'])).fetchone()
     return c.execute(f'''SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND kind='user'
                            AND id<%s AND result->>'kind' IN ('needs','preview','log','edit','undone')
                            ORDER BY id DESC LIMIT 1''',(uid,message['id'])).fetchone()

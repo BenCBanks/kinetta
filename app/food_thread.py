@@ -30,6 +30,7 @@ class MessageIn(BaseModel):
     media: Literal['text','photo','barcode'] = 'text'
     barcode: str | None = Field(None,pattern=r'^\d{6,14}$')
     captured_at: AwareDatetime | None = None
+    context: UUID | None = None
 
     @field_validator('body')
     @classmethod
@@ -96,6 +97,7 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if body.media=='barcode' and not body.barcode:raise HTTPException(422,'Scan or type a barcode')
         if body.media!='barcode' and body.barcode:raise HTTPException(422,'Use barcode input for a scanned product')
         metadata={'input':{'kind':body.media,**({'barcode':body.barcode} if body.barcode else {})}} if body.media!='text' else None
+        if body.context:metadata={**(metadata or {}),'context':str(body.context)}
         row = c.execute(f'''INSERT INTO food_chat_messages
                             (user_id, client_id, kind, body, captured_at, local_day, state, result)
                             VALUES (%s, %s, 'user', %s, %s, %s, 'pending', %s)
@@ -105,7 +107,7 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if not created:
             row = c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id = %s AND client_id = %s',
                             (uid, body.client_id)).fetchone()
-            if row['body'] != body.body or row['kind'] != 'user' or (row.get('result') or {}).get('input') != (metadata or {}).get('input'):
+            if row['body'] != body.body or row['kind'] != 'user' or any((row.get('result') or {}).get(k)!=(metadata or {}).get(k) for k in ('input','context')):
                 raise HTTPException(409, 'That message identity was already used for different text')
         response.status_code = 201 if created else 200
         return {'message': message_entries(c, uid, [row])[0], 'created': created}
@@ -161,7 +163,7 @@ def finish_reply(c, uid, message, result):
                     (uid,uuid4(),result['text'],message['captured_at'],message['local_day'],message['id'],json.dumps(result))).fetchone()
     updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
                              WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
-                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**({'input':message['result']['input']} if (message.get('result') or {}).get('input') else {})}),message['id'],uid)).fetchone()
+                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**{k:message['result'][k] for k in ('input','receipt','context') if (message.get('result') or {}).get(k) is not None}}),message['id'],uid)).fetchone()
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 

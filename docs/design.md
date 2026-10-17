@@ -472,11 +472,37 @@ cannot replace a cancellation with a new upload. Conversation deletion keeps foo
 Snap, Photo library, Scan and Paste are labelled composer tools; keyboard dictation
 uses the operating system microphone. Me's direct Snap/Scan actions enter this same
 conversation. Search, usuals and My Recipes remain reachable through their shared
-picker. Completing legacy-picker receipts and the optional daily note is separate
-work; the private switch test and physical-iPhone acceptance remain release gates.
+picker. List, usual and recipe-portion logging creates neutral food cards in the same
+conversation, with a stable identity for retries and Undo. The optional daily note
+is separate work; the private switch test and physical-iPhone acceptance remain release gates.
 
 Calorie-only entries keep missing nutrients unknown in the thread, shared editor,
 Me and daily totals. Incomplete totals show only the known amount and suppress
 misleading target progress. Editing or rescaling a calorie-only entry keeps blank
 macros unknown. Deleting an account also erases its on-device conversation cache,
 draft and photo/message outbox; another server/account is unaffected.
+
+### Picker receipts and delayed corrections (#122 Workstream D)
+
+List, Search, Quick, usual and recipe-portion logging can request a conversation
+receipt in the same transaction as the food. Each food has its own card; the UI
+does not fabricate a user chat message. Replays keep the original food/card. Undo
+or removal blocks a delayed replay from bringing the food back. Deleting only the
+message keeps the food and never brings the deleted text back on a retry. Older
+clients keep their existing API behaviour. Recipe portions have stable optional
+client identities and can wait in the existing account-bound outbox.
+
+The composer can offer a saved usual portion directly. Shared pickers remain
+available, and their responses update chat without replacing its text box. Queued
+food is described as saved on the phone, never as a confirmed server log. Blank
+Quick nutrients stay unknown; deriving calories requires all three macros. Held
+previews display their food sources, assumptions and numbers. Changed previews
+refresh the card and explain the second explicit Log tap. Saved AI foods retain
+the estimate and Edited labels in the library, picker and thread.
+
+A correction remembers the visible food context when typing starts. It survives
+a draft reload and delayed upload. Newer activity on another device cannot retarget
+“make it half” to another plate. An unavailable context asks for an owned food
+choice instead of silently changing another card. Numbers questions remain code
+only. Edits/removals suppress old feedback whose nutrition no longer matches the
+card. Legacy food sheets close or block submission after an account change.

@@ -58,7 +58,7 @@ function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
           try {
             if (job.phase==='cancel') { await call('/api/food/thread/cancel',{client_id:job.id});await db.remove(owner,job.id);continue; }
             if (!job.mid) {
-              const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.barcode?{barcode:job.barcode}:{})});
+              const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.barcode?{barcode:job.barcode}:{}),...(job.context?{context:job.context}:{})});
               await write({mid:r.message.id,phase:'process'});
             }
             let r;

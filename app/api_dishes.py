@@ -19,7 +19,7 @@ import re
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from . import db, notify
 from .api_food import MEALS
@@ -370,6 +370,7 @@ def item_delete(did: int, iid: str, user=Depends(current_user)):
 class PortionIn(BaseModel):
     """One of: grams; share of the whole dish (0.25 for "1 of 4", with of=4 to remember); count of whole servings
     (a one-serving dish, like 1 smoothie or 2 coffees)."""
+    client_id: str | None = Field(None,pattern=r'^[A-Za-z0-9-]{8,64}$')
     grams: float | None = Field(None, gt=0, le=20000)
     share: float | None = Field(None, gt=0, le=1)
     of: int | None = Field(None, ge=1, le=50)
@@ -379,9 +380,20 @@ class PortionIn(BaseModel):
 
 
 @router.post('/{did:int}/portion')
-def portion(did: int, body: PortionIn, user=Depends(current_user)):
+def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool = False, captured_at: AwareDatetime | None = None):
     if sum(x is not None for x in (body.grams, body.share, body.count)) != 1: raise HTTPException(400, 'Send grams, share or count')
     with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+        from . import food_thread_receipts as receipts
+        if thread:receipts.guard(c,user['id'],body.client_id)
+        request=body.model_dump(mode='json',exclude={'client_id'})
+        if body.client_id:
+            old=c.execute(f'SELECT {receipts.ENTRY} FROM food_entries WHERE user_id=%s AND client_id=%s',(user['id'],body.client_id)).fetchone()
+            if old:
+                ref=old.get('ref') or {}
+                if ref.get('dish_id')!=did or ref.get('portion_request')!=request:raise HTTPException(409,'This portion identity was already used. Edit the saved food or start a new log.')
+                messages=receipts.create(c,user['id'],[old['id']],captured_at) if thread else []
+                return {'entry':old,'replayed':True,**({'messages':messages} if thread else {})}
         d = _seen(c, user['id'], did)
         if not d['items'] and d['known_kcal'] is None: raise HTTPException(400, "Add the ingredients or the meal's total calories first")
         weight = _weight(d)
@@ -395,15 +407,16 @@ def portion(did: int, body: PortionIn, user=Depends(current_user)):
         vals = {k: _r(v * f) if v is not None else None for k, v in totals.items()}
         day = body.day or _today(c, user['id']).date()
         pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (user['id'], day)).fetchone()['p']
-        ref = {'dish_id': did, 'weight_g': weight, 'dish_kcal': totals['kcal']}
-        entry = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position)
-                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'dish', %s, %s)
+        ref = {'dish_id': did, 'weight_g': weight, 'dish_kcal': totals['kcal'],'unknown_nutrients':[k for k,v in vals.items() if v is None],**({'portion_request':request} if body.client_id else {})}
+        entry = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, position, client_id)
+                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'dish', %s, %s, %s)
                              RETURNING id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref""",
                           (user['id'], day, body.meal, d['name'], amount, unit, vals['kcal'], vals['protein_g'], vals['carbs_g'],
-                           vals['fat_g'], vals['fiber_g'], json.dumps(ref), pos)).fetchone()
+                           vals['fat_g'], vals['fiber_g'], json.dumps(ref), pos, body.client_id)).fetchone()
         if body.of and d['user_id'] == user['id']:      # "1 of 4": the next time it offers 4 again
             c.execute('UPDATE dishes SET servings = %s WHERE id = %s AND user_id = %s', (body.of, did, user['id']))
-        return {'entry': entry}
+        messages=receipts.create(c,user['id'],[entry['id']],captured_at) if thread else []
+        return {'entry':entry,**({'messages':messages} if thread else {})}
 
 
 # ---------- share a dish with friends (2026-10-11) ----------

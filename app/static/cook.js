@@ -141,6 +141,7 @@ function foodToDish(d, f, set) {
 // Log a dish (Add food > Saved Dishes, or a friend's dish). One question only, the way the dish is measured (Ben,
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
 function dishLogSheet(d, w, done) {
+  const owner=readOwner();
   const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one';     // by servings: the whole dish is one serving
   const vals = (k) => Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, (t[x] || 0) * k]));
   const half = (x) => (x === 0.5 ? '½' : String(x).replace('.5', '½'));
@@ -152,6 +153,7 @@ function dishLogSheet(d, w, done) {
     <div class="portion-out" aria-live="polite"></div>
     <div class="actions">${d.mine !== false ? `<button type="button" class="ghost" id="dl-edit">${svg('edit')}Edit</button><span class="spacer"></span>` : ''}
       <button class="primary"${!bySv && !wt ? ' disabled' : ''}>Add to ${esc(MEAL_NAMES[w.meal])}${w.day !== isoDay(new Date()) ? `, ${esc(dayLabel(w.day))}` : ''}</button></div></form>`, (b, close) => {
+    guardFoodSheet(b,close,owner);
     const f = $('#dl', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
     let n = 1;
     const factor = () => (bySv ? n : num(f.g) > 0 && wt ? num(f.g) / wt : null);
@@ -163,16 +165,18 @@ function dishLogSheet(d, w, done) {
     else if (f.g) f.g.oninput = show;
     show();
     const ed = $('#dl-edit', b); if (ed) ed.onclick = () => { close(); done(true); go(`/food/cook/${d.id}`); };
+    const portionId=newId();
     f.onsubmit = async (e) => {
-      e.preventDefault(); const btn = $('button.primary', f);
-      const body = {meal: w.meal, day: w.day};
+      e.preventDefault(); const btn = $('button.primary', f);if(btn.disabled)return;
+      const body = {meal: w.meal, day: w.day, client_id:portionId};
       if (bySv) body.count = n;
       else { const g = num(f.g); if (!(g > 0)) { toast('How many grams did you have?'); return; } body.grams = g; }
       btn.disabled = true;
       try {
-        const r = await api(`/api/dishes/${d.id}/portion`, json('POST', body));
+        const r = await sendOrQueue(`/api/dishes/${d.id}/portion?thread=true&captured_at=${encodeURIComponent(new Date().toISOString())}`, 'POST', body, d.name);
+        if(!r.queued&&r.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(r);
         invalidate('/api/food/'); App.cache.delete('/api/dishes'); close(); done(false);
-        toast(`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${r0(r.entry.kcal)} kcal`);
+        if(r.queued)toast('Portion saved on this phone. It will send when connected.');else toast(`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${r0(r.entry.kcal)} kcal`);
       } catch (x) { toast(x.message); btn.disabled = false; }
     };
   });

@@ -1,0 +1,21 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const thread=fs.readFileSync('app/static/thread.js','utf8'),food=fs.readFileSync('app/static/food.js','utf8');
+const c={};vm.createContext(c);vm.runInContext(thread.slice(thread.indexOf('  function source('),thread.indexOf('  function food(')),c);
+assert.equal(c.source({source:'recent',ref:{source:'usda'}}),'USDA');assert.equal(c.source({source:'custom',ref:{origin:'ai',origin_edited:true}}),'AI estimate · Edited');assert.equal(c.source({source:'recent',ref:{origin:'catalog',origin_ref:{source:'off'}}}),'Open Food Facts');assert.equal(c.source({source:'custom',ref:{origin:'label'}}),'Nutrition label');
+let owner='a',closed=0,prevented=0,stopped=0;const handlers=[];c.readOwner=()=>owner;c.toast=()=>{};vm.runInContext(food.slice(food.indexOf('function guardFoodSheet'),food.indexOf('function addSheet')),c);c.guardFoodSheet({addEventListener:(event,fn,capture)=>{assert(capture);handlers.push(fn)}},()=>closed++,'a');const event={preventDefault(){prevented++},stopImmediatePropagation(){stopped++}};handlers[0](event);assert.equal(closed,0);owner='b';handlers[0](event);handlers[1](event);assert.equal(closed,2);assert.equal(prevented,2);assert.equal(stopped,2);
+console.log('food sources: provenance survives recent reuse/AI edits/labels; stale food-sheet clicks and submits blocked before writes PASS');
+
+vm.runInContext(thread.slice(thread.indexOf('  function changedNumbers('),thread.indexOf('  function replyHtml(')),c);
+assert.equal(c.changedNumbers({logged_totals:{kcal:200,protein_g:10}},[{kcal:200,protein_g:10}]),false);
+assert.equal(c.changedNumbers({logged_totals:{kcal:200,protein_g:10}},[{kcal:100,protein_g:5}]),true);
+assert.equal(c.changedNumbers({parts:[{logged:true,entries:[{kcal:200}]},{logged:false,entries:[{kcal:300}]}]},[{kcal:200}]),false);
+vm.runInContext(thread.slice(thread.indexOf('  function latestContext('),thread.indexOf('  async function send(')),c);
+const context={messages:[{id:2,kind:'user',client_id:'visible-newer',captured_at:'2026-10-16T12:00:00-04:00',result:{kind:'log'}},{id:3,kind:'user',client_id:'late-upload-older',captured_at:'2026-10-16T14:00:00Z',result:{kind:'log'}}],jobs:[{id:'old-pending',at:'2026-10-16T13:00:00Z',phase:'resolve'}]};
+assert.equal(c.latestContext(context),'visible-newer');context.jobs.push({id:'new-pending',at:'2026-10-16T17:00:00Z',phase:'process'});assert.equal(c.latestContext(context),'new-pending');
+console.log('food cards: changed nutrition suppresses stale feedback; held items are not edits; correction context follows capture time rather than late delivery PASS');
+
+const app=fs.readFileSync('app/static/app.js','utf8');c.Native={base:'',headers:()=>({})};c.App={me:{id:1}};c.FormData=FormData;c.fetch=async()=>({ok:false,status:409,json:async()=>({changed:true,messages:[]})});vm.runInContext(app.slice(app.indexOf('async function api('),app.indexOf('const json =')),c);
+(async()=>{await assert.rejects(c.api('/api/food/thread/messages/1/log'),e=>e.code==='preview_changed'&&e.message.includes('tap Log again'));await assert.rejects(c.api('/api/activities/1'),e=>!e.code&&e.message==='Error 409');console.log('changed food preview gets a clear second-tap message; other API errors retain their meaning PASS');})().catch(e=>{console.error(e);process.exitCode=1});
+
+assert.equal(c.changedNumbers({logged_totals:{kcal:200,protein_g:0},logged_unknown:['protein_g']},[{kcal:200,protein_g:0,ref:{unknown_nutrients:[]}}]),true,'providing a known zero changes the meaning of an unknown nutrient');
