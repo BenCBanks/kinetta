@@ -10,7 +10,7 @@ from statistics import median
 
 from fastapi import APIRouter, Depends
 
-from . import db, energy
+from . import db, energy, nutrients as N
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
@@ -91,7 +91,17 @@ def insights_data(c, uid, days=30, since=None):
     summary['meals'] = {m: round(v / all_kcal * 100) for m, v in meal_tot.items()}
     tg = {k: prof.get(k) for k in ('kcal_target', 'protein_target', 'carbs_target', 'fat_target', 'fiber_target')}
     summary['start'] = start.isoformat()
-    return {'rows': rows, 'summary': summary, 'targets': tg, 'deficit_start': prof['deficit_start'].isoformat() if prof.get('deficit_start') else None, 'insights': _insights(C, summary, tg, top, ctx, raw_w, prof.get('units') or 'imperial'),
+    # Aggregate only this person's recorded values. Missing foods are counted,
+    # not turned into zeros or presented as a complete intake estimate.
+    columns=[]
+    for key in N.EXTRA:
+        valid=f"{key} IS NOT NULL AND NOT coalesce(ref->'unknown_nutrients' ? '{key}',false)"
+        columns.extend([f'sum({key}) FILTER(WHERE {valid}) AS {key}',f'count(*) FILTER(WHERE {valid}) AS {key}_known'])
+    extra_row=c.execute('SELECT count(*) AS n,'+','.join(columns)+' FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s',(uid,start,today)).fetchone()
+    extra={key:{'recorded':N.rounded(key,extra_row[key]),'known_count':extra_row[key+'_known'],
+                'unknown_count':extra_row['n']-extra_row[key+'_known'],'complete':bool(extra_row['n']) and extra_row['n']==extra_row[key+'_known'],'unit':N.UNITS[key]}
+           for key in N.EXTRA}
+    return {'rows': rows, 'summary': summary, 'extra_nutrients':extra, 'targets': tg, 'deficit_start': prof['deficit_start'].isoformat() if prof.get('deficit_start') else None, 'insights': _insights(C, summary, tg, top, ctx, raw_w, prof.get('units') or 'imperial'),
             'top_foods': [{'name': t['name'], 'n': t['n'], 'kcal': round(_f(t['kcal'])), 'protein_g': round(_f(t['protein_g']))} for t in top]}
 
 

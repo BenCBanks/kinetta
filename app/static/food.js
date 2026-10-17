@@ -8,6 +8,17 @@ const r1 = (v) => (v == null ? '–' : (Math.round(v * 10) / 10).toString());
 // a food's numbers in full, shown when you tap it (rows show calories only; 2026-10-12: "1P 50C 1F" meant nothing)
 const nutGrid = (v) => `<div class="nut"><span><b class="num">${r0(v.kcal)}</b><small>Calories</small></span>${MACROS.map(([k, n]) =>
   `<span><b class="num">${(v.ref?.unknown_nutrients||[]).includes(k)?'Unknown':r1(v[k])+' g'}</b><small>${n}</small></span>`).join('')}</div>`;
+const EXTRA_NUTRIENTS = [['sodium_mg','Sodium','mg','sodium_target_mg'],['sugar_g','Total sugar','g','sugar_target_g'],['saturated_fat_g','Saturated fat','g','saturated_fat_target_g']];
+const FOOD_NUTRIENTS = ['kcal','protein_g','carbs_g','fat_g','fiber_g',...EXTRA_NUTRIENTS.map(([k])=>k)];
+const nutrientKnown = (v,k) => v[k]!=null && !(v.ref?.unknown_nutrients||[]).includes(k);
+function nutrientNumber(v,unit){if(v==null)return 'Unknown';if(v===0)return '0 '+unit;return v<(unit==='mg'?1:.1)?'&lt;'+(unit==='mg'?'1':'0.1')+' '+unit:(unit==='mg'?r0(v):r1(v))+' '+unit;}
+function nutrientSource(v){const r=v.ref||{},origin=r.origin||v.origin,source=r.origin_ref?.source||r.source||v.source;return (origin==='ai'?'AI estimate':origin==='label'?'Nutrition label':({usda:'USDA',off:'Open Food Facts',label:'Nutrition label',quick:'Entered by you',dish:'Saved recipe',custom:'My food'}[source]||''))+((r.origin_edited||v.origin_edited)?' · Edited':'');}
+function extraInputs(v={},targets=false){return `<details class="extra-nutrients extra-inputs"><summary>${targets?'Optional nutrient limits':'More nutrients'}</summary><p class="small muted">${targets?'Leave these unset unless you want your own daily limits. These do not change your calorie goal.':'For this amount of food. Leave a value blank if you don’t know it; a reported zero stays zero.'}</p>${!targets&&nutrientSource(v)?`<p class="small muted">Source: ${esc(nutrientSource(v))}</p>`:''}<div class="extra-fields">${EXTRA_NUTRIENTS.map(([key,label,unit,target])=>{const k=targets?target:key;return `<label>${label} (${unit})<input name="${k}" inputmode="decimal" value="${esc((targets||nutrientKnown(v,k))?v[k]??'':'')}" aria-label="${label} ${targets?'daily limit in ': 'in '}${unit}"></label>`;}).join('')}</div></details>`;}
+function extraFormValues(f,targets=false){return Object.fromEntries(EXTRA_NUTRIENTS.map(([key,, ,target])=>{const k=targets?target:key,raw=f.elements.namedItem(k)?.value.trim()??'',value=raw===''?null:Number(raw.replace(',','.'));if(value!==null&&(!Number.isFinite(value)||value<0))throw Error('Enter a positive number or zero, or leave the nutrient blank.');return [k,value];}));}
+function foodStorage(entry){const missing=FOOD_NUTRIENTS.filter(k=>!nutrientKnown(entry,k));if(missing.includes('kcal'))throw Error('Add calories before logging this food.');const out={...entry,ref:{...(entry.ref||{}),unknown_nutrients:[...new Set([...(Array.isArray(entry.ref?.unknown_nutrients)?entry.ref.unknown_nutrients.filter(k=>typeof k==='string'&&!FOOD_NUTRIENTS.includes(k)):[]),...missing])]}};for(const k of FOOD_NUTRIENTS)if(missing.includes(k))out[k]=['kcal','protein_g','carbs_g','fat_g'].includes(k)?0:null;return out;}
+function extraCoverage(entries,targets={}){return Object.fromEntries(EXTRA_NUTRIENTS.map(([k,,,target])=>{const known=entries.filter(e=>nutrientKnown(e,k));return [k,{recorded:known.length?known.reduce((n,e)=>n+Number(e[k]),0):null,known_count:known.length,unknown_count:entries.length-known.length,complete:!!entries.length&&known.length===entries.length,target:targets[target]}];}));}
+function extraTotals(values,{period=false}={}){return `<details class="extra-nutrients"><summary>More nutrients${period?' · this range':''}</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>{const v=values?.[k]||{};return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Known subtotal · incomplete</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}${!period&&v.target!=null?`<small>Your limit: ${nutrientNumber(v.target,unit)}</small>`:''}</dd></div>`;}).join('')}</dl><p class="small muted">${period?'Recorded totals across this date range. ':''}Missing values are unknown, not zero. Total sugar includes naturally occurring sugar.</p></details>`;}
+function extraFood(v){return `<details class="extra-nutrients"><summary>More nutrients</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>`<div><dt>${label}</dt><dd class="num">${nutrientNumber(nutrientKnown(v,k)?v[k]:null,unit)}</dd></div>`).join('')}</dl><p class="small muted">For this portion, using its recorded source values. Estimates stay estimates; missing values are unknown.</p></details>`;}
 const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
 const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}); };
@@ -131,13 +142,13 @@ function yesterdayMeal(day, meal) {
 // nutrition for an amount of a normalised food (per100 / per_serving + serving grams)
 function scaleFood(f, amount, unit) {
   const out = {};
-  for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) {
+  for (const k of FOOD_NUTRIENTS) {
     let v = null;
     if (f._unit && !f.per100 && f.per_serving) v = f.per_serving[k] == null ? null : f.per_serving[k] * amount;    // a recent food: per the unit it was logged in
     else if (unit === 'g' && f.per100 && f.per100[k] != null) v = f.per100[k] * amount / 100;
     else if (unit !== 'g' && f.per_serving && f.per_serving[k] != null) v = f.per_serving[k] * amount;
     else if (unit !== 'g' && f.per100 && f.per100[k] != null) v = f.per100[k] * (f.serving && f.serving.g ? f.serving.g : 100) / 100 * amount;
-    out[k] = v == null ? (k === 'fiber_g' ? null : 0) : Math.round(v * 10) / 10;
+    out[k] = (f.unknown_nutrients||f._last?.ref?.unknown_nutrients||[]).includes(k)?null:v==null?null:Math.round(v*10000)/10000;
   }
   return out;
 }
@@ -240,6 +251,7 @@ function drawDay(el, D) {
         <button class="ghost" id="fd-goal" aria-label="Set the calorie goal for this day">${svg('edit')} ${goal == null ? 'Set goal' : 'Goal'}</button></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
       <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div><div class="macro-line"><b>${n}</b><span class="num">${macroTotal(D,k,target)}</span></div>${target && !D.unknown_nutrients?.[k] ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
+      ${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
       ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
       ${!watchResting && B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>' : B.day_burn == null ? `<p class="small muted tc-bal">Resting calories have not synced for this day. Activities: ${r0(B.kcal)} kcal. Total burn is waiting for resting data.</p>`
@@ -283,7 +295,7 @@ const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.u
 const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
 
 async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
-  items = items.map((it) => ({...it, client_id: it.client_id || newId()}));
+  items = items.map((it) => ({...foodStorage(it), client_id: it.client_id || newId()}));
   const query=new URLSearchParams();if(thread){query.set('thread','true');query.set('captured_at',new Date().toISOString());}if(restoreFrom)query.set('restore_from',restoreFrom);
   const r = await sendOrQueue('/api/food/entries'+(query.size?'?'+query:''), 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
   if (r.queued) {   // offline: show them now, marked "waiting to send"
@@ -369,7 +381,7 @@ function entrySheet(e, day) {
     <div class="actions"><button class="primary wide">Save changes</button></div></form>
     <div class="entry-more"><button type="button" class="linkbtn" id="es-again">${svg('plus')}Log again today</button>
       <button type="button" class="linkbtn danger" id="es-del">${svg('trash')}Remove from ${MEAL_NAMES[e.meal]}</button></div>`, (b, close) => {
-    const f = $('#es', b);
+    guardFoodSheet(b,close,owner);const f = $('#es', b);
     // On a phone, opening the editor shouldn't pop the keyboard up over the numbers.
     if (matchMedia('(pointer: coarse)').matches) b.closest('.sheet').querySelector('[data-close]').focus({preventScroll: true});
     else softFocus(f.name);
@@ -378,8 +390,8 @@ function entrySheet(e, day) {
       if (!(a > 0)) return;
       let v;
       if (ref && (ref.per100 || ref.per_serving)) v = scaleFood(ref, a, f.unit.value);
-      else if (e.amount > 0 && f.unit.value === e.unit) { const k = a / e.amount; v = {kcal: e.kcal * k, protein_g: e.protein_g * k, carbs_g: e.carbs_g * k, fat_g: e.fat_g * k, fiber_g: e.fiber_g == null ? null : e.fiber_g * k}; }
-      if (v) for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) if (f[k]) f[k].value = (e.ref?.unknown_nutrients||[]).includes(k) || v[k] == null ? '' : r1(v[k]);
+      else if (e.amount > 0 && f.unit.value === e.unit) { const k = a / e.amount; v = Object.fromEntries(FOOD_NUTRIENTS.map(key=>[key,nutrientKnown(e,key)?e[key]*k:null])); }
+      if (v) for (const k of FOOD_NUTRIENTS) if (f[k]) f[k].value = (e.ref?.unknown_nutrients||[]).includes(k) || v[k] == null ? '' : String(Math.round(v[k]*10000)/10000);
       if (v) $('#es-nut', b).innerHTML = nutGrid({...v,ref:e.ref});
     };
     f.amount.oninput = rescale; f.unit.onchange = rescale;
@@ -387,7 +399,7 @@ function entrySheet(e, day) {
       ev.preventDefault(); if(owner!==readOwner()){close();return;}
       const n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value));
       const body = {name: f.name.value.trim() || e.name, amount: n(f.amount) || e.amount, unit: f.unit.value, meal: f.meal.value, day: f.day.value,
-        kcal: n(f.kcal) || 0, protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: n(f.fiber_g)};
+        kcal: n(f.kcal) || 0, protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: n(f.fiber_g),...extraFormValues(f)};
       try { await api(`/api/food/entries/${e.id}`, json('PATCH', body)); close(); refresh(); } catch (x) { toast(x.message); }
     };
     $('#es-del', b).onclick = () => {if(owner!==readOwner()){close();return;}removeFoodEntry(e, {button: $('#es-del', b), after: close});};
@@ -395,7 +407,7 @@ function entrySheet(e, day) {
       if(owner!==readOwner()){close();return;}
       const btn = $('#es-again', b); if (btn.disabled) return; btn.disabled = true;
       try { await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
-        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g, source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(`Logged ${e.name} again today`); }
+        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,e[k]??null])), source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(`Logged ${e.name} again today`); }
       catch (x) { toast(x.message); if (btn.isConnected) btn.disabled = false; }
     };
   });
@@ -414,10 +426,10 @@ const macroInputs = (e = {}) => `<div class="mac4">
   <label>Protein g<input name="protein_g" inputmode="decimal" value="${e.protein_g != null ? r1(e.protein_g) : ''}"></label>
   <label>Carbs g<input name="carbs_g" inputmode="decimal" value="${e.carbs_g != null ? r1(e.carbs_g) : ''}"></label>
   <label>Fat g<input name="fat_g" inputmode="decimal" value="${e.fat_g != null ? r1(e.fat_g) : ''}"></label>
-  <label>Fiber g<input name="fiber_g" inputmode="decimal" value="${e.fiber_g != null ? r1(e.fiber_g) : ''}"></label></div>`;
+  <label>Fiber g<input name="fiber_g" inputmode="decimal" value="${e.fiber_g != null ? r1(e.fiber_g) : ''}"></label></div>${extraInputs(e)}`;
 
 // ---------- add: usuals / saved dishes / search / quick ----------
-function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner())return;e.preventDefault();e.stopImmediatePropagation();close();toast('The account changed. Open this again.');};body.addEventListener('click',guard,true);body.addEventListener('submit',guard,true);
+function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner())return;e.preventDefault();e.stopImmediatePropagation();close();toast('The account changed. Open this again.');};body.addEventListener('click',guard,true);body.addEventListener('submit',guard,true);body.addEventListener('submit',e=>{for(const input of $$('.extra-inputs input',body)){const value=input.value.trim();if(value!==''&&(!Number.isFinite(Number(value.replace(',','.')))||Number(value.replace(',','.'))<0)){e.preventDefault();e.stopImmediatePropagation();input.focus();toast('Enter a positive number or zero, or leave the nutrient blank.');return;}}},true);
   if(typeof MutationObserver!=='undefined'){const observer=new MutationObserver(()=>{if(!body.isConnected){observer.disconnect();return;}if(owner!==readOwner()){observer.disconnect();close();}});observer.observe(root,{childList:true,subtree:true});}
 }
 function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
@@ -581,14 +593,14 @@ function tQuick(body, where, close) {
   body.innerHTML = `<form class="form" id="tq"><label>Name<input name="name" placeholder="e.g. Restaurant salad" maxlength="200"></label>${macroInputs()}
     <p class="small muted">Enter calories, or all three macros to work them out. Other blank nutrients stay unknown.</p>
     <div class="actions"><button class="primary">Add</button></div></form>`;
-  const f = $('#tq', body); softFocus(f.name);
+  guardFoodSheet(body,close,readOwner());const f = $('#tq', body); softFocus(f.name);
   const clientId=newId();
   f.onsubmit = async (e) => {
     e.preventDefault();const button=$('button.primary',f);if(button.disabled)return;
     const missing=['protein_g','carbs_g','fat_g','fiber_g'].filter(k=>!f[k].value.trim());
     if(!f.kcal.value.trim()&&missing.some(k=>k!=='fiber_g')){toast('Enter calories, or fill in protein, carbs and fat.');return;}
     const n = (x) => (x.value.trim() === '' ? 0 : parseFloat(x.value) || 0);
-    const it = {client_id:clientId,ref:{origin:'manual',unknown_nutrients:missing},name: f.name.value.trim() || 'Quick add', amount: 1, unit: 'serving', protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: f.fiber_g.value ? n(f.fiber_g) : null, source: 'quick'};
+    const it = {...extraFormValues(f),client_id:clientId,ref:{origin:'manual',unknown_nutrients:missing},name: f.name.value.trim() || 'Quick add', amount: 1, unit: 'serving', protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: f.fiber_g.value ? n(f.fiber_g) : null, source: 'quick'};
     it.kcal = f.kcal.value.trim() ? n(f.kcal) : Math.round(it.protein_g * 4 + it.carbs_g * 4 + it.fat_g * 9);
     if (!it.kcal && !it.protein_g) { toast('Enter calories or macros'); return; }
     button.disabled=true;
@@ -612,7 +624,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
   const units = plain ? [startUnit] : unitList(f.per100 || f.per_serving ? f : null, startUnit).map(([k]) => k);
   const uName = (u) => (u === 'serving' ? 'Servings' : u === 'g' ? 'Grams' : u.charAt(0).toUpperCase() + u.slice(1));
   sheet(title, `<form class="form" id="am">
-    ${sub ? `<p class="am-sub">${esc(sub)}</p>` : ''}
+    ${sub ? `<p class="am-sub">${esc(sub)}</p>` : ''}${nutrientSource(f)?`<p class="small muted">Source: ${esc(nutrientSource(f))}</p>`:''}
     <div class="am-amt"><button type="button" class="icon-btn" data-step="-1" aria-label="Less">${svg('minus')}</button>
       <label><input name="amount" inputmode="decimal" value="${r1(startAmt)}" aria-describedby="am-u"><small id="am-u">${esc(uName(startUnit))}</small></label>
       <button type="button" class="icon-btn" data-step="1" aria-label="More">${svg('plus')}</button></div>
@@ -622,8 +634,8 @@ function amountSheet(f, w, closeParent, onEditFood) {
     <div class="actions">${onEditFood ? '<button type="button" class="ghost" id="am-edit">Edit food</button><span class="spacer"></span>' : ''}<button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,owner);
     const fm = $('#am', b);
-    const calc = () => { const a = parseFloat(fm.amount.value) || 0; const v = f.per100 || f.per_serving ? scaleFood(f, a, fm.unit.value) : {kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0};
-      $('#am-p', b).innerHTML = `<div><b class="num">${r0(v.kcal)}</b><small>kcal</small></div>${MACROS.map(([k, , s]) => `<div><b class="num">${r1(v[k])}</b><small>${s === 'P' ? 'protein' : s === 'C' ? 'carbs' : 'fat'} g</small></div>`).join('')}`; return v; };
+    const calc = () => { const a = parseFloat(fm.amount.value) || 0; const v = f.per100 || f.per_serving ? scaleFood(f, a, fm.unit.value) : Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,null]));
+      $('#am-p', b).innerHTML = `<div><b class="num">${r0(v.kcal)}</b><small>kcal</small></div>${MACROS.map(([k, , s]) => `<div><b class="num">${v[k]==null?'Unknown':r1(v[k])}</b><small>${s === 'P' ? 'protein' : s === 'C' ? 'carbs' : 'fat'} g</small></div>`).join('')}${extraFood(v)}`; return v; };
     fm.amount.oninput = calc; calc();
     $$('[data-step]', fm).forEach((x) => x.onclick = () => {      // ½ a serving at a time, or 10 g
       const st = fm.unit.value === 'g' ? 10 : 0.5, a = (parseFloat(fm.amount.value) || 0) + st * +x.dataset.step;
@@ -655,7 +667,7 @@ function foodEditor(food, after) {
     <label>Name<input name="name" required maxlength="200" value="${esc(food ? food.name : '')}"></label>
     <div class="two"><label>Brand<input name="brand" value="${esc(food && food.brand || '')}"></label><label>Barcode<input name="barcode" inputmode="numeric" value="${esc(food && food.barcode || '')}"></label></div>
     <div class="two"><label>Serving<input name="serving_label" value="${esc(food && food.serving ? food.serving.label : '1 serving')}"></label><label>Serving grams<input name="serving_g" inputmode="decimal" value="${food && food.serving && food.serving.g ? r1(food.serving.g) : ''}"></label></div>
-    <p class="small muted">Nutrition per serving:</p>${macroInputs(ps)}
+    <p class="small muted">Nutrition per serving:</p>${macroInputs({...ps,source:food?.source,origin:food?.origin,origin_edited:food?.origin_edited})}
     <label class="check"><input type="checkbox" name="favorite"${food && food.favorite ? ' checked' : ''}> Favourite (shows first)</label>
     <div class="actions">${food ? '<button type="button" class="ghost danger" id="fe-del">Delete</button><span class="spacer"></span>' : ''}<button class="primary">Save</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,owner);
@@ -663,7 +675,7 @@ function foodEditor(food, after) {
     f.onsubmit = async (e) => {
       e.preventDefault();
       const body = {name: f.name.value.trim(), brand: f.brand.value.trim() || null, barcode: f.barcode.value.trim() || null, serving_label: f.serving_label.value.trim() || '1 serving',
-        serving_g: n(f.serving_g), kcal: n(f.kcal) || 0, protein_g: n(f.protein_g) || 0, carbs_g: n(f.carbs_g) || 0, fat_g: n(f.fat_g) || 0, fiber_g: n(f.fiber_g), favorite: f.favorite.checked};
+        serving_g: n(f.serving_g), kcal: n(f.kcal) || 0, protein_g: n(f.protein_g) || 0, carbs_g: n(f.carbs_g) || 0, fat_g: n(f.fat_g) || 0, fiber_g: n(f.fiber_g), ...extraFormValues(f), favorite: f.favorite.checked};
       if (!body.kcal) body.kcal = Math.round(body.protein_g * 4 + body.carbs_g * 4 + body.fat_g * 9);
       try { await api(food ? `/api/food/foods/${food.id}` : '/api/food/foods', json(food ? 'PUT' : 'POST', body)); close(); toast('Food saved'); if (after) after(); } catch (x) { toast(x.message); }
     };
@@ -1036,14 +1048,15 @@ function goalSheet(D) {
   });
 }
 function targetsSheet() {
-  const m = App.me;
+  const m = App.me,owner=readOwner();
   sheet('Daily targets', `<p class="small"><a href="/food/setup" id="tg-help">Help me choose targets</a></p><form class="form" id="tg"><div class="mac4">
     <label>Calories<input name="kcal_target" inputmode="numeric" value="${esc(m.kcal_target || '')}"></label>
     <label>Protein g<input name="protein_target" inputmode="numeric" value="${esc(m.protein_target || '')}"></label>
     <label>Carbs g<input name="carbs_target" inputmode="numeric" value="${esc(m.carbs_target || '')}"></label>
     <label>Fat g<input name="fat_target" inputmode="numeric" value="${esc(m.fat_target || '')}"></label>
     <label>Fiber g<input name="fiber_target" inputmode="numeric" value="${esc(m.fiber_target || '')}"></label></div>
-    <p class="small muted" id="tg-sum"></p><div class="actions"><button class="primary">Save targets</button></div></form>`, (b, close) => {
+    ${extraInputs(m,true)}<p class="small muted" id="tg-sum"></p><div class="actions"><button class="primary">Save targets</button></div></form>`, (b, close) => {
+    guardFoodSheet(b,close,owner);
     $('#tg-help', b).onclick = () => close();
     const f = $('#tg', b), n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value));
     const sum = () => { const p = n(f.protein_target) || 0, c = n(f.carbs_target) || 0, fat = n(f.fat_target) || 0, k = p * 4 + c * 4 + fat * 9;
@@ -1051,8 +1064,8 @@ function targetsSheet() {
     f.oninput = sum; sum();
     f.onsubmit = async (e) => {
       e.preventDefault();
-      const body = {kcal_target: n(f.kcal_target), protein_target: n(f.protein_target), carbs_target: n(f.carbs_target), fat_target: n(f.fat_target), fiber_target: n(f.fiber_target)};
-      try { await api('/api/food/targets', json('PUT', body)); Object.assign(App.me, body); close(); refresh(); toast('Targets saved'); } catch (x) { toast(x.message); }
+      const body = {kcal_target: n(f.kcal_target), protein_target: n(f.protein_target), carbs_target: n(f.carbs_target), fat_target: n(f.fat_target), fiber_target: n(f.fiber_target),...extraFormValues(f,true)};
+      try { await api('/api/food/targets', json('PUT', body)); if(owner!==readOwner())return;Object.assign(App.me, body); close(); refresh(); toast('Targets saved'); } catch (x) { toast(x.message); }
     };
   });
 }
@@ -1349,6 +1362,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
       ${tile('Weight trend', pTr == null ? '–' : sgn(pTr) + wconv(Math.abs(pTr)).toFixed(1), pTr == null ? '' : wu, pTr == null ? 'log weight to see it' : 'over these days', '', '/food?view=weight')}
       ${tile('Avg protein', S.avg_protein_g == null ? '–' : r0(S.avg_protein_g), 'g', T.protein_target ? `target ${r0(T.protein_target)} g` : '')}
       ${tile('Days logged', S.logged, `/ ${S.past_days}`, S.past_days ? `${Math.round(S.logged / S.past_days * 100)}%` : '')}</div>
+    ${I.extra_nutrients?`<div class="card">${extraTotals(I.extra_nutrients,{period:true})}</div>`:''}
     ${I.insights.length ? `<div class="card"><h2>Insights</h2>${I.insights.map(([k, t]) => `<div class="insight estimate-note"><span class="dot ${k === 'good' ? 'good' : k === 'warn' ? 'warn' : 'info'}"></span><div><span>${esc(t)}</span></div></div>`).join('')}</div>` : ''}`,
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
       <p class="small muted estimate-note">${esc(burnNote)} The goal line is your food target; eating below it does not by itself establish a calorie deficit.</p></div>
