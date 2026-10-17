@@ -43,8 +43,8 @@ def insights_data(c, uid, days=30, since=None):
                        FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s AND day < %s AND source <> 'import'
                        GROUP BY lower(regexp_replace(name, '\\s*\\(.*\\)$', '')) ORDER BY sum(kcal) DESC LIMIT 8""",
                     (uid, start, today, today)).fetchall()
-    goals = {r['day']: float(r['kcal']) for r in c.execute('SELECT day, kcal FROM day_goals WHERE user_id = %s AND day BETWEEN %s AND %s', (uid, start, today)).fetchall()}
     ex = energy.exercise_by_day(c, uid, ctx['tz'], start - dt.timedelta(days=28), today, ctx['kg'])
+    goals=energy.day_goals(c,uid,start,today,ctx=ctx,exercise=ex)
     over = energy.burn_overrides(c, uid, start, today)
     resting = energy.resting_by_day(c, uid, ctx['tz'], start, today) if info['resting_source'] == 'apple_health' else {}
     least = energy.full_day_min(c, uid, info['base'])
@@ -61,7 +61,7 @@ def insights_data(c, uid, days=30, since=None):
         burn = energy.burn_for_day(info, exk, d, resting, over)
         burned = burn['total']
         default = prof.get('kcal_target')
-        goal = goals.get(d, default if default else None)      # workouts deepen the deficit, they don't raise the goal
+        goal=goals[d]['kcal']
         eaten = float(f['kcal']) if f and f['kcal'] is not None else None
         counted = eaten is not None and d < today and not (typical and eaten < 0.5 * typical) and eaten >= least
         deficit = burned - eaten if counted and burned is not None else None

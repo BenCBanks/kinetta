@@ -174,8 +174,9 @@ class AccountTools:
         eaten = c.execute('''SELECT coalesce(sum(kcal), 0) AS kcal, coalesce(sum(protein_g), 0) AS protein_g
                             FROM food_entries WHERE user_id = %s AND day = %s''', (self._uid, r.day)).fetchone()
         unknown=c.execute("SELECT bool_or(protein_g IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'protein_g') AS protein, bool_or(kcal IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'kcal') AS kcal FROM food_entries WHERE user_id=%s AND day=%s",(self._uid,r.day)).fetchone()
-        custom = c.execute('SELECT kcal FROM day_goals WHERE user_id = %s AND day = %s', (self._uid, r.day)).fetchone()
-        kcal = custom['kcal'] if custom else p.get('kcal_target')
+        # Only the calculated food goal enters the tool response; no raw training/body records.
+        from . import energy
+        kcal=energy.day_goal(c,self._uid,r.day)['kcal']
         dishes = c.execute('SELECT * FROM dishes WHERE user_id = %s ORDER BY updated DESC LIMIT 30', (self._uid,)).fetchall()
         candidates = []
         for raw in dishes:

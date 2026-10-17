@@ -108,7 +108,7 @@ def act(uid,cid,action,baseline=None):
             data,latest=_make(c,uid,p,today)
             if not data['ready'] or baseline!=row['baseline'] or latest!=row['baseline']:
                 raise HTTPException(409,'Your records or goal changed. Review the updated check-in, then tap Accept again.')
-            c.execute('UPDATE profile SET kcal_target=%s WHERE user_id=%s',(data['suggested_kcal'],uid))
+            c.execute('UPDATE profile SET kcal_target=%s,training_target_average=%s,training_target_kcal=%s WHERE user_id=%s',(data['suggested_kcal'],data['avg_exercise'],data['suggested_kcal'],uid))
         elif action!='later':raise ValueError('Unknown check-in action')
         row=c.execute('''UPDATE nutrition_checkins SET state=%s,acted_at=now(),updated=now()
                          WHERE user_id=%s AND id=%s RETURNING *''',('accepted' if action=='accept' else 'deferred',uid,cid)).fetchone()

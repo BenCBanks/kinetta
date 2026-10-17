@@ -2017,3 +2017,14 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .combined-week .stat small { font-size: .75em; }
 .combined-week .stat b { font-size: 1.2em; }
 .combined-week .stat b i { font-size: .7em; }
+
+/* Optional food guidance follows the user's text size. */
+.training-food-card, #training-settings { font-size: 1rem; }
+.training-food-card p { margin-block: 12px; }
+.training-food-card summary { font-size: 1em; line-height: 1.4; }
+.training-food-card details { border-top: 1px solid var(--line); padding-block: 12px; }
+.training-food-card .small, #training-settings .small { font-size: .9em; }
+#training-settings label, #training-settings button { font-size: 1em; }
+
+.training-food-card summary, #training-settings summary, #training-settings label.check { min-height: 44px; display: flex; align-items: center; gap: 12px; }
+.training-food-card .linkbtn, .training-food-card a.small, #training-settings .linkbtn { min-height: 44px; display: inline-flex; align-items: center; }

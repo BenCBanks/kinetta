@@ -30,6 +30,9 @@ node dev/tests/test_native_sync.js
 node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
 node dev/tests/test_combined_week_ui.js
+
+python3 dev/tests/test_training_food.py
+node dev/tests/test_training_food_ui.js
 node dev/tests/test_workout_sync_status.js
 node dev/tests/test_native_resting.js
 node dev/tests/test_social_gestures.js
@@ -115,6 +118,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_numbers_incontainer
 docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_incontainer.py
 
 docker compose -p "$P" exec -T app python - < dev/tests/activity_food_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/training_food_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
 echo "== all passed"

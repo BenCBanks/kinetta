@@ -1301,6 +1301,7 @@ function deleteSheet() {
         const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
         await cleanup(()=>Native.forget({deleted:true}));
         await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
+        await cleanup(()=>typeof TrainingFood!=='undefined'?TrainingFood.eraseDevice():null);
         await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
         await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
         await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));
