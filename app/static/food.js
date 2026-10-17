@@ -135,18 +135,7 @@ function yesterdayMeal(day, meal) {
           const result = await addEntries(items);
           if (readOwner() !== owner) return;
           close(); Native.haptic('light');
-          if (!result.queued) {
-            let busy = false, done = false;
-            const remaining = new Set(result.ids);
-            const undo = async () => {
-              if (busy || done || readOwner() !== owner) return;
-              busy = true;
-              try { for (const id of remaining) { if (readOwner() !== owner) return; try { await api(`/api/food/entries/${id}`, {method:'DELETE'}); } catch(e) { if(e.status !== 404) throw e; } remaining.delete(id); } done = true; refresh(); toast('Meal removed'); }
-              catch(x) { if (readOwner() === owner) toast('Could not undo · try again',undo); }
-              finally { busy = false; }
-            };
-            toast('Meal logged',undo);
-          }
+          toast(result.queued?'Meal saved on this phone · waiting to send':'Meal logged',result.undo);
         }
         catch(x) { if (b.isConnected) { $('#ym-save',b).disabled = false; toast(x.message); } }
       };
@@ -313,18 +302,43 @@ const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.u
 const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
 
 async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
+  const owner=readOwner();
   items = items.map((it) => ({...foodStorage(it), client_id: it.client_id || newId()}));
   const query=new URLSearchParams();if(thread){query.set('thread','true');query.set('captured_at',new Date().toISOString());}if(restoreFrom)query.set('restore_from',restoreFrom);
   const r = await sendOrQueue('/api/food/entries'+(query.size?'?'+query:''), 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
+  if(readOwner()!==owner)return r;
+  r.undo=foodUploadUndo(items,owner);
   if (r.queued) {   // offline: show them now, marked "waiting to send"
     for (const it of items) patchDay(it.day, (d) => {
       d.entries.push({...it, id: 'q-' + it.client_id, pending: true});
-      for (const k of ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g']) d.totals[k] = (d.totals[k] || 0) + (it[k] || 0);
+      for(const k of FOOD_NUTRIENTS){d.totals[k]=(d.totals[k]||0)+(it[k]||0);if(d.unknown_nutrients&&(it[k]==null||it.ref?.unknown_nutrients?.includes(k)))d.unknown_nutrients[k]=(d.unknown_nutrients[k]||0)+1;}
     });
-    if(location.pathname!=='/food/describe')render(); toast('Saved on this phone - it sends when you are back online'); return {queued: true};
+    if(location.pathname!=='/food/describe')render(); toast('Saved on this phone · waiting to send',r.undo); return r;
   }
   if(typeof FoodThread!=='undefined'&&r.messages){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
-  refresh(); return r;
+  refresh(); toast(items.length===1?`Logged ${items[0].name}`:'Meal logged',r.undo); return r;
+}
+// Keep the cancellation durable before removing an upload: it may already be in flight.
+function foodUploadUndo(items,owner) {
+  const ids=new Set(items.map(it=>it.client_id));let busy=false,done=false;
+  const undo=async()=>{
+    if(busy||done||readOwner()!==owner)return;busy=true;
+    try {
+      const r=await sendOrQueue('/api/food/entries/undo','POST',{client_ids:[...ids],confirm:true},'Undo food');
+      if(readOwner()!==owner)return;
+      Q.save(Q.all().flatMap(op=>{
+        if(!Q.owns(op)||op.path.split('?')[0]!=='/api/food/entries'||!Array.isArray(op.body))return [op];
+        const body=op.body.filter(it=>!ids.has(it.client_id));return body.length?[{...op,body}]:[];
+      }));netbar();
+      for(const day of new Set(items.map(it=>it.day)))patchDay(day,d=>{
+        const removed=d.entries.filter(e=>ids.has(e.client_id));d.entries=d.entries.filter(e=>!ids.has(e.client_id));
+        for(const e of removed)for(const k of FOOD_NUTRIENTS){d.totals[k]=Math.max(0,(d.totals[k]||0)-(e[k]||0));if(d.unknown_nutrients&&(e[k]==null||e.ref?.unknown_nutrients?.includes(k)))d.unknown_nutrients[k]=Math.max(0,(d.unknown_nutrients[k]||0)-1);}
+      });
+      done=true;if(r.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(r);
+      if(!r.queued)refresh();else if(location.pathname!=='/food/describe')render();
+      toast(r.queued?'Undo saved on this phone · waiting to send':r.kept?'Later-edited foods were kept. Check your food log.':'Food removed');
+    }catch(e){if(readOwner()===owner)toast('Could not undo · try again',undo);}finally{busy=false;}
+  };return undo;
 }
 async function copyDay(from, to, meal) {
   try { const r = await api('/api/food/copy', json('POST', {from_day: from, to_day: to, meal: meal || null})); refresh(); toast(r.copied ? `Copied ${r.copied} item${r.copied > 1 ? 's' : ''}` : 'Nothing to copy'); }
@@ -424,8 +438,8 @@ function entrySheet(e, day) {
     $('#es-again', b).onclick = async () => {   // the same food and amount, today in the meal for now
       if(owner!==readOwner()){close();return;}
       const btn = $('#es-again', b); if (btn.disabled) return; btn.disabled = true;
-      try { await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
-        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,e[k]??null])), source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(`Logged ${e.name} again today`); }
+      try { const result=await addEntries([{day: isoDay(new Date()), meal: guessMeal(), name: e.name, brand: e.brand, amount: e.amount, unit: e.unit, kcal: e.kcal,
+        protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g, fiber_g: e.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,e[k]??null])), source: e.source, ref: e.ref}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Logged ${e.name} again today`,result.undo); }
       catch (x) { toast(x.message); if (btn.isConnected) btn.disabled = false; }
     };
   });
@@ -558,7 +572,7 @@ async function tUsuals(body, where, close) {
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
       try { const result=await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
-        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
+        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
@@ -624,7 +638,7 @@ function savedSheet(m, w, closeParent, after) {
       if (!k) { toast('How many servings?'); return; }
       const sc = (v) => (v == null ? null : v * k);
       const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}));
-      try { await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`); } catch (x) { toast(x.message); }
+      try { const result=await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`,result.undo); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
       if (!confirm(`Delete the saved meal ${m.name}?`)) return;
@@ -648,7 +662,7 @@ function tQuick(body, where, close) {
     it.kcal = f.kcal.value.trim() ? n(f.kcal) : Math.round(it.protein_g * 4 + it.carbs_g * 4 + it.fat_g * 9);
     if (!it.kcal && !it.protein_g) { toast('Enter calories or macros'); return; }
     button.disabled=true;
-    try { const result=await addEntries([{...it, ...where()}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`); } catch (x) { toast(x.message);button.disabled=false; }
+    try { const result=await addEntries([{...it, ...where()}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`,result.undo); } catch (x) { toast(x.message);button.disabled=false; }
   };
 }
 
@@ -700,7 +714,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
       const v = calc();
       const ref = {...(f.dish_id?{dish_id:f.dish_id,weight_g:f.weight_g,dish_kcal:f.dish_kcal}:{}),origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
       try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}],{thread:location.pathname==='/food/describe'});
-        close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`); } catch (x) { toast(x.message); }
+        close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`,result.undo); } catch (x) { toast(x.message); }
     };
   });
 }
