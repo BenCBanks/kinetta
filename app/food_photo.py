@@ -106,7 +106,7 @@ def ask(parts, schema, label, timeout=45):
         req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', body,
                                      {'Content-Type': 'application/json', 'x-goog-api-key': os.environ.get('GEMINI_API_KEY', '')})
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r: data = json.load(r)
+            with ai_budget.lease(attempt), urllib.request.urlopen(req, timeout=timeout) as r: data = json.load(r)
             ai_budget.settle(attempt, data)
             return json.loads(data['candidates'][0]['content']['parts'][-1]['text']), data, model
         except urllib.error.HTTPError as e:
@@ -119,6 +119,8 @@ def ask(parts, schema, label, timeout=45):
         except Exception as e:      # an answer that isn't the JSON asked for
             print(f'{label}: failed', repr(e)[:300], flush=True)
             raise HTTPException(502, "Couldn't get an estimate - try again")
+        finally:
+            ai_budget.finish(attempt)
         time.sleep(2)
 
 
@@ -129,8 +131,9 @@ def brake(user_id, limit=DAILY_LIMIT, kind='photo', what='estimates'):
 
 @router.post('/photo')
 def photo(body: PhotoIn, user=Depends(current_user)):
+    ai_budget.require_enabled()
     ai_access.require(user['id'], 'food')
-    if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.OFF)
+    if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.off())
     key = os.environ.get('GEMINI_API_KEY')
     if not key: raise HTTPException(503, 'Photo logging needs a Gemini key on the server')
     note = (body.note or '').strip()
@@ -145,7 +148,7 @@ def photo(body: PhotoIn, user=Depends(current_user)):
             'means two of the item just discussed), so list the meal as it stands after the last message.' if '\n' in note else '')
     parts = [{'text': PROMPT.format(what=what)}]
     parts.extend({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs)
-    with ai_budget.scope(user['id']):
+    with ai_budget.scope(user['id'],feature='food photo' if imgs else 'food description'):
         out, data, model = ask(parts, SCHEMA, 'food photo')
     items = []
     for it in (out.get('items') or [])[:30]:
@@ -189,8 +192,9 @@ class LabelIn(BaseModel):
 @router.post('/label')
 def label(body: LabelIn, user=Depends(current_user)):
     """Read a nutrition label: {name, brand, serving: {label, g}, servings, package_g, per_serving, per100}. Nothing is saved."""
+    ai_budget.require_enabled()
     ai_access.require(user['id'], 'food')
-    if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.OFF)
+    if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.off())
     if not os.environ.get('GEMINI_API_KEY'): raise HTTPException(503, 'Reading labels needs a Gemini key on the server')
     imgs = image_batch(body.image, body.images)
     if not imgs: raise HTTPException(400, 'Add photos of one ingredient or package')

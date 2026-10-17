@@ -72,7 +72,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
       finished setup never leaves an empty heading/card. Physical-iPhone permission/haptic/text checks remain separate.
 - [x] Describe what you ate in your own words (several foods, amounts, day/meal, follow-up corrections): matched against your own meals, foods and history with no AI; only unknown foods go to the AI estimate, and without AI you search for them
 - [x] Log by search (USDA + Open Food Facts), barcode, quick add (cal/P/C/F), custom foods, saved meals, recipes
-- [x] Photo (+ optional description) -> AI estimate (Gemini Flash-Lite, ~$0.001/photo on your own key) -> check -> logged
+- [x] Photo (+ optional description) -> AI estimate (Gemini Flash-Lite; cost varies with input and retries, with durable caps) -> check -> logged
 - [x] Edit / move / copy / delete any entry; copy a day or a meal
 - [x] Daily totals vs targets (calories + macros), remaining
 - [x] Weight log + trend line; later: expenditure estimate from weight trend + food
@@ -124,3 +124,6 @@ See [Recording activities](docs/activity-tracking.md).
   estimates reserve a shared daily dollar budget for every attempt, with token-only
   accounting and a pause switch; non-AI logging remains available. See
   [AI budgets](docs/ai-budgets.md) for coverage and conservative failure behavior.
+- Coach notes/reviews and every Kit tool-loop turn use the same durable provider
+  budget and kill switch as food estimates, with per-account/service attempt and
+  concurrency caps. Paid unbounded search grounding is paused; USDA lookups remain.

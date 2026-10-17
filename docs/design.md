@@ -395,3 +395,7 @@ work. Do not discard the person's message or replace it with zero-calorie food.
 Structured estimates share a durable daily service reservation; a failed/unknown
 bill keeps its hold. This backend foundation adds no new screen. The thread UI must
 present its fallback and retained text inline when it is implemented.
+
+AI pause/busy replies apply consistently to food and Kit. Opening records never
+spends tokens. A busy response must preserve pending food text and show the normal
+search/manual fallback. Existing generated notes remain readable when AI is paused.

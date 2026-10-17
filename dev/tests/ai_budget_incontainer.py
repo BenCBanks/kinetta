@@ -56,7 +56,7 @@ class Budget(unittest.TestCase):
   def attempt(_):
    try:return self.reserve()
    except HTTPException as e:self.assertEqual(e.status_code,429);return None
-  with patch.dict(os.environ,{'KINETTA_FOOD_AI_DAILY_USD':cap}):
+  with patch.dict(os.environ,{'KINETTA_FOOD_AI_DAILY_USD':cap,'KINETTA_AI_USER_DAILY_MICROUSD':'100000000'}):
    with futures.ThreadPoolExecutor(max_workers=8) as pool:ids=[r for r in pool.map(attempt,range(12)) if r]
   self.assertEqual(len(ids),2)
   B.settle(ids[0],{'usageMetadata':{'promptTokenCount':1000,'candidatesTokenCount':50,'thoughtsTokenCount':150}})

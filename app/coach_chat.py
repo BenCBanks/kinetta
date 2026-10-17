@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
 
-from . import coach, db
+from . import coach, db, ai_budget
 from .coach_tools import AccountTools, Empty, specifications
 
 MAX_ROUNDS, MAX_CALLS = 5, 12
@@ -101,9 +101,15 @@ def _gemini_turn(messages, definitions):
     model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
     req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
                                  json.dumps(body, default=str).encode(), {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
+    attempt=ai_budget.reserve(model,'Kit question',payload=body)
     try:
-        with urllib.request.urlopen(req, timeout=45) as response: result = json.load(response)
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError): raise ValueError('Kit could not answer right now. Try again shortly.') from None
+        with ai_budget.lease(attempt), urllib.request.urlopen(req, timeout=45) as response: result = json.load(response)
+    except urllib.error.HTTPError as e:
+        ai_budget.release_failed(attempt,e.code)
+        raise ValueError('Kit could not answer right now. Try again shortly.') from None
+    except (urllib.error.URLError, TimeoutError): raise ValueError('Kit could not answer right now. Try again shortly.') from None
+    else: ai_budget.settle(attempt,result)
+    finally: ai_budget.finish(attempt)
     content = (result.get('candidates') or [{}])[0].get('content')
     if not content: raise ValueError('Kit did not return an answer')
     messages.append(content)  # Preserve function IDs and thought signatures exactly, including parallel calls.
@@ -114,10 +120,15 @@ def _gemini_turn(messages, definitions):
 
 
 def _claude_turn(messages, definitions):
+    payload=dict(model=coach.MODEL,max_tokens=2500,system=SYSTEM,tools=definitions,messages=messages,temperature=.2)
+    attempt=ai_budget.reserve(coach.MODEL,'Kit question',payload=payload)
     try:
-        response = coach.client().messages.create(model=coach.MODEL, max_tokens=2500, system=SYSTEM,
-                                                  tools=definitions, messages=messages, temperature=.2)
-    except Exception: raise ValueError('Kit could not answer right now. Try again shortly.') from None
+        with ai_budget.lease(attempt): response = coach.client().messages.create(**payload)
+    except Exception as e:
+        ai_budget.release_failed(attempt,getattr(e,'status_code',None))
+        raise ValueError('Kit could not answer right now. Try again shortly.') from None
+    else: ai_budget.settle_claude(attempt,response)
+    finally: ai_budget.finish(attempt)
     content = [block.model_dump(exclude_none=True) for block in response.content]
     messages.append({'role': 'assistant', 'content': content})
     calls = [{'name': x['name'], 'args': x['input'], 'id': x['id']} for x in content if x['type'] == 'tool_use']
@@ -128,7 +139,7 @@ def _claude_turn(messages, definitions):
 
 def answer(uid, question, *, turn=None):
     """`turn` is a stand-in hook for deterministic tests; production uses the configured provider."""
-    if not coach.allowed(uid): raise ValueError(coach.OFF)
+    if not coach.allowed(uid): raise ValueError(coach.off())
     with db.coach_connect(uid) as c:
         if not coach.health_ok(c, uid): raise ValueError(coach.HEALTH_NO)
     tools, evidence, definitions = AccountTools(uid), [], specifications()
@@ -137,7 +148,8 @@ def answer(uid, question, *, turn=None):
     turn = turn or (_gemini_turn if provider == 'gemini' else _claude_turn)
     usage, began, calls_used = {'promptTokenCount': 0, 'candidatesTokenCount': 0, 'thoughtsTokenCount': 0, 'totalTokenCount': 0}, time.monotonic(), 0
     for _ in range(MAX_ROUNDS):
-        calls, text, tokens = turn(messages, definitions)
+        with ai_budget.scope(uid):
+            calls, text, tokens = turn(messages, definitions)
         for key in usage: usage[key] += int(tokens.get(key) or 0)
         if not calls:
             if not evidence: raise ValueError('Kit did not consult your data. Please try again.')

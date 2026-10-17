@@ -65,4 +65,5 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_thread_facts_incont
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_log_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_edit_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/ai_budget_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/ai_service_incontainer.py
 echo "== all passed"

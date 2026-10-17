@@ -53,3 +53,38 @@ before this can be described as a cap on **all** service AI spending. The remain
 food-thread work must not claim that broader guarantee from this PR.
 
 Failure billing and token-estimate references: [Google billing](https://ai.google.dev/gemini-api/docs/billing#am-i-charged-for-failed-requests), [token counting](https://ai.google.dev/gemini-api/docs/tokens), [Gemini 3 media resolution](https://ai.google.dev/gemini-api/docs/gemini-3#media-resolution). UTC-day caps reset at midnight UTC (8 pm US Eastern during daylight time, 7 pm in standard time). Anonymous grounded-product calls remain denied; authenticated routes provide their current user through the existing scope.
+
+## Shared generation budget
+
+Coach notes, reviews, Kit tool turns and food estimates share the preferred
+`KINETTA_AI_DAILY_USD` setting (default $5/day UTC); the older food setting remains
+a fallback. Each retry/fallback has its own request-sized reservation. Gemini is
+preferred when its key is configured; its flash → flash → lite retry sequence is
+unchanged. Explicit HTTP 4xx/5xx refunds the hold; unknown network failures retain
+it. Claude uses its actual max_tokens and locally estimated input too, with no
+hidden SDK retries or model fallback. Prompts/models/output settings are unchanged.
+
+| Limit | Default |
+| --- | ---: |
+| KINETTA_AI_CONCURRENT | 8 |
+| KINETTA_AI_USER_CONCURRENT | 2 |
+| KINETTA_AI_DAILY_ATTEMPTS | 2000 |
+| KINETTA_AI_USER_DAILY_ATTEMPTS | 120 |
+| KINETTA_AI_USER_DAILY_MICROUSD | 20% of service budget ($1 at default) |
+
+A live provider call renews its 120-second concurrency lease every 30 seconds.
+A crashed worker stops renewing; its slot expires but its unknown cost stays held.
+Finished calls release their slot. Settlements lock their attempt and update the
+service total atomically, without taking the global reservation advisory lock.
+
+Claude Opus 5.5 uses $4/$20 per million input/output tokens; cache writes are
+conservatively counted twice. The same configured pricing-review date applies.
+
+Paused generation has a separate `paused` API/UI state; it does not tell people
+to change consent. Existing notes and non-AI features remain available.
+Paid search grounding remains disabled; cooking sends package words only to USDA.
+
+The operator-only `python -m app.ai_budget YYYY-MM-01` report summarizes tokens,
+estimated/held cost, active accounts and thread-linked food attribution. It has no
+HTTP route or private text; historical unlinked foods/missing usage stay unknown.
+The ledger records feature/request UUIDs and completion times for that attribution.

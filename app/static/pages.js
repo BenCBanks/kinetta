@@ -162,13 +162,14 @@ async function meOverview(el) {
   }).catch(() => {});
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
-    if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
+    if (!r.enabled && !r.paused && !r.latest) { box.innerHTML = ''; return; }
     const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
     async function reviewNow(btn, close) {
       btn.disabled = true; btn.textContent = 'Thinking…';
       try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
       catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
     }
+    if (r.paused) { box.innerHTML = `<p class="small muted">AI is paused. Search, barcodes and manual logging still work.</p>${r.latest ? `<p>${esc(r.latest.text)}</p>` : ''}`; return; }
     box.innerHTML = `<button class="icon-btn kit-help" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}</button>`;
     $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', wk
       ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text">${esc(r.latest.text)}</p>
@@ -1118,7 +1119,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       </div>
-    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Optional training notes and food estimates. AI consent is separate from access.</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
+    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}

@@ -1322,6 +1322,7 @@ function dietCoachContent(box) {
         <button class="primary wide" id="dc-go">${svg('sparkle')}Review my eating</button></div>`;
     const b = $('#dc-go', box);
     if (!aiCan('coach')) { if (L) b.remove(); else box.innerHTML = ''; return; }
+    if (r.paused) { b.replaceWith(Object.assign(document.createElement('p'), {className:'small muted',textContent:'AI is paused. Search, barcodes and manual logging still work.'})); return; }
     b.onclick = async () => {
       if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
       b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';
