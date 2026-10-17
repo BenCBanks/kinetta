@@ -103,19 +103,20 @@ api_dishes.dish_delete(cd, user={'id': uid})
 from app.auth import new_session, token_hash
 sent = []
 with db.connect() as c:
-    c.execute('DELETE FROM native_push_devices WHERE user_id = %s', (uid,))
-    push_session = new_session(c, uid, 'zz_test_native_push')
-    c.execute("INSERT INTO native_push_devices (user_id, token, environment, session_hash) VALUES (%s, %s, 'production', %s)", (uid, 'ab' * 32, token_hash(push_session)))
-    nid = c.execute("INSERT INTO notifications (user_id, kind, actor_id, dish_id) VALUES (%s, 'dish_shared', %s, %s) RETURNING id", (uid, jid, tray)).fetchone()['id']
+    c.execute('DELETE FROM native_push_devices WHERE user_id = %s', (jid,))
+    cook_name = c.execute('SELECT name FROM users WHERE id=%s',(uid,)).fetchone()['name']
+    push_session = new_session(c, jid, 'zz_test_native_push')
+    c.execute("INSERT INTO native_push_devices (user_id, token, environment, session_hash) VALUES (%s, %s, 'production', %s)", (jid, 'ab' * 32, token_hash(push_session)))
+    nid = c.execute("INSERT INTO notifications (user_id, kind, actor_id, dish_id) VALUES (%s, 'dish_shared', %s, %s) RETURNING id", (jid, uid, tray)).fetchone()['id']
 ck(notify.push(nid, send=lambda device, data: sent.append((device, data))) == 1, 'native pushed once')
-ck(sent[0][0]['token'] == 'ab' * 32 and sent[0][1]['title'] == 'Jordan Lee shared Chicken and veg traybake with you' and sent[0][1]['body'] == ''
+ck(sent[0][0]['token'] == 'ab' * 32 and sent[0][1]['title'] == f'{cook_name} shared Chicken and veg traybake with you' and sent[0][1]['body'] == ''
    and sent[0][1]['url'] == f'/food/cook/{tray}', 'native payload')
-notify.settings(notify.PrefsIn(dishes=False), user={'id': uid})
+notify.settings(notify.PrefsIn(dishes=False), user={'id': jid})
 ck(notify.push(nid, send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'turned off: not pushed')
-notify.settings(notify.PrefsIn(dishes=True), user={'id': uid})
+notify.settings(notify.PrefsIn(dishes=True), user={'id': jid})
 with db.connect() as c:
     c.execute('DELETE FROM notifications WHERE id = %s', (nid,)); c.execute('DELETE FROM sessions WHERE token_hash = %s', (token_hash(push_session),))
-    ck(not c.execute('SELECT 1 FROM native_push_devices WHERE user_id = %s', (uid,)).fetchone(), 'logout cascades device revocation')
+    ck(not c.execute('SELECT 1 FROM native_push_devices WHERE user_id = %s', (jid,)).fetchone(), 'logout cascades device revocation')
     c.execute('UPDATE profile SET ai_ok = false'); c.execute('DELETE FROM ai_requests')
 # --- 2026-10-12: a dish is kept until deleted, however old; one opened and left empty for a day is cleared away ---
 old1 = api_dishes.dish_add(api_dishes.DishIn(name='Test old stew'), user={'id': uid})['id']

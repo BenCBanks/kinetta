@@ -509,23 +509,48 @@ function tSearch(body, where, close) {
   };
   $('#ts-f', body).onsubmit = (e) => { e.preventDefault(); clearTimeout(timer); run(inp.value.trim()); inp.blur(); };
 }
-const recentToFood = (r) => (r.ref ? {...r.ref, name: r.name, brand: r.brand, _last: r} :
-  {source: 'recent', name: r.name, brand: r.brand, per_serving: {kcal: r.kcal / r.amount, protein_g: r.protein_g / r.amount, carbs_g: r.carbs_g / r.amount, fat_g: r.fat_g / r.amount, fiber_g: r.fiber_g == null ? null : r.fiber_g / r.amount},
-   serving: {label: r.unit === 'serving' ? '1 serving' : `1 ${r.unit}`, g: null}, _last: r, _unit: r.unit});
+function recentToFood(r){
+  const ref=r.ref||{},count=Number(r.amount),per=Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,count>0&&nutrientKnown(r,k)?r[k]/count:null]));
+  // Reuse current logged edits, while retaining a source's known serving weight
+  // for a later grams/servings switch. A source-only ref is still usable.
+  const sourceGrams=Number(ref.serving?.g),grams=r.unit==='g'?1:r.unit==='dish'?ref.weight_g:r.unit==='serving'&&sourceGrams>0?sourceGrams:null;
+  const servingGrams=r.unit==='g'&&sourceGrams>0?sourceGrams:grams;
+  const servingValues=r.unit==='g'&&sourceGrams>0?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,per[k]==null?null:per[k]*sourceGrams])):per;
+  return {...ref,source:r.source||ref.source||'recent',name:r.name,brand:r.brand,per_serving:servingValues,
+    per100:grams>0?Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,per[k]==null?null:per[k]*100/grams])):null,
+    serving:{label:sourceGrams>0&&['g','serving'].includes(r.unit)?(ref.serving?.label||`${sourceGrams} g`):r.unit==='serving'?'1 serving':`1 ${r.unit}`,g:servingGrams||null},
+    unknown_nutrients:FOOD_NUTRIENTS.filter(k=>!nutrientKnown(r,k)),_last:r,_unit:r.unit};
+}
+
+function sharedRecipeHtml(dishes){return `<section class="shared-recipes"><h3>Shared with you</h3><div class="shared-recipe-list">${dishes.map((d,i)=>`<button type="button" class="shared-recipe-row" data-shared-recipe="${i}" aria-label="Log a portion of ${esc(d.name)}, shared by ${esc(d.owner.name)}"><span><b>${esc(d.name)}</b><small>From ${esc(d.owner.name)} · ${d.serving==='one'||!d.weight_g?'Choose your servings':'Choose your portion in grams'}</small></span>${svg('chev')}</button>`).join('')}</div></section>`;}
+async function sharedRecipes(box,where,after=()=>{},isActive=()=>true){
+  const owner=readOwner();if(!box)return;const version=box._sharedVersion=(box._sharedVersion||0)+1,valid=()=>box.isConnected&&version===box._sharedVersion&&owner===readOwner()&&isActive();
+  if(!valid())return;const path='/api/dishes/shared',hit=App.cache.get(path),cached=hit?.owner===owner?hit.data:null;
+  const draw=dishes=>{if(!valid())return;box.innerHTML=dishes.length?sharedRecipeHtml(dishes):'';
+    $$('[data-shared-recipe]',box).forEach(button=>button.onclick=()=>{if(!valid())return;dishLogSheet(dishes[+button.dataset.sharedRecipe],where(),edit=>{if(!edit&&valid()){after();if(valid())sharedRecipes(box,where,after,isActive);}});});
+    if(typeof document!=='undefined'&&document.documentElement.classList.contains('keyboard-open')){const form=box.closest('.thread-composer'),field=form?.querySelector('textarea');if(field&&document.activeElement===field)requestAnimationFrame(()=>{if(valid())field.parentElement.scrollIntoView({block:'nearest'});});}
+  };
+  if(cached)draw(cached);const loading=setTimeout(()=>{if(valid()&&!box.innerHTML&&!cached)box.innerHTML=skel(1);},300);
+  try{const dishes=await api(path);if(!valid())return;App.cache.set(path,{data:dishes,owner,at:Date.now()});draw(dishes);}
+  catch(e){if(!valid())return;if(cached){draw(cached);box.querySelector('h3')?.insertAdjacentHTML('beforeend',' <small class="shared-saved">Saved</small>');return;}box.innerHTML='<p class="small muted">Shared recipes could not load. <button type="button" class="linkbtn" data-shared-retry>Retry</button></p>';box.querySelector('[data-shared-retry]').onclick=()=>sharedRecipes(box,where,after,isActive);}
+  finally{clearTimeout(loading);}
+}
+
 async function tUsuals(body, where, close) {
   body.innerHTML = skel(1);
   try {
     const usual = await api('/api/food/usual');
     const foods = usual.map(recentToFood);
     const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd" data-q="${i}" aria-label="Log ${esc(f.name)} now (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
-    body.innerHTML = usual.length ? `<p class="small muted">+ logs your usual amount</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
-      : '<p class="small muted">Foods you log often will appear here. Search to add something new.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>';
+    body.innerHTML = '<div data-shared-usuals></div>'+(usual.length ? `<p class="small muted">+ logs your usual amount</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
+      : '<p class="small muted">Foods you log often will appear here. Search to add something new.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>');
+    sharedRecipes($('[data-shared-usuals]',body),where,close);
     const ts = $('#tr-search', body); if (ts) ts.onclick = () => $('.sheet [data-t=search]').click();
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
       try { const result=await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
-        fat_g: l.fat_g, fiber_g: l.fiber_g, source: 'recent', ref: l.ref || null}]); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
+        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}]); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
@@ -543,7 +568,7 @@ async function tSaved(body, where, close) {
       (d.serving === 'one' && d.recipe_source?.servings ? d.per_serving.kcal : d.totals.kcal), d.serving === 'one' ? 'kcal a serving' : 'kcal total');
     body.innerHTML = `<p class="small muted">Tap a recipe to log a portion. Use Edit to change its ingredients, weight or nutrition for next time.</p><div class="btncol recipe-library-actions"><button class="ghost wide" id="tm-link">Recipe from a link</button><button class="linkbtn" id="tm-dish">+ Create a Recipe</button></div>
       ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="Edit ${esc(d.name)}">${svg('edit')} Edit</button></div>`).join('')}</div>` : '<p class="small muted">No saved recipes yet. Create one below, with or without AI.</p>'}
-      ${theirs.length ? `<h3 class="ghead">From friends</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
+      ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
       <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button></div>

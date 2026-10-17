@@ -9,6 +9,7 @@ import threading
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .dish_access import NOTICE_VISIBLE
 from . import apns, db
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
 
@@ -106,13 +107,13 @@ def _item(r):
 
 
 def unread(c, uid):
-    return c.execute('SELECT count(*) AS n FROM notifications WHERE user_id = %s AND read_at IS NULL', (uid,)).fetchone()['n']
+    return c.execute('SELECT count(*) AS n FROM notifications n WHERE n.user_id = %s AND n.read_at IS NULL AND '+NOTICE_VISIBLE, (uid,)).fetchone()['n']
 
 
 @router.get('/notifications')
 def notifications(user=Depends(current_user)):
     with db.connect() as c:
-        rows = c.execute(_LIST + ' WHERE n.user_id = %s ORDER BY n.created DESC, n.id DESC LIMIT 60', (user['id'],)).fetchall()
+        rows = c.execute(_LIST + ' WHERE n.user_id = %s AND '+NOTICE_VISIBLE+' ORDER BY n.created DESC, n.id DESC LIMIT 60', (user['id'],)).fetchall()
         p = c.execute('SELECT notify FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         n = unread(c, user['id'])
     return {'items': [_item(r) for r in rows], 'unread': n, 'push': _prefs(p.get('notify')), 'push_ready': apns.ready()}
@@ -216,7 +217,7 @@ def push(nid, send=None):
     """Deliver only to native iPhone registrations. `send(device, payload)` replaces APNs in tests."""
     if not send and not apns.ready(): return 0
     with db.connect() as c:
-        r = c.execute(_LIST + ' WHERE n.id = %s', (nid,)).fetchone()
+        r = c.execute(_LIST + ' WHERE n.id = %s AND '+NOTICE_VISIBLE, (nid,)).fetchone()
         if not r: return None
         p = c.execute('SELECT notify FROM profile WHERE user_id = %s', (r['user_id'],)).fetchone() or {}
         want = _prefs(p.get('notify'))
@@ -235,8 +236,9 @@ def push(nid, send=None):
         with db.connect() as c:
             current = c.execute(f"""SELECT d.* FROM native_push_devices d JOIN sessions s ON s.token_hash = d.session_hash
                           WHERE d.token = %s AND d.environment = %s AND d.user_id = %s AND s.user_id = d.user_id
-                          AND s.last_seen > now() - interval '{SESSION_DAYS} days' FOR UPDATE OF d""",
-                                (device['token'], device['environment'], r['user_id'])).fetchone()
+                          AND s.last_seen > now() - interval '{SESSION_DAYS} days'
+                          AND EXISTS(SELECT 1 FROM notifications n WHERE n.id=%s AND {NOTICE_VISIBLE}) FOR UPDATE OF d""",
+                                (device['token'], device['environment'], r['user_id'],nid)).fetchone()
             if not current: continue
             try:
                 ok = send(device, payload) if send else apns.deliver(device, payload)

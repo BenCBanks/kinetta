@@ -1931,3 +1931,39 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .weekly-food-review p.small {font-size:.85rem;}
 .weekly-food-suggestions p {margin:.65rem 0;}
 .weekly-food-review {overflow-wrap:anywhere;}
+
+/* Deliberate recipe sharing, with a compact shared portion picker. */
+.recipe-page #dk-done {min-height:44px;min-width:44px;}
+.recipe-page .share-row {width:100%;text-align:left;min-height:60px;}
+.shared-friends .person {display:flex;flex-wrap:wrap;gap:.65rem;align-items:center;padding:.65rem 0;}
+.shared-friends .person .grow {min-width:0;overflow-wrap:anywhere;}
+.shared-friends [data-sd] {min-height:44px;white-space:normal;}
+.shared-recipes {margin:.5rem 0 .8rem;min-width:0;}
+.shared-recipes h3 {font-size:1rem;margin:.3rem 0;}
+.shared-recipe-list {display:flex;gap:.5rem;overflow-x:auto;max-width:100%;padding:.25rem 0;scroll-snap-type:x proximity;}
+.shared-recipe-row {flex:0 0 min(16rem,90%);min-height:56px;display:flex;gap:.5rem;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);text-align:left;padding:.6rem .75rem;scroll-snap-align:start;}
+.shared-recipe-row span {min-width:0;flex:1;}
+.shared-recipe-row b,.shared-recipe-row small {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.shared-recipe-row b {font-size:1rem;}
+.shared-recipe-row small {font-size:.85rem;color:var(--tx2);}
+.shared-recipe-row svg {width:16px;height:16px;flex:none;}
+.food-thread .shared-recipes {display:block;margin:.2rem 0;}
+.food-thread .shared-recipes h3 {font-size:.85rem;line-height:1.4;}
+.food-thread .shared-recipe-list {flex:1;min-width:0;}
+.food-thread .shared-recipe-row {flex-basis:min(13rem,95%);}
+
+.food-thread:has(.shared-recipe-row) > .thread-intro {display:none;}
+.food-thread:has(.shared-recipe-row) #thread-empty {padding:0;visibility:hidden;}
+
+.shared-friends .person {display:grid;grid-template-columns:40px minmax(0,1fr);}
+.shared-friends .person b,.shared-friends .person small {display:block;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
+.shared-friends .person b {font-size:1rem;}
+.shared-friends .person small {font-size:.85rem;}
+.shared-friends [data-sd] {grid-column:2;justify-self:start;}
+
+.shared-saved {display:inline;font-size:.75rem;font-weight:400;color:var(--tx2);}
+
+#dl-n {width:4.5rem;text-align:center;font:700 1.6rem/1.2 var(--numf);padding:.4rem .25rem;}
+
+html.keyboard-open .food-thread:has(.shared-recipe-row) {padding-bottom:52px;}
+html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-shrink:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
