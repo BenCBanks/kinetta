@@ -31,7 +31,7 @@ s, first = a.post('/api/food/thread/messages', body)
 check(s == 201 and first['created'], 'new message acknowledged once')
 m = first['message']; mid = m['id']
 check(m['body'] == body['body'].strip() and m['state'] == 'pending' and m['entries'] == [], 'pending text is durable, no food mutation')
-check(m['local_day'] == '2026-10-15' and m['captured_at'].startswith('2026-10-16T02:30:'), 'offline capture time survives arrival in another day')
+check(m['local_day'] == '2026-10-15' and dt.datetime.fromisoformat(m['captured_at']) == dt.datetime.fromisoformat(body['captured_at']), 'offline capture time survives arrival in another day')
 s, replay = a.post('/api/food/thread/messages', body)
 check(s == 200 and not replay['created'] and replay['message'] == m, 'lost acknowledgement replay is idempotent')
 check(a.post('/api/food/thread/messages', {**body, 'body': 'Different text'})[0] == 409, 'identity cannot replace a different message')
