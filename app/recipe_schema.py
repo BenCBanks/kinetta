@@ -61,7 +61,7 @@ def _quantity(value,unit):
         return round(float(value),6) if math.isfinite(value) and 0<=value<=1000000 else None
     if not isinstance(value,str):return None
     value=re.sub(r'(?<![\d,])\d{1,3}(?:,\d{3})+(?:\.\d+)?',lambda m:m[0].replace(',',''),value)
-    if unit=='kcal' and re.fullmatch(r'\s*\d+(?:\.\d+)?\s*',value):value=value.strip()+' kcal' 
+    if unit=='kcal' and re.fullmatch(r'\s*\d+(?:\.\d+)?\s*',value):value=value.strip()+' kcal'
     m=re.fullmatch(r'\s*(\d+(?:\.\d+)?)\s*(kcal|calories?|kilocalories?|kj|g|grams?|mg|milligrams?|µg|μg|mcg)\s*',value,re.I)
     if not m:return None
     n=float(m[1]);u=m[2].lower()

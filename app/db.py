@@ -1070,6 +1070,20 @@ MIGRATIONS = [
        CREATE POLICY all_rows ON nutrition_checkins FOR SELECT TO fit_all_readers USING(true);
        GRANT SELECT ON nutrition_checkins TO fit_readers;""",
 
+    # 51: explicit recipe-link reads; parsed data only, private replay/cancellation identities.
+    """CREATE TABLE recipe_link_drafts (
+         user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,id uuid NOT NULL,
+         url text NOT NULL,state text NOT NULL DEFAULT 'pending'
+           CHECK(state IN ('pending','ready','failed','cancelled','saved')),
+         data jsonb NOT NULL DEFAULT '{}'::jsonb,error_code text,error_message text,
+         created timestamptz NOT NULL DEFAULT now(),expires timestamptz NOT NULL DEFAULT now()+interval '24 hours',
+         saved_dish_id bigint REFERENCES dishes(id) ON DELETE SET NULL,PRIMARY KEY(user_id,id));
+       CREATE INDEX recipe_link_owner_day ON recipe_link_drafts(user_id,created DESC);
+       ALTER TABLE recipe_link_drafts ENABLE ROW LEVEL SECURITY;
+       CREATE POLICY own_rows ON recipe_link_drafts FOR SELECT TO fit_readers USING(user_id=fit_me());
+       CREATE POLICY all_rows ON recipe_link_drafts FOR SELECT TO fit_all_readers USING(true);
+       GRANT SELECT ON recipe_link_drafts TO fit_readers;""",
+
 ]
 
 
