@@ -1175,6 +1175,19 @@ MIGRATIONS = [
     CREATE POLICY all_rows ON meal_reminder_attempts FOR SELECT TO fit_all_readers USING(true);
     GRANT SELECT ON meal_reminder_attempts TO fit_readers;""",
 
+    # 57: optional training-day target override; NULL follows the owner-approved goal/plan default.
+    """ALTER TABLE profile ADD COLUMN training_day_targets boolean;
+    ALTER TABLE profile ADD COLUMN training_food_adult_confirmed boolean NOT NULL DEFAULT false;
+    ALTER TABLE profile ADD COLUMN training_target_average real CHECK(training_target_average BETWEEN 0 AND 20000);
+    ALTER TABLE profile ADD COLUMN training_target_kcal real CHECK(training_target_kcal BETWEEN 0 AND 10000);
+    UPDATE profile p SET training_target_average=(x.data->>'avg_exercise')::real,training_target_kcal=p.kcal_target
+    FROM (SELECT DISTINCT ON(user_id) user_id,data FROM nutrition_checkins WHERE state='accepted'
+          ORDER BY user_id,acted_at DESC,id DESC) x
+    WHERE p.user_id=x.user_id AND jsonb_typeof(x.data->'avg_exercise')='number'
+      AND jsonb_typeof(x.data->'suggested_kcal')='number'
+      AND (x.data->>'suggested_kcal')::real=p.kcal_target
+      AND (x.data->>'avg_exercise')::real BETWEEN 0 AND 20000;""",
+
 ]
 
 

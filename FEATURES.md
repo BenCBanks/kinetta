@@ -200,3 +200,5 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 - **Undo queued food (#122 D13):** Quick, usual, combination, yesterday and Log again saves offer Undo, including offline. Stable-ID cancellation prevents an interrupted upload from restoring removed food; failures retain a retryable pending operation.
 
 - **Food and training week (#122 R):** a private shared7-completed-day summary on Me and Progress; own today's workout links to the existing food-log energy calculation without double counting. My activities shows optional Health last-sync/pending/retry status, with bounded foreground catch-up and Garmin delay explanation. Physical GPS acceptance remains pending.
+
+- **Optional food on training days (#122 H):** adult plan/recent-workout guidance and explicit-save target controls. Fuel training/active-plan defaults, conservative nonnegative extra allowance, accepted-check-in average protected, explicit day goals preserved. Folded published athlete reference ranges and a dismissible late long-day note; no AI, medical claims or macro changes.

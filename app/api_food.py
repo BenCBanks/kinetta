@@ -263,10 +263,13 @@ def day_data(c, uid, d=None):
     # the day's goal: a goal set for this date wins; otherwise the daily target + the training-day extra
     g = c.execute('SELECT kcal FROM day_goals WHERE user_id = %s AND day = %s', (uid, day_)).fetchone()
     default = t.get('kcal_target')
-    # workouts deepen the deficit; they don't raise the goal
-    goal = {'custom': round(g['kcal']) if g else None, 'default': round(default) if default else None, 'extra': 0}
-    goal['kcal'] = goal['custom'] if g else (goal['default'] if default else None)
+    from . import training_food
+    training=training_food.facts(c,uid,day_,ctx,info,today_ex,default,g['kcal'] if g else None)
+    goal = {'custom':round(g['kcal']) if g else None,'default':round(default) if default else None,'extra':training['extra']}
+    goal['kcal']=round(training['kcal']) if training['kcal'] is not None else None
     goal['deficit'] = round(burned['day_burn'] - goal['kcal']) if goal['kcal'] is not None and burned['day_burn'] is not None else None
+    from zoneinfo import ZoneInfo
+    training['note']=training_food.low_intake(training,totals['kcal'],burned['day_burn'],any(e['kcal'] is None or 'kcal' in ((e.get('ref') or {}).get('unknown_nutrients') or []) for e in entries),dt.datetime.now(ZoneInfo(ctx['tz'])).hour) if day_==ctx['today'] else None
     last_meals = _last_meals(c, uid, day_)
     hours = c.execute("""SELECT extract(hour FROM created AT TIME ZONE %s)::int AS h, meal, count(*) AS n FROM food_entries
                            WHERE user_id = %s AND day > current_date - 60 AND day = (created AT TIME ZONE %s)::date
@@ -274,7 +277,7 @@ def day_data(c, uid, d=None):
     meal_hours = {}
     for r in hours:   # most common meal logged (same day) in each hour, needs 3+ entries to count
         if r['n'] >= 3 and r['n'] > meal_hours.get(r['h'], (None, 0))[1]: meal_hours[r['h']] = (r['meal'], r['n'])
-    return {'day': day_.isoformat(), 'entries': entries, 'totals': totals,
+    return {'day': day_.isoformat(), 'entries': entries, 'totals': totals, 'training':training,
             'unknown_nutrients':{k:sum(e.get(k) is None or (isinstance((e.get('ref') or {}).get('unknown_nutrients'),list) and k in e['ref']['unknown_nutrients']) for e in entries) for k in NUM}, 'targets': t, 'burned': burned, 'goal': goal, 'weight_kg': w['kg'] if w else None,
             'extra_nutrients':N.day_values(entries,t),'last_meals': last_meals, 'meal_hours': {h: m for h, (m, _) in meal_hours.items()}}
 
@@ -629,7 +632,7 @@ def goal_setup(body: GoalSaveIn, user=Depends(current_user)):
         if body.kcal_target < suggestion['resting_floor']:
             raise HTTPException(400, f"Choose at least {suggestion['resting_floor']} kcal, your estimated resting burn.")
         values = body.model_dump(exclude_unset=True, exclude={'goal', 'pace_percent'})
-        values.update(nutrition_goal=body.goal, goal_pace_percent=suggestion['pace_percent'], activity_factor=body.activity_factor)
+        values.update(training_target_average=None,training_target_kcal=None,nutrition_goal=body.goal, goal_pace_percent=suggestion['pace_percent'], activity_factor=body.activity_factor)
         c.execute(f"UPDATE profile SET {', '.join(f'{key} = %s' for key in values)} WHERE user_id = %s", (*values.values(), user['id']))
     return {'ok': True, 'profile': values}
 
@@ -639,6 +642,9 @@ def targets(body: TargetsIn, user=Depends(current_user)):
     v = body.model_dump(exclude_unset=True)
     if not v:return {'ok':True}
     with db.connect() as c:
+        if 'kcal_target' in v:
+            old=c.execute('SELECT kcal_target FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
+            if v['kcal_target']!=old.get('kcal_target'):v.update(training_target_average=None,training_target_kcal=None)
         c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in v)} WHERE user_id = %s", (*v.values(), user['id']))
     return {'ok': True}
 
@@ -750,3 +756,28 @@ def accept_checkin(cid:UUID,body:CheckinAcceptIn,user=Depends(current_user)):
 def defer_checkin(cid:UUID,user=Depends(current_user)):
     from . import nutrition_checkin
     return nutrition_checkin.act(user['id'],cid,'later')
+
+
+class TrainingFoodIn(BaseModel):
+    model_config={'extra':'forbid'}
+    enabled:StrictBool | None
+    adult_confirmed:StrictBool | None=None
+
+
+@router.get('/training-days')
+def training_days(user=Depends(current_user)):
+    from . import training_food
+    with db.connect() as c:
+        ctx=energy.context(c,user['id'])
+        return training_food.facts(c,user['id'],ctx['today'],ctx)
+
+
+@router.put('/training-days')
+def training_days_save(body:TrainingFoodIn,user=Depends(current_user)):
+    with db.connect() as c:
+        p=c.execute('SELECT birth_year,tz FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
+        year=c.execute('SELECT extract(year FROM now() AT TIME ZONE %s)::int AS y',(p.get('tz') or db.DEFAULT_TZ,)).fetchone()['y']
+        if body.adult_confirmed and p.get('birth_year') and year-p['birth_year']<18:raise HTTPException(400,'Training food guidance is for adults 18 and older')
+        c.execute('UPDATE profile SET training_day_targets=%s WHERE user_id=%s',(body.enabled,user['id']))
+        if body.adult_confirmed is not None:c.execute('UPDATE profile SET training_food_adult_confirmed=%s WHERE user_id=%s',(body.adult_confirmed,user['id']))
+    return {'ok':True}
