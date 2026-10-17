@@ -434,3 +434,18 @@ per-food origin/estimate and unknown-nutrient labels, quiet Edit/Undo and manual
 search fallbacks, preserve queued text, and use the shared sheets/components. No
 real-provider accuracy, private switch test or physical-iPhone acceptance is implied
 by the backend's stand-in tests.
+
+### Pending writes and account changes (#122 Workstream D)
+
+Food and weight uploads rejected by the server stay on the phone with their error.
+The connection banner opens Pending items with Retry and Discard; failed validation
+does not repeat automatically. A confirmed upload removes only its original queued
+item, preserving additions made while it was sending. Storage failure leaves the
+entry screen open rather than claiming a queued save.
+
+Queues and saved screens belong to a server and account. Requests include an optional
+expected-account constraint, verified against the authenticated session; it grants
+no access. Legacy browser queues migrate only on their own origin. Older native
+queues without a server identity remain retained and are not automatically sent;
+they require a future recovery path that can establish their original server.
+This is a supporting fix; the permanent conversation screen follows separately.

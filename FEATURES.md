@@ -134,3 +134,9 @@ See [Recording activities](docs/activity-tracking.md).
   editable private foods with origin/assumption labels and zero-model reuse. Cancel,
   delete and retry guards keep late work from recreating food or text; photos are
   not retained. Omitted manual macros remain unknown in factual answers.
+
+- [x] Pending food and weight uploads retain server errors with Review, Retry and
+  Discard. Queue/cache ownership includes the server and account; an authenticated
+  expected-account check blocks a changed cookie from receiving another account's
+  queued write. Older native queues without a recorded server are retained without
+  automatic upload. Permanent conversation UI remains in progress (#122 D).

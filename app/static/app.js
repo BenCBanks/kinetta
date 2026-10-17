@@ -33,6 +33,7 @@ async function api(path, opts = {}) {
   const owner = readOwner();
   let r;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
+  if (App.me && path !== '/api/me' && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
   try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, headers: {...headers, ...Native.headers(), ...(opts.headers || {})}}); }
   catch (e) { throw Object.assign(new Error("Can't reach Kinetta - check your connection."), {offline: true}); }
@@ -40,8 +41,8 @@ async function api(path, opts = {}) {
   if (owner !== readOwner()) throw Object.assign(new Error('The account changed while this request was running. Please try again.'), {stale: true});
   if (!r.ok) {
     const d = body && body.detail;
-    const e = new Error(typeof d === 'string' ? d : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : `Error ${r.status}`);
-    e.status = r.status;
+    const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : `Error ${r.status}`);
+    e.status = r.status; e.code = d && d.code; e.detail = d;
     if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); App.me = null; showLogin('Please log in again.'); }
     throw e;
   }
@@ -92,8 +93,9 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* full or blocked: offline copies are a bonus */ } },
   del(k) { try { localStorage.removeItem(k); } catch (e) { /* blocked */ } },
 };
-function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, data}); }
-function kept(path) { const v = store.get('fit.c:' + path); return v && (!App.me || v.who === App.me.login) ? v.data : null; }
+const serverKey = () => Native.base || location.origin;
+function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, server: serverKey(), data}); }
+function kept(path) { const v = store.get('fit.c:' + path); return v && (v.server === serverKey() || (!v.server && !Native.on)) && (!App.me || v.who === App.me.login) ? v.data : null; }
 function forgetKept() { try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
 
 // Fold a generated note without redrawing the page, map or inputs. Remember only its fingerprint on this device.
@@ -134,30 +136,76 @@ function patchDay(day, fn) {
     App.cache.set(p, {data: d, at: Date.now()}); keep(p, d);
   }
 }
+// Owner keys contain no credentials. Older browser queues belong to this origin;
+// older native queues have no recorded server, so cannot safely be sent automatically.
+const queueOwner = () => App.me ? JSON.stringify([serverKey(), App.me.id]) : null;
 const Q = {
   all() { return store.get('fit.queue') || []; },
-  mine() { return Q.all().filter((o) => App.me && o.who === App.me.login); },
-  add(op) { store.set('fit.queue', [...Q.all(), {...op, who: App.me.login, at: Date.now()}]); netbar(); },
+  save(ops) {
+    // Unlike optional screen caches, an unsaved write must never be reported queued.
+    try { localStorage.setItem('fit.queue', JSON.stringify(ops)); }
+    catch (e) { throw Error("This phone couldn't save the pending item. Keep this screen open and try again when connected."); }
+  },
+  owns(op) { return !!App.me && (op.owner === queueOwner() || (!op.owner && !Native.on && op.who === App.me.login)); },
+  mine() { return Q.all().filter(Q.owns); },
+  add(op) { Q.save([...Q.all(), {...op, id: newId(), owner: queueOwner(), who: App.me.login, at: Date.now()}]); netbar(); },
   async flush() {
     if (Q.busy || !App.me || !navigator.onLine) return;
-    const q = Q.all(); if (!q.some((o) => o.who === App.me.login)) return;
-    Q.busy = true; const keepOps = []; let sent = 0, offline = false;
-    for (const op of q) {
-      if (op.who !== App.me.login || offline) { keepOps.push(op); continue; }
-      try { await api(op.path, {method: op.method, body: JSON.stringify(op.body)}); sent++; }
-      catch (e) { if (e.offline) { offline = true; keepOps.push(op); } else toast(`Couldn't save ${op.label}: ${e.message}`); }
-    }
-    store.set('fit.queue', [...keepOps, ...Q.all().slice(q.length)]);   // keep anything added while sending
-    Q.busy = false; netState(offline);
-    if (sent) { invalidate('/api/'); toast(`Sent ${sent} item${sent > 1 ? 's' : ''} saved while offline`); render(); }
+    const owner = readOwner(), account = queueOwner();
+    let q = Q.all(); if (!q.some(o => Q.owns(o) && !o.error)) return;
+    // Persist IDs before sending so additions/discards during a request aren't overwritten.
+    q = q.map(o => Q.owns(o) ? {...o, owner: account, id: o.id || newId()} : o);
+    Q.save(q); Q.busy = true; let sent = 0, offline = false;
+    try {
+      for (const op of q) {
+        if (owner !== readOwner() || !navigator.onLine) break;
+        if (op.owner !== account || op.error || !Q.all().some(o => o.id === op.id)) continue;
+        let failed = null;
+        try { await api(op.path, {method: op.method, body: JSON.stringify(op.body)}); sent++; }
+        catch (e) { failed = e; offline = !!e.offline; }
+        // Even if the account changed, remove only the acknowledged original item.
+        const current = Q.all();
+        Q.save(failed ? current.map(o => o.id === op.id ? {...o, error: failed.offline || failed.stale ? null : failed.message} : o)
+          : current.filter(o => o.id !== op.id));
+        if (failed && !failed.offline && !failed.stale && owner === readOwner()) toast(`Couldn't save ${op.label}. It is still on this phone.`);
+        if (failed && (failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed')) break;
+      }
+    } finally { Q.busy = false; netState(offline); netbar(); }
+    if (sent && owner === readOwner()) { invalidate('/api/'); toast(`Sent ${sent} pending item${sent > 1 ? 's' : ''}`); render(); }
+  },
+  review() {
+    const owner = readOwner();
+    Q.save(Q.all().map(o => Q.owns(o) ? {...o, owner: queueOwner(), id: o.id || newId()} : o));
+    sheet('Pending items', '<div id="pending-items"></div>', (b, close) => {
+      const draw = () => {
+        if (owner !== readOwner()) { close(); return; }
+        const ops = Q.mine(), box = $('#pending-items', b);
+        box.innerHTML = ops.length ? '<p>Items stay on this phone until saved or discarded.</p>' + ops.map((o, i) =>
+          `<div class="pending-item"><p><strong>${esc(o.label)}</strong><br><span class="small">${esc(o.error || 'Waiting for a connection')}</span></p><div class="actions"><button class="ghost" data-pending-retry="${i}">Retry</button><button class="linkbtn" data-pending-discard="${i}">Discard</button></div></div>`).join('') : '<p>Everything has been sent.</p>';
+        $$('[data-pending-retry]', box).forEach(btn => btn.onclick = async () => {
+          if (owner !== readOwner()) return;
+          const op = ops[+btn.dataset.pendingRetry];
+          Q.save(Q.all().map(o => o.id === op.id ? {...o, error: null} : o));
+          btn.disabled = true; btn.textContent = 'Sending…';
+          try { await Q.flush(); } catch (e) { toast(e.message); } if (b.isConnected) draw();
+        });
+        $$('[data-pending-discard]', box).forEach(btn => btn.onclick = () => {
+          if (Q.busy) { toast('Please wait for the current upload to finish.'); return; }
+          if (owner !== readOwner() || !confirm('Discard this pending item from this phone?')) return;
+          const op = ops[+btn.dataset.pendingDiscard]; Q.save(Q.all().filter(o => o.id !== op.id)); netbar(); draw();
+        });
+      }; draw();
+    });
   },
 };
 // writes that may wait for a connection: food entries and weigh-ins. Returns the server reply, or {queued: true}.
 async function sendOrQueue(path, method, body, label) {
+  const owner = readOwner();
   if (navigator.onLine) {
     try { const r = await api(path, json(method, body)); netState(false); return r; }
     catch (e) { if (!e.offline) throw e; }
   }
+  if (owner !== readOwner()) throw Object.assign(Error('The account changed. Please try again.'), {stale: true});
   netState(true); Q.add({path, method, body, label}); App.queuedAt = Date.now(); return {queued: true};
 }
 function netState(off) { if (App.offline !== off) { App.offline = off; netbar(); } }
@@ -165,11 +213,14 @@ function netbar() {
   let b = $('#netbar'); const n = Q.mine().length;
   if (!App.offline && !n) { if (b) b.remove(); return; }
   if (!b) { b = document.createElement('div'); b.id = 'netbar'; b.className = 'netbar'; b.setAttribute('role', 'status'); document.body.append(b); }
-  b.textContent = App.offline ? `Offline - showing what's saved on this phone${n ? ` · ${n} waiting to send` : ''}` : `${n} item${n > 1 ? 's' : ''} waiting to send…`;
+  b.replaceChildren(); const status = document.createElement('span');
+  status.textContent = App.offline ? `Offline - showing what's saved on this phone${n ? ` · ${n} waiting to send` : ''}` : `${n} item${n > 1 ? 's' : ''} waiting to send${Q.mine().some(o => o.error) ? ' · needs attention' : '…'}`;
+  b.append(status);
+  if (n) { const button = document.createElement('button'); button.type = 'button'; button.className = 'linkbtn'; button.textContent = 'Review'; button.onclick = () => Q.review(); b.append(button); }
 }
-addEventListener('online', () => { netState(false); Q.flush(); });
+addEventListener('online', () => { netState(false); Q.flush().catch(e => toast(e.message)); });
 addEventListener('offline', () => netState(true));
-setInterval(() => { if (Q.mine().length) Q.flush(); }, 30000);
+setInterval(() => { if (Q.mine().length) Q.flush().catch(e => toast(e.message)); }, 30000);
 function invalidateFeed() {
   readEpochs.set('feed:home', readEpoch('feed:home') + 1); App.cache.delete('feed:home');
 }
@@ -459,7 +510,7 @@ document.addEventListener('pointerdown', (e) => {
   const a = e.target.closest('[data-prefetch]'); if (a) prefetch(a.dataset.prefetch);
 }, {passive: true});
 window.addEventListener('popstate', render);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && App.me) Q.flush(); if (!document.hidden && App.me && navigator.onLine && Date.now() - (App.hiddenAt || 0) > 60000) { invalidate('/api/'); render(); } if (document.hidden) App.hiddenAt = Date.now(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && App.me) Q.flush().catch(e => toast(e.message)); if (!document.hidden && App.me && navigator.onLine && Date.now() - (App.hiddenAt || 0) > 60000) { invalidate('/api/'); render(); } if (document.hidden) App.hiddenAt = Date.now(); });
 
 // ---------- skeleton ----------
 const skel = (n = 3) => Array.from({length: n}, () => '<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join('');
@@ -922,7 +973,7 @@ async function start() {
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/me');
-    render(); Q.flush(); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
+    render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
   const saved = kept('/api/me');
