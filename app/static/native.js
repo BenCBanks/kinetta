@@ -417,8 +417,8 @@ const Native = (() => {
   };
   // quietly, when the app opens and comes back to the front (at most every 10 minutes)
   N.autoSync = () => {
-    if(N.healthPaused)return;
     N.flushHealthOff?.().catch(()=>{});
+    if(N.healthPaused)return;
     N.autoRestingEnergy();
     N.autoFoodHealth();
     if (!on || !App.me || Date.now() - (N.lastAuto || 0) < 600000) return;
@@ -512,7 +512,7 @@ async function healthFoodControls(box,parentValid=()=>true) {
           ${Native.foodHealthSupported?`<button class="ghost wide" data-h-food="${kind}" data-h-action="${enabled?'sync':'connect'}">${enabled?'Sync now':state.enabled&&!local?'Set up on this iPhone':kind==='weight'?'Read weight from Health':'Share nutrition with Health'}</button>${kind==='nutrition'&&enabled&&!state.include_older?`<button class="ghost wide" data-h-food="nutrition" data-h-action="older">Also add older days</button>`:''}${state.enabled||local?`<button class="ghost wide" data-h-food="${kind}" data-h-action="off">Turn off ${kind==='weight'?'weight reading':'nutrition sharing'}</button>`:''}`:'<p class="small muted">Install the latest Kinetta iPhone build to set this up.</p>'}
           <p class="err h-food-error" role="alert"></p></section>`;
       };
-      box.innerHTML=card('nutrition',nutrition,nutritionLocal,'Nutrition to Health','Share your logged daily calories, protein, carbs, fat and fiber, including edits and deletions. Starts today; older days need a separate choice. Missing values stay unknown. Only Kinetta’s samples for this account change.')+
+      box.innerHTML=card('nutrition',nutrition,nutritionLocal,'Nutrition to Health','Share your logged daily calories, protein, carbs, fat and fiber, including edits and deletions. Sharing starts on the day you enable it; older days need a separate choice. Missing values stay unknown. Only Kinetta’s samples for this account change.')+
         card('weight',weight,weightLocal,'Weight from Health','Bring smart-scale weight into your private log and weekly check-in. Manual weigh-ins take priority. Your calorie budget and resting-calorie choice stay unchanged.')+
         (Native.foodHealthSupported?'<button class="ghost wide" id="h-food-settings">Manage Health permissions</button>':'')+
         '<p class="small muted">These two categories catch up when you open or return to Kinetta. Unlock your phone and use Sync now if a read or write is waiting. Turning weight reading off hides its Health-derived weight points; raw samples remain private. Nutrition already written to Health stays there; remove system access in Health → your profile → Apps → Kinetta.</p>';
