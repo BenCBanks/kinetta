@@ -83,6 +83,7 @@ try:
  with db.connect() as c:
   c.execute('DELETE FROM food_entries WHERE user_id=%s',(uid,))
   for n in range(3):c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref) VALUES (%s,%s,'lunch','Fictional usual oats',400,25,45,12,7,'custom',%s)",(uid,day,json.dumps({'origin':'ai','origin_notes':'Illustrative estimate'})))
+ with db.connect() as c:c.execute('UPDATE food_entries SET sodium_mg=350,sugar_g=0,saturated_fat_g=NULL WHERE user_id=%s',(uid,))
  a.delete(f'/api/dishes/{incomplete["id"]}',headers={'Content-Type':'application/json'})
  options=tools.call('meal_combinations',{'day':day});candidate=options['candidates'][0]
  proposal=post('/api/coach/proposals',{'kind':'food','day':day,'meal':'dinner','candidate_id':candidate['candidate_id']});p=f'/api/coach/proposals/{proposal["id"]}/confirm?thread=true'
@@ -93,8 +94,18 @@ try:
  saved=post(p,{'confirmed':True});check(len(saved['entry_ids'])==1 and saved['messages'])
  check(post(p,{'confirmed':True})['already_applied'])
  entry=next(e for e in a.get('/api/food/day?d='+day).json()['entries'] if e['id']==saved['entry_ids'][0]);check(entry['fiber_g']==7 and entry['ref']['origin']=='ai')
+ check(entry['sodium_mg']==350 and entry['sugar_g']==0 and entry['saturated_fat_g'] is None)
  root=next(m for m in saved['messages'] if m['kind']=='user');post(f'/api/food/thread/messages/{root["id"]}/undo')
  check(post(p,{'confirmed':True})['removed_after_apply']);check(len(a.get('/api/food/day?d='+day).json()['entries'])==3)
+ # A Kit recipe confirmation uses the same current stored extra nutrients as direct portions.
+ dish=post('/api/dishes',{'name':'Fictional complete nutrient recipe'})
+ checked=a.patch('/api/dishes/'+str(dish['id']),json={'known_kcal':400,'known_protein_g':25,'known_carbs_g':45,'known_fat_g':12,'known_fiber_g':7,'known_sodium_mg':200,'known_sugar_g':0,'known_saturated_fat_g':None});check(checked.status_code==200)
+ options=tools.call('meal_combinations',{'day':day});candidate=next(x for x in options['candidates'] if len(x['foods'])==1 and x['foods'][0]['source']=='dish')
+ proposal=post('/api/coach/proposals',{'kind':'food','day':day,'meal':'dinner','candidate_id':candidate['candidate_id']})
+ saved=post('/api/coach/proposals/'+proposal['id']+'/confirm',{'confirmed':True})
+ with db.connect() as c:
+  entry=c.execute('SELECT sodium_mg,sugar_g,saturated_fat_g FROM food_entries WHERE user_id=%s AND client_id=%s',(uid,proposal['id']+'-0')).fetchone()
+  check(entry['sodium_mg']==200 and entry['sugar_g']==0 and entry['saturated_fat_g'] is None)
  print('Food Kit proposals: explicit tap, foreign-owner/confirmation guards, atomic rollback, source/fibre receipt, idempotent confirm and no resurrection after Undo PASS')
 finally:
  with db.connect() as c:

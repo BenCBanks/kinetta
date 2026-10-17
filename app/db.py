@@ -950,9 +950,10 @@ MIGRATIONS = [
       state text NOT NULL CHECK (state IN ('pending','answered','cancelled')),
       reply_to bigint,
       result jsonb,
+      CHECK ((kind = 'reply') = (reply_to IS NOT NULL)),
       UNIQUE (user_id,client_id), UNIQUE (user_id,id), UNIQUE (user_id,reply_to),
       FOREIGN KEY (user_id,reply_to) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE);
-    CREATE INDEX food_chat_history ON food_chat_messages(user_id,id DESC);
+    CREATE INDEX food_chat_history ON food_chat_messages(user_id,coalesce(reply_to,id),id);
     CREATE UNIQUE INDEX food_entries_user_identity ON food_entries(user_id,id);
     CREATE TABLE food_chat_entries (
       user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1130,7 +1131,9 @@ MIGRATIONS = [
       AND w.day=(SELECT max(day) FROM weights WHERE user_id=p.user_id));
 """,
 
-    # 55: optional Health nutrition output journal, including edits and deletion tombstones.
+    # 55: an explicitly removed Health sample stays excluded across calendar changes.
+    """ALTER TABLE health_weight_samples ADD COLUMN excluded boolean NOT NULL DEFAULT false;""",
+    # 56: optional Health nutrition output journal, including edits and deletion tombstones.
     """    ALTER TABLE profile ADD COLUMN health_nutrition_write boolean NOT NULL DEFAULT false,
       ADD COLUMN health_nutrition_epoch uuid NOT NULL DEFAULT gen_random_uuid();
     CREATE SEQUENCE health_nutrition_revision;
@@ -1162,6 +1165,22 @@ MIGRATIONS = [
     CREATE TRIGGER health_nutrition_change AFTER INSERT OR UPDATE OR DELETE ON food_entries
       FOR EACH ROW EXECUTE FUNCTION health_nutrition_changed();
 """,
+
+    # 57: explicit nutrition history scope and stable opaque Health account identity.
+    """ALTER TABLE profile ADD COLUMN health_nutrition_since date,
+      ADD COLUMN health_nutrition_older boolean NOT NULL DEFAULT false,
+      ADD COLUMN health_account_id uuid NOT NULL DEFAULT gen_random_uuid();
+    UPDATE profile SET health_nutrition_since=(now() AT TIME ZONE coalesce(tz,'America/New_York'))::date WHERE health_nutrition_write;
+    CREATE OR REPLACE FUNCTION health_nutrition_touch(who bigint,which date) RETURNS void LANGUAGE plpgsql AS $$
+    BEGIN
+      -- Keep commit ordering across concurrent enablement and direct SQL writes.
+      PERFORM pg_advisory_xact_lock(155::integer,who::integer);
+      IF EXISTS(SELECT 1 FROM profile WHERE user_id=who AND health_nutrition_write
+        AND (health_nutrition_older OR which>=health_nutrition_since)) THEN
+        INSERT INTO health_nutrition_days(user_id,day) VALUES(who,which)
+        ON CONFLICT(user_id,day) DO UPDATE SET revision=nextval('health_nutrition_revision'),changed_at=now();
+      END IF;
+    END $$;""",
 
 ]
 

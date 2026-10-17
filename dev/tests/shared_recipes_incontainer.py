@@ -63,6 +63,20 @@ try:
  assert len(b.get('/api/food/day').json()['entries'])==1
  post(b,f'/api/dishes/{did}/portion/cancel',{'client_id':key});assert not b.get('/api/food/day').json()['entries']
  assert TestClient(app).get('/api/dishes/shared').status_code==401
+ # A legacy owner split is used by the recipient; both log private quarter-pot portions.
+ pot=post(a,'/api/dishes',{'name':'Fictional quarter-pot recipe'})['id']
+ assert a.patch('/api/dishes/'+str(pot),json={'known_kcal':2000}).status_code==200
+ own=post(a,f'/api/dishes/{pot}/portion',{'share':.25,'of':4,'meal':'dinner'})
+ with db.connect() as c:c.execute('UPDATE dishes SET items=%s WHERE id=%s AND user_id=%s',(json.dumps([{'id':'safe','name':'Fictional beans','grams':100,'kcal':200,'source':'ai','ref':{'origin_notes':'PRIVATE OWNER SOURCE NOTE'},'key':'private memory'}]),pot,owner))
+ with patch.object(notify,'_push_later',return_value=None):post(a,f'/api/dishes/{pot}/share',{'login':logins[1]})
+ seen=b.get('/api/dishes/'+str(pot)).json();assert seen['serving_count']==4 and seen['per_serving']['kcal']==500
+ assert 'ref' not in seen['items'][0] and 'PRIVATE OWNER' not in json.dumps(b.get('/api/dishes').json())
+ assert a.get('/api/dishes/'+str(pot)).json()['items'][0]['ref']['origin_notes']=='PRIVATE OWNER SOURCE NOTE'
+ plate=post(b,f'/api/dishes/{pot}/portion',{'count':1,'meal':'dinner'})
+ assert own['entry']['kcal']==500 and plate['entry']['kcal']==500
+ assert a.delete(f'/api/dishes/{pot}/share/{logins[1]}',headers={'Content-Type':'application/json'}).status_code==200
+ assert b.get('/api/dishes/'+str(pot)).status_code==404
+ assert any(e['id']==plate['entry']['id'] for e in b.get('/api/food/day').json()['entries'])
  print('Shared recipes actual HTTP/SQL: explicit approved-friend sharing only, compact discovery, private portions/8nutrients, replay at cap, recipient cannot edit, opt-in stand-in push, block/revoke/notifications/Undo and3-owner isolation PASS')
 finally:
  with db.connect() as c:c.execute('DELETE FROM users WHERE id=ANY(%s)',(uids,))

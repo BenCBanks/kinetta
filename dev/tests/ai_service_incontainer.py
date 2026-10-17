@@ -74,9 +74,9 @@ class Service(unittest.TestCase):
   with patch.dict(os.environ,{'KINETTA_AI_ENABLED':'0'}),patch('urllib.request.urlopen') as net:
    self.assertFalse(coach.allowed(self.uids[0]));self.refused(lambda:food_photo.photo(food_photo.PhotoIn(note='fictional soup'),user={'id':self.uids[0]}),503)
    with B.scope(self.uids[0]):self.refused(lambda:coach._gemini({'fictional':1}),503)
-   self.assertIsNone(cook_chat._web_product('fictional package'));net.assert_not_called()
-  with patch('app.cook_chat._usda_products',return_value=[]) as usda,patch('app.cook_chat._web_product') as web:
-   cook_chat.product_refs('one box of fictional pasta',self.uids[0]);self.assertEqual(usda.call_count,1);web.assert_not_called()
+   net.assert_not_called()
+  with patch('app.cook_chat._usda_products',return_value=[]) as usda:
+   cook_chat.product_refs('one box of fictional pasta',self.uids[0]);self.assertEqual(usda.call_count,1)
  def test_07_unpriced_model_and_expired_review(self):
   with patch.dict(os.environ,{'GEMINI_MODEL':'unpriced-model'}),B.scope(self.uids[0]),patch('urllib.request.urlopen') as net:
    self.refused(lambda:coach._gemini({'fictional':1}),503);net.assert_not_called()
@@ -121,10 +121,39 @@ class Service(unittest.TestCase):
   with db.connect() as c:
    before=c.execute("SELECT charged_micros FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date").fetchone()['charged_micros']
    c.execute("UPDATE ai_service_budget SET warned_at=NULL WHERE day=(now() AT TIME ZONE 'UTC')::date")
-  cap=before+B.price('gemini-3.1-flash-lite',1_048_576,65_536)*2
+  cap=before+B.price('gemini-3.1-flash-lite',*B.request_tokens())*2
   output=io.StringIO()
   with patch.dict(os.environ,{'KINETTA_AI_DAILY_USD':str(cap/1_000_000)}),patch('sys.stdout',output):
    rid=self.reserve();B.finish(rid);other=self.reserve();B.finish(other)
   self.assertEqual(output.getvalue().count('AI budget warning'),1)
+
+ def test_10_gemini_retry_refunds_request_sized_holds(self):
+  import urllib.error
+  seen=[]
+  def fail(req,timeout=None):
+   seen.append(json.loads(req.data))
+   raise urllib.error.HTTPError(req.full_url,503,'busy',{},io.BytesIO())
+  with B.scope(self.uids[2]),patch('urllib.request.urlopen',side_effect=fail),patch('time.sleep'):
+   with self.assertRaises(ValueError):coach._gemini({'fictional':'short note'})
+  self.assertEqual(len(seen),3)
+  with db.connect() as c:
+   rows=c.execute('SELECT * FROM ai_food_attempts WHERE user_id=%s',(self.uids[2],)).fetchall()
+   self.assertEqual(len(rows),3)
+   self.assertTrue(all(r['charged_micros']==0 and r['state']=='measured' and r['reserved_micros']<30000 for r in rows))
+  self.assertEqual([x['generationConfig']['maxOutputTokens'] for x in seen],[2000]*3)
+ def test_11_fraction_default_and_lease_renewal(self):
+  with patch.dict(os.environ,{'KINETTA_AI_DAILY_USD':'5','KINETTA_AI_USER_DAILY_MICROUSD':''}):
+   with db.connect() as c:
+    c.execute("INSERT INTO ai_food_attempts(id,user_id,day,model,kind,reserved_micros,charged_micros,state) VALUES (gen_random_uuid(),%s,current_date,'gemini-3.1-flash-lite','fraction-test',1000000,1000000,'failed')",(self.uids[2],))
+    c.execute("UPDATE ai_service_budget SET charged_micros=charged_micros+1000000 WHERE day=current_date")
+   self.refused(lambda:self.reserve(self.uids[2]))
+  rid=self.reserve()
+  with db.connect() as c:c.execute("UPDATE ai_food_attempts SET lease_until=now()+interval '1 second' WHERE id=%s",(rid,))
+  B.renew_lease(rid)
+  with db.connect() as c:self.assertTrue(c.execute("SELECT lease_until>now()+interval '110 seconds' AS renewed FROM ai_food_attempts WHERE id=%s",(rid,)).fetchone()['renewed'])
+  B.finish(rid)
+  with db.connect() as c:c.execute("UPDATE ai_food_attempts SET lease_until=now()-interval '1 second' WHERE id=%s",(rid,))
+  B.renew_lease(rid)
+  with db.connect() as c:self.assertFalse(c.execute('SELECT lease_until>now() AS live FROM ai_food_attempts WHERE id=%s',(rid,)).fetchone()['live'])
 
 unittest.main()

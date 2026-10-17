@@ -182,7 +182,7 @@ class AccountTools:
             dish = dish_out(raw)
             if not complete_dish(raw) or not complete_food(dish['totals']): continue
             # Whole-dish shares avoid inventing a serving weight. The UI shows this explicitly before confirmation.
-            for share in ([1] if dish['serving'] == 'one' else [.25, .5, 1]):
+            for share in ([1/dish['serving_count']] if dish['serving'] == 'one' else [.25, .5, 1]):
                 candidates.append({'source': 'dish', 'source_id': dish['id'], 'name': dish['name'], 'share': share,
                                    'amount': share, 'unit': 'dish',
                                    **{k: round((dish['totals'].get(k) or 0) * share, 1) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g')}})
@@ -200,7 +200,7 @@ class AccountTools:
         return {'day': r.day, 'eaten': eaten, 'remaining': {
             'kcal': round(float(kcal) - float(eaten['kcal']), 1) if kcal and not unknown['kcal'] else None,
             'protein_g': round(float(p['protein_target']) - float(eaten['protein_g']), 1) if p.get('protein_target') and not unknown['protein'] else None},
-            'candidates': candidates, 'limitations': ['Remaining targets use the logged intake; incomplete logging can overstate what remains. Dietary preferences/allergies are not recorded: check before choosing.']}
+            'candidates': [] if unknown['kcal'] else candidates, 'limitations': ['Remaining targets use the logged intake; incomplete logging can overstate what remains. Dietary preferences/allergies are not recorded: check before choosing.']}
 
 
 def complete_dish(raw):
