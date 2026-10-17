@@ -127,7 +127,7 @@ def _r(v, n=1): return round(v, n) if v is not None else None
 
 
 def _item_values(per100, grams):
-    return {k: _r(per100[k] * grams / 100) if per100.get(k) is not None else (None if k == 'fiber_g' else 0) for k in NUM}
+    return {k: _r(per100[k] * grams / 100) if per100.get(k) is not None else None for k in NUM}
 
 
 def _totals(d):
@@ -164,7 +164,7 @@ def _out(d):
             'recipe_source':d.get('recipe_source') or {},'serving_count':serving_count(d),
             'per_serving':{k:_r(v/serving_count(d)) if v is not None else None for k,v in totals.items()},
             'cooked_g': d['cooked_g'], 'weight_g': weight, 'items_g': _sum_g(d), 'weighed': d['cooked_g'] is not None,
-            'serving': d['serving'], 'servings': d['servings'], 'named': d['name'] not in PLACEHOLDERS,
+            'serving': d['serving'], 'servings': serving_count(d) if d.get('recipe_source') else d['servings'], 'named': d['name'] not in PLACEHOLDERS,
             'per_100g': {k: _r(v * 100 / weight) if v is not None else None for k, v in totals.items()} if weight else None,
             'created': d['created'], 'updated': d['updated'],
             'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['recipe_updated'] > d['ai_note_at']} if d.get('ai_note') else None}
@@ -202,6 +202,15 @@ def _get(c, uid, did, lock=False):
     return d
 
 
+def source_label(items):
+    return 'estimated_ingredients' if any(i.get('source')=='ai' or (i.get('ref') or {}).get('origin')=='ai' for i in items) else 'ingredients'
+
+
+def nutrition_signature(items):
+    # Identity/amount nutrition matters; assigning a first weight alone does not.
+    return [(i.get('name'),*[i.get(k) for k in NUM],sorted((i.get('ref') or {}).get('unknown_nutrients') or [])) for i in items]
+
+
 def _ingredient_totals(items,source):
     return {k:_r(sum(i[k] for i in items)) if items and not source.get('pending') and all(i.get(k) is not None and k not in ((i.get('ref') or {}).get('unknown_nutrients') or []) for i in items) else None for k in NUM}
 
@@ -213,8 +222,8 @@ def _save_items(c, uid, did, items):
         c.execute(f"UPDATE dishes SET {', '.join('known_'+k+'=%s' for k in KNOWN)} WHERE user_id=%s AND id=%s",(*[values[k] for k in KNOWN],uid,did))
     if source:
         source['edited']=True
-        if source.get('basis')=='published':source['site_recipe_changed']=True
-        if source.get('basis')=='ingredients':source['sources']={k:('estimated_ingredients' if any(i.get('source')=='ai' for i in items) else 'ingredients') if values[k] is not None else 'unknown' for k in NUM}
+        if source.get('basis')=='published' and nutrition_signature(d['items'])!=nutrition_signature(items):source['site_recipe_changed']=True
+        if source.get('basis')=='ingredients':source['sources']={k:source_label(items) if values[k] is not None else 'unknown' for k in NUM}
         c.execute('UPDATE dishes SET recipe_source=%s WHERE user_id=%s AND id=%s',(json.dumps(source),uid,did))
     c.execute('UPDATE dishes SET items = %s, updated = now(), recipe_updated = now() WHERE id = %s AND user_id = %s', (json.dumps(items), did, uid))
     return _get(c, uid, did)
@@ -282,6 +291,7 @@ class DishEdit(BaseModel):
     known_carbs_g: float | None = Field(None, ge=0, le=5000)
     known_fat_g: float | None = Field(None, ge=0, le=5000)
     known_fiber_g: float | None = Field(None, ge=0, le=5000)
+    dismiss_pending:list[str]=Field(default_factory=list,max_length=60)
     use_ingredients:StrictBool=False
     serving: str | None = Field(None, pattern='^(one|portion)$')
     servings: int | None = Field(None, ge=1, le=50)
@@ -304,15 +314,19 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         if v.get('serving'): sets['serving'] = v['serving']
         if 'servings' in v: sets['servings'] = v['servings']
         if set(sets) & {'cooked_g', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
-        if d.get('recipe_source') and (any('known_'+k in sets for k in KNOWN) or body.use_ingredients):
-            source=dict(d['recipe_source']);source['basis']='ingredients' if body.use_ingredients else 'entered';source['edited']=True
+        if d.get('recipe_source') and (any('known_'+k in sets for k in KNOWN) or body.use_ingredients or body.dismiss_pending):
+            source=dict(d['recipe_source']);source['basis']='ingredients' if body.use_ingredients else ('entered' if any('known_'+k in sets for k in KNOWN) else source['basis']);source['edited']=True
+            if body.dismiss_pending:
+                if any(line not in source.get('pending',[]) for line in body.dismiss_pending):raise HTTPException(409,'This unmatched line changed. Reload the recipe.')
+                source['pending']=[line for line in source.get('pending',[]) if line not in body.dismiss_pending]
+                source['site_recipe_changed']=bool(source.get('source_url')) or source.get('site_recipe_changed',False)
             source['sources']={k:('entered' if sets.get('known_'+k) is not None else 'unknown') if 'known_'+k in sets else (source.get('sources') or {}).get(k,'unknown') for k in NUM}
-            if body.use_ingredients:
+            if body.use_ingredients or (body.dismiss_pending and source['basis']=='ingredients'):
                 values=_ingredient_totals(d['items'],source);sets['recipe_updated']=dt.datetime.now(dt.timezone.utc)
-                estimated=any(i.get('source')=='ai' or (i.get('ref') or {}).get('origin')=='ai' for i in d['items'])
+                label=source_label(d['items'])
                 for k in KNOWN:
                     sets['known_'+k]=values[k]
-                    source['sources'][k]=('estimated_ingredients' if estimated else 'ingredients') if values[k] is not None else 'unknown'
+                    source['sources'][k]=label if values[k] is not None else 'unknown'
             sets['recipe_source']=json.dumps(source)
         if sets:
             c.execute(f"UPDATE dishes SET {', '.join(f'{k} = %s' for k in sets)}, updated = now() WHERE id = %s AND user_id = %s",
@@ -509,13 +523,20 @@ def cancel_portion(did:int,body:PortionCancelIn,user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
-        entry=c.execute('SELECT id,source,ref FROM food_entries WHERE user_id=%s AND client_id=%s',(uid,body.client_id)).fetchone()
+        entry=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND client_id=%s',(uid,body.client_id)).fetchone()
         if entry and (entry['source']!='dish' or (entry['ref'] or {}).get('dish_id')!=did):raise HTTPException(409,'This Undo belongs to a different food')
         key=receipts.identity(uid,body.client_id)
         c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES(%s,%s) ON CONFLICT DO NOTHING',(uid,key))
         root=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,key)).fetchone()
         if root and ((root.get('result') or {}).get('receipt') or {}).get('client_id')==body.client_id:
             reply=engine.stored_reply(c,uid,root)
+            if not reply and entry:
+                result={'kind':'log','text':'Saved from your food picker.','entry_ids':[entry['id']],
+                        'entry_digests':{str(entry['id']):engine.entry_digest(entry)}}
+                food_thread.finish_reply(c,uid,root,result)
+                root=food_thread.locked_message(c,uid,root['id'])
+                c.execute('INSERT INTO food_chat_entries(user_id,message_id,entry_id) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING',(uid,root['id'],entry['id']))
+                reply=engine.stored_reply(c,uid,root)
             if reply and (reply.get('result') or {}).get('kind') in ('log','undone'):
                 return {**engine.undo(c,uid,root),'cancelled':True}
         removed=c.execute('DELETE FROM food_entries WHERE user_id=%s AND client_id=%s RETURNING id',(uid,body.client_id)).fetchall()

@@ -13,7 +13,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 
 from . import coach, db, energy
-from .api_dishes import _seen, _totals, _weight
+from .api_dishes import _seen, _totals, _weight, serving_count
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
@@ -119,7 +119,7 @@ def diet_review_get(user=Depends(current_user)):
         r = c.execute("SELECT period_start, text, created FROM coach_notes WHERE user_id = %s AND kind = 'diet' ORDER BY period_start DESC LIMIT 1",
                       (user['id'],)).fetchone()
     latest = {'day': r['period_start'], 'created': r['created'], **json.loads(r['text'])} if r else None
-    return {'enabled': coach.allowed(user['id']), 'available': coach.enabled(), 'latest': latest}
+    return {'paused': not coach.ai_budget.enabled(), 'enabled': coach.allowed(user['id']), 'available': coach.enabled(), 'latest': latest}
 
 
 @router.post('/food/review')
@@ -156,7 +156,7 @@ def _recipe_context(c, user_id, d):
     known = {k: d[f'known_{k}'] for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g') if d[f'known_{k}'] is not None}
     return {'units': p.get('units', 'imperial'), 'dish': d['name'], 'ingredients': items, 'whole_dish': _totals(d),
             'typed_in_totals': known or None, 'weight_g': _weight(d), 'weighed_after_cooking': d['cooked_g'] is not None, 'typical_portion_g': portion,
-            'eaten_as': 'the whole dish is one serving' if d['serving'] == 'one' else 'a portion by weight',
+            'eaten_as': f"one of {serving_count(d):g} servings" if d['serving'] == 'one' else 'a portion by weight',
             'notes': 'grams and kcal; whole_dish uses the typed-in totals when given; ingredient weights are raw; weight_g is the ingredients added up unless weighed_after_cooking'}
 
 

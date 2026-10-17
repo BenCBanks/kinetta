@@ -2,7 +2,7 @@
 const RecipeImport=(()=>{
   const ownerKey=()=>App.me?JSON.stringify([serverKey(),App.me.id]):null;
   const key=owner=>'fit.recipe.draft:'+owner;
-  const labels={site:'Published by site',ingredients:'Matched ingredients',estimated_ingredients:'Ingredients · includes AI estimates',entered:'Entered by you',unknown:'Unknown'};
+  const labels=RECIPE_SOURCE_LABELS;
   let current;
   const active=c=>current===c&&c.el.isConnected&&c.owner===ownerKey()&&c.session===readOwner();
   const valid=(c,id)=>active(c)&&c.id===id;

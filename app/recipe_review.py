@@ -68,10 +68,10 @@ def build(c,uid,row,body):
     proposed=body.values.model_dump() if body.values else site
     totals={};sources={}
     for k in D.NUM:
-        if body.basis=='ingredients':v=summed[k];source=('estimated_ingredients' if any(i['source']=='ai' for i in items) else 'ingredients') if v is not None else 'unknown'
+        if body.basis=='ingredients':v=summed[k];source=D.source_label(items) if v is not None else 'unknown'
         else:
             per=proposed[k];v=per*body.servings if per is not None else (summed[k] if body.basis=='published' else None)
-            source=('site' if per==site[k] and body.basis=='published' else 'entered') if per is not None else (('estimated_ingredients' if any(i['source']=='ai' for i in items) else 'ingredients') if v is not None else 'unknown')
+            source=('site' if per==site[k] and body.basis=='published' else 'entered') if per is not None else (D.source_label(items) if v is not None else 'unknown')
         if v is not None and (not math.isfinite(v) or v>(50000 if k=='kcal' else 5000)):raise HTTPException(422,'The whole recipe is too large. Check servings and nutrition.')
         totals[k]=round(v,4) if v is not None else None;sources[k]=source
     review={'input':body.model_dump(mode='json'),'name':name,'servings':body.servings,'items':items,'pending':pending,
