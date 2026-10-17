@@ -928,6 +928,11 @@ MIGRATIONS = [
     GRANT SELECT ON health_resting TO fit_readers;
     """,
 
+    # 44: optional goal-first setup; existing targets, body settings and Health choices stay unchanged.
+    """ALTER TABLE profile ADD COLUMN nutrition_goal text
+         CHECK (nutrition_goal IN ('lose_weight','maintain','build_muscle','eat_healthier','fuel_training'));
+       ALTER TABLE profile ADD COLUMN goal_pace_percent double precision
+         CHECK (goal_pace_percent >= 0 AND goal_pace_percent <= 1);""",
 ]
 
 

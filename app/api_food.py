@@ -518,6 +518,59 @@ class TargetsIn(BaseModel):
     fiber_target: float | None = Field(None, ge=0, le=300)
 
 
+class GoalSetupIn(BaseModel):
+    goal: str = Field(pattern='^(lose_weight|maintain|build_muscle|eat_healthier|fuel_training)$')
+    pace_percent: float = Field(0, ge=0, le=1, allow_inf_nan=False)
+    # Only supplied body fields are changed, and only by the explicit save endpoint.
+    weight_kg: float | None = Field(None, ge=25, le=300, allow_inf_nan=False)
+    height_cm: float | None = Field(None, ge=100, le=250, allow_inf_nan=False)
+    birth_year: int | None = Field(None, ge=1920, le=2020)
+    sex: str | None = Field(None, pattern='^(male|female)$')
+    activity_factor: float | None = Field(None, allow_inf_nan=False)
+
+
+class GoalSaveIn(GoalSetupIn):
+    kcal_target: float = Field(ge=1, le=10000, allow_inf_nan=False)
+    protein_target: float = Field(ge=1, le=1000, allow_inf_nan=False)
+
+
+def _goal_preview(c, uid, body):
+    profile = c.execute('SELECT weight_kg, height_cm, birth_year, sex, activity_factor FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
+    values = body.model_dump(exclude_unset=True)
+    for key in ('weight_kg', 'height_cm', 'birth_year', 'sex'):
+        if key in values: profile[key] = values[key]
+    if body.activity_factor is not None: profile['activity_factor'] = body.activity_factor
+    if 'weight_kg' not in values:
+        rows = c.execute('SELECT day, kg FROM weights WHERE user_id = %s ORDER BY day', (uid,)).fetchall()
+        if rows: profile['weight_kg'] = energy.weight_trend(rows)[-1][2]
+    try:
+        return energy.target_suggestion(profile, body.goal, body.pace_percent, dt.datetime.now(dt.timezone.utc).year)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.post('/target-suggestion')
+def target_suggestion(body: GoalSetupIn, user=Depends(current_user)):
+    with db.connect() as c:
+        return _goal_preview(c, user['id'], body)
+
+
+@router.put('/goal-setup')
+def goal_setup(body: GoalSaveIn, user=Depends(current_user)):
+    with db.connect() as c:
+        # One transaction; serializes with source/body changes. No partial target/body save on failure.
+        c.execute('SELECT user_id FROM profile WHERE user_id = %s FOR UPDATE', (user['id'],))
+        suggestion = _goal_preview(c, user['id'], body)
+        if body.kcal_target < suggestion['resting_floor']:
+            raise HTTPException(400, f"Choose at least {suggestion['resting_floor']} kcal, your estimated resting burn.")
+        values = body.model_dump(exclude_unset=True, exclude={'goal', 'pace_percent'})
+        values.update(nutrition_goal=body.goal, goal_pace_percent=suggestion['pace_percent'])
+        if body.activity_factor is not None: values['activity_factor'] = suggestion['activity_factor']
+        else: values.pop('activity_factor', None)
+        c.execute(f"UPDATE profile SET {', '.join(f'{key} = %s' for key in values)} WHERE user_id = %s", (*values.values(), user['id']))
+    return {'ok': True, 'profile': values}
+
+
 @router.put('/targets')
 def targets(body: TargetsIn, user=Depends(current_user)):
     v = body.model_dump()

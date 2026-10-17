@@ -31,6 +31,7 @@ node dev/tests/test_native_resting.js
 node dev/tests/test_social_gestures.js
 node dev/tests/test_card_taps.js
 node dev/tests/test_ui_state.js
+node dev/tests/test_onboarding.js
 node dev/tests/test_async_reads.js
 node dev/tests/test_food_search.js
 node dev/tests/test_food_remove.js
@@ -43,7 +44,7 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details test_resting_energy; do python3 "$t.py"; done
+for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details test_resting_energy test_onboarding; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"

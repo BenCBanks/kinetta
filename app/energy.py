@@ -11,6 +11,7 @@ Measured check (not used for targets): over the last 4 weeks, average logged int
   workouts; compared with needs + average workouts to show whether the estimate runs high or low.
 """
 import datetime as dt
+import math
 from statistics import median
 
 from . import db
@@ -82,6 +83,48 @@ def context(c, user_id):
 
 
 ACTIVITY = {1.2: 'Mostly sitting', 1.3: 'Some walking and standing', 1.45: 'On my feet a lot'}
+
+NUTRITION_GOALS = ('lose_weight', 'maintain', 'build_muscle', 'eat_healthier', 'fuel_training')
+
+
+def target_suggestion(profile, goal, pace_percent, year):
+    """Day-one estimates only: no watch, history, AI, or writes. Later check-ins are separate.
+
+    Body inputs may be omitted. Make the 75 kg fallback explicit rather than pretending to know
+    someone's body. Pace is a percent of body weight per week, capped at 1%; resting burn is a floor.
+    """
+    if goal not in NUTRITION_GOALS:
+        raise ValueError('Choose a nutrition goal.')
+    changing = goal in ('lose_weight', 'build_muscle')
+    pace = float(pace_percent or 0) if changing else 0.0
+    if not math.isfinite(pace) or not 0 <= pace <= 1:
+        raise ValueError('Choose a pace between 0 and 1% of body weight per week.')
+    kg = float(profile.get('weight_kg') or 75)
+    factor = float(profile.get('activity_factor') or 1.2)
+    factor = next((n for n in ACTIVITY if abs(factor - n) < .01), None)
+    if factor is None:
+        raise ValueError('Choose an everyday activity level.')
+    birth = profile.get('birth_year')
+    if birth and year - birth < 18:
+        raise ValueError('Goal estimates are for adults aged 18 and over.')
+    resting = bmr(kg, profile.get('height_cm'), birth, profile.get('sex'), year)
+    exact = resting is not None
+    resting = max(0, resting if exact else kg * (20 if profile.get('sex') == 'female' else 22))
+    base = resting * factor
+    change = kg * pace / 100 * KCAL_PER_KG / 7
+    raw = base - change if goal == 'lose_weight' else base + change if goal == 'build_muscle' else base
+    floor = math.ceil(resting / 10) * 10
+    kcal = max(floor, round(raw / 10) * 10)
+    protein_factor = 1.6 if goal in ('lose_weight', 'build_muscle', 'fuel_training') else 1.2
+    protein = round(kg * protein_factor / 5) * 5
+    # The floor can make the requested loss pace unattainable: return the actual suggestion, never promise it.
+    effective = max(0, (base - kcal if goal == 'lose_weight' else kcal - base) * 7 / KCAL_PER_KG) if changing else 0
+    return {'kcal_target': kcal, 'protein_target': protein, 'resting_floor': floor,
+            'resting_kcal': round(resting / 10) * 10, 'daily_needs': round(base / 10) * 10,
+            'activity_factor': factor, 'activity': ACTIVITY[factor], 'weight_kg': kg,
+            'weight_assumed': not bool(profile.get('weight_kg')), 'method': 'mifflin' if exact else 'weight_only',
+            'protein_g_per_kg': protein_factor, 'pace_percent': pace,
+            'effective_kg_per_week': round(effective, 2), 'floor_applied': raw < floor}
 
 
 # A day with only a snack logged isn't a 2,000 kcal deficit: days under 40% of the calorie goal (or of daily needs, without
