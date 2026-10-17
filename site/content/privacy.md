@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 16, 2026
+Last updated October 17, 2026
 
 ## intro
 
@@ -28,7 +28,22 @@ Information we collect
 
 ## collect
 
-We store the account details you provide, including your username, display name, password hash, optional photo and biography. We also store workouts and original activity files, GPS routes, recorded measurements, food entries, recipes, weight entries, goals, plans and settings that you add or import. Optional body details help calculate personal estimates. Beta requests include your name, email, device information and message.
+We store the account details you provide, including your username, display name, password hash, optional photo and biography.
+
+## collect-food
+
+Food conversation text and links to logged foods are private account records. They are included in your download and removed with your account. Logged AI estimates may become reusable private foods with their source and assumptions marked. You can edit or remove saved foods in My foods.
+
+## collect-processing
+
+Reuse mappings store a hash of the food words rather than another copy of your conversation. Processing metadata and cancellation identifiers prevent duplicate or cancelled uploads. Deleting a message removes its text and processing job; already logged and saved foods remain until you remove them. No food-photo thumbnails or full photos are kept in server thread history. Pending food messages and selected photos may be kept in the app’s private storage on your device so an interrupted upload can resume. Pending photos are removed from that outbox after processing or cancellation; clearing the app’s local data also removes unsent messages. Saved conversation copies and drafts on the device are bound to the selected server and account.
+
+## collect-imports
+
+When you explicitly read a recipe link, we keep only its parsed recipe draft, source URL, matched own-food references and processing identifiers, not the web page. Discard immediately clears the source URL and parsed content. Drafts and minimal rate-limit records are removed after their UTC day ends, within the next cleanup pass (normally five minutes); an expired draft also loses its URL and content. A saved recipe is independent of its temporary draft. Parsed drafts are included in your data download. Reading a link does not save a recipe or log food. A recipe text draft and its server identity may be cached privately on your device under your selected server and account; account deletion clears that local draft. Recipe screenshots use the existing optional food AI service only after image review. No screenshot is kept in a server recipe draft; a private input hash binds retries. Parsed estimate values, portions and AI source labels may be kept in the draft and saved recipe. An optional ingredient estimate sends only the unresolved ingredient you explicitly choose, rather than the web page or known foods.
+
+We also store workouts and original activity files, GPS routes, recorded measurements, food entries, recipes, weight entries, goals, plans and settings that you add or import. Optional body details help calculate personal estimates. Beta requests include your name, email, device information and message.
+
 
 ## use-heading
 
@@ -67,6 +82,8 @@ Other members may find your name and username through people search and see your
 Service providers and connections
 
 ## providers
+
+When you explicitly import a public recipe link, the recipe website receives a server-side page request and the URL you supplied. Kinetta sends no account identity, cookies or login credentials to that website. The page is not sent to an AI service.
 
 Cloudflare processes network traffic to the hosted app. OpenStreetMap receives map-area requests from your device. USDA FoodData Central and Open Food Facts receive food-search words, product words or scanned barcodes, rather than your Kinetta account identity. Services you connect, such as intervals.icu or Health Auto Export, exchange information needed for the connection under their own policies. Disconnecting a source stops future imports through that connection; records already imported remain until you delete them.
 
@@ -108,7 +125,11 @@ Storage and retention
 
 ## retention
 
-The hosted beta stores account records in the United States until you remove them or delete your account. Beta requests and related response history are kept for administration until removed; requests linked to a joined account are removed when that account is deleted. Operational logs rotate using size limits, rather than a guaranteed number of days. Service providers apply their own retention terms.
+The hosted beta stores account records in the United States until you remove them or delete your account. Beta requests and related response history are kept for administration until removed; requests linked to a joined account are removed when that account is deleted. Operational logs rotate using size limits, rather than a guaranteed number of days.
+
+## retention-ai
+
+AI usage records contain model names, token counts and estimated costs, without food text or photos. Account deletion removes their account and message references; usage and cost records may remain to enforce service budgets and keep operational totals. Service providers apply their own retention terms.
 
 ## backups-heading
 

@@ -7,6 +7,7 @@
 // or by portion (a pot of chili), and logging happens in Add food, not here.
 'use strict';
 
+const RECIPE_SOURCE_LABELS=Object.freeze({site:'Published by site',ingredients:'Matched ingredients',estimated_ingredients:'Ingredients · includes AI estimates',entered:'Entered by you',unknown:'Unknown'});
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
 Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l6-6 6 6"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'});
@@ -36,7 +37,7 @@ route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
 // the ingredients, how it's measured, then the conversation and a message box pinned above the tab bar, with + for a
 // barcode, a nutrition label photo or the food search. Done sits in the top bar.
 function drawDish(el, d) {
-  const t = d.totals, typed = d.known.kcal != null, mine = d.mine !== false, has = d.items.length > 0 || typed, w = d.weight_g;
+  const t = d.totals, typed = d.known.kcal != null, mine = d.mine !== false, has = d.items.length > 0 || typed || !!d.recipe_source?.import_id, w = d.weight_g;
   const set = (fresh) => {      // redraw, keeping whatever box was being typed in
     const act = document.activeElement, keep = act && act.id && el.contains(act) ? [act.id, act.value] : null;
     App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh);
@@ -45,33 +46,36 @@ function drawDish(el, d) {
   const ing = (it) => `<span class="ig-n">${esc(it.name)}</span><span class="ig-g num">${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</span><b class="num r">${r0(it.kcal)}</b>`;
   const shared = mine ? d.shared_with || [] : [];
   const bySv = d.serving === 'one';
-  const sums = has ? `<p class="dish-sum num"><b>${r0(t.kcal)} kcal</b> · ${MACROS.map(([k, nm]) => `${r0(t[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn('Nutrition')}<div class="acts">${(mine && aiCan('coach') && has) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
+  const source=d.recipe_source||{}, imported=!!source.import_id, display=imported?d.per_serving:t;
+  el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
+  const sums = has ? `<p class="dish-sum num"><b>${r0(display.kcal)} kcal${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${r0(display[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
+  el.innerHTML = `<div class="top">${backBtn(imported?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach') && has) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
     ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
     ${sums}
+    ${imported?recipeSourceCard(d):''}
     ${d.items.length ? `<div class="card ing-card"><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
     ${mine && has ? `<div class="card serve measure"><div class="seg wide m-seg" role="group" aria-label="How it's measured">
         <button type="button" data-sv="one" aria-pressed="${bySv}">By servings</button><button type="button" data-sv="portion" aria-pressed="${!bySv}">By weight</button></div>
-      ${bySv ? `<p class="small muted m-note">The whole meal is one serving. Had more? Say so when you log it.</p>`
+      ${bySv ? `<p class="small muted m-note">${imported?`This recipe makes ${esc(d.serving_count)} servings. Log the number you eat.`:'The whole meal is one serving. Had more? Say so when you log it.'}</p>`
         : `<form class="m-row" id="dk-weigh"><label class="m-lab" for="dk-w">Total weight</label><span class="gfield"><input id="dk-w" name="g" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
           value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole meal in grams"><span>g</span></span></form>
           ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
-    ${shared.length ? `<button class="card tap share-row" id="dk-share"><span class="avs">${shared.map((p) => avatar(p)).join('')}</span>
-      <span class="grow"><b>Shared with ${esc(shared.map((p) => p.name.split(' ')[0]).join(', '))}</b><small class="muted">Tap to change</small></span>${svg('chev')}</button>` : ''}
+    ${mine&&(has||shared.length)?`<button type="button" class="card tap share-row" id="dk-share">${shared.length?`<span class="avs">${shared.map(p=>avatar(p)).join('')}</span>`:''}<span class="grow"><b>${shared.length?'Shared with '+esc(shared.map(p=>p.name.split(' ')[0]).join(', ')):'Share with…'}</b><small class="muted">${shared.length?'Change who can see this recipe':'Optional · private until you choose a friend'}</small></span>${svg('chev')}</button>`:''}
     ${mine ? `${chatLog(d)}<div id="dk-match"></div>
       <form class="composer" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
         <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'Add an ingredient…' : 'Search for an ingredient…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="search" maxlength="600" required>
         <button class="icon-btn send" aria-label="Add">${svg('send')}</button></form>
       <input type="file" accept="image/*" multiple id="dk-label-file" hidden>`
       : has ? `<div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
-  wireBack(el, '/food');
+  wireBack(el, imported?'/food/meals':'/food');
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set)) : sharedMenu(d));
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
   const kit = $('#dk-kit', el); if (kit) kit.onclick = () => recipeKit(d, mine, set);
   if (!mine) return;
+  $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Leave this unmatched line out of the recipe nutrition? If you added it separately, its nutrition will be included.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
   $('#dk-help', el).onclick = () => sheet('How recipes work', cookSteps(d));
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
@@ -82,7 +86,7 @@ function drawDish(el, d) {
   $('#dk-done', el).onclick = () => {
     if (!has && !$('#dk-name', el).value.trim()) { api(`/api/dishes/${d.id}`, {method: 'DELETE'}).catch(() => {}); App.cache.delete('/api/dishes'); }
     else if (has) toast('Saved. Log it from My Recipes');
-    go('/food', {replace: true});
+    go(imported?'/food/meals':'/food', {replace: true});
   };
   // the name, edited in place: saved when you leave the box or press Done on the keyboard
   const nm = $('#dk-name', el);
@@ -124,7 +128,7 @@ function foodToDish(d, f, set) {
     <div class="portion-out" aria-live="polite"></div>
     <div class="actions"><button class="primary">Add to the meal</button></div></form>`, (b, close) => {
     const fm = $('#fd2', b), out = $('.portion-out', fm), num = (x) => +x.value.replace(',', '.');
-    const show = () => { const g = num(fm.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, (p[k] || 0) * g / 100]))) : ''; };
+    const show = () => { const g = num(fm.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, p[k]==null?null:p[k]*g/100]))) : ''; };
     fm.g.oninput = () => { if (fm.n) fm.n.value = ''; show(); };
     if (fm.n) fm.n.oninput = () => { const k = num(fm.n); if (k > 0) fm.g.value = Math.round(k * sg); show(); };
     show();
@@ -141,39 +145,61 @@ function foodToDish(d, f, set) {
 // Log a dish (Add food > Saved Dishes, or a friend's dish). One question only, the way the dish is measured (Ben,
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
 function dishLogSheet(d, w, done) {
-  const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one';     // by servings: the whole dish is one serving
-  const vals = (k) => Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, (t[x] || 0) * k]));
-  const half = (x) => (x === 0.5 ? '½' : String(x).replace('.5', '½'));
-  sheet(d.name, `<form class="form" id="dl">
+  const owner=readOwner();
+  if(d.recipe_source?.import_id && d.totals.kcal==null){sheet(d.name,'<p>Add calories before logging a portion. Missing ingredients are kept unknown.</p><button class="primary wide" id="recipe-add-nutrition">Add nutrition</button>',(b,close)=>{$('#recipe-add-nutrition',b).onclick=()=>{close();done(true);go('/food/cook/'+d.id);};});return;}
+  const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one'||(d.mine===false&&!d.weight_g);     // by servings: the whole dish is one serving
+  const vals = (k) => Object.fromEntries(FOOD_NUTRIENTS.map((x) => [x, t[x]==null?null:t[x]*k]));
+  sheet(d.name, `${d.mine===false?`<p class="small muted">Shared by ${esc(d.owner?.name||'your friend')}. Your food log stays private.</p>`:''}<form class="form" id="dl">
     ${bySv ? `<div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
-        <span><b class="num" id="dl-n">1</b><small id="dl-u">serving</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div>`
+        <span><input class="num" id="dl-n" name="count" inputmode="decimal" value="1" aria-label="Servings to log"><small id="dl-u">serving</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div>`
       : wt ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="The whole meal is ${Math.round(wt)}" aria-label="Your portion in grams"><span>g</span></span></label>`
       : '<p class="callout warn">This meal is measured by weight but has no weight yet. Edit it and type its total weight, or switch it to servings.</p>'}
-    <div class="portion-out" aria-live="polite"></div>
+    ${d.mine===false&&d.serving!=='one'&&!wt?'<p class="small muted">No total weight has been added. Use servings instead.</p>':''}${bySv&&!d.recipe_source?.import_id?`<p class="small muted">${d.mine===false&&(d.serving_count||1)>1?`The owner split this recipe into ${esc(d.serving_count)} servings.`:'Enter the share of the whole recipe you ate; 0.25 is a quarter.'}</p>`:''}${d.recipe_source?.import_id?`<p class="small muted">The whole recipe makes ${esc(d.serving_count)} servings. Unknown nutrition is shown as a dash.</p>`:''}<div class="portion-out" aria-live="polite"></div>
     <div class="actions">${d.mine !== false ? `<button type="button" class="ghost" id="dl-edit">${svg('edit')}Edit</button><span class="spacer"></span>` : ''}
       <button class="primary"${!bySv && !wt ? ' disabled' : ''}>Add to ${esc(MEAL_NAMES[w.meal])}${w.day !== isoDay(new Date()) ? `, ${esc(dayLabel(w.day))}` : ''}</button></div></form>`, (b, close) => {
-    const f = $('#dl', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
-    let n = 1;
-    const factor = () => (bySv ? n : num(f.g) > 0 && wt ? num(f.g) / wt : null);
-    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k)) : ''; };
+    guardFoodSheet(b,close,owner);
+    const f = $('#dl', b), out = $('.portion-out', f), num = x => {const v=x?.value?.trim()||'';const m=v.match(/^(\d*)([¼½¾])$/);return m?Number(m[1]||0)+({'¼':.25,'½':.5,'¾':.75}[m[2]]):Number(v.replace(',','.'));};
+    const half=x=>{const whole=Math.floor(x),frac=Math.round((x-whole)*4);return frac?`${whole||''}${['','¼','½','¾'][frac]}`:String(whole);};
+    const needsFraction=d.mine===false&&!wt&&!d.recipe_source?.import_id&&(d.serving_count||1)<=1;
+    let n=needsFraction?NaN:1;if(needsFraction){f.count.value='';f.count.placeholder='e.g. 0.25';f.count.setAttribute('aria-label','Fraction of the whole recipe');}
+    const factor = () => (bySv ? (Number.isFinite(n)&&n>0&&n<=20?n/(d.serving_count||1):null) : num(f.g) > 0 && wt ? num(f.g) / wt : null);
+    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k))+extraFood(vals(k)) : '';$('button.primary',f).disabled=!k; };
     if (bySv) $$('[data-st]', f).forEach((x) => x.onclick = () => {
-      n = Math.max(0.5, Math.min(20, n + 0.5 * +x.dataset.st));
-      $('#dl-n', f).textContent = half(n); $('#dl-u', f).textContent = n > 1 ? 'servings' : 'serving'; show();
+      n = Math.max(0.25, Math.min(20, (Number.isFinite(n)?n:1) + 0.25 * +x.dataset.st));
+      $('#dl-n', f).value = half(n); $('#dl-u', f).textContent = n === 1 ? 'serving' : 'servings'; show();
     });
     else if (f.g) f.g.oninput = show;
+    if(bySv)f.count.oninput=()=>{n=num(f.count);$('#dl-u',f).textContent=n===1?'serving':'servings';show();};
     show();
     const ed = $('#dl-edit', b); if (ed) ed.onclick = () => { close(); done(true); go(`/food/cook/${d.id}`); };
+    const portionId=newId();
     f.onsubmit = async (e) => {
-      e.preventDefault(); const btn = $('button.primary', f);
-      const body = {meal: w.meal, day: w.day};
-      if (bySv) body.count = n;
+      e.preventDefault(); const btn = $('button.primary', f);if(btn.disabled)return;
+      const body = {meal: w.meal, day: w.day, client_id:portionId};
+      if (bySv) {if(!Number.isFinite(n)||n<=0||n>20){toast('Enter a serving count above zero and up to 20.');return;}body.count = n;}
       else { const g = num(f.g); if (!(g > 0)) { toast('How many grams did you have?'); return; } body.grams = g; }
-      btn.disabled = true;
+      const label=btn.textContent;btn.disabled = true;btn.textContent='Saving portion…';
       try {
-        const r = await api(`/api/dishes/${d.id}/portion`, json('POST', body));
-        invalidate('/api/food/'); App.cache.delete('/api/dishes'); close(); done(false);
-        toast(`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${r0(r.entry.kcal)} kcal`);
-      } catch (x) { toast(x.message); btn.disabled = false; }
+        const r = await sendOrQueue(`/api/dishes/${d.id}/portion${location.pathname==='/food/describe'?'?thread=true&captured_at='+encodeURIComponent(new Date().toISOString()):''}`, 'POST', body, d.name);
+        if(!r.queued&&r.messages&&typeof FoodThread!=='undefined'){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
+        if(readOwner()!==owner)return;
+        if(r.queued){const factor=bySv?n/(d.serving_count||1):body.grams/wt,values=Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,t[k]==null?null:t[k]*factor]));
+          patchDay(w.day,day=>{if(day.entries.some(e=>e.id==='q-'+portionId))return;day.entries.push({...w,...values,id:'q-'+portionId,client_id:portionId,name:d.name,amount:bySv?n:body.grams,unit:bySv?'serving':'g',source:'dish',pending:true,ref:{dish_id:d.id,unknown_nutrients:Object.keys(values).filter(k=>values[k]==null)}});for(const k of Object.keys(values)){day.totals[k]=(day.totals[k]||0)+(values[k]||0);if(values[k]==null&&day.unknown_nutrients)day.unknown_nutrients[k]=(day.unknown_nutrients[k]||0)+1;}});
+        }else invalidate('/api/food/');
+        App.cache.delete('/api/dishes');close();done(false);Native.haptic('light');
+        let undoing=false,undone=false;
+        const undo=async()=>{if(undoing||undone||readOwner()!==owner)return;undoing=true;
+          try{
+            const removed=await sendOrQueue(`/api/dishes/${d.id}/portion/cancel`,'POST',{client_id:portionId},'Undo '+d.name);
+            if(readOwner()!==owner)return;
+            Q.save(Q.all().filter(op=>!(Q.owns(op)&&op.body?.client_id===portionId&&op.path.split('?')[0]===`/api/dishes/${d.id}/portion`)));netbar();
+            patchDay(w.day,day=>{const found=day.entries.find(e=>e.id==='q-'+portionId);if(found){day.entries=day.entries.filter(e=>e!==found);for(const k of FOOD_NUTRIENTS){day.totals[k]=Math.max(0,(day.totals[k]||0)-(found[k]||0));if(found[k]==null&&day.unknown_nutrients)day.unknown_nutrients[k]=Math.max(0,(day.unknown_nutrients[k]||0)-1);}}});
+            if(readOwner()!==owner)return;undone=true;if(removed.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(removed);
+            invalidate('/api/food/');toast(removed.queued?'Undo saved on this phone · waiting to send':'Portion removed');
+          }catch(x){if(readOwner()===owner)toast('Could not undo · try again',undo);}finally{undoing=false;}
+        };
+        toast(r.queued?'Portion saved on this phone · waiting to send':`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${Math.round(r.entry.kcal/5)*5} kcal`,undo);
+      } catch (x) { if(readOwner()===owner){if(d.mine===false&&x.status===404){invalidate('/api/dishes');close();done(false);toast('This recipe is no longer shared with you.');}else{toast(x.message);btn.disabled=false;btn.textContent=label;}} }
     };
   });
 }
@@ -237,7 +263,7 @@ function labelButton(el, d, set) {
         <label class="check"><input type="checkbox" name="save"> <span>Also save it to My foods</span></label>
         <div class="actions"><button class="primary">Add to the meal</button></div></form>`;
       const f = $('#lb', b), out = $('.portion-out', f), num = (x) => +x.value.replace(',', '.');
-      const show = () => { const g = num(f.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, (L.per100[k] || 0) * g / 100]))) : ''; };
+      const show = () => { const g = num(f.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, L.per100[k]==null?null:L.per100[k]*g/100]))) : ''; };
       f.g.oninput = () => { f.n.value = ''; show(); };
       f.n.oninput = () => { const n = num(f.n); if (n > 0) f.g.value = Math.round(n * L.serving.g); show(); };
       const all = $('#lb-all', b); if (all) all.onclick = () => { f.g.value = Math.round(pkg); f.n.value = ''; show(); };
@@ -250,7 +276,7 @@ function labelButton(el, d, set) {
           set(await api(`/api/dishes/${d.id}/items`, json('POST', {name, grams: g, per100: L.per100, source: 'label'})));
           if (f.save.checked) {
             await api('/api/food/foods', json('POST', {name: L.name, brand: L.brand, barcode: null, serving_label: L.serving.label, serving_g: L.serving.g,
-              kcal: S.kcal, protein_g: S.protein_g, carbs_g: S.carbs_g, fat_g: S.fat_g, fiber_g: S.fiber_g, favorite: false}));
+              kcal: S.kcal, protein_g: S.protein_g, carbs_g: S.carbs_g, fat_g: S.fat_g, fiber_g: S.fiber_g, ...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,S[k]??null])), favorite: false}));
             invalidate('/api/food/foods');
           }
           close(); toast(`Added ${name}: ${gfmt(g)}${f.save.checked ? ', saved to My foods' : ''}`);
@@ -265,7 +291,7 @@ async function removeItem(d, it, set) {
   if (!it) return;
   try {
     set(await api(`/api/dishes/${d.id}/items/${it.id}`, {method: 'DELETE'}));
-    const back = {name: it.name, grams: it.grams, source: it.source || 'quick', ref: it.ref || null, per100: it.per100 || null, ...Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'].map((k) => [k, it[k] == null ? null : it[k]]))};
+    const back = {name: it.name, grams: it.grams, source: it.source || 'quick', ref: it.ref || null, per100: it.per100 || null, ...Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, it[k] == null ? null : it[k]]))};
     toast(`Removed ${it.name}`, async () => { try { set(await api(`/api/dishes/${d.id}/items`, json('POST', back))); } catch (x) { toast(x.message); } });
   } catch (x) { toast(x.message); }
 }
@@ -274,7 +300,7 @@ function cookSteps(d) {
   const added = d.items.length > 0 || d.known.kcal != null;
   const steps = [
     [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it the way you\'d text it, or tap + to scan a barcode or photograph the label.'],
-    [added, 'Say how it\'s measured', 'By servings (the whole meal is one serving, like a smoothie; log 2 if you had two) or by weight (a pot of chili: you log grams).'],
+    [added, 'Say how it\'s measured', d.recipe_source?.import_id?`This recipe makes ${d.serving_count} servings. Log the number you eat, or add the whole cooked weight and log grams.`:'By servings (the whole meal is one serving, like a smoothie; log 2 if you had two) or by weight (a pot of chili: you log grams).'],
     [false, 'Log it when you eat it', 'My Recipes, any day. It stays saved until you delete it.'],
   ];
   const now = added ? 2 : 0;
@@ -294,27 +320,17 @@ function recipeReview(d, mine) {
     ${mine && aiCan('coach') ? `<button class="linkbtn" id="dk-review">${svg('sparkle')}${R.changed_since ? 'The recipe changed - ask again' : 'Ask again'}</button>` : ''}`, new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}));
 }
 // who the dish is shared with: friends only, one tap each
-function shareDishSheet(d, set) {
-  sheet('Share this meal', `<p class="small muted">Friends you share it with see the meal and log their own portion. They can't change it.</p><div id="sd-list">${skel(1)}</div>`, async (b) => {
-    const box = $('#sd-list', b);
-    let on = new Set((d.shared_with || []).map((p) => p.login)), fr;
-    try { fr = (await api('/api/friends')).friends; } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
-    const draw = () => {
-      box.innerHTML = fr.length ? `<div class="card list">${fr.map((p) => `<div class="person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span>
-        <button class="${on.has(p.login) ? 'ghost' : 'primary'} sm" data-sd="${esc(p.login)}">${on.has(p.login) ? `${svg('check')}Shared` : 'Share'}</button></div>`).join('')}</div>`
-        : '<p class="small muted">No friends yet. Add them under Me &gt; Friends, then share meals with them here.</p>';
-      $$('[data-sd]', box).forEach((x) => x.onclick = async () => {
-        x.disabled = true; const login = x.dataset.sd;
-        try {
-          if (on.has(login)) { await api(`/api/dishes/${d.id}/share/${encodeURIComponent(login)}`, {method: 'DELETE'}); on.delete(login); }
-          else { await api(`/api/dishes/${d.id}/share`, json('POST', {login})); on.add(login); }
-          d = await api(`/api/dishes/${d.id}`); set(d); draw();
-        } catch (e) { toast(e.message); x.disabled = false; }
-      });
-    };
-    draw();
+function shareDishSheet(d,set){
+  const owner=readOwner();
+  sheet('Share with…',`<p>Only approved friends you choose can see this recipe and log their own portion. Your food log stays private.</p><div id="sd-list">${skel(1)}</div><button type="button" class="primary wide" id="sd-done">Done</button>`,async(b,close)=>{
+    guardFoodSheet(b,close,owner);$('#sd-done',b).onclick=close;const box=$('#sd-list',b),valid=()=>box.isConnected&&owner===readOwner();let on=new Set((d.shared_with||[]).map(p=>p.login)),friends;
+    try{friends=(await api('/api/friends')).friends;if(!valid())return;for(const person of d.shared_with||[])if(!friends.some(f=>f.login===person.login))friends.push(person);}catch(e){if(valid()){box.innerHTML=`<p class="err">${esc(e.message)}</p><button type="button" class="ghost" id="sd-retry">Retry friends</button>`;$('#sd-retry',b).onclick=()=>{close();shareDishSheet(d,set);};}return;}
+    const draw=()=>{if(!valid())return;box.innerHTML=friends.length?`<div class="shared-friends">${friends.map(p=>`<div class="person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span><button type="button" class="ghost" data-sd="${esc(p.login)}" aria-label="${on.has(p.login)?'Stop sharing with':'Share with'} ${esc(p.name)}">${on.has(p.login)?'Stop sharing':'Share'}</button></div>`).join('')}</div>`:'<p>No approved friends yet. <a href="/me/friends">Add a friend</a>, then choose who sees this recipe.</p>';
+      const add=box.querySelector('a[href="/me/friends"]');if(add)add.onclick=e=>{e.preventDefault();e.stopPropagation();close();go('/me/friends');};
+      $$('[data-sd]',box).forEach(button=>button.onclick=async()=>{if(!valid()||button.disabled)return;const login=button.dataset.sd,was=on.has(login);button.disabled=true;button.textContent=was?'Stopping…':'Sharing…';try{const response=await api(`/api/dishes/${d.id}/share`+(was?'/'+encodeURIComponent(login):''),was?{method:'DELETE'}:json('POST',{login}));if(!valid())return;was?on.delete(login):on.add(login);invalidate('/api/dishes');d=was?{...d,shared_with:(d.shared_with||[]).filter(p=>p.login!==login)}:response;set(d);draw();Native.haptic('light');toast(was?'Stopped sharing this recipe':'Recipe shared. They can log their own portion.');}catch(e){if(valid()){toast(e.message);draw();}}});};draw();
   });
 }
+
 function sharedMenu(d) {
   sheet(d.name, `<p class="small muted">${esc(d.owner.name)} shared this meal with you.</p><div class="btncol"><button class="ghost danger" id="sm-hide">Remove it from my list</button></div>`, (b, close) => {
     $('#sm-hide', b).onclick = async () => {
@@ -408,7 +424,7 @@ async function searchFlow(el, d, set, text) {
   try {
     const local = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=mine`); if (my !== searchSeq) return;
     const recent = local.recent.filter((r) => r.unit === 'g' && r.amount > 0).map((r) => ({name: r.name, brand: r.brand, source: r.source,
-      per100: Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'].map((k) => [k, r[k] == null ? null : r[k] / r.amount * 100]))}));
+      per100: Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, r[k] == null ? null : r[k] / r.amount * 100]))}));
     draw([['Yours', local.mine.concat(recent)]]);
     const ext = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=usda,off`); if (my !== searchSeq) return;
     draw([['Yours', local.mine.concat(recent)], ['USDA', ext.usda], ['Open Food Facts', ext.off]]);
@@ -419,26 +435,26 @@ function typeSheet(name, grams, done) {
     <div class="two"><label>Weight (g)<input name="grams" inputmode="decimal" value="${esc(grams)}" required></label><label>Calories<input name="kcal" inputmode="decimal" required></label></div>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal"></label></div>
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal"></label><span></span></div>
-    <p class="small muted">For the whole amount you're adding, from the packet or a recipe.</p>
+    ${extraInputs()}<p class="small muted">For the whole amount you're adding, from the packet or a recipe.</p>
     <div class="actions"><button class="primary">Add</button></div></form>`, (b, close) => {
-    const f = $('#ty', b); f.kcal.focus();
+    guardFoodSheet(b,close,readOwner());const f = $('#ty', b); f.kcal.focus();
     f.onsubmit = async (e) => {   // stays open if the server says no, so the numbers aren't lost
       e.preventDefault(); const n = (v) => (v.trim() === '' ? null : +v.replace(',', '.')), btn = $('button.primary', f);
       btn.disabled = true;
-      if (await done({name: f.name.value.trim(), grams: n(f.grams.value), kcal: n(f.kcal.value), protein_g: n(f.protein_g.value), carbs_g: n(f.carbs_g.value), fat_g: n(f.fat_g.value)})) close();
+      if (await done({name: f.name.value.trim(), grams: n(f.grams.value), kcal: n(f.kcal.value), protein_g: n(f.protein_g.value), carbs_g: n(f.carbs_g.value), fat_g: n(f.fat_g.value),...extraFormValues(f)})) close();
       else btn.disabled = false;
     };
   });
 }
 function itemSheet(d, it, set) {
-  sheet(it.name, `<form class="form" id="it"><label>Weight<span class="gfield"><input name="g" inputmode="decimal" value="${Math.round(it.grams * 10) / 10}" required><span>g</span></span></label>
+  sheet(it.name, `<form class="form" id="it"><label>Weight<span class="gfield"><input name="g" inputmode="decimal" value="${it.grams==null?'':Math.round(it.grams * 10) / 10}" required><span>g</span></span></label>
     <div id="it-nut">${nutGrid(it)}</div>
-    <p class="small muted">${it.per100 && it.per100.kcal != null ? `${r0(it.per100.kcal)} kcal per 100 g. ` : ''}Change the weight and the numbers follow.</p>
+    <p class="small muted">${it.per100 && it.per100.kcal != null ? `${r0(it.per100.kcal)} kcal per 100 g. ` : ''}${it.grams?'Change the weight and the numbers follow.':'Weigh this known amount to give it a weight. Its nutrition stays the same.'}</p>
     <div class="actions"><button type="button" class="ghost danger" id="it-del">Remove</button><button class="primary">Save</button></div></form>`, (b, close) => {
     const f = $('#it', b);
     f.g.oninput = () => {   // the numbers above follow the weight as you type
       const g = +f.g.value.replace(',', '.'), k = it.grams > 0 ? g / it.grams : 0;
-      if (g > 0 && k) $('#it-nut', b).innerHTML = nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, it[x] * k])));
+      if (g > 0 && k) $('#it-nut', b).innerHTML = nutGrid(Object.fromEntries(FOOD_NUTRIENTS.map((x) => [x, it[x]==null?null:it[x]*k])));
     };
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
@@ -450,33 +466,31 @@ function itemSheet(d, it, set) {
   });
 }
 function knownSheet(d, set) {
-  const k = d.known, v = (x) => (x == null ? '' : Math.round(x));
+  const k = d.known, v = (x) => (x == null ? '' : String(Math.round((x+Number.EPSILON)*10000)/10000));
   sheet('Total for the whole meal', `<form class="form" id="kn"><label>Calories<input name="kcal" inputmode="decimal" value="${v(k.kcal)}" required></label>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal" value="${v(k.protein_g)}"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal" value="${v(k.carbs_g)}"></label></div>
-    <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal" value="${v(k.fat_g)}"></label><span></span></div>
-    <p class="small muted">From a recipe or your own sums. It's used instead of the ingredients.</p>
+    <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal" value="${v(k.fat_g)}"></label><label>Fiber (g)<input name="fiber_g" inputmode="decimal" value="${v(k.fiber_g)}"></label></div>
+    ${extraInputs(k)}<p class="small muted">From a recipe or your own sums. It's used instead of the ingredients.</p>
     <div class="actions">${k.kcal != null ? '<button type="button" class="ghost" id="kn-clear">Use the ingredients</button>' : ''}<button class="primary">Save</button></div></form>`, (b, close) => {
-    const f = $('#kn', b);     // no keyboard until a box is tapped (2026-10-12)
+    guardFoodSheet(b,close,readOwner());const f = $('#kn', b);     // no keyboard until a box is tapped (2026-10-12)
     const save = async (body) => {
       const btn = $('button.primary', f); btn.disabled = true;
       try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); close(); } catch (x) { toast(x.message); btn.disabled = false; }
     };
     f.onsubmit = (e) => {
       e.preventDefault(); const n = (s) => (s.trim() === '' ? null : +s.replace(',', '.'));
-      save(Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g'].map((x) => ['known_' + x, n(f[x].value)])));
+      save(Object.fromEntries(FOOD_NUTRIENTS.map((x) => ['known_' + x, n(f[x].value)])));
     };
-    const c = $('#kn-clear', b); if (c) c.onclick = () => save({known_kcal: null, known_protein_g: null, known_carbs_g: null, known_fat_g: null});
+    const c = $('#kn-clear', b); if (c) c.onclick = () => save({known_kcal: null, known_protein_g: null, known_carbs_g: null, known_fat_g: null, known_fiber_g:null,known_sodium_mg:null,known_sugar_g:null,known_saturated_fat_g:null,use_ingredients:true});
   });
 }
 function dishMenu(d, set, search, known) {
   sheet(d.name, `<div class="btncol"><button class="ghost" id="dm-search">Search the food database</button>
     <button class="ghost" id="dm-known">${d.known.kcal != null ? 'Change the total you typed in' : 'I already know the total'}</button>
-    <button class="ghost" id="dm-share">${(d.shared_with || []).length ? 'Shared with friends' : 'Share with a friend'}</button>
     <button class="ghost danger" id="dm-del">Delete meal</button></div>
     <p class="small muted">What you've logged from it stays in your food log.</p>`, (b, close) => {
     $('#dm-search', b).onclick = () => { close(); search(); };
     $('#dm-known', b).onclick = () => { close(); known(); };
-    $('#dm-share', b).onclick = () => { close(); shareDishSheet(d, set); };
     $('#dm-del', b).onclick = async () => {
       if (!confirm(`Delete ${d.name}?`)) return;
       try { await api(`/api/dishes/${d.id}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); toast('Meal deleted'); } catch (x) { toast(x.message); }
@@ -502,4 +516,10 @@ function recipeKit(d, mine, set) {
       };
     }; draw();
   });
+}
+
+
+function recipeSourceCard(d){
+  const s=d.recipe_source,labels=RECIPE_SOURCE_LABELS;
+  return `<div class="card recipe-source"><p class="small">Makes ${esc(d.serving_count)} servings · ${d.totals.kcal==null?'Calories unknown':`${Math.round(d.totals.kcal/5)*5} kcal in the whole recipe`}</p>${s.source_url?`<a class="linkbtn" href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">Original recipe</a>`:'<p class="small muted">From a recipe screenshot · AI estimates</p>'}<p class="small muted">${esc([...new Set(Object.values(s.sources||{}).map(k=>labels[k]||'Unknown'))].join(' · '))}${s.edited?' · Edited':''}</p>${s.site_recipe_changed?'<p class="small muted">Published values describe the site’s original recipe; ingredients were edited.</p>':''}${s.pending?.length?`<details><summary>Unmatched ingredients (${s.pending.length})</summary>${s.pending.map(t=>`<p>${esc(t)}${d.mine!==false?` <button class="linkbtn" data-dismiss-pending="${esc(t)}">Leave this line out</button>`:''}</p>`).join('')}</details>`:''}</div>`;
 }

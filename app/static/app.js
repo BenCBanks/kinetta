@@ -33,6 +33,7 @@ async function api(path, opts = {}) {
   const owner = readOwner();
   let r;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
+  if (App.me && path !== '/api/me' && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
   try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, headers: {...headers, ...Native.headers(), ...(opts.headers || {})}}); }
   catch (e) { throw Object.assign(new Error("Can't reach Kinetta - check your connection."), {offline: true}); }
@@ -40,11 +41,13 @@ async function api(path, opts = {}) {
   if (owner !== readOwner()) throw Object.assign(new Error('The account changed while this request was running. Please try again.'), {stale: true});
   if (!r.ok) {
     const d = body && body.detail;
-    const e = new Error(typeof d === 'string' ? d : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : `Error ${r.status}`);
-    e.status = r.status;
-    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); App.me = null; showLogin('Please log in again.'); }
+    const previewChanged=r.status===409&&path.startsWith('/api/food/thread/messages/')&&body?.changed===true;
+    const e = new Error(typeof d === 'string' ? d : d && typeof d.message === 'string' ? d.message : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : previewChanged ? 'The food details changed. Check the updated card, then tap Log again.' : `Error ${r.status}`);
+    e.status = r.status; e.code = d?.code || (previewChanged ? 'preview_changed' : undefined); e.detail = d; e.payload = body;
+    if (r.status === 401 && App.me && owner === readOwner()) { if (typeof TrackNative !== 'undefined') TrackNative.detach().catch(()=>{}); else if (typeof Track !== 'undefined') Track.pause(); try { Native.pauseHealth?.().catch(()=>{}); } catch(x) {} if (owner === readOwner()) { App.me = null; showLogin('Please log in again.'); } }
     throw e;
   }
+
   return body;
 }
 const json = (method, body) => ({method, body: JSON.stringify(body)});
@@ -92,8 +95,9 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* full or blocked: offline copies are a bonus */ } },
   del(k) { try { localStorage.removeItem(k); } catch (e) { /* blocked */ } },
 };
-function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, data}); }
-function kept(path) { const v = store.get('fit.c:' + path); return v && (!App.me || v.who === App.me.login) ? v.data : null; }
+const serverKey = () => Native.base || location.origin;
+function keep(path, data) { if (App.me && KEEP.some((r) => r.test(path))) store.set('fit.c:' + path, {who: App.me.login, server: serverKey(), data}); }
+function kept(path) { const v = store.get('fit.c:' + path); return v && (v.server === serverKey() || (!v.server && !Native.on)) && (!App.me || v.who === App.me.login) ? v.data : null; }
 function forgetKept() { try { for (const k of Object.keys(localStorage)) if (k.startsWith('fit.c:')) localStorage.removeItem(k); } catch (e) { /* none */ } }
 
 // Fold a generated note without redrawing the page, map or inputs. Remember only its fingerprint on this device.
@@ -122,7 +126,11 @@ document.addEventListener('click', (e) => {
   if (body.hidden) store.set(card.dataset.coachKey, card.dataset.coachVersion); else store.del(card.dataset.coachKey);
   b.textContent = body.hidden ? 'Show' : 'Hide'; b.setAttribute('aria-expanded', String(!body.hidden));
 });
-const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12));
+const newId = () => {
+  if(crypto.randomUUID)return crypto.randomUUID();
+  const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+  const h=[...bytes].map(n=>n.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+};
 // change a day of the food log in every copy (screen cache + phone copy), e.g. to show an item saved offline
 function patchDay(day, fn) {
   const paths = new Set([...App.cache.keys()].filter((k) => k.startsWith('/api/food/day')));
@@ -134,30 +142,80 @@ function patchDay(day, fn) {
     App.cache.set(p, {data: d, at: Date.now()}); keep(p, d);
   }
 }
+// Owner keys contain no credentials. Older browser queues belong to this origin;
+// older native queues have no recorded server, so cannot safely be sent automatically.
+const queueOwner = () => App.me ? JSON.stringify([serverKey(), App.me.id]) : null;
 const Q = {
   all() { return store.get('fit.queue') || []; },
-  mine() { return Q.all().filter((o) => App.me && o.who === App.me.login); },
-  add(op) { store.set('fit.queue', [...Q.all(), {...op, who: App.me.login, at: Date.now()}]); netbar(); },
+  save(ops) {
+    // Unlike optional screen caches, an unsaved write must never be reported queued.
+    try { localStorage.setItem('fit.queue', JSON.stringify(ops)); }
+    catch (e) { throw Error("This phone couldn't save the pending item. Keep this screen open and try again when connected."); }
+  },
+  owns(op) { return !!App.me && (op.owner === queueOwner() || (!op.owner && !Native.on && op.who === App.me.login)); },
+  legacy(op) { return !!App.me && !op.owner && Native.on && op.who === App.me.login; },
+  visible(op) { return Q.owns(op) || Q.legacy(op); },
+  mine() { return Q.all().filter(Q.visible); },
+  add(op) { Q.save([...Q.all(), {...op, id: newId(), owner: queueOwner(), who: App.me.login, at: Date.now()}]); netbar(); },
   async flush() {
     if (Q.busy || !App.me || !navigator.onLine) return;
-    const q = Q.all(); if (!q.some((o) => o.who === App.me.login)) return;
-    Q.busy = true; const keepOps = []; let sent = 0, offline = false;
-    for (const op of q) {
-      if (op.who !== App.me.login || offline) { keepOps.push(op); continue; }
-      try { await api(op.path, {method: op.method, body: JSON.stringify(op.body)}); sent++; }
-      catch (e) { if (e.offline) { offline = true; keepOps.push(op); } else toast(`Couldn't save ${op.label}: ${e.message}`); }
-    }
-    store.set('fit.queue', [...keepOps, ...Q.all().slice(q.length)]);   // keep anything added while sending
-    Q.busy = false; netState(offline);
-    if (sent) { invalidate('/api/'); toast(`Sent ${sent} item${sent > 1 ? 's' : ''} saved while offline`); render(); }
+    const owner = readOwner(), account = queueOwner();
+    let q = Q.all(); if (!q.some(o => Q.owns(o) && !o.error)) return;
+    // Persist IDs before sending so additions/discards during a request aren't overwritten.
+    q = q.map(o => Q.owns(o) ? {...o, owner: account, id: o.id || newId()} : o);
+    Q.save(q); Q.busy = true; let sent = 0, offline = false;
+    try {
+      for (const op of q) {
+        if (owner !== readOwner() || !navigator.onLine) break;
+        if (op.owner !== account || op.error || !Q.all().some(o => o.id === op.id)) continue;
+        let failed = null, response;
+        try { response=await api(op.path, {method: op.method, body: JSON.stringify(op.body)});sent++; }
+        catch (e) { failed = e; offline = !!e.offline; }
+        // Even if the account changed, remove only the acknowledged original item.
+        const current = Q.all();
+        Q.save(failed ? current.map(o => o.id === op.id ? {...o, error: failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed' ? null : failed.message} : o)
+          : current.filter(o => o.id !== op.id));
+        if (!failed && response?.messages && owner===readOwner() && typeof FoodThread!=='undefined') {try{await FoodThread.accept(response);}catch(e){invalidate('/api/food');}}
+        if (failed && !failed.offline && !failed.stale && failed.status !== 401 && failed.code !== 'account_changed' && owner === readOwner()) toast(`Couldn't save ${op.label}. It is still on this phone.`);
+        if (failed && (failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed')) break;
+      }
+    } finally { Q.busy = false; netState(offline); netbar(); }
+    if (sent && owner === readOwner()) { invalidate('/api/'); toast(`Sent ${sent} pending item${sent > 1 ? 's' : ''}`); if(location.pathname==='/food/describe' && typeof FoodThread!=='undefined')FoodThread.refresh();else render(); }
+  },
+  review() {
+    const owner = readOwner();
+    Q.save(Q.all().map(o => Q.visible(o) ? {...o, ...(Q.owns(o) ? {owner:queueOwner()} : {}), id: o.id || newId()} : o));
+    sheet('Pending items', '<div id="pending-items"></div>', (b, close) => {
+      const draw = () => {
+        if (owner !== readOwner()) { close(); return; }
+        const ops = Q.mine(), box = $('#pending-items', b);
+        box.innerHTML = ops.length ? '<p>Items stay on this phone until saved or discarded.</p>' + ops.map((o, i) =>
+          `<div class="pending-item"><p><strong>${esc(o.label)}</strong><br><span class="small">${esc(Q.legacy(o) ? 'Saved before this update · review before sending' : o.error || 'Waiting for a connection')}</span></p><div class="actions"><button class="ghost" data-pending-retry="${i}">${Q.legacy(o) ? 'Send to this account' : 'Retry'}</button><button class="linkbtn" data-pending-discard="${i}">Discard</button></div></div>`).join('') : '<p>Everything has been sent.</p>';
+        $$('[data-pending-retry]', box).forEach(btn => btn.onclick = async () => {
+          if (owner !== readOwner()) return;
+          const op = ops[+btn.dataset.pendingRetry];
+          if (Q.legacy(op) && !confirm(`Send this older saved item to ${App.me.login} on this server?`)) return;
+          Q.save(Q.all().map(o => o.id === op.id ? {...o, owner:queueOwner(), error: null} : o));
+          btn.disabled = true; btn.textContent = 'Sending…';
+          try { await Q.flush(); } catch (e) { toast(e.message); } if (b.isConnected) draw();
+        });
+        $$('[data-pending-discard]', box).forEach(btn => btn.onclick = () => {
+          if (Q.busy) { toast('Please wait for the current upload to finish.'); return; }
+          if (owner !== readOwner() || !confirm('Discard this pending item from this phone?')) return;
+          const op = ops[+btn.dataset.pendingDiscard]; Q.save(Q.all().filter(o => o.id !== op.id)); netbar(); draw();
+        });
+      }; draw();
+    });
   },
 };
 // writes that may wait for a connection: food entries and weigh-ins. Returns the server reply, or {queued: true}.
 async function sendOrQueue(path, method, body, label) {
+  const owner = readOwner();
   if (navigator.onLine) {
     try { const r = await api(path, json(method, body)); netState(false); return r; }
     catch (e) { if (!e.offline) throw e; }
   }
+  if (owner !== readOwner()) throw Object.assign(Error('The account changed. Please try again.'), {stale: true});
   netState(true); Q.add({path, method, body, label}); App.queuedAt = Date.now(); return {queued: true};
 }
 function netState(off) { if (App.offline !== off) { App.offline = off; netbar(); } }
@@ -165,15 +223,19 @@ function netbar() {
   let b = $('#netbar'); const n = Q.mine().length;
   if (!App.offline && !n) { if (b) b.remove(); return; }
   if (!b) { b = document.createElement('div'); b.id = 'netbar'; b.className = 'netbar'; b.setAttribute('role', 'status'); document.body.append(b); }
-  b.textContent = App.offline ? `Offline - showing what's saved on this phone${n ? ` · ${n} waiting to send` : ''}` : `${n} item${n > 1 ? 's' : ''} waiting to send…`;
+  b.replaceChildren(); const status = document.createElement('span');
+  status.textContent = App.offline ? `Offline - showing what's saved on this phone${n ? ` · ${n} waiting to send` : ''}` : `${n} item${n > 1 ? 's' : ''} waiting to send${Q.mine().some(o => o.error) ? ' · needs attention' : '…'}`;
+  b.append(status);
+  if (n) { const button = document.createElement('button'); button.type = 'button'; button.className = 'linkbtn'; button.textContent = 'Review'; button.onclick = () => Q.review(); b.append(button); }
 }
-addEventListener('online', () => { netState(false); Q.flush(); });
+addEventListener('online', () => { netState(false); Q.flush().catch(e => toast(e.message)); });
 addEventListener('offline', () => netState(true));
-setInterval(() => { if (Q.mine().length) Q.flush(); }, 30000);
+setInterval(() => { if (Q.mine().length) Q.flush().catch(e => toast(e.message)); }, 30000);
 function invalidateFeed() {
   readEpochs.set('feed:home', readEpoch('feed:home') + 1); App.cache.delete('feed:home');
 }
-const invalidate = (prefix) => {
+const invalidate = (prefix, {health=true}={}) => {
+  if(health && prefix==='/api/food') Native.queueNutritionSync?.();
   if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) invalidateFeed();
   const paths = new Set([...App.cache.keys(), ...[...pendingReads.keys()].map((k) => JSON.parse(k)[1])]);
   for (const p of paths) if (p.startsWith(prefix)) { readEpochs.set(p, readEpoch(p) + 1); App.cache.delete(p); }
@@ -373,28 +435,59 @@ function sheet(title, html, onMount) {
 // ---------- router ----------
 IC.mail = '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>';
 IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
-const TABS = [['me', 'Me'], ['activity', 'Activity'], ['track', 'Track'], ['progress', 'Progress'], ['food', 'Nutrition']];   // Me is home: first, and where the app opens
+const TABS = [['me', 'Me'], ['food', 'Nutrition'], ['log', 'Log'], ['activity', 'Activity'], ['progress', 'Progress']];   // Me is home: first, and where the app opens
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
   history[replace ? 'replaceState' : 'pushState'](null, '', path);
   render();
 }
+// The shared entry sheet is immediate; food focus stays within the initiating tap.
+function quickLogSheet() {
+  sheet('Log', `<div class="log-choices"><button class="log-choice" id="log-food">${svg('food')}<span><b>Log food</b><small>Describe, Snap, Scan or Paste</small></span>${svg('chev')}</button><button class="log-choice" id="log-workout">${svg('track')}<span><b>Record a workout</b><small>Run, ride, lift, yoga and more</small></span>${svg('chev')}</button></div><button class="row-link log-weight" id="log-weight">${svg('scale')}<span class="grow">Weigh in</span>${svg('chev')}</button>`, (b,close) => {
+    $('#log-food',b).onclick = () => { close(); describeSheet(isoDay(new Date()),guessMeal()); };
+    $('#log-workout',b).onclick = () => { close(); go('/track'); };
+    $('#log-weight',b).onclick = () => { close(); quickWeighIn(); };
+  });
+}
+function quickWeighIn() {
+  const owner = readOwner(), day = isoDay(new Date()), unit = imp() ? 'lb' : 'kg';
+  sheet('Weigh in', `<form id="quick-weight" class="form"><p class="small muted">${esc(dayLabel(day))}</p><label>Weight (${unit})<input name="weight" inputmode="decimal" required value="${App.me.weight_kg ? esc(U.weight(App.me.weight_kg)) : ''}" aria-label="Today’s weight in ${unit}" enterkeyhint="done"></label><button class="primary wide">Save weight</button></form>`, (b,close) => {
+    const f = $('#quick-weight',b), input = f.elements.weight; let touched = false;
+    input.oninput = () => { touched = true; }; input.focus();
+    load('/api/food/weights/latest', W => {
+      if (!b.isConnected || touched || readOwner() !== owner) return;
+      const latest = W.points?.slice().sort((a,b)=>a.day.localeCompare(b.day)).at(-1);
+      if (latest) input.value = U.weight(latest.kg);
+    }).catch(()=>{});
+    f.onsubmit = async e => {
+      e.preventDefault(); const v = Number(input.value.replace(',','.')), kg = imp() ? v / LB : v;
+      if (!(kg > 20 && kg < 400)) { input.setCustomValidity('Enter a weight between ' + (imp() ? Math.round(20*LB) : 20) + ' and ' + (imp() ? Math.round(400*LB) : 400) + ' ' + unit); input.reportValidity(); input.oninput = () => { touched = true; input.setCustomValidity(''); }; return; }
+      const button = $('button',f); if (button.disabled) return; button.disabled = true;
+      try {
+        const r = await sendOrQueue('/api/food/weights','PUT',{day,kg},'weigh-in');
+        if (readOwner() !== owner) return;
+        close(); invalidate('/api/food'); Native.haptic('success'); toast(r.queued ? 'Weight saved on this phone · waiting to send' : 'Weight saved');
+      } catch(x) { if (b.isConnected && readOwner() === owner) { button.disabled = false; toast(x.message); } }
+    };
+  });
+}
 function render() {
   if (!App.me) return;
   const path = location.pathname.replace(/\/+$/, '') || '/me';
   const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
-  const m = path.match(page.re) || [];
+  const m = path.match(page.re) || [], activeTab = page.tab === 'track' ? 'log' : page.tab;
   // The tab bar stays put between screens (2026-10-16): only the page is replaced, so a tap never waits for the bar to be
   // rebuilt and its badges don't blink. The first render (or after logging in again) builds it.
   const nav = $('nav.tabs', root), fresh = '<main class="shell" id="page"></main>';
   if (nav && nav.parentNode === root && root.children.length === 2 && $('#page', root)) {
     const main = document.createElement('main'); main.className = 'shell'; main.id = 'page'; $('#page', root).replaceWith(main);
-    $$('a[data-tab]', nav).forEach((a) => (a.dataset.tab === page.tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+    $$('[data-tab]', nav).forEach((a) => (a.dataset.tab === activeTab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   } else root.innerHTML = `${fresh}<nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
-    `<a href="/${t}" data-tab="${t}"${t === page.tab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
+    t === 'log' ? `<button type="button" data-tab="log" data-quick-log aria-label="Log food, weight or a workout"${activeTab === 'log' ? ' aria-current="page"' : ''}>${svg('plus')}<span>Log</span></button>` : `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
+  if (typeof Track !== 'undefined') Track.sync();
   const key = location.pathname + location.search;
   // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab slides it in.
   if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t)) el.classList.add('enter'); App.lastPath = location.pathname; }
@@ -416,6 +509,7 @@ function showError(el, e) {
 }
 // in-app links: <a href="/..."> navigate without reloading; prefetch on press for instant pages
 document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-quick-log]')) { e.preventDefault(); if (typeof Track !== 'undefined' && Track.active) go('/track'); else quickLogSheet(); return; }
   const a = e.target.closest('a[href^="/"]');
   if (!a || e.metaKey || e.ctrlKey || a.target) return;
   e.preventDefault();
@@ -427,7 +521,7 @@ document.addEventListener('pointerdown', (e) => {
   const a = e.target.closest('[data-prefetch]'); if (a) prefetch(a.dataset.prefetch);
 }, {passive: true});
 window.addEventListener('popstate', render);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && App.me) Q.flush(); if (!document.hidden && App.me && navigator.onLine && Date.now() - (App.hiddenAt || 0) > 60000) { invalidate('/api/'); render(); } if (document.hidden) App.hiddenAt = Date.now(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && App.me) Q.flush().catch(e => toast(e.message)); if (!document.hidden && App.me && navigator.onLine && Date.now() - (App.hiddenAt || 0) > 60000) { invalidate('/api/'); render(); } if (document.hidden) App.hiddenAt = Date.now(); });
 
 // ---------- skeleton ----------
 const skel = (n = 3) => Array.from({length: n}, () => '<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join('');
@@ -890,7 +984,7 @@ async function start() {
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/me');
-    render(); Q.flush(); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
+    render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
   const saved = kept('/api/me');

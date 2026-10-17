@@ -82,14 +82,7 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
     }
 
     private func persist(_ next: HealthSyncState) throws {
-        let directory = file.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
-            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
-        var excluded = directory
-        var resource = URLResourceValues()
-        resource.isExcludedFromBackup = true
-        try excluded.setResourceValues(resource)
-        try JSONEncoder().encode(next).write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try HealthProtectedFile.write(next,to:file)
         state = next
     }
 
@@ -689,6 +682,7 @@ class KinettaHealthSyncPlugin: CAPPlugin, CAPBridgedPlugin {
 class KinettaBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(KinettaHealthSyncPlugin())
+        bridge?.registerPluginInstance(KinettaHealthFoodPlugin())
         bridge?.registerPluginInstance(KinettaPushPlugin())
         bridge?.registerPluginInstance(KinettaTrackPlugin())
         bridge?.registerPluginInstance(KinettaHapticsPlugin())

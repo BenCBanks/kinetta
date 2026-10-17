@@ -100,3 +100,11 @@ provider, record the exact missing input and work on the next item. Update this 
 implemented, tested, merged and released are different states.
 
 Roadmap placement expresses priority. It does not itself authorize publishing, deployment, contacting people, spending money or changing real user data; follow the current owner instructions and repository rules.
+
+## #122 implementation record — Workstream A
+
+The accepted order is [#122 section 5](https://github.com/BenCBanks/kinetta/issues/122): A → B → C → D → E → F → G,
+then its later milestones. This supersedes the historical queue above while the roadmap rewrite in PR #123 is pending.
+A restores optional Apple Health setup and adds skippable, explicit-save goal/target estimates. Implemented on the
+Workstream A branch; review, merge, release and physical-iPhone acceptance remain separate. No other workstream is
+included in that change. Nutrition leads, activity is a strong second, and no Garmin integration is required.

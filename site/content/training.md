@@ -24,7 +24,7 @@ Watch files and Strava history
 
 ## upload-fit-gpx-or-tcx-files-or-your-own-strava-history-6
 
-Upload FIT, GPX or TCX files, or your own Strava history export, from Me → Import.
+Upload FIT, GPX or TCX files, or your own Strava history export, from **Me → Connections → Upload files**.
 
 ## connected-sources-7
 
@@ -32,7 +32,7 @@ Connected sources
 
 ## set-up-intervals-icu-or-health-auto-export-from-me-wat-8
 
-Connect intervals.icu or Health Auto Export in **Me → Watch connections**. Direct Garmin Connect integration is not available.
+Apple Health leads **Me → Connections** in the iPhone app. File uploads work in the browser too. Self-hosters can find intervals.icu and Health Auto Export under **Advanced**.
 
 ## apple-health-on-iphone-9
 
@@ -40,7 +40,7 @@ Apple Health on iPhone
 
 ## testflight-access-is-being-prepared-in-the-iphone-app--10
 
-The iPhone beta reads the Apple Health categories you allow. It syncs when you open Kinetta; iOS can also deliver workouts in the background, with timing controlled by iOS. Apple Watch routes can be imported when available. Garmin’s Health exports may omit GPS; import the original file for a map.
+The iPhone beta reads the Apple Health categories you allow. It syncs when you open Kinetta; iOS can also deliver workouts in the background, with timing controlled by iOS. Apple Watch routes can be imported when available. Garmin workouts can take a while to reach Health, and Garmin does not send their GPS tracks. On a Health workout without a map, **Add the map** explains how to upload its original ZIP/FIT file and keep a single matching activity.
 
 ## maps-splits-heart-rate-and-records-11
 

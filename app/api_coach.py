@@ -54,5 +54,5 @@ def propose(body: coach_proposals.ProposalIn, user=Depends(current_user)):
 
 
 @router.post('/proposals/{pid}/confirm')
-def confirm(pid: uuid.UUID, body: ConfirmIn, user=Depends(current_user)):
-    return coach_proposals.confirm(user['id'], pid)
+def confirm(pid: uuid.UUID, body: ConfirmIn, user=Depends(current_user), thread:bool=False):
+    return coach_proposals.confirm(user['id'], pid,thread=thread)

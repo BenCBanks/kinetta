@@ -308,3 +308,303 @@ Nutrition owns the resting-source preference, distinct from the food goal and ac
   Explore Kinetta and Help & contact share one list without a heading; Profile & settings stays last.
 - **Contact:** the public support address is KinettaApp@gmail.com (privacy policy, website footers, SECURITY.md, Me ›
   Help & contact). Never ask for passwords by email.
+
+## Nutrition-first onboarding — #122 Workstream A (October 2026)
+
+Issue #122 is the accepted direction: nutrition leads, activity remains a strong second, and a watch/connector is
+optional. This change implements A only; the home reorder, new navigation, food thread, adaptive check-in and
+training-day targets remain separate workstreams. The eight owner decisions in #122 govern their implementation.
+
+Me retains an unfinished setup list with an optional native **Connect Apple Health** step until sync is enabled,
+including accounts with activity history. Never render a setup heading/card without rows. A returned Health
+permission request is still not proof of every read grant. The existing native consent/import flow is unchanged.
+
+Goal setup is a full page opened deliberately from Me or Nutrition, never a launch pop-up. Choose Lose weight,
+Maintain, Build muscle, Eat healthier or Fuel training; choose everyday activity outside workouts, optionally enter
+private body details, then review editable calorie/protein estimates. **See my estimate** does not save anything.
+Only **Save targets** persists the goal, pace, supplied body details, everyday activity, calories and protein in one
+transaction. Other macro targets, per-day overrides, resting source and consent are preserved. Not now/Back leave
+account settings unchanged; unfinished choices resume within the same signed-in page session. Reload starts from
+saved settings. Manual targets remain available in the existing sheet.
+
+`energy.target_suggestion` uses the existing Mifflin–St Jeor resting estimate when possible, otherwise the existing
+weight-only method (20 kcal/kg for female, 22 otherwise). Missing weight explicitly uses 75 kg, never presented as
+measured. Everyday activity is ×1.2/1.3/1.45, excluding workouts. Weekly weight-change pace is 0–1% of body weight;
+7,700 kcal/kg gives the initial adjustment. Calories round to 10 and cannot fall below resting burn rounded upward
+to 10. The floor may slow loss; no rate is promised. Protein is 1.6 g/kg for loss/muscle/training goals and 1.2 for
+maintenance/healthier, rounded to 5 g. These are general adult starting estimates, not medical advice. Weight-based
+figures without full body details are labelled rough. No AI, measured-history adaptation or automatic Health choice.
+
+One main action per step, quieter Not now/Change details, explicit labels/units, 44px targets, native keyboard rules,
+shared theme tokens, wrapping and relative-sized text. Goal choices give a selection haptic and saving a success haptic,
+with visible selection/confirmation. Browser evidence is distinct from physical Dynamic Type/VoiceOver/haptic/Health
+permission acceptance, which requires an iPhone.
+
+### Food-first Me — #122 Workstream B
+
+Home opens with the greeting, Today’s food, the check-in slot (populated by G), today’s plan session when present, friends’ shared activities when present, and the 14-day distance chart when distance exists. Setup and tools follow. Training details remain in Progress and Activity; home does not show empty training cards or zero-distance charts.
+
+Today has one primary Log food action and direct Describe, Snap, Scan and Usual shortcuts. They use the existing food logging paths and the expected meal; no extra meal form is required. The calorie hero shows calories remaining, with eaten and goal underneath. Without a goal it shows eaten totals and optional Set a goal. A completely empty log starts with an invitation, not zero totals. One macro bar has text equivalents for protein, carbs and fat. Today’s workouts link to their owner’s activity and label estimated calories. The next empty meal offers a preview of yesterday’s foods before logging, using the existing offline-capable entry path with Undo after an online save. Food is never added to the friends feed.
+
+### Shared logging and Progress — #122 Workstream C
+
+The tabs are Me, Nutrition, ＋ Log, Activity and Progress. ＋ Log opens the shared dismissible sheet immediately with equal Log food and Record a workout choices, plus Weigh in. Food opens the existing composer within the initiating tap; Snap, Scan and Paste are visible there. Workout opens Track, retaining its sport choice and account-bound recording draft. A live or paused draft marks the centre button and one tap returns to the recording. The foreground browser recorder still pauses when hidden; background and locked-screen GPS remain native iPhone behavior and require physical-device acceptance in R.
+
+Quick weigh-in is today’s single weight field with units and explicit Save, prefilled with the latest weight when available. A late read never replaces typed input. It uses the existing durable offline write queue and gives visible confirmation plus a success haptic.
+
+Progress opens Food & weight by default and remembers the selected Food & weight / Training half per account on this device. Food includes Overview, Weight and a food calendar; its More menu preserves the existing nutrition views. Training keeps the existing views and old direct URLs. Nutrition retains daily logging, foods and recipes. Connections and uploads are also reachable under Profile & settings. All old routes remain supported; no permission popup is introduced on launch.
+
+### Persistent food conversation storage — #122 Workstream D, foundation
+
+The food thread has private, durable text messages with stable per-account client identities. A retry after a lost acknowledgement returns the original message; reusing that identity for different text is rejected. Capture time is retained for offline arrivals and converted to the account’s timezone for day separators. History is paged from the newest messages; older pages have a stable cursor. No full food photos or thumbnails are retained in thread storage.
+
+Message text and owner-bound links to logged foods are included in data export and removed with the account. Composite database foreign keys prevent linking another person’s message, reply or food. Personal SQL access is read-only under RLS. Deleting a message also removes its reply and links, while keeping already logged foods; food deletion remains an independent explicit action.
+
+The agreed future thread defaults are auto-log ready items and Supportive feedback; an explicit preferences API supports require-a-tap and Just the numbers. These settings do not alter the existing Add flow yet. This foundation stores pending messages and does not process them, call AI or change food totals. The visible conversation, processing, feedback, offline client delivery and the remaining D acceptance follow in subsequent focused PRs. Conversation history must never be sent to an AI provider; only the current unknown text and explicitly referenced food context may be sent by the later consent-gated processor.
+
+### Food-thread numbers and feedback — #122 D, part 2
+
+The private thread can answer calories/macros remaining or logged, historic meals, weekly logged totals/averages and burn questions using application records, with no model call. Missing logs and unknown fiber stay unknown. Daily targets stay daily; weekly queries label their logged-day coverage rather than inventing a weekly allowance. Formula burn is labelled as a whole-day estimate; Apple Health resting data is labelled as synced and never changes the independently chosen food goal.
+
+A numbers answer and its request state commit together under the account/message locks. Concurrent retries return the same stored answer, with its original as-of time. Ordinary food input remains pending for the later logging engine. Open advice only offers Kit with access and consent; this endpoint never invokes it. Day and insights data readers now accept the caller’s connection, so later logging feedback can see an uncommitted food write without borrowing a second pooled connection. Existing public day/insights endpoints use the same readers.
+
+The reusable feedback function offers Supportive or Just the numbers, varied code-written lines for protein, room toward the saved goal, larger meals, recorded workouts and days with food logged. It uses real totals and labels approximate calories. A target below estimated resting burn, several low or incomplete logs, or a measured trend losing more than 1% of body weight per week replaces praise with a gentle prompt to review the records and target. It never congratulates low intake or treats food as moral success/failure. The full conversation UI, automatic food logging/edits, unknown-food fallback and remaining D acceptance still follow.
+
+### Own-food thread logging — #122 D, part 3
+
+A thread message that fully resolves against the person’s saved foods, recipes, combinations or logged history can now log automatically, as decided in #122. The require-a-tap preference produces a stored preview instead. Meal/day words override inference; otherwise the captured day, learned meal hour or the existing clock-based meal guess supplies the destination. Unknown or uncertain items are left unlogged with one detail to resolve; the unknown-food and correction layers follow separately.
+
+Resolution, recalculated food writes, the factual feedback, reply and owner-bound links share one database transaction. A failure to store the reply rolls back the food write; retries and concurrent processing return one set of entries. The legacy Describe API retains its current bounds and explicit-confirm contract, while the thread accepts its own 4,000-character bounded text through the same parser. An explicit Log tap rechecks the stored preview; if nutrition changed or the preview expired, it refreshes the card and requires another tap instead of logging different numbers silently.
+
+Undo removes only that message’s linked foods, updates the persisted card and can be retried safely. Message deletion remains independent of food deletion. There are no model/provider calls in this layer. Follow-up edits, choices, historic-food references, unknown-food fallback, durable AI caps, the visible thread and remaining D acceptance are still pending. Fifty independently calculated fictional phrases exercise saved-food portions, multiple foods, ordinary conversational prefixes, dates and meals without asking the person to rephrase.
+
+### Thread corrections, choices and references — #122 D, part 4
+
+Follow-ups change the most recent matching logged card: half/absolute quantities, whole saved-combination quantities, named removals and destination corrections use the current logged values, preserving manual nutrition edits. The original card is marked updated; the correction is stored separately. Bare quantities with multiple possible targets ask one selection question, and a bare quantity after Undo cannot silently change an older meal. Correction retries do not apply the change twice. Reply/food changes share the same transaction; a persistence failure rolls everything back.
+
+Unresolved foods accept an explicit owned-food or portion choice. Require-a-tap remains effective after choices and reference quantities. Pending previews can continue through a quantity reply without retyping the food; superseded previews cannot also be logged. Source changes refresh a preview/question instead of silently applying different nutrition. Long text is retained while its reply stays compact. Day/meal edits move existing entries instead of copying them.
+
+“Same as yesterday’s lunch, but no cheese” reads the person’s own food log. Only a separately recorded matching item is excluded automatically; a composite food is not silently treated as if one ingredient could be subtracted. An uncertain exclusion asks which recorded foods to leave out, and a typed answer is an exclusion choice, not a new food log. A copied meal can be scaled before an explicit Log tap. “The rest of the chili” resolves the food from history but asks how much was left: saved recipes have no reliable cooking-batch identity, so remaining grams are not invented. Known portions then use recorded nutrition, with no model call.
+
+The final thread interface, offline queue and optional daily review remain the next D pieces. Unknown-food processing and durable AI cost controls are provided by the later D backend foundations below. No full food photos are retained and no conversation history is sent to a provider by this layer.
+
+### Food estimator pauses (#122 D foundation)
+
+An AI limit response explains that food search, barcodes and manual nutrition still
+work. Do not discard the person's message or replace it with zero-calorie food.
+Structured estimates share a durable daily service reservation; a failed/unknown
+bill keeps its hold. This backend foundation adds no new screen. The thread UI must
+present its fallback and retained text inline when it is implemented.
+
+AI pause/busy replies apply consistently to food and Kit. Opening records never
+spends tokens. A busy response must preserve pending food text and show the normal
+search/manual fallback. Existing generated notes remain readable when AI is paused.
+
+### Thread food resolution (#122 D backend; interface follows)
+
+Ready parts of a message save once without waiting for unknown parts when automatic
+logging is on. Require a tap holds ready parts for explicit Log. Each original
+part keeps its identity as public catalog choices, portion chips, photos or manual
+numbers resolve the rest. There is one clarification on the original card, with
+all remaining choices below it; people keep their original words. Known calories
+are not discarded when another food/provider fails. Undo covers the linked foods.
+
+Stored nutrition wins when a model-identified food clearly matches a private food;
+the portion remains marked as estimated. Otherwise AI foods retain their estimate
+source, assumptions and model, and become editable private foods after logging.
+A repeated description uses the saved foods without a model call. Portion edits
+retain the original learned amount, so halving today's two bowls does not redefine
+what "two bowls" means tomorrow. Changed saved nutrition refreshes a held preview
+and needs another explicit Log tap. Published product values keep their source.
+
+Capture/meal/day inference is independent of slow/offline delivery. Processing
+leases and stable identities prevent duplicate estimates/saves; cancellation or
+message deletion blocks late results/uploads. Deleting conversation text keeps
+saved food but removes its job. Reuse aliases contain hashes, not another copy of
+the conversation. The server retains no photo pixels or thumbnails. A photo that
+never uploaded asks for the photo again while retaining its text.
+
+Calorie-only manual entries mark omitted macros unknown. Daily/weekly factual
+answers refuse to invent a remaining amount from incomplete nutrition; entering
+that nutrient later clears its unknown flag. Feedback keeps the low-intake safety
+check and explains incomplete protein rather than reporting zero.
+
+These APIs add no app navigation/composer yet. The final thread interface must show
+per-food origin/estimate and unknown-nutrient labels, quiet Edit/Undo and manual or
+search fallbacks, preserve queued text, and use the shared sheets/components. No
+real-provider accuracy, private switch test or physical-iPhone acceptance is implied
+by the backend's stand-in tests.
+
+### Pending writes and account changes (#122 Workstream D)
+
+Food and weight uploads rejected by the server stay on the phone with their error.
+The connection banner opens Pending items with Retry and Discard; failed validation
+does not repeat automatically. A confirmed upload removes only its original queued
+item, preserving additions made while it was sending. Storage failure leaves the
+entry screen open rather than claiming a queued save.
+
+Queues and saved screens belong to a server and account. Requests include an optional
+expected-account constraint, verified against the authenticated session; it grants
+no access. Legacy browser queues migrate only on their own origin. Older native
+queues without a server identity remain retained and are not automatically sent;
+they require a future recovery path that can establish their original server.
+This is a supporting fix; the permanent conversation screen follows separately.
+
+### Permanent food conversation interface (#122 Workstream D)
+
+`Log food` opens one conversation at `/food/describe`, with the keyboard focused
+and the previous conversation cached by server and account. The composer remains
+the same DOM element as replies arrive. There is no meal/day form before Send;
+each food card exposes its inferred destination for correction in the shared sheet.
+Ready foods log according to the person's preference, with Edit and Undo. The
+require-tap preference makes the latest ready card the primary action when the
+composer is empty. Supportive and Just the numbers use the existing deterministic
+feedback preference. A short status region announces changes; history is not live.
+
+Send first commits a stable UUID, capture time and message to an account-bound
+IndexedDB outbox. Network interruption preserves it. Account/session changes stop
+processing; server-side identities and expected-account checks prevent cross-account
+writes. Failed messages remain visible with Retry and Cancel. Pending photos remain
+only in the device outbox until processing/cancellation, with no server image history.
+Cancel is persisted before requesting the server tombstone. Reordered responses
+cannot replace a cancellation with a new upload. Conversation deletion keeps food.
+
+Snap, Photo library, Scan and Paste are labelled composer tools; keyboard dictation
+uses the operating system microphone. Me's direct Snap/Scan actions enter this same
+conversation. Search, usuals and My Recipes remain reachable through their shared
+picker. List, usual and recipe-portion logging creates neutral food cards in the same
+conversation, with a stable identity for retries and Undo. The optional daily note
+is separate work; the private switch test and physical-iPhone acceptance remain release gates.
+
+Calorie-only entries keep missing nutrients unknown in the thread, shared editor,
+Me and daily totals. Incomplete totals show only the known amount and suppress
+misleading target progress. Editing or rescaling a calorie-only entry keeps blank
+macros unknown. Deleting an account also erases its on-device conversation cache,
+draft and photo/message outbox; another server/account is unaffected.
+
+### Picker receipts and delayed corrections (#122 Workstream D)
+
+List, Search, Quick, usual and recipe-portion logging can request a conversation
+receipt in the same transaction as the food. Each food has its own card; the UI
+does not fabricate a user chat message. Replays keep the original food/card. Undo
+or removal blocks a delayed replay from bringing the food back. Deleting only the
+message keeps the food and never brings the deleted text back on a retry. Older
+clients keep their existing API behaviour. Recipe portions have stable optional
+client identities and can wait in the existing account-bound outbox.
+
+The composer can offer a saved usual portion directly. Shared pickers remain
+available, and their responses update chat without replacing its text box. Queued
+food is described as saved on the phone, never as a confirmed server log. Blank
+Quick nutrients stay unknown; deriving calories requires all three macros. Held
+previews display their food sources, assumptions and numbers. Changed previews
+refresh the card and explain the second explicit Log tap. Saved AI foods retain
+the estimate and Edited labels in the library, picker and thread.
+
+A correction remembers the visible food context when typing starts. It survives
+a draft reload and delayed upload. Newer activity on another device cannot retarget
+“make it half” to another plate. An unavailable context asks for an owned food
+choice instead of silently changing another card. Numbers questions remain code
+only. Edits/removals suppress old feedback whose nutrition no longer matches the
+card. Legacy food sheets close or block submission after an account change.
+
+Food chat offers a quiet “Ask Kit for a food suggestion” after a food-advice, reassurance or day-review answer, only when access, consent and the separately reviewed food-chat release gate allow it. The code answer stays first. AI interpretation is labelled, verified food records and limits can be expanded, and suggested meals use the shared explicit review/confirmation sheet. Asking never logs food. Provider work runs outside database locks; one durable job and one saved answer prevent duplicate calls. Retry preserves message and draft. Deleted messages/replies cannot be resurrected by late answers. Unknown nutrition stays unknown in tools; food-only Kit cannot access activity, body, weight or Health records. Generic Kit retains its Health consent gate. No new prompts or models; device checks and human accuracy review remain required.
+
+Food-chat daily notes are off by default. Settings offer Off, Code summary, or Code summary + optional Kit. After explicit enablement, a code-only note is created on a food-chat visit after 8 pm in the account time zone; the quiet Daily note action can request it earlier. It shows an as-of time, known totals, an honest low/incomplete-day concern where needed, and at most one gentle idea. Supportive/numbers tone is respected. Code generation, food saves and history reads never request AI. The optional Kit version needs a separate tap and the existing evaluated food-only access/consent gate; one attempt per local day includes failures and crashed requests, survives reload/restart/toggling, and cannot be repeated after deleting the note. No notifications or food/target changes. Stored notes use the private thread's existing RLS/export/deletion rules.
+
+The daily Kit cap also covers requests for older notes made on the same current local day. A separate durable local-day counter survives message/reply deletion; existing UTC service/provider budgets still apply independently.
+
+Connections now leads with Apple Health status and Connect/Manage in the iPhone app, then Upload files. intervals.icu and Health Auto Export remain under Advanced for self-hosted installs and power users. A watch is optional. Garmin Health sharing can be delayed and excludes GPS tracks; on your own Health-sourced outdoor workout without a route, Add the map explains Garmin Connect website → activity → settings gear → Export Original, then uploads the original ZIP/FIT through the existing importer. Matching sport/time/distance enriches the existing activity and keeps user edits; other recordings remain separate. No provider connection is required.
+
+Nutrition insights distinguish logged food, a rough burn/energy model and recorded scale trends. A discrepancy names water changes, missed or underestimated food and burn-estimate error, then points to the weekly check-in; agreement is described as broad consistency rather than proof. Weight text uses the account's units. No per-bodyweight advice is inferred from a fallback weight. Energy captions identify Apple Health resting + activity, imported daily burn or formula sources, and never equate being under the food goal with a measured deficit or modelled energy with actual fat loss. These wording changes do not alter targets, calorie arithmetic or Health's passive-only rule.
+
+## Weekly check-in with explicit target acceptance (#122 G)
+
+This supersedes the former rule that the measured check is never used for targets. Me and Progress share a deterministic weekly check-in, with no AI or watch dependency. The last 28 completed days need at least 7 sufficiently complete food days and 3 weigh-ins spanning 10 days. Today, very partial food days and days with unknown calories are excluded. The existing intake/weight-regression method infers daily burn; it is labelled as inferred, compared with the formula estimate and explained with water/logging/scale uncertainty. The card shows average intake, weekly weight-trend change, inferred daily burn, sample counts, period/as-of date and the calorie suggestion. Calories round to 5–10 kcal and weight to 0.1 in the account's units.
+
+The saved goal and 0–1% weekly pace shape the suggestion, with the unrounded estimated resting burn as a floor. Accept alone changes the calorie target; macro targets, per-day overrides, activity setting and resting-source choice remain as set. Accept revalidates the displayed baseline; changed records/goal require another explicit tap on the refreshed suggestion. Replay cannot overwrite a later manual target. Not now hides Me's card until the next local Monday, with the decision/history still viewable in Progress. Accepted/deferred snapshots do not silently change; old weeks cannot apply. The most recent eight weekly records are available in Progress. New personal storage has owner RLS, export and account-delete cascades.
+
+Me shows only a pending actionable check-in, demoting its Log food button to the shared quieter style while Accept is the one primary action. Logging remains directly available. On Progress, insufficient data shows one useful action (choose goal, log food or log weight), not empty statistics. How this works opens a plain explanation. Failures preserve the prior target and offer retry; account/session guards cover delayed reads/actions. Adult-only goal suggestions use the same safety policy as setup. Physical iPhone text/VoiceOver/touch checks remain separate.
+
+Me's setup hints recognise any of the person's own saved food history as well as workout history, even when today is empty. The first-food/friends introduction stops after either kind of history exists. Food and activity responses may arrive in either order; setup redraws from the latest scoped results. Optional Apple Health remains visible on iPhone until enabled, and a setup heading never appears without rows. Shared facts/AI readers are unchanged; the extra history flag is on the authenticated HTTP day response only.
+
+### Recipe links: fetch/parser foundation (#122 N1)
+
+The server has an unexposed, bounded public-HTTPS reader and JSON-LD Recipe parser; this does not yet add an import button. The following review flow must show an editable My Recipes draft before saving, label site-published per-serving nutrition, preserve unknown values and ambiguous servings, and offer the existing screenshot path when structured data is absent. Multiple recipe candidates need an explicit choice. See [recipe-links.md](recipe-links.md) for the safety boundaries and pending integration.
+
+### Recipe links: authenticated drafts (#122 N2)
+
+An explicit authenticated recipe-link read now creates only a private parsed draft and deterministic own-food matches. Reopening/retrying its identity never refetches or logs food; discard prevents late responses from restoring it. Reads are capped per person and drafts expire. There is no new UI yet: the next slice adds candidate choice, editable My Recipes review, explicit save and source labels. A page with no schema offers the screenshot/typed-ingredient fallback. See [recipe-links.md](recipe-links.md).
+
+### Recipe-link review/save foundation (#122 N3)
+
+The authenticated draft API now separates Review from Save recipe. Review recalculates own-food matches and shows whole-recipe/per-serving values with per-nutrient site, matched-ingredient, entered or unknown sources. Save requires the displayed baseline and an explicit confirmation; changed source foods require another review/tap. Saving never logs food. Imported recipes remember their reviewed serving count; one logged serving is that fraction of the batch. Ordinary existing recipes keep their whole-meal serving convention. Unknown calories prevent logging; absent macros carry unknown flags rather than becoming recorded zeros. There is not yet a user-facing import screen; its UI and screenshots follow in N4.
+
+### Recipe-link phone review (#122 N4)
+
+My Recipes has a labelled Recipe from a link action. The path is Read → editable recipe draft → Review nutrition → explicit Save recipe; ingredient/name/serving edits stay on-device until review and no step logs food. Multiple candidates need a choice. Review separates per-serving amounts from whole-batch yield, labels each nutrient's site/matched/entered/AI/unknown source, and makes unmatched ingredients optional when site numbers are used. Unknown calories offer Save for later with a subsequent Add nutrition action rather than a zero statistic or a log button.
+
+Link reads, draft recovery, stale-review rechecks and lost-acknowledgement save retries remain bound to server/account/draft identity. Delayed responses cannot restore a discarded or replaced draft. The source card, library and portion sheet use the reviewed serving count. Photos use the existing reviewed image/estimator path but create a held recipe draft, with an explicit serving count and AI portion assumptions; they never auto-log. Optional ingredient estimates require a separate explicit confirmation and use only unresolved lines. The form is skippable, scrollable with the keyboard and usable at330/390px in either theme with large text; physical iPhone acceptance remains separate.
+
+Recipe portion logging now gives immediate Saving feedback, an offline pending row and toast Undo for both sent and queued portions, plus the existing light native haptic. Cancellation is durable and owner-bound; delayed uploads cannot resurrect the food. Read/import controls remain secondary to logging in My Recipes, with manual Create reduced to a labelled text action.
+
+### Extra nutrient storage/source foundation (#122 O1)
+
+Sodium (mg), total sugar (g) and saturated fat (g) now have nullable food/custom/known-recipe storage and optional profile limits, unset by default. Source mappings and authenticated direct food APIs preserve unknown versus reported zero. Day coverage reports the recorded subtotal with known/unknown counts, never treating a partial subtotal as complete intake. There is no new UI yet; pipeline integration and collapsed detail/day/Overview controls follow. No energy algorithm or AI recognition schema changes. See [nutrients.md](nutrients.md).
+
+### Extra-nutrient logging pipeline (#122 O2)
+Recipes, imported published nutrition, logged portions, food chat, manually entered thread foods, learned catalog foods and corrections preserve sodium (mg), total sugar (g) and saturated fat (g). Unknown stays unknown through receipts and Undo, including calories-only recipes with missing macros. Existing five-field AI schemas remain unchanged, so they do not provide the extra nutrients. No new taps or UI controls in this backend part; the food detail/day/Overview controls follow separately.
+
+### Optional nutrient detail (#122 O3)
+Sodium (mg), total sugar (g) and saturated fat (g) live behind a shared More nutrients disclosure on the daily card and portion detail. Daily totals are folded on entry; unknown values read Unknown, reported zeros stay zero, and mixed coverage shows Known subtotal · incomplete with the count of missing foods. Overview shows recorded totals for the selected range, explicitly separate from daily limits. No percentage/progress/within-limit claim is made from incomplete data. Empty days do not add an extra zero-stat card.
+Manual food, quick add, thread numbers, recipe totals/import review and food edits use the same unit labels and blank-for-unknown rule. Existing source/AI/Edited labels remain visible; changing a portion and offline reuse carry all fields without filling missing macros with zero. Optional daily nutrient limits start blank, appear under their own disclosure in Daily targets, and are saved only by Save targets; they never change calorie goals. Common logging tap counts stay unchanged. Food detail adds one disclosure tap; limits take open targets → disclosure → Save after typing. New controls use scalable text and44px targets. Browser330/390light/dark and28px evidence is separate from iPhone Dynamic Type/VoiceOver acceptance. Existing label AI still supplies only its reviewed five-field schema; additional label values can be typed manually, and recognition expansion remains gated.
+
+### Weekly food review (#122 Q)
+Overview leads with a code-only review of seven completed local days; Kit's optional review stays separate. The count means days with any food entry, while energy tiles now say Days used in estimates. Dates, recorded-only scope and missing-data limits stay visible. Protein by meal, fiber/extra nutrients and top calorie sources use shared folded detail; one or two own-data suggestions stay plain and optional. There is no competing primary action or empty zero-stat review card. Numeric totals are explicitly weekly, never daily averages or inferred intake. New text/control sizes scale with root text size; disclosures use44px minimum targets and existing colors. Late account/view responses are ignored; failed refresh preserves existing records and offers Retry. See `docs/weekly-food-review.md`.
+
+### Shared recipes (#122 J)
+Saved/cooking recipes expose optional Share with… inline; the duplicate Meal options action is removed. Only approved friends can be chosen, identities wrap, each row says Share or Stop sharing, and Done is the sheet's single primary action. Recipients see Shared with you before their usual foods and at the top of the food-chat composer. Shared recipes use a compact horizontal list and the existing portion sheet, so default logging is two taps and includes toast Undo. The optional empty-chat introduction yields space when shared recipes are present; large text keeps the message field/Send above navigation. Full recipe and owner names appear in the portion sheet before logging. Native sharing confirmation uses a light haptic with visible text. Current permissions guard discovery, logs and notices; stale chips explain revoked sharing. No food log is shared. See `docs/shared-recipes.md`.
+
+### Apple Health weight input foundation (#122 I1)
+
+Weight reading is a separate, optional category, off by default. The authenticated backend requires an explicit confirmation before accepting an owner-bound Health sample batch. This foundation does not yet expose a permission button or run HealthKit queries; the native setup follows separately.
+
+A Health UUID identifies an immutable measurement. Keep one latest measurement per profile-local day, label its source, and give existing manual/imported points priority. Empty reads mean unknown, never zero or deletion. Explicit Health deletion tombstones prevent replay; deleting a Kinetta day excludes older Health measurements for that day. A later measurement remains eligible. Turning sync off preserves private source samples, removes Health-derived projected points and invalidates in-flight batches. Deleted sample identities stay excluded across time-zone changes; manual re-entry lifts the local-day fence. Time-zone changes rebuild Health days and invalidate older batches too.
+
+Imported weight feeds existing weight/energy/check-in calculations without changing budgets, macros or the selected resting-calorie source. Health-derived profile weight retains its provenance. Earlier workout/resting AI permission cannot authorize this new weight category: generic Health-dependent AI stays blocked until explicit weight consent is also recorded. Food-only tools remain restricted to food.
+
+### Apple Health nutrition output foundation (#122 I2)
+
+Writing food to Health is a separate confirmed opt-in, off by default and independent of weight reading. The backend journals every changed food day, including edits, moves, Undo and deletion, for the native client to reconcile. Output covers dietary energy, protein, carbs, total fat and fiber only. Each known value is the complete recorded total for that nutrient; missing/partial values remain unknown, and known zero stays zero. The log may still be incomplete even when every recorded entry has a value. Never describe this as measured intake.
+
+A day with no entries is a deletion instruction for this app/account's own Health samples. Re-enabling or changing time zone refreshes all current and previously journaled dates, including deletion-only days. Day intervals use the profile's local calendar, including daylight-saving changes. Settings epochs fence stale fetches; owner-serialized revisions prevent cursors from skipping earlier uncommitted edits. The native client must acknowledge a cursor only after successful Health reconciliation and recheck account/settings before every write. This backend foundation itself does not write to Health or request permissions.
+
+### Native Health bridge foundation (#122 I3)
+
+Separate read-weight and write-nutrition permission methods never run automatically. A signed-in account binds all operations; logout/disconnect must await stop before replacing the account. Weight anchors advance only after server acknowledgement. Nutrition cursors advance only after successful operations for permitted types; show blocked types honestly, and reconcile history if the permission set changes. Use stable opaque account/day/type identifiers, revision-based replacement and app-owned/version-bounded deletion. The protected local state contains no credentials. UI controls and rendered source labels follow in I4; physical-iPhone acceptance stays pending.
+
+### Optional Health setup and source labels (#122 I4)
+
+Health setup leads with Nutrition to Health and Weight from Health, each off by default with its own explicit system permission action. Workout import remains independent, with details folded. All category actions are quiet; Done is the single primary action. Setup is skippable, reopening resumes current settings, and an existing weight/nutrition/resting connection counts as a Health setup connection. No new launch prompt.
+
+Each category shows status, Sync now, Turn off and a direct Manage Health permissions action. Weight copy never claims an empty read means permission denial. Nutrition names the allowed/blocked types when grants are partial. Open/resume/online catch up; acknowledged food changes schedule nutrition reconciliation, including queued logs, recipes, chat, edits and Undo. These optional categories have no new background-delivery promise. A failed weight read does not block nutrition. Off stops the native bridge before changing server preferences; disconnected failure explicitly says this iPhone has stopped and the server setting still needs a retry.
+
+Server/account/token/settings checks precede every read/upload/write/ack. Native stop precedes logout, account deletion and account/server replacement, and account deletion clears the protected local cursor file. Apple UUIDs are compared case-insensitively with server-normalized UUIDs before acknowledging a weight batch. Successful imports refresh the current profile without replacing the live composer. Source labels appear on current and historical weigh-ins; updating a Health point explicitly becomes manual. Kit consent names workouts, selected resting calories, weight and the configured AI provider; a newly enabled weight category cannot inherit old consent.
+
+From the Health page, Read weight or Share nutrition then Apple's Done is two taps excluding individual system permission choices; the app's Done returns to Connections. No change to food targets or resting-energy source. Native behavior in browser review uses labelled stand-ins; permissions, real Health samples, lock behavior, VoiceOver, Dynamic Type and cross-device Health reconciliation still need a physical iPhone.
+General protein-per-bodyweight ranges and training-day guidance belong in the H guidance flow. Nutrition insights show the account’s recorded totals and chosen targets; they do not add a generic g/kg recommendation. This keeps estimate wording separate from optional guidance and avoids advice based on fallback weight.
+
+Weekly check-in GETs use a read-only transaction and return an unsaved preview. Only an explicit Accept or Not now materializes a private decision row. The preview ignores today’s weigh-in and excludes unknown-calorie days through the shared energy reader; replaying a saved decision is successful even after a new week starts.
+
+Recipe reads hold a dedicated database session advisory lock, with no open transaction during network work. Polling only marks an interrupted pending read after the bounded fetch/matching period when its worker lock is gone. Matching has a 20-second bound and two-second statement limit, reuses the own-food preview, and retains minimal choices/nutrition only. Busy/timeouts are retryable with the same identity and do not use the UTC daily allowance. Discard clears URLs and content; a five-minute maintenance pass removes prior-UTC-day draft/rate identities. No schema migration was rewritten.
+
+Imported recipe portions preserve missing nutrients through ref.unknown_nutrients; day totals, insight rows, Kit facts and the check-in energy reader honor that contract. The current Health module has no nutrition-export endpoint; the later I2 implementation must use the same unknown-aware readers. Serving arithmetic uses api_dishes.serving_count, including Kit candidates and recipe review context; the public dish response and portion-sheet preview expose/use that count. The legacy integer column remains compatibility storage for ordinary whole-meal recipes; imported fractional counts are in recipe_source.
+
+Recipe review corrections: source labels share one server helper and one client map, including remembered AI identity. Imported weightless ingredients can be assigned their first weight without rescaling known nutrition or marking the site recipe changed; nutrition-value/ingredient-identity changes do mark it. A saved recipe offers an explicit, confirmed Leave this line out action for pending ingredients, then recomputes ingredient totals. Estimate keys always hash canonical cleaned text. Portion cancellation completes any legacy pending receipt and uses its normal Undo, preserving one original card; ordinary portions still create no chat receipt.
+
+Shared-recipe review corrections: recipients use an owner’s recorded serving split; without a weight or split, they must explicitly choose a fraction of the whole recipe. Sharing controls stay available after nutrition is removed, and Add a friend closes the sheet first. All non-owner item views omit private source refs/memory keys while deliberately shared ingredient names/nutrition remain visible. Compact discovery joins owner names in one query. Reused recipe portions retain their recipe identity; other recent foods retain known gram references and their original logged unit, with no invented one-gram serving.
+
+Health nutrition sharing starts on the first enablement day in the account time zone. Also add older days is a separate, explicit choice; native back-fill follows only that selected scope. Re-enabling retains the scope to reconcile prior writes. Each nutrient still requires a known value for every logged food that day, including fiber. Native sample identifiers use the server-issued stable opaque Health account ID, independent of domain aliases and settings epochs.
+
+Native Health review: stable server-issued account identity avoids duplicate nutrition across URL aliases. Page writes batch saves and typed deletions; status waits for the active write. Corrupt saved state restarts safely, filtered forward cursors are accepted, and ignored out-of-range weight identities are excluded from later deletion uploads. No default historic back-fill: the server controls the explicit today/older scope. Physical equal-version replacement and permission/background tests remain pending.
+
+Health session review: deletion first pauses uploads while preserving setup; a rejected password resumes the same setup. Confirmed deletion runs all local cleanup steps independently. Expired sessions pause Health without awaiting callbacks or clearing opt-ins. Logout stops once through native forget with bounded independent cleanup. Disconnect stops locally before server preference updates; owner-scoped pending updates retry online. Manual weight sync follows an in-flight nutrition-only pass, per-kind errors persist, and only food invalidation schedules nutrition sharing.

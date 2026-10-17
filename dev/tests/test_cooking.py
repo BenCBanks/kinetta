@@ -55,7 +55,7 @@ check('item 2', s == 200 and d['items'][1]['kcal'] == 102.5, d)
 s, d = b.post(f'/api/dishes/{did}/items', {'name': 'Olive oil', 'grams': 27, 'kcal': 239, 'fat_g': 27})
 check('item typed totals', s == 200 and d['items'][2]['kcal'] == 239 and d['items'][2]['per100']['kcal'] == 885.185, d)
 oil = d['items'][2]['id']
-check('totals', d['totals'] == {'kcal': 1001.5, 'protein_g': 126.2, 'carbs_g': 24.0, 'fat_g': 41.9, 'fiber_g': 7.0}, d['totals'])
+check('totals', d['totals'] == {'kcal': 1001.5, 'protein_g': None, 'carbs_g': None, 'fat_g': 41.9, 'fiber_g': None, 'sodium_mg': None, 'sugar_g': None, 'saturated_fat_g': None}, d['totals'])
 check('weight is the ingredients added up', d['weight_g'] == 677 and d['items_g'] == 677 and not d['weighed'] and d['per_100g']['kcal'] == 147.9, d)
 
 # rescale + delete an item
@@ -103,7 +103,7 @@ s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 350, 'meal': 'dinner', 'da
 check('portion', s == 200 and set(r) == {'entry'}, r)
 e = r['entry']
 check('entry values', e['name'] == 'Test chicken stew' and e['amount'] == 350 and e['unit'] == 'g' and e['source'] == 'dish'
-      and abs(e['kcal'] - 350.5) < .2 and abs(e['protein_g'] - 44.2) < .2 and e['ref']['dish_id'] == did and e['ref']['weight_g'] == 1000, e)
+      and abs(e['kcal'] - 350.5) < .2 and e['protein_g'] == 0 and {'protein_g','carbs_g','fiber_g'} <= set(e['ref']['unknown_nutrients']) and e['ref']['dish_id'] == did and e['ref']['weight_g'] == 1000, e)
 day = b.get('/api/food/day?d=2026-10-11')[1]
 check('in food log', any(x['id'] == e['id'] and x['meal'] == 'dinner' and x['source'] == 'dish' for x in day['entries']), day['entries'])
 for i in range(3): s, r = b.post(f'/api/dishes/{did}/portion', {'grams': 600, 'meal': 'lunch'})
@@ -140,7 +140,7 @@ kid = k['id']
 check('portion with nothing -> 400', b.patch(f'/api/dishes/{kid}', {'cooked_g': 1200})[0] == 200
       and b.post(f'/api/dishes/{kid}/portion', {'grams': 100, 'meal': 'dinner'})[0] == 400)
 s, k = b.patch(f'/api/dishes/{kid}', {'known_kcal': 2400, 'known_protein_g': 120})
-check('known totals', s == 200 and k['totals']['kcal'] == 2400 and k['totals']['protein_g'] == 120 and k['totals']['fat_g'] == 0
+check('known totals', s == 200 and k['totals']['kcal'] == 2400 and k['totals']['protein_g'] == 120 and k['totals']['fat_g'] is None
       and k['totals']['fiber_g'] is None and k['per_100g']['kcal'] == 200, k)
 s, k = b.post(f'/api/dishes/{kid}/items', {'name': 'Pasta sheets', 'grams': 250, 'per100': {'kcal': 350, 'carbs_g': 70, 'protein_g': 12}})
 check('known kcal wins over items', k['totals']['kcal'] == 2400 and k['totals']['carbs_g'] == 175 and k['totals']['protein_g'] == 120, k['totals'])

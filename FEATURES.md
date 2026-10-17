@@ -65,9 +65,14 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Log a past session by hand, then add its sets; the AI coach note reads the sets and last time's; SQL view `v_lift_sets`
 
 ## Food
+- [x] Optional goal-first setup (#122 A): five goals, private optional body details, everyday activity and bounded pace;
+      review/edit calorie and protein estimates before an explicit Save. Skip writes nothing; existing macro targets,
+      daily overrides and Health/resting choices are preserved. Available from Me and Nutrition without a watch or AI.
+- [x] Native Me setup restores optional Connect Apple Health until sync is enabled, including accounts with history;
+      finished setup never leaves an empty heading/card. Physical-iPhone permission/haptic/text checks remain separate.
 - [x] Describe what you ate in your own words (several foods, amounts, day/meal, follow-up corrections): matched against your own meals, foods and history with no AI; only unknown foods go to the AI estimate, and without AI you search for them
 - [x] Log by search (USDA + Open Food Facts), barcode, quick add (cal/P/C/F), custom foods, saved meals, recipes
-- [x] Photo (+ optional description) -> AI estimate (Gemini Flash-Lite, ~$0.001/photo on your own key) -> check -> logged
+- [x] Photo (+ optional description) -> AI estimate (Gemini Flash-Lite; cost varies with input and retries, with durable caps) -> check -> logged
 - [x] Edit / move / copy / delete any entry; copy a day or a meal
 - [x] Daily totals vs targets (calories + macros), remaining
 - [x] Weight log + trend line; later: expenditure estimate from weight trend + food
@@ -107,3 +112,81 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 See [Recording activities](docs/activity-tracking.md).
 
 - Optional Apple Health Resting Energy for passive burn, added to existing activity calories with independent food goals; explicit read permission and source/time labels. Under review; Apple SDK/device acceptance pending. See [resting calories](docs/resting-calories.md).
+
+- **Food-first home:** Today’s calories and macros, direct Describe/Snap/Scan/Usual logging, a preview of yesterday’s meal, and today’s workout calories. Friends and distance appear when there is something to show; all training tools remain available.
+- **Shared ＋ Log:** fast food entry, workout recording and a prefilled weigh-in from the centre tab. A recording indicator returns to your draft in one tap. Progress switches between Food & weight and Training, remembering your choice.
+- **Private food-thread API (foundation):** durable text messages, safe retries, older-history pagination, individual deletion, export and account deletion. Food links are owner-bound; no food-photo history is retained. Conversation processing and the visible thread follow in the remaining #122 D work.
+- **Food-thread facts API:** private code-computed daily/weekly numbers, historic meals and burn-source explanations, plus supportive or numeric feedback helpers. Stored answers have an as-of time and safe retries. The visible conversation and food-processing integration are the next #122 D pieces.
+- **Own-food thread engine:** code-resolved foods can auto-log with durable Undo, or wait for an explicit Log tap. Destination inference, stale-preview refresh and atomic reply/food saves are supported. The visible thread, corrections and unknown-food processing remain in the next #122 D pieces.
+- **Thread corrections and references:** update current logged portions without losing manual edits, resolve owned-food/portion choices, move day/meal, copy recorded meals with explicit exclusions, and ask an honest remainder quantity. Retries are safe and require-a-tap remains effective. These APIs await the final #122 D interface.
+
+- Food-estimator request caps survive restarts and concurrent workers. Structured
+  estimates reserve a shared daily dollar budget for every attempt, with token-only
+  accounting and a pause switch; non-AI logging remains available. See
+  [AI budgets](docs/ai-budgets.md) for coverage and conservative failure behavior.
+- Coach notes/reviews and every Kit tool-loop turn use the same durable provider
+  budget and kill switch as food estimates, with per-account/service attempt and
+  concurrency caps. Paid unbounded search grounding is paused; USDA lookups remain.
+- **Thread source resolution API (interface follows):** ready parts save once while
+  remaining foods use public catalog choices, barcodes, photos or manual nutrition.
+  Unknown estimates use the existing consent/access/budget-gated model; clear own
+  matches retain stored nutrition with an estimated portion. Logged AI foods become
+  editable private foods with origin/assumption labels and zero-model reuse. Cancel,
+  delete and retry guards keep late work from recreating food or text; photos are
+  not retained. Omitted manual macros remain unknown in factual answers.
+
+- [x] Pending food and weight uploads retain server errors with Review, Retry and
+  Discard. Queue/cache ownership includes the server and account; an authenticated
+  expected-account check blocks a changed cookie from receiving another account's
+  queued write. Older native queues without a recorded server are retained without
+  automatic upload. Permanent conversation UI remains in progress (#122 D).
+- [x] Permanent private Food chat interface with cached history, stable composer,
+  durable text/photo outbox, capture timestamps, explicit retry/cancel, meal/day
+  correction, source labels, Edit/Undo, require-tap logging and tone settings.
+  Snap, Photo library, Scan, Paste and keyboard dictation share the conversation.
+  Optional daily note and private switch acceptance remain separate #122 D
+  requirements.
+
+- [x] Search, Quick, usual and recipe-portion logs can create neutral conversation
+  cards atomically; replays respect Undo and text deletion. Stable recipe-portion
+  retries work offline. Held previews retain sources/estimates, blank Quick macros
+  stay unknown, and delayed corrections remember their original food context
+  (#122 D).
+
+- **Optional food-chat Kit answer (release gated):** code answers remain available with AI off. An explicit food-only question can save a labelled AI interpretation, verified food facts and an existing-recipe/usual proposal; confirming a proposal saves an atomic conversation receipt with source and fibre retained. Retry, Undo and message deletion do not duplicate or resurrect food. This capability needs a matching human-reviewed food-chat evaluation report before it becomes available.
+
+- **Optional daily food note:** off by default; after enabling, code summarises the logged day with incomplete/low-intake safeguards and one practical idea. An explicit optional Kit version is limited to one attempt per local day behind the food-chat evaluation/consent/access gate. Saved notes show when calculated; ordinary history reads never spend AI tokens. No notification is sent.
+
+Connections now leads with Apple Health status and Connect/Manage in the iPhone app, then Upload files. intervals.icu and Health Auto Export remain under Advanced for self-hosted installs and power users. A watch is optional. Garmin Health sharing can be delayed and excludes GPS tracks; on your own Health-sourced outdoor workout without a route, Add the map explains Garmin Connect website → activity → settings gear → Export Original, then uploads the original ZIP/FIT through the existing importer. Matching sport/time/distance enriches the existing activity and keeps user edits; other recordings remain separate. No provider connection is required.
+
+Nutrition insights distinguish logged food, a rough burn/energy model and recorded scale trends. A discrepancy names water changes, missed or underestimated food and burn-estimate error, then points to the weekly check-in; agreement is described as broad consistency rather than proof. Weight text uses the account's units. No per-bodyweight advice is inferred from a fallback weight. Energy captions identify Apple Health resting + activity, imported daily burn or formula sources, and never equate being under the food goal with a measured deficit or modelled energy with actual fat loss. These wording changes do not alter targets, calorie arithmetic or Health's passive-only rule.
+
+- **Weekly adaptive check-in:** own food and weight history can suggest a goal-based calorie target once a week, with the numbers, source/uncertainty and resting-burn floor visible. Accept is required; Not now hides the card on Me until next week. Progress retains decision history and shows one next action when data is insufficient. Works with no watch, workout or AI; macros and the selected resting source remain unchanged.
+
+Me's setup hints recognise any of the person's own saved food history as well as workout history, even when today is empty. The first-food/friends introduction stops after either kind of history exists. Food and activity responses may arrive in either order; setup redraws from the latest scoped results. Optional Apple Health remains visible on iPhone until enabled, and a setup heading never appears without rows. Shared facts/AI readers are unchanged; the extra history flag is on the authenticated HTTP day response only.
+
+Recipe-link foundation (#122 N1, pending review): bounded public-HTTPS fetching and non-AI schema.org Recipe parsing, with fictional parser and SSRF tests. No user-facing import action yet; draft review, ingredient matching, rate limiting and screenshots follow in N2. See [recipe link design](docs/recipe-links.md).
+
+Recipe-link draft API (#122 N2, pending review): authenticated, per-person rate-limited reads create private parsed drafts with matches to your own saved foods. No recipe or food entry is saved; retry, cancellation, expiry, data export and account deletion are covered. The review/save interface follows separately.
+
+Recipe-link review/save API (#122 N3, pending review): explicit review and confirmation, per-nutrient published/matched/entered sources, unknown-preserving totals and fiber, stale-source second review, atomic replay-safe saves and imported multi-serving portions. Saving a recipe does not log food. User-facing import/review screen follows in N4; existing recipes retain their serving convention.
+
+Recipe from a link (#122 N4, pending review): My Recipes reads a public HTTPS recipe into an editable private draft, shows per-serving nutrition/source labels and saves only after explicit review/confirmation. Multiple candidates, unknowns, stale sources, account-safe recovery and replay-safe saves are handled. Screenshot fallback and unknown-only ingredient estimates reuse existing opt-in food AI and stay in a held recipe draft; no automatic food log. Imported recipes log the right serving fraction; existing recipes keep their prior convention. Portion logging includes offline pending feedback and replay-safe toast Undo; reused estimated ingredients keep their AI source labels.
+
+Extra nutrient foundation (#122 O1, pending review): nullable sodium in mg, total sugar and saturated fat in g; official USDA/Open Food Facts mappings, private food/custom/copy/export storage, coverage counts and optional unset limits. Unknown values remain unknown; reported zeros are preserved. Full recipe/thread/picker integration and phone controls follow separately; no new UI or AI recognition schema yet.
+
+Recipes, imported published nutrition, logged portions, food chat, manually entered thread foods, learned catalog foods and corrections preserve sodium (mg), total sugar (g) and saturated fat (g). Unknown stays unknown through receipts and Undo, including calories-only recipes with missing macros. Existing five-field AI schemas remain unchanged, so they do not provide the extra nutrients. No new taps or UI controls in this backend part; the food detail/day/Overview controls follow separately.
+
+- Optional sodium, total sugar and saturated-fat detail: folded daily totals with honest known/missing coverage, recorded totals in Overview, shared food/recipe entry and rescaling, and personal daily limits that start unset and require Save. Unknown is never displayed as zero. Existing label/photo AI does not infer missing extra nutrients.
+
+- Weekly food review without AI: seven completed local days, days with food logged, protein across meals, fiber/sodium/total-sugar/saturated-fat coverage, top recorded calorie sources and up to two suggestions from your own log. Missing data stays unknown, Kit is separate, and no targets change automatically.
+
+- Deliberate recipe sharing with approved friends: visible Share with…, Shared with you in usuals/food chat, two-tap default portions with Undo, separate private food logs, existing opt-in native alerts, and immediate access/notice revocation when sharing stops or a friend is blocked. Recent foods preserve current logged nutrition and all eight nutrients.
+
+- **Apple Health weight foundation (#122 I1, backend only):** separately confirmed, off-by-default weight import with source labels, daily deduplication, manual-entry priority, replay/deletion protection and account isolation. Existing budgets/resting-calorie choices stay intact. New Health weight requires fresh category-specific AI consent. Native permission/setup and nutrition writing are follow-up parts of workstream I; this PR does not enable device sync.
+
+- **Apple Health nutrition output foundation (#122 I2, backend only):** separate confirmed, off-by-default output of logged daily calories, protein, carbs, fat and fiber, with updates/deletions, unknown-value coverage and retry-safe revision history. Native permission controls and actual Health writes follow in I3.
+
+- **Native Health food bridge foundation (#122 I3):** separate optional weight-read/nutrition-write permission methods, anchored weight acknowledgement and account-bound nutrition reconciliation with app-owned deletion and protected cursors. Registered but awaiting UI wiring in I4; physical-iPhone acceptance remains pending.
+
+- **Optional Apple Health nutrition and weight (#122 I4):** independent Read weight and Share nutrition setup, no launch prompt, open/resume catch-up, status/retry/off and partial-permission feedback. Food edits/deletions/Undo update this app's allowed Health quantities; imported weight shows its source and respects manual entries. Account changes/disconnect stop native work first. Budgets and resting-calorie choices stay unchanged. Browser/native stand-in checks do not replace physical-iPhone acceptance.

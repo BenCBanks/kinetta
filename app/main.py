@@ -7,18 +7,22 @@ from starlette.middleware import gzip as _gzip
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts
 import threading
 from .auth import current_user
-from . import api_coach, ai_release, meal_chat, admin_auth, api_admin
+from . import recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread
 
 @asynccontextmanager
 async def lifespan(app):
     db.migrate()     # nightly database copies: host timer fit-db-backup.timer (pg_dump), see README
     threading.Thread(target=api_connections.scheduler, daemon=True).start()   # intervals.icu every 30 min
     threading.Thread(target=coach.weekly_scheduler, daemon=True).start()      # Sunday 6 PM weekly reviews (if an AI key is set)
-    yield
+    recipe_stop=threading.Event()
+    recipe_worker=threading.Thread(target=recipe_import.cleanup,args=(recipe_stop,),daemon=True);recipe_worker.start()
+    try:yield
+    finally:
+        recipe_stop.set();recipe_worker.join(timeout=3)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(api_activities.router)
@@ -33,6 +37,9 @@ app.include_router(plans.router)
 app.include_router(api_beta.router)
 app.include_router(api_mydata.router)
 app.include_router(api_health.router)
+from . import api_health_weights,api_health_nutrition
+app.include_router(api_health_weights.router)
+app.include_router(api_health_nutrition.router)
 app.include_router(api_social.router)
 app.include_router(api_photos.router)
 app.include_router(api_dishes.router)
@@ -41,6 +48,8 @@ app.include_router(food_coach.router)
 app.include_router(notify.router)
 app.include_router(api_coach.router)
 app.include_router(meal_chat.router)
+app.include_router(food_thread.router)
+app.include_router(recipe_import.router)
 app.include_router(admin_auth.router)
 app.include_router(api_admin.router)
 
@@ -99,7 +108,7 @@ app.add_middleware(_gzip.GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 # Only the iPhone app may read answers across sites, and never with cookies (it sends its token in a header).
 app.add_middleware(CORSMiddleware, allow_origins=list(APP_ORIGINS), allow_credentials=False, allow_methods=['*'],
-                   allow_headers=['Authorization', 'Content-Type'], max_age=3600)
+                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account'], max_age=3600)
 
 
 class Login(BaseModel):
@@ -137,10 +146,10 @@ def logout(request: Request, response: Response):
 def me(user=Depends(current_user)):
     from . import ai_access
     with db.connect() as c:
-        p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, ai_ok, health_ai_ok, resting_source FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
-    return {**user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
+    return {**user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):
@@ -156,6 +165,7 @@ class ProfileIn(BaseModel):
     height_cm: float | None = Field(None, ge=100, le=250)
     activity_factor: float | None = Field(None, ge=1.1, le=1.7)
     resting_source: str | None = Field(None, pattern="^(formula|apple_health)$")
+    health_weight_ai_ok: StrictBool | None = None
     health_ai_ok: bool | None = None      # the AI coach may read workouts that came from Apple Health
 
 
@@ -164,13 +174,28 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
     vals = body.model_dump(exclude_unset=True)
     if vals.get('resting_source', False) is None: del vals['resting_source']
     if vals.get('health_ai_ok', False) is None: del vals['health_ai_ok']    # yes or no only
+    if vals.get('health_weight_ai_ok',False) is None:del vals['health_weight_ai_ok']
     if 'bio' in vals: vals['bio'] = (vals['bio'] or '').strip()
     if 'tz' in vals:
         vals['tz'] = db.valid_tz(vals['tz'])
         if not vals['tz']: raise HTTPException(400, 'Unknown time zone')
     if vals:
         with db.connect() as c:
+            c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+            old=c.execute('SELECT tz,health_ai_ok,weight_kg,weight_health_derived,health_weight_read FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
+            if vals.get('health_ai_ok') is False:vals['health_weight_ai_ok']=False
+            if vals.get('health_weight_ai_ok') and not vals.get('health_ai_ok',old.get('health_ai_ok')):raise HTTPException(400,'Allow Health data for AI before including Health weight')
+            if 'weight_kg' in vals and vals['weight_kg']!=old.get('weight_kg'):vals['weight_health_derived']=False
+            changed_tz='tz' in vals and (vals['tz'] or db.DEFAULT_TZ)!=(old.get('tz') or db.DEFAULT_TZ)
+            if changed_tz:
+                api_health_nutrition.lock(c,user['id'])
+                from uuid import uuid4
+                vals['health_weight_epoch']=uuid4()
+                vals['health_nutrition_epoch']=uuid4()
             c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in vals)} WHERE user_id = %s", (*vals.values(), user['id']))
+            if changed_tz and old.get('health_weight_read'):
+                api_health_weights.rebuild(c,user['id'],vals['tz'])
+                if api_health_nutrition.profile(c,user['id'])['health_nutrition_write']:api_health_nutrition.invalidate(c,user['id'])
     return {'ok': True}
 
 

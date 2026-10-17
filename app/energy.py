@@ -11,6 +11,7 @@ Measured check (not used for targets): over the last 4 weeks, average logged int
   workouts; compared with needs + average workouts to show whether the estimate runs high or low.
 """
 import datetime as dt
+import math
 from statistics import median
 
 from . import db
@@ -70,11 +71,12 @@ def bmr(kg, height_cm, birth_year, sex, year):
     return 10 * kg + 6.25 * height_cm - 5 * (year - birth_year) + {'male': 5, 'female': -161}.get(sex, -78)
 
 
-def context(c, user_id):
+def context(c, user_id, *, completed=False):
     p = c.execute('SELECT tz, weight_kg, sex, height_cm, birth_year, resting_source FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
     tz = p.get('tz') or db.DEFAULT_TZ
     today = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
     weights = c.execute('SELECT day, kg FROM weights WHERE user_id = %s ORDER BY day', (user_id,)).fetchall()
+    weights = [w for w in weights if w['day'] < today] if completed else weights
     pts = weight_trend(weights)
     kg = pts[-1][2] if pts else (p.get('weight_kg') or 75.0)
     return {'tz': tz, 'today': today, 'resting_source': p.get('resting_source', 'formula'), 'points': pts, 'kg': kg, 'sex': p.get('sex'),
@@ -82,6 +84,48 @@ def context(c, user_id):
 
 
 ACTIVITY = {1.2: 'Mostly sitting', 1.3: 'Some walking and standing', 1.45: 'On my feet a lot'}
+
+NUTRITION_GOALS = ('lose_weight', 'maintain', 'build_muscle', 'eat_healthier', 'fuel_training')
+
+
+def target_suggestion(profile, goal, pace_percent, year):
+    """Day-one estimates only: no watch, history, AI, or writes. Later check-ins are separate.
+
+    Body inputs may be omitted. Make the 75 kg fallback explicit rather than pretending to know
+    someone's body. Pace is a percent of body weight per week, capped at 1%; resting burn is a floor.
+    """
+    if goal not in NUTRITION_GOALS:
+        raise ValueError('Choose a nutrition goal.')
+    changing = goal in ('lose_weight', 'build_muscle')
+    pace = float(pace_percent or 0) if changing else 0.0
+    if not math.isfinite(pace) or not 0 <= pace <= 1:
+        raise ValueError('Choose a pace between 0 and 1% of body weight per week.')
+    kg = float(profile.get('weight_kg') or 75)
+    factor = float(profile.get('activity_factor') or 1.2)
+    factor = next((n for n in ACTIVITY if abs(factor - n) < .01), None)
+    if factor is None:
+        raise ValueError('Choose an everyday activity level.')
+    birth = profile.get('birth_year')
+    if birth and year - birth < 18:
+        raise ValueError('Goal estimates are for adults aged 18 and over.')
+    resting = bmr(kg, profile.get('height_cm'), birth, profile.get('sex'), year)
+    exact = resting is not None
+    resting = max(0, resting if exact else kg * (20 if profile.get('sex') == 'female' else 22))
+    base = resting * factor
+    change = kg * pace / 100 * KCAL_PER_KG / 7
+    raw = base - change if goal == 'lose_weight' else base + change if goal == 'build_muscle' else base
+    floor = math.ceil(resting / 10) * 10
+    kcal = max(floor, round(raw / 10) * 10)
+    protein_factor = 1.6 if goal in ('lose_weight', 'build_muscle', 'fuel_training') else 1.2
+    protein = round(kg * protein_factor / 5) * 5
+    # The floor can make the requested loss pace unattainable: return the actual suggestion, never promise it.
+    effective = max(0, (base - kcal if goal == 'lose_weight' else kcal - base) * 7 / KCAL_PER_KG) if changing else 0
+    return {'kcal_target': kcal, 'protein_target': protein, 'resting_floor': floor,
+            'resting_kcal': round(resting / 10) * 10, 'daily_needs': round(base / 10) * 10,
+            'activity_factor': factor, 'activity': ACTIVITY[factor], 'weight_kg': kg,
+            'weight_assumed': not bool(profile.get('weight_kg')), 'method': 'mifflin' if exact else 'weight_only',
+            'protein_g_per_kg': protein_factor, 'pace_percent': pace,
+            'effective_kg_per_week': round(effective, 2), 'floor_applied': raw < floor}
 
 
 # A day with only a snack logged isn't a 2,000 kcal deficit: days under 40% of the calorie goal (or of daily needs, without
@@ -94,17 +138,23 @@ def full_day_min(c, user_id, base):
     return PARTLY * float(goal or base)
 
 
-def tdee(c, user_id, days=28):
+def unknown_sql(key):
+    if key not in ("kcal","protein_g","carbs_g","fat_g","fiber_g"):raise ValueError("Unknown nutrient")
+    return f"({key} IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? '{key}')"
+
+
+def tdee(c, user_id, days=28, *, excluded_days=(), completed=False):
     """Daily needs from BMR (see the top of this file) + the measured check. Key 'tdee' = daily needs WITHOUT exercise."""
-    ctx = context(c, user_id)
+    ctx = context(c, user_id, completed=completed)
     factor = float((c.execute('SELECT activity_factor FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}).get('activity_factor') or 1.2)
     bmr = ctx['bmr'] or ctx['kg'] * (20 if ctx['sex'] == 'female' else 22)
     base = bmr * factor
     end = ctx['today'] - dt.timedelta(days=1)            # today isn't finished
     start = end - dt.timedelta(days=days - 1)
     intake = {r['day']: float(r['kcal']) for r in c.execute(
-        'SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day',
+        f"SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day HAVING NOT bool_or({unknown_sql('kcal')})",
         (user_id, start, end)).fetchall()}
+    intake = {day:kcal for day,kcal in intake.items() if day not in excluded_days}
     typical = median(intake.values()) if intake else 0
     least = full_day_min(c, user_id, base)
     full = {d: k for d, k in intake.items() if k >= 0.5 * typical and k >= least}     # partly logged days left out
@@ -118,7 +168,7 @@ def tdee(c, user_id, days=28):
         rate = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)   # kg per day
         observed = sum(full.values()) / len(full) - rate * KCAL_PER_KG
     expected = base + avg_ex           # what the model says was burned on average, workouts included
-    return {'today': ctx['today'], 'resting_source': ctx['resting_source'], 'tdee': round(base), 'base': round(base), 'bmr': round(bmr), 'bmr_exact': bool(ctx['bmr']),
+    return {'today': ctx['today'], 'resting_source': ctx['resting_source'], 'tdee': round(base), 'base': round(base), 'bmr': round(bmr), 'resting_burn': bmr, 'bmr_exact': bool(ctx['bmr']),
             'activity_factor': factor, 'activity': ACTIVITY.get(round(factor, 2), f'x{factor:g}'),
             'confidence': 'bmr' if ctx['bmr'] else 'rough',
             'observed': round(observed) if observed is not None else None, 'expected': round(expected),
@@ -170,7 +220,7 @@ def deficits(c, user_id, since=None):
     if not since: return {'since': None, 'days': [], 'tdee': info['tdee']}
     since = min(since, ctx['today'])
     intake = {r['day']: float(r['kcal']) for r in c.execute(
-        'SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day',
+        f"SELECT day, sum(kcal) AS kcal FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day HAVING NOT bool_or({unknown_sql('kcal')})",
         (user_id, since, ctx['today'])).fetchall()}
     done = [k for d, k in intake.items() if d < ctx['today']]
     typical = median(done) if done else 0

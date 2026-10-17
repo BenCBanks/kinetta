@@ -13,6 +13,8 @@ def fake_model(ctx, system=None):
                                          "try_next": ["More protein on rest days."], "watch": None, "extra": "ignored"}) + '\n```'
     return json.dumps({"summary": "About 440 kcal a portion.", "ideas": [{"change": "<b>Less oil</b>", "effect": "-30 kcal"}], "note": None})
 real_gemini = coach._gemini
+def scoped_gemini(*args,**kwargs):
+    with coach.ai_budget.scope(uid):return real_gemini(*args,**kwargs)
 real_food_ask = food_photo.ask
 coach._gemini = fake_model
 n = 0
@@ -101,19 +103,20 @@ api_dishes.dish_delete(cd, user={'id': uid})
 from app.auth import new_session, token_hash
 sent = []
 with db.connect() as c:
-    c.execute('DELETE FROM native_push_devices WHERE user_id = %s', (uid,))
-    push_session = new_session(c, uid, 'zz_test_native_push')
-    c.execute("INSERT INTO native_push_devices (user_id, token, environment, session_hash) VALUES (%s, %s, 'production', %s)", (uid, 'ab' * 32, token_hash(push_session)))
-    nid = c.execute("INSERT INTO notifications (user_id, kind, actor_id, dish_id) VALUES (%s, 'dish_shared', %s, %s) RETURNING id", (uid, jid, tray)).fetchone()['id']
+    c.execute('DELETE FROM native_push_devices WHERE user_id = %s', (jid,))
+    cook_name = c.execute('SELECT name FROM users WHERE id=%s',(uid,)).fetchone()['name']
+    push_session = new_session(c, jid, 'zz_test_native_push')
+    c.execute("INSERT INTO native_push_devices (user_id, token, environment, session_hash) VALUES (%s, %s, 'production', %s)", (jid, 'ab' * 32, token_hash(push_session)))
+    nid = c.execute("INSERT INTO notifications (user_id, kind, actor_id, dish_id) VALUES (%s, 'dish_shared', %s, %s) RETURNING id", (jid, uid, tray)).fetchone()['id']
 ck(notify.push(nid, send=lambda device, data: sent.append((device, data))) == 1, 'native pushed once')
-ck(sent[0][0]['token'] == 'ab' * 32 and sent[0][1]['title'] == 'Jordan Lee shared Chicken and veg traybake with you' and sent[0][1]['body'] == ''
+ck(sent[0][0]['token'] == 'ab' * 32 and sent[0][1]['title'] == f'{cook_name} shared Chicken and veg traybake with you' and sent[0][1]['body'] == ''
    and sent[0][1]['url'] == f'/food/cook/{tray}', 'native payload')
-notify.settings(notify.PrefsIn(dishes=False), user={'id': uid})
+notify.settings(notify.PrefsIn(dishes=False), user={'id': jid})
 ck(notify.push(nid, send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'turned off: not pushed')
-notify.settings(notify.PrefsIn(dishes=True), user={'id': uid})
+notify.settings(notify.PrefsIn(dishes=True), user={'id': jid})
 with db.connect() as c:
     c.execute('DELETE FROM notifications WHERE id = %s', (nid,)); c.execute('DELETE FROM sessions WHERE token_hash = %s', (token_hash(push_session),))
-    ck(not c.execute('SELECT 1 FROM native_push_devices WHERE user_id = %s', (uid,)).fetchone(), 'logout cascades device revocation')
+    ck(not c.execute('SELECT 1 FROM native_push_devices WHERE user_id = %s', (jid,)).fetchone(), 'logout cascades device revocation')
     c.execute('UPDATE profile SET ai_ok = false'); c.execute('DELETE FROM ai_requests')
 # --- 2026-10-12: a dish is kept until deleted, however old; one opened and left empty for a day is cleared away ---
 old1 = api_dishes.dish_add(api_dishes.DishIn(name='Test old stew'), user={'id': uid})['id']
@@ -138,49 +141,51 @@ def busy_then_ok(req, timeout=None):
 urllib.request.urlopen, time.sleep = busy_then_ok, (lambda s: None)
 os.environ.setdefault('GEMINI_API_KEY', 'placeholder')
 try:
-    ck(real_gemini({'q': 1}, 'x') == 'ok' and len(asked) == 3 and asked[0] == asked[1] != asked[2], f'busy model: retried, then the fallback {asked}')
+    ck(scoped_gemini({'q': 1}, 'x') == 'ok' and len(asked) == 3 and asked[0] == asked[1] != asked[2], f'busy model: retried, then the fallback {asked}')
     def bad(req, timeout=None):
         asked.append(1); raise urllib.error.HTTPError(req.full_url, 400, 'bad', {}, io.BytesIO(b'{}'))
     asked.clear(); urllib.request.urlopen = bad
-    try: real_gemini({'q': 1}, 'x'); said = None
+    try: scoped_gemini({'q': 1}, 'x'); said = None
     except ValueError as e: said = str(e)
     ck(said and '(400)' in said and len(asked) == 1, f'a 400 is not retried {said} {asked}')
 finally:
     urllib.request.urlopen, time.sleep = real_open, real_sleep
 # the food estimator (photos, ingredients typed in a dish) does the same: busy twice, then the second model answers
 asked.clear()
+def scoped_food_ask(*args, **kwargs):
+    with food_photo.ai_budget.scope(uid): return real_food_ask(*args, **kwargs)
 def food_busy(req, timeout=None):
     model = req.full_url.split('/models/')[1].split(':')[0]; asked.append(model)
     if len(asked) < 3: raise urllib.error.HTTPError(req.full_url, 503, 'busy', {}, io.BytesIO(b'{}'))
     return io.BytesIO(json.dumps({'candidates': [{'content': {'parts': [{'text': '{"reply": "ok"}'}]}}]}).encode())
 urllib.request.urlopen, time.sleep = food_busy, (lambda s: None)
 try:
-    out, _, model = real_food_ask([{'text': 'x'}], {'type': 'object', 'properties': {'reply': {'type': 'string'}}}, 'test')
+    out, _, model = scoped_food_ask([{'text': 'x'}], {'type': 'object', 'properties': {'reply': {'type': 'string'}}}, 'test')
     ck(out == {'reply': 'ok'} and len(asked) == 3 and asked[0] == asked[1] != asked[2] == model, f'food estimator: retried, then the second model {asked}')
     asked.clear(); urllib.request.urlopen = bad
-    ck(refused(lambda: real_food_ask([{'text': 'x'}], {'type': 'object'}, 'test'), 502) and len(asked) == 1, 'food estimator: a 400 is not retried')
+    ck(refused(lambda: scoped_food_ask([{'text': 'x'}], {'type': 'object'}, 'test'), 502) and len(asked) == 1, 'food estimator: a 400 is not retried')
 finally:
     urllib.request.urlopen, time.sleep = real_open, real_sleep
+    with db.connect() as c:
+        rows=c.execute('DELETE FROM ai_food_attempts WHERE user_id=%s AND kind=%s RETURNING day,charged_micros',(uid,'test')).fetchall()
+        for row in rows:c.execute('UPDATE ai_service_budget SET charged_micros=charged_micros-%s WHERE day=%s',(row['charged_micros'],row['day']))
 
 # packaged amounts are looked up first (2026-10-12): misspelled package words count, everyday words don't
 ck(all(cook_chat.packaged(t) for t in ['one bx of pene', '2 packges of ramen', 'a botle of soy sauce', '1 can of tomatos', 'a jar of sauce']), 'package words, misspelled too')
 ck(not any(cook_chat.packaged(t) for t in ['chicken in a pan', '2 apples', 'a pinch of salt', '3 cups of pasta', 'a banana']), 'everyday words are not packages')
 ck(cook_chat.package_grams('14.5 ONZ') == 411.1 and cook_chat.package_grams('16 oz/454 g') == 454 and cook_chat.package_grams('1 LB') == 453.6, 'package weights')
 seen = []
-real_web, real_usda = cook_chat._web_product, cook_chat._usda_products
-cook_chat._web_product = lambda t: (seen.append(('web', t)), {'source': 'web: Test shop', 'brand': None, 'name': 'Test protein penne', 'package_g': 411,
-                                                              'per100': {'kcal': 339, 'protein_g': 18, 'carbs_g': 68, 'fat_g': 2, 'fiber_g': 9}})[1]
+real_usda = cook_chat._usda_products
 cook_chat._usda_products = lambda q: (seen.append(('usda', q)), [])[1]
 try:
-    refs = cook_chat.product_refs('one bx of bettr goods protien pene pasta')
-    ck('Test protein penne | package 411 g' in refs and ('usda', 'bettr goods protien pene pasta') in seen, f'reference products for the model {seen}')
+    refs = cook_chat.product_refs('one bx of bettr goods protien pene pasta', uid)
+    ck(refs == '' and seen == [('usda', 'bettr goods protien pene pasta')], f'reference products for the model {seen}')
     seen.clear(); ck(cook_chat.product_refs('2 apples') == '' and not seen, 'no lookup for loose food')
-    seen.clear(); cook_chat.food_photo._used[(999, 'web', __import__('datetime').date.today())] = cook_chat.WEB_LIMIT
-    cook_chat.product_refs('a box of penne', 999); ck(seen == [('usda', 'penne')], f'over the web search brake: USDA only {seen}')
-    seen.clear(); cook_chat.product_refs('a box of penne and 2 cans of beans', 998)
-    ck(sorted(seen) == [('usda', 'beans'), ('usda', 'penne'), ('web', '2 cans of beans'), ('web', 'a box of penne')], f'each packaged part looked up {seen}')
+    seen.clear(); cook_chat.product_refs('a box of penne and 2 cans of beans', jid)
+    ck(sorted(seen) == [('usda', 'beans'), ('usda', 'penne')], f'each package uses bounded catalog lookup; no paid grounding {seen}')
+
 finally:
-    cook_chat._web_product, cook_chat._usda_products = real_web, real_usda
+    cook_chat._usda_products = real_usda
 
 # a photo of a nutrition label (2026-10-12): per-serving numbers -> per 100 g; package from servings x serving size
 jpeg = 'data:image/jpeg;base64,' + __import__('base64').b64encode(b'\xff\xd8' + b'0' * 200).decode()
