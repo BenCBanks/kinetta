@@ -78,17 +78,19 @@ def commit_log(c,uid,message,result):
     body=meal_chat.ConfirmIn(items=[{k:item[k] for k in ('kind','id','portion','expected')} for item in resolution['items']],
                              issued=resolution['issued'],client_id=str(message['client_id']),
                              day=result['day'],meal=result['meal'],confirm=True)
-    saved=meal_chat.confirm_data(c,uid,body)
+    saved=meal_chat.confirm_data(c,uid,body,include_groups=True)
     if not saved['ids']:raise HTTPException(400,'This food has no items to log yet')
-    groups=[];offset=0
-    for item in resolution['items']:
-        source=meal_chat.source_row(c,uid,item['kind'],item['id'])
-        pieces,why=meal_chat.compute(c,uid,item['kind'],source,item['portion'])
-        if why:raise HTTPException(409,'The food details changed')
-        count=len(pieces)
-        groups.append({'name':item['name'],'ids':saved['ids'][offset:offset+count],'portion':item['portion']})
-        offset+=count
-    if offset!=len(saved['ids']):raise RuntimeError('Food group identities do not match')
+    groups=saved.get('groups')
+    if groups is None:
+        groups=[];offset=0
+        for item in resolution['items']:
+            source=meal_chat.source_row(c,uid,item['kind'],item['id'])
+            pieces,why=meal_chat.compute(c,uid,item['kind'],source,item['portion'])
+            if why:raise HTTPException(409,'The food details changed')
+            count=len(pieces)
+            groups.append({'name':item['name'],'ids':saved['ids'][offset:offset+count],'portion':item['portion']})
+            offset+=count
+        if offset!=len(saved['ids']):raise RuntimeError('Food group identities do not match')
     totals=c.execute('''SELECT sum(kcal) AS kcal,sum(protein_g) AS protein_g FROM food_entries
                         WHERE user_id=%s AND id=ANY(%s)''',(uid,saved['ids'])).fetchone()
     saved_rows=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,saved['ids'])).fetchall()
@@ -97,10 +99,7 @@ def commit_log(c,uid,message,result):
             'feedback':facts.feedback(facts.snapshot(c,uid,body.day),dict(totals),seed=message['id']),
             'as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
     response=food_thread.finish_reply(c,uid,message,result)
-    for mid in (message['id'],response['messages'][-1]['id']):
-        for eid in saved['ids']:
-            c.execute('''INSERT INTO food_chat_entries(user_id,message_id,entry_id) VALUES (%s,%s,%s)
-                         ON CONFLICT (message_id,entry_id) DO NOTHING''',(uid,mid,eid))
+    food_thread.link_entries(c,uid,[message,response['messages'][-1]],saved['ids'])
     response['messages']=food_thread.message_entries(c,uid,response['messages'])
     return response
 

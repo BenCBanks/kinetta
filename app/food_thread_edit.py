@@ -23,8 +23,7 @@ def card_result(c,uid,message,rows=None):
 
 
 def attach(c,uid,message,response,ids):
-    for mid in (message['id'],response['messages'][-1]['id']):
-        for eid in ids:c.execute('INSERT INTO food_chat_entries VALUES (%s,%s,%s) ON CONFLICT (message_id,entry_id) DO NOTHING',(uid,mid,eid))
+    food_thread.link_entries(c,uid,[message,response['messages'][-1]],ids)
     response['messages']=food_thread.message_entries(c,uid,response['messages'])
     return response
 

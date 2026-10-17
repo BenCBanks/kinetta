@@ -786,7 +786,7 @@ def confirm(body: ConfirmIn, user=Depends(current_user)):
         return confirm_data(c, user['id'], body)
 
 
-def confirm_data(c, uid, body):
+def confirm_data(c, uid, body, include_groups=False):
     if body.confirm is not True: raise HTTPException(400, 'Confirm before adding')
     items = [(i.kind, i.id, i.portion.clean(), i.expected) for i in body.items]
     request_key = hashlib.sha256(json.dumps([[k, f, p, x] for k, f, p, x in items] + [str(body.day), body.meal], sort_keys=True).encode()).hexdigest()
@@ -797,7 +797,7 @@ def confirm_data(c, uid, body):
         if any((o['ref'] or {}).get('chat_request') != request_key for o in old): raise HTTPException(409, 'This confirmation was already used for a different entry')
         return {'ids': [o['id'] for o in sorted(old, key=lambda o: o['id'])], 'replayed': True}
     if not 0 <= time.time() - body.issued <= 900: raise HTTPException(409, 'This preview expired. Describe it again.')
-    rows = []
+    rows = []; group_specs=[]
     for kind, fid, p, expected in items:
         row = source_row(c, uid, kind, fid)
         e = {'kind': kind, 'id': fid, 'row': row}
@@ -807,6 +807,7 @@ def confirm_data(c, uid, body):
         if why: raise HTTPException(400, why)
         if too_big(entries): raise HTTPException(400, 'That portion is too large. Check the amount.')
         rows += entries
+        group_specs.append((row['name'],len(entries),p))
     pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (uid, body.day)).fetchone()['p']
     ids = []
     for n, x in enumerate(rows):
@@ -815,4 +816,10 @@ def confirm_data(c, uid, body):
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
                              (uid, body.day, body.meal, x['name'], x['brand'], x['amount'], x['unit'], *(x[k] for k in NUM),
                               x['source'], json.dumps(ref, default=str), pos + n, f'{body.client_id}-{n:02d}')).fetchone()['id'])
-    return {'ids': ids, 'replayed': False}
+    result={'ids':ids,'replayed':False}
+    if include_groups:
+        groups=[];offset=0
+        for name,count,portion in group_specs:
+            groups.append({'name':name,'ids':ids[offset:offset+count],'portion':portion});offset+=count
+        result['groups']=groups
+    return result

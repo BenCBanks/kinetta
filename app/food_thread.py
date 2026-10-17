@@ -64,6 +64,13 @@ def message_entries(c, uid, messages):
     return [{**m, 'entries': grouped.get(m['id'], [])} for m in messages]
 
 
+def link_entries(c,uid,messages,ids):
+    if ids:
+        c.execute("""INSERT INTO food_chat_entries(user_id,message_id,entry_id)
+                     SELECT %s,m,e FROM unnest(%s::bigint[]) m CROSS JOIN unnest(%s::bigint[]) e
+                     ON CONFLICT (message_id,entry_id) DO NOTHING""",(uid,[m['id'] for m in messages],ids))
+
+
 @router.get('')
 def history(before: int | None = Query(None, gt=0), limit: int = Query(30, ge=1, le=100), user=Depends(current_user)):
     with db.connect() as c:
