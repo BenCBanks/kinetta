@@ -14,7 +14,6 @@ The cook's own dish only (api_dishes._get checks user_id). Nothing about the per
 ingredient names and amounts and their message.
 """
 import concurrent.futures
-import datetime as dt
 import difflib
 import json
 import os
@@ -251,10 +250,9 @@ def _web_product(text):
 
 def _web_allowed(uid):
     """A quiet daily brake on web searches (they cost more than a message): over it, USDA alone answers."""
-    if uid is None: return True
-    k = (uid, 'web', dt.date.today())
-    if food_photo._used.get(k, 0) >= WEB_LIMIT: return False
-    food_photo._used[k] = food_photo._used.get(k, 0) + 1
+    if uid is None: return False
+    try: food_photo.brake(uid, WEB_LIMIT, 'web', 'product searches')
+    except HTTPException: return False
     return True
 
 
@@ -282,7 +280,8 @@ def ai_actions(text, items, uid=None):
     """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent (and, for a packaged
     amount, the product words to USDA / a web search)."""
     lines = '\n'.join(f"{i['id']} | {i['name']} | {i['grams']:g}" for i in items) or '(nothing yet)'
-    out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text, uid))}], SCHEMA, 'cook chat', timeout=45)
+    with food_photo.ai_budget.scope(uid):
+        out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text, uid))}], SCHEMA, 'cook chat', timeout=45)
     u = data.get('usageMetadata', {})
     print(f"cook chat: model {model} actions {len(out.get('actions') or [])} tokens in {u.get('promptTokenCount')} "
           f"out {u.get('candidatesTokenCount')}", flush=True)

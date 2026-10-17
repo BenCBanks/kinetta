@@ -149,18 +149,23 @@ finally:
     urllib.request.urlopen, time.sleep = real_open, real_sleep
 # the food estimator (photos, ingredients typed in a dish) does the same: busy twice, then the second model answers
 asked.clear()
+def scoped_food_ask(*args, **kwargs):
+    with food_photo.ai_budget.scope(uid): return real_food_ask(*args, **kwargs)
 def food_busy(req, timeout=None):
     model = req.full_url.split('/models/')[1].split(':')[0]; asked.append(model)
     if len(asked) < 3: raise urllib.error.HTTPError(req.full_url, 503, 'busy', {}, io.BytesIO(b'{}'))
     return io.BytesIO(json.dumps({'candidates': [{'content': {'parts': [{'text': '{"reply": "ok"}'}]}}]}).encode())
 urllib.request.urlopen, time.sleep = food_busy, (lambda s: None)
 try:
-    out, _, model = real_food_ask([{'text': 'x'}], {'type': 'object', 'properties': {'reply': {'type': 'string'}}}, 'test')
+    out, _, model = scoped_food_ask([{'text': 'x'}], {'type': 'object', 'properties': {'reply': {'type': 'string'}}}, 'test')
     ck(out == {'reply': 'ok'} and len(asked) == 3 and asked[0] == asked[1] != asked[2] == model, f'food estimator: retried, then the second model {asked}')
     asked.clear(); urllib.request.urlopen = bad
-    ck(refused(lambda: real_food_ask([{'text': 'x'}], {'type': 'object'}, 'test'), 502) and len(asked) == 1, 'food estimator: a 400 is not retried')
+    ck(refused(lambda: scoped_food_ask([{'text': 'x'}], {'type': 'object'}, 'test'), 502) and len(asked) == 1, 'food estimator: a 400 is not retried')
 finally:
     urllib.request.urlopen, time.sleep = real_open, real_sleep
+    with db.connect() as c:
+        rows=c.execute('DELETE FROM ai_food_attempts WHERE user_id=%s AND kind=%s RETURNING day,charged_micros',(uid,'test')).fetchall()
+        for row in rows:c.execute('UPDATE ai_service_budget SET charged_micros=charged_micros-%s WHERE day=%s',(row['charged_micros'],row['day']))
 
 # packaged amounts are looked up first (2026-10-12): misspelled package words count, everyday words don't
 ck(all(cook_chat.packaged(t) for t in ['one bx of pene', '2 packges of ramen', 'a botle of soy sauce', '1 can of tomatos', 'a jar of sauce']), 'package words, misspelled too')
@@ -172,12 +177,13 @@ cook_chat._web_product = lambda t: (seen.append(('web', t)), {'source': 'web: Te
                                                               'per100': {'kcal': 339, 'protein_g': 18, 'carbs_g': 68, 'fat_g': 2, 'fiber_g': 9}})[1]
 cook_chat._usda_products = lambda q: (seen.append(('usda', q)), [])[1]
 try:
-    refs = cook_chat.product_refs('one bx of bettr goods protien pene pasta')
+    refs = cook_chat.product_refs('one bx of bettr goods protien pene pasta', uid)
     ck('Test protein penne | package 411 g' in refs and ('usda', 'bettr goods protien pene pasta') in seen, f'reference products for the model {seen}')
     seen.clear(); ck(cook_chat.product_refs('2 apples') == '' and not seen, 'no lookup for loose food')
-    seen.clear(); cook_chat.food_photo._used[(999, 'web', __import__('datetime').date.today())] = cook_chat.WEB_LIMIT
-    cook_chat.product_refs('a box of penne', 999); ck(seen == [('usda', 'penne')], f'over the web search brake: USDA only {seen}')
-    seen.clear(); cook_chat.product_refs('a box of penne and 2 cans of beans', 998)
+    seen.clear()
+    with db.connect() as c: c.execute("INSERT INTO ai_daily_usage(user_id,day,kind,requests) VALUES (%s,(now() AT TIME ZONE 'UTC')::date,'web',%s) ON CONFLICT(user_id,day,kind) DO UPDATE SET requests=excluded.requests",(uid,cook_chat.WEB_LIMIT))
+    cook_chat.product_refs('a box of penne', uid); ck(seen == [('usda', 'penne')], f'over the web search brake: USDA only {seen}')
+    seen.clear(); cook_chat.product_refs('a box of penne and 2 cans of beans', jid)
     ck(sorted(seen) == [('usda', 'beans'), ('usda', 'penne'), ('web', '2 cans of beans'), ('web', 'a box of penne')], f'each packaged part looked up {seen}')
 finally:
     cook_chat._web_product, cook_chat._usda_products = real_web, real_usda

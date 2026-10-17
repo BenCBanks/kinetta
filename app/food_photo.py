@@ -4,12 +4,11 @@ The phone shrinks the photo (max 1280 px JPEG) and sends it with an optional des
 sourdough toast"). Gemini Flash-Lite lists the foods with portions, calories and macros; nothing is saved here - the
 phone shows the list for checking, exactly like Paste. The photo is never stored.
 
-Cost (measured 2026-10-09 on a breakfast photo): ~$0.001 per photo with gemini-3.1-flash-lite, ~2 s.
-Model: GEMINI_FOOD_MODEL setting (default gemini-3.1-flash-lite). Brake: 40 estimates per person per day.
+Cost varies with input, output and retries; see docs/ai-budgets.md.
+Model: GEMINI_FOOD_MODEL setting (default gemini-3.1-flash-lite). Brake: 40 estimates per person per UTC day, durable across restarts.
 """
 import base64
 import binascii
-import datetime as dt
 import json
 import os
 import urllib.error
@@ -18,12 +17,11 @@ import urllib.request
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from . import coach, ai_access
+from . import coach, ai_access, ai_budget
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
 DAILY_LIMIT = 40
-_used = {}          # (user_id, kind, date) -> count; resets with the app, good enough for a cost brake
 
 PROMPT = """You estimate food for a calorie and macro tracker. {what}
 List each separate food or drink as its own item with a realistic portion. Count cooking fats, sauces, dressings and
@@ -103,14 +101,17 @@ def ask(parts, schema, label, timeout=45):
                                             'maxOutputTokens': MAX_OUTPUT_TOKENS}}).encode()
     tries = [main, main, os.environ.get('GEMINI_FOOD_FALLBACK_MODEL', 'gemini-3.8-flash')]
     for n, model in enumerate(tries):
+        attempt = ai_budget.reserve(model,label,payload=body)
         last = n == len(tries) - 1
         req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', body,
                                      {'Content-Type': 'application/json', 'x-goog-api-key': os.environ.get('GEMINI_API_KEY', '')})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r: data = json.load(r)
+            ai_budget.settle(attempt, data)
             return json.loads(data['candidates'][0]['content']['parts'][-1]['text']), data, model
         except urllib.error.HTTPError as e:
-            print(f'{label}: gemini {model} HTTP', e.code, e.read()[:300], flush=True)
+            ai_budget.release_failed(attempt,e.code)
+            print(f'{label}: gemini {model} HTTP', e.code, flush=True)
             if last or (e.code != 429 and e.code < 500): raise HTTPException(502, 'The food estimator is busy - try again in a minute')
         except (urllib.error.URLError, TimeoutError) as e:
             print(f'{label}: gemini {model} failed', repr(e)[:300], flush=True)
@@ -122,11 +123,8 @@ def ask(parts, schema, label, timeout=45):
 
 
 def brake(user_id, limit=DAILY_LIMIT, kind='photo', what='estimates'):
-    """A per-person daily cost brake, kept in memory (resets with the app: good enough)."""
-    k = (user_id, kind, dt.date.today())
-    if _used.get(k, 0) >= limit: raise HTTPException(429, f'That is {limit} {what} today - try again tomorrow')
-    _used[k] = _used.get(k, 0) + 1
-    for old in [x for x in _used if x[2] < dt.date.today()]: _used.pop(old, None)
+    """Durable UTC-day cap; independent of food logging success and restarts."""
+    ai_budget.daily(user_id, kind, limit, what)
 
 
 @router.post('/photo')
@@ -147,7 +145,8 @@ def photo(body: PhotoIn, user=Depends(current_user)):
             'means two of the item just discussed), so list the meal as it stands after the last message.' if '\n' in note else '')
     parts = [{'text': PROMPT.format(what=what)}]
     parts.extend({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs)
-    out, data, model = ask(parts, SCHEMA, 'food photo')
+    with ai_budget.scope(user['id']):
+        out, data, model = ask(parts, SCHEMA, 'food photo')
     items = []
     for it in (out.get('items') or [])[:30]:
         name = ' '.join(str(it.get('name') or 'Food').split())[:80]
@@ -197,7 +196,8 @@ def label(body: LabelIn, user=Depends(current_user)):
     if not imgs: raise HTTPException(400, 'Add photos of one ingredient or package')
     brake(user['id'])
     prompt = LABEL_PROMPT + '\nThese photos show one ingredient/package from several angles. Combine the front and nutrition panel; never multiply servings by the number of photos. If they show different products, set readable=false and ask for one product at a time.'
-    out, _, model = ask([{'text': prompt}] + [{'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs],
+    with ai_budget.scope(user['id']):
+        out, _, model = ask([{'text': prompt}] + [{'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs],
                         LABEL_SCHEMA, 'food label')
     print(f"food label: user {user['id']} model {model} readable {out.get('readable')}", flush=True)
     if not out.get('readable'):
