@@ -189,12 +189,12 @@ nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: max(10
   display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 6px; border-radius: 32px;
   background: color-mix(in srgb, var(--card) 92%, transparent); -webkit-backdrop-filter: saturate(1.8) blur(22px); backdrop-filter: saturate(1.8) blur(22px);
   box-shadow: 0 10px 30px rgba(17,21,20,.12), 0 0 0 .5px rgba(17,21,20,.05); }
-nav.tabs a { position: relative; display: grid; justify-items: center; align-content: center; gap: 1px; min-height: 52px; border-radius: 26px;
+nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 1px; min-height: 52px; border-radius: 26px;
   color: var(--tx3); font-size: 10.5px; font-weight: 650; letter-spacing: .01em; transition: color .15s, background-color .15s; }
-nav.tabs a svg { width: 23px; height: 23px; stroke-width: 1.9; }
-nav.tabs a[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750; }
-nav.tabs a[aria-current="page"] svg { stroke-width: 2.3; }
-nav.tabs a:active { transform: scale(.94); }
+nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; }
+nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750; }
+nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
+nav.tabs :is(a,button):active { transform: scale(.94); }
 @media (prefers-color-scheme: dark) { nav.tabs { box-shadow: 0 10px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07); } }
 .tab-n { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
   background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
@@ -1312,10 +1312,10 @@ html.keyboard-open nav.tabs { display: none; }
 .meal-library-row > .icon-btn { flex: none; }
 .health-progress:empty { display: none; }
 .health-progress { color: var(--accent); font-weight: 600; }
-nav.tabs a { border-radius: 0; font-size: 12px; min-height: 54px; gap: 4px; }
-nav.tabs a[aria-current="page"] { background: transparent; }
-nav.tabs a[aria-current="page"]::after { content: ''; width: 24px; height: 3px; border-radius: 2px; background: var(--accent); position: absolute; bottom: 0; }
-nav.tabs a svg { width: 23px; height: 23px; }
+nav.tabs :is(a,button) { border-radius: 0; font-size: 12px; min-height: 54px; gap: 4px; }
+nav.tabs :is(a,button)[aria-current="page"] { background: transparent; }
+nav.tabs :is(a,button)[aria-current="page"]::after { content: ''; width: 24px; height: 3px; border-radius: 2px; background: var(--accent); position: absolute; bottom: 0; }
+nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .brand-line { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .wordmark { font: 650 32px/1.1 var(--display); color: var(--accent); letter-spacing: -.04em; }
 .today-head { margin-bottom: 22px; }
@@ -1368,7 +1368,7 @@ nav.tabs a svg { width: 23px; height: 23px; }
 .macro-bars .macro-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
 .macro-bars .track { margin-top: 6px; height: 6px; }
 .tfood { background: var(--card); }
-@media (max-width: 360px) { .shell { padding-inline: 16px; } .stats3 { gap: 6px; } nav.tabs a { font-size: 10.5px; } .top .acts { gap: 0; } .week-metrics { gap: 6px; } .week-metrics .stat + .stat { padding-left: 6px; } }
+@media (max-width: 360px) { .shell { padding-inline: 16px; } .stats3 { gap: 6px; } nav.tabs :is(a,button) { font-size: 10.5px; } .top .acts { gap: 0; } .week-metrics { gap: 6px; } .week-metrics .stat + .stat { padding-left: 6px; } }
 @media (min-width: 1000px) { .shell { padding-inline: 32px; } .feed-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: start; } }
 
 /* Compact agenda and trustworthy metric wrapping at narrow widths. */
@@ -1618,8 +1618,8 @@ html.keyboard-open .kb-done { display: flex; }
 .track-saved { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
 .track-saved a { display: inline-flex; gap: 6px; align-items: center; }
 .track-saved svg { width: 16px; }
-nav.tabs a.has-recording { position: relative; }
-nav.tabs a.has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
+nav.tabs :is(a,button).has-recording { position: relative; }
+nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
 
 /* ---------- Quicker feel (2026-10-16, Ben: snappier, slicker, taps land where expected) ---------- */
 /* Feed cards: only the photo and the name open the profile; anywhere else on the card opens the activity. */
@@ -1639,8 +1639,8 @@ nav.tabs a.has-recording::before { content: ''; width: 6px; height: 6px; border-
 @keyframes cheer-ring { 0% { opacity: .7; transform: scale(.6); } 100% { opacity: 0; transform: scale(1.9); } }
 /* Tabs switch instantly (no page fade); the bar is solid, so the costly blur behind it is switched off. */
 nav.tabs { -webkit-backdrop-filter: none; backdrop-filter: none; }
-nav.tabs a { transition: color .12s; }
-nav.tabs a[aria-current="page"] svg { animation: tab-pick .28s cubic-bezier(.2, 1.5, .4, 1); }
+nav.tabs :is(a,button) { transition: color .12s; }
+nav.tabs :is(a,button)[aria-current="page"] svg { animation: tab-pick .28s cubic-bezier(.2, 1.5, .4, 1); }
 @keyframes tab-pick { 0% { transform: scale(.82); } 100% { transform: scale(1); } }
 /* Opening something inside a tab slides it in from the side, quickly, like an iPhone push. */
 #page.enter { animation: page-push .18s cubic-bezier(.2, .8, .2, 1) both; }
@@ -1730,3 +1730,31 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .home-workout > svg { width:20px; height:20px; flex-shrink:0; }
 @media(max-width:360px) { .home-today { padding:16px; } .home-food-ways { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(prefers-reduced-motion:reduce) { .home-today * { animation:none; transition:none; } }
+
+/* Shared logging and the two Progress focuses (#122 C). */
+nav.tabs button { border:0; cursor:pointer; background:transparent; font-family:inherit; }
+nav.tabs [data-quick-log] { color:var(--accent); }
+.log-choices { display:grid; gap:12px; }
+.log-choice { display:flex; align-items:center; text-align:left; gap:14px; width:100%; min-height:88px; padding:18px; border:1px solid var(--line); border-radius:18px; background:var(--card2); color:var(--tx); }
+.log-choice > span { flex:1; min-width:0; }
+.log-choice b { display:block; font-size:1.05rem; }
+.log-choice small { display:block; font-size:.85rem; color:var(--tx2); margin-top:6px; }
+.log-choice > svg { width:24px; height:24px; flex-shrink:0; }
+.log-weight { margin-top:12px; width:100%; }
+.progress-switch { display:flex; gap:4px; padding:4px; border-radius:14px; background:var(--card2); margin-bottom:16px; }
+.progress-switch a { flex:1; min-height:44px; display:grid; align-content:center; text-align:center; border-radius:10px; padding:8px; font-size:.95rem; color:var(--tx2); }
+.progress-switch a[aria-current] { background:var(--card); color:var(--accent); font-weight:700; }
+.ql-capture-shortcuts { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.ql-capture-shortcuts button { min-height:44px; }
+.food-calendar { display:grid; grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr)); gap:8px; }
+.food-calendar a { display:grid; text-align:center; min-height:72px; padding:8px 4px; border-radius:12px; color:var(--tx2); background:var(--card2); }
+.food-calendar a.logged { color:var(--accent); background:var(--accent2); }
+.food-calendar small { font-size:.7rem; }
+
+.log-weight > svg, .connections-shortcuts > a > svg { width:24px; height:24px; flex:none; }
+
+.me-heading .kit-help { width:44px; padding:0; justify-content:center; }
+.me-heading .kit-help::after { display:none; }
+
+.log-weight, #quick-weight input, #quick-weight button { font-size:1rem; }
+#quick-weight label { font-size:.9rem; }
