@@ -102,3 +102,10 @@ logged foods. A changed held preview refreshes its numbers and asks you to tap L
 again; it does not save changed numbers in the first tap.
 
 When separately enabled after evaluation, food advice, reassurance and day reviews offer an optional Kit answer. Tap Ask Kit to request it; history reads and page opens never call a model. Kit sees the current question and authenticated food tools, not your stored Health, body, weight, workouts or the deterministic burn summary. It labels its interpretation and shows verified food records and limits. Review proposed meal opens the shared portion/meal confirmation; nothing is logged before Confirm and log food. From Me: open chat, Send a question, Ask Kit (three taps plus typing); a proposed meal adds Review and Confirm (five total). An incomplete/unknown nutrient prevents a full total or unsupported meal suggestion. The saved answer survives reload; a lost confirmation acknowledgement reuses its proposal. Physical iPhone behaviour and qualitative answer accuracy remain separate checks.
+
+Picker receipts are opt-in for food logged from the conversation. Ordinary day-view
+adds and copies do not create chat messages. Restoring a deleted item relinks the
+restored food to its original conversation card without creating a second card.
+A completed server save stays successful even if a phone cannot redraw its card.
+When an earlier correction target was removed, the conversation offers up to five
+recent foods to choose from, preserving the requested correction.

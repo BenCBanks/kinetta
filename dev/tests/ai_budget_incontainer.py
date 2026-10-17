@@ -51,12 +51,12 @@ class Budget(unittest.TestCase):
   with patch.dict(os.environ,{'KINETTA_FOOD_AI_DAILY_USD':'0'}):self.refused(self.reserve,429)
  def test_03_budget_concurrency(self):
   with db.connect() as c:before=c.execute("SELECT coalesce(sum(charged_micros),0) AS n FROM ai_service_budget WHERE day=(now() AT TIME ZONE 'UTC')::date").fetchone()['n']
-  hold=B.price('gemini-3.1-flash-lite',1_048_576,65_536)
+  hold=B.price('gemini-3.1-flash-lite',*B.request_tokens())
   cap=str((before+hold*2)/1_000_000)
   def attempt(_):
    try:return self.reserve()
    except HTTPException as e:self.assertEqual(e.status_code,429);return None
-  with patch.dict(os.environ,{'KINETTA_FOOD_AI_DAILY_USD':cap}):
+  with patch.dict(os.environ,{'KINETTA_FOOD_AI_DAILY_USD':cap,'KINETTA_AI_USER_DAILY_MICROUSD':'100000000'}):
    with futures.ThreadPoolExecutor(max_workers=8) as pool:ids=[r for r in pool.map(attempt,range(12)) if r]
   self.assertEqual(len(ids),2)
   B.settle(ids[0],{'usageMetadata':{'promptTokenCount':1000,'candidatesTokenCount':50,'thoughtsTokenCount':150}})
@@ -78,9 +78,22 @@ class Budget(unittest.TestCase):
    out,_,_=F.ask([{'text':'Fictional food'}],{'type':'OBJECT'},'budget-transport');self.assertTrue(out['ok'])
   with db.connect() as c:
    rows=c.execute("SELECT * FROM ai_food_attempts WHERE user_id=%s AND kind='budget-transport' ORDER BY created",(self.uid,)).fetchall()
-   self.assertEqual(len(rows),3);self.assertEqual([r['state'] for r in rows],['failed','failed','measured'])
+   self.assertEqual(len(rows),3);self.assertEqual([r['state'] for r in rows],['measured','measured','measured'])
    self.assertEqual(rows[-1]['charged_micros'],375)
+   self.assertEqual(sum(r['charged_micros'] for r in rows[:2]),0)
   self.assertEqual(len(asked),3)
+ def test_045_sized_hold_and_unknown_failures(self):
+  request={'contents':[{'parts':[{'text':'Fictional food'},{'inlineData':{'mimeType':'image/jpeg','data':'x'*1000000}}]}],'generationConfig':{'maxOutputTokens':2048}}
+  estimated,output=B.request_tokens(request)
+  self.assertGreater(estimated,16384);self.assertLess(estimated,20000);self.assertEqual(output,2048)
+  self.assertLess(B.price('gemini-3.1-flash-lite',estimated,output),10000)
+  with patch.dict(os.environ,{'KINETTA_FOOD_AI_DAILY_USD':'100'}):rid=self.reserve()
+  B.release_failed(rid,None)
+  with db.connect() as c:self.assertEqual(c.execute('SELECT state FROM ai_food_attempts WHERE id=%s',(rid,)).fetchone()['state'],'reserved')
+  B.release_failed(rid,429);B.release_failed(rid,503)
+  with db.connect() as c:self.assertEqual(c.execute('SELECT charged_micros FROM ai_food_attempts WHERE id=%s',(rid,)).fetchone()['charged_micros'],0)
+  with patch.dict(os.environ,{'KINETTA_AI_PRICING_REVIEW_BY':'2020-01-01'}):self.refused(self.reserve,503)
+  with patch.dict(os.environ,{'KINETTA_AI_PRICING_REVIEW_BY':'not-a-date'}):self.refused(self.reserve,503)
  def test_05_private_schema_export(self):
   self.assertIn('ai_daily_usage',api_mydata.TABLES);self.assertIn('ai_food_attempts',api_mydata.TABLES)
   with db.connect() as c:

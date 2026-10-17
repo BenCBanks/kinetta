@@ -5,11 +5,17 @@ import os
 from pathlib import Path
 
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def _source_hashes():
+    root=Path(__file__).parent
+    files=['ai_access.py','coach.py','coach_chat.py','coach_tools.py','coach_proposals.py','food_photo.py','cook_chat.py','food_coach.py','food_thread_kit.py']
+    return {name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in files}
+
 def fingerprint():
     from . import coach, coach_chat, food_photo
-    root = Path(__file__).parent
-    files = ['ai_access.py', 'coach.py', 'coach_chat.py', 'coach_tools.py', 'coach_proposals.py', 'food_photo.py', 'cook_chat.py', 'food_coach.py', 'food_thread_kit.py', 'food_thread_facts.py']
-    config = {'files': {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in files},
+    config = {'files': _source_hashes(),
               'coach_model': os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash') if coach.provider() == 'gemini' else coach.MODEL,
               'coach_fallback': os.environ.get('GEMINI_FALLBACK_MODEL', 'gemini-3.1-flash-lite'),
               'food_model': os.environ.get('GEMINI_FOOD_MODEL', 'gemini-3.1-flash-lite'),

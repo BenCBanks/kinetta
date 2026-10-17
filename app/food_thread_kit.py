@@ -17,14 +17,14 @@ def response(c,uid,message,**extra):
     return {**food_thread.answer_with(c,uid,message),**extra}
 
 
-def generate(uid,mid):
+def generate(uid,mid,*,refresh=False):
     with db.connect() as c:
         message=engine.locked_message(c,uid,mid)
         reply=engine.stored_reply(c,uid,message)
         result=(reply or {}).get('result') or {}
         if message['state']=='cancelled' or not reply or not (result.get('offer_kit') or result.get('intent')=='review'):
             raise HTTPException(409,'Ask a food question in the conversation first')
-        if result.get('kit'):return response(c,uid,message)
+        if result.get('kit') and not refresh:return response(c,uid,message)
         if not ai_release.enabled('food'):raise HTTPException(503,'Kit food questions are not available yet. Your food log and numbers still work.')
         ai_access.require(uid,'coach',c)
         if not coach.allowed(uid,connection=c):raise HTTPException(400,coach.off())
@@ -49,6 +49,8 @@ def generate(uid,mid):
             answer=coach_chat.answer(uid,question,food_only=True)
     except HTTPException as exc:
         error=exc.detail if isinstance(exc.detail,str) else 'Kit is unavailable. Your food log is unchanged.'
+    except ValueError as exc:
+        error=str(exc)[:500]
     except Exception:
         error='Kit could not finish this answer. Your food log and code answer are kept; you can try again.'
     with db.connect() as c:
