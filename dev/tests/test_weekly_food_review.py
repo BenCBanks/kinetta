@@ -19,3 +19,8 @@ r=build([food(1,protein_g=float('nan'),sodium_mg=float('inf'))],TODAY);assert r[
 r=build([food(n,protein_g=10,meal=['breakfast','lunch','dinner'][n%3]) for n in range(1,8)],TODAY);assert r['suggestions'][0]['kind']=='usual'
 assert len(r['top_foods'])<=5 and 'user_id' not in str(r)
 print('Weekly food review: completed local dates, any-food days vs entries, sparse/mixed/complete data, protein spread, fiber/extras, zero/unknown/nonfinite, own sources and max2 nonjudgmental suggestions PASS')
+
+rows=[food(n,meal="snacks",fiber_g=None if n==1 else 8) for n in range(1,8)]
+r=build(rows,TODAY);assert any("at snack time" in x["text"] for x in r["suggestions"])
+assert not any(x["kind"]=="coverage" for x in r["suggestions"])
+r=build([food(n,fiber_g=None) for n in range(1,8)],TODAY);assert any(x["kind"]=="coverage" for x in r["suggestions"])

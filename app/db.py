@@ -950,9 +950,10 @@ MIGRATIONS = [
       state text NOT NULL CHECK (state IN ('pending','answered','cancelled')),
       reply_to bigint,
       result jsonb,
+      CHECK ((kind = 'reply') = (reply_to IS NOT NULL)),
       UNIQUE (user_id,client_id), UNIQUE (user_id,id), UNIQUE (user_id,reply_to),
       FOREIGN KEY (user_id,reply_to) REFERENCES food_chat_messages(user_id,id) ON DELETE CASCADE);
-    CREATE INDEX food_chat_history ON food_chat_messages(user_id,id DESC);
+    CREATE INDEX food_chat_history ON food_chat_messages(user_id,coalesce(reply_to,id),id);
     CREATE UNIQUE INDEX food_entries_user_identity ON food_entries(user_id,id);
     CREATE TABLE food_chat_entries (
       user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1129,6 +1130,9 @@ MIGRATIONS = [
       SELECT 1 FROM weights w WHERE w.user_id=p.user_id AND w.source='healthkit'
       AND w.day=(SELECT max(day) FROM weights WHERE user_id=p.user_id));
 """,
+
+    # 55: an explicitly removed Health sample stays excluded across calendar changes.
+    """ALTER TABLE health_weight_samples ADD COLUMN excluded boolean NOT NULL DEFAULT false;""",
 
 ]
 
