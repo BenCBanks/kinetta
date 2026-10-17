@@ -62,16 +62,22 @@ const FoodThread = (() => {
     if(Array.isArray(result.logged_unknown))return Object.keys(basis).some(k=>result.logged_unknown.includes(k)!==entries.some(e=>missing(e,k)));
     return rows.length?Object.keys(basis).some(k=>rows.some(e=>missing(e,k))!==entries.some(e=>missing(e,k))):false;
   }
+  function kitHtml(r){
+    const k=r.kit;
+    if(k)return `<section class="thread-kit"><h3>Kit · AI interpretation</h3><p>${esc(k.interpretation)}</p>${k.facts?.length?`<details><summary>Verified food records</summary><dl>${k.facts.map(f=>`<div class="kv"><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join('')}</dl></details>`:''}${k.limitations?.length?`<details><summary>Data limits</summary>${k.limitations.map(l=>`<p>${esc(l)}</p>`).join('')}</details>`:''}${k.selection?.kind==='food'?'<button type="button" class="ghost" data-kit-review>Review proposed meal</button>':''}</section>`;
+    if(!(r.offer_kit||r.intent==='review')||!App.me?.food_coach_tools||!aiCan('coach'))return '';
+    return `<div class="thread-kit">${r.kit_error?`<p class="thread-error">${esc(r.kit_error)}</p>`:''}<button type="button" class="linkbtn" data-kit>${r.kit_processing?'Check Kit answer':'Ask Kit for a food suggestion'}</button><p class="small muted">Optional AI answer using your food records. It won’t log a meal.</p></div>`;
+  }
   function replyHtml(root,reply) {
     const r=reply?.result||{},entries=reply?.entries||[],preview=r.parts?.flatMap(p=>p.logged?[]:(p.entries||[]))||r.resolution?.items?.flatMap(i=>i.preview_entries||[])||[];
     const visible=entries.length?entries:(['preview','needs'].includes(r.kind)||r.pending_count||r.parts?.some(p=>p.status==='ready'&&!p.logged)?preview:[]),changed=changedNumbers(r,entries),removed=r.kind==='log'&&!entries.length&&r.entry_ids?.length;
     const day=entries[0]?.day||r.day,meal=entries[0]?.meal||r.meal;
     const canLog=!r.cancelled&&(r.kind==='preview'||r.parts?.some(p=>p.status==='ready'&&!p.logged));
     return `<div class="thread-card" data-mid="${root.id}">${meal&&day&&!removed?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
-      ${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':'Saved on this phone. Waiting to send…'))}</p>`:''}
+      ${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':root.state==='answered'?'Reply text removed. Your saved food is kept.':'Saved on this phone. Waiting to send…'))}</p>`:''}
       ${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
       ${r.error?`<p class="thread-error">${esc(r.error)}</p>`:''}${!r.cancelled&&(r.kind==='needs'||r.pending_count)?choices(r):''}
-      <div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${r.error?'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>':''}<button type="button" class="linkbtn" data-more>More</button></div></div>`;
+      ${kitHtml(r)}<div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${r.error?'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>':''}<button type="button" class="linkbtn" data-more>More</button></div></div>`;
   }
   function primary(ctx){
     if(!active(ctx))return;$('#thread-suggestions',ctx.el).hidden=!!$('#thread-text',ctx.el).value.trim();const logs=$$('[data-action="log"]',ctx.el),held=!$('#thread-text',ctx.el).value.trim()?logs.at(-1):null;
@@ -124,6 +130,8 @@ const FoodThread = (() => {
   function wireCard(ctx,node,m,reply){
     const r={...(reply?.result||{}),...(reply?.entries?.[0]?{day:reply.entries[0].day,meal:reply.entries[0].meal}:{})};
     $$('[data-action]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,b.dataset.action,b.dataset.action==='log'?{confirm:true}:b.dataset.action==='resolve'?{retry:true}:{});}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
+    const kit=$('[data-kit]',node);if(kit)kit.onclick=async()=>{if(!active(ctx))return;kit.disabled=true;status(ctx,'Checking your food records…');try{const data=await action(ctx,m.id,'kit',{});status(ctx,data.processing?'Kit is still checking. Tap Check Kit answer shortly.':'Answer saved.');}catch(e){toast(e.message);}finally{if(kit.isConnected)kit.disabled=false;}};
+    const review=$('[data-kit-review]',node);if(review)review.onclick=()=>{if(!active(ctx))return;kitReview(r.kit.selection,{scopeKey:m.client_id,onSaved:async data=>{if(active(ctx)){await merge(ctx.owner,data);await refresh(ctx);}}});};
     $$('[data-choice]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,'choose',JSON.parse(b.dataset.choice));}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
     $$('[data-entry]',node).forEach(b=>b.onclick=()=>{entrySheet(reply.entries[+b.dataset.entry],reply.entries[+b.dataset.entry].day);});
     const dest=$('[data-destination]',node);if(dest)dest.onclick=()=>destination(ctx,m,r);
@@ -188,6 +196,6 @@ const FoodThread = (() => {
   addEventListener('online',()=>flush());
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&current&&active(current)){refresh(current);flush(current);}});
   setInterval(()=>flush(),5000);
-  async function eraseDevice(){const owner=ownerKey();if(!owner)return;await ThreadDB.erase(owner);store.del(cacheKey(owner));store.del(draftKey(owner));store.del(contextKey(owner));if(current?.owner===owner){current.messages=[];current.jobs=[];draw(current);}}
+  async function eraseDevice(){const owner=ownerKey();if(!owner)return;await ThreadDB.erase(owner);for(const key of Object.keys(localStorage))if(key.startsWith('fit.kit.proposal:'+owner+':'))localStorage.removeItem(key);store.del(cacheKey(owner));store.del(draftKey(owner));store.del(contextKey(owner));if(current?.owner===owner){current.messages=[];current.jobs=[];draw(current);}}
   return {page,eraseDevice,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
 })();

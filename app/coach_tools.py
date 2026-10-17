@@ -4,6 +4,7 @@ Structured records stay in PostgreSQL. Every tool uses fixed SQL, WHERE user_id 
 Tool outputs are evidence; notes/names are untrusted data, never tool instructions.
 """
 import datetime as dt
+import math
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -48,9 +49,12 @@ TOOLS = {
 }
 
 
-def specifications():
+FOOD_TOOLS=frozenset({'profile','nutrition_summary','meal_combinations','meal_options'})
+FOOD_NUM=('kcal','protein_g','carbs_g','fat_g','fiber_g')
+
+def specifications(food_only=False):
     return [{'name': name, 'description': description, 'input_schema': model.model_json_schema()}
-            for name, (model, description) in TOOLS.items()]
+            for name, (model, description) in TOOLS.items() if not food_only or name in FOOD_TOOLS]
 
 
 def load_curve(rows, end, start=None):
@@ -83,15 +87,21 @@ class AccountTools:
         return c.execute('SELECT tz, units, max_hr, rest_hr, kcal_target, protein_target, carbs_target, fat_target FROM profile WHERE user_id = %s', (self._uid,)).fetchone() or {}
 
     def _nutrition_summary(self, c, r):
-        rows = c.execute('''SELECT day, sum(kcal) AS kcal, sum(protein_g) AS protein_g, sum(carbs_g) AS carbs_g,
-                           sum(fat_g) AS fat_g FROM food_entries WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day ORDER BY day''',
-                         (self._uid, r.start, r.end)).fetchall()
-        count = len(rows)
-        totals = {k: round(sum(float(day[k] or 0) for day in rows), 1) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g')}
-        return {'start': r.start, 'end': r.end, 'calendar_days': (r.end - r.start).days + 1, 'logged_days': count,
-                'unlogged_days': (r.end - r.start).days + 1 - count, 'totals': totals,
-                'average_per_logged_day': {k: round(v / count, 1) if count else None for k, v in totals.items()},
-                'limitations': ['Unlogged days are missing data; partially logged days may understate intake.']}
+        # Missing nutrients remain missing, even when an older storage path uses
+        # zero plus an explicit unknown flag. SQL names come only from this tuple.
+        fields=[]
+        for key in FOOD_NUM:
+            unknown=f"({key} IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? '{key}')"
+            fields += [f"sum(CASE WHEN {unknown} THEN 0 ELSE {key} END) AS {key}",f"count(*) FILTER (WHERE {unknown}) AS {key}_unknown"]
+        rows=c.execute('SELECT day,'+','.join(fields)+',count(*) AS items FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s GROUP BY day ORDER BY day',(self._uid,r.start,r.end)).fetchall()
+        count=len(rows)
+        known={k:round(sum(float(day[k] or 0) for day in rows),1) for k in FOOD_NUM}
+        missing={k:sum(day[k+'_unknown'] for day in rows) for k in FOOD_NUM}
+        totals={k:known[k] if count and not missing[k] else None for k in FOOD_NUM}
+        return {'start':r.start,'end':r.end,'calendar_days':(r.end-r.start).days+1,'logged_days':count,
+                'unlogged_days':(r.end-r.start).days+1-count,'totals':totals,'known_totals':known,'unknown_food_counts':missing,
+                'average_per_logged_day':{k:round(v/count,1) if count and v is not None else None for k,v in totals.items()},
+                'limitations':['Unlogged days are missing data; partially logged days may understate intake. Unknown nutrients make their full totals and averages unavailable; known totals include only supplied values.']}
 
     def _recent_runs(self, c, r):
         tz = (self._profile(c, Empty()).get('tz') or db.DEFAULT_TZ)
@@ -163,27 +173,54 @@ class AccountTools:
         p = self._profile(c, Empty())
         eaten = c.execute('''SELECT coalesce(sum(kcal), 0) AS kcal, coalesce(sum(protein_g), 0) AS protein_g
                             FROM food_entries WHERE user_id = %s AND day = %s''', (self._uid, r.day)).fetchone()
+        unknown=c.execute("SELECT bool_or(protein_g IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'protein_g') AS protein, bool_or(kcal IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'kcal') AS kcal FROM food_entries WHERE user_id=%s AND day=%s",(self._uid,r.day)).fetchone()
         custom = c.execute('SELECT kcal FROM day_goals WHERE user_id = %s AND day = %s', (self._uid, r.day)).fetchone()
         kcal = custom['kcal'] if custom else p.get('kcal_target')
         dishes = c.execute('SELECT * FROM dishes WHERE user_id = %s ORDER BY updated DESC LIMIT 30', (self._uid,)).fetchall()
         candidates = []
         for raw in dishes:
             dish = dish_out(raw)
-            if not dish['totals']['kcal']: continue
+            if not complete_dish(raw) or not complete_food(dish['totals']): continue
             # Whole-dish shares avoid inventing a serving weight. The UI shows this explicitly before confirmation.
             for share in ([1] if dish['serving'] == 'one' else [.25, .5, 1]):
                 candidates.append({'source': 'dish', 'source_id': dish['id'], 'name': dish['name'], 'share': share,
                                    'amount': share, 'unit': 'dish',
                                    **{k: round((dish['totals'].get(k) or 0) * share, 1) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g')}})
-        usual = c.execute('''SELECT name, amount, unit, kcal, protein_g, carbs_g, fat_g, id FROM
+        usual = c.execute('''SELECT name, amount, unit, kcal, protein_g, carbs_g, fat_g, ref, id FROM
                             (SELECT DISTINCT ON (lower(name)) *, count(*) OVER (PARTITION BY lower(name)) AS n FROM food_entries
                              WHERE user_id = %s AND day BETWEEN %s - 60 AND %s ORDER BY lower(name), created DESC) x
                             WHERE n >= 3 ORDER BY n DESC LIMIT 12''', (self._uid, r.day, r.day)).fetchall()
         for food in usual:
+            if not complete_food(food,food.get('ref')):continue
             candidates.append({**{k: food[k] for k in ('name', 'amount', 'unit', 'kcal', 'protein_g', 'carbs_g', 'fat_g')},
                                'source': 'usual', 'source_id': food['id']})
         for i, food in enumerate(candidates): food['candidate_id'] = str(i)
+        if unknown['protein']:eaten['protein_g']=None
+        if unknown['kcal']:eaten['kcal']=None
         return {'day': r.day, 'eaten': eaten, 'remaining': {
-            'kcal': round(float(kcal) - float(eaten['kcal']), 1) if kcal else None,
-            'protein_g': round(float(p['protein_target']) - float(eaten['protein_g']), 1) if p.get('protein_target') else None},
+            'kcal': round(float(kcal) - float(eaten['kcal']), 1) if kcal and not unknown['kcal'] else None,
+            'protein_g': round(float(p['protein_target']) - float(eaten['protein_g']), 1) if p.get('protein_target') and not unknown['protein'] else None},
             'candidates': candidates, 'limitations': ['Remaining targets use the logged intake; incomplete logging can overstate what remains. Dietary preferences/allergies are not recorded: check before choosing.']}
+
+
+def complete_dish(raw):
+    # A calories-only recipe is not evidence that its missing macros are zero.
+    for key in ('kcal','protein_g','carbs_g','fat_g'):
+        if raw.get('known_'+key) is not None:continue
+        if not raw['items'] or any(item.get(key) is None or key in ((item.get('ref') or {}).get('unknown_nutrients') or []) for item in raw['items']):return False
+    return True
+
+
+def complete_food(values,ref=None):
+    missing=(ref or {}).get('unknown_nutrients');missing=missing if isinstance(missing,list) else []
+    return bool(values.get('kcal')) and all(k not in missing and isinstance(values.get(k),(int,float)) and math.isfinite(values[k]) and values[k]>=0 for k in ('kcal','protein_g','carbs_g','fat_g'))
+
+
+class FoodTools(AccountTools):
+    """A smaller existing-tool scope: food only, with no route to Health/body data."""
+    def call(self,name,arguments,*,connection=None):
+        if not isinstance(name,str) or name not in FOOD_TOOLS:raise ValueError('Unknown food tool')
+        return super().call(name,arguments,connection=connection)
+
+    def _profile(self,c,_):
+        return c.execute('SELECT tz,units,kcal_target,protein_target,carbs_target,fat_target,fiber_target FROM profile WHERE user_id=%s',(self._uid,)).fetchone() or {}

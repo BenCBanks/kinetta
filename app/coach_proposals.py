@@ -9,7 +9,7 @@ from pydantic import Field
 
 from . import db, plans
 from .api_food import EntryIn
-from .coach_tools import AccountTools, Empty
+from .coach_tools import AccountTools, Empty, complete_food, complete_dish
 
 
 def fingerprint(value):
@@ -118,15 +118,22 @@ def create(uid, body):
     return {'id': str(pid), 'kind': body.kind, 'payload': payload, 'status': 'pending', 'confirmation_required': True}
 
 
-def confirm(uid, pid):
+def confirm(uid, pid, *, thread=False):
     with db.connect() as c:
+        from . import food_thread_receipts as receipts
+        c.execute('SELECT id FROM users WHERE id=%s FOR NO KEY UPDATE',(uid,))
         # Serialize independent confirmations for this account before checking current state.
         c.execute('SELECT pg_advisory_xact_lock(%s)', (-uid,))
         row = c.execute('SELECT *, expires < now() AS expired FROM coach_proposals WHERE user_id = %s AND id = %s FOR UPDATE', (uid, pid)).fetchone()
         if not row: raise HTTPException(404, 'Proposal not found')
-        if row['status'] == 'applied': return {'status': 'applied', 'already_applied': True}
+        if row['status'] == 'applied':
+            if thread and row['kind']=='food':
+                clients=[f'{pid}-{i}' for i in range(len(row['payload']['candidate']['foods']))]
+                ids=[r['id'] for r in c.execute('SELECT id FROM food_entries WHERE user_id=%s AND client_id=ANY(%s)',(uid,clients))]
+                return {'status':'applied','already_applied':True,'messages':receipts.create(c,uid,ids),'entry_ids':ids,'removed_after_apply':not bool(ids)}
+            return {'status':'applied','already_applied':True}
         if row['expired'] or row['status'] != 'pending': raise HTTPException(409, 'This proposal is no longer available')
-        payload = row['payload']
+        payload = row['payload'];ids=[];messages=[]
         if row['kind'] == 'plan':
             c.execute('SELECT id FROM training_plans WHERE user_id = %s AND id = %s AND active FOR UPDATE', (uid, payload['plan_id']))
             options, current = options_for(uid, connection=c)
@@ -146,12 +153,28 @@ def confirm(uid, pid):
             candidate = next((x for x in options['candidates'] if x['candidate_id'] == payload['candidate']['candidate_id']), None)
             if candidate != payload['candidate']: raise HTTPException(409, 'This combination is no longer available')
             for i, food in enumerate(candidate['foods']):
+                if food['source']=='dish':
+                    source=c.execute('SELECT * FROM dishes WHERE user_id=%s AND id=%s FOR SHARE',(uid,food['source_id'])).fetchone()
+                    if not source or not complete_dish(source):raise HTTPException(409,'That recipe changed. Review a fresh proposal.')
+                    from .api_dishes import _totals,_weight
+                    current=_totals(source);share=food.get('share',food['amount'])
+                    if source['name']!=food['name'] or any(current.get(k) is None or round(current[k]*share,1)!=food[k] for k in ('kcal','protein_g','carbs_g','fat_g')):
+                        raise HTTPException(409,'That recipe changed. Review a fresh proposal.')
+                    ref={'dish_id':source['id'],'dish_kcal':_totals(source)['kcal'],'weight_g':_weight(source)};origin='dish';fiber=_totals(source).get('fiber_g')
+                    fiber=fiber*food.get('share',food['amount']) if fiber is not None else None
+                else:
+                    source=c.execute('SELECT source,ref,fiber_g,amount,name,unit,kcal,protein_g,carbs_g,fat_g FROM food_entries WHERE user_id=%s AND id=%s FOR SHARE',(uid,food['source_id'])).fetchone()
+                    if not source or not complete_food(source,source.get('ref')) or any(source[k]!=food[k] for k in ('name','amount','unit','kcal','protein_g','carbs_g','fat_g')):
+                        raise HTTPException(409,'That food changed. Review a fresh proposal.')
+                    ref=source['ref'];origin=source['source'];fiber=source['fiber_g']
                 entry = EntryIn.model_validate({**{k: food[k] for k in ('name', 'amount', 'unit', 'kcal', 'protein_g', 'carbs_g', 'fat_g')},
-                                               'day': payload['day'], 'meal': payload['meal'], 'source': 'coach', 'client_id': f'{pid}-{i}'})
-                c.execute('''INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, source, client_id, position)
-                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                               (SELECT coalesce(max(position), 0) + 1 FROM food_entries WHERE user_id = %s AND day = %s))''',
+                                               'day': payload['day'], 'meal': payload['meal'], 'source':origin,'fiber_g':fiber,'ref':ref,'client_id':f'{pid}-{i}'})
+                saved=c.execute('''INSERT INTO food_entries (user_id, day, meal, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, source, ref, client_id, position)
+                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                               (SELECT coalesce(max(position), 0) + 1 FROM food_entries WHERE user_id = %s AND day = %s)) RETURNING id''',
                           (uid, entry.day, entry.meal, entry.name, entry.amount, entry.unit, entry.kcal, entry.protein_g, entry.carbs_g,
-                           entry.fat_g, entry.source, entry.client_id, uid, entry.day))
+                           entry.fat_g, entry.fiber_g, entry.source, json.dumps(entry.ref) if entry.ref else None, entry.client_id, uid, entry.day)).fetchone()
+                ids.append(saved['id'])
+            if thread:messages=receipts.create(c,uid,ids)
         c.execute("UPDATE coach_proposals SET status = 'applied' WHERE user_id = %s AND id = %s", (uid, pid))
-    return {'status': 'applied', 'already_applied': False}
+    return {'status':'applied','already_applied':False,**({'messages':messages,'entry_ids':ids} if thread else {})}

@@ -23,9 +23,9 @@ def classify(text, anchor):
     kind = None
     if re.search(r'\b(?:what|which).*(?:did i (?:eat|have|log)|have i (?:eaten|had|logged)|was (?:my )?(?:breakfast|lunch|dinner))', text):
         kind = 'history'
-    elif re.search(r'\b(?:am i doing (?:ok|okay|well)|how am i doing|was that (?:bad|okay|ok)|doing alright|on track)\b', text):
+    elif re.search(r'\b(?:am i doing (?:ok|okay|well)|how am i doing|was that (?:bad|okay|ok)|doing alright|on track)\b', text) or re.fullmatch(r"i (?:think i )?(?:overate|ate too much)(?:(?: today| yesterday| again)| at (?:breakfast|lunch|dinner))?[.!?]*",text):
         kind = 'reassurance'
-    elif re.search(r'\b(?:what (?:should|could|can) i eat|(?:dinner|lunch|breakfast|meal) ideas|suggest.*(?:food|dinner|protein))\b', text):
+    elif re.search(r'\b(?:what (?:should|could|can) i eat|(?:can|could|should|may) i (?:eat|have|try)|(?:dinner|lunch|breakfast|meal) ideas|suggest.*(?:food|dinner|protein))\b', text):
         kind = 'advice'
     elif re.search(r'\b(?:how much|how many|what are|what is|total|average|so far|left|remaining)\b', text):
         kind = 'burn' if re.search(r'\b(?:burned|burnt|burn)\b', text) else 'left' if re.search(r'\b(?:left|remaining)\b',text) else 'totals'
@@ -174,7 +174,7 @@ def answer(question, S):
         elif B.get('source')=='imported':text=f"Imported daily burn is about {kcal(value):,} kcal for {label}."
         else:text=f"Estimated burn for the whole day is about {kcal(value):,} kcal for {label}, including recorded activities."
     elif kind=='advice':
-        text='I can show your logged totals here. For food ideas, ask Kit with AI access and consent.'
+        text='For meal ideas, start with your saved recipes or usual foods. I can also show your logged totals here.'
         result['offer_kit']=True
     else:
         text=feedback(S)

@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import Field, StrictFloat, StrictInt, StrictStr
 
 from . import coach, db, ai_budget
-from .coach_tools import AccountTools, Empty, specifications
+from .coach_tools import AccountTools, FoodTools, Empty, specifications
 
 MAX_ROUNDS, MAX_CALLS = 5, 12
 PROMPT_VERSION = 'kit-tools-1'
@@ -132,17 +132,22 @@ def _claude_turn(messages, definitions):
                          'totalTokenCount': response.usage.input_tokens + response.usage.output_tokens}
 
 
-def answer(uid, question, *, turn=None):
+def answer(uid, question, *, turn=None, food_only=False):
     """`turn` is a stand-in hook for deterministic tests; production uses the configured provider."""
     if not coach.allowed(uid): raise ValueError(coach.off())
-    with db.coach_connect(uid) as c:
-        if not coach.health_ok(c, uid): raise ValueError(coach.HEALTH_NO)
-    tools, evidence, definitions = AccountTools(uid), [], specifications()
+    if not food_only:
+        with db.coach_connect(uid) as c:
+            if not coach.health_ok(c, uid): raise ValueError(coach.HEALTH_NO)
+    tools, evidence, definitions = (FoodTools(uid) if food_only else AccountTools(uid)), [], specifications(food_only)
     provider = coach.provider()
     messages = [{'role': 'user', 'parts': [{'text': question}]}] if provider == 'gemini' else [{'role': 'user', 'content': question}]
     turn = turn or (_gemini_turn if provider == 'gemini' else _claude_turn)
     usage, began, calls_used = {'promptTokenCount': 0, 'candidatesTokenCount': 0, 'thoughtsTokenCount': 0, 'totalTokenCount': 0}, time.monotonic(), 0
     for _ in range(MAX_ROUNDS):
+        if not coach.allowed(uid):raise ValueError(coach.off())
+        if not food_only:
+            with db.coach_connect(uid) as c:
+                if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
         with ai_budget.scope(uid):
             calls, text, tokens = turn(messages, definitions)
         for key in usage: usage[key] += int(tokens.get(key) or 0)
@@ -154,6 +159,7 @@ def answer(uid, question, *, turn=None):
                     'tools_used': [e['tool'] for e in evidence]}
         results = []
         for call in calls:
+            if not coach.allowed(uid):raise ValueError(coach.off())
             calls_used += 1
             if calls_used > MAX_CALLS: raise ValueError('Kit reached the tool limit. Ask a narrower question.')
             name, args = call.get('name'), call.get('args') or {}
