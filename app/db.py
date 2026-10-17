@@ -1087,6 +1087,16 @@ MIGRATIONS = [
     """ALTER TABLE dishes ADD COLUMN known_fiber_g real,
          ADD COLUMN recipe_source jsonb NOT NULL DEFAULT '{}'::jsonb;""",
 
+    # 53: provided extra nutrients and opt-in limits; old rows remain unknown, not zero.
+    """ALTER TABLE food_entries ADD COLUMN sodium_mg real CHECK(sodium_mg BETWEEN 0 AND 1000000),
+         ADD COLUMN sugar_g real CHECK(sugar_g BETWEEN 0 AND 2000),ADD COLUMN saturated_fat_g real CHECK(saturated_fat_g BETWEEN 0 AND 2000);
+       ALTER TABLE custom_foods ADD COLUMN sodium_mg real CHECK(sodium_mg BETWEEN 0 AND 1000000),
+         ADD COLUMN sugar_g real CHECK(sugar_g BETWEEN 0 AND 2000),ADD COLUMN saturated_fat_g real CHECK(saturated_fat_g BETWEEN 0 AND 2000);
+       ALTER TABLE dishes ADD COLUMN known_sodium_mg real CHECK(known_sodium_mg BETWEEN 0 AND 10000000),
+         ADD COLUMN known_sugar_g real CHECK(known_sugar_g BETWEEN 0 AND 5000),ADD COLUMN known_saturated_fat_g real CHECK(known_saturated_fat_g BETWEEN 0 AND 5000);
+       ALTER TABLE profile ADD COLUMN sodium_target_mg real CHECK(sodium_target_mg BETWEEN 0 AND 100000),
+         ADD COLUMN sugar_target_g real CHECK(sugar_target_g BETWEEN 0 AND 2000),ADD COLUMN saturated_fat_target_g real CHECK(saturated_fat_target_g BETWEEN 0 AND 1000);""",
+
 ]
 
 
