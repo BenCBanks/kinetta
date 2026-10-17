@@ -47,7 +47,7 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings; do python3 "$t.py"; done
+for t in test_cooking test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_track test_health_details test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"
@@ -63,4 +63,5 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_photo_batches_corre
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_facts_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_log_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_thread_edit_incontainer.py
 echo "== all passed"
