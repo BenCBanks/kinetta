@@ -78,7 +78,7 @@ final class NativeFoodEntryCenter {
 class KinettaFoodEntryPlugin: CAPPlugin,CAPBridgedPlugin {
     let identifier = "KinettaFoodEntryPlugin"
     let jsName = "KinettaFoodEntry"
-    let pluginMethods = ["bind","pending","acknowledge","stop"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
+    let pluginMethods: [CAPPluginMethod] = ["bind","pending","acknowledge","stop"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
     override func load() { NativeFoodEntryCenter.shared.plugin = self }
     @objc func bind(_ call: CAPPluginCall) {
         do { try NativeFoodEntryCenter.shared.bind(owner:call.getString("owner") ?? "");call.resolve() } catch { call.reject(error.localizedDescription) }
