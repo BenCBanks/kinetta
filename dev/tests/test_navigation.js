@@ -5,11 +5,11 @@ const app=fs.readFileSync('app/static/app.js','utf8');
 (async()=>{
  let owner='one',prefill,closed=0,html='',writes=[],focused=0;
  const field={value:'',focus(){focused++},setCustomValidity(){},reportValidity(){}},button={disabled:false},form={elements:{weight:field}},nodes={'#quick-weight':form},b={isConnected:true};
- const c={App:{me:{weight_kg:75}},readOwner:()=>owner,isoDay:()=> '2026-10-17',imp:()=>false,U:{weight:v=>v},esc:String,LB:2.20462,
+ const c={App:{me:{weight_kg:75}},readOwner:()=>owner,isoDay:()=> '2026-10-17',dayLabel:()=> 'Today',imp:()=>false,U:{weight:v=>v},esc:String,LB:2.20462,
   sheet:(title,body,fn)=>{html=body;fn(b,()=>closed++)},$:s=>s==='button'?button:nodes[s],load:(path,fn)=>{prefill=fn;return Promise.resolve()},
   sendOrQueue:async(...args)=>{writes.push(args);return{}},invalidate(){},Native:{haptic(){}},toast(){}};
  vm.createContext(c);vm.runInContext(app.slice(app.indexOf('function quickLogSheet'),app.indexOf('function render()')),c);
- c.quickWeighIn();assert.equal(writes.length,0);assert.match(html,/Today · 2026-10-17/);assert.equal(focused,1);
+ c.quickWeighIn();assert.equal(writes.length,0);assert.match(html,/>Today</);assert.equal(focused,1);
  prefill({points:[{day:'2026-10-16',kg:76},{day:'2026-10-15',kg:77}]});assert.equal(field.value,76);
  field.value='74.5';field.oninput();prefill({points:[{day:'2026-10-16',kg:78}]});assert.equal(field.value,'74.5');
  await form.onsubmit({preventDefault(){}});assert.equal(writes.length,1);assert.equal(writes[0][0],'/api/food/weights');assert.equal(writes[0][2].kg,74.5);assert.equal(writes[0][2].day,'2026-10-17');assert.equal(closed,1);

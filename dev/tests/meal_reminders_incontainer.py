@@ -69,6 +69,39 @@ try:
   assert apns.deliver({'token':'fictional-device','environment':'sandbox'},payload,transport=httpx.MockTransport(transport))
  assert a.put('/api/food/reminders',json={'enabled':False,'user_id':other}).status_code==422
  assert not any(t['ready'] for t in b.get('/api/food/reminders?user_id='+str(uid)).json()['times'])
+ # One bad account cannot roll back another person's reminder. Invalid zones fall back safely.
+ with db.connect() as c:
+  c.execute("UPDATE profile SET food_reminders=true,tz='Not/AZone' WHERE user_id=%s",(uid,))
+ assert a.get('/api/food/reminders').status_code==200
+ for ago in [1,2,3]:food(other,ago)
+ with db.connect() as c:
+  c.execute('UPDATE profile SET food_reminders=true,tz=%s WHERE user_id=ANY(%s)',(zone,uids));c.execute('DELETE FROM meal_reminder_attempts WHERE user_id=ANY(%s)',(uids,))
+ original_times=M.cached_times
+ def bad_account(c,who,tz,at):
+  if who==uid:raise ValueError('Fictional corrupt account')
+  return original_times(c,who,tz,at)
+ with patch.object(M,'cached_times',side_effect=bad_account):assert M.tick(clock,send=sender)==1
+ with db.connect() as c:c.execute('DELETE FROM meal_reminder_attempts WHERE user_id=ANY(%s)',(uids,))
+ order=[]
+ def isolated_delivery(who,on,meal,payload,send=None):
+  order.append(who)
+  with db.connect() as c:
+   if who==uid:assert not c.execute('SELECT 1 FROM meal_reminder_attempts WHERE user_id=%s',(other,)).fetchone(),'later user must not be claimed before this delivery'
+  return notify_original(who,on,meal,payload,send=send)
+ notify_original=notify.private_meal_push
+ def editable_profile(device,payload):
+  with db.connect() as c:
+   c.execute("SET LOCAL statement_timeout='300ms'");c.execute('UPDATE profile SET food_reminders=true WHERE user_id=ANY(%s)',(uids,))
+  return True
+ M._time_cache.clear()
+ with patch.object(M,'times',wraps=M.times) as timing,patch.object(notify,'private_meal_push',side_effect=isolated_delivery):
+  assert M.tick(clock,send=editable_profile)==2
+  assert M.tick(clock,send=editable_profile)==0
+  assert timing.call_count==2,'history aggregated once per account/local day'
+ assert order==uids
+ with db.connect() as c:c.execute("UPDATE profile SET tz='UTC' WHERE user_id=ANY(%s)",(uids,))
+ with patch.object(M,'times',side_effect=AssertionError('No history scan in quiet hours')):assert M.tick(clock.replace(hour=2),send=sender)==0
+ with db.connect() as c:c.execute('UPDATE profile SET tz=%s,food_reminders=false WHERE user_id=%s',(zone,other))
  # Missing configuration consumes nothing; stale session and transferred device cannot receive.
  with db.connect() as c:c.execute('DELETE FROM meal_reminder_attempts WHERE user_id=%s',(uid,));c.execute('UPDATE profile SET food_reminders=true WHERE user_id=%s',(uid,));c.execute("UPDATE sessions SET last_seen=now()-interval '1 year' WHERE user_id=%s",(uid,))
  assert M.tick(clock,send=sender)==0

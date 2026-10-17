@@ -74,7 +74,7 @@ try:
  assert a.post('/api/health/weights',json=body(state,[{**sample(),'kg':0}])).status_code==422
  # New Health measurements after a user's deletion cutoff remain eligible.
  todaykey=str(uuid.uuid4());send(body(state,[sample(todaykey,70,now)]));assert points()[0]['kg']==70
- disabled=prefs(enabled=False);send(body(state,[sample(todaykey,70,now)]),status=409);assert points()[0]['kg']==70
+ disabled=prefs(enabled=False);send(body(state,[sample(todaykey,70,now)]),status=409);assert not points()
  state2=prefs();send(body(state,[sample(todaykey,70,now)]),status=409)
  send(body(state2,[sample(todaykey,70,now)]));assert points()[0]['kg']==70
  # A local-zone change fences an old in-flight read; it cannot upload against the new calendar.

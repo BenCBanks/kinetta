@@ -19,7 +19,11 @@ async def lifespan(app):
     threading.Thread(target=api_connections.scheduler, daemon=True).start()   # intervals.icu every 30 min
     threading.Thread(target=coach.weekly_scheduler, daemon=True).start()      # Sunday 6 PM weekly reviews (if an AI key is set)
     threading.Thread(target=meal_reminders.scheduler,daemon=True).start()
-    yield
+    recipe_stop=threading.Event()
+    recipe_worker=threading.Thread(target=recipe_import.cleanup,args=(recipe_stop,),daemon=True);recipe_worker.start()
+    try:yield
+    finally:
+        recipe_stop.set();recipe_worker.join(timeout=3)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(api_activities.router)
@@ -147,7 +151,7 @@ def me(user=Depends(current_user)):
         p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
-    return {**user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
+    return {**user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):
@@ -180,18 +184,18 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
     if vals:
         with db.connect() as c:
             c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
-            old=c.execute('SELECT tz,health_ai_ok,weight_kg,weight_health_derived FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
+            old=c.execute('SELECT tz,health_ai_ok,weight_kg,weight_health_derived,health_weight_read FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
             if vals.get('health_ai_ok') is False:vals['health_weight_ai_ok']=False
             if vals.get('health_weight_ai_ok') and not vals.get('health_ai_ok',old.get('health_ai_ok')):raise HTTPException(400,'Allow Health data for AI before including Health weight')
             if 'weight_kg' in vals and vals['weight_kg']!=old.get('weight_kg'):vals['weight_health_derived']=False
-            changed_tz='tz' in vals and vals['tz']!=old.get('tz')
+            changed_tz='tz' in vals and (vals['tz'] or db.DEFAULT_TZ)!=(old.get('tz') or db.DEFAULT_TZ)
             if changed_tz:
                 api_health_nutrition.lock(c,user['id'])
                 from uuid import uuid4
                 vals['health_weight_epoch']=uuid4()
                 vals['health_nutrition_epoch']=uuid4()
             c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in vals)} WHERE user_id = %s", (*vals.values(), user['id']))
-            if changed_tz:
+            if changed_tz and old.get('health_weight_read'):
                 api_health_weights.rebuild(c,user['id'],vals['tz'])
                 if api_health_nutrition.profile(c,user['id'])['health_nutrition_write']:api_health_nutrition.invalidate(c,user['id'])
     return {'ok': True}

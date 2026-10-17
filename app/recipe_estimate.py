@@ -4,7 +4,7 @@ import hashlib,json
 from uuid import UUID,uuid4
 from fastapi import HTTPException
 from pydantic import BaseModel,Field,StrictBool
-from . import db,food_photo,food_thread_sources as S,ai_budget,ai_access,coach
+from . import db,food_photo,food_thread_sources as S,ai_budget,ai_access,coach,recipe_schema
 
 class EstimateIn(BaseModel):
     model_config={'extra':'forbid'}
@@ -14,7 +14,7 @@ class EstimateIn(BaseModel):
     confirmed:StrictBool
 
 
-def key(candidate,text):return str(candidate)+':'+hashlib.sha256(text.encode()).hexdigest()
+def key(candidate,text):return str(candidate)+':'+hashlib.sha256(recipe_schema.text(text).encode()).hexdigest()
 
 
 def resolve(identity,body,user):
@@ -30,7 +30,7 @@ def resolve(identity,body,user):
         if body.candidate>=len(candidates):raise HTTPException(422,'Choose a recipe in this draft')
         review=data.get('review');lines=(review['input']['lines'] if review and review['input']['candidate']==body.candidate else candidates[body.candidate]['ingredients'])
         if body.index>=len(lines):raise HTTPException(422,'Choose an ingredient in this draft')
-        line=lines[body.index];entry_key=key(body.candidate,line)
+        line=recipe_schema.text(lines[body.index]);entry_key=key(body.candidate,line)
         if entry_key in data.get('estimates',{}):return {'done':True,'replayed':True}
         jobs=data.get('estimate_jobs') or {};request=str(body.client_id);old=jobs.get(request);now=dt.datetime.now(dt.timezone.utc)
         if old:

@@ -15,7 +15,7 @@ import time
 import urllib.parse
 import urllib.request
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
 from . import db, energy, nutrients as N
@@ -154,11 +154,11 @@ def _match(q, name):
 def _custom_food(r):
     sg = r['serving_g']
     f = sg / 100 if sg else None
-    per = lambda v: round(v / f, 2) if (f and v is not None) else None
+    per = lambda key: N.rounded(key,r.get(key)/f) if (f and r.get(key) is not None) else None
     return {'source': 'custom', 'origin': r.get('origin','manual'), 'origin_notes':r.get('origin_notes'),
             'origin_model':r.get('origin_model'), 'origin_ref':r.get('origin_ref'), 'origin_edited':r.get('origin_edited',False), 'id': r['id'], 'name': r['name'], 'brand': r['brand'], 'favorite': r['favorite'],
             'per_serving': {k:r.get(k) for k in N.ALL},
-            'per100': {k:(round(r[k]/f,6) if k in N.EXTRA and r.get(k) is not None else per(r.get(k))) for k in N.ALL} if f else None,
+            'per100': {k:per(k) for k in N.ALL} if f else None,
             'serving': {'label': r['serving_label'], 'g': sg}}
 
 
@@ -310,8 +310,9 @@ class EntryIn(N.ExtraValues):
 
 
 @router.post('/entries')
-def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool = False, captured_at: AwareDatetime | None = None):
+def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool = False, captured_at: AwareDatetime | None = None, restore_from: int | None = Query(None,gt=0)):
     if not 1 <= len(items) <= 100: raise HTTPException(400, '1-100 items')
+    if restore_from is not None and (thread or len(items)!=1):raise HTTPException(422,'Restore one food without creating a new chat card')
     ids = []; messages = []
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
@@ -319,7 +320,7 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
         for e in items:
             receipts.guard(c,user['id'],e.client_id)
             if e.ref is not None and isinstance(e.ref.get('unknown_nutrients'),list):
-                missing={k for k in e.ref['unknown_nutrients'] if isinstance(k,str) and k in N.ALL}
+                missing={k for k in e.ref['unknown_nutrients'] if isinstance(k,str)}
                 for k in N.EXTRA:
                     if k in e.model_fields_set:
                         if getattr(e,k) is None:missing.add(k)
@@ -335,7 +336,8 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
                 r = c.execute('SELECT id FROM food_entries WHERE user_id = %s AND client_id = %s', (user['id'], e.client_id)).fetchone()
             ids.append(r['id'])
         if thread:messages=receipts.create(c,user['id'],ids,captured_at)
-    return {'ids':ids,**({'messages':messages} if thread else {})}
+        elif restore_from is not None:messages=receipts.restore(c,user['id'],restore_from,ids[0])
+    return {'ids':ids,**({'messages':messages} if thread or restore_from is not None else {})}
 
 
 class EntriesUndoIn(BaseModel):
@@ -350,7 +352,7 @@ def undo_entries(body:EntriesUndoIn,user=Depends(current_user)):
     if body.confirm is not True:raise HTTPException(400,'Confirm Undo')
     if any(not re.fullmatch(r'[A-Za-z0-9-]{8,64}',v) for v in body.client_ids):raise HTTPException(422,'Use the original food upload IDs')
     from . import food_thread,food_thread_log as engine,food_thread_receipts as receipts
-    uid=user['id'];messages=[];removed=0
+    uid=user['id'];messages=[];removed=0;kept=0
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
         for client_id in dict.fromkeys(body.client_ids):
@@ -360,9 +362,11 @@ def undo_entries(body:EntriesUndoIn,user=Depends(current_user)):
             if root and ((root.get('result') or {}).get('receipt') or {}).get('client_id')==client_id:
                 reply=engine.stored_reply(c,uid,root)
                 if reply and (reply.get('result') or {}).get('kind') in ('log','undone'):
-                    result=engine.undo(c,uid,root);removed+=result.get('removed',0);messages.extend(result.get('messages',[]))
+                    result=engine.undo(c,uid,root);removed+=result.get('removed',0);kept+=result.get('kept',0);messages.extend(result.get('messages',[]))
+                # Chat receipts retain their stronger unchanged-since-logging rule.
+                continue
             removed+=len(c.execute('DELETE FROM food_entries WHERE user_id=%s AND client_id=%s RETURNING id',(uid,client_id)).fetchall())
-    return {'cancelled':True,'removed':removed,'messages':messages}
+    return {'cancelled':True,'removed':removed,'kept':kept,'messages':messages}
 
 
 class EntryEdit(N.ExtraValues):
@@ -386,12 +390,19 @@ def edit_entry(eid: int, body: EntryEdit, user=Depends(current_user)):
         old=c.execute('SELECT ref,source,amount,unit,sodium_mg,sugar_g,saturated_fat_g FROM food_entries WHERE id=%s AND user_id=%s FOR UPDATE',(eid,user['id'])).fetchone()
         if not old:raise HTTPException(404,'Not found')
         ref=dict(old['ref'] or {})
-        missing={k for k in ref['unknown_nutrients'] if isinstance(k,str) and k in N.ALL} if isinstance(ref.get('unknown_nutrients'),list) else set()
+        missing={k for k in ref['unknown_nutrients'] if isinstance(k,str)} if isinstance(ref.get('unknown_nutrients'),list) else set()
         if ('amount' in vals and vals['amount'] is not None and vals['amount']!=old['amount']) or ('unit' in vals and vals['unit'] is not None and vals['unit']!=old['unit']):
             same_unit=vals.get('unit',old['unit'])==old['unit']
-            for key,maximum in [('sodium_mg',1000000),('sugar_g',2000),('saturated_fat_g',2000)]:
+            for key in N.EXTRA:
+                maximum=N.ENTRY_MAX[key]
                 if key not in vals:
                     value=old[key]*vals.get('amount',old['amount'])/old['amount'] if same_unit and old['amount'] and old[key] is not None and key not in missing else None
+                    if not same_unit:
+                        unit=vals.get('unit',old['unit']);amount=vals.get('amount',old['amount'])
+                        source=ref.get('per100') if unit=='g' else ref.get('per_serving') if unit=='serving' else None
+                        if amount is None or unit is None:raise HTTPException(422,'Keep a value for the amount and unit')
+                        reference=N.number(source.get(key),N.PER100_MAX[key] if unit=='g' else N.ENTRY_MAX[key]) if isinstance(source,dict) else None
+                        if reference is not None:value=reference*amount/(100 if unit=='g' else 1)
                     if value is not None and value>maximum:raise HTTPException(422,'That portion is too large. Check the amount and nutrient values.')
                     vals[key]=value
         for key,value in list(vals.items()):
@@ -468,6 +479,14 @@ def food_edit(fid: int, body: FoodIn, user=Depends(current_user)):
     for key in N.EXTRA:
         if key not in body.model_fields_set:v.pop(key)
     with db.connect() as c:
+        old=c.execute('SELECT * FROM custom_foods WHERE id=%s AND user_id=%s FOR UPDATE',(fid,user['id'])).fetchone()
+        if not old:raise HTTPException(404,'Not found')
+        if body.serving_g!=old['serving_g']:
+            for key in N.EXTRA:
+                if key not in body.model_fields_set:
+                    value=old.get(key)*body.serving_g/old['serving_g'] if old.get(key) is not None and old['serving_g'] and body.serving_g else None
+                    if value is not None and value>N.ENTRY_MAX[key]:raise HTTPException(422,'That serving is too large. Check the weight and nutrients.')
+                    v[key]=N.rounded(key,value)
         if not c.execute(f"UPDATE custom_foods SET {', '.join(f'{k} = %s' for k in v)}, origin_edited=(origin='ai' OR origin_edited) WHERE id = %s AND user_id = %s RETURNING id",
                          (*v.values(), fid, user['id'])).fetchone(): raise HTTPException(404, 'Not found')
     return {'ok': True}
@@ -550,11 +569,22 @@ def weights(days: int = 180, user=Depends(current_user)):
     return {'points': out, 'trend_kg': out[-1]['trend'] if out else None, 'rate_kg_per_week': rate}
 
 
+@router.get('/weights/latest')
+def latest_weight(user=Depends(current_user)):
+    """Small, owner-bound prefill read; no full weight history on opening a sheet."""
+    with db.connect() as c:
+        row = c.execute('SELECT day, kg, note FROM weights WHERE user_id = %s ORDER BY day DESC LIMIT 1', (user['id'],)).fetchone()
+    return {'points': [row] if row else []}
+
+
 @router.put('/weights')
 def weight_set(body: WeightIn, user=Depends(current_user)):
     if body.day > dt.date.today() + dt.timedelta(days=1): raise HTTPException(400, "That day hasn't happened yet")
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+        from . import api_health_weights as H
+        p=H.profile(c,user['id'])
+        H.lift_exclusion(c,user['id'],body.day,p['tz'] or db.DEFAULT_TZ)
         c.execute("""INSERT INTO weights (user_id, day, kg, note) VALUES (%s, %s, %s, %s)
                      ON CONFLICT (user_id, day) DO UPDATE SET kg = excluded.kg, note = excluded.note, source = NULL,health_sample_id=NULL,source_name=NULL""", (user['id'], body.day, body.kg, body.note))
         _latest_weight(c, user['id'])
@@ -572,7 +602,13 @@ def _latest_weight(c,uid):
 def weight_delete(day: dt.date, user=Depends(current_user)):
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
-        c.execute('INSERT INTO health_weight_exclusions(user_id,day) VALUES(%s,%s) ON CONFLICT(user_id,day) DO UPDATE SET before_time=greatest(health_weight_exclusions.before_time,excluded.before_time)',(user['id'],day))
+        from . import api_health_weights as H
+        p=H.profile(c,user['id'])
+        old=c.execute('SELECT source,health_sample_id FROM weights WHERE user_id=%s AND day=%s',(user['id'],day)).fetchone()
+        if p['health_weight_read']:
+            c.execute('INSERT INTO health_weight_exclusions(user_id,day) VALUES(%s,%s) ON CONFLICT(user_id,day) DO UPDATE SET before_time=greatest(health_weight_exclusions.before_time,excluded.before_time)',(user['id'],day))
+            if old and old['source']=='healthkit':
+                c.execute('UPDATE health_weight_samples SET excluded=true WHERE user_id=%s AND (sampled_at AT TIME ZONE %s)::date=%s',(user['id'],p['tz'] or db.DEFAULT_TZ,day))
         c.execute('DELETE FROM weights WHERE user_id = %s AND day = %s', (user['id'], day))
         _latest_weight(c, user['id'])
     return {'ok': True}
@@ -594,7 +630,7 @@ class GoalSetupIn(BaseModel):
     height_cm: float | None = Field(None, ge=100, le=250, allow_inf_nan=False)
     birth_year: int | None = Field(None, ge=1920, le=2020)
     sex: str | None = Field(None, pattern='^(male|female)$')
-    activity_factor: float = Field(1.2, allow_inf_nan=False)
+    activity_factor: float | None = Field(None, allow_inf_nan=False)
 
 
 class GoalSaveIn(GoalSetupIn):
@@ -603,11 +639,14 @@ class GoalSaveIn(GoalSetupIn):
 
 
 def _goal_preview(c, uid, body):
-    profile = c.execute('SELECT weight_kg, height_cm, birth_year, sex FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
+    profile = c.execute('SELECT weight_kg, height_cm, birth_year, sex, activity_factor FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}
     values = body.model_dump(exclude_unset=True)
     for key in ('weight_kg', 'height_cm', 'birth_year', 'sex'):
         if key in values: profile[key] = values[key]
-    profile['activity_factor'] = body.activity_factor
+    if body.activity_factor is not None: profile['activity_factor'] = body.activity_factor
+    if 'weight_kg' not in values:
+        rows = c.execute('SELECT day, kg FROM weights WHERE user_id = %s ORDER BY day', (uid,)).fetchall()
+        if rows: profile['weight_kg'] = energy.weight_trend(rows)[-1][2]
     try:
         return energy.target_suggestion(profile, body.goal, body.pace_percent, dt.datetime.now(dt.timezone.utc).year)
     except ValueError as exc:
@@ -629,7 +668,9 @@ def goal_setup(body: GoalSaveIn, user=Depends(current_user)):
         if body.kcal_target < suggestion['resting_floor']:
             raise HTTPException(400, f"Choose at least {suggestion['resting_floor']} kcal, your estimated resting burn.")
         values = body.model_dump(exclude_unset=True, exclude={'goal', 'pace_percent'})
-        values.update(nutrition_goal=body.goal, goal_pace_percent=suggestion['pace_percent'], activity_factor=body.activity_factor)
+        values.update(nutrition_goal=body.goal, goal_pace_percent=suggestion['pace_percent'])
+        if body.activity_factor is not None: values['activity_factor'] = suggestion['activity_factor']
+        else: values.pop('activity_factor', None)
         c.execute(f"UPDATE profile SET {', '.join(f'{key} = %s' for key in values)} WHERE user_id = %s", (*values.values(), user['id']))
     return {'ok': True, 'profile': values}
 

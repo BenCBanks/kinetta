@@ -1,24 +1,33 @@
-# AI limits
+# Food-estimator limits
 
 Food photo/description, label and cooking requests have per-account UTC-day caps
 stored in PostgreSQL. Restarting the app or running a second worker does not reset
 them. A failed request consumes its request slot, including an ambiguous provider
 failure; search, barcodes, recipes and manual logging still work.
 
-All generated food/coaching calls share `KINETTA_AI_DAILY_USD` (default
-`10`, USD per UTC day). Each primary attempt, retry and fallback reserves enough for
-the supported model's entire input/output context **before** making the request.
-Complete provider usage replaces that hold with estimated input + response +
-thinking cost, rounded up to a microdollar. Missing usage, a timeout, invalid JSON
-without usage, a crash or an HTTP failure keeps the hold: unknown bills are never
-silently treated as free. This is deliberately conservative and may pause AI early.
+Structured food-estimator calls also share `KINETTA_FOOD_AI_DAILY_USD` (default
+`5`, USD per UTC day). Each primary attempt, retry and fallback reserves enough for
+a local padded estimate of the request **before** making it: twice the UTF-8 bytes
+of text/schema/configuration plus 1,024 overhead tokens and 16,384 tokens per image,
+with the request's actual `maxOutputTokens` (2,048 for food) reserved as output.
+Image base64 bytes are excluded from the text estimate. No extra provider count call
+is made. This margin is an engineering estimate, not an exact tokenizer or a strict
+provider invoice cap. Complete usage settles actual input, output and thinking cost;
+a larger actual charge can exceed an estimate and stops subsequent reservations.
+Explicit Gemini HTTP 4xx/5xx failures refund their holds once. Timeouts/network
+failures without a response, missing usage and crashes keep their request-sized
+holds because billing is uncertain. Per-person attempt slots remain consumed.
 Concurrent requests share the same database lock. Deleting an account removes its
 identity from attempt records but does not refund the service's spent budget.
 
-`KINETTA_AI_ENABLED=0` stops provider generation and the shared food request brake before provider work.
+`KINETTA_AI_ENABLED=0` stops the shared food request brake before provider work.
 Only the literal `1` enables it. A zero/invalid dollar budget fails closed. New or
 renamed models are blocked until their rates and context bounds are reviewed in
-`app/ai_budget.py`; the bundled review expires January 1, 2027. No existing model,
+`app/ai_budget.py`; the bundled review expires January 1, 2027 (UTC). This is a scheduled AI pause,
+not just a reminder. Before then, review the documented rates and model limits and
+set `KINETTA_AI_PRICING_REVIEW_BY=YYYY-MM-DD` to the next reviewed expiry, or update
+the code default. Invalid or expired dates fail closed. This change does not set
+an environment variable or schedule a calendar event on anyone's behalf. No existing model,
 prompt, temperature or output limit was changed.
 
 Rates and context bounds checked October 17, 2026:
@@ -37,66 +46,45 @@ kind, timestamps and token/cost counts; no text, images, keys or food names.
 Personal usage is included in export and protected by the existing read-only SQL
 identity. The service total is operator-only.
 
+This foundation covers the shared structured food estimator. Grounded web product
+search has a durable per-account request cap but its search-query charges and
+separate coach transports still need the shared monetary reservation boundary
+before this can be described as a cap on **all** service AI spending. The remaining
+food-thread work must not claim that broader guarantee from this PR.
 
-## Shared provider boundary (#122 D follow-up)
+Failure billing and token-estimate references: [Google billing](https://ai.google.dev/gemini-api/docs/billing#am-i-charged-for-failed-requests), [token counting](https://ai.google.dev/gemini-api/docs/tokens), [Gemini 3 media resolution](https://ai.google.dev/gemini-api/docs/gemini-3#media-resolution). UTC-day caps reset at midnight UTC (8 pm US Eastern during daylight time, 7 pm in standard time). Anonymous grounded-product calls remain denied; authenticated routes provide their current user through the existing scope.
 
-All generated coach notes, weekly/food/recipe reviews, Kit tool-loop turns and
-structured food estimates now use the same reservation ledger. The historical
-`ai_food_attempts` table/export name remains compatible; it now includes coach
-attempts. `KINETTA_AI_DAILY_USD` is the preferred service setting, falling back to
-`KINETTA_FOOD_AI_DAILY_USD` for existing configuration. The default is now **$10**
-to allow one full-context Claude reservation (the cap is a ceiling, not a spend
-target). A smaller configured budget deliberately pauses models whose maximum
-reservation cannot fit. Existing food prompts/models and coach prompts stay the same.
+## Shared generation budget
 
-The supported Claude Opus 5.5 bound is 1,048,576 input /131,072 output tokens at
-$4/$20 per million, checked against [Anthropic's model reference](https://platform.claude.com/docs/en/models/opus-5-5/overview)
-on October 17, 2026. No cache is requested; any reported cache writes are charged
-conservatively at twice the input rate. Invisible SDK retries and server-chosen
-Claude model fallbacks are disabled: one ledger attempt must mean one priced
-provider request. Gemini's explicit retry/fallback sequence is unchanged and every
-attempt is reserved separately. The pricing-review expiry applies to every model.
+Coach notes, reviews, Kit tool turns and food estimates share the preferred
+`KINETTA_AI_DAILY_USD` setting (default $5/day UTC); the older food setting remains
+a fallback. Each retry/fallback has its own request-sized reservation. Gemini is
+preferred when its key is configured; its flash → flash → lite retry sequence is
+unchanged. Explicit HTTP 4xx/5xx refunds the hold; unknown network failures retain
+it. Claude uses its actual max_tokens and locally estimated input too, with no
+hidden SDK retries or model fallback. Prompts/models/output settings are unchanged.
 
-Additional operator limits (zero pauses generation, invalid values fail closed):
+| Limit | Default |
+| --- | ---: |
+| KINETTA_AI_CONCURRENT | 8 |
+| KINETTA_AI_USER_CONCURRENT | 2 |
+| KINETTA_AI_DAILY_ATTEMPTS | 2000 |
+| KINETTA_AI_USER_DAILY_ATTEMPTS | 120 |
+| KINETTA_AI_USER_DAILY_MICROUSD | 20% of service budget ($1 at default) |
 
-| Setting | Default | Meaning |
-| --- | ---: | --- |
-| `KINETTA_AI_CONCURRENT` | 8 | Unfinished provider attempts across the service |
-| `KINETTA_AI_USER_CONCURRENT` | 2 | Unfinished attempts for one account |
-| `KINETTA_AI_DAILY_ATTEMPTS` | 2000 | Service provider attempts per UTC day |
-| `KINETTA_AI_USER_DAILY_ATTEMPTS` | 120 | One account's attempts per UTC day |
-| `KINETTA_AI_USER_DAILY_MICROUSD` | 10000000 | One account's reserved/estimated spend per UTC day ($10) |
+A live provider call renews its 120-second concurrency lease every 30 seconds.
+A crashed worker stops renewing; its slot expires but its unknown cost stays held.
+Finished calls release their slot. Settlements lock their attempt and update the
+service total atomically, without taking the global reservation advisory lock.
 
-A finished failure releases its concurrency slot while retaining its cost. A crash
-leaves its slot occupied for at most two minutes, while the reservation still
-counts for that UTC day. A response arriving later can settle once. These guards
-are in PostgreSQL, including all workers and app restarts. A single short advisory
-lock serializes cross-midnight reservations; network work stays outside it.
+Claude Opus 5.5 uses $4/$20 per million input/output tokens; cache writes are
+conservatively counted twice. The same configured pricing-review date applies.
 
-Paid Google Search grounding is paused. Google may execute several separately
-billed searches in one request and the current transport has no enforceable query
-bound. Packaged-food lookups continue through the existing USDA catalog. This
-preserves the bounded food lookup path without claiming a prompt or billing alert
-can enforce search spending. Re-enable grounding only after adding a provider-side
-query bound and corresponding reservation/usage tests.
+Paused generation has a separate `paused` API/UI state; it does not tell people
+to change consent. Existing notes and non-AI features remain available.
+Paid search grounding remains disabled; cooking sends package words only to USDA.
 
-`KINETTA_AI_ENABLED=0` now also stops generated coaching, including automatic
-post-import notes; existing notes and every non-AI feature remain readable. New
-Kit tool features still require the separate reviewed evaluation report. No paid
-provider calls or model-accuracy conclusions are part of this engineering change.
-
-At 80% of the service's reserved/estimated daily spend the server prints one
-payload-free budget warning per UTC day. This is an operator log warning, not a
-phone alert; the hard reservation checks apply independently.
-
-Operators can run `python -m app.ai_budget YYYY-MM-01` inside their app container
-to obtain a monthly aggregate JSON report: daily attempts/tokens/estimated-or-held
-cost by feature, food-attribution coverage, share of tracked foods needing no AI,
-median allocated tokens per tracked food, recorded tokens per logged food and
-estimated/held cost per logging-active account. Active means a food, activity or
-weight was logged that month. One request's tokens are divided across its linked
-foods. An unknown provider bill stays unknown; older food records without thread
-links are explicitly unattributed. The final thread processor must bind its stable
-message UUID to `ai_budget.scope` to connect estimates to food records. Do not use
-incomplete coverage to claim the beta's 70% no-AI / zero-median target is met. This
-report has no HTTP endpoint and returns no names, account IDs or food text.
+The operator-only `python -m app.ai_budget YYYY-MM-01` report summarizes tokens,
+estimated/held cost, active accounts and thread-linked food attribution. It has no
+HTTP route or private text; historical unlinked foods/missing usage stay unknown.
+The ledger records feature/request UUIDs and completion times for that attribution.
