@@ -28,9 +28,13 @@ Information we collect
 
 ## collect
 
-We store the account details you provide, including your username, display name, password hash, optional photo and biography. Food conversation text and links to logged foods are private account records. They are included in your download and removed with your account. Deleting a message keeps already logged foods. No food-photo thumbnails or full photos are kept in thread history.
+We store the account details you provide, including your username, display name, password hash, optional photo and biography.
 
 We also store workouts and original activity files, GPS routes, recorded measurements, food entries, recipes, weight entries, goals, plans and settings that you add or import. Optional body details help calculate personal estimates. Beta requests include your name, email, device information and message.
+
+## food-thread
+
+Food conversation text and links to logged foods are private account records. They are included in your download and removed with your account. Deleting a message keeps already logged foods. No food-photo thumbnails or full photos are kept in thread history.
 
 ## use-heading
 

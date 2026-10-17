@@ -390,10 +390,10 @@ function quickLogSheet() {
 }
 function quickWeighIn() {
   const owner = readOwner(), day = isoDay(new Date()), unit = imp() ? 'lb' : 'kg';
-  sheet('Weigh in', `<form id="quick-weight" class="form"><p class="small muted">Today · ${esc(day)}</p><label>Weight (${unit})<input name="weight" inputmode="decimal" required value="${App.me.weight_kg ? esc(U.weight(App.me.weight_kg)) : ''}" aria-label="Today’s weight in ${unit}" enterkeyhint="done"></label><button class="primary wide">Save weight</button></form>`, (b,close) => {
+  sheet('Weigh in', `<form id="quick-weight" class="form"><p class="small muted">${esc(dayLabel(day))}</p><label>Weight (${unit})<input name="weight" inputmode="decimal" required value="${App.me.weight_kg ? esc(U.weight(App.me.weight_kg)) : ''}" aria-label="Today’s weight in ${unit}" enterkeyhint="done"></label><button class="primary wide">Save weight</button></form>`, (b,close) => {
     const f = $('#quick-weight',b), input = f.elements.weight; let touched = false;
     input.oninput = () => { touched = true; }; input.focus();
-    load('/api/food/weights?days=3650', W => {
+    load('/api/food/weights/latest', W => {
       if (!b.isConnected || touched || readOwner() !== owner) return;
       const latest = W.points?.slice().sort((a,b)=>a.day.localeCompare(b.day)).at(-1);
       if (latest) input.value = U.weight(latest.kg);

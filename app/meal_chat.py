@@ -243,7 +243,7 @@ def split(ts):
     return out
 
 
-OPENERS = {'i', 'we', 'had', 'have', 'has', 'ate', 'eaten', 'just', 'also', 'got', 'grabbed', 'drank', 'then', 'and', 'log', 'add', 'please'}
+OPENERS = {'i', 'we', 'had', 'have', 'has', 'ate', 'eaten', 'just', 'also', 'got', 'grabbed', 'drank', 'then', 'and', 'log', 'add', 'please', 'only'}
 
 
 def text_of(ts, catalog):

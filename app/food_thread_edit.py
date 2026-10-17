@@ -59,7 +59,7 @@ def choose(c,uid,message,part,pick=None,portion=None,select=None,omit=None):
     result=engine.make_result(c,uid,message,resolution)
     result.update({k:old[k] for k in ('day','meal')})
     if old.get('destination_override'):result['destination_override']=True
-    if result['kind']=='preview' and food_thread.preferences(c,uid)['auto_log']:
+    if result['kind']=='preview' and (food_thread.preferences(c,uid) or {}).get('auto_log',True):
         return engine.commit_log(c,uid,message,result)
     return food_thread.finish_reply(c,uid,message,result)
 
@@ -78,6 +78,7 @@ def destination(c,uid,message,day,meal):
             c.execute('UPDATE food_entries SET day=%s,meal=%s,position=%s,updated=now() WHERE id=%s AND user_id=%s',(day,meal,pos+i,row['id'],uid))
         result['feedback']=facts.feedback(facts.snapshot(c,uid,day),seed=message['id'])
     response=food_thread.finish_reply(c,uid,message,result)
+    c.execute('UPDATE food_chat_messages SET result=result || %s::jsonb WHERE id=%s AND user_id=%s',(json.dumps({'touched_at':dt.datetime.now(dt.timezone.utc).isoformat()}),message['id'],uid))
     return attach(c,uid,message,response,[r['id'] for r in rows])
 
 
@@ -97,7 +98,8 @@ def _destination_info(text,anchor):
 def _intent(text,anchor):
     s=meal_chat.LEAD.sub('',meal_chat.norm(text).strip())
     destination=_destination_info(text,anchor)
-    if destination:return {'destination':True,'text':s}
+    if re.match(r'^(?:(?:i|we)\s+)?(?:only\s+)?(?:had|ate|drank)\b',s):return None
+    if destination and re.match(r'^(?:move|change|set|put|it was|that was|for)\b',s):return {'destination':True,'text':s}
     removal=meal_chat.REMOVE.match(s)
     if removal:return {'remove':True,'words':meal_chat.name_words(removal['what'])}
     if not re.search(r'^(?:make|change|set|halve|double|actually|only|it was|that was)\b',text.lower().strip()):
@@ -131,6 +133,10 @@ def _scale(c,uid,row,portion):
     row=dict(row);row['ref']=dict(row['ref'] or {})
     if row['source']=='dish' and row['unit']=='serving' and row['ref'].get('weight_g'):
         row['ref']['serving']={'g':row['ref']['weight_g']}
+    if 'count' in portion and not portion.get('unit') and row['unit'] in ('g','ml','oz','lb','kg','l'):
+        serving=(row['ref'].get('serving') or {}).get('g') if row['unit']=='g' else None
+        if not serving:raise HTTPException(400,'Use an amount with units, such as grams, for this food.')
+        portion={'grams':portion['count']*serving}
     settled,_=meal_chat.settle(c,uid,{'kind':'food','row':row},portion)
     values,why=meal_chat.compute(c,uid,'food',row,settled)
     if why or meal_chat.too_big(values or []):raise HTTPException(400,why or 'That portion is too large')
@@ -151,6 +157,11 @@ def try_correction(c,uid,message,intent=None,forced=None):
         reply=engine.stored_reply(c,uid,root);groups=(reply['result'] if reply else {}).get('groups',[])
         words=set(intent.get('words',[]));matched=[r for r in rows if words and words<=set(meal_chat.name_words(r['name']))]
         group=next((g for g in groups if words and words<=set(meal_chat.name_words(g['name']))),None)
+        exact=[r for r in matched if words==set(meal_chat.name_words(r['name']))]
+        if exact:matched=exact
+        if group and matched:
+            within=[r for r in matched if r['id'] in group['ids']]
+            if within:matched=within
         group_alias=bool(group and not matched)
         if group and not matched:matched=[r for r in rows if r['id'] in group['ids']]
         if forced:
@@ -230,10 +241,13 @@ def handle_pending(c,uid,message):
     if old.get('correction'):
         if old['correction'].get('invalid') and pure:
             intent={k:v for k,v in old['correction'].items() if k!='invalid'};intent['portion']=portion
-            return try_correction(c,uid,message,intent)
+            response=try_correction(c,uid,message,intent)
+            response['updated_message']=_supersede(c,uid,previous,message['id'])
+            return response
         matches=[i for i,x in enumerate(old.get('choices',[])) if words and words<=set(meal_chat.name_words(x['name']))]
         if len(matches)==1:
             response=try_correction(c,uid,message,old['correction'],forced=old['choices'][matches[0]])
+            response['updated_message']=_supersede(c,uid,previous,message['id'])
             return response
         return None
     if old.get('reference',{}).get('kind')=='copy' and words:
@@ -246,10 +260,6 @@ def handle_pending(c,uid,message):
         if selected and (words<=covered):
             from . import food_thread_refs as refs
             response=refs.choose(c,uid,message,old,omit=[x['entry_id'] for x in selected])
-            response['updated_message']=_supersede(c,uid,previous,message['id']);return response
-        if old['reference'].get('requires_omissions') and not pure and not re.match(r'^(?:also|and|i (?:also )?(?:had|ate)|log|add)\b',message['body'].lower()):
-            from . import food_thread_refs as refs
-            response=refs._question(c,uid,message,'Choose the logged foods to leave out.',old['reference'],choices,dt.date.fromisoformat(old['day']),old['meal'])
             response['updated_message']=_supersede(c,uid,previous,message['id']);return response
     if old.get('reference') and pure:
         from . import food_thread_refs as refs
@@ -278,7 +288,7 @@ def handle_pending(c,uid,message):
     resolution=meal_chat.resolve_data(c,uid,engine.ThreadResolveIn(parts=parts,say=say),anchor=message['local_day'])
     result=engine.make_result(c,uid,message,resolution)
     result['day']=resolution.get('day') or old['day'];result['meal']=resolution.get('meal') or old['meal']
-    if result['kind']=='preview' and food_thread.preferences(c,uid)['auto_log']:response=engine.commit_log(c,uid,message,result)
+    if result['kind']=='preview' and (food_thread.preferences(c,uid) or {}).get('auto_log',True):response=engine.commit_log(c,uid,message,result)
     else:response=food_thread.finish_reply(c,uid,message,result)
     response['updated_message']=_supersede(c,uid,previous,message['id']);return response
 
