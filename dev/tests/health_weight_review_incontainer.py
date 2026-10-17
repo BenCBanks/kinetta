@@ -45,7 +45,7 @@ try:
  with patch.object(coach,'after_import',return_value=None):result=api_connections._ingest_apple(uid,payload)
  assert result['weights']==1 and any(p['kg']==85 and p['source']=='manual' for p in points())
  with db.connect() as c:
-  c.execute('DELETE FROM weights WHERE user_id=%s',(uid,));c.execute('DELETE FROM health_weight_exclusions WHERE user_id=%s',(uid,))
+  c.execute('DELETE FROM weights WHERE user_id=%s',(uid,));c.execute('DELETE FROM health_weight_exclusions WHERE user_id=%s',(uid,));c.execute('DELETE FROM health_weight_samples WHERE user_id=%s',(uid,))
  with patch.object(coach,'after_import',return_value=None):api_connections._ingest_apple(uid,payload)
  assert points()[0]['source']=='healthkit' and points()[0]['source_label']=='Apple Health · Health Auto Export'
  with db.connect() as c:assert not coach.health_ok(c,uid)
