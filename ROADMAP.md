@@ -1,6 +1,6 @@
 # Kinetta roadmap
 
-Last reviewed: October 16, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
+Last reviewed: October 17, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
 Requirements live in GitHub issues. Use [the requirements guide](docs/requirements.md) to make an item ready to build.
 
 **Direction:** [#122: nutrition-led Kinetta with activity as a strong second (no Garmin required)](https://github.com/BenCBanks/kinetta/issues/122).
@@ -8,6 +8,30 @@ Kinetta leads with honest, effortless food logging and targets that learn from y
 recording, Apple Health and plans; a watch is optional and no milestone depends on a direct Garmin connection. The
 owner's decisions are recorded in section 8 of #122. Its [addendum comment](https://github.com/BenCBanks/kinetta/issues/122#issuecomment-6226451576)
 is part of workstream D. Workstream letters below (A–T) refer to #122.
+
+## Owner checkpoint — October 17, 2026: review before more implementation
+
+New roadmap implementation is paused at the owner's request. The last complete feature implementation is
+[H: food on training days, PR #162](https://github.com/BenCBanks/kinetta/pull/162). The final technical checkpoint is
+[T2: native food-share storage, PR #163](https://github.com/BenCBanks/kinetta/pull/163): storage and account contracts
+only. It does **not** add the Share-sheet UI, runtime binding or App Group provisioning. Neither checkpoint means
+that workstream T, Milestone 3 or the overall roadmap has passed acceptance or been released.
+
+**Next work is review fixes and controlled merges, starting at the bottom of the dependency stack.** Address the
+posted review findings on [#124](https://github.com/BenCBanks/kinetta/pull/124) and
+[#125](https://github.com/BenCBanks/kinetta/pull/125), plus the minor findings on
+[#126](https://github.com/BenCBanks/kinetta/pull/126), and carry fixes into dependent branches. The application stack
+is #124 → #125 → … → #156 → #158 → #159 → #160 → #161 → #162 → #163. This roadmap PR (#123) and the
+[provider comparison (#157)](https://github.com/BenCBanks/kinetta/pull/157) are independent documents based on main.
+Review one change at a time; retarget/rebase its descendants and verify the resulting code before their merges.
+Passing CI is not review approval. Review, merge, deployment and TestFlight release remain separate steps.
+
+**Deferred until implementation resumes:** T3 Share extension UI/runtime; P2 restaurant integration (licensed
+provider, terms and cost need owner approval); L website/README/App Store copy; and the remaining M decision-record
+cleanup. Physical-iPhone GPS/Health/APNs/accessibility acceptance, reviewed real-model evaluation, the private
+ChatGPT switch study and the five-person beta remain open. Existing A–K/N/O/Q/R/H PRs are implementations awaiting
+review and release, not proof that those external acceptance gates passed. Resume feature work only when the owner
+asks; the milestone order below does not start it automatically.
 
 ## Now — Milestone 1: food-first launch shape
 
