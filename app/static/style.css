@@ -1892,3 +1892,19 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .imported-recipe .top .primary.sm { font-size:1rem; }
 .recipe-import summary,.recipe-source summary { display:list-item; padding-block:10px; }
 .recipe-library-actions .linkbtn { min-height:44px; justify-content:center; }
+
+/* Optional nutrient detail stays behind one familiar disclosure. */
+.extra-nutrients {margin-top:1rem;border-top:1px solid var(--line);padding-top:.65rem;}
+.extra-nutrients > summary {min-height:44px;display:list-item;cursor:pointer;font-weight:600;line-height:1.5;padding:.35rem 0;}
+.extra-nutrients dl {margin:.4rem 0;}
+.extra-nutrients dl > div {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.5rem;padding:.65rem 0;border-bottom:1px solid var(--line);}
+.extra-nutrients dt {overflow-wrap:anywhere;}
+.extra-nutrients dd {margin:0;text-align:right;overflow-wrap:anywhere;}
+.extra-nutrients dd small {display:block;font-size:.85rem;color:var(--tx2);line-height:1.5;}
+.extra-fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));gap:.8rem;}
+.extra-fields label {min-width:0;line-height:1.5;font-size:1rem;}
+.extra-fields input {width:100%;min-height:44px;font-size:1rem;}
+.macpreview > .extra-nutrients {grid-column:1 / -1;text-align:left;}
+.macpreview .extra-nutrients b {font:600 1rem var(--numf);}
+.tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
+.tcard .extra-nutrients dd small {display:block;font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);}

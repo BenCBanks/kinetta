@@ -127,7 +127,7 @@ function foodToDish(d, f, set) {
     <div class="portion-out" aria-live="polite"></div>
     <div class="actions"><button class="primary">Add to the meal</button></div></form>`, (b, close) => {
     const fm = $('#fd2', b), out = $('.portion-out', fm), num = (x) => +x.value.replace(',', '.');
-    const show = () => { const g = num(fm.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, (p[k] || 0) * g / 100]))) : ''; };
+    const show = () => { const g = num(fm.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, p[k]==null?null:p[k]*g/100]))) : ''; };
     fm.g.oninput = () => { if (fm.n) fm.n.value = ''; show(); };
     if (fm.n) fm.n.oninput = () => { const k = num(fm.n); if (k > 0) fm.g.value = Math.round(k * sg); show(); };
     show();
@@ -147,7 +147,7 @@ function dishLogSheet(d, w, done) {
   const owner=readOwner();
   if(d.recipe_source?.import_id && d.totals.kcal==null){sheet(d.name,'<p>Add calories before logging a portion. Missing ingredients are kept unknown.</p><button class="primary wide" id="recipe-add-nutrition">Add nutrition</button>',(b,close)=>{$('#recipe-add-nutrition',b).onclick=()=>{close();done(true);go('/food/cook/'+d.id);};});return;}
   const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one';     // by servings: the whole dish is one serving
-  const vals = (k) => Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, t[x]==null?null:t[x]*k]));
+  const vals = (k) => Object.fromEntries(FOOD_NUTRIENTS.map((x) => [x, t[x]==null?null:t[x]*k]));
   const half = (x) => (x === 0.5 ? '½' : String(x).replace('.5', '½'));
   sheet(d.name, `<form class="form" id="dl">
     ${bySv ? `<div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
@@ -161,7 +161,7 @@ function dishLogSheet(d, w, done) {
     const f = $('#dl', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
     let n = 1;
     const factor = () => (bySv ? n/(d.serving_count||1) : num(f.g) > 0 && wt ? num(f.g) / wt : null);
-    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k)) : ''; };
+    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k))+extraFood(vals(k)) : ''; };
     if (bySv) $$('[data-st]', f).forEach((x) => x.onclick = () => {
       n = Math.max(0.5, Math.min(20, n + 0.5 * +x.dataset.st));
       $('#dl-n', f).textContent = half(n); $('#dl-u', f).textContent = n > 1 ? 'servings' : 'serving'; show();
@@ -180,7 +180,7 @@ function dishLogSheet(d, w, done) {
         const r = await sendOrQueue(`/api/dishes/${d.id}/portion?thread=true&captured_at=${encodeURIComponent(new Date().toISOString())}`, 'POST', body, d.name);
         if(!r.queued&&r.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(r);
         if(readOwner()!==owner)return;
-        if(r.queued){const factor=bySv?n/(d.serving_count||1):body.grams/wt,values=Object.fromEntries(['kcal','protein_g','carbs_g','fat_g','fiber_g'].map(k=>[k,t[k]==null?null:t[k]*factor]));
+        if(r.queued){const factor=bySv?n/(d.serving_count||1):body.grams/wt,values=Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,t[k]==null?null:t[k]*factor]));
           patchDay(w.day,day=>{if(day.entries.some(e=>e.id==='q-'+portionId))return;day.entries.push({...w,...values,id:'q-'+portionId,client_id:portionId,name:d.name,amount:bySv?n:body.grams,unit:bySv?'serving':'g',source:'dish',pending:true,ref:{dish_id:d.id,unknown_nutrients:Object.keys(values).filter(k=>values[k]==null)}});for(const k of Object.keys(values)){day.totals[k]=(day.totals[k]||0)+(values[k]||0);if(values[k]==null&&day.unknown_nutrients)day.unknown_nutrients[k]=(day.unknown_nutrients[k]||0)+1;}});
         }else invalidate('/api/food/');
         App.cache.delete('/api/dishes');close();done(false);Native.haptic('light');
@@ -190,7 +190,7 @@ function dishLogSheet(d, w, done) {
             const removed=await sendOrQueue(`/api/dishes/${d.id}/portion/cancel`,'POST',{client_id:portionId},'Undo '+d.name);
             if(readOwner()!==owner)return;
             Q.save(Q.all().filter(op=>!(Q.owns(op)&&op.body?.client_id===portionId&&op.path.split('?')[0]===`/api/dishes/${d.id}/portion`)));netbar();
-            patchDay(w.day,day=>{const found=day.entries.find(e=>e.id==='q-'+portionId);if(found){day.entries=day.entries.filter(e=>e!==found);for(const k of ['kcal','protein_g','carbs_g','fat_g','fiber_g']){day.totals[k]=Math.max(0,(day.totals[k]||0)-(found[k]||0));if(found[k]==null&&day.unknown_nutrients)day.unknown_nutrients[k]=Math.max(0,(day.unknown_nutrients[k]||0)-1);}}});
+            patchDay(w.day,day=>{const found=day.entries.find(e=>e.id==='q-'+portionId);if(found){day.entries=day.entries.filter(e=>e!==found);for(const k of FOOD_NUTRIENTS){day.totals[k]=Math.max(0,(day.totals[k]||0)-(found[k]||0));if(found[k]==null&&day.unknown_nutrients)day.unknown_nutrients[k]=Math.max(0,(day.unknown_nutrients[k]||0)-1);}}});
             if(readOwner()!==owner)return;undone=true;if(removed.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(removed);
             invalidate('/api/food/');toast(removed.queued?'Undo saved on this phone · waiting to send':'Portion removed');
           }catch(x){if(readOwner()===owner)toast('Could not undo · try again',undo);}finally{undoing=false;}
@@ -260,7 +260,7 @@ function labelButton(el, d, set) {
         <label class="check"><input type="checkbox" name="save"> <span>Also save it to My foods</span></label>
         <div class="actions"><button class="primary">Add to the meal</button></div></form>`;
       const f = $('#lb', b), out = $('.portion-out', f), num = (x) => +x.value.replace(',', '.');
-      const show = () => { const g = num(f.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((k) => [k, (L.per100[k] || 0) * g / 100]))) : ''; };
+      const show = () => { const g = num(f.g); out.innerHTML = g > 0 ? nutGrid(Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, L.per100[k]==null?null:L.per100[k]*g/100]))) : ''; };
       f.g.oninput = () => { f.n.value = ''; show(); };
       f.n.oninput = () => { const n = num(f.n); if (n > 0) f.g.value = Math.round(n * L.serving.g); show(); };
       const all = $('#lb-all', b); if (all) all.onclick = () => { f.g.value = Math.round(pkg); f.n.value = ''; show(); };
@@ -273,7 +273,7 @@ function labelButton(el, d, set) {
           set(await api(`/api/dishes/${d.id}/items`, json('POST', {name, grams: g, per100: L.per100, source: 'label'})));
           if (f.save.checked) {
             await api('/api/food/foods', json('POST', {name: L.name, brand: L.brand, barcode: null, serving_label: L.serving.label, serving_g: L.serving.g,
-              kcal: S.kcal, protein_g: S.protein_g, carbs_g: S.carbs_g, fat_g: S.fat_g, fiber_g: S.fiber_g, favorite: false}));
+              kcal: S.kcal, protein_g: S.protein_g, carbs_g: S.carbs_g, fat_g: S.fat_g, fiber_g: S.fiber_g, ...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,S[k]??null])), favorite: false}));
             invalidate('/api/food/foods');
           }
           close(); toast(`Added ${name}: ${gfmt(g)}${f.save.checked ? ', saved to My foods' : ''}`);
@@ -288,7 +288,7 @@ async function removeItem(d, it, set) {
   if (!it) return;
   try {
     set(await api(`/api/dishes/${d.id}/items/${it.id}`, {method: 'DELETE'}));
-    const back = {name: it.name, grams: it.grams, source: it.source || 'quick', ref: it.ref || null, per100: it.per100 || null, ...Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'].map((k) => [k, it[k] == null ? null : it[k]]))};
+    const back = {name: it.name, grams: it.grams, source: it.source || 'quick', ref: it.ref || null, per100: it.per100 || null, ...Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, it[k] == null ? null : it[k]]))};
     toast(`Removed ${it.name}`, async () => { try { set(await api(`/api/dishes/${d.id}/items`, json('POST', back))); } catch (x) { toast(x.message); } });
   } catch (x) { toast(x.message); }
 }
@@ -431,7 +431,7 @@ async function searchFlow(el, d, set, text) {
   try {
     const local = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=mine`); if (my !== searchSeq) return;
     const recent = local.recent.filter((r) => r.unit === 'g' && r.amount > 0).map((r) => ({name: r.name, brand: r.brand, source: r.source,
-      per100: Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'].map((k) => [k, r[k] == null ? null : r[k] / r.amount * 100]))}));
+      per100: Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, r[k] == null ? null : r[k] / r.amount * 100]))}));
     draw([['Yours', local.mine.concat(recent)]]);
     const ext = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=usda,off`); if (my !== searchSeq) return;
     draw([['Yours', local.mine.concat(recent)], ['USDA', ext.usda], ['Open Food Facts', ext.off]]);
@@ -442,13 +442,13 @@ function typeSheet(name, grams, done) {
     <div class="two"><label>Weight (g)<input name="grams" inputmode="decimal" value="${esc(grams)}" required></label><label>Calories<input name="kcal" inputmode="decimal" required></label></div>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal"></label></div>
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal"></label><span></span></div>
-    <p class="small muted">For the whole amount you're adding, from the packet or a recipe.</p>
+    ${extraInputs()}<p class="small muted">For the whole amount you're adding, from the packet or a recipe.</p>
     <div class="actions"><button class="primary">Add</button></div></form>`, (b, close) => {
-    const f = $('#ty', b); f.kcal.focus();
+    guardFoodSheet(b,close,readOwner());const f = $('#ty', b); f.kcal.focus();
     f.onsubmit = async (e) => {   // stays open if the server says no, so the numbers aren't lost
       e.preventDefault(); const n = (v) => (v.trim() === '' ? null : +v.replace(',', '.')), btn = $('button.primary', f);
       btn.disabled = true;
-      if (await done({name: f.name.value.trim(), grams: n(f.grams.value), kcal: n(f.kcal.value), protein_g: n(f.protein_g.value), carbs_g: n(f.carbs_g.value), fat_g: n(f.fat_g.value)})) close();
+      if (await done({name: f.name.value.trim(), grams: n(f.grams.value), kcal: n(f.kcal.value), protein_g: n(f.protein_g.value), carbs_g: n(f.carbs_g.value), fat_g: n(f.fat_g.value),...extraFormValues(f)})) close();
       else btn.disabled = false;
     };
   });
@@ -461,7 +461,7 @@ function itemSheet(d, it, set) {
     const f = $('#it', b);
     f.g.oninput = () => {   // the numbers above follow the weight as you type
       const g = +f.g.value.replace(',', '.'), k = it.grams > 0 ? g / it.grams : 0;
-      if (g > 0 && k) $('#it-nut', b).innerHTML = nutGrid(Object.fromEntries(['kcal', ...MACROS.map((m) => m[0])].map((x) => [x, it[x]==null?null:it[x]*k])));
+      if (g > 0 && k) $('#it-nut', b).innerHTML = nutGrid(Object.fromEntries(FOOD_NUTRIENTS.map((x) => [x, it[x]==null?null:it[x]*k])));
     };
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
@@ -473,22 +473,22 @@ function itemSheet(d, it, set) {
   });
 }
 function knownSheet(d, set) {
-  const k = d.known, v = (x) => (x == null ? '' : Math.round(x));
+  const k = d.known, v = (x) => (x == null ? '' : String(x));
   sheet('Total for the whole meal', `<form class="form" id="kn"><label>Calories<input name="kcal" inputmode="decimal" value="${v(k.kcal)}" required></label>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal" value="${v(k.protein_g)}"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal" value="${v(k.carbs_g)}"></label></div>
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal" value="${v(k.fat_g)}"></label><label>Fiber (g)<input name="fiber_g" inputmode="decimal" value="${v(k.fiber_g)}"></label></div>
-    <p class="small muted">From a recipe or your own sums. It's used instead of the ingredients.</p>
+    ${extraInputs(k)}<p class="small muted">From a recipe or your own sums. It's used instead of the ingredients.</p>
     <div class="actions">${k.kcal != null ? '<button type="button" class="ghost" id="kn-clear">Use the ingredients</button>' : ''}<button class="primary">Save</button></div></form>`, (b, close) => {
-    const f = $('#kn', b);     // no keyboard until a box is tapped (2026-10-12)
+    guardFoodSheet(b,close,readOwner());const f = $('#kn', b);     // no keyboard until a box is tapped (2026-10-12)
     const save = async (body) => {
       const btn = $('button.primary', f); btn.disabled = true;
       try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); close(); } catch (x) { toast(x.message); btn.disabled = false; }
     };
     f.onsubmit = (e) => {
       e.preventDefault(); const n = (s) => (s.trim() === '' ? null : +s.replace(',', '.'));
-      save(Object.fromEntries(['kcal', 'protein_g', 'carbs_g', 'fat_g','fiber_g'].map((x) => ['known_' + x, n(f[x].value)])));
+      save(Object.fromEntries(FOOD_NUTRIENTS.map((x) => ['known_' + x, n(f[x].value)])));
     };
-    const c = $('#kn-clear', b); if (c) c.onclick = () => save({known_kcal: null, known_protein_g: null, known_carbs_g: null, known_fat_g: null, known_fiber_g:null,use_ingredients:true});
+    const c = $('#kn-clear', b); if (c) c.onclick = () => save({known_kcal: null, known_protein_g: null, known_carbs_g: null, known_fat_g: null, known_fiber_g:null,known_sodium_mg:null,known_sugar_g:null,known_saturated_fat_g:null,use_ingredients:true});
   });
 }
 function dishMenu(d, set, search, known) {
