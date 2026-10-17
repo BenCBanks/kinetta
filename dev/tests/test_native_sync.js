@@ -111,7 +111,8 @@ function device(background = null, push = null) {
 
   await d.n.forget();
   assert.equal(d.n.healthProgress, '', 'sign-out clears visible progress as well as stored account status');
-  for (const key of ['health.on', 'health.owner', 'health.last', 'health.retryFrom', 'health.status']) assert.equal(d.saved.has(key), false);
+  assert.equal(d.saved.get('health.on'),'1','sign-out preserves the account opt-in');
+  assert.equal(await d.n.healthOn(),false,'sign-out pauses all uploaders');
   d.ctx.App.me = {id: 2}; d.n.token = 'second';
   assert.equal(await d.n.syncHealth(), null, 'new account cannot inherit consent');
   await d.n.connectHealth(); d.n.base = 'https://other.example.test';
@@ -122,10 +123,10 @@ function device(background = null, push = null) {
   const entered = new Promise((r) => { started = r; });
   d.ctx.query = () => { started(); return new Promise((r) => { release = r; }); };
   const pending = d.n.syncHealth(); await entered;
-  const stopped = d.n.forget(); release({workouts: [workout]});
+  const statusBeforeStop=d.saved.get('health.status');const stopped = d.n.forget(); release({workouts: [workout]});
   await assert.rejects(pending, /account changed/); await stopped;
   assert.equal(d.n.token, null);
-  assert.equal(d.saved.has('health.status'), false, 'cancelled sync cannot restore stale status');
+  assert.equal(d.saved.get('health.status'),statusBeforeStop,'cancelled sync cannot overwrite retained prior status');
 
   const calls = [], bg = device({
     connect: async (opts) => calls.push(['connect', opts]),
@@ -160,9 +161,15 @@ function device(background = null, push = null) {
 
   const cannotStop = device({disconnect: async () => { throw new Error('Unlock required'); }});
   await cannotStop.n.ready; cannotStop.n.base = 'https://example.test'; cannotStop.n.token = 'first';
-  await assert.rejects(cannotStop.n.login('https://second.example.test', 'test', 'password'), /Unlock/);
+  await assert.rejects(cannotStop.n.login('https://second.example.test', 'test', 'password'), /Unlock|unlock/);
   assert.equal(cannotStop.n.base, 'https://example.test', 'failed native disconnect prevents account/server replacement');
   assert.equal(cannotStop.n.token, 'first');
+  const independent=device({disconnect:async()=>{throw Error('native stop failure');}});await independent.n.ready;
+  independent.n.base='https://example.test';independent.n.token='token';await independent.n.connectHealth();
+  independent.n.stopFoodHealth=async()=>{throw Error('food stop failure');};
+  await independent.n.disconnectHealth();assert(!independent.saved.has('health.on'));assert(!independent.saved.has('health.owner'),'failed food stop cannot bypass workout key cleanup');
+  const paused=device({disconnect:async()=>{}});await paused.n.ready;paused.n.base='https://example.test';paused.n.token='token';await paused.n.connectHealth();
+  await paused.n.pauseHealth();assert.equal(paused.saved.get('health.on'),'1');assert.equal(await paused.n.healthOn(),false);paused.n.autoSync=()=>{};paused.n.resumeHealth();assert.equal(await paused.n.healthOn(),true,'failed account deletion resumes preserved setup');
   const refreshed = [], permissions = [];
   const rich = device({connect: async () => {}, disconnect: async () => {},
     requestPermissions: async () => permissions.push('explicit'),
@@ -220,5 +227,6 @@ function device(background = null, push = null) {
   finishAvailability({available:true});
   await assert.rejects(connecting, /account changed/);
   assert.equal(changing.n.healthProgress, '', 'late availability cannot repopulate another account’s progress');
+  const throttled=device();await throttled.n.ready;throttled.n.base='https://example.test';throttled.n.token='token';await throttled.n.connectHealth();await throttled.n.syncHealth();const count=throttled.queries.length;throttled.n.autoSync({foreground:true});await Promise.resolve();assert.equal(throttled.queries.length,count,'a render after completed import cannot start another full sync');
   console.log('native sync: consent, history retry, offline, incomplete reads/acks and in-flight logout passed');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

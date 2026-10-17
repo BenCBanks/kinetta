@@ -2,7 +2,7 @@
 import datetime as dt,uuid
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from app import db,auth,training_food
+from app import db,auth,training_food,energy,coach_tools
 from app.main import app
 uids=[];clients=[]
 try:
@@ -26,8 +26,26 @@ try:
  s=settings();assert s['eligible'] and not s['enabled'];assert day()['goal']['kcal']==2100
  update(nutrition_goal='fuel_training');s=settings();assert s['enabled'] and s['usual_exercise']==100 and s['extra']==900
  assert day()['goal']['kcal']==3000 and day()['targets']['kcal_target']==2100
+ assert day()['burned']['extra']==day()['goal']['extra']==900
+ with db.connect() as c:
+  c.execute("INSERT INTO food_entries(user_id,day,name,kcal,protein_g) VALUES(%s,%s,'Fictional training meal',1000,30)",(uid,today))
+  ctx=energy.context(c,uid)
+  tool=coach_tools.AccountTools(uid).call('meal_options',{'day':today.isoformat()},connection=c);assert tool['remaining']['kcal']==2000,tool
+  food_only=coach_tools.FoodTools(uid).call('meal_options',{'day':today.isoformat()},connection=c);assert food_only['remaining']['kcal']==2000
+  assert not any(k in str(food_only) for k in ('weight_kg','birth_year','recorded_exercise','planned_exercise'))
+ before=day()['goal']['kcal']
+ with patch.object(energy,'context',return_value={**ctx,'today':today+dt.timedelta(days=1)}):assert day()['goal']['kcal']==before,'allowance must survive tomorrow'
+ calendar=a.get('/api/calendar/month',params={'month':today.strftime('%Y-%m')});assert calendar.status_code==200,calendar.text
+ assert next(d['food']['goal'] for d in calendar.json()['days'] if d['d']==today.isoformat())==3000
+ insights=a.get('/api/food/insights');assert insights.status_code==200,insights.text
+ assert next(d['goal'] for d in insights.json()['rows'] if d['day']==today.isoformat())==3000
+
  # An accepted check-in already included300kcal/day; don't add it a second time after usual exercise falls.
  update(training_target_average=300,training_target_kcal=2100);assert a.put('/api/food/targets',json={'kcal_target':2100,'protein_target':110}).status_code==200;assert settings()['extra']==700 and day()['goal']['kcal']==2800
+ same={'goal':'fuel_training','kcal_target':2100,'protein_target':110}
+ result=a.put('/api/food/goal-setup',json=same)
+ assert result.status_code==200,result.text
+ assert settings()['extra']==700,'same goal setup must preserve check-in exercise allowance'
  save({'enabled':False});assert day()['goal']['kcal']==2100
  save({'enabled':True});assert day()['goal']['kcal']==2800
  save({'enabled':1},422);save({'enabled':True,'adult_confirmed':1},422)
@@ -36,9 +54,12 @@ try:
  with db.connect() as c:c.execute('INSERT INTO day_goals(user_id,day,kcal) VALUES(%s,%s,1900)',(uid,today))
  assert settings()['kcal']==1900 and day()['goal']['kcal']==1900 and day()['goal']['extra']==0
  with db.connect() as c:c.execute('DELETE FROM day_goals WHERE user_id=%s',(uid,))
- assert day(today-dt.timedelta(days=1))['goal']['kcal']==2100
+ assert day(today-dt.timedelta(days=1))['goal']['kcal']==3600
  update(birth_year=today.year-16,training_food_adult_confirmed=True);save({'enabled':True,'adult_confirmed':True},400);assert not settings()['eligible'] and day()['goal']['kcal']==2100 and not settings()['ranges']
  update(birth_year=None,training_food_adult_confirmed=False);assert not settings()['eligible']
+ save({'enabled':True},400)
+ update(birth_year=today.year-18);save({'enabled':True},400)
+ update(birth_year=None)
  save({'enabled':True,'adult_confirmed':True});assert settings()['eligible']
  save({'enabled':None,'adult_confirmed':False});assert settings()['override'] is None and not settings()['eligible']
  update(birth_year=1990,nutrition_goal='maintain')
@@ -56,6 +77,8 @@ try:
   workout=next(w for week in plans.build(raw,plans.paces(None)) for w in week['workouts'] if w.get('dist'))
   active,actual=training_food.planned(c,uid,workout['day'],80)
   assert actual['estimated_kcal']==round(80*workout['dist']) and actual['title']==workout['title']
+  c.execute("INSERT INTO plan_adjustments(user_id,plan_id,day,workout) VALUES(%s,%s,%s,'{\"dist\":5,\"type\":\"easy\",\"title\":\"Adjusted easy run\"}')",(uid,pid,workout['day']))
+  _,adjusted=training_food.planned(c,uid,workout['day'],80);assert adjusted['estimated_kcal']==400 and adjusted['title']=='Adjusted easy run'
   c.execute('INSERT INTO plan_marks(user_id,plan_id,day,done) VALUES(%s,%s,%s,false)',(uid,pid,workout['day']))
   assert training_food.planned(c,uid,workout['day'],80)[1] is None
   assert training_food.planned(c,uids[1],workout['day'],80)==(None,None)

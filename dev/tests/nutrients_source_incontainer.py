@@ -18,6 +18,7 @@ with patch.object(F,'_get',side_effect=AssertionError('No network')):
  assert all(F._fdc_food(fdc)['per100'][k]==v for k,v in expected.items())
  assert N.fdc_values([{'nutrientNumber':'307','value':1000,'unitName':'µg'}])['sodium_mg']==1
  assert N.fdc_values([{'nutrientNumber':'269','value':3}])['sugar_g']==3
+ assert N.fdc_values([{'nutrientId':1093,'value':1000,'unitName':'UG'}])['sodium_mg']==1
  for unit in ['KCAL','% DV',True,42]:assert N.fdc_values([{'nutrientId':1093,'value':1,'unitName':unit}])['sodium_mg'] is None
  assert N.fdc_values([None,{}, {'nutrientId':1093,'value':float('inf')}])==dict.fromkeys(N.EXTRA)
 for bad in [True,-1,float('inf'),float('nan'),1000001]:

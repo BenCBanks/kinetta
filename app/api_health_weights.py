@@ -65,21 +65,42 @@ def preference(body:Preference,user=Depends(current_user)):
         p=profile(c,user['id'],True)
         if p['health_weight_read']!=body.enabled:
             c.execute('UPDATE profile SET health_weight_read=%s,health_weight_epoch=%s,health_weight_ai_ok=false WHERE user_id=%s',(body.enabled,uuid4(),user['id']))
+            if body.enabled:rebuild(c,user['id'],p['tz'] or db.DEFAULT_TZ)
+            else:
+                c.execute("DELETE FROM weights WHERE user_id=%s AND source='healthkit'",(user['id'],))
+                from .api_food import _latest_weight
+                _latest_weight(c,user['id'])
         return status_data(c,user['id'])
 
 
-def rebuild(c,uid,tz):
-    """One daily point. Replayed snapshots and deleted samples cannot duplicate or resurrect it."""
-    c.execute("DELETE FROM weights WHERE user_id=%s AND source='healthkit'",(uid,))
+def lift_exclusion(c,uid,day,tz):
+    c.execute('DELETE FROM health_weight_exclusions WHERE user_id=%s AND day=%s',(uid,day))
+    c.execute('UPDATE health_weight_samples SET excluded=false WHERE user_id=%s AND excluded AND (sampled_at AT TIME ZONE %s)::date=%s',(uid,tz,day))
+
+
+def rebuild(c,uid,tz,*,days=None):
+    """Project only touched days on normal pages; a zone change can rebuild all days."""
+    if not profile(c,uid)['health_weight_read']:return
+    days=sorted(set(days)) if days is not None else None
+    if days==[]:return
+    condition=' AND day=ANY(%s)' if days is not None else ''
+    c.execute("DELETE FROM weights WHERE user_id=%s AND source='healthkit'"+condition,(uid,days) if days is not None else (uid,))
+    extra='';params=[uid,tz,uid]
+    if days is not None:
+        zone=ZoneInfo(tz)
+        start=dt.datetime.combine(days[0],dt.time(),zone).astimezone(dt.timezone.utc)
+        end=dt.datetime.combine(days[-1]+dt.timedelta(days=1),dt.time(),zone).astimezone(dt.timezone.utc)
+        extra=' AND s.sampled_at>=%s AND s.sampled_at<%s AND (s.sampled_at AT TIME ZONE %s)::date=ANY(%s)'
+        params.extend([start,end,tz,days])
     c.execute('''INSERT INTO weights(user_id,day,kg,note,source,health_sample_id,source_name)
       SELECT %s,day,kg,NULL,'healthkit',sample_id,source_name FROM (
         SELECT DISTINCT ON (s.day) s.day,s.kg,s.sample_id,s.source_name FROM (
           SELECT (s.sampled_at AT TIME ZONE %s)::date AS day,s.*
-          FROM health_weight_samples s WHERE s.user_id=%s AND NOT s.deleted
+          FROM health_weight_samples s WHERE s.user_id=%s AND NOT s.deleted AND NOT s.excluded'''+extra+'''
         ) s LEFT JOIN health_weight_exclusions e ON e.user_id=s.user_id AND e.day=s.day
         WHERE e.before_time IS NULL OR s.sampled_at>e.before_time
         ORDER BY s.day,s.sampled_at DESC,s.sample_id DESC) chosen
-      ON CONFLICT(user_id,day) DO NOTHING''',(uid,tz,uid))
+      ON CONFLICT(user_id,day) DO NOTHING''',params)
     from .api_food import _latest_weight
     _latest_weight(c,uid)
 
@@ -97,6 +118,10 @@ def import_weights(body:Batch,user=Depends(current_user)):
         p=profile(c,user['id'],True)
         if not p['health_weight_read']:raise HTTPException(409,'Apple Health weight sync is off')
         if p['health_weight_epoch']!=body.epoch or (p['tz'] or db.DEFAULT_TZ)!=tz:raise HTTPException(409,'Weight sync settings changed. Read Health again.')
+        zone=ZoneInfo(tz)
+        touched={sample.sampled_at.astimezone(zone).date() for sample in body.samples}
+        if body.deleted:
+            touched.update(row['sampled_at'].astimezone(zone).date() for row in c.execute('SELECT sampled_at FROM health_weight_samples WHERE user_id=%s AND sample_id=ANY(%s) AND sampled_at IS NOT NULL',(user['id'],body.deleted)))
         for sample in body.samples:
             old=c.execute('SELECT sampled_at,kg,source_name,source_bundle,deleted FROM health_weight_samples WHERE user_id=%s AND sample_id=%s',(user['id'],sample.sample_id)).fetchone()
             name=' '.join(sample.source_name.split()) or 'Apple Health';bundle=sample.source_bundle.strip()
@@ -110,6 +135,6 @@ def import_weights(body:Batch,user=Depends(current_user)):
             c.execute('''INSERT INTO health_weight_samples(user_id,sample_id,deleted,observed_at) VALUES(%s,%s,true,%s)
               ON CONFLICT(user_id,sample_id) DO UPDATE SET deleted=true,sampled_at=NULL,kg=NULL,source_name=NULL,source_bundle=NULL,
               observed_at=greatest(health_weight_samples.observed_at,excluded.observed_at)''',(user['id'],sample_id,body.observed_at))
-        rebuild(c,user['id'],tz)
+        rebuild(c,user['id'],tz,days=touched)
         c.execute('UPDATE profile SET health_weight_last_synced=now() WHERE user_id=%s',(user['id'],))
         return {'ok':True,'received':len(body.samples),'deleted':len(body.deleted),'sample_ids':ids,'deleted_ids':body.deleted,**status_data(c,user['id'])}

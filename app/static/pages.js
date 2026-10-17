@@ -140,17 +140,31 @@ function workoutEnergy(box,aid) {
   }).catch(()=>{if(box.isConnected&&owner===readOwner())box.innerHTML='<p class="small muted">Today’s energy is unavailable. <a href="/food">Open food log</a></p>';});
 }
 function workoutSyncStatus(box) {
-  if(!Native.on||!box)return;const owner=readOwner();let version=0;
+  if(!Native.on||!box)return;const owner=readOwner();let version=0,wasSyncing=false;
+  const valid=()=>box.isConnected&&owner===readOwner();
+  const progress=()=>{
+    if(!valid()){if(Native.onWorkoutStatus===progress)Native.onWorkoutStatus=null;return;}
+    const text=$('[data-sync-progress]',box),summary=$('[data-sync-summary]',box),button=$('[data-sync-now]',box);
+    if(text&&Native.syncing)text.textContent=Native.healthProgress||'Syncing…';
+    if(summary&&Native.syncing)summary.textContent='Apple Health · syncing';
+    if(button)button.disabled=!!Native.syncing;
+    if(Native.syncing)wasSyncing=true;else if(wasSyncing){wasSyncing=false;draw().catch(()=>{});}
+  };
   const draw=async()=>{
     const v=++version;const [enabled,status,bg]=await Promise.all([Native.healthOn(),Native.healthStatus(),Native.backgroundStatus()]);
-    if(v!==version||!box.isConnected||owner!==readOwner())return;
+    if(v!==version||!valid())return;
     if(!enabled){box.innerHTML='';return;}
+    if(!$('.workout-sync',box))box.innerHTML='<details class="card workout-sync"><summary data-sync-summary></summary><p class="small muted" data-sync-last></p><p class="small muted" data-sync-progress></p><p data-sync-login></p><p data-sync-pending></p><p class="small muted">Garmin Connect can take an hour or more to send workouts to Health and does not send route maps.</p><button class="ghost" data-sync-now>Sync now</button> <a class="linkbtn" href="/track/health">Manage Apple Health</a></details>';
     const dates=[status?.last_success_at,bg?.lastSuccess].filter(Boolean).map(x=>new Date(x)).filter(x=>Number.isFinite(+x));const last=dates.sort((a,b)=>b-a)[0];
-    box.innerHTML=`<details class="card workout-sync"><summary>Apple Health · ${Native.syncing?'syncing':bg?.pending?`${bg.pending} pending`:status?.error||bg?.error?'needs attention':last?'last synced '+esc(last.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):'waiting for first sync'}</summary>${last?`<p class="small muted">Last successful sync: ${esc(last.toLocaleString())}</p>`:''}<p class="small muted">${esc(Native.syncing?Native.healthProgress:status?.error||bg?.error||'Only workouts already available in Apple Health can be imported.')}</p>${bg?.needsLogin?'<p>Sign in again to resume background uploads.</p>':''}${bg?.pending?`<p>${bg.pending} workouts waiting to upload.</p>`:''}<p class="small muted">Garmin Connect can take an hour or more to send workouts to Health and does not send route maps.</p><button class="ghost" data-sync-now${Native.syncing?' disabled':''}>Sync now</button> <a class="linkbtn" href="/track/health">Manage Apple Health</a></details>`;
-    $('[data-sync-now]',box).onclick=async()=>{try{await Native.syncHealth();}catch(e){toast(e.message);}await draw();};
+    $('[data-sync-summary]',box).textContent='Apple Health · '+(Native.syncing?'syncing':bg?.pending?`${bg.pending} pending`:status?.error||bg?.error?'needs attention':last?'last synced '+last.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'waiting for first sync');
+    $('[data-sync-last]',box).textContent=last?'Last successful sync: '+last.toLocaleString():'';
+    $('[data-sync-progress]',box).textContent=Native.syncing?Native.healthProgress:status?.error||bg?.error||'Only workouts already available in Apple Health can be imported.';
+    $('[data-sync-login]',box).textContent=bg?.needsLogin?'Sign in again to resume background uploads.':'';
+    $('[data-sync-pending]',box).textContent=bg?.pending?`${bg.pending} workouts waiting to upload.`:'';
+    $('[data-sync-now]',box).onclick=async()=>{try{const result=await Native.syncHealth();if(!valid())return;if(result?.added||result?.updated){render();return;}}catch(e){if(valid())toast(e.message);}await draw();};
+    progress();
   };
-  Native.onWorkoutStatus=()=>{if(!box.isConnected||owner!==readOwner()){Native.onWorkoutStatus=null;return;}draw().catch(()=>{});};
-  draw().catch(()=>{});Native.autoSync({foreground:true});
+  Native.onWorkoutStatus=progress;draw().catch(()=>{});Native.autoSync({foreground:true});
 }
 
 // ---------- Today ----------
@@ -167,7 +181,7 @@ function getStarted(healthConnected = false, hasHistory = false) {
     Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
     !hasHistory ? step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or enter known nutrition.') : '',
     !hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
-    ios && !home && !Native.on ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
+    ios && !home && !Native.on && !hasHistory ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
   ].filter(Boolean);
   return rows.length ? `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">${rows.join('')}</div>` : '';
 }
@@ -181,14 +195,14 @@ async function meOverview(el) {
     <div id="t-food">${skel(1)}</div><div id="t-checkin"></div>
     <div id="t-combined-week"></div><div id="t-plan"></div><div id="t-friends"></div>
     <section id="t-week" aria-label="Last 14 days"></section>
-    <div id="t-setup"></div><div id="t-goals"></div>`;
+    <div id="t-last"></div><div id="t-form"></div><div id="t-setup"></div><div id="t-goals"></div>`;
   combinedWeek($('#t-combined-week',el));
   let foodHistory=null,activityHistory=null,healthConnected=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null)return;
     const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
     $('#t-setup', el).innerHTML = getStarted(healthConnected, activityHistory||foodHistory) +
-      (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+      (missing.length ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
   };
   todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();}}).catch(() => {
     if (!el.isConnected) return;
@@ -210,13 +224,14 @@ async function meOverview(el) {
   }).catch(() => {});
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
-    if (!r.enabled && !r.latest) { box.innerHTML = ''; return; }
+    if (!r.enabled && !r.paused && !r.latest) { box.innerHTML = ''; return; }
     const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
     async function reviewNow(btn, close) {
       btn.disabled = true; btn.textContent = 'Thinking…';
       try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
       catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
     }
+    if (r.paused) { box.innerHTML = `<p class="small muted">AI is paused. Search, barcodes and manual logging still work.</p>${r.latest ? `<p>${esc(r.latest.text)}</p>` : ''}`; return; }
     box.innerHTML = `<button class="icon-btn kit-help" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}</button>`;
     $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', wk
       ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text">${esc(r.latest.text)}</p>
@@ -229,6 +244,7 @@ async function meOverview(el) {
   const overviewLoads = await Promise.allSettled([
     load('/api/activities?limit=3', (d) => {
       if (!el.isConnected) return;
+      $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
       Promise.resolve(Native.on ? (Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()) : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
         activityHistory=!!d.length;healthConnected=connected;drawSetup();
@@ -239,6 +255,19 @@ async function meOverview(el) {
       if (!(s.recent_days || []).some(r => r.distance_m > 0)) { $('#t-week',el).innerHTML = ''; return; }
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
       mileageChart($('#me-distance', el), {days:s.recent_days || []});
+    }),
+    load('/api/fitness?days=60', (f) => {
+      if (!el.isConnected) return;
+      const last = f.days[f.days.length - 1];
+      if (!last || !f.days.some(day => day.fitness > 0)) { $('#t-form', el).innerHTML = ''; return; }
+      // the status word leads (like Garmin's training status); the numbers sit under it, the definitions on the Fitness page
+      const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
+      // one compact row (2026-10-16): the status word and its numbers; the explanations live on the Fitness page
+      const mini = (label, v) => `<span><b class="num">${esc(v)}</b><small>${esc(label)}</small></span>`;
+      $('#t-form', el).innerHTML = `<a class="card tap me-form" href="/progress?view=fitness" aria-label="Fitness and freshness: ${esc(word)}. ${esc(tip)}. Open details">
+        <span class="me-form-top"><span class="grow"><small>Fitness & freshness</small><b class="status-word ${k}">${esc(word)}</b></span>${svg('chev')}</span>
+        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? mini('Run score', f.vdot_now) : ''}</span>
+        ${f.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</a>`;
     }),
     load('/api/goals', (g) => {
       if (!el.isConnected) return;
@@ -363,7 +392,7 @@ function sportStats(a) {
 route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>${skel(2)}`;
   wireBack(el, '/activity');
-  await load(`/api/activities/${id}`, (a) => {drawDetail(el,a);const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}, {maxAge:60000});
+  await load(`/api/activities/${id}`, (a) => {drawDetail(el,a);if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}}, {maxAge:60000});
 });
 
 // Sections (2026-10-12, Ben: "one huge long list"): the map, title and headline numbers stay on top; the rest is
@@ -1152,7 +1181,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       </div>
-    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">Optional training notes and food estimates. AI consent is separate from access.</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
+    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
@@ -1189,9 +1218,11 @@ route(/^\/me$/, 'me', async (el) => {
     history.replaceState(null, '', '/me'); $('.me-settings', el).open = true; bodySheet();
   }
   $('#logout', el).onclick = async () => {
-    const n = Q.mine().length;
+    let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){toast('Could not check unsent food messages. Try logging out again.');return;}
+    let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){toast(e.message);return;}
+    const n = Q.mine().length + chat + shortcuts;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
-    try { await Native.stopFoodEntry?.(); await Native.stopFoodHealth?.(); } catch(x) { toast(x.message);return; }
+    if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
     if (typeof Track !== 'undefined') await Track.pause();
     try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
     await Native.forget();
@@ -1262,17 +1293,22 @@ function deleteSheet() {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try {
         if(account!==readOwner())return;
-        if(Native.on){await Native.stopFoodEntry?.();await Native.disconnectHealth();}
+        if(Native.on)await (Native.pauseSession||Native.pauseHealth)();
         if(account!==readOwner())return;
-        await api('/api/account/delete', json('POST', {password: f.pw.value}));
-        await Native.stopFoodHealth?.({clear:true});
-        if (typeof FoodThread !== 'undefined') { try { await FoodThread.eraseDevice(); } catch (e) { toast('Your account was deleted. Clear this app’s storage to remove its unsent food messages from this phone.'); } }
-        if (typeof RecipeImport !== 'undefined') RecipeImport.eraseDevice();
-        if(typeof TrainingFood!=='undefined'&&!TrainingFood.eraseDevice())toast('Account deleted. Clear this app’s storage to remove saved note preferences.');
-        if (typeof Track !== 'undefined') Track.forgetDraft();
-        close(); store.set('fit.queue', Q.all().filter((o) => o.who !== login)); forgetKept();
-        try { await Native.forget(); } catch(e) { toast('Account deleted. Clear this app’s storage if old connection settings remain.'); }
-        App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin('Your account and all your data were deleted.');
+        try { await api('/api/account/delete', json('POST', {password: f.pw.value})); }
+        catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}
+        // Once the server confirms deletion, every cleanup gets its own chance.
+        const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
+        await cleanup(()=>Native.forget({deleted:true}));
+        await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
+        await cleanup(()=>typeof TrainingFood!=='undefined'?TrainingFood.eraseDevice():null);
+        await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
+        await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
+        await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));
+        await cleanup(()=>forgetKept());await cleanup(()=>close());
+        App.me=null;App.cache.clear();
+        await cleanup(()=>netbar());await cleanup(()=>history.replaceState(null,'','/'));
+        showLogin('Your account and all your data were deleted.');
       } catch (x) { toast(x.message); btn.disabled = false; }
     };
   });
@@ -1372,7 +1408,7 @@ route(/^\/track\/connections$/, 'track', async (el) => {
   if(!valid())return;
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
   $('#c-body', el).innerHTML = `<div class="card"><h2>intervals.icu</h2>
-      <p class="small">For an existing intervals.icu account, enter your athlete ID and API key (Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
+      <p class="small">Garmin owners: intervals.icu can bring in maps automatically. For an existing intervals.icu account, enter your athlete ID and API key (Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
       <form class="form" id="c-icu"><div class="two"><label>Athlete ID<input name="athlete_id" placeholder="i123456" autocapitalize="none" value="${esc(C.intervals ? C.intervals.athlete_id : '')}"></label>
       <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved (paste to change)' : ''}"></label></div>
       <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>

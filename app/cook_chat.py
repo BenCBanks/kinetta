@@ -111,7 +111,7 @@ def from_memory(text, mem):
         grams = p['grams'] or (p['amount'] * m['units'][p['unit'] or 'each'] if (p['unit'] or 'each') in m['units'] else None)
         if not grams or grams >= 20000: return None
         said = f"{p['amount']:g} {p['unit']}" if p['unit'] else f"{p['amount']:g}"
-        out.append({'name': m['name'], 'amount': said, 'grams': round(grams, 1), 'per100': m['per100'], 'source': 'memory','ref':{**m.get('ref',{}),**({'origin':'ai'} if m.get('source')=='ai' or m.get('ref',{}).get('origin')=='ai' else {})},
+        out.append({'name': m['name'], 'amount': said, 'grams': round(grams, 1), 'per100': m['per100'], 'source': 'memory','ref':{**{k:v for k,v in m.get('ref',{}).items() if k in ('id','barcode','fdc_id','origin','origin_model')},**({'origin':'ai'} if m.get('source')=='ai' or m.get('ref',{}).get('origin')=='ai' else {})},
                     'key': key(p['query']), 'units': units_of(said, grams)})
     return out
 
@@ -216,16 +216,6 @@ def _usda_products(q):
     return out[:5]
 
 
-def _web_product(text):
-    """Paid grounding has unbounded per-call search charges; use USDA instead.
-
-    Re-enable only with a provider-enforced query bound and reviewed budget
-    accounting. A prompt asking for fewer searches cannot enforce a spend cap.
-    """
-    return None
-
-
-
 def product_refs(text, uid=None):
     """Reference products for each packaged amount in the message, as prompt lines ('' when there's nothing to look up).
     "2 apples which weigh 100 grams and a box of food lion penne" looks up only the penne, with its own words."""
@@ -241,15 +231,14 @@ def product_refs(text, uid=None):
             found += [r] if isinstance(r, dict) else (r or [])[:3]
     if not found: return ''
     line = lambda f: (f"{f.get('brand') or ''} | {f['name']} | package {f['package_g']:g} g | " if f.get('package_g') else f"{f.get('brand') or ''} | {f['name']} | package size unknown | ") + \
-        ' '.join(f"{k} {f['per100'][k]:g}" for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g') if f['per100'].get(k) is not None) + \
-        (f" ({f['source']})" if str(f.get('source', '')).startswith('web') else '')
+        ' '.join(f"{k} {f['per100'][k]:g}" for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g') if f['per100'].get(k) is not None)
     return REFS.format(lines='\n'.join(line(f) for f in found[:10]))
 
 
 def ai_actions(text, items, uid=None):
     """Ask the model; returns (actions, reply). Only the dish's ingredients and the message are sent (and, for a packaged
-    amount, the product words to USDA / a web search)."""
-    lines = '\n'.join(f"{i['id']} | {i['name']} | {i['grams']:g}" for i in items) or '(nothing yet)'
+    amount, the product words to USDA)."""
+    lines = '\n'.join(f"{i['id']} | {i['name']} | " + (f"{i['grams']:g} g" if i.get('grams') else 'weight unknown') for i in items) or '(nothing yet)'
     with food_photo.ai_budget.scope(uid):
         out, data, model = food_photo.ask([{'text': PROMPT.format(items=lines, text=text, refs=product_refs(text, uid))}], SCHEMA, 'cook chat', timeout=45)
     u = data.get('usageMetadata', {})
@@ -313,7 +302,12 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
                 if x: new.append(_as_item(x))
                 else: skipped += 1
             elif op == 'change' and it and (g := _n(a.get('grams'))) and 0 < g < 20000:
-                it.update(grams=round(g, 1), **D._item_values(it['per100'], g)); changed.append(it['id'])
+                if not it.get('per100'):
+                    per={k:it.get(k)*100/g if it.get(k) is not None else None for k in D.NUM}
+                    if any(v is not None and v>(1000 if k=='kcal' else 100) for k,v in per.items()):skipped+=1;continue
+                    it.update(grams=round(g,1),per100=per)
+                else:it.update(grams=round(g,1),**D._item_values(it['per100'],g))
+                changed.append(it['id'])
             elif op == 'remove' and it and it['id'] not in removed:
                 removed.append(it['id'])
         items = [i for i in items if i['id'] not in removed] + new
