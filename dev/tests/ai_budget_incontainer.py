@@ -78,7 +78,7 @@ class Budget(unittest.TestCase):
    out,_,_=F.ask([{'text':'Fictional food'}],{'type':'OBJECT'},'budget-transport');self.assertTrue(out['ok'])
   with db.connect() as c:
    rows=c.execute("SELECT * FROM ai_food_attempts WHERE user_id=%s AND kind='budget-transport' ORDER BY created",(self.uid,)).fetchall()
-   self.assertEqual(len(rows),3);self.assertEqual([r['state'] for r in rows],['reserved','reserved','measured'])
+   self.assertEqual(len(rows),3);self.assertEqual([r['state'] for r in rows],['failed','failed','measured'])
    self.assertEqual(rows[-1]['charged_micros'],375)
   self.assertEqual(len(asked),3)
  def test_05_private_schema_export(self):

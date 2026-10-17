@@ -13,6 +13,8 @@ def fake_model(ctx, system=None):
                                          "try_next": ["More protein on rest days."], "watch": None, "extra": "ignored"}) + '\n```'
     return json.dumps({"summary": "About 440 kcal a portion.", "ideas": [{"change": "<b>Less oil</b>", "effect": "-30 kcal"}], "note": None})
 real_gemini = coach._gemini
+def scoped_gemini(*args,**kwargs):
+    with coach.ai_budget.scope(uid):return real_gemini(*args,**kwargs)
 real_food_ask = food_photo.ask
 coach._gemini = fake_model
 n = 0
@@ -138,11 +140,11 @@ def busy_then_ok(req, timeout=None):
 urllib.request.urlopen, time.sleep = busy_then_ok, (lambda s: None)
 os.environ.setdefault('GEMINI_API_KEY', 'placeholder')
 try:
-    ck(real_gemini({'q': 1}, 'x') == 'ok' and len(asked) == 3 and asked[0] == asked[1] != asked[2], f'busy model: retried, then the fallback {asked}')
+    ck(scoped_gemini({'q': 1}, 'x') == 'ok' and len(asked) == 3 and asked[0] == asked[1] != asked[2], f'busy model: retried, then the fallback {asked}')
     def bad(req, timeout=None):
         asked.append(1); raise urllib.error.HTTPError(req.full_url, 400, 'bad', {}, io.BytesIO(b'{}'))
     asked.clear(); urllib.request.urlopen = bad
-    try: real_gemini({'q': 1}, 'x'); said = None
+    try: scoped_gemini({'q': 1}, 'x'); said = None
     except ValueError as e: said = str(e)
     ck(said and '(400)' in said and len(asked) == 1, f'a 400 is not retried {said} {asked}')
 finally:
@@ -178,13 +180,14 @@ cook_chat._web_product = lambda t: (seen.append(('web', t)), {'source': 'web: Te
 cook_chat._usda_products = lambda q: (seen.append(('usda', q)), [])[1]
 try:
     refs = cook_chat.product_refs('one bx of bettr goods protien pene pasta', uid)
-    ck('Test protein penne | package 411 g' in refs and ('usda', 'bettr goods protien pene pasta') in seen, f'reference products for the model {seen}')
+    ck(refs == '' and seen == [('usda', 'bettr goods protien pene pasta')], f'reference products for the model {seen}')
     seen.clear(); ck(cook_chat.product_refs('2 apples') == '' and not seen, 'no lookup for loose food')
-    seen.clear()
-    with db.connect() as c: c.execute("INSERT INTO ai_daily_usage(user_id,day,kind,requests) VALUES (%s,(now() AT TIME ZONE 'UTC')::date,'web',%s) ON CONFLICT(user_id,day,kind) DO UPDATE SET requests=excluded.requests",(uid,cook_chat.WEB_LIMIT))
-    cook_chat.product_refs('a box of penne', uid); ck(seen == [('usda', 'penne')], f'over the web search brake: USDA only {seen}')
     seen.clear(); cook_chat.product_refs('a box of penne and 2 cans of beans', jid)
-    ck(sorted(seen) == [('usda', 'beans'), ('usda', 'penne'), ('web', '2 cans of beans'), ('web', 'a box of penne')], f'each packaged part looked up {seen}')
+    ck(sorted(seen) == [('usda', 'beans'), ('usda', 'penne')], f'each package uses bounded catalog lookup; no paid grounding {seen}')
+    with __import__('unittest.mock',fromlist=['patch']).patch('urllib.request.urlopen') as network:
+        ck(real_web('fictional packaged food') is None,'unbounded grounded search is paused')
+        network.assert_not_called()
+
 finally:
     cook_chat._web_product, cook_chat._usda_products = real_web, real_usda
 

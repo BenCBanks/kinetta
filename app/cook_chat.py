@@ -6,8 +6,8 @@ Cheap first, AI only when needed:
    said it as a count or a spoon ("2 apples", "1 tbsp oil"), its grams per piece or spoon. A message made only of foods
    they've used before is added straight away, with no AI.
 2. Otherwise one Gemini Flash-Lite call reads the whole message (adds, corrections and removals at once). Text only, so
-   it costs about half a photo: roughly $0.0005 a message (~700 tokens in, ~250 out; a photo measured ~$0.001). What it
-   adds goes into memory, so the next "2 apples" is free. Brake: 150 messages per person per day (at most ~$0.08).
+   its cost depends on input, output and retries. What it adds goes into memory, so the next "2 apples" is free.
+   Durable brake: 60 messages per UTC day, plus the shared AI budget (docs/ai-budgets.md).
 3. No AI (no key on the server, or AI features off for this person): the app falls back to search-and-pick.
 
 The cook's own dish only (api_dishes._get checks user_id). Nothing about the person is sent: just the dish's
@@ -32,7 +32,6 @@ from .auth import current_user
 
 router = APIRouter(prefix='/api/dishes')
 DAILY_LIMIT = 60          # messages to the AI per person per day (2026-10-12, was 150): plenty for cooking, a brake on misuse
-WEB_LIMIT = 25            # web product searches per person per day; after that only the free USDA lookup
 WEIGHTS = {'g', 'kg', 'oz', 'lb', 'ml', 'cl', 'dl', 'l'}    # units that already say the grams
 
 # ---------- reading the message ----------
@@ -188,7 +187,6 @@ def packaged(text):
 
 
 _FILLER = re.compile(r'\b(a|an|one|two|three|half|of|the|whole|full|\d+(\.\d+)?)\b', re.I)
-_web_off_until = [0.0]       # Google said no to web search: don't ask again until then
 
 
 def package_grams(s):
@@ -218,42 +216,13 @@ def _usda_products(q):
 
 
 def _web_product(text):
-    """Google search through Gemini (grounding), like asking ChatGPT. The free plan allows a small number a day; when
-    Google says no (429), it waits a while before asking again, and the USDA lookup still works."""
-    if not os.environ.get('GEMINI_API_KEY') or time.time() < _web_off_until[0]: return None
-    prompt = ('The person is in the United States and may misspell words: work out the product they mean, search the web for it '
-              '(a US product, from a US shop), and read its package size and its nutrition label. Answer JSON only, no other text: '
-              '{"name": product name with brand, "package_g": grams in the package, "per100": {"kcal": n, "protein_g": n, "carbs_g": n, '
-              '"fat_g": n, "fiber_g": n}, "source": the shop or site}. Food: ' + text)
-    model = os.environ.get('GEMINI_SEARCH_MODEL', 'gemini-3.8-flash')
-    req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
-                                 json.dumps({'contents': [{'parts': [{'text': prompt}]}], 'tools': [{'google_search': {}}],
-                                             'generationConfig': {'temperature': 0.1}}).encode(),
-                                 {'Content-Type': 'application/json', 'x-goog-api-key': os.environ['GEMINI_API_KEY']})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r: d = json.load(r)    # slower than that: USDA's answer will do
-        t = ''.join(p.get('text', '') for p in d['candidates'][0]['content']['parts'])
-        x = json.loads(t[t.index('{'):t.rindex('}') + 1])
-        per = api_food._sane({k: _n((x.get('per100') or {}).get(k)) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')})
-        if not per: return None
-        print('cook chat: web lookup found a product', flush=True)
-        return {'source': 'web: ' + str(x.get('source') or '')[:60], 'brand': None, 'name': str(x.get('name') or '')[:120], 'per100': per,
-                'package_g': _n(x.get('package_g'))}
-    except urllib.error.HTTPError as e:
-        print('cook chat: web lookup HTTP', e.code, flush=True)
-        # busy or over the plan's search allowance: rest a while (a key without web search at all: a long while)
-        if e.code in (429, 403, 400): _web_off_until[0] = time.time() + (15 * 60 if e.code == 429 else 6 * 3600)
-    except Exception as e:
-        print('cook chat: web lookup failed', type(e).__name__, flush=True)
+    """Paid grounding has unbounded per-call search charges; use USDA instead.
+
+    Re-enable only with a provider-enforced query bound and reviewed budget
+    accounting. A prompt asking for fewer searches cannot enforce a spend cap.
+    """
     return None
 
-
-def _web_allowed(uid):
-    """A quiet daily brake on web searches (they cost more than a message): over it, USDA alone answers."""
-    if uid is None: return False
-    try: food_photo.brake(uid, WEB_LIMIT, 'web', 'product searches')
-    except HTTPException: return False
-    return True
 
 
 def product_refs(text, uid=None):
@@ -264,7 +233,7 @@ def product_refs(text, uid=None):
     jobs = []
     for part in [p for p in parts if packaged(p)][:3]:       # a few lookups at most per message
         q = ' '.join(w for w in _FILLER.sub(' ', part).split() if not _package_word(w))
-        if len(q) >= 3: jobs += ([(_web_product, part)] if _web_allowed(uid) else []) + [(_usda_products, q)]
+        if len(q) >= 3: jobs += [(_usda_products, q)]
     if not jobs: return ''
     with concurrent.futures.ThreadPoolExecutor(len(jobs)) as pool:      # all at once: a message waits for the slowest, not the sum
         for r in pool.map(lambda j: j[0](j[1]), jobs):

@@ -98,6 +98,14 @@ Existing reviewed-evaluation release gates continue to apply to subsequent model
 
 Structured food estimate transports now reserve durable service budget before each
 attempt and record token-only usage; per-account request brakes survive restarts.
-See [AI budgets](ai-budgets.md) for exact scope, pricing review and the remaining
-coach/grounded-search coverage. Prompts, models and generation configuration are
-unchanged. The normal reviewed evaluation gate still applies.
+See [AI budgets](ai-budgets.md) for pricing review and all-provider coverage.
+Prompts, models and generation configuration are unchanged. The normal reviewed
+evaluation gate still applies.
+
+The shared provider budget now covers generated notes/reviews and each Kit turn as
+well as food estimates. Durable attempt/concurrency/spend limits and the kill switch
+run before provider work. Paid Google Search grounding is paused until its query
+charges can be bounded; the USDA path remains. See [AI budgets](ai-budgets.md).
+Claude's hidden SDK retries and unpriced server-side model fallback are disabled;
+Gemini's existing explicit, individually reserved retry sequence remains. No prompt
+or model selection was changed; real-provider acceptance and evaluation stay pending.

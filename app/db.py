@@ -1001,6 +1001,19 @@ MIGRATIONS = [
     REVOKE ALL ON ai_service_budget FROM PUBLIC,fit_readers,fit_all_readers;
     """,
 
+    # 47: all-provider attempt leases; failures retain cost but release concurrency.
+    """ALTER TABLE ai_food_attempts DROP CONSTRAINT ai_food_attempts_state_check;
+       ALTER TABLE ai_food_attempts ADD CONSTRAINT ai_food_attempts_state_check
+         CHECK (state IN ('reserved','measured','failed'));
+       ALTER TABLE ai_food_attempts ADD COLUMN lease_until timestamptz;
+       ALTER TABLE ai_food_attempts ADD COLUMN finished_at timestamptz;
+       ALTER TABLE ai_food_attempts ADD COLUMN request_id uuid;
+       ALTER TABLE ai_service_budget ADD COLUMN warned_at timestamptz;
+       CREATE INDEX ai_attempts_request ON ai_food_attempts(user_id,request_id);
+       CREATE INDEX ai_attempts_inflight ON ai_food_attempts(lease_until) WHERE state='reserved';
+       CREATE INDEX ai_attempts_day ON ai_food_attempts(day);
+       CREATE INDEX ai_attempts_owner_day ON ai_food_attempts(user_id,day);""",
+
 ]
 
 

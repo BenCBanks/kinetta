@@ -76,7 +76,7 @@ def _check(c, user_id, kind, health=False):
     if not coach.enabled(): raise HTTPException(400, 'Kit is not switched on yet (needs an AI key on the server).')
     from . import ai_access
     ai_access.require(user_id, 'coach', c)
-    if not coach.allowed(user_id, connection=c): raise HTTPException(400, coach.OFF)
+    if not coach.allowed(user_id, connection=c): raise HTTPException(400, coach.off())
     if health and not coach.health_ok(c, user_id): raise HTTPException(400, coach.HEALTH_NO)
     c.execute('SELECT 1 FROM profile WHERE user_id = %s FOR UPDATE', (user_id,))
     n = c.execute("SELECT count(*) AS n FROM ai_requests WHERE user_id = %s AND created > now() - interval '1 day'", (user_id,)).fetchone()['n']
@@ -127,7 +127,7 @@ def diet_review(user=Depends(current_user)):
     from . import ai_access
     ai_access.require(user['id'], 'coach')
     if not coach.enabled(): raise HTTPException(400, 'Kit is not switched on yet (needs an AI key on the server).')
-    if not coach.allowed(user['id']): raise HTTPException(400, coach.OFF)      # before reading anything
+    if not coach.allowed(user['id']): raise HTTPException(400, coach.off())      # before reading anything
     with db.connect() as c:
         ctx = _diet_context(c, user['id'])
         last = c.execute("SELECT created FROM coach_notes WHERE user_id = %s AND kind = 'diet' AND period_start = %s",
@@ -136,7 +136,8 @@ def diet_review(user=Depends(current_user)):
             raise HTTPException(429, 'You just had a review - log some more and try again later.')
         if sum(1 for d in ctx['days'] if not d['today']) < 3: raise HTTPException(400, 'Log food on at least 3 days first, then ask for a review.')
         _check(c, user['id'], 'diet', health=True)
-    try: out = _ask(ctx, DIET_SYSTEM)
+    try:
+        with coach.ai_budget.scope(user['id'],feature='food review'): out = _ask(ctx, DIET_SYSTEM)
     except ValueError as e: raise HTTPException(400, str(e))
     with db.connect() as c:
         c.execute("""INSERT INTO coach_notes (user_id, kind, period_start, text) VALUES (%s, 'diet', %s, %s)
@@ -171,7 +172,8 @@ def recipe_review(did: int, user=Depends(current_user)):
             raise HTTPException(429, 'Change the recipe or wait a few minutes before asking again.')
         _check(c, user['id'], 'recipe')
         ctx = _recipe_context(c, user['id'], d)
-    try: out = _ask(ctx, RECIPE_SYSTEM)
+    try:
+        with coach.ai_budget.scope(user['id'],feature='recipe review'): out = _ask(ctx, RECIPE_SYSTEM)
     except ValueError as e: raise HTTPException(400, str(e))
     with db.connect() as c:
         c.execute('UPDATE dishes SET ai_note = %s, ai_note_at = now() WHERE id = %s AND user_id = %s', (json.dumps(out), did, user['id']))
@@ -208,7 +210,8 @@ def meal_review(mid: int, user=Depends(current_user)):
     ctx = {'units': p.get('units', 'imperial'), 'meal': m['name'], 'foods': items, 'usual_meal': usual and usual['meal'],
            'totals': {k: round(sum((i.get(k) or 0) for i in m['items']), 1) for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')},
            'daily_targets': {k: v for k, v in p.items() if k.endswith('_target') and v}}
-    try: out = _ask(ctx, MEAL_SYSTEM)
+    try:
+        with coach.ai_budget.scope(user['id'],feature='meal review'): out = _ask(ctx, MEAL_SYSTEM)
     except ValueError as e: raise HTTPException(400, str(e))
     with db.connect() as c:
         c.execute('UPDATE saved_meals SET ai_note = %s, ai_note_at = now() WHERE id = %s AND user_id = %s', (json.dumps(out), mid, user['id']))
