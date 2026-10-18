@@ -149,10 +149,12 @@ See [Recording activities](docs/activity-tracking.md).
   expected-account check blocks a changed cookie from receiving another account's
   queued write. Older native queues without a recorded server are retained without
   automatic upload. Permanent conversation UI remains in progress (#122 D).
-- [x] Permanent private Food chat interface with cached history, stable composer,
+- [x] Private quick food log with a fresh conversation on each visit, stable composer,
   durable text/photo outbox, capture timestamps, explicit retry/cancel, meal/day
   correction, source labels, Edit/Undo, require-tap logging and tone settings.
   Snap, Photo library, Scan, Paste and keyboard dictation share the conversation.
+  New entries default to Today; already logged food stays saved and pending uploads
+  remain visible across visits. Create a Recipe saves reusable ingredients separately.
   Optional daily note and private switch acceptance remain separate #122 D
   requirements.
 
