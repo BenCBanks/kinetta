@@ -12,6 +12,22 @@ try:
   captured=dt.datetime.combine(day,dt.time(9),dt.timezone.utc)
   mid=c.execute("""INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state)
                      VALUES (%s,%s,'user','a protein bar',%s,%s,'pending') RETURNING id""",(uid,uuid.uuid4(),captured,day)).fetchone()['id']
+ # Social turns must bypass private-food matching, catalogs, model work and snapshot queries.
+ def forbidden_social(*args,**kwargs):raise AssertionError('Small talk reached food resolution')
+ original_resolve=engine.resolve;original_classify=engine.facts.classify
+ engine.resolve=forbidden_social;engine.facts.classify=forbidden_social
+ try:
+  with db.connect() as c:
+   for phrase in ('Hello','HELLO!!','Hi Kit','Hey, how are you?','Good morning','How’s it going?','Thank you','Thanks so much!'):
+    social=c.execute("""INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state)
+      VALUES (%s,%s,'user',%s,%s,%s,'pending') RETURNING id""",(uid,uuid.uuid4(),phrase,captured,day)).fetchone()['id']
+    reply=engine.process(c,uid,engine.locked_message(c,uid,social))['messages'][-1]
+    assert reply['result']['intent']=='small_talk' and not reply['entries']
+    assert engine.process(c,uid,engine.locked_message(c,uid,social))['messages'][-1]['id']==reply['id']
+   assert not c.execute('SELECT id FROM food_entries WHERE user_id=%s',(uid,)).fetchall()
+ finally:engine.resolve=original_resolve;engine.facts.classify=original_classify
+ for phrase in ('Hello Kitty cereal','Hi-C juice','Thank you cookies','a good morning bar','Hi, I had 2 eggs','Thanks, half the rice','How many calories left?','Hello 2 eggs'):
+  assert engine.social_reply(phrase) is None,phrase
  # Force an exception after the food write; nothing in the transaction may survive.
  def fail_reply(*args,**kwargs):raise RuntimeError('Fictional reply persistence failure')
  food_thread.finish_reply=fail_reply
