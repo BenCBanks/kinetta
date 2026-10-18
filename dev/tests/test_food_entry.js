@@ -25,6 +25,6 @@ function client(){let who='a',received=0;const calls=[],entry={id,source:'shortc
 })().catch(e=>{console.error(e);process.exitCode=1});
 
 (async()=>{let puts=0;const field={value:'Sent Shortcut text'},button={disabled:false};const ctx={owner:'a',el:{},messages:[],jobs:[]};
- const c={active:()=>true,$:s=>s==='#thread-text'?field:button,uuid:()=> 'stable-job',Date,latestContext:()=>null,finishNativeDraft:()=>{},saveDraft:()=>{throw Error('Fictional draft cleanup failure')},ThreadDB:{put:async()=>puts++},status:()=>{}};
+ const c={active:()=>true,$:s=>s==='#thread-text'?field:button,uuid:()=> 'stable-job',Date,isoDay:()=> '2026-10-18',latestContext:()=>null,finishNativeDraft:()=>{},saveDraft:()=>{throw Error('Fictional draft cleanup failure')},ThreadDB:{put:async()=>puts++},status:()=>{}};
  vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  async function send('),source.indexOf('  async function daily(')),c);await c.send(ctx);assert.equal(puts,0,'draft cleanup failure cannot leave a saved upload plus a reappearing draft');assert.equal(field.value,'Sent Shortcut text');console.log('Food send: failed draft cleanup prevents upload and retains visible text PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

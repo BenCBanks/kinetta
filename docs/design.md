@@ -738,3 +738,13 @@ check-in). Nobody sees a food card on Me for a day with nothing logged; the food
 Friends recently, setup, goals and Fitness & freshness follow. The Plan shortcut replaces the old Training plan row.
 Bottom action bars such as Start this plan are pinned above the tab bar and the page reserves room for them.
 
+
+## Quick food log versus reusable recipes (18 October 2026)
+
+Add food offers **Log food now** (Describe, snap or scan · Today) and **Create a Recipe**
+(Build once, save for later). Quick logging starts a fresh conversation on every visit; the
+previous conversation is not reopened. Already logged food stays in Nutrition. Durable pending
+messages remain visible until sent or cancelled, including after leaving or reloading. New
+quick-log messages default to the local day when sent, regardless of the Nutrition date or an
+old link's date. Explicit correction controls remain available on logged food. Recipe creation
+stores a reusable ingredient list; logging a portion is a separate action from My Recipes.

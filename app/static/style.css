@@ -2006,3 +2006,10 @@ html.keyboard-open:has(body > .kb-done) .recipe-page { padding-bottom: 52px; }
 .recipe-title textarea { flex:1;min-width:0; }
 .recipe-title .icon-btn { flex:none;min-width:44px;min-height:44px; }
 .recipe-page #recipe-title-status { font-size:.85rem;margin:0 8px 12px; }
+
+/* Quick logging and recipe creation have different jobs. */
+.food-ways .way span {display:flex;flex-direction:column;gap:5px;min-width:0;}
+.food-ways .way small {font-size:.8rem;font-weight:400;line-height:1.4;color:var(--tx2);}
+.food-ways .way {align-items:center;text-align:center;}
+.food-ways .way b {font-size:1rem;}
+@media (max-width:440px) { .food-ways {grid-template-columns:minmax(0,1fr);} .food-ways .way {flex-direction:row;justify-content:flex-start;min-height:80px;text-align:left;} .food-ways .way b {min-height:0;justify-content:flex-start;} }
