@@ -45,6 +45,25 @@ class Resolution(unittest.TestCase):
  def result(self,response):return response['messages'][-1]['result']
  def entries(self):return self.a.get('/api/food/day').json()['entries']
  def own_food(self,name='Rice',kcal=130):return self.post('/api/food/foods',{'name':name,'serving_label':'1 serving','serving_g':100,'kcal':kcal,'protein_g':3,'carbs_g':28,'fat_g':.3})['id']
+ def test_household_amount_preview_log_reuse_and_undo(self):
+  from app import food_thread_sources as sources
+  for name,amount,count,label in [('Redgrain','½ cup',.5,'1 cup'),('Bluegrain','¾ cup',.75,'1 cup'),('Goldwater','20 fl oz',20,'1 fl oz')]:
+   with self.subTest(amount=amount):
+    estimate={**ESTIMATE,'items':[{**ESTIMATE['items'][0],'name':name,'amount':amount}]}
+    draft=sources.model_drafts(estimate)[0];preview=sources.draft_entries([draft])[0]
+    self.assertEqual(preview['amount'],count);self.assertEqual(preview['ref']['serving']['label'],label)
+    self.assertEqual(preview['kcal'],540)
+    self.model.return_value=estimate
+    m=self.root(name+' '+amount);r=self.resolve(m)
+    entry=r['messages'][-1]['entries'][0]
+    self.assertEqual(entry['amount'],count);self.assertEqual(entry['ref']['serving']['label'],label)
+    self.assertEqual(entry['kcal'],540)
+    calls=self.model.call_count;_,again=self.send(m['body'])
+    self.assertEqual(self.model.call_count,calls)
+    repeated=again['messages'][-1]['entries'][0]
+    self.assertEqual(repeated['amount'],count);self.assertEqual(repeated['ref']['serving']['label'],label)
+    self.assertEqual(repeated['kcal'],540)
+    self.post(f"/api/food/thread/messages/{m['id']}/undo")
  def test_01_partial_ready_failure_retry(self):
   self.own_food();m,r=self.send('rice and mysterious curry')
   self.assertEqual(sum(e['kcal'] for e in self.entries()),130);self.assertEqual(self.result(r)['pending_count'],1)

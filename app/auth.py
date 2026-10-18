@@ -77,10 +77,12 @@ def check_new_password(pw, login=''):
     if login and login.lower() in low: raise HTTPException(400, "Don't put your username in your password")
 
 
-def new_session(c, user_id, agent):
+def new_session(c, user_id, agent, channel='web'):
     c.execute(f"DELETE FROM sessions WHERE last_seen < now() - interval '{SESSION_DAYS} days'")   # tidy expired logins
     token = secrets.token_urlsafe(32)
     c.execute('INSERT INTO sessions (token_hash, user_id, agent) VALUES (%s, %s, %s)', (_h(token), user_id, (agent or '')[:200]))
+    from .admin_usage import record_login
+    record_login(c,user_id,channel)
     return token
 
 def set_cookie(request, response, token):

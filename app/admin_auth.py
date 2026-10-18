@@ -66,6 +66,8 @@ def cookie(response, name, token, request, seconds):
 def issue_session(c, uid):
     token = secrets.token_urlsafe(32)
     c.execute("INSERT INTO admin_sessions (token_hash,user_id,expires) VALUES (%s,%s,now()+interval '30 minutes')", (auth.token_hash(token),uid))
+    from .admin_usage import record_login
+    record_login(c,uid,'admin')
     return token
 
 
@@ -101,7 +103,10 @@ class Credentials(BaseModel):
     password: str=Field(min_length=1,max_length=200)
 
 
+from .admin_usage import audit_attempt
+
 @router.post('/login')
+@audit_attempt('admin')
 def login(body: Credentials, request: Request, response: Response):
     origin(request); cipher(); attempt(request,"password",12)
     key='admin:'+body.login.strip().lower(); ip=auth.client_ip(request)
@@ -132,6 +137,7 @@ class Verify(BaseModel):
 
 
 @router.post('/verify')
+@audit_attempt('admin','verification')
 def verify(body: Verify, request: Request, response: Response):
     origin(request); cipher(); attempt(request,'mfa',12); ip=auth.client_ip(request)
     # Per sign-in challenge, so strangers posting codes can't use up every administrator's budget.

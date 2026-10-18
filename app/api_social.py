@@ -18,8 +18,9 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
 from pydantic import BaseModel, Field
+from typing import Literal
 
-from . import db, notify
+from . import db, notify, reactions
 from .api_account import _admin
 from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline
 from .auth import current_user
@@ -88,7 +89,8 @@ def _select(extra=''):
            WHEN s.len_m < 2 * s.trim_m + %(min_m)s THEN NULL
            ELSE ST_AsGeoJSON(ST_Simplify(ST_Transform(ST_LineSubstring(ST_Transform(a.geom, 3857),
                   s.trim_m / s.len_m, 1 - s.trim_m / s.len_m), 4326), %(tol)s)) END AS g,
-      (SELECT count(*) FROM cheers ch WHERE ch.activity_id = a.id) AS cheer_n,
+      (SELECT count(*) FROM cheers ch WHERE ch.activity_id = a.id AND {reactions.visible('%(viewer)s')}) AS cheer_n,
+      {reactions.columns('%(viewer)s')},
       EXISTS (SELECT 1 FROM cheers ch WHERE ch.activity_id = a.id AND ch.user_id = %(viewer)s) AS cheered,
       (SELECT count(*) FROM comments cm WHERE cm.activity_id = a.id) AS comment_n
     FROM activities a JOIN users u ON u.id = a.user_id LEFT JOIN profile p ON p.user_id = a.user_id
@@ -123,7 +125,7 @@ def shared_activity(r):
     out['owner'] = {'login': r['owner_login'], 'name': r['owner_name'], 'photo': r['owner_photo']}
     out['photos'] = r['photos']    # photos follow the activity: whoever sees it sees them (api_photos.py)
     out['shares'] = d
-    out.update(cheers=r['cheer_n'], cheered=r['cheered'], comments=r['comment_n'])
+    out.update(cheers=r['cheer_n'], cheered=r['cheered'], comments=r['comment_n'],reactions=r['reactions'],my_reaction=r['my_reaction'])
     return out
 
 
@@ -368,14 +370,14 @@ def friends_feed(before: dt.datetime | None = None, limit: int = 25, user=Depend
 
 
 def _social(c, aid, viewer, owner):
-    cheers = c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo FROM cheers ch JOIN users u ON u.id = ch.user_id
+    cheers = c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo, ch.kind FROM cheers ch JOIN users u ON u.id = ch.user_id
                            WHERE ch.activity_id = %(aid)s AND NOT {blocked('u.id')} ORDER BY ch.created""", {'aid': aid, 'viewer': viewer}).fetchall()
     comments = c.execute(f"""SELECT cm.id, cm.text, cm.created, u.login::text AS login, u.name, u.photo_v AS photo,
                               (cm.user_id = %(viewer)s OR %(owner)s) AS can_delete
                             FROM comments cm JOIN users u ON u.id = cm.user_id WHERE cm.activity_id = %(aid)s AND NOT {blocked('u.id')}
                             ORDER BY cm.created, cm.id""", {'viewer': viewer, 'owner': owner == viewer, 'aid': aid}).fetchall()
-    cheered = bool(c.execute('SELECT 1 FROM cheers WHERE activity_id = %s AND user_id = %s', (aid, viewer)).fetchone())
-    return {'mine': owner == viewer, 'cheers': cheers, 'cheered': cheered, 'comments': comments}
+    mine=c.execute('SELECT kind FROM cheers WHERE activity_id=%s AND user_id=%s',(aid,viewer)).fetchone()
+    return {'mine':owner==viewer,'cheers':cheers,'cheered':bool(mine),'my_reaction':mine['kind'] if mine else None,'reactions':reactions.summary(cheers),'comments':comments}
 
 
 @router.get('/shared/{aid}')
@@ -404,21 +406,42 @@ def social(aid: int, user=Depends(current_user)):
     return out
 
 
+class ReactionIn(BaseModel):
+    kind:Literal['cheer','strong','applause']='cheer'
+
+
+def _react(aid,kind,user):
+    with db.connect() as c:
+        owner=can_see(c,user['id'],aid)
+        changed=c.execute("""INSERT INTO cheers(activity_id,user_id,kind) VALUES(%s,%s,%s)
+          ON CONFLICT(activity_id,user_id) DO UPDATE SET kind=excluded.kind
+          WHERE cheers.kind<>excluded.kind RETURNING kind""",(aid,user['id'],kind)).fetchone()
+        if changed and owner!=user['id']:notify.add(c,owner,'cheer',user['id'],activity_id=aid,reaction_kind=kind)
+        return _social(c,aid,user['id'],owner)
+
+
+@router.post('/activities/{aid}/reaction')
+def react(aid:int,body:ReactionIn,user=Depends(current_user)):
+    return _react(aid,body.kind,user)
+
+
 @router.post('/activities/{aid}/cheer')
-def cheer(aid: int, user=Depends(current_user)):
-    with db.connect() as c:
-        owner = can_see(c, user['id'], aid)
-        # cheering your own activity is allowed (2026-10-12); it just doesn't notify you
-        if c.execute('INSERT INTO cheers (activity_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (aid, user['id'])).fetchone() and owner != user['id']:
-            notify.add(c, owner, 'cheer', user['id'], activity_id=aid)
-        return _social(c, aid, user['id'], owner)
+def cheer(aid:int,user=Depends(current_user)):
+    # Existing phones retain the one-tap Cheers action.
+    return _react(aid,'cheer',user)
 
 
+@router.delete('/activities/{aid}/reaction')
 @router.delete('/activities/{aid}/cheer')
-def uncheer(aid: int, user=Depends(current_user)):
+def uncheer(aid:int,user=Depends(current_user)):
     with db.connect() as c:
-        c.execute('DELETE FROM cheers WHERE activity_id = %s AND user_id = %s', (aid, user['id']))
-    return {'ok': True}
+        c.execute('DELETE FROM cheers WHERE activity_id=%s AND user_id=%s',(aid,user['id']))
+        c.execute("UPDATE notifications SET cancelled=true WHERE kind='cheer' AND activity_id=%s AND actor_id=%s",(aid,user['id']))
+        try:owner=can_see(c,user['id'],aid)
+        except HTTPException as error:
+            if error.status_code==404:return {'ok':True}
+            raise
+        return _social(c,aid,user['id'],owner)
 
 
 class CommentIn(BaseModel):

@@ -28,6 +28,11 @@ def send(text,captured=morning):
  return row['message']['id']
 def process(mid):return a.post('/api/food/thread/messages/'+str(mid)+'/process',{})
 def entries():return a.get('/api/food/day?d='+str(logday))[1]['entries']
+mid=send('Hello');status,social=process(mid)
+check(status==200 and social['messages'][-1]['result']['intent']=='small_talk','greeting receives code reply')
+check(not social['messages'][-1]['entries'] and not entries(),'greeting never logs food')
+check(process(mid)[1]['messages'][-1]['id']==social['messages'][-1]['id'],'social replay is stable')
+check(b.post('/api/food/thread/messages/'+str(mid)+'/process',{})[0]==404,'social replies stay private')
 mid=send('I had 2 protein bars')
 status,result=process(mid);check(status==200 and result['messages'][-1]['result']['kind']=='log','fully resolved foods auto-log with AI off')
 reply=result['messages'][-1];rows=reply['entries']

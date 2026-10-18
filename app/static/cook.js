@@ -22,6 +22,12 @@ async function newDish(btn) {
 }
 
 route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
+  el.classList.add('recipe-page');
+  // Safari overlays its keyboard; the native app resizes its WebView instead.
+  const vv=window.visualViewport;
+  const fit=()=>{if(vv&&Math.abs(vv.scale-1)<.05)el.style.height=`${vv.height}px`;};
+  fit();vv?.addEventListener('resize',fit);
+  viewResources.set(el,()=>vv?.removeEventListener('resize',fit));
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div>${skel(2)}`;
   wireBack(el, '/food');
   try { await load(`/api/dishes/${id}`, (d) => drawDish(el, d), {maxAge: 0}); }
@@ -37,10 +43,14 @@ route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
 // the ingredients, how it's measured, then the conversation and a message box pinned above the tab bar, with + for a
 // barcode, a nutrition label photo or the food search. Done sits in the top bar.
 function drawDish(el, d) {
+  const owner=readOwner(), active=()=>el.isConnected&&readOwner()===owner;
   const t = d.totals, typed = d.known.kcal != null, mine = d.mine !== false, has = d.items.length > 0 || typed || !!d.recipe_source?.import_id, w = d.weight_g;
   const set = (fresh) => {      // redraw, keeping whatever box was being typed in
+    if(!active())return;
+    const scroll=$('.recipe-content',el)?.scrollTop||0, draft=$('#dk-t',el)?.value||'';
     const act = document.activeElement, keep = act && act.id && el.contains(act) ? [act.id, act.value] : null;
     App.cache.set(`/api/dishes/${d.id}`, {data: fresh, at: Date.now()}); App.cache.delete('/api/dishes'); drawDish(el, fresh);
+    $('.recipe-content',el).scrollTop=scroll;if($('#dk-t',el))$('#dk-t',el).value=draft;
     if (keep) { const n = $('#' + keep[0], el); if (n) { n.value = keep[1]; n.focus(); } }
   };
   const ing = (it) => `<span class="ig-n">${esc(it.name)}</span><span class="ig-g num">${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</span><b class="num r">${r0(it.kcal)}</b>`;
@@ -50,7 +60,8 @@ function drawDish(el, d) {
   el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
   const sums = has ? `<p class="dish-sum num"><b>${r0(display.kcal)} kcal${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${r0(display[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
   el.innerHTML = `<div class="top">${backBtn(imported?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach') && has) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
-    ${mine ? `<textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea>`
+    <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
+    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button></div><p id="recipe-title-status" class="small muted" role="status">Tap the pencil to rename. The title saves automatically.</p>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
     ${sums}
     ${imported?recipeSourceCard(d):''}
@@ -62,12 +73,12 @@ function drawDish(el, d) {
           value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole meal in grams"><span>g</span></span></form>
           ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
     ${mine&&(has||shared.length)?`<button type="button" class="card tap share-row" id="dk-share">${shared.length?`<span class="avs">${shared.map(p=>avatar(p)).join('')}</span>`:''}<span class="grow"><b>${shared.length?'Shared with '+esc(shared.map(p=>p.name.split(' ')[0]).join(', ')):'Share with…'}</b><small class="muted">${shared.length?'Change who can see this recipe':'Optional · private until you choose a friend'}</small></span>${svg('chev')}</button>`:''}
-    ${mine ? `${chatLog(d)}<div id="dk-match"></div>
+    ${mine ? `${chatLog(d)}<div id="dk-match"></div></div>
       <form class="composer" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
-        <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'Add an ingredient…' : 'Search for an ingredient…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="search" maxlength="600" required>
-        <button class="icon-btn send" aria-label="Add">${svg('send')}</button></form>
+        <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'e.g. 100 g oats' : 'Search ingredients…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="${aiCan('food')?'send':'search'}" maxlength="600" required>
+        <button class="icon-btn send" aria-label="${aiCan('food')?'Add ingredient':'Search ingredients'}">${svg('send')}</button></form>
       <input type="file" accept="image/*" multiple id="dk-label-file" hidden>`
-      : has ? `<div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `<p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
+      : has ? `</div><div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `</div><p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
   wireBack(el, imported?'/food/meals':'/food');
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set)) : sharedMenu(d));
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
@@ -83,14 +94,30 @@ function drawDish(el, d) {
   $('#dk-plus', el).onclick = () => plusMenu(el, d, set);
   const sh = $('#dk-share', el); if (sh) sh.onclick = () => shareDishSheet(d, set);
   // Done: back to Nutrition (a dish with nothing in it and no name isn't kept)
-  $('#dk-done', el).onclick = () => {
+  $('#dk-done', el).onclick = async () => {
+    const button=$('#dk-done',el);if(button.disabled)return;button.disabled=true;
+    if(!await saveName()||!active()){if(active())button.disabled=false;return;}
     if (!has && !$('#dk-name', el).value.trim()) { api(`/api/dishes/${d.id}`, {method: 'DELETE'}).catch(() => {}); App.cache.delete('/api/dishes'); }
     else if (has) toast('Saved. Log it from My Recipes');
     go(imported?'/food/meals':'/food', {replace: true});
   };
   // the name, edited in place: saved when you leave the box or press Done on the keyboard
   const nm = $('#dk-name', el);
-  const saveName = async () => { const v = nm.value.trim(); if (v && v !== d.name) await patch({name: v}); else if (!v && d.named) nm.value = d.name; };
+  $('#dk-rename',el).onclick=()=>{nm.focus();nm.setSelectionRange(0,nm.value.length);};
+  const titleStatus=$('#recipe-title-status',el);
+  let nameSave=Promise.resolve(true);
+  const saveName = () => {
+    const v=nm.value.trim();
+    nameSave=nameSave.then(async()=>{
+      if(!active())return false;
+      if(!v||v===d.name){if(!v&&d.named)nm.value=d.name;return true;}
+      titleStatus.textContent='Saving title…';
+      try{const fresh=await api(`/api/dishes/${d.id}`,json('PATCH',{name:v}));if(!active())return false;
+        d=fresh;titleStatus.textContent='Title saved';App.cache.set(`/api/dishes/${d.id}`,{data:fresh,at:Date.now()});App.cache.delete('/api/dishes');return true;
+      }catch(x){if(active()){titleStatus.textContent='Title not saved. Tap Done to try again.';toast(x.message);}return false;}
+    });
+    return nameSave;
+  };
   const fit = () => { nm.style.height = 'auto'; nm.style.height = `${nm.scrollHeight}px`; };      // a long name wraps instead of being cut off
   fit(); nm.oninput = () => { nm.value = nm.value.replace(/\n/g, ' '); fit(); };
   nm.onchange = saveName;
@@ -349,7 +376,7 @@ function chatLog(d) {
   const bubble = (m, i) => m.who === 'me' ? `<p class="cmsg me">${esc(m.text)}</p>`
     : `<div class="cmsg ai${m.wait ? ' wait' : ''}">${m.wait ? '<span class="dots" aria-label="Working it out"><i></i><i></i><i></i></span>' : esc(m.text)}
         ${m.added && m.added.length && !m.undone ? `<button type="button" class="linkbtn" data-undo="${i}">Undo</button>` : ''}</div>`;
-  return `<div class="cchat" id="dk-chat" aria-live="polite">${first ? `<div class="cmsg ai">${aiCan('food') ? 'Describe an ingredient, photograph a label or scan a barcode. Review the nutrition before adding.' : 'Search for an ingredient below, then choose the amount. Tap + to scan a barcode or enter known nutrition totals. AI is optional.'}</div>` : ''}
+  return `<div class="cchat" id="dk-chat" aria-live="polite">${first ? `<div class="cmsg ai">${aiCan('food') ? 'Tell me one ingredient and its amount, such as “100 g oats”. Check the nutrition before adding. Use + for search, a label photo or a barcode.' : 'Add one ingredient at a time: search below, choose a result, then check the amount. Use + for a barcode or nutrition totals.'}</div>` : ''}
     ${log.slice(-8).map((m, k) => bubble(m, log.length - Math.min(log.length, 8) + k)).join('')}</div>`;
 }
 function chatBox(el, d, set) {
@@ -389,6 +416,7 @@ async function searchFlow(el, d, set, text) {
   const box = $('#dk-match', el);
   if (!text) { toast('Type the food first, like 2 apples'); $('#dk-add input', el).focus(); return; }
   const my = ++searchSeq; box.innerHTML = '<p class="small muted">Looking it up…</p>';
+  box.scrollIntoView({block:'nearest'});
   let p; try { p = await api('/api/dishes/parse', json('POST', {text})); } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
   if (my !== searchSeq) return;
   const q = p.search || p.query || text, g0 = p.grams || p.guess_g;
@@ -396,6 +424,7 @@ async function searchFlow(el, d, set, text) {
       placeholder="${p.amount ? `${esc(p.amount)} ${esc(p.unit || '')} in grams?` : 'Grams'}" aria-label="How many grams"><span>g</span></span></label>
     <div class="mres" aria-live="polite"><p class="small muted">Searching…</p></div>
     <button type="button" class="linkbtn" id="dk-type">Type the calories instead</button></div>`;
+  box.scrollIntoView({block:'nearest'});
   const gIn = $('[name=mg]', box), res = $('.mres', box);
   const grams = () => { const g = +gIn.value.replace(',', '.'); if (!(g > 0)) { toast('How many grams? Type the weight first'); gIn.focus(); return null; } return g; };
   let busy = false;

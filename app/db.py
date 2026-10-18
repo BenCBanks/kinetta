@@ -1206,6 +1206,35 @@ MIGRATIONS = [
       AND (x.data->>'suggested_kcal')::real=p.kcal_target
       AND (x.data->>'avg_exercise')::real BETWEEN 0 AND 20000;""",
 
+    # 60: private operator login events and daily account-presence counts.
+    """CREATE TABLE admin_login_events (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id bigint REFERENCES users(id) ON DELETE CASCADE,
+      channel text NOT NULL CHECK(channel IN ('web','app','admin')),
+      outcome text NOT NULL CHECK(outcome IN ('success','failure','limited','challenge')),
+      stage text NOT NULL CHECK(stage IN ('password','verification','session')),
+      created timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX admin_login_events_time ON admin_login_events(created DESC,id DESC);
+    CREATE INDEX admin_login_events_user ON admin_login_events(user_id,id DESC);
+    ALTER TABLE admin_login_events ENABLE ROW LEVEL SECURITY;
+    CREATE TABLE admin_account_days (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day date NOT NULL, PRIMARY KEY(user_id,day));
+    CREATE INDEX admin_account_days_day ON admin_account_days(day,user_id);
+    ALTER TABLE admin_account_days ENABLE ROW LEVEL SECURITY;
+    CREATE TABLE admin_metrics_state (
+      singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),
+      started_at timestamptz NOT NULL DEFAULT now());
+    INSERT INTO admin_metrics_state(singleton) VALUES (true);
+    ALTER TABLE admin_metrics_state ENABLE ROW LEVEL SECURITY;
+    """,
+
+    # 61: one typed reaction per person/activity; cancelled notices retain the retry throttle.
+    """ALTER TABLE cheers ADD COLUMN kind text NOT NULL DEFAULT 'cheer' CHECK(kind IN ('cheer','strong','applause'));
+    ALTER TABLE notifications ADD COLUMN reaction_kind text CHECK(reaction_kind IN ('cheer','strong','applause'));
+    ALTER TABLE notifications ADD COLUMN cancelled boolean NOT NULL DEFAULT false;
+    UPDATE notifications SET reaction_kind='cheer' WHERE kind='cheer';""",
+
 ]
 
 
