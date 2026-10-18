@@ -31,7 +31,7 @@ const SHOTS = [
   // the website's Food story (2026-10-16): scan a barcode, snap a meal, then talk the estimate into shape. 'talk' also
   // writes 'snap' (the same conversation one message earlier).
   ['scan', '/food', {scan: '0000000000017'}],
-  ['talk', '/food', {snap: ['chicken curry rice bowl for lunch', 'it was a small bowl, only about half the rice']}],
+  ['talk', '/food', {snap: ['chicken curry rice bowl for lunch', 'only half the rice']}],
   // lifting (2026-10-13): last; the logger starts a session from the latest one (live sessions stay in Track)
   ['liftex', 'SQUAT'],
   ['lift', '/track', {lift: true}],
@@ -79,6 +79,34 @@ function chrome(dark) {
   hb.style.cssText = 'position:fixed;left:0;bottom:0;z-index:2147483647;pointer-events:none;display:block';
   hb.innerHTML = `<rect x="${W / 2 - 67}" y="0" width="134" height="5" rx="2.5" fill="${c}"/>`;
   document.documentElement.append(sb, hb);
+}
+// The food chat: open it for a meal with the demo account's AI consent on (the estimates are stand-ins), send a message,
+// and wait until nothing is pending on this phone.
+async function chat(page, meal) {
+  await page.evaluate(async (m) => { await api('/api/profile', json('PUT', {ai_ok: true})); App.me.ai_ok = true; go('/food/describe?meal=' + m); }, meal);
+  await page.locator('#thread-text').waitFor();
+}
+function snapshotFood() {
+  const day = isoDay(new Date());
+  return Promise.all([api('/api/food/day?d=' + day), api('/api/food/foods'), api('/api/food/thread?limit=100')])
+    .then(([d, f, t]) => ({day, entries: d.entries.map(e => e.id), foods: f.map(x => x.id), messages: t.messages.map(m => m.id)}));
+}
+async function cleanFood(before) {
+  const [d, f, t] = await Promise.all([api('/api/food/day?d=' + before.day), api('/api/food/foods'), api('/api/food/thread?limit=100')]);
+  for (const e of d.entries) if (!before.entries.includes(e.id)) await api('/api/food/entries/' + e.id, {method: 'DELETE'}).catch(() => {});
+  for (const x of f) if (!before.foods.includes(x.id)) await api('/api/food/foods/' + x.id, {method: 'DELETE'}).catch(() => {});
+  for (const m of t.messages) if (m.kind === 'user' && !before.messages.includes(m.id)) await api('/api/food/thread/messages/' + m.id, {method: 'DELETE'}).catch(() => {});
+  invalidate('/api/');
+}
+async function settle(page) {
+  await page.locator('.thread-pending').first().waitFor({state: 'detached', timeout: 30000}).catch(() => {});
+  await page.waitForTimeout(600);
+}
+async function say(page, text) {
+  const before = await page.locator('#thread-messages article').count();
+  await page.fill('#thread-text', text); await page.click('#thread-send');
+  await page.locator('#thread-messages article').nth(before).waitFor({timeout: 30000});   // locator waits work under the app's strict CSP
+  await settle(page);
 }
 (async () => {
   const browser = await chromium.launch(), errors = [];
@@ -133,82 +161,29 @@ function chrome(dark) {
         await page.waitForTimeout(450);
         await page.evaluate(() => window.scrollTo(0, 0));
       }
-      if (opt.describe) {   // Full-page conversation: the made-up estimates arrive on their own, then correct them.
-        await page.evaluate(() => { App.me.ai_ok = true; addSheet(isoDay(new Date()), 'dinner'); });
-        await page.click('#as-photo');
-        await page.waitForURL('**/food/describe?**');
-        for (const t of opt.describe) {
-          await page.fill('#ql-t', t);
-          await Promise.all([
-            page.waitForResponse(r => r.url().endsWith('/api/food/meals-chat/resolve') && r.ok()),
-            page.click('#ql-f .send'),
-          ]);
-          // Lookup and estimate finish independently of the resolve request. Wait for
-          // rendered choices/results rather than racing them with a fixed sleep.
-          // Locator waits also work on the CI-pinned Playwright under the app's
-          // strict CSP; waitForFunction in that version requires unsafe-eval.
-          await page.locator('#ql-t:not(:disabled)').waitFor();
-          await page.locator('#ql-items').filter({hasText: /Looking up|Estimating/}).waitFor({state: 'hidden'});
-          const estimates = page.getByRole('button', {name: 'Estimate with AI', exact: true});
-          while (await estimates.count()) {
-            await Promise.all([
-              page.waitForResponse(r => r.url().endsWith('/api/food/photo') && r.ok()),
-              estimates.first().click(),
-            ]);
-            await page.locator('#ql-items').filter({hasText: /Estimating/}).waitFor({state: 'hidden'});
-          }
+      if (opt.describe || opt.snap || opt.scan) {   // the food chat (2026-10-18): estimates come from dev/screenshots/standin.py
+        const before = await page.evaluate(snapshotFood);
+        await chat(page, opt.scan ? 'breakfast' : opt.snap ? 'lunch' : 'dinner');
+        if (opt.describe) {      // type a meal, then correct it in plain words; it logs at once with Undo
+          await say(page, opt.describe[0]); await page.locator('.thread-card').filter({hasText: 'Hot dog'}).filter({hasText: '550'}).first().waitFor();
+          await say(page, opt.describe[1]); await page.locator('.thread-card').filter({hasText: 'Hot dog'}).filter({hasText: '1100'}).first().waitFor();
         }
-        // Prove the correction and per-food stand-ins rendered once each before
-        // capturing the actual page (there is deliberately no .sheet here).
-        const rows = page.locator('#ql-items .ql-main');
-        if (await rows.count() !== 2) throw new Error('Describe screenshot needs exactly two foods');
-        await rows.filter({hasText: 'Hot dog'}).filter({hasText: '1,100'}).waitFor();
-        await page.locator('#ql-add:not(:disabled)').waitFor();
-        if (await page.locator('.sheet').count()) throw new Error('Describe must remain a full page');
-        await page.evaluate(() => {
-          document.activeElement.blur();
-          // Keep confirmation above the sticky composer, just as scrolling the
-          // full page normally would; don't try to scroll the retired sheet.
-          const add = document.querySelector('#ql-add'), composer = document.querySelector('#ql-f');
-          const overlap = add.getBoundingClientRect().bottom - composer.getBoundingClientRect().top + 12;
-          if (overlap > 0) window.scrollBy(0, overlap);
-        });
-      }
-      if (opt.scan) {       // what a scan finds: the product's sheet, one container, ready to add to breakfast. Scanning to log
-        // starts on the "What did you eat?" page (+ › Scan a barcode), so that page sits behind the sheet, as in the app.
-        await page.evaluate(() => { App.me.ai_ok = true; addSheet(isoDay(new Date()), 'breakfast'); });
-        await page.click('#as-photo');
-        await page.waitForURL('**/food/describe?**');
-        await page.evaluate(async (code) => { const f = await api('/api/food/barcode/' + code); amountSheet(f, {day: $('#ql-day').value, meal: $('#ql-meal').value}, () => {}); }, opt.scan);
-        await page.locator('#am-p b').first().waitFor();
+        if (opt.scan) {          // what a scan finds: the product's sheet, one container, ready to add to breakfast
+          await page.evaluate(async (code) => { const f = await api('/api/food/barcode/' + code); amountSheet(f, {day: isoDay(new Date()), meal: 'breakfast'}, () => {}); }, opt.scan);
+          await page.locator('#am-p b').first().waitFor();
+        }
+        if (opt.snap) {          // a meal photo plus a few words, then a correction in plain words
+          const PHOTO = require('path').join(__dirname, '..', 'demo', 'photos', 'curry-rice-bowl.jpg');
+          await page.fill('#thread-text', opt.snap[0]);
+          await page.setInputFiles('#ql-file', PHOTO); await page.click('#photos-use');
+          await settle(page); await page.locator('.thread-card').filter({hasText: 'Spiced rice'}).filter({hasText: '320'}).first().waitFor();
+          await page.evaluate(() => document.activeElement.blur()); await page.waitForTimeout(500);
+          await page.evaluate(chrome, scheme === 'dark'); await page.screenshot({path: `${OUT}/${scheme}-snap.png`});
+          await say(page, opt.snap[1]); await page.locator('.thread-card').filter({hasText: 'Spiced rice'}).filter({hasText: '160'}).first().waitFor();
+        }
         await page.evaluate(() => document.activeElement.blur());
-      }
-      if (opt.snap) {       // the conversation page: a meal photo plus a few words, then a correction in plain words
-        const PHOTO = require('path').join(__dirname, '..', 'demo', 'photos', 'curry-rice-bowl.jpg');
-        await page.evaluate(() => { App.me.ai_ok = true; addSheet(isoDay(new Date()), 'lunch'); });
-        await page.click('#as-photo');
-        await page.waitForURL('**/food/describe?**');
-        await page.setInputFiles('#ql-file', PHOTO);
-        await page.click('#photos-use');
-        const shot = async (n) => { await page.evaluate(() => { document.activeElement.blur(); const add = document.querySelector('#ql-add'), composer = document.querySelector('#ql-f'), chat = document.querySelector('#ql-chat');
-          document.querySelector('#page').style.paddingBottom = '240px';   // capture only: room to scroll the title away
-          // start at the conversation (no half-cut title), and keep Add above the composer
-          const overlap = add && composer ? add.getBoundingClientRect().bottom - composer.getBoundingClientRect().top + 12 : 0;
-          window.scrollBy(0, Math.max(overlap, chat ? chat.getBoundingClientRect().top - 58 : 0)); });
-          await page.waitForTimeout(500); await page.evaluate(chrome, scheme === 'dark'); await page.screenshot({path: `${OUT}/${scheme}-${n}.png`}); };
-        for (const [k, t] of opt.snap.entries()) {
-          await page.fill('#ql-t', t);
-          await Promise.all([page.waitForResponse(r => r.url().endsWith('/api/food/photo') && r.ok()), page.click('#ql-f .send')]);
-          await page.locator('#ql-items').filter({hasText: /Estimating/}).waitFor({state: 'hidden'});
-          await page.locator('#ql-items .ql-main').filter({hasText: 'Spiced rice'}).filter({hasText: k ? '160' : '320'}).waitFor();
-          if (k === 0) await shot('snap');
-        }
-        if (await page.locator('.sheet').count()) throw new Error('The food story must remain a full page');
-        await page.evaluate(() => { document.activeElement.blur(); const add = document.querySelector('#ql-add'), composer = document.querySelector('#ql-f'), chat = document.querySelector('#ql-chat');
-          document.querySelector('#page').style.paddingBottom = '240px';   // capture only: room to scroll the title away
-          // start at the conversation (no half-cut title), and keep Add above the composer
-          const overlap = add && composer ? add.getBoundingClientRect().bottom - composer.getBoundingClientRect().top + 12 : 0;
-          window.scrollBy(0, Math.max(overlap, chat ? chat.getBoundingClientRect().top - 58 : 0)); });
+        await page.evaluate(() => api('/api/profile', json('PUT', {ai_ok: false})).then(() => { App.me.ai_ok = false; }));   // other shots stay as before
+        opt.cleanup = before;   // removed after this shot is taken
       }
       if (opt.lift) {       // Start lifting > repeat the latest session; the first exercise's sets ticked, the second's first set
         const id = await page.evaluate(async () => {
@@ -235,7 +210,10 @@ function chrome(dark) {
       await page.waitForTimeout(700);
       await page.evaluate(chrome, scheme === 'dark');
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
-      if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));   // gone before the next pass's Today and feed
+      if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
+      // The chat logs food at once: remove what this story added (entries, saved foods, messages) so the next pass and
+      // the other screenshots start from the same demo data.
+      if (opt.cleanup) { await page.evaluate(cleanFood, opt.cleanup); delete opt.cleanup; }   // gone before the next pass's Today and feed
     }
     await ctx.close();
   }
