@@ -1,27 +1,28 @@
-// Exercise the real home-food renderer and its logging handlers with fictional days.
+// Exercise the real Me food card (activity-first home, #164) with fictional days.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const nodes=new Map(),calls=[];const node=()=>({onclick:null});
-for(const id of ['#tf-add','#tf-yesterday'])nodes.set(id,node());
-const buttons=['describe','snap','scan','usual'].map(homeFood=>({dataset:{homeFood},onclick:null}));
-const file={setAttribute(){},click(){calls.push('camera')}};
-const context={console,Date,Math,Number,Object,App:{},r0:String,esc:String,svg:()=>'',U:{dist:v=>v/1000,du:()=> 'km'},
- guessMeal:()=> 'lunch',MEAL_NAMES:{breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner',snacks:'Snacks'},MACROS:[['protein_g','Protein'],['carbs_g','Carbs'],['fat_g','Fat']],
- $:s=>s==='#ql-file'?file:nodes.get(s),$$:()=>buttons,Native:{haptic(){}},aiCan:()=>true,
- addSheet:(...a)=>calls.push(['usual',...a]),describeSheet:(...a)=>calls.push(['describe',...a]),scanSheet:(...a)=>calls.push(['scan',...a.slice(0,2)]),load:(p,draw)=>draw(context.day)};
+nodes.set('#tf-add',node());
+const context={console,Date,Math,Number,Object,App:{me:{}},r0:v=>String(Math.round(v)),esc:String,svg:()=>'',stat:(l,v,u)=>`<span>${l} ${v}${u?' '+u:''}</span>`,
+ guessMeal:()=> 'lunch',MEAL_NAMES:{breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner',snacks:'Snacks'},
+ $:s=>nodes.get(s),$$:()=>[],describeSheet:(...a)=>calls.push(['describe',...a]),load:(p,draw)=>draw(context.day)};
 vm.createContext(context);const source=fs.readFileSync('app/static/food.js','utf8');vm.runInContext(source.slice(source.indexOf('const homeCalories'),source.indexOf('function yesterdayMeal')),context);
-const box={isConnected:true,innerHTML:''};
-context.day={day:'2026-10-17',entries:[],totals:{kcal:0,protein_g:0,carbs_g:0,fat_g:0},goal:{},burned:{items:[]}};
-context.todayFoodCard(box);assert.match(box.innerHTML,/Start with something you ate/);assert.match(box.innerHTML,/Set a goal/);assert.doesNotMatch(box.innerHTML,/hero-num|Macros eaten|kcal burned/);
+const box={isConnected:true,innerHTML:'old'};let foodUser;
+// Not using food tracking: Me shows no food at all, not even an invitation.
+context.day={day:'2026-10-17',food_user:false,has_history:true,entries:[],totals:{kcal:0,protein_g:0,carbs_g:0,fat_g:0},goal:{},burned:{items:[]}};
+context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(box.innerHTML,'');assert.equal(foodUser,false);assert.equal(context.App.me.food_user,false);
+// A food user with a goal and an empty today: compact numbers and one Log food button.
+context.day={...context.day,food_user:true,goal:{kcal:2000},targets:{protein_target:120}};
+context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(foodUser,true);assert.match(box.innerHTML,/Food today/);assert.match(box.innerHTML,/Left 2000 kcal/);assert.match(box.innerHTML,/Protein 0\/120 g/);
+assert.equal((box.innerHTML.match(/<button/g)||[]).length,1,'one logging button on Me');assert.doesNotMatch(box.innerHTML,/Describe|Snap|Scan|Usual|Same as yesterday|kcal burned/);
 nodes.get('#tf-add').onclick();assert.deepEqual(calls.pop(),['describe','2026-10-17','lunch']);
-buttons[1].onclick();assert.equal(calls.pop(),'camera');assert.deepEqual(calls.pop(),['describe','2026-10-17','lunch']);
-buttons[2].onclick();assert.deepEqual(calls.pop(),['scan','2026-10-17','lunch']);buttons[3].onclick();assert.deepEqual(calls.pop(),['usual','2026-10-17','lunch']);
-context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:431,protein_g:25,carbs_g:54,fat_g:13},goal:{kcal:2000},targets:{protein_target:120},burned:{items:[{id:42,name:'Morning run',sport:'run',distance_m:5200,kcal:541,estimated:true}]}};
-context.todayFoodCard(box);assert.match(box.innerHTML,/Calories left/);assert.match(box.innerHTML,/1?570|1570/);assert.match(box.innerHTML,/home-macro-bar/);assert.match(box.innerHTML,/25 g \/ 120 g/);assert.match(box.innerHTML,/activity\/42/);assert.match(box.innerHTML,/540 kcal burned · estimated/);
-context.day.entries=[{meal:'lunch'}];context.todayFoodCard(box);assert.match(box.innerHTML,/Dinner · nothing yet/);assert.doesNotMatch(box.innerHTML,/Breakfast · nothing yet/);
-context.day.entries.push({meal:'dinner'},{meal:'snacks'});context.todayFoodCard(box);assert.doesNotMatch(box.innerHTML,/Same as yesterday/);
+context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:2431,protein_g:25,carbs_g:54,fat_g:13}};
+context.todayFoodCard(box);assert.match(box.innerHTML,/Eaten 2430 kcal/);assert.match(box.innerHTML,/Over 430 kcal/);assert.match(box.innerHTML,/gbar over/);
+// Food logged today counts even before the server flag catches up; no goal shows "not set" quietly.
+context.day={...context.day,food_user:false,goal:{},unknown_nutrients:{protein_g:1},entries:[{meal:'lunch',pending:true}]};
+context.todayFoodCard(box);assert.match(box.innerHTML,/Goal not set/);assert.match(box.innerHTML,/Protein – g/);assert.match(box.innerHTML,/waiting to send/);
 box.isConnected=false;box.innerHTML='left';context.todayFoodCard(box);assert.equal(box.innerHTML,'left');
-console.log('home food: useful empty state, totals, macros, direct describe/camera/scan/usual meal and day, workout link, detached-view guard PASS');
+console.log('home food: hidden for non-food users, compact food-user card with one Log food action, over/unknown/pending states, detached-view guard PASS');
 
 // No real camera: both scanner engines reject like an unavailable browser camera.
 (async()=>{

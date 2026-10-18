@@ -222,7 +222,17 @@ def day(d: str | None = None, user=Depends(current_user)):
     with db.connect() as c:
         result=day_data(c, user['id'], d)
         result['has_history']=c.execute('SELECT EXISTS(SELECT 1 FROM food_entries WHERE user_id=%s) AS yes',(user['id'],)).fetchone()['yes']
+        result['food_user']=food_user(c,user['id'])
         return result
+
+
+def food_user(c, uid):
+    """Someone actively using food tracking: a calorie goal, or food logged in their last 14 local days.
+    Activity-first screens (Me, Progress) show food only for them (owner decision 2026-10-18, issue #164)."""
+    p=c.execute('SELECT kcal_target, tz FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
+    if p.get('kcal_target') is not None: return True
+    return c.execute("SELECT EXISTS(SELECT 1 FROM food_entries WHERE user_id=%s AND day >= (now() AT TIME ZONE %s)::date - 13) AS yes",
+                     (uid,p.get('tz') or db.DEFAULT_TZ)).fetchone()['yes']
 
 
 def day_data(c, uid, d=None):

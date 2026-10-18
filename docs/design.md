@@ -340,13 +340,13 @@ shared theme tokens, wrapping and relative-sized text. Goal choices give a selec
 with visible selection/confirmation. Browser evidence is distinct from physical Dynamic Type/VoiceOver/haptic/Health
 permission acceptance, which requires an iPhone.
 
-### Food-first Me — #122 Workstream B
+### Food-first Me — #122 Workstream B (superseded by #164 below)
 
 Home opens with the greeting, Today’s food, the check-in slot (populated by G), today’s plan session when present, friends’ shared activities when present, and the 14-day distance chart when distance exists. Setup and tools follow. Training details remain in Progress and Activity; home does not show empty training cards or zero-distance charts.
 
 Today has one primary Log food action and direct Describe, Snap, Scan and Usual shortcuts. They use the existing food logging paths and the expected meal; no extra meal form is required. The calorie hero shows calories remaining, with eaten and goal underneath. Without a goal it shows eaten totals and optional Set a goal. A completely empty log starts with an invitation, not zero totals. One macro bar has text equivalents for protein, carbs and fat. Today’s workouts link to their owner’s activity and label estimated calories. The next empty meal offers a preview of yesterday’s foods before logging, using the existing offline-capable entry path with Undo after an online save. Food is never added to the friends feed.
 
-### Shared logging and Progress — #122 Workstream C
+### Shared logging and Progress — #122 Workstream C (superseded by #164 below)
 
 The tabs are Me, Nutrition, ＋ Log, Activity and Progress. ＋ Log opens the shared dismissible sheet immediately with equal Log food and Record a workout choices, plus Weigh in. Food opens the existing composer within the initiating tap; Snap, Scan and Paste are visible there. Workout opens Track, retaining its sport choice and account-bound recording draft. A live or paused draft marks the centre button and one tap returns to the recording. The foreground browser recorder still pauses when hidden; background and locked-screen GPS remain native iPhone behavior and require physical-device acceptance in R.
 
@@ -674,3 +674,27 @@ Native food-entry review: session expiry/failed sign-in pause delivery without c
 Activity/food review: known protein that already reaches the target counts as reached even with an unknown side. Daily burn is shared without loading complete food/chat detail. The native sync disclosure updates text in place; progress reads no Preferences, manual imports refresh the list, and completion timestamps prevent immediate render-triggered resync. Past and other-owner activities do not fetch the current-day food link; the food card keeps one workout breakdown.
 
 Training-day review: food, calendar, insights and Kit share one day-goal policy, including historical allowances and coach-adjusted plan sessions. Batch reads build the plan once; daily burn remains independent, with its legacy extra field derived from the goal. Server-side enablement requires confirmed adulthood; re-saving an unchanged calorie target through setup preserves accepted check-in provenance. Low-intake notes reuse the shared unknown-calorie count.
+
+## Activity-first home and original tabs (owner decision 18 October, #164)
+
+This supersedes the home, navigation and Progress parts of #122 B and C, and the food-on-Me parts of G and R. The
+nutrition features themselves are unchanged. **Keep it simple:** each feature has one obvious home, and people who
+don't track food don't see food outside the Nutrition tab.
+
+- **Tabs:** Me · Activity · Track · Progress · Nutrition, as on 16 October. No shared ＋ Log tab or sheet. A live or
+  paused recording marks the Track tab, and one tap returns to it. Weigh-in lives in Nutrition → Weight (the weekly
+  check-in keeps its own Log weight shortcut).
+- **Food user:** a calorie goal, or food logged in the last 14 local days (`food_user` on `/api/me` and
+  `/api/food/day`; food logged today also counts on Me). Anything else is not a food user.
+- **Me:** greeting, the 14-day distance chart, latest activity, then **Your day**: the training plan card (or a
+  Training plan row), and for food users a compact Food today card (Eaten, Left/Over or Goal not set, Protein, a goal
+  bar) with a single Log food button, and a pending weekly check-in. Food users also get the folded food & training
+  week. Then Friends recently, setup, goals and Fitness & freshness. No Describe/Snap/Scan/Usual row, Same as
+  yesterday or workout calories on Me; those stay in Nutrition. New-account setup suggests Apple Health, recording an
+  activity and finding friends, never a nutrition goal.
+- **Progress** opens on Training. Only food users see the Food & weight / Training switch and the food & training
+  week; their last choice is remembered per account on this device. Explicit `/progress?section=food` links still open
+  and show the switch. Food progress also remains in Nutrition.
+- **Food entry points:** the Nutrition tab (main), the single Log food button on Me for food users, and the optional
+  iPhone quick action/Shortcut and meal reminders, which are off unless turned on.
+

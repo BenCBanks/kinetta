@@ -1,14 +1,14 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const app=fs.readFileSync('app/static/app.js','utf8');
-// Actual quick-entry sheet: opening and prefill are read-only, late prefill respects typing.
+// Actual weigh-in sheet (weekly check-in): opening and prefill are read-only, late prefill respects typing.
 (async()=>{
  let owner='one',prefill,closed=0,html='',writes=[],focused=0;
  const field={value:'',focus(){focused++},setCustomValidity(){},reportValidity(){}},button={disabled:false},form={elements:{weight:field}},nodes={'#quick-weight':form},b={isConnected:true};
  const c={App:{me:{weight_kg:75}},readOwner:()=>owner,isoDay:()=> '2026-10-17',dayLabel:()=> 'Today',imp:()=>false,U:{weight:v=>v},esc:String,LB:2.20462,
   sheet:(title,body,fn)=>{html=body;fn(b,()=>closed++)},$:s=>s==='button'?button:nodes[s],load:(path,fn)=>{prefill=fn;return Promise.resolve()},
   sendOrQueue:async(...args)=>{writes.push(args);return{}},invalidate(){},Native:{haptic(){}},toast(){}};
- vm.createContext(c);vm.runInContext(app.slice(app.indexOf('function quickLogSheet'),app.indexOf('function render()')),c);
+ vm.createContext(c);vm.runInContext(app.slice(app.indexOf('function quickWeighIn'),app.indexOf('function render()')),c);
  c.quickWeighIn();assert.equal(writes.length,0);assert.match(html,/>Today</);assert.equal(focused,1);
  prefill({points:[{day:'2026-10-16',kg:76},{day:'2026-10-15',kg:77}]});assert.equal(field.value,76);
  field.value='74.5';field.oninput();prefill({points:[{day:'2026-10-16',kg:78}]});assert.equal(field.value,'74.5');
@@ -24,11 +24,19 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  store:{get:k=>data.get(k),del:k=>data.delete(k)},localStorage:{setItem:(k,v)=>data.set(k,JSON.parse(v))},
  navigator:{},document:{addEventListener(){}},window:{addEventListener(){}},setInterval(){},route(){},$:()=>null};
  vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/track.js','utf8')+'\nglobalThis.recorder=Track;',c);
- c.recorder.sync();assert(c.recorder.active,'paused draft is available from centre Log');
+ c.recorder.sync();assert(c.recorder.active,'paused draft is available from the Track tab');
  c.App.me={id:2};owner='two';c.recorder.sync();assert(!c.recorder.active,'another account does not inherit the draft');
  c.App.me={id:1};owner='one';c.recorder.sync();assert(c.recorder.active,'returning account restores its draft');
  assert.equal(data.get(key).activeMs,60000,'navigation never invents recording time');
  console.log('navigation recorder: real paused draft restored, cross-account isolated, elapsed time preserved PASS');
+}
+// Activity-first tabs (#164): original order, Track in the centre, no shared Log sheet; the recording dot marks Track.
+{
+ const tabs=JSON.parse(JSON.stringify(vm.runInNewContext(app.match(/const TABS = (\[.*?\]);/)[1])));
+ assert.deepEqual(tabs.map(t=>t[0]),['me','activity','track','progress','food']);assert.deepEqual(tabs.map(t=>t[1]),['Me','Activity','Track','Progress','Nutrition']);
+ assert(!/quickLogSheet|data-quick-log/.test(app),'the shared Log sheet is gone');
+ const track=fs.readFileSync('app/static/track.js','utf8');assert.match(track,/nav\.tabs \[data-tab="track"\]/);
+ console.log('navigation tabs: Me, Activity, Track, Progress, Nutrition; no Log sheet; recording dot on Track PASS');
 }
 // Fixed legacy URL contract, checked against the app's registered route patterns.
 {
@@ -42,7 +50,11 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  const text=fs.readFileSync('app/static/pages.js','utf8'),data=new Map();
  const c={App:{me:{id:1}},Native:{base:'',token:'fictional-token-never-store'},location:{origin:'https://fictional.invalid'},store:{get:k=>data.get(k),set:(k,v)=>data.set(k,v)}};
  vm.createContext(c);vm.runInContext(text.slice(text.indexOf('const progressKey'),text.indexOf('function nutritionHref'))+'\nglobalThis.choice=progressChoice;',c);
- assert.equal(c.choice(),'food');c.progressSwitch('training');assert.equal(c.choice(),'training');assert([...data.keys()].every(k=>!k.includes('token')));
- c.App.me={id:2};assert.equal(c.choice(),'food');c.App.me={id:1};assert.equal(c.choice(),'training');
- console.log('navigation Progress: food default, remembered training, account isolation, no credentials in preference keys PASS');
+ assert.equal(c.choice(),'training','not a food user: Training');assert.equal(c.progressSwitch('training'),'','no switch for non-food users');
+ assert.match(c.progressSwitch('food'),/Training/,'an explicit food URL keeps a way back');data.clear();
+ c.App.me={id:1,food_user:true};assert.equal(c.choice(),'training','food users also start on Training');assert.match(c.progressSwitch('training'),/Food &amp; weight/);
+ c.progressSwitch('food');assert.equal(c.choice(),'food');assert([...data.keys()].every(k=>!k.includes('token')));
+ c.App.me={id:2,kcal_target:1900};assert.equal(c.choice(),'training');c.App.me={id:1,food_user:true};assert.equal(c.choice(),'food');
+ c.App.me={id:1};assert.equal(c.choice(),'training','a stored food choice is ignored once food tracking stops');
+ console.log('navigation Progress: Training default, switch only for food users, remembered per account, no credentials in preference keys PASS');
 }

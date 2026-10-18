@@ -435,21 +435,15 @@ function sheet(title, html, onMount) {
 // ---------- router ----------
 IC.mail = '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>';
 IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
-const TABS = [['me', 'Me'], ['food', 'Nutrition'], ['log', 'Log'], ['activity', 'Activity'], ['progress', 'Progress']];   // Me is home: first, and where the app opens
+// Owner decision 2026-10-18 (#164): back to the original activity-first order; the shared ＋ Log tab is gone (food has one home, Nutrition).
+const TABS = [['me', 'Me'], ['activity', 'Activity'], ['track', 'Track'], ['progress', 'Progress'], ['food', 'Nutrition']];   // Me is home: first, and where the app opens
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
   history[replace ? 'replaceState' : 'pushState'](null, '', path);
   render();
 }
-// The shared entry sheet is immediate; food focus stays within the initiating tap.
-function quickLogSheet() {
-  sheet('Log', `<div class="log-choices"><button class="log-choice" id="log-food">${svg('food')}<span><b>Log food</b><small>Describe, Snap, Scan or Paste</small></span>${svg('chev')}</button><button class="log-choice" id="log-workout">${svg('track')}<span><b>Record a workout</b><small>Run, ride, lift, yoga and more</small></span>${svg('chev')}</button></div><button class="row-link log-weight" id="log-weight">${svg('scale')}<span class="grow">Weigh in</span>${svg('chev')}</button>`, (b,close) => {
-    $('#log-food',b).onclick = () => { close(); describeSheet(isoDay(new Date()),guessMeal()); };
-    $('#log-workout',b).onclick = () => { close(); go('/track'); };
-    $('#log-weight',b).onclick = () => { close(); quickWeighIn(); };
-  });
-}
+// Today's weigh-in sheet (used by the weekly check-in).
 function quickWeighIn() {
   const owner = readOwner(), day = isoDay(new Date()), unit = imp() ? 'lb' : 'kg';
   sheet('Weigh in', `<form id="quick-weight" class="form"><p class="small muted">${esc(dayLabel(day))}</p><label>Weight (${unit})<input name="weight" inputmode="decimal" required value="${App.me.weight_kg ? esc(U.weight(App.me.weight_kg)) : ''}" aria-label="Today’s weight in ${unit}" enterkeyhint="done"></label><button class="primary wide">Save weight</button></form>`, (b,close) => {
@@ -476,15 +470,15 @@ function render() {
   if (!App.me) return;
   const path = location.pathname.replace(/\/+$/, '') || '/me';
   const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
-  const m = path.match(page.re) || [], activeTab = page.tab === 'track' ? 'log' : page.tab;
+  const m = path.match(page.re) || [], activeTab = page.tab;
   // The tab bar stays put between screens (2026-10-16): only the page is replaced, so a tap never waits for the bar to be
   // rebuilt and its badges don't blink. The first render (or after logging in again) builds it.
   const nav = $('nav.tabs', root), fresh = '<main class="shell" id="page"></main>';
   if (nav && nav.parentNode === root && root.children.length === 2 && $('#page', root)) {
     const main = document.createElement('main'); main.className = 'shell'; main.id = 'page'; $('#page', root).replaceWith(main);
-    $$('[data-tab]', nav).forEach((a) => (a.dataset.tab === activeTab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+    $$('a[data-tab]', nav).forEach((a) => (a.dataset.tab === activeTab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   } else root.innerHTML = `${fresh}<nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
-    t === 'log' ? `<button type="button" data-tab="log" data-quick-log aria-label="Log food, weight or a workout"${activeTab === 'log' ? ' aria-current="page"' : ''}>${svg('plus')}<span>Log</span></button>` : `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
+    `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
   if (typeof Track !== 'undefined') Track.sync();
@@ -509,7 +503,6 @@ function showError(el, e) {
 }
 // in-app links: <a href="/..."> navigate without reloading; prefetch on press for instant pages
 document.addEventListener('click', (e) => {
-  if (e.target.closest('[data-quick-log]')) { e.preventDefault(); if (typeof Track !== 'undefined' && Track.active) go('/track'); else quickLogSheet(); return; }
   const a = e.target.closest('a[href^="/"]');
   if (!a || e.metaKey || e.ctrlKey || a.target) return;
   e.preventDefault();

@@ -51,8 +51,8 @@ const Track = (() => {
     if (TrackNative.supported && App.me) pullNative().catch(() => {});
   }
   function updateTab() {
-    const tab = $('nav.tabs [data-tab="log"]');
-    if (tab) { tab.classList.toggle('has-recording', !!session); tab.setAttribute('aria-label', session ? 'Return to workout · ' + session.state : 'Log food, weight or a workout'); }
+    const tab = $('nav.tabs [data-tab="track"]');
+    if (tab) { tab.classList.toggle('has-recording', !!session); tab.setAttribute('aria-label', session ? 'Track · ' + session.state : 'Track'); }
   }
   function adoptNative(result) {
     const incoming = result.session;
