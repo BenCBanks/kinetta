@@ -306,7 +306,7 @@ Nutrition owns the resting-source preference, distinct from the food goal and ac
   called Me. Your photo at the top right (next to the bell) opens your profile and replaces the old name row. Fitness &
   freshness is one compact card: status word, then fitness/freshness/run score in a row. Friends, Goals, Shoes & bikes,
   Explore Kinetta and Help & contact share one list without a heading; Profile & settings stays last.
-- **Contact:** the public support address is KinettaApp@gmail.com (privacy policy, website footers, SECURITY.md, Me ›
+- **Contact:** the public support address is feedback@kinetta.app (privacy policy, website footers, SECURITY.md, Me ›
   Help & contact). Never ask for passwords by email.
 
 ## Nutrition-first onboarding — #122 Workstream A (October 2026)
@@ -712,3 +712,18 @@ Small changes so each screen says what it does, keeping the simple, one-home-per
 - **Food chat** names its search tool Search foods.
 - **Progress Totals** shows at least eight weeks (or six months) on the chart, so a first week is a normal-width bar.
   The added periods are chart-only; averages, bests and the table use real periods.
+
+## Food chat, simplified (18 October, owner: "busy and messy")
+
+The food chat should feel like a quick messaging app. This supersedes the earlier food-chat layout notes where they differ;
+behaviour (outbox, choices, Undo, corrections, daily note, Kit) is unchanged.
+
+- **Chat mode:** no bottom tab bar while the chat is open. A small header has ‹ Nutrition (the way back), the title and a
+  ⋯ for chat settings. A "Logging to …" line appears only when the chat was opened for a specific meal.
+- **Messages:** your messages are right-aligned evergreen bubbles; the per-message time is for screen readers only and day
+  headings show the date. Replies are simple cards: each logged food is one row you tap to edit, with calories on the
+  right; several foods get one total; Undo is a quiet link; ⋯ holds Correct in chat and Delete message text. A reply with
+  nothing else to do keeps ⋯ beside its text. Waiting/offline status is a small line under the bubble.
+- **Composer:** one rounded bar: +, the text field (grows to a few lines) and a round send arrow. Everything else (Snap,
+  Photo, Scan, Search, Usuals, Recipes, Paste, the one-tap usual and Daily note) lives in the + menu as icon tiles, which
+  closes when you type or pick a tool. Transient "Saved" messages clear themselves.

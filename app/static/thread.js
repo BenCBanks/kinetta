@@ -27,7 +27,7 @@ const FoodThread = (() => {
     try {await outbox.flush(owner);const view=current;if(view&&active(view)&&view.owner===owner){view.jobs=await ThreadDB.list(owner);draw(view);}}
     catch(e){if(current&&active(current))status(current,e.message);}
   }
-  function status(ctx,text){if(active(ctx))$('#thread-status',ctx.el).textContent=text;}
+  function status(ctx,text){if(!active(ctx))return;const box=$('#thread-status',ctx.el);box.textContent=text;clearTimeout(ctx.statusTimer);if(['Saved.','Food removed.'].includes(text))ctx.statusTimer=setTimeout(()=>{if(box.textContent===text)box.textContent='';},2500);}
   function source(entry) {
     const ref=entry.ref||{},origin=ref.origin;
     const names={usda:'USDA',off:'Open Food Facts',quick:'Your numbers',custom:'My foods',dish:'My Recipes',recent:'Your food log',ai:'AI estimate'};
@@ -38,7 +38,9 @@ const FoodThread = (() => {
   }
   function food(entry,index) {
     const unknown=entry.ref?.unknown_nutrients||[],protein=unknown.includes('protein_g')||entry.protein_g==null?'Protein unknown':`${r1(entry.protein_g)} g protein`;
-    return `<div class="thread-food"><div><strong>${esc(entry.name)}</strong><span>${esc(fmtAmount(entry))} · ${esc(source(entry))}</span><span>About ${homeCalories(entry.kcal)} kcal · ${esc(protein)}</span>${entry.ref?.origin_notes?`<span>${esc(entry.ref.origin_notes)}</span>`:''}</div>${entry.id?`<button type="button" class="linkbtn" data-entry="${index}">Edit</button>`:''}</div>`;
+    // Simple chat rows (2026-10-18, owner: "busy and messy"): tap a logged food to edit it; calories sit on the right.
+    const inner=`<span class="tf-main"><strong>${esc(entry.name)}</strong><small>${esc(fmtAmount(entry))} · ${esc(source(entry))}${protein==='Protein unknown'?' · protein unknown':''}</small>${entry.ref?.origin_notes?`<small>${esc(entry.ref.origin_notes)}</small>`:''}</span><span class="tf-kcal num">${homeCalories(entry.kcal)}<small> kcal</small></span>`;
+    return entry.id?`<button type="button" class="thread-food" data-entry="${index}" aria-label="Edit ${esc(entry.name)}, about ${homeCalories(entry.kcal)} kcal">${inner}</button>`:`<div class="thread-food">${inner}</div>`;
   }
   function choices(result) {
     if(result.correction&&result.choices?.length)return `<div class="thread-choices">${result.choices.map((c,i)=>`<button type="button" class="ghost" data-choice="${esc(JSON.stringify({select:i}))}">${esc(c.name)}${c.day?' · '+esc(dayLabel(c.day))+' · '+esc(MEAL_NAMES[c.meal]||c.meal):''}</button>`).join('')}</div>`;
@@ -76,13 +78,13 @@ const FoodThread = (() => {
     const day=entries[0]?.day||r.day,meal=entries[0]?.meal||r.meal;
     const canLog=!r.cancelled&&(r.kind==='preview'||r.parts?.some(p=>p.status==='ready'&&!p.logged));
     return `<div class="thread-card" data-mid="${root.id}">${r.daily_note?`<h3>Your daily food note</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
-      ${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||r.parts?.some(p=>p.entered_numbers&&!p.logged)?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':root.state==='answered'?'Reply text removed. Your saved food is kept.':'Saved on this phone. Waiting to send…'))}</p>`:''}
+      ${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${visible.length>1?`<p class="thread-total"><span>Total</span><b class="num">≈ ${homeCalories(visible.reduce((n,e)=>n+(e.kcal||0),0))} kcal</b></p>`:''}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||r.parts?.some(p=>p.entered_numbers&&!p.logged)?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':root.state==='answered'?'Reply text removed. Your saved food is kept.':'Saved on this phone. Waiting to send…'))}</p>`:''}
       ${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
       ${r.error?`<p class="thread-error">${esc(r.error.message||r.error)}</p>`:''}${!r.cancelled&&(r.kind==='needs'||r.pending_count||r.parts?.some(p=>p.entered_numbers&&!p.logged))?choices(r):''}
-      ${kitHtml(r)}<div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${r.error||r.parts?.some(p=>p.needs_photo)?(root.result?.input?.kind==='photo'?'<button type="button" class="linkbtn" data-reattach>Add the photo again</button>':'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>'):''}<button type="button" class="linkbtn" data-more>More</button></div></div>`;
+      ${kitHtml(r)}<div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${r.error||r.parts?.some(p=>p.needs_photo)?(root.result?.input?.kind==='photo'?'<button type="button" class="linkbtn" data-reattach>Add the photo again</button>':'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>'):''}<button type="button" class="icon-btn thread-more" data-more aria-label="More options for this message">${svg('more')}</button></div></div>`;
   }
   function primary(ctx){
-    if(!active(ctx))return;$('#thread-suggestions',ctx.el).hidden=!!$('#thread-text',ctx.el).value.trim();const logs=$$('[data-action="log"]',ctx.el),held=!$('#thread-text',ctx.el).value.trim()?logs.at(-1):null;
+    if(!active(ctx))return;const logs=$$('[data-action="log"]',ctx.el),held=!$('#thread-text',ctx.el).value.trim()?logs.at(-1):null;
     for(const b of logs){b.classList.toggle('primary',b===held);b.classList.toggle('ghost',b!==held);}
     $('#thread-send',ctx.el).classList.toggle('primary',!held);$('#thread-send',ctx.el).classList.toggle('ghost',!!held);
   }
@@ -94,7 +96,7 @@ const FoodThread = (() => {
       const reply=ctx.messages.find(r=>r.reply_to===m.id),job=ctx.jobs.find(j=>j.id===m.client_id);
       const id='message-'+m.id;ids.add(id);let node=list.querySelector(`[data-key="${id}"]`);
       const separator=m.local_day!==lastDay?`<h2 class="thread-day">${esc(dayLabel(m.local_day))}</h2>`:'';lastDay=m.local_day;
-      const user=`<div class="thread-user"><p>${esc(m.body)}</p><time datetime="${esc(m.captured_at)}">${esc(dayLabel(m.local_day))} · ${esc(new Date(m.captured_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}</time></div>`;
+      const user=`<div class="thread-user"><p>${esc(m.body)}</p><time class="vh" datetime="${esc(m.captured_at)}">${esc(dayLabel(m.local_day))} · ${esc(new Date(m.captured_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}</time></div>`;
       const html=`${separator}${m.result?.receipt||m.result?.daily_note?'':user}${replyHtml(m,reply)}${job?pendingHtml(job):''}`;
       if(!node){node=document.createElement('article');node.dataset.key=id;}
       if(node===anchor)anchor=anchor.nextElementSibling;else list.insertBefore(node,anchor);
@@ -167,8 +169,8 @@ const FoodThread = (() => {
     const job={id:uuid(),body:text,at:new Date().toISOString(),media,barcode,images,phase:'process',context:ctx.context||latestContext(ctx),...(ctx.day?{day:ctx.day}:{}),...(ctx.meal?{meal:ctx.meal}:{})};
     const button=$('#thread-send',ctx.el);if(button.disabled)return;button.disabled=true;
     try{if(!body||field.value.trim()===text){finishNativeDraft(ctx);saveDraft(ctx,'');}await ThreadDB.put(ctx.owner,job.id,job);if(!active(ctx))return;
-      if(!body||field.value.trim()===text){field.value='';store.del(draftKey(ctx.owner));}ctx.context=null;store.del(contextKey(ctx.owner));
-      ctx.jobs=await ThreadDB.list(ctx.owner);ctx.follow=true;draw(ctx);status(ctx,'Saved on this phone.');Native.haptic();flush(ctx);
+      if(!body||field.value.trim()===text){field.value='';field.style.height='';store.del(draftKey(ctx.owner));}ctx.context=null;store.del(contextKey(ctx.owner));
+      ctx.jobs=await ThreadDB.list(ctx.owner);ctx.follow=true;draw(ctx);status(ctx,'');Native.haptic();flush(ctx);
     }catch(e){status(ctx,e.message);}finally{if(active(ctx))button.disabled=false;}
   }
   async function daily(ctx,explicit=false){
@@ -183,9 +185,16 @@ const FoodThread = (() => {
   function page(el,{day,meal}={}){
     const owner=ownerKey(),ctx={el,owner,day:/^\d{4}-\d{2}-\d{2}$/.test(day||'')?day:null,meal:Object.hasOwn(MEAL_NAMES,meal)?meal:null,session:readOwner(),messages:store.get(cacheKey(owner))||[],context:store.get(contextKey(owner)),jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current=ctx;
     el.classList.add('food-thread');el.setAttribute('aria-live','off');
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><button type="button" class="linkbtn" id="thread-settings">Settings</button></header><h1>Food chat</h1><p class="thread-intro">${ctx.day||ctx.meal?`Logging to ${esc(MEAL_NAMES[ctx.meal]||'your chosen meal')} · ${esc(dayLabel(ctx.day||isoDay(new Date())))}`:'Your food, in your words.'}</p><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Say “2 eggs and toast” or ask how your day is going. Use your keyboard’s microphone to dictate.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-shortcuts" id="thread-suggestions"><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily note</button><div id="thread-usual-suggestion"></div><button type="button" class="ghost" id="thread-usuals">${svg('clock')}Your usuals</button><button type="button" class="ghost" id="thread-recipes">${svg('pot')}My Recipes</button></div><div class="thread-tools"><button type="button" class="linkbtn" data-tool="snap">${svg('camera')}Snap</button><button type="button" class="linkbtn" data-tool="library">${svg('image')}Photo library</button><button type="button" class="linkbtn" data-tool="scan">${svg('barcode')}Scan</button><button type="button" class="linkbtn" data-tool="paste">${svg('paste')}Paste</button><button type="button" class="linkbtn" id="thread-search">${svg('search')}Search foods</button></div><label class="vh" for="thread-text">Message about your food</label><div class="thread-compose-row"><textarea id="thread-text" rows="2" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary" id="thread-send">Send</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
+    const tile=(attr,ico,label)=>`<button type="button" ${attr}>${svg(ico)}<span>${label}</span></button>`;
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><h1>Food chat</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header>${ctx.day||ctx.meal?`<p class="thread-intro">Logging to ${esc(MEAL_NAMES[ctx.meal]||'your chosen meal')} · ${esc(dayLabel(ctx.day||isoDay(new Date())))}</p>`:''}<button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Type it like a text, for example “2 eggs and toast”. Tap + to snap a photo, scan a barcode or pick a usual.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div id="thread-usual-suggestion"></div><div class="thread-tools">${tile('data-tool="snap"','camera','Snap')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Scan')}${tile('id="thread-search"','search','Search')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('data-tool="paste"','paste','Paste')}</div><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily note</button></div><label class="vh" for="thread-text">Message about your food</label><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
+    // The + menu holds every other way to add food, so the bar stays one line like a messaging app.
+    const menu=$('#thread-menu',el),plus=$('#thread-plus',el),openMenu=open=>{menu.hidden=!open;plus.setAttribute('aria-expanded',String(open));plus.classList.toggle('open',open);};
+    plus.onclick=()=>{Native.haptic('selection');openMenu(menu.hidden);};
+    menu.addEventListener('click',e=>{if(e.target.closest('button'))openMenu(false);});
     const field=$('#thread-text',el),oldDraft=store.get(draftKey(owner));field.value=typeof oldDraft==='string'?oldDraft:oldDraft?.text||'';
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
+    const grow=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,160)+'px';};
+    field.addEventListener('focus',()=>openMenu(false));field.addEventListener('input',()=>{openMenu(false);grow();});
     field.oninput=()=>{if(!field.value.trim()){ctx.context=null;store.del(contextKey(owner));}else if(!ctx.context){ctx.context=latestContext(ctx);if(ctx.context)store.set(contextKey(owner),ctx.context);}primary(ctx);try{saveDraft(ctx,field.value);}catch(e){status(ctx,'Draft storage is full. Keep this screen open until you send.');}};
     $('#thread-composer',el).onsubmit=e=>{e.preventDefault();send(ctx);};
     $('#thread-daily-note',el).onclick=()=>daily(ctx,true);
