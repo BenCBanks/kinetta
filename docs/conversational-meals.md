@@ -70,13 +70,20 @@ change.
 
 Open **Nutrition → My Recipes & foods · edit or create**. Recipe rows have a visible **Edit** button for ingredients, weight and totals; My foods has its own **Edit** buttons. Tapping the row still logs a portion. Nutrition’s help icon links to **Me → Body & heart rate** for weight, height, birth year and sex.
 
-## Permanent conversation
+## Quick logging sessions
 
-Open Log food to type naturally, or use Snap, Photo library, Scan or Paste. The
+Open Log food now to type naturally, or use Snap, Photo library, Scan or Paste. Each
+visit starts fresh, without reopening the previous conversation or composer draft.
+Already logged food stays in Nutrition. Create a Recipe builds a reusable recipe
+instead; log a portion separately from My Recipes. The
 keyboard's microphone can dictate into the same text box. Send stores the message
-on this device before attempting upload. Its capture time determines the day,
+on this device before attempting upload. New entries use Today when sent, even
+when opened from Yesterday’s Nutrition view or an older dated link. That day is kept,
 including after an offline delay. Pending messages remain visible with Retry or
-Cancel, and each server/account has its own outbox and cached conversation.
+Cancel across visits, and each server/account has its own outbox. The current
+visit can use its visible foods as correction context; it does not silently select
+a hidden food from the previous visit. Server-side history remains private and
+exportable; starting fresh does not delete saved food.
 
 Ready items are logged automatically unless Food chat settings requires a tap.
 Uncertain food offers one source/portion question; Enter numbers remains available
@@ -101,7 +108,7 @@ draft reload or an offline delay. If that card disappeared, choose one of your
 logged foods. A changed held preview refreshes its numbers and asks you to tap Log
 again; it does not save changed numbers in the first tap.
 
-When separately enabled after evaluation, food advice, reassurance and day reviews offer an optional Kit answer. Tap Ask Kit to request it; history reads and page opens never call a model. Kit sees the current question and authenticated food tools, not your stored Health, body, weight, workouts or the deterministic burn summary. It labels its interpretation and shows verified food records and limits. Review proposed meal opens the shared portion/meal confirmation; nothing is logged before Confirm and log food. From Me: open chat, Send a question, Ask Kit (three taps plus typing); a proposed meal adds Review and Confirm (five total). An incomplete/unknown nutrient prevents a full total or unsupported meal suggestion. The saved answer survives reload; a lost confirmation acknowledgement reuses its proposal. Physical iPhone behaviour and qualitative answer accuracy remain separate checks.
+When separately enabled after evaluation, food advice, reassurance and day reviews offer an optional Kit answer. Tap Ask Kit to request it; history reads and page opens never call a model. Kit sees the current question and authenticated food tools, not your stored Health, body, weight, workouts or the deterministic burn summary. It labels its interpretation and shows verified food records and limits. Review proposed meal opens the shared portion/meal confirmation; nothing is logged before Confirm and log food. From Me: open chat, Send a question, Ask Kit (three taps plus typing); a proposed meal adds Review and Confirm (five total). An incomplete/unknown nutrient prevents a full total or unsupported meal suggestion. The saved answer remains in private server history, while reopening quick log starts a fresh view; a lost confirmation acknowledgement reuses its proposal. Physical iPhone behaviour and qualitative answer accuracy remain separate checks.
 
 Daily note is off in Food chat settings. Choose Code summary to get a saved note when visiting chat after 8 pm in your account's time zone, or tap Daily note earlier. It states when the numbers were calculated, and later food stays in the live log. Supportive/Just the numbers also applies to the note. Code summary + optional Kit adds a separately requested richer version when evaluated AI access and consent allow it. It can be attempted only once per local day, including a failed request; refresh, toggling and deleting do not create extra attempts. Nothing is pushed to your phone and no food or target changes. Turning Off stops future notes; old notes remain individually deletable/exportable. From Me, chat → Settings → select mode → Save enables the setting (four taps plus native selector choice); once enabled, chat → Daily note is two taps from Me.
 

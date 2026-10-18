@@ -50,6 +50,7 @@ node dev/tests/test_offline_queue.js
 node dev/tests/test_client_uuid.js
 node dev/tests/test_thread_outbox.js
 node dev/tests/test_thread_privacy.js
+node dev/tests/test_quick_food_visit.js
 node dev/tests/test_thread_nutrients.js
 node dev/tests/test_extra_nutrients.js
 node dev/tests/test_recent_nutrients.js

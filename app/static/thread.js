@@ -17,7 +17,7 @@ const FoodThread = (() => {
     if(!ctx || ctx.owner!==owner || !active(ctx))return;
     if(write)ctx.epoch++;
     const rows=[...(data.messages||[]),...(data.message?[data.message]:[]),...(data.updated_message?[data.updated_message]:[])];
-    for(const m of rows){const i=ctx.messages.findIndex(x=>x.id===m.id);if(i<0)ctx.messages.push(m);else ctx.messages[i]=m;}
+    for(const m of rows){if(write&&m.kind==='user')ctx.visibleClients.add(m.client_id);const i=ctx.messages.findIndex(x=>x.id===m.id);if(i<0)ctx.messages.push(m);else ctx.messages[i]=m;}
     ctx.messages.sort((a,b)=>a.id-b.id);remember(ctx);draw(ctx);
   }
   const outbox=foodOutbox({db:ThreadDB,request:(path,body)=>api(path,json('POST',body)),session:()=>readOwner()+':'+privacyEpoch,changed:merge});
@@ -91,7 +91,7 @@ const FoodThread = (() => {
   function draw(ctx) {
     if(!active(ctx))return;
     const list=$('#thread-messages',ctx.el),bottom=list.scrollHeight-list.scrollTop-list.clientHeight<100;
-    const roots=ctx.messages.filter(m=>m.kind==='user').sort((a,b)=>a.captured_at.localeCompare(b.captured_at)||a.id-b.id),ids=new Set();let anchor=list.firstElementChild,lastDay=null;
+    const roots=ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)).sort((a,b)=>a.captured_at.localeCompare(b.captured_at)||a.id-b.id),ids=new Set();let anchor=list.firstElementChild,lastDay=null;
     for(const m of roots) {
       const reply=ctx.messages.find(r=>r.reply_to===m.id),job=ctx.jobs.find(j=>j.id===m.client_id);
       const id='message-'+m.id;ids.add(id);let node=list.querySelector(`[data-key="${id}"]`);
@@ -107,7 +107,7 @@ const FoodThread = (() => {
     ctx.el.classList.toggle('has-messages',!!roots.length||!!ctx.jobs.length);
     list.hidden=!roots.length&&!ctx.jobs.length;
     $('#thread-empty',ctx.el).hidden=!list.hidden;
-    $('#thread-older',ctx.el).hidden=!ctx.before;
+    $('#thread-older',ctx.el).hidden=true;
     if(!ctx.pauseFollow&&(bottom||ctx.follow||ctx.initial)){list.scrollTop=list.scrollHeight;if(list.children.length)ctx.initial=false;}
     ctx.follow=false;primary(ctx);
   }
@@ -159,16 +159,17 @@ const FoodThread = (() => {
     catch(e){status(ctx,e.offline?'Offline. Your saved conversation and pending messages stay on this phone.':e.message);}
   }
   function latestContext(ctx){
-    const previous=ctx.messages.filter(m=>m.kind==='user'&&['log','needs','preview','undone'].includes(m.result?.kind)).sort((a,b)=>Date.parse(a.captured_at)-Date.parse(b.captured_at)||a.id-b.id).at(-1);
+    const previous=ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&['log','needs','preview','undone'].includes(m.result?.kind)).sort((a,b)=>Date.parse(a.captured_at)-Date.parse(b.captured_at)||a.id-b.id).at(-1);
     const pending=ctx.jobs.filter(j=>j.phase!=='cancel').sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)).at(-1);
     return pending&&(!previous||Date.parse(pending.at)>Date.parse(previous.captured_at))?pending.id:previous?.client_id;
   }
   async function send(ctx,{body,media='text',barcode,images}={}) {
     if(!active(ctx))return;const field=$('#thread-text',ctx.el),text=(body||field.value).trim();if(!text)return;
     if(text.length>4000){status(ctx,'Keep this message under 4,000 characters.');return;}
-    const job={id:uuid(),body:text,at:new Date().toISOString(),media,barcode,images,phase:'process',context:ctx.context||latestContext(ctx),...(ctx.day?{day:ctx.day}:{}),...(ctx.meal?{meal:ctx.meal}:{})};
+    // A self context prevents the server from falling back to a previous visit's food.
+    const id=uuid(),job={id,body:text,at:new Date().toISOString(),media,barcode,images,phase:'process',context:ctx.context||latestContext(ctx)||id,day:isoDay(new Date()),...(ctx.meal?{meal:ctx.meal}:{})};
     const button=$('#thread-send',ctx.el);if(button.disabled)return;button.disabled=true;
-    try{if(!body||field.value.trim()===text){finishNativeDraft(ctx);saveDraft(ctx,'');}await ThreadDB.put(ctx.owner,job.id,job);if(!active(ctx))return;
+    try{if(!body||field.value.trim()===text){finishNativeDraft(ctx);saveDraft(ctx,'');}await ThreadDB.put(ctx.owner,job.id,job);if(!active(ctx))return;ctx.visibleClients.add(job.id);
       if(!body||field.value.trim()===text){field.value='';field.style.height='';store.del(draftKey(ctx.owner));}ctx.context=null;store.del(contextKey(ctx.owner));
       ctx.jobs=await ThreadDB.list(ctx.owner);ctx.follow=true;draw(ctx);status(ctx,'');Native.haptic();flush(ctx);
     }catch(e){status(ctx,e.message);}finally{if(active(ctx))button.disabled=false;}
@@ -183,15 +184,15 @@ const FoodThread = (() => {
   }
   function preferences(ctx){if(!ctx.preferences){status(ctx,'Wait for food chat settings to load, then try again.');return;}const p=ctx.preferences;sheet('Food chat settings',`<form class="form" id="thread-preferences"><label class="check"><input type="checkbox" name="auto"${p.auto_log?' checked':''}>Log ready foods automatically</label><p>Uncertain food waits for a detail. Every logged card has Undo and Edit.</p><label>Feedback<select name="tone"><option value="supportive"${p.tone==='supportive'?' selected':''}>Supportive</option><option value="numbers"${p.tone==='numbers'?' selected':''}>Just the numbers</option></select></label><label>Daily food note<select name="daily_note"><option value="off"${!p.daily_note||p.daily_note==='off'?' selected':''}>Off</option><option value="code"${p.daily_note==='code'?' selected':''}>Code summary</option><option value="ai"${p.daily_note==='ai'?' selected':''}>Code summary + optional Kit</option></select></label><p>Off by default. When on, a code note appears after 8 pm when you visit food chat, or tap Daily note. Kit still needs a separate tap, AI access and consent, at most once a day. Nothing is pushed to your phone.</p><button class="primary wide">Save settings</button></form>`,(b,close)=>{$('#thread-preferences',b).onsubmit=async e=>{e.preventDefault();if(!active(ctx))return;try{const value={auto_log:e.target.auto.checked,tone:e.target.tone.value,daily_note:e.target.daily_note.value};const saved=await api('/api/food/thread/preferences',json('PUT',value));if(!active(ctx))return;ctx.preferences=saved;$('#thread-daily-note',ctx.el).hidden=value.daily_note==='off';close();daily(ctx);toast('Food chat settings saved');}catch(e){toast(e.message);}};});}
   function page(el,{day,meal}={}){
-    const owner=ownerKey(),ctx={el,owner,day:/^\d{4}-\d{2}-\d{2}$/.test(day||'')?day:null,meal:Object.hasOwn(MEAL_NAMES,meal)?meal:null,session:readOwner(),messages:store.get(cacheKey(owner))||[],context:store.get(contextKey(owner)),jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current=ctx;
+    const owner=ownerKey(),ctx={el,owner,meal:Object.hasOwn(MEAL_NAMES,meal)?meal:null,session:readOwner(),messages:[],visibleClients:new Set(),context:null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current=ctx;
     el.classList.add('food-thread');el.setAttribute('aria-live','off');
     const tile=(attr,ico,label)=>`<button type="button" ${attr}>${svg(ico)}<span>${label}</span></button>`;
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><h1>Food chat</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header>${ctx.day||ctx.meal?`<p class="thread-intro">Logging to ${esc(MEAL_NAMES[ctx.meal]||'your chosen meal')} · ${esc(dayLabel(ctx.day||isoDay(new Date())))}</p>`:''}<button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Type what you ate, for example “2 eggs and toast”. Use + for a photo, barcode, food search or saved recipe. Food cards have Edit and Undo.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div id="thread-usual-suggestion"></div><div class="thread-tools">${tile('data-tool="snap"','camera','Snap')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Scan')}${tile('id="thread-search"','search','Search')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('data-tool="paste"','paste','Paste')}</div><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily note</button></div><label class="vh" for="thread-text">Message about your food</label><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><h1>Log food now</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header><p class="thread-intro">Today · ${esc(MEAL_NAMES[ctx.meal]||'your current meal')}</p><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Type what you ate, for example “2 eggs and toast”. Use + for a photo, barcode, food search or saved recipe. Ready foods go straight into your log unless you turn off auto-log in settings. Tap a food to edit it, or Undo to remove it. Start a recipe from Nutrition when you want to save ingredients for reuse.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div id="thread-usual-suggestion"></div><div class="thread-tools">${tile('data-tool="snap"','camera','Snap')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Scan')}${tile('id="thread-search"','search','Search')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('data-tool="paste"','paste','Paste')}</div><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily note</button></div><label class="vh" for="thread-text">Message about your food</label><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
     // The + menu holds every other way to add food, so the bar stays one line like a messaging app.
     const menu=$('#thread-menu',el),plus=$('#thread-plus',el),openMenu=open=>{menu.hidden=!open;plus.setAttribute('aria-expanded',String(open));plus.classList.toggle('open',open);};
     plus.onclick=()=>{Native.haptic('selection');openMenu(menu.hidden);};
     menu.addEventListener('click',e=>{if(e.target.closest('button'))openMenu(false);});
-    const field=$('#thread-text',el),oldDraft=store.get(draftKey(owner));field.value=typeof oldDraft==='string'?oldDraft:oldDraft?.text||'';
+    const field=$('#thread-text',el);store.del(draftKey(owner));store.del(contextKey(owner));
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
     const grow=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,160)+'px';};
     field.addEventListener('focus',()=>openMenu(false));field.addEventListener('input',()=>{openMenu(false);grow();});
@@ -199,20 +200,20 @@ const FoodThread = (() => {
     $('#thread-composer',el).onsubmit=e=>{e.preventDefault();send(ctx);};
     $('#thread-daily-note',el).onclick=()=>daily(ctx,true);
     $('#thread-settings',el).onclick=()=>preferences(ctx);
-    $('#thread-usuals',el).onclick=()=>addSheet(ctx.day||isoDay(new Date()),ctx.meal||guessMeal());
-    $('#thread-recipes',el).onclick=()=>addSheet(ctx.day||isoDay(new Date()),ctx.meal||guessMeal(),'','saved');
-    $('#thread-search',el).onclick=()=>addSheet(ctx.day||isoDay(new Date()),ctx.meal||guessMeal(),'','search');
+    $('#thread-usuals',el).onclick=()=>addSheet(isoDay(new Date()),ctx.meal||guessMeal());
+    $('#thread-recipes',el).onclick=()=>addSheet(isoDay(new Date()),ctx.meal||guessMeal(),'','saved');
+    $('#thread-search',el).onclick=()=>addSheet(isoDay(new Date()),ctx.meal||guessMeal(),'','search');
     $('#thread-older',el).onclick=async()=>{const list=$('#thread-messages',el),h=list.scrollHeight,y=list.scrollTop;ctx.pauseFollow=true;try{await refresh(ctx,ctx.before);if(active(ctx))list.scrollTop=y+list.scrollHeight-h;}finally{ctx.pauseFollow=false;}};
     const file=$('#ql-file',el);file.onchange=()=>{const files=[...file.files];file.value='';const retry=ctx.photoRetry;ctx.photoRetry=null;reviewFoodPhotos(files,images=>retry?action(ctx,retry,'resolve',{retry:true,images}).catch(e=>toast(e.message)):send(ctx,{body:field.value.trim()||'Photo of food',media:'photo',images}),{active:()=>active(ctx)});};
     $$('[data-tool]',el).forEach(b=>b.onclick=()=>{const tool=b.dataset.tool;
       if(tool==='snap'||tool==='library'){if(!aiCan('food')){status(ctx,'Food photos need AI access and your consent. You can type, search or enter numbers instead.');return;}if(tool==='snap')file.setAttribute('capture','environment');else file.removeAttribute('capture');file.click();}
-      if(tool==='scan')scanSheet(ctx.day||isoDay(new Date()),ctx.meal||guessMeal(),null,code=>send(ctx,{body:'Scanned product '+code,media:'barcode',barcode:code}));
+      if(tool==='scan')scanSheet(isoDay(new Date()),ctx.meal||guessMeal(),null,code=>send(ctx,{body:'Scanned product '+code,media:'barcode',barcode:code}));
       if(tool==='paste'){field.focus();status(ctx,'Paste text with your keyboard, or choose a photo from Photo library.');if(navigator.clipboard?.readText)navigator.clipboard.readText().then(text=>{if(active(ctx)&&text){field.value=(field.value+text).slice(0,4000);field.oninput();}}).catch(()=>{});}
     });
     draw(ctx);const tool=new URLSearchParams(location.search).get('tool');
     if(tool&&['snap','scan','library'].includes(tool)){const url=new URL(location.href);url.searchParams.delete('tool');history.replaceState(history.state,'',url.pathname+url.search+url.hash);$('[data-tool="'+tool+'"]',el).click();}else field.focus({preventScroll:true});
-    ThreadDB.list(owner).then(jobs=>{if(active(ctx)){ctx.jobs=jobs;draw(ctx);flush(ctx);}}).catch(e=>status(ctx,e.message));
-    api('/api/food/usual').then(foods=>{if(!active(ctx)||!foods.length)return;const food=foods[0],box=$('#thread-usual-suggestion',el);box.innerHTML=`<button type="button" class="ghost">Log ${esc(food.name)} · ${esc(fmtAmount(food))}</button>`;box.querySelector('button').onclick=async e=>{if(!active(ctx))return;const button=e.currentTarget;button.disabled=true;try{const {name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}=food;const result=await addEntries([{day:ctx.day||isoDay(new Date()),meal:ctx.meal||guessMeal(),name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source:'recent',ref}],{thread:true});toast(result.queued?'Usual portion saved on this phone · waiting to send':'Usual portion logged. Undo is on its card.');}catch(e){toast(e.message);}finally{if(button.isConnected)button.disabled=false;}};}).catch(()=>{});
+    ThreadDB.list(owner).then(jobs=>{if(active(ctx)){ctx.jobs=jobs;for(const job of jobs)ctx.visibleClients.add(job.id);draw(ctx);flush(ctx);}}).catch(e=>status(ctx,e.message));
+    api('/api/food/usual').then(foods=>{if(!active(ctx)||!foods.length)return;const food=foods[0],box=$('#thread-usual-suggestion',el);box.innerHTML=`<button type="button" class="ghost">Log ${esc(food.name)} · ${esc(fmtAmount(food))}</button>`;box.querySelector('button').onclick=async e=>{if(!active(ctx))return;const button=e.currentTarget;button.disabled=true;try{const {name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}=food;const result=await addEntries([{day:isoDay(new Date()),meal:ctx.meal||guessMeal(),name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source:'recent',ref}],{thread:true});toast(result.queued?'Usual portion saved on this phone · waiting to send':'Usual portion logged. Undo is on its card.');}catch(e){toast(e.message);}finally{if(button.isConnected)button.disabled=false;}};}).catch(()=>{});
     refresh(ctx);
   }
   addEventListener('online',()=>flush());

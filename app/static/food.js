@@ -473,8 +473,8 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways food-ways"><button class="way" id="as-photo">${svg('comment')}<b>Describe, Snap or Scan</b></button>
-      <button class="way" id="as-dish">${svg('pot')}<b>Create a Recipe</b></button></div>
+    <div class="ways food-ways"><button class="way" id="as-photo">${svg('comment')}<span><b>Log food now</b><small>Describe, snap or scan · Today</small></span></button>
+      <button class="way" id="as-dish">${svg('pot')}<span><b>Create a Recipe</b><small>Build once, save for later</small></span></button></div>
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
@@ -778,7 +778,7 @@ async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,active=(
 // go to the AI estimator automatically when you have AI access and consent, and without AI offer plain database matches.
 // Add logs whatever is ready; anything still being worked out stays on the page.
 function describeSheet(day, meal) {
-  go(`/food/describe?d=${encodeURIComponent(day)}&meal=${encodeURIComponent(meal)}`);
+  go(`/food/describe?meal=${encodeURIComponent(meal)}`);
 }
 route(/^\/food\/describe$/, 'food', (el) => {
   if(typeof FoodThread!=='undefined')return FoodThread.page(el,{day:new URLSearchParams(location.search).get('d'),meal:new URLSearchParams(location.search).get('meal')});
