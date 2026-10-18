@@ -663,7 +663,7 @@ async function pushCard(box, r) {
     ${status.enabled ? `<div class="checks one" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${r.push[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>
       <button class="ghost wide" id="np-off">Turn off on this iPhone</button>`
       : status.denied ? '<p class="small muted">Notifications are blocked for Kinetta. Allow them in iPhone Settings → Notifications → Kinetta, then return here.</p>'
-      : `<p class="small muted">Get an alert on this iPhone for friend requests, ${esc(CHEER.many)}, comments, meals shared with you, and new workouts from your watch or Apple Health. Choose which ones after turning them on.</p>
+      : `<p class="small muted">Get an alert on this iPhone for friend requests, Cheers and other reactions, comments, meals shared with you, and new workouts from your watch or Apple Health. Choose which ones after turning them on.</p>
         <button class="primary wide" id="np-on">Turn on iPhone notifications</button>`}
     <p class="err" role="alert" id="np-error"></p></div><div id="np-meal-reminders"></div>`;
   mealReminderCard($('#np-meal-reminders',box));
