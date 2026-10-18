@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, StrictBool
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts
 import threading
 from .auth import current_user
-from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread
+from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage
 
 @asynccontextmanager
 async def lifespan(app):
@@ -54,6 +54,7 @@ app.include_router(food_thread.router)
 app.include_router(recipe_import.router)
 app.include_router(admin_auth.router)
 app.include_router(api_admin.router)
+app.include_router(admin_usage.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -119,7 +120,10 @@ class Login(BaseModel):
     app: bool = False       # the iPhone app: answer with the login token instead of setting a cookie
 
 
+from .admin_usage import audit_attempt
+
 @app.post('/api/login')
+@audit_attempt('web')
 def login(body: Login, request: Request, response: Response):
     ip = auth.client_ip(request)
     if auth.too_many(ip, body.login):
@@ -130,7 +134,7 @@ def login(body: Login, request: Request, response: Response):
         if not u or not ok:
             auth.failed(ip, body.login)
             raise HTTPException(401, 'Wrong name or password')
-        token = auth.new_session(c, u['id'], request.headers.get('user-agent'))
+        token = auth.new_session(c, u['id'], request.headers.get('user-agent'),channel='app' if body.app else 'web')
     if body.app: return {'ok': True, 'token': token}
     auth.set_cookie(request, response, token)
     return {'ok': True}
@@ -151,6 +155,8 @@ def me(user=Depends(current_user)):
         p = c.execute('SELECT bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent, training_day_targets, training_food_adult_confirmed FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
+        from .admin_usage import opened
+        opened(c,user['id'])
         food_user = api_food.food_user(c, user['id'])    # Progress shows its Food & weight half only for food users
     return {**user, 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
