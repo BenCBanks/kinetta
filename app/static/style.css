@@ -1532,7 +1532,7 @@ html.keyboard-open .kb-done { display: flex; }
 .me-start { margin: 0 0 18px; }
 .me-agenda { margin: 24px 0; }
 .me-agenda > h2 { margin-bottom: 12px; }
-.me-day-links { display: grid; grid-template-columns: 1fr 1fr; border-block: 1px solid var(--line); }
+.me-day-links { display: grid; grid-template-columns: 1fr; border-block: 1px solid var(--line); }
 .me-day-links a { display: flex; align-items: center; gap: 8px; min-height: 60px; font-size: 14px; color: var(--ink); }
 .me-day-links svg { width: 20px; flex-shrink: 0; }
 .me-day-links a > svg:last-child { margin-left: auto; width: 15px; }
@@ -1715,40 +1715,14 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .goal-setup .small,.goal-choice small { font-size:.875em; }
 .goal-setup .goal-options legend { margin-bottom:8px; }
 
-/* Nutrition-first home (#122 B). One food action, with direct capture shortcuts. */
-.home-today { padding: 20px; }
-.home-today h2, .home-friends h2 { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; justify-content:space-between; }
-.home-energy > small { color:var(--tx2); font-size:.9rem; }
-.home-energy .hero-num { margin-top:4px; }
-.home-energy p { margin:4px 0 16px; }
-.home-set-goal { display:inline-flex; align-items:center; min-height:44px; margin-bottom:8px; }
-.home-macro-bar { margin-top:16px; }
-.home-macros { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:10px 0 20px; font-size:.8rem; }
-.home-macros > span { display:grid; gap:4px; overflow-wrap:anywhere; }
-.home-macros b { font-weight:600; }
-.home-macros .num { color:var(--tx2); }
-.home-food-ways { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,4.5rem),1fr)); gap:6px; margin:10px 0; }
-.home-food-ways button { min-width:0; overflow-wrap:anywhere; min-height:48px; display:flex; flex-direction:column; gap:4px; padding:10px 2px; font-size:.8rem; }
-.home-food-ways svg { width:18px; height:18px; }
-.home-empty-meal { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; font-size:.85rem; border-top:1px solid var(--line); padding-top:8px; margin-top:12px; }
-.home-empty-meal .linkbtn { min-height:44px; text-align:left; }
+/* Me: friends recently (#122 B, kept in the activity-first home #164). */
+.home-friends h2 { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; justify-content:space-between; }
 .home-workout { display:flex; align-items:center; gap:12px; min-height:56px; padding:12px 0; color:inherit; border-top:1px solid var(--line); }
 .home-workout > span:not(.av) { flex:1; min-width:0; overflow-wrap:anywhere; }
 .home-workout small { display:block; color:var(--tx2); margin-top:4px; }
 .home-workout > svg { width:20px; height:20px; flex-shrink:0; }
-@media(max-width:360px) { .home-today { padding:16px; } .home-food-ways { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media(prefers-reduced-motion:reduce) { .home-today * { animation:none; transition:none; } }
 
-/* Shared logging and the two Progress focuses (#122 C). */
-nav.tabs button { border:0; cursor:pointer; background:transparent; font-family:inherit; }
-nav.tabs [data-quick-log] { color:var(--accent); }
-.log-choices { display:grid; gap:12px; }
-.log-choice { display:flex; align-items:center; text-align:left; gap:14px; width:100%; min-height:88px; padding:18px; border:1px solid var(--line); border-radius:18px; background:var(--card2); color:var(--tx); }
-.log-choice > span { flex:1; min-width:0; }
-.log-choice b { display:block; font-size:1.05rem; }
-.log-choice small { display:block; font-size:.85rem; color:var(--tx2); margin-top:6px; }
-.log-choice > svg { width:24px; height:24px; flex-shrink:0; }
-.log-weight { margin-top:12px; width:100%; }
+/* The two Progress focuses (#122 C); the Food & weight half shows only for food users (#164). */
 .progress-switch { display:flex; gap:4px; padding:4px; border-radius:14px; background:var(--card2); margin-bottom:16px; }
 .progress-switch a { flex:1; min-height:44px; display:grid; align-content:center; text-align:center; border-radius:10px; padding:8px; font-size:.95rem; color:var(--tx2); }
 .progress-switch a[aria-current] { background:var(--card); color:var(--accent); font-weight:700; }
@@ -1759,12 +1733,12 @@ nav.tabs [data-quick-log] { color:var(--accent); }
 .food-calendar a.logged { color:var(--accent); background:var(--accent2); }
 .food-calendar small { font-size:.7rem; }
 
-.log-weight > svg, .connections-shortcuts > a > svg { width:24px; height:24px; flex:none; }
+.connections-shortcuts > a > svg { width:24px; height:24px; flex:none; }
 
 .me-heading .kit-help { width:44px; padding:0; justify-content:center; }
 .me-heading .kit-help::after { display:none; }
 
-.log-weight, #quick-weight input, #quick-weight button { font-size:1rem; }
+#quick-weight input, #quick-weight button { font-size:1rem; }
 #quick-weight label { font-size:.9rem; }
 
 /* Pending food and weight writes remain reviewable after errors. */

@@ -168,7 +168,7 @@ function workoutSyncStatus(box) {
 }
 
 // ---------- Today ----------
-// First steps use food or activity history. Health remains optional; the Home Screen
+// First steps use food or activity history; the checklist is activity-first (#164). Health remains optional; the Home Screen
 // tip appears only on an iPhone browser that isn't already the Home Screen app.
 // the next step for someone with nothing here yet (2026-10-12): an empty page says what to do, with the button for it
 const startCta = () => '';
@@ -177,9 +177,8 @@ function getStarted(healthConnected = false, hasHistory = false) {
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
   const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
   const rows = [
-    !App.me?.kcal_target ? step('/food/setup', 'target', 'c-brand', 'Set a nutrition goal', 'An optional starting point for calories and protein.') : '',
     Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
-    !hasHistory ? step('/food', 'food', 'c-green', 'Log something you ate', 'Search, scan a barcode or enter known nutrition.') : '',
+    !hasHistory ? step('/track', 'track', 'c-green', 'Record an activity', 'A run, ride, walk or lifting session with your phone.') : '',
     !hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
     ios && !home && !Native.on && !hasHistory ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
   ].filter(Boolean);
@@ -189,38 +188,42 @@ route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 async function meOverview(el) {
   // A greeting instead of the word "Me" (2026-10-16, Ben: "Hi, Ben"); your photo at the top right opens your profile,
   // which replaces the separate name row that used to sit under the chart.
+  // Activity-first again (owner decision 2026-10-18, #164): the 14-day chart and latest activity lead; food, the weekly
+  // check-in and the food & training week appear only for people using food tracking.
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
-    <div id="t-food">${skel(1)}</div><div id="t-checkin"></div>
-    <div id="t-combined-week"></div><div id="t-plan"></div><div id="t-friends"></div>
-    <section id="t-week" aria-label="Last 14 days"></section>
-    <div id="t-last"></div><div id="t-form"></div><div id="t-setup"></div><div id="t-goals"></div>`;
-  combinedWeek($('#t-combined-week',el));
+    <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
+    <div id="t-last"></div>
+    <section class="me-agenda"><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div>
+      <div class="me-day-links"><a href="/plan">${svg('calendar')}Training plan${svg('chev')}</a></div></section>
+    <div id="t-combined-week"></div><div id="t-friends"></div>
+    <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
+  // The Training plan row only stays when there is no plan card above it (2026-10-16: no shortcut twice on one screen).
+  planCard($('#t-plan', el)).then(() => { if (el.isConnected && $('#t-plan a[href="/plan"]', el)) $('.me-day-links', el)?.remove(); }).catch(() => {});
   let foodHistory=null,activityHistory=null,healthConnected=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null)return;
     const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
     $('#t-setup', el).innerHTML = getStarted(healthConnected, activityHistory||foodHistory) +
-      (missing.length ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+      (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
   };
-  todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();}}).catch(() => {
+  todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:on=>{
+    if(!on||!el.isConnected)return;
+    weeklyCheckinCard($('#t-checkin',el),{home:true});
+    combinedWeek($('#t-combined-week',el));
+  }}).catch(() => {
     if (!el.isConnected) return;
     foodHistory=false;drawSetup();
-    $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="primary wide" id="tf-retry">Try again</button></div>';
+    // Only food users see a failure here; for anyone else the food card would have been empty anyway.
+    if (!App.me.food_user && !App.me.kcal_target) return;
+    $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="ghost wide" id="tf-retry">Try again</button></div>';
     $('#tf-retry',el).onclick = () => { invalidate('/api/food/day'); render(); };
   });
-  weeklyCheckinCard($('#t-checkin',el),{home:true});
   // The existing feed applies friendship and sharing rules on the server; food never enters it.
   load('/api/feed/friends?limit=3', rows => {
     if (!el.isConnected) return;
     $('#t-friends',el).innerHTML = rows.length ? `<section class="card home-friends"><h2>Friends recently<a class="more" href="/activity">Feed ›</a></h2>${rows.map(a => `<a class="home-workout" href="/activity/friends/${a.id}">${avatar(a.owner)}<span><b>${esc(a.owner.name)}</b><small>${esc(a.name)} · ${esc(when(a.start_time))}</small></span>${svg('chev')}</a>`).join('')}</section>` : '';
-  }).catch(() => {});
-  load('/api/plans/current', d => {
-    if (!el.isConnected || !d.today_workout) return;
-    const w = d.today_workout;
-    $('#t-plan',el).innerHTML = `<section class="card"><h2>Today’s plan</h2><button class="row-link" data-wday="${esc(w.day)}">${svg('calendar')}<span class="grow">${esc(w.title)}<small>${w.status === 'done' ? 'Completed' : 'View session'}</small></span>${svg('chev')}</button></section>`;
-    wireWorkouts($('#t-plan',el),d);
   }).catch(() => {});
   load('/api/coach/week', (r) => {
     const box = $('#t-review', el); if (!box) return;
@@ -252,7 +255,6 @@ async function meOverview(el) {
     }),
     load('/api/stats', (s) => {
       if (!el.isConnected) return;
-      if (!(s.recent_days || []).some(r => r.distance_m > 0)) { $('#t-week',el).innerHTML = ''; return; }
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
       mileageChart($('#me-distance', el), {days:s.recent_days || []});
     }),
@@ -807,10 +809,13 @@ function wireSport(el, cur) {
     const u = new URLSearchParams(location.search); u.set('sport', k); go(location.pathname + '?' + u.toString(), {replace: true});
   });
 }
-// Keep the two halves of Progress together; explicit old training URLs still open Training.
+// Progress opens on Training (#164). Food users also get a Food & weight half, remembered per account on this device;
+// everyone else sees no switch. Explicit food URLs still open (and show the switch, so there is a way back).
 const progressKey = () => 'fit.progress:' + JSON.stringify([Native.base || location.origin,App.me.id]);
-const progressChoice = () => store.get(progressKey()) || 'food';
+const foodUser = () => !!(App.me.food_user || App.me.kcal_target);
+const progressChoice = () => foodUser() && store.get(progressKey()) === 'food' ? 'food' : 'training';
 function progressSwitch(section) {
+  if (section === 'training' && !foodUser()) return '';
   store.set(progressKey(),section);
   return `<nav class="progress-switch" aria-label="Progress focus"><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a></nav>`;
 }
@@ -832,7 +837,7 @@ function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
   el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
     <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav><div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skel(2)}</div>`;
-  combinedWeek($('#p-combined-week',el));
+  if (foodUser()) combinedWeek($('#p-combined-week',el));
   $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
     if (k === 'plan') return go('/plan');
     const keep = new URLSearchParams(); const s = new URLSearchParams(location.search).get('sport'); if (s) keep.set('sport', s);

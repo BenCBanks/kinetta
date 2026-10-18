@@ -27,7 +27,7 @@ function guessMeal() {   // the meal you usually log at this hour (learned from 
   return mine || (h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snacks' : h < 21 ? 'dinner' : 'snacks');
 }
 
-// Me leads with food even when there are no workouts or meals yet.
+// Displayed energy rounds to 5 kcal.
 const homeCalories = v => Math.round((v || 0) / 5) * 5;
 function macroTotal(D,k,target){const missing=D.unknown_nutrients?.[k]||0;if(missing)return missing>=D.entries.length?'Unknown':`${r0(D.totals[k])} g known · incomplete`;return `${r0(D.totals[k])} g${target?' / '+r0(target)+' g':''}`;}
 function syncCheckinPrimary(page){
@@ -87,37 +87,26 @@ async function weeklyFoodReviewCard(box){
   try{await load('/api/food/weekly-review',data=>{if(!valid())return;shown=!!data.entries;box.innerHTML=data.entries?weeklyReviewHtml(data):'';});}
   catch(e){if(!valid())return;const error='<div class="card"><p>'+ (shown?'Saved review shown. It could not refresh.':'Your weekly food review could not load.')+'</p><button type="button" class="linkbtn" data-weekly-retry>Retry review</button></div>';if(shown)box.insertAdjacentHTML('beforeend',error);else box.innerHTML=error;box.querySelector('[data-weekly-retry]').onclick=()=>weeklyFoodReviewCard(box);}
 }
-function todayFoodCard(box, {onHistory} = {}) {
+// Me is activity-first (owner decision 2026-10-18, #164): food shows only for people using it (a calorie goal or food
+// in the last 14 days), as one compact card with a single Log food button. Every other way to log lives in Nutrition.
+function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
   return load('/api/food/day', (D) => {
     if (!box.isConnected) return;
     onHistory?.(!!D.has_history || D.entries.length>0);
     App.mealHours = D.meal_hours || App.mealHours;
-    const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
-    const meal = Object.keys(MEAL_NAMES).slice(Object.keys(MEAL_NAMES).indexOf(guessMeal())).find(m => !D.entries.some(e => e.meal === m));
-    const workouts = D.burned?.items || [];
-    const macroEnergy = (T.protein_g || 0)*4 + (T.carbs_g || 0)*4 + (T.fat_g || 0)*9;
-    box.innerHTML = `<section class="card home-today" aria-label="Today’s food"><h2>Today<a class="more" href="/food">Food log ›</a></h2>
-      ${D.entries.length || g != null ? `<div class="home-energy"><small>${g == null ? 'Eaten' : left < 0 ? 'Above goal' : 'Calories left'}</small><div class="hero-num num">${r0(homeCalories(g == null ? T.kcal : Math.abs(left)))}<i>kcal</i></div>
-      <p class="small muted">${r0(homeCalories(T.kcal))} eaten${g == null ? '' : ` · ${r0(homeCalories(g))} goal`}</p></div>` : '<p>Make room for what you enjoy. Start with something you ate.</p>'}
-      ${g == null ? '<a class="linkbtn home-set-goal" href="/food/setup">Set a goal · optional</a>' : ''}
-      ${D.entries.length ? `<div class="split home-macro-bar"${MACROS.some(([k])=>D.unknown_nutrients?.[k])?' hidden':''} aria-hidden="true">${MACROS.map(([k]) => `<i class="m-${k}" data-w="${macroEnergy ? ((T[k] || 0)*(k === 'fat_g' ? 9 : 4)/macroEnergy).toFixed(3) : 0}"></i>`).join('')}</div><div class="home-macros" aria-label="Macros eaten">${MACROS.map(([k,n]) => `<span><b>${n}</b><span class="num">${macroTotal(D,k,D.targets?.[k.replace('_g','_target')])}</span></span>`).join('')}</div>` : ''}
-      <button class="primary wide" id="tf-add">${svg('plus')} Log food</button>
-      <div class="home-food-ways" role="group" aria-label="Ways to log food">${[['describe','Describe','comment'],['snap','Snap','camera'],['scan','Scan','barcode'],['usual','Usual','food']].map(([k,n,ico]) => `<button class="ghost" data-home-food="${k}">${svg(ico)}${n}</button>`).join('')}</div>
-      ${meal ? `<div class="home-empty-meal"><span>${esc(MEAL_NAMES[meal])} · nothing yet</span><button class="linkbtn" id="tf-yesterday">Same as yesterday</button></div>` : ''}
-      ${workouts.map(w => `<a class="home-workout" href="/activity/${w.id}">${svg(w.sport || 'activity')}<span>${esc(w.name)}${w.distance_m ? ` · ${U.dist(w.distance_m)} ${U.du()}` : ''}<small>+${r0(homeCalories(w.kcal))} kcal burned${w.estimated ? ' · estimated' : ''}</small></span>${svg('chev')}</a>`).join('')}
-      ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</section>`;
+    const foodUser = !!D.food_user || D.entries.length > 0;
+    if (App.me) App.me.food_user = foodUser;
+    onFoodUser?.(foodUser);
+    if (!foodUser) { box.innerHTML = ''; return; }
+    const g = D.goal?.kcal, T = D.totals, pt = D.targets?.protein_target, left = g == null ? null : g - T.kcal;
+    const protein = D.unknown_nutrients?.protein_g ? (D.unknown_nutrients.protein_g >= D.entries.length ? '–' : r0(T.protein_g) + '+') : r0(T.protein_g) + (pt ? '/' + r0(pt) : '');
+    box.innerHTML = `<div class="card tfood" aria-label="Today’s food"><h2>Food today<a class="more" href="/food">Open log ›</a></h2>
+      <a class="tap" href="/food"><div class="stats3">${stat('Eaten', r0(homeCalories(T.kcal)), 'kcal')}${g != null ? stat(left < 0 ? 'Over' : 'Left', r0(homeCalories(Math.abs(left))), 'kcal') : stat('Goal', 'not set')}${stat('Protein', protein, 'g')}</div>
+      ${g != null ? `<div class="gbar${left < 0 ? ' over' : ''}"><div class="gfill" data-w="${Math.min(1, T.kcal / g).toFixed(3)}"></div></div>` : ''}
+      ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</a>
+      <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
     syncCheckinPrimary(box.closest?.('#page'));
-    const day = D.day, expected = guessMeal();
-    $('#tf-add', box).onclick = () => describeSheet(day, expected);
-    $$('[data-home-food]', box).forEach(b => b.onclick = () => {
-      Native.haptic('selection');
-      if (b.dataset.homeFood === 'usual') addSheet(day, expected);
-      else if (['scan','snap'].includes(b.dataset.homeFood) && typeof FoodThread!=='undefined') go('/food/describe?tool='+b.dataset.homeFood);
-      else if (b.dataset.homeFood === 'scan') scanSheet(day, expected, product => amountSheet(product, {day, meal:expected}));
-      else { describeSheet(day, expected); if (b.dataset.homeFood === 'snap') { const f = $('#ql-file'); if (f) { f.setAttribute('capture','environment'); if (aiCan('food')) f.click(); else toast('Enable food photo estimates in Me, or describe your food'); } } }
-    });
-    const yesterday = $('#tf-yesterday', box);
-    if (yesterday) yesterday.onclick = () => yesterdayMeal(D.day, meal);
+    $('#tf-add', box).onclick = () => describeSheet(D.day, guessMeal());
   }, {maxAge: 5000});
 }
 function yesterdayMeal(day, meal) {

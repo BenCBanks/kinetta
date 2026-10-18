@@ -2,7 +2,7 @@
 // Pages: the saved copy first, refreshed in the background for next time (2026-10-12: the network adds about a second). /static files: saved copy first (their URLs carry ?v=, so a new
 // version is a new URL), older versions of the same file are dropped. /api/ is never touched here: personal data
 // goes to the network only (the app keeps its own small offline copy of a few screens).
-const SHELL = 'fit-shell-36';
+const SHELL = 'fit-shell-37';
 self.addEventListener('install', (e) => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then((c) => c.add('/').catch(() => {}))); });
 self.addEventListener('activate', (e) => e.waitUntil((async () => {
   for (const k of await caches.keys()) if (k !== SHELL) await caches.delete(k);

@@ -1,11 +1,14 @@
 # Kinetta roadmap
 
-Last reviewed: October 17, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
+Last reviewed: October 18, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
 Requirements live in GitHub issues. Use [the requirements guide](docs/requirements.md) to make an item ready to build.
 
-**Direction:** [#122: nutrition-led Kinetta with activity as a strong second (no Garmin required)](https://github.com/BenCBanks/kinetta/issues/122).
-Kinetta leads with honest, effortless food logging and targets that learn from you; activity stays strong through phone
-recording, Apple Health and plans; a watch is optional and no milestone depends on a direct Garmin connection. The
+**Direction (updated October 18, 2026, [#164](https://github.com/BenCBanks/kinetta/issues/164)):** Kinetta's home and
+navigation are activity-first again: recording on your phone, Apple Health import, plans and friends lead, with the
+original Me · Activity · Track · Progress · Nutrition tabs. The nutrition work from
+[#122](https://github.com/BenCBanks/kinetta/issues/122) stays as a strong, optional second half that appears outside the
+Nutrition tab only for people who use it. Keep it simple: one obvious home per feature. A watch is optional and no
+milestone depends on a direct Garmin connection; Apple Health is the base. The
 owner's decisions are recorded in section 8 of #122. Its [addendum comment](https://github.com/BenCBanks/kinetta/issues/122#issuecomment-6226451576)
 is part of workstream D. Workstream letters below (A–T) refer to #122.
 
