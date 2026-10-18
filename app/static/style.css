@@ -1543,7 +1543,7 @@ html.keyboard-open .kb-done { display: flex; }
 .me-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
 .me-shortcuts a { display: grid; justify-items: center; align-content: center; gap: 6px; min-height: 84px; padding: 10px 4px; border: 1px solid var(--line);
   border-radius: 18px; background: var(--card); color: var(--tx); font-size: .85rem; font-weight: 600; text-align: center; overflow-wrap: anywhere; }
-.me-shortcuts a svg { width: 22px; height: 22px; padding: 9px; box-sizing: content-box; border-radius: 50%; background: var(--accent2); color: var(--accent); }
+.me-shortcuts a svg { width: 26px; height: 26px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
 .me-shortcuts a:active { transform: scale(.96); }
 .me-shortcuts a { position: relative; }
 .me-shortcuts .badge { position: absolute; top: 8px; right: 10px; }
@@ -1821,7 +1821,7 @@ button.thread-food { cursor: pointer; }
 .thread-menu { margin-bottom: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); }
 .thread-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .food-thread .thread-tools button { display: grid; justify-items: center; gap: 4px; min-height: 64px; padding: 8px 2px; border: 0; border-radius: 14px; background: none; color: var(--tx); font-size: .78rem; font-weight: 600; overflow-wrap: anywhere; }
-.thread-tools button svg { width: 24px; height: 24px; padding: 8px; box-sizing: content-box; border-radius: 50%; background: var(--accent2); color: var(--accent); }
+.thread-tools button svg { width: 26px; height: 26px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
 #thread-usual-suggestion button { margin-bottom: 8px; }
 .thread-compose-row { display: flex; align-items: flex-end; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 26px; background: var(--card); }
 .thread-compose-row textarea { flex: 1; min-height: 40px; max-height: 160px; padding: 9px 4px; border: 0; background: none; resize: none; font-size: max(16px, 1rem); line-height: 1.4; }
