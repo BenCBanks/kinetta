@@ -89,7 +89,7 @@ function refreshMe(me) {
 // ---------- offline: kept screens + a send queue for food and weight (2026-10-10) ----------
 const KEEP = [/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/plans\/current$/,
   /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=3$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
-  /^\/api\/progress\/volume\?period=week$/, /^feed:home$/];   // 2026-10-16: Activity and Progress open from the saved copy too
+  /^\/api\/progress\/volume\?period=week$/, /^feed:home$/, /^\/api\/feed\/friends\?limit=3$/];   // 2026-10-16: Activity and Progress open from the saved copy too; 2026-10-18: all of Me
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* full or blocked: offline copies are a bonus */ } },

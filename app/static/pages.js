@@ -1185,6 +1185,7 @@ route(/^\/me$/, 'me', async (el) => {
     <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
+      ${row('a', 'href="/me/speed"', 'clock', 'c-brand', 'Speed check', 'Time this phone’s connection')}
       </div>
     <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
       ${row('button', 'id="m-targets"', 'food', 'c-green', 'Nutrition targets')}
@@ -1639,3 +1640,35 @@ function activityKit(activity) {
     }; draw();
   });
 }
+
+// ---------- Speed check (2026-10-18) ----------
+// Times requests from this phone so the owner can see where waiting comes from: the connection itself, a first-time
+// address (iPhone app requests to a new address are preceded by a permission check, a "preflight"), and a few typical
+// screens' data. Read-only requests to the person's own account; nothing is stored or sent anywhere else.
+route(/^\/me\/speed$/, 'me', async (el) => {
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Speed check</h1>
+    <p class="muted">Times a few requests from this phone to your Kinetta server. It reads your own data only and saves nothing.</p>
+    <button class="primary wide" id="sp-run">Run speed check</button><div id="sp-out"></div>`;
+  wireBack(el, '/me');
+  const time = async (path) => { const t = performance.now(); try { await api(path); return Math.round(performance.now() - t); } catch (e) { return 'error'; } };
+  const median = (a) => { const n = a.filter((x) => typeof x === 'number').sort((x, y) => x - y); return n.length ? n[Math.floor(n.length / 2)] : 'error'; };
+  $('#sp-run', el).onclick = async (e) => {
+    const b = e.currentTarget; b.disabled = true; b.textContent = 'Checking…';
+    const rows = [], add = (label, v, note = '') => rows.push([label, v, note]);
+    try {
+      const same = []; for (let i = 0; i < 5; i++) same.push(await time('/api/health'));
+      const fresh = []; for (let i = 0; i < 5; i++) fresh.push(await time('/api/health?n=' + Date.now() + i));
+      add('Connection, repeated address', median(same.slice(1)), 'one round trip');
+      add('First time at an address', median(fresh), 'includes any permission check');
+      for (const [label, path] of [['Me summary data', '/api/stats'], ['Activity list', '/api/activities?limit=20'], ['Progress by month', '/api/progress/volume?period=month'], ['Fitness', '/api/fitness?days=60'], ['Today’s food', '/api/food/day']])
+        { await time(path); const t = []; for (let i = 0; i < 3; i++) t.push(await time(path)); add(label, median(t), 'repeated address'); }
+      add('Phone', Native.on ? 'iPhone app' : 'browser', navigator.userAgent.match(/OS (\d+[_\d]*)/)?.[1]?.replace(/_/g, '.') || '');
+    } finally { if (b.isConnected) { b.disabled = false; b.textContent = 'Run again'; } }
+    if (!el.isConnected) return;
+    const text = rows.map(([l, v, n]) => `${l}: ${v}${typeof v === 'number' ? ' ms' : ''}${n ? ` (${n})` : ''}`).join('\n');
+    $('#sp-out', el).innerHTML = `<div class="card list">${rows.map(([l, v, n]) => `<div class="row-link"><span class="grow">${esc(l)}<small class="muted gs-sub">${esc(n)}</small></span><b class="num">${esc(String(v))}${typeof v === 'number' ? ' ms' : ''}</b></div>`).join('')}</div>
+      <button class="ghost wide" id="sp-copy">Copy results</button>`;
+    $('#sp-copy', el).onclick = async () => { try { await navigator.clipboard.writeText('Kinetta speed check\n' + text); toast('Copied'); } catch (x) { toast('Copy failed. Take a screenshot instead.'); } };
+  };
+});
+
