@@ -3,6 +3,7 @@ import datetime as dt
 import time
 import hashlib
 import json
+import re
 from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from pydantic import Field, ValidationError
@@ -119,11 +120,26 @@ def commit_log(c,uid,message,result):
     return response
 
 
+def social_reply(text):
+    """Whole-message phrases only: 'Hello Kitty cereal' is still a food."""
+    text=re.sub(r'\s+',' ',text.lower().replace('’',"'")).strip().strip('.!?, ')
+    greeting=r'(?:hi|hello|hey)(?: there| kit)?|good (?:morning|afternoon|evening)'
+    wellbeing=r"how (?:are you|is it going|are things)|how's it going|what's up"
+    if re.fullmatch(r'(?:'+greeting+r')(?:[,!?. ]+(?:'+wellbeing+r'))?',text) or re.fullmatch(wellbeing,text):
+        return 'Hi! Tell me what you ate, or ask about your food log.'
+    if re.fullmatch(r'(?:thanks(?: a lot)?|thank you(?: very much)?|cheers)(?:[,!?. ]+(?:kit|so much))?',text):
+        return 'You’re welcome! I’m here when you want to log food or check your day.'
+    return None
+
+
 def process(c,uid,message):
     if message['state']!='pending':return food_thread.answer_with(c,uid,message)
     if (message.get('result') or {}).get('input'):
         from . import food_thread_compose as compose
         return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
+    friendly=social_reply(message['body'])
+    if friendly is not None:
+        return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'small_talk','source':'code','text':friendly})
     question=facts.classify(message['body'],message['local_day'])
     if question is not None:return food_thread.answer_with(c,uid,message,question=question)
     from . import food_thread_edit as edits, food_thread_refs as refs
