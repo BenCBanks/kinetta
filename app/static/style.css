@@ -1839,6 +1839,15 @@ html:has(.food-thread) nav.tabs { display: none; }
 .food-thread button { min-height: 44px; min-width: 44px; font-size: 1rem; white-space: normal; }
 html.keyboard-open .thread-composer { bottom: env(safe-area-inset-bottom); }
 html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
+/* iPhone app (2026-10-18, owner screenshot): the Done strip (45 px, keyboard.js) sits at the bottom of the shrunken
+   WebView, which hid the chat bar. Keep the bar above it; browsers have no strip, so this only applies when it exists. */
+html.keyboard-open:has(body > .kb-done) .food-thread { padding-bottom: 49px; }
+/* Calmer chat text (2026-10-18, owner: "too big and overwhelming"): smaller card text, chip-sized choices, quiet links. */
+.thread-card, .thread-user { font-size: .95rem; }
+.food-thread .thread-choices { gap: 6px; margin-block: 8px; }
+.food-thread .thread-choices button.ghost { min-height: 36px; padding: 6px 12px; font-size: .85rem; font-weight: 500; border-radius: 999px; text-align: left; }
+.food-thread .thread-card .linkbtn { min-height: 36px; font-size: .85rem; }
+.food-thread .thread-card .thread-destination { font-size: .75rem; }
 
 @media (max-height: 650px) { .food-thread > .thread-intro { display: none; } }
 

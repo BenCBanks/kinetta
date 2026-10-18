@@ -56,3 +56,10 @@ console.log('Food chat: Search tool label PASS');
  assert(!/row\('a', 'href="\/me\/(friends|goals)"'/.test(pages),'Friends and Goals are tiles, not list rows too');
  console.log('Me shortcuts: Plan, Fitness, Records, Routes, Goals, Friends, each a real page and none repeating a tab PASS');
 }
+// Speed check (2026-10-18): reachable from Profile & settings, read-only (GET requests only), nothing stored.
+{
+ const pages=fs.readFileSync('app/static/pages.js','utf8'),part=pages.slice(pages.indexOf('// ---------- Speed check'));
+ assert.match(pages,/href="\/me\/speed"/);assert.match(part,/route\(\/\^\\\/me\\\/speed\$\//);
+ assert.doesNotMatch(part,/json\('(POST|PUT|DELETE|PATCH)'|method:\s*'(POST|PUT|DELETE|PATCH)'|store\.set|localStorage/,'speed check only reads');
+ console.log('Speed check: linked from settings, read-only, stores nothing PASS');
+}
