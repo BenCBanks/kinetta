@@ -1527,9 +1527,9 @@ html.keyboard-open .kb-done { display: flex; }
 .mileage-range { text-align: right; margin: 8px 0 0; }
 .track-ready { gap: 12px; }
 .track-ready select { width: 100%; min-height: 50px; font-size: 17px; }
-.track-quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.track-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 3.2rem), 1fr)); gap: 6px; }
 .track-quick button { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 64px; padding: 8px 2px; border: 1px solid var(--line);
-  border-radius: 14px; background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; cursor: pointer; }
+  border-radius: 14px; background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; min-width: 0; white-space: nowrap; cursor: pointer; }
 .track-quick button svg { width: 22px; height: 22px; }
 .track-quick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent2); color: var(--accent); }
 .track-quick button:active { transform: scale(.96); }
@@ -1697,7 +1697,7 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .thread-heading #thread-settings { justify-self: end; }
 .food-thread h1, .food-thread.has-messages > h1, .food-thread .thread-heading h1 { margin: 0; font: 650 1.05rem/1.3 var(--font); }
 .thread-intro { margin: 8px 0 0; color: var(--tx2); font-size: .85rem; text-align: center; }
-#thread-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 14px; padding: 12px 0 8px; }
+#thread-messages { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 14px; padding: 12px 0 8px; }
 #thread-messages article { min-width: 0; overflow-wrap: anywhere; }
 .thread-user { margin: 0 0 8px auto; width: fit-content; max-width: 80%; padding: 10px 14px; border-radius: 20px 20px 6px 20px; background: var(--accent); color: var(--ontx); }
 .thread-user p { margin: 0; white-space: pre-wrap; }
