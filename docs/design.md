@@ -698,3 +698,17 @@ don't track food don't see food outside the Nutrition tab.
 - **Food entry points:** the Nutrition tab (main), the single Log food button on Me for food users, and the optional
   iPhone quick action/Shortcut and meal reminders, which are off unless turned on.
 
+
+## Clarity pass (18 October, after #164)
+
+Small changes so each screen says what it does, keeping the simple, one-home-per-feature rule:
+
+- **Track** offers one-tap Run, Ride, Walk, Hike and Lifting buttons in one row above the All activities list (the full
+  list keeps every activity and stays in sync). The Connections row says what it covers.
+- **Nutrition** has one clear My recipes & foods link under Add food instead of a run-on line of four links. Meal
+  reminders live in the More menu (they also remain under notifications). Someone with no food history and no goal
+  sees a three-step Start your food log card instead of a card of zeros. Same as yesterday, Your usuals and Copy
+  yesterday appear only once there is food history. With no usual daily target, Set goal opens the full goal setup.
+- **Food chat** names its search tool Search foods.
+- **Progress Totals** shows at least eight weeks (or six months) on the chart, so a first week is a normal-width bar.
+  The added periods are chart-only; averages, bests and the table use real periods.

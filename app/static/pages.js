@@ -989,12 +989,17 @@ async function pMileage(body, q) {
     const val = (d, f = 'd') => { const o = by[ymd(d)] || {}; return keys.reduce((s, k) => s + Number((o[k.k] || {})[f] || 0), 0); };
     const label = (d) => period === 'week' ? 'Week of ' + d.toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}) : period === 'month' ? d.toLocaleDateString([], {month: 'long', year: 'numeric'}) : String(d.getFullYear());
     const show = scoped ? all.filter((d) => inRange(R, d.getFullYear())) : period === 'week' ? all.slice(-26) : period === 'month' ? all.slice(-24) : all;
+    // A short history still draws normal-width bars (2026-10-18 UI pass): one first week was one bar across the whole
+    // chart. Earlier empty periods are added to the chart only; averages and bests still use real periods.
+    const minCols = {week: 8, month: 6}[period] || 0;
+    const chartDays = [...show];
+    while (!scoped && chartDays.length && chartDays.length < minCols) { const d = new Date(chartDays[0]); if (period === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1); chartDays.unshift(d); }
     if (!show.length) { box.innerHTML = '<div class="card empty"><b>Nothing in this range</b>Pick other years above.</div>'; return; }
-    const cols = show.map((d, i) => {
-      const prev = show[i - 1], tick = period === 'year' ? (show.length > 8 ? "'" + String(d.getFullYear()).slice(2) : String(d.getFullYear()))
+    const cols = chartDays.map((d, i) => {
+      const prev = chartDays[i - 1], tick = period === 'year' ? (show.length > 8 ? "'" + String(d.getFullYear()).slice(2) : String(d.getFullYear()))
         : period === 'month' ? (d.getMonth() % 3 === 0 ? d.toLocaleDateString([], {month: 'short'}) + (d.getMonth() === 0 ? " '" + String(d.getFullYear()).slice(2) : '') : '')
-        : (!prev || prev.getMonth() !== d.getMonth()) && (period !== 'week' || i < show.length - 1) ? d.toLocaleDateString([], {month: 'short'}) : '';
-      return {d, label: label(d), tick, partial: i === show.length - 1, segs: keys.map((k) => ({k: k.k, v: toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
+        : (!prev || prev.getMonth() !== d.getMonth()) && (period !== 'week' || i < chartDays.length - 1) ? d.toLocaleDateString([], {month: 'short'}) : '';
+      return {d, label: label(d), tick, partial: i === chartDays.length - 1, segs: keys.map((k) => ({k: k.k, v: toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
     });
     const complete = all.slice(0, -1), recent = scoped ? show.filter((d) => d < all[all.length - 1]) : period === 'week' ? complete.slice(-52) : period === 'month' ? complete.slice(-12) : complete;
     const avg = recent.length ? recent.reduce((s, d) => s + toU(val(d)), 0) / recent.length : null;

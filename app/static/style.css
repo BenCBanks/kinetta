@@ -1473,7 +1473,10 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .latest-activity-icon svg { width: 20px; height: 20px; }
 
 /* Issue 93: quieter daily balance, explicit library edits, full-page food entry. */
-.food-library-link { text-align: center; margin: -2px 0 16px; }
+.food-library-link { text-align: center; margin: 4px 0 16px; }
+.food-library-link a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; font-weight: 600; }
+.food-library-link a svg { width: 18px; height: 18px; flex: none; }
+.food-library-link a svg:last-child { width: 14px; height: 14px; }
 .tcard .tc-bal:not([open]) > summary .day-balance-detail { display: none; }
 .food-describe .ql-composer { position: sticky; margin-top: 22px; }
 .food-describe .ql-chat { margin-top: 16px; }
@@ -1599,6 +1602,12 @@ html.keyboard-open .kb-done { display: flex; }
 .mileage-range { text-align: right; margin: 8px 0 0; }
 .track-ready { gap: 12px; }
 .track-ready select { width: 100%; min-height: 50px; font-size: 17px; }
+.track-quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.track-quick button { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 64px; padding: 8px 2px; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; cursor: pointer; }
+.track-quick button svg { width: 22px; height: 22px; }
+.track-quick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent2); color: var(--accent); }
+.track-quick button:active { transform: scale(.96); }
 .track-ready-map-wrap { position: relative; }
 .track-ready-map, .live-record-map { height: clamp(240px, 39dvh, 380px); border-radius: 16px; overflow: hidden; background: var(--card2); }
 .track-locate { position: absolute; right: 12px; bottom: 12px; z-index: 500; background: var(--card); min-height: 44px; padding: 10px 14px; font-size: 14px; display: flex; align-items: center; gap: 8px; }

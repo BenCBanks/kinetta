@@ -159,7 +159,8 @@ const NPROG = [['overview', 'Overview', 'Averages, insights and Kit', 'sparkle',
   ['weight', 'Weight', 'Log a weigh-in and see your trend', 'scale', 'c-purple'],
   ['needs', 'Calorie needs', 'What you burn, and your daily target', 'target', 'c-brand'],
   ['weeks', 'Week by week', 'Every week in one table', 'calendar', 'c-blue']];
-const NMORE = [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']];
+const NMORE = [['reminders', 'Meal reminders', 'Optional nudges at your usual meal times', 'bell', 'c-orange'],
+  ['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']];
 const NRANGED = ['overview', 'energy', 'macros'];
 function nHead(el, view, filters) {
   const v = [...NLOG, ...NPROG].find((m) => m[0] === view), inProgress = location.pathname === '/progress';
@@ -168,7 +169,7 @@ function nHead(el, view, filters) {
   if(inProgress)combinedWeek($('#n-combined-week',el));
   $('#n-help', el).onclick = () => sheet('About your nutrition', `<p>For more accurate calorie estimates, update your weight, height, birth year (age) and sex in <a href="/me?setup=body">Me → Body &amp; heart rate</a>.</p><p class="small muted">Your daily balance compares food logged with estimated burn for the whole day. It becomes useful when you’ve finished logging.</p><p class="small">Edit ingredients and totals in <a href="/food/meals">My Recipes</a>. Tap a logged food to change just that entry.</p>`, (b, close) => $$('a', b).forEach(a => a.addEventListener('click', close)));
   $('#n-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your log</h3>${pickRows(NLOG, view)}<h3 class="ghead">Progress</h3>${pickRows(NPROG, view)}<h3 class="ghead">More</h3>${pickRows(NMORE, view)}`,
-    (k) => (k === 'import' ? go('/food/import') : go(k === 'log' ? '/food' : nutritionHref(k), {replace: true})));
+    (k) => (k === 'import' ? go('/food/import') : k === 'reminders' ? go('/me/notifications') : go(k === 'log' ? '/food' : nutritionHref(k), {replace: true})));
   if (inProgress) el.addEventListener('click', e => { const a = e.target.closest('a[href^="/food?view="]'); if (!a) return; e.preventDefault(); e.stopPropagation(); const u = new URL(a.href); const v = u.searchParams.get('view'); u.searchParams.delete('view'); go(nutritionHref(v,u.searchParams.toString())); });
   return $('#n-body', el);
 }
@@ -180,7 +181,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
   body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <p class="small food-library-link"><a href="/food/meals">My Recipes &amp; foods · edit or create</a> · <a href="/food/setup">${App.me.kcal_target ? 'Review goal' : 'Set a goal'}</a> · <a href="/me/notifications">Reminders · optional</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-training"></div><div id="fd-meals"></div>`;
+    <p class="food-library-link"><a href="/food/meals">${svg('pot')}My recipes &amp; foods${svg('chev')}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-training"></div><div id="fd-meals"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -195,20 +196,17 @@ route(/^\/food$/, 'food', async (el) => {
   }
 });
 
-// someone who has never logged food (2026-10-12): three steps instead of a page of zeros
+// someone who has never logged food and has no goal: three steps instead of a card of zeros (2026-10-12; restored in
+// the 2026-10-18 UI pass, it had been left unused)
 function firstFood(box, day) {
-  box.innerHTML = '';
-  api('/api/food/recent').then((rows) => {
-    if (rows.length || !box.isConnected) return;
-    const step = (id, ico, c, label, sub) => `<button class="row-link" id="${id}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></button>`;
-    box.innerHTML = `<h2 class="sec-head">Start your food log</h2><div class="card list first-food">
-      ${step('ff-goal', 'target', 'c-brand', 'Set your daily targets', 'An optional estimate for calories and protein. You choose what to save.')}
-      ${step('ff-log', 'search', 'c-green', 'Log something you ate', 'Search, scan a barcode or snap a photo.')}
-      ${step('ff-dish', 'pot', 'c-orange', 'Save a meal you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
-    $('#ff-goal', box).onclick = () => go('/food/setup');
-    $('#ff-log', box).onclick = () => addSheet(day, guessMeal());
-    $('#ff-dish', box).onclick = (e) => newDish(e.currentTarget);
-  }).catch(() => {});
+  const step = (id, ico, c, label, sub) => `<button class="row-link" id="${id}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></button>`;
+  box.innerHTML = `<h2 class="sec-head">Start your food log</h2><div class="card list first-food">
+    ${step('ff-log', 'search', 'c-green', 'Log something you ate', 'Search, scan a barcode, snap a photo or describe it.')}
+    ${step('ff-goal', 'target', 'c-brand', 'Set your daily targets · optional', 'An estimate for calories and protein. You choose what to save.')}
+    ${step('ff-dish', 'pot', 'c-orange', 'Save a meal you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
+  $('#ff-goal', box).onclick = () => go('/food/setup');
+  $('#ff-log', box).onclick = () => addSheet(day, guessMeal());
+  $('#ff-dish', box).onclick = (e) => newDish(e.currentTarget);
 }
 function ring(v, target, label) {
   const pct = target ? Math.min(1.25, v / target) : 0, R = 34, C = 2 * Math.PI * R;
@@ -241,7 +239,9 @@ function drawDay(el, D) {
   const neg = (v) => (Math.round(v) ? '−' : '') + r0(Math.abs(v)), pos = (v) => (Math.round(v) ? '+' : '') + r0(v);
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
   // one card (2026-10-12 redesign): calories, macros, then the day's balance, with how it adds up folded underneath
-  $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
+  const fresh = !D.has_history && !D.entries.length && goal == null;
+  if (fresh) firstFood($('#fd-sum', el), D.day);
+  else $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
       <div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories eaten' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} eaten of ${r0(goal)}</p>`}</div>
         <button class="ghost" id="fd-goal" aria-label="Set the calorie goal for this day">${svg('edit')} ${goal == null ? 'Set goal' : 'Goal'}</button></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
@@ -263,20 +263,21 @@ function drawDay(el, D) {
         ${watchResting ? `<p class="small muted">Your food goal stays independent of calories burned.${today ? ' Resting calories build throughout the day; this is not a full-day projection.' : ''}${B.items.some(a=>a.estimated) ? ' * Activity calories are estimated when no recorded value is available.' : ''}</p>` : ''}<a class="small more-link" href="/food?view=energy">Running total ›</a></details>`}<a class="small more-link" id="fd-resting-source" href="/food?view=needs">Resting calories: ${watchResting ? 'Apple Health' : 'Kinetta estimate'} · change ›</a></div>`;
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
   const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
-  $('#fd-goal', el).onclick = () => goalSheet(D);
+  // No usual target yet: Set goal opens the full goal setup rather than a one-day override.
+  const gb = $('#fd-goal', el); if (gb) gb.onclick = () => (G.default == null && goal == null ? go('/food/setup') : goalSheet(D));
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-training',el).innerHTML=TrainingFood.card(D);TrainingFood.wire(el,D);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
-      ${D.day===isoDay(new Date())&&m===guessMeal()?`<div class="empty-meal-ways"><button class="ghost" data-yesterday-meal="${m}">Same as yesterday</button><button class="ghost" data-usual-meal="${m}">Your usuals</button></div>`:''}</section>`;
+      ${D.has_history&&D.day===isoDay(new Date())&&m===guessMeal()?`<div class="empty-meal-ways"><button class="ghost" data-yesterday-meal="${m}">Same as yesterday</button><button class="ghost" data-usual-meal="${m}">Your usuals</button></div>`:''}</section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`;
         // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('edit')}Edit</button>` : ''}</div></section>`;
-  }).join('') + (D.entries.length ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
+  }).join('') + (D.entries.length || !D.has_history ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
   $$('[data-yesterday-meal]',el).forEach(b=>b.onclick=()=>yesterdayMeal(D.day,b.dataset.yesterdayMeal));
   $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
   $$('[data-add]', el).forEach((b) => b.onclick = () => addSheet(D.day, b.dataset.add));
