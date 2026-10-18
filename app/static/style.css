@@ -1976,3 +1976,33 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .post-ft:has(.activity-reactions) { flex-wrap:wrap;padding-block:8px; }
 .t-row:has(.activity-reactions) { flex-wrap:wrap; }
 .t-soc:has(.activity-reactions) { flex:1 1 100%;flex-wrap:wrap;margin:0; }
+/* Recipe editing is a focused phone flow: scroll the recipe above its input. */
+html:has(.recipe-page) { --tab-h: 0px; }
+html:has(.recipe-page) nav.tabs { display: none; }
+.shell.recipe-page { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
+.recipe-page > .top { flex: none; margin-bottom: 8px; gap: 4px; }
+.recipe-page .top .acts { gap: 4px; }
+.recipe-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; overflow-wrap: anywhere; padding: 2px 2px 12px; }
+.recipe-page > .composer { flex: none; position: relative; bottom: auto; margin: 8px 0 0; }
+.recipe-page > .finish { flex: none; margin: 8px 0 0; }
+.recipe-page .composer input { font-size: 1rem; min-height: 44px; }
+.recipe-page .composer .icon-btn { width: 44px; height: 44px; }
+.recipe-page .cmsg, .recipe-page .dish-sum { font-size: 1rem; }
+html.keyboard-open:has(body > .kb-done) .recipe-page { padding-bottom: 52px; }
+.recipe-page .dish-name-in { font-size: 1.45rem; }
+.recipe-page .ig { grid-template-columns: minmax(0,1fr) auto; gap: 3px 10px; }
+.recipe-page .ig-n { white-space: normal; overflow-wrap: anywhere; font-size: 1rem; }
+.recipe-page .ig-g { grid-column: 1; white-space: normal; font-size: .85rem; }
+.recipe-page .ig b { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 1rem; }
+.recipe-page .measure .m-seg button { min-height: 44px; font-size: 1rem; white-space: normal; }
+.recipe-page .m-note, .recipe-page .share-row small { font-size: .85rem; }
+.recipe-page .share-row b { font-size: 1rem; }
+.recipe-page .measure .m-seg { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,8rem),1fr)); overflow: visible; }
+.recipe-page .measure .m-seg button { min-width: 0; }
+.recipe-page .share-row small { white-space: normal; }
+
+.recipe-title { display:flex;align-items:flex-start;gap:4px; }
+.recipe-title textarea { flex:1;min-width:0; }
+.recipe-title .icon-btn { flex:none;min-width:44px;min-height:44px; }
+.recipe-page #recipe-title-status { font-size:.85rem;margin:0 8px 12px; }
