@@ -30,9 +30,7 @@ function postCard(a, {who = false, compact = false} = {}) {
   const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
   const vis = a.visibility || 'me';
   // the comment button opens the comments in a sheet from below, right here (2026-10-12); you can cheer your own activity too
-  const foot = `<button type="button" class="pf cheer" data-cheer="${a.id}" aria-pressed="${!!a.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}${n('cheers')}</button>
-       <button type="button" class="pf" data-talk="${a.id}" aria-label="Comments">${svg('comment')}${n('comments')}</button>` + (theirs ? '' : `
-       <span class="pf-vis">${svg(vis === 'me' ? 'lock' : vis === 'friends' ? 'people' : 'globe')}${esc(VIS_SHORT[vis])}</span>`);
+  const foot = reactionButtons(a.id,a)+`<button type="button" class="pf" data-talk="${a.id}" aria-label="Comments">${svg('comment')}${n('comments')}</button>`+(theirs?'':`<span class="pf-vis">${svg(vis==='me'?'lock':vis==='friends'?'people':'globe')}${esc(VIS_SHORT[vis])}</span>`);
   const compactHead = `<a class="post-heading" href="${href}">${sportMark(a.sport)}<div class="ph-txt"><small>${esc(when(a.start_time))}</small><h3 class="post-title">${esc(a.name)}</h3></div></a>`;
   return `<article class="card post${compact ? ' compact' : ''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${compact ? compactHead : head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     ${compact ? '' : `<h3 class="post-title">${esc(a.name)}</h3>`}
@@ -56,21 +54,10 @@ function wireCheers(box) {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
       b.innerHTML = svg('comment') + (fresh.comments.length ? `<span class="num">${fresh.comments.length}</span>` : '');
-      const c = $(`[data-cheer="${b.dataset.talk}"]`, box);
-      if (c && !c.dataset.sending) { c.setAttribute('aria-pressed', String(fresh.cheered)); c.innerHTML = svg('cheer') + (fresh.cheers.length ? `<span class="num">${fresh.cheers.length}</span>` : ''); }
+      const group=b.closest('.post-ft')?.querySelector('[data-reaction-group]');group?._sync?.(fresh);
     });
   });
-  $$('[data-cheer]', box).forEach((b) => cheerGesture(b, async () => {
-    if (b.dataset.sending) return;
-    b.dataset.sending = '1'; b.setAttribute('aria-busy', 'true');
-    const on = b.getAttribute('aria-pressed') !== 'true', id = b.dataset.cheer;
-    const cnt = () => { let c = $('.num', b); if (!c) { c = document.createElement('span'); c.className = 'num'; b.append(c); } return c; };
-    const shift = (d) => { const c = cnt(), v = (+c.textContent || 0) + d; c.textContent = v || ''; b.setAttribute('aria-pressed', String(d > 0)); };
-    shift(on ? 1 : -1); Native.haptic(on ? 'medium' : 'light'); if (on) { b.classList.remove('just'); void b.offsetWidth; b.classList.add('just'); }
-    try { await api(`/api/activities/${id}/cheer`, on ? json('POST', {}) : {method: 'DELETE'}); socialChanged(id); }
-    catch (x) { shift(on ? -1 : 1); toast(x.message); }
-    finally { delete b.dataset.sending; b.setAttribute('aria-busy', 'false'); }
-  }, () => activityCheers(b.dataset.cheer)));
+  $$('[data-reaction-group]',box).forEach(group=>wireReactionGroup(group,group.dataset.aid));
 }
 // A tap anywhere on a card that isn't one of its own buttons or links opens the activity, and the card dips slightly
 // under the finger so the tap feels answered at once (2026-10-16). Links, Cheers, comments and photos keep their jobs.

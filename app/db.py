@@ -1229,6 +1229,12 @@ MIGRATIONS = [
     ALTER TABLE admin_metrics_state ENABLE ROW LEVEL SECURITY;
     """,
 
+    # 61: one typed reaction per person/activity; cancelled notices retain the retry throttle.
+    """ALTER TABLE cheers ADD COLUMN kind text NOT NULL DEFAULT 'cheer' CHECK(kind IN ('cheer','strong','applause'));
+    ALTER TABLE notifications ADD COLUMN reaction_kind text CHECK(reaction_kind IN ('cheer','strong','applause'));
+    ALTER TABLE notifications ADD COLUMN cancelled boolean NOT NULL DEFAULT false;
+    UPDATE notifications SET reaction_kind='cheer' WHERE kind='cheer';""",
+
 ]
 
 

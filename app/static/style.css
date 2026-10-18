@@ -1968,3 +1968,11 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 
 .training-food-card summary, #training-settings summary, #training-settings label.check { min-height: 44px; display: flex; align-items: center; gap: 12px; }
 .training-food-card .linkbtn, .training-food-card a.small, #training-settings .linkbtn { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* Named reactions remain readable and tappable on narrow phones and with larger text. */
+.activity-reactions { display:flex;flex-wrap:wrap;gap:4px;flex:1 1 100%;min-width:0; }
+.activity-reactions .pf { min-height:44px;padding:6px 10px;font-size:.9rem;flex-wrap:wrap;white-space:normal; }
+.activity-reactions .num:empty { display:none; }
+.post-ft:has(.activity-reactions) { flex-wrap:wrap;padding-block:8px; }
+.t-row:has(.activity-reactions) { flex-wrap:wrap; }
+.t-soc:has(.activity-reactions) { flex:1 1 100%;flex-wrap:wrap;margin:0; }

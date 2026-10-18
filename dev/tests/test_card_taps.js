@@ -9,6 +9,7 @@ const ctx = {App: {me: {login: 'zz_me', name: 'Me'}}, SPORT_NAMES: {run: 'Run'},
   profileHref: (p) => `/people/${p.login}`, when: () => 'Today', activityMedia: () => '', headline: () => '', imp: () => false, rate: () => ({}),
   stat: () => '', U: {}, dur: () => '', go: (p) => went.push(p), getSelection: () => '', addEventListener() {}};
 vm.createContext(ctx);
+const social=fs.readFileSync('app/static/social.js','utf8');vm.runInContext(social.slice(social.indexOf('const REACTIONS='),social.indexOf('function wireReactionGroup')),ctx);
 vm.runInContext(source.slice(source.indexOf('function postCard'), source.indexOf('// Cheers straight from a feed card')) +
   source.slice(source.indexOf('// A tap anywhere on a card'), source.indexOf('const backBtn')) + '\nglobalThis.card=postCard;globalThis.wire=wireCardTaps;globalThis.OWN=CARD_OWN;', ctx);
 

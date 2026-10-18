@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .dish_access import NOTICE_VISIBLE
-from . import apns, db
+from . import apns, db, reactions
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
 
 router = APIRouter(prefix='/api')
@@ -22,19 +22,22 @@ MAX_SUBS = 10           # devices per person
 AUTO_SOURCES = ('apple', 'healthkit', 'garmin')   # workouts that arrive without the person doing anything
 
 
-def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=None):
+def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=None,reaction_kind=None):
     """Record a notification for user_id (never for your own actions; a repeat within a day isn't recorded twice),
     then push it to their phones in the background."""
     if not user_id or user_id == actor_id or kind not in KINDS: return
     if c.execute('SELECT 1 FROM blocks WHERE (user_id = %s AND blocked = %s) OR (user_id = %s AND blocked = %s)',
                  (user_id, actor_id, actor_id, user_id)).fetchone(): return   # blocked either way: nothing between them
-    if kind != 'comment' and c.execute("""SELECT 1 FROM notifications WHERE user_id = %s AND kind = %s AND actor_id = %s
-                                            AND activity_id IS NOT DISTINCT FROM %s AND dish_id IS NOT DISTINCT FROM %s
-                                            AND created > now() - interval '1 day'""",
-                                       (user_id, kind, actor_id, activity_id, dish_id)).fetchone():
+    prior=None
+    if kind!='comment':
+        prior=c.execute("""SELECT id FROM notifications WHERE user_id=%s AND kind=%s AND actor_id=%s
+          AND activity_id IS NOT DISTINCT FROM %s AND dish_id IS NOT DISTINCT FROM %s
+          AND created>now()-interval '1 day' ORDER BY id DESC LIMIT 1""",(user_id,kind,actor_id,activity_id,dish_id)).fetchone()
+    if prior:
+        if kind=='cheer':c.execute('UPDATE notifications SET reaction_kind=%s,cancelled=false WHERE id=%s',(reaction_kind or 'cheer',prior['id']))
         return
-    nid = c.execute("""INSERT INTO notifications (user_id, kind, actor_id, activity_id, dish_id, comment_id)
-                       VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""", (user_id, kind, actor_id, activity_id, dish_id, comment_id)).fetchone()['id']
+    nid=c.execute("""INSERT INTO notifications(user_id,kind,actor_id,activity_id,dish_id,comment_id,reaction_kind)
+      VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id""",(user_id,kind,actor_id,activity_id,dish_id,comment_id,reaction_kind if kind=='cheer' else None)).fetchone()['id']
     threading.Thread(target=_push_later, args=(nid,), daemon=True).start()
 
 
@@ -66,7 +69,7 @@ def drop(c, user_id, kind, actor_id):
 
 
 # ---------- reading: the words are made here ----------
-_LIST = """SELECT n.id, n.kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,
+_LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,
              u.login::text AS login, u.name, u.photo_v AS photo, a.name AS activity, a.distance_m, a.moving_s, a.elapsed_s, a.sport, a.sport_label, p.units, d.name AS dish, cm.text AS comment
            FROM notifications n JOIN users u ON u.id = n.actor_id LEFT JOIN profile p ON p.user_id = n.user_id
            LEFT JOIN activities a ON a.id = n.activity_id LEFT JOIN dishes d ON d.id = n.dish_id LEFT JOIN comments cm ON cm.id = n.comment_id"""
@@ -78,7 +81,9 @@ def _words(r):
         return f"Nice work! {act} saved — {_activity_summary(r)}", f"/activity/{r['activity_id']}"
     if r['kind'] == 'friend_request': return f'{who} wants to be friends', '/me/friends'
     if r['kind'] == 'friend_accepted': return f'{who} accepted your friend request', '/activity'
-    if r['kind'] == 'cheer': return f'{who} sent cheers on your {act}', f"/activity/{r['activity_id']}"
+    if r['kind']=='cheer':
+        label='cheers' if r.get('reaction_kind') in (None,'cheer') else reactions.LABELS[r['reaction_kind']]
+        return f"{who} sent {label} on your {act}",f"/activity/{r['activity_id']}"
     if r['kind'] == 'comment':
         snip = (r['comment'] or '').strip()
         return f'{who} commented on your {act}' + (f': "{snip[:80]}{"…" if len(snip) > 80 else ""}"' if snip else ''), f"/activity/{r['activity_id']}"
@@ -232,7 +237,11 @@ def push(nid, send=None):
         title, body = f"Nice work! {r['activity'] or 'Your workout'} saved", _activity_summary(r)
     payload = {'title': title[:180], 'body': body[:600], 'url': link, 'badge': badge, 'tag': f"{r['kind']}-{nid}"}
     def prepare(c):
-        return payload if c.execute('SELECT 1 FROM notifications n WHERE n.id=%s AND '+NOTICE_VISIBLE,(nid,)).fetchone() else None
+        fresh=c.execute(_LIST+' WHERE n.id=%s AND '+NOTICE_VISIBLE,(nid,)).fetchone()
+        if not fresh:return None
+        prefs=c.execute('SELECT notify FROM profile WHERE user_id=%s',(r['user_id'],)).fetchone() or {}
+        if not any(_prefs(prefs.get('notify'))[g] for g,kinds in PUSH_KINDS.items() if fresh['kind'] in kinds):return None
+        return {**payload,'title':_words(fresh)[0][:180]} if fresh['kind']=='cheer' else payload
     return _deliver_native(r['user_id'],payload,prepare,send)
 
 

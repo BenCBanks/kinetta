@@ -5,6 +5,28 @@
 
 // The quick appreciation button. Its name lives only here, so it can be renamed in one place.
 const CHEER = {verb: 'Cheers', done: 'Cheers sent', many: 'cheers', title: 'Cheers'};   // 'Cheers' everywhere (2026-10-12)
+const REACTIONS=[['cheer','Cheers'],['strong','Strong'],['applause','Applause']];
+function reactionButtons(aid,s,detail=false){
+  const selected=s.my_reaction??(s.cheered?'cheer':null),counts=s.reactions||{cheer:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0};
+  return `<div class="activity-reactions" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}">${REACTIONS.map(([kind,label])=>`<button type="button" class="pf cheer" data-react="${kind}"${kind==='cheer'?` data-cheer="${aid}"${detail?' data-tcheer':''}`:''} aria-pressed="${selected===kind}" aria-label="${label}">${svg(kind==='strong'?'workout':kind==='applause'?'sparkle':'cheer')}<span>${label}</span><span class="num">${counts[kind]||''}</span></button>`).join('')}</div>`;
+}
+function wireReactionGroup(group,aid,changed){
+  if(!group||group.dataset.bound)return;group.dataset.bound='1';
+  const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
+  let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS.map(([kind])=>[kind,+$(`[data-react="${kind}"] .num`,group).textContent||0]))};
+  const draw=()=>{if(!active())return;for(const [kind]of REACTIONS){const button=$(`[data-react="${kind}"]`,group);button.setAttribute('aria-pressed',String(state.my_reaction===kind));button.setAttribute('aria-busy',String(busy));$('.num',button).textContent=state.reactions[kind]||'';}};
+  group._sync=fresh=>{if(!busy&&active()){state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};draw();}};
+  for(const [kind]of REACTIONS)cheerGesture($(`[data-react="${kind}"]`,group),async()=>{
+    if(busy||!active())return;busy=true;const was=state,next=state.my_reaction===kind?null:kind,counts={...state.reactions};
+    if(state.my_reaction)counts[state.my_reaction]=Math.max(0,counts[state.my_reaction]-1);if(next)counts[next]=(counts[next]||0)+1;
+    state={my_reaction:next,reactions:counts};draw();Native.haptic(next?'medium':'light');
+    try{let fresh=await api(`/api/activities/${aid}/reaction`,next?json('POST',{kind:next}):{method:'DELETE'});if(!active())return;
+      if(!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);
+      if(!active())return;state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};socialChanged(aid);changed?.(fresh);
+    }catch(x){if(active()){state=was;toast(x.message);}}finally{busy=false;draw();}
+  },()=>activityCheers(aid));
+}
+
 const VIS = {me: 'Only me', friends: 'Friends', everyone: 'Everyone on this Kinetta'};
 const VIS_SHORT = {me: 'Only me', friends: 'Friends', everyone: 'Everyone'};
 const DETAIL_NAMES = {map: 'Map', heart_rate: 'Heart rate', pace: 'Pace and speed', splits: 'Splits and laps', elevation: 'Elevation',
@@ -24,7 +46,7 @@ const personLink = (p, label = p.name) => `<a class="person-link" href="${profil
 function cheerGesture(button, toggle, show) {
   if (!button || button.dataset.cheerBound) return;
   button.dataset.cheerBound = '1';
-  button.title = 'Tap to send or remove Cheers. Hold to see who cheered.';
+  button.title = 'Tap to send or remove this reaction. Hold to see who reacted.';
   let timer = null, origin = null, suppressUntil = 0, held = false;
   const clear = () => { clearTimeout(timer); timer = null; origin = null; button.classList.remove('cheer-wait'); };
   button.onpointerdown = (e) => {
@@ -45,7 +67,7 @@ function cheerGesture(button, toggle, show) {
     e.preventDefault(); e.stopPropagation(); clear();
     if (e.detail !== 0 && Date.now() < suppressUntil) { suppressUntil = 0; return; }
     toggle();
-    try { if (!localStorage.getItem('fit.cheerHint')) { localStorage.setItem('fit.cheerHint', '1'); toast(`Tip: hold ${CHEER.title} to see who sent them`); } } catch (x) { /* private mode */ }
+    try { if (!localStorage.getItem('fit.cheerHint')) { localStorage.setItem('fit.cheerHint', '1'); toast('Tip: hold a reaction to see who reacted'); } } catch (x) { /* private mode */ }
   };
   button.oncontextmenu = (e) => {
     e.preventDefault(); e.stopPropagation(); clear();
@@ -55,9 +77,10 @@ function cheerGesture(button, toggle, show) {
 }
 
 function activityCheers(aid) {
-  sheet('Cheers', '<div class="cheers-list" aria-live="polite">Loading…</div>', async (box) => {
+  const owner=readOwner();
+  sheet('Reactions', '<div class="cheers-list" aria-live="polite">Loading…</div>', async (box) => {
     const list = $('.cheers-list', box);
-    try { const s = await api(`/api/activities/${aid}/social`); if (list.isConnected) list.innerHTML = cheersPeople(s.cheers); }
+    try { const s = await api(`/api/activities/${aid}/social`); if (list.isConnected&&owner===readOwner()) list.innerHTML = cheersPeople(s.cheers); }
     catch (x) { if (list.isConnected) list.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p>`; }
   });
 }
@@ -192,34 +215,15 @@ function sharedCharts(box, a) {
 
 // The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
-const talkIcons = (s) => `<button type="button" class="pf cheer" data-tcheer aria-pressed="${!!s.cheered}" aria-label="${esc(CHEER.verb)}">${svg('cheer')}<span class="num">${s.cheers.length || ''}</span></button>
-  <button type="button" class="pf" data-ttalk aria-label="Comments">${svg('comment')}<span class="num">${s.comments.length || ''}</span></button>`;
-function wireTalk(box, aid, s, open) {
-  if (!box) return;
-  let sending = false;
-  const pile = box.closest('.d-title') && $('.cpile', box.closest('.d-title'));
-  const draw = () => {
-    box.innerHTML = talkIcons(s);
-    if (pile) { pile.innerHTML = cheerPile(s.cheers); const pb = $('[data-cpile]', pile); if (pb) pb.onclick = () => cheersSheet(s.cheers); }
-    const cb = $('[data-tcheer]', box);
-    cb.setAttribute('aria-busy', String(sending));
-    cheerGesture(cb, async () => {
-      if (sending) return;
-      sending = true;
-      const was = s;
-      s = {...s, cheered: !s.cheered, cheers: s.cheered ? s.cheers.filter((c) => c.login !== App.me.login) : [...s.cheers, {login: App.me.login, name: App.me.name}]};
-      draw(); Native.haptic(s.cheered ? 'medium' : 'light'); if (s.cheered) $('[data-tcheer]', box).classList.add('just');
-      try {
-        if (was.cheered) await api(`/api/activities/${aid}/cheer`, {method: 'DELETE'});
-        else s = {...s, ...await api(`/api/activities/${aid}/cheer`, json('POST', {}))};
-        socialChanged(aid);
-      } catch (x) { s = was; toast(x.message); }
-      finally { sending = false; if (box.isConnected) draw(); }
-    }, () => activityCheers(aid));
-    $('[data-ttalk]', box).onclick = () => commentsSheet(aid, s, (fresh) => { s = fresh; draw(); });
-  };
-  draw();
-  if (open) commentsSheet(aid, s, (fresh) => { s = fresh; draw(); });
+const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf" data-ttalk aria-label="Comments">${svg('comment')}<span class="num">${s.comments.length||''}</span></button>`;
+function wireTalk(box,aid,s,open){
+  if(!box)return;const owner=readOwner();
+  const pile=box.closest('.d-title')&&$('.cpile',box.closest('.d-title'));
+  const draw=()=>{if(!box.isConnected||owner!==readOwner())return;box.innerHTML=talkIcons(s,aid);
+    if(pile){pile.innerHTML=cheerPile(s.cheers);const pb=$('[data-cpile]',pile);if(pb)pb.onclick=()=>cheersSheet(s.cheers);}
+    wireReactionGroup($('[data-reaction-group]',box),aid,fresh=>{s=fresh;draw();});
+    $('[data-ttalk]',box).onclick=()=>commentsSheet(aid,s,fresh=>{s=fresh;draw();});
+  };draw();if(open)commentsSheet(aid,s,fresh=>{s=fresh;draw();});
 }
 // Who sent cheers (2026-10-12, Ben): up to three faces and "Jordan Lee and 2 others" under the activity's numbers; a tap
 // lists everyone. The same list opens from the comments sheet.
@@ -228,10 +232,10 @@ function cheerPile(cheers) {
   if (!cheers.length) return '';
   const first = cheerName(cheers[0]), more = cheers.length - 1;
   return `<button type="button" class="cheer-pile" data-cpile><span class="faces">${cheers.slice(0, 3).map((c) => avatar(c)).join('')}</span>
-    <span class="grow"><b>${esc(CHEER.title)}</b> from ${esc(first)}${more ? ` and ${more} other${more > 1 ? 's' : ''}` : ''}</span><span class="chev">${svg('chev')}</span></button>`;
+    <span class="grow"><b>Reactions</b> from ${esc(first)}${more ? ` and ${more} other${more > 1 ? 's' : ''}` : ''}</span><span class="chev">${svg('chev')}</span></button>`;
 }
-const cheersPeople = (cheers) => `<div class="card list">${cheers.length ? cheers.map((c) => `<div class="person" data-close>${personLink(c, cheerName(c))}</div>`).join('') : '<p class="small muted">No Cheers yet.</p>'}</div>`;
-function cheersSheet(cheers) { sheet(`${CHEER.title} · ${cheers.length}`, cheersPeople(cheers)); }
+const cheersPeople = (cheers) => `<div class="card list">${cheers.length ? cheers.map((c) => `<div class="person" data-close>${personLink(c, cheerName(c))}<small>${esc(REACTIONS.find(([kind])=>kind===(c.kind||'cheer'))?.[1]||'Cheers')}</small></div>`).join('') : '<p class="small muted">No reactions yet.</p>'}</div>`;
+function cheersSheet(cheers) { sheet(`Reactions · ${cheers.length}`, cheersPeople(cheers)); }
 function socialChanged(aid) {
   invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); invalidateFeed();
 }
@@ -256,7 +260,7 @@ function commentsSheet(aid, s, onChange) {
 function drawComments(box, aid, s, onChange) {
   const account = readOwner();
   const names = s.cheers.map((c) => c.name);
-  const who = names.length ? `<button type="button" class="small cheer-who" data-cwho>${svg('cheer')}<span class="grow"><b>${esc(CHEER.title)}</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</span><span class="chev">${svg('chev')}</span></button>` : '';
+  const who = names.length ? `<button type="button" class="small cheer-who" data-cwho>${svg('cheer')}<span class="grow"><b>Reactions</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</span><span class="chev">${svg('chev')}</span></button>` : '';
   box.innerHTML = `${who}<div class="comments">${s.comments.length ? s.comments.map((c) => `<div class="comment"><a href="${profileHref(c)}" data-close aria-label="View ${esc(c.name)}'s profile">${avatar(c)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(c)}" data-close><b>${esc(c.name)}</b></a><small class="muted">${esc(when(c.created))}</small></div><p>${esc(c.text)}</p><div class="c-acts">${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div></div></div>`).join('')
       : '<p class="small muted c-none">No comments yet.</p>'}</div>
     <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
@@ -615,7 +619,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 // ---------- Notifications (2026-10-11, notify.py) ----------
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
 // (/me/notifications). /notifications lights no tab (it opens from several).
-const PUSH_NAMES = {friends: 'Friend requests', cheers: CHEER.title, comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts'};
+const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts'};
 const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', report: 'lock'};
 route(/^\/notifications$/, null, async (el) => {
   el.innerHTML = `<div class="top">${backBtn()}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
