@@ -100,7 +100,7 @@ Record exercises, weight and reps as you train. Compare with the previous sessio
 
 ## training-training-food-food-friends-friends-compare-co-25
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [Contact](mailto:KinettaApp@gmail.com) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-26
 

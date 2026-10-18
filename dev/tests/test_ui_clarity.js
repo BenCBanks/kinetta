@@ -30,5 +30,17 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  console.log('Nutrition: first-food steps act as labelled, copy shortcuts need history, one clear library link, reminders in More PASS');
 }
 // Food chat: a plain name for the search tool.
-assert.match(fs.readFileSync('app/static/thread.js','utf8'),/id="thread-search">\$\{svg\('search'\)\}Search foods</);
-console.log('Food chat: Search foods label PASS');
+assert.match(fs.readFileSync('app/static/thread.js','utf8'),/tile\('id="thread-search"','search','Search'\)/);
+console.log('Food chat: Search tool label PASS');
+// Food chat (2026-10-18, simplified): one bar with +, text and send; every other way to add food sits in the + menu.
+{
+ const thread=fs.readFileSync('app/static/thread.js','utf8'),markup=thread.slice(thread.indexOf('el.innerHTML=`<header class="thread-heading">'),thread.indexOf('// The + menu holds'));
+ const menu=markup.slice(markup.indexOf('id="thread-menu"'),markup.indexOf('class="thread-compose-row"'));
+ for(const tool of ['data-tool="snap"','data-tool="library"','data-tool="scan"','data-tool="paste"','id="thread-search"','id="thread-usuals"','id="thread-recipes"','id="thread-usual-suggestion"','id="thread-daily-note"'])
+  assert(menu.includes(tool),tool+' lives in the + menu');
+ const bar=markup.slice(markup.indexOf('class="thread-compose-row"'),markup.indexOf('id="thread-status"'));
+ assert.match(bar,/id="thread-plus"[^>]*aria-expanded="false"/);assert.match(bar,/id="thread-text"/);assert.match(bar,/id="thread-send" aria-label="Send"/);
+ assert.match(markup,/id="thread-settings" aria-label="Food chat settings"/);
+ assert.match(thread,/data-more aria-label="More options for this message"/);assert.match(thread,/class="thread-food" data-entry=/,'tap a logged food to edit it');
+ console.log('Food chat: one bar (+, text, send), every tool in the + menu, labelled ⋯ controls, tap-to-edit foods PASS');
+}

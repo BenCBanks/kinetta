@@ -1764,50 +1764,71 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .empty-meal-ways button {font-size:1rem;min-height:44px;flex:1 1 9rem;white-space:normal}
 
 .food-thread { font-size: 1rem; height: calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom)); min-height: 0; display: flex; flex-direction: column; padding-bottom: 8px; }
-.thread-heading { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.food-thread h1 { margin: 20px 0 4px; }
-.thread-intro { margin: 0 0 24px; color: var(--tx2); }
-#thread-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 24px; padding-bottom: 8px; }
+/* Food chat, simplified (2026-10-18, owner: "busy and messy"): a small header, bubbles, one composer bar. */
+.thread-heading { flex-shrink: 0; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.thread-heading .back { justify-self: start; }
+.thread-heading #thread-settings { justify-self: end; }
+.food-thread h1, .food-thread.has-messages > h1, .food-thread .thread-heading h1 { margin: 0; font: 650 1.05rem/1.3 var(--font); }
+.thread-intro { margin: 8px 0 0; color: var(--tx2); font-size: .85rem; text-align: center; }
+#thread-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 14px; padding: 12px 0 8px; }
 #thread-messages article { min-width: 0; overflow-wrap: anywhere; }
-.thread-user { margin: 0 0 10px auto; max-width: 90%; padding: 12px 16px; border-radius: 18px 18px 4px 18px; background: var(--card2); }
+.thread-user { margin: 0 0 8px auto; width: fit-content; max-width: 80%; padding: 10px 14px; border-radius: 20px 20px 6px 20px; background: var(--accent); color: var(--ontx); }
 .thread-user p { margin: 0; white-space: pre-wrap; }
-.thread-user time { display: block; font-size: .8rem; color: var(--tx2); margin-top: 6px; }
-.thread-card { padding: 16px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
-.thread-card p { margin: 10px 0; }
-.thread-food { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-block: 10px; }
-.thread-food div { min-width: 0; }
-.thread-food strong, .thread-food span { display: block; }
-.thread-food span { font-size: .85rem; color: var(--tx2); margin-top: 4px; }
-.thread-feedback { color: var(--tx); }
+.thread-card { max-width: 92%; padding: 12px 14px; border-radius: 20px 20px 20px 6px; background: var(--card); border: 1px solid var(--line); }
+.thread-card p { margin: 6px 0; }
+.thread-food { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--tx); font: inherit; text-align: left; border-radius: 0; }
+.thread-food:first-of-type, .thread-destination + .thread-food, .thread-updated + .thread-food { border-top: 0; }
+button.thread-food { cursor: pointer; }
+.thread-food .tf-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.thread-food small { font-size: .8rem; color: var(--tx2); }
+.thread-food .tf-kcal { flex: none; font-weight: 650; }
+.thread-food .tf-kcal small { font-weight: 400; }
+.thread-total { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; font-size: .9rem; }
+.thread-more { margin-left: auto; color: var(--tx2); }
+/* A reply with nothing to do but ⋯ keeps it beside the text instead of on its own row. */
+.thread-card { position: relative; }
+.thread-card:has(.thread-actions > .thread-more:only-child) { padding-right: 52px; }
+.thread-actions:has(> .thread-more:only-child) { position: absolute; right: 4px; bottom: 4px; margin: 0; }
+.thread-more svg { width: 20px; height: 20px; }
+.thread-feedback { color: var(--tx2); font-size: .9rem; }
 .thread-error { color: var(--alert); }
-.thread-actions, .thread-choices, .thread-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; }
+.thread-actions, .thread-choices, .thread-shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.thread-actions { margin-top: 4px; }
 .thread-choices { margin-block: 12px; }
-.thread-pending { padding: 12px 16px; border-left: 3px solid var(--accent); background: var(--card); border-radius: var(--r2); }
+.thread-pending { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 12px; font-size: .8rem; color: var(--tx2); }
 .thread-pending p { margin: 0; }
-.thread-destination { color: var(--tx2); text-align: left; justify-content: flex-start; }
+.food-thread .thread-destination { min-height: 32px; padding: 0; color: var(--tx2); font-size: .8rem; text-align: left; justify-content: flex-start; }
+.thread-destination svg { width: 12px; height: 12px; }
 #thread-empty { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 0; }
 #thread-empty h2 { font-size: 1.4rem; }
 #thread-empty p { max-width: 36ch; color: var(--tx2); }
-.thread-composer { flex-shrink: 0; position: relative; margin-top: 12px; padding: 12px 0 4px; background: var(--bg); border-top: 1px solid var(--line); z-index: 3; }
-.thread-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding-bottom: 8px; }
-.thread-compose-row { display: flex; align-items: flex-end; gap: 8px; }
-.thread-compose-row textarea { flex: 1; min-height: 64px; max-height: 28dvh; resize: vertical; font-size: max(16px, 1rem); }
-.thread-compose-row button { min-height: 48px; }
-#thread-status { margin: 6px 0; min-height: 1.5em; font-size: .85rem; color: var(--tx2); }
+.thread-composer { flex-shrink: 0; position: relative; padding: 8px 0 0; background: var(--bg); z-index: 3; }
+.thread-menu { margin-bottom: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); }
+.thread-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.food-thread .thread-tools button { display: grid; justify-items: center; gap: 4px; min-height: 64px; padding: 8px 2px; border: 0; border-radius: 14px; background: none; color: var(--tx); font-size: .78rem; font-weight: 600; overflow-wrap: anywhere; }
+.thread-tools button svg { width: 24px; height: 24px; padding: 8px; box-sizing: content-box; border-radius: 50%; background: var(--accent2); color: var(--accent); }
+#thread-usual-suggestion button { margin-bottom: 8px; }
+.thread-compose-row { display: flex; align-items: flex-end; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 26px; background: var(--card); }
+.thread-compose-row textarea { flex: 1; min-height: 40px; max-height: 160px; padding: 9px 4px; border: 0; background: none; resize: none; font-size: max(16px, 1rem); line-height: 1.4; }
+.thread-compose-row textarea:focus { outline: none; box-shadow: none; }
+/* Chat mode (owner, 2026-10-18): no tab bar while chatting, like a messaging app; ‹ Nutrition goes back. */
+html:has(.food-thread) { --tab-h: 0px; }
+html:has(.food-thread) nav.tabs { display: none; }
+.thread-compose-row:focus-within { border-color: var(--accent); }
+.food-thread .thread-plus, .food-thread .thread-send { flex: none; width: 42px; height: 42px; min-width: 42px; min-height: 42px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.thread-plus { background: var(--card2); color: var(--tx); transition: transform .15s ease; }
+.thread-plus.open svg { transform: rotate(45deg); }
+.thread-send svg, .thread-plus svg { width: 20px; height: 20px; }
+#thread-status { margin: 4px 0 0; min-height: 1.2em; font-size: .8rem; color: var(--tx2); text-align: center; }
+#thread-status:empty { min-height: 0; }
 .food-thread button { min-height: 44px; min-width: 44px; font-size: 1rem; white-space: normal; }
 html.keyboard-open .thread-composer { bottom: env(safe-area-inset-bottom); }
 html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 
-@media (max-height: 650px) { .food-thread > h1, .food-thread > .thread-intro { display: none; } .thread-tools { gap: 2px 8px; } }
+@media (max-height: 650px) { .food-thread > .thread-intro { display: none; } }
 
-.food-thread.has-messages > .thread-intro { display: none; }
-.food-thread.has-messages > h1 { font-size: 1.1rem; margin: 8px 2px 12px; }
 
 .thread-day { font: 650 .9rem/1.4 var(--font); margin: 12px 0; text-align: center; color: var(--tx2); }
-#thread-suggestions { margin-bottom: 8px; }
-@media (max-height: 650px) { .food-thread .thread-tools button, .food-thread .thread-shortcuts button { font-size: .85rem; } }
-.thread-food > div { flex: 1; }
-.thread-food > button { flex-shrink: 0; }
 
 .thread-updated { font-size: .85rem; color: var(--tx2); }
 #thread-usual-suggestion:empty { display: none; }
@@ -1945,7 +1966,7 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .food-thread .shared-recipe-list {flex:1;min-width:0;}
 .food-thread .shared-recipe-row {flex-basis:min(13rem,95%);}
 
-.food-thread:has(.shared-recipe-row) > .thread-intro {display:none;}
+
 .food-thread:has(.shared-recipe-row) #thread-empty {padding:0;visibility:hidden;}
 
 .shared-friends .person {display:grid;grid-template-columns:40px minmax(0,1fr);gap:.65rem;align-items:center;padding:.65rem 0;}

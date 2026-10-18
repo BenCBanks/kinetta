@@ -1166,7 +1166,7 @@ function profilePhotoSheet(done) {
   });
 }
 // Questions, problems and privacy requests (2026-10-16): the same address as the website and privacy policy.
-const SUPPORT_EMAIL = 'KinettaApp@gmail.com';
+const SUPPORT_EMAIL = 'feedback@kinetta.app';
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
   // Personal overview first; secondary account controls retain their existing sheets. Nutrition goal is a food-user tool (#164).
