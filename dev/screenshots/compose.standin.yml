@@ -1,0 +1,8 @@
+# Screenshots only (2026-10-18): start the throwaway app through dev/screenshots/standin.py, which supplies made-up food
+# estimates so the website's food story never calls an AI provider or a public food database. Used with
+#   docker compose -f docker-compose.yml -f dev/screenshots/compose.standin.yml ...
+services:
+  app:
+    command: ["python", "/standin/standin.py"]
+    volumes:
+      - ./dev/screenshots:/standin:ro

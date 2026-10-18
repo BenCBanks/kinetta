@@ -16,7 +16,7 @@ a hot dog and a Diet Coke from Costco
 
 ## 2-things-about-550-kcal-check-below-or-tell-me-what-to-4
 
-2 foods, about **550 kcal**. Check below, or tell me what to change.
+Added to dinner: 2 foods, about **550 kcal**. Undo any time, or tell me what to change.
 
 ## make-it-two-hot-dogs-5
 
@@ -24,7 +24,7 @@ make it two hot dogs
 
 ## now-about-1-100-kcal-ready-to-add-to-dinner-6
 
-Now about **1,100 kcal**. Ready to add to dinner.
+Updated. Dinner is now about **1,100 kcal**.
 
 ## or-snap-a-photo-scan-a-barcode-or-search-your-workouts-7
 
