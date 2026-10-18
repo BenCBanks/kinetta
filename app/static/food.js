@@ -291,7 +291,17 @@ function drawDay(el, D) {
   });
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => copyDay(addDays(D.day, -1), D.day);
 }
-const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}` : `${r1(e.amount)} × ${e.unit === 'dish' ? 'meal' : e.unit}`);
+function servingAmount(e) {
+  const label = e.ref?.serving?.label?.trim();
+  if (!label || /^1?\s*(?:serving|portion)s?$/i.test(label)) return `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}`;
+  // Keep the estimate's household unit and fractional precision; a serving may
+  // be a cup, a fluid ounce or a named portion. Never infer a weight from it.
+  const unit = label.match(/^1\s+(cups?|fl\.?\s*oz|fluid ounces?|bowls?|slices?|pieces?|tbsp|tsp|tablespoons?|teaspoons?|ml|liters?|litres?|cans?|bottles?|glasses?|bars?|scoops?|packets?|mugs?)$/i);
+  const amount = Number(Number(e.amount).toFixed(3));
+  if (unit) return `${amount} ${unit[1]}`;
+  return amount === 1 ? label : `${amount} × ${label}`;
+}
+const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? servingAmount(e) : `${r1(e.amount)} × ${e.unit === 'dish' ? 'meal' : e.unit}`);
 const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
 
 async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
