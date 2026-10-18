@@ -41,6 +41,7 @@ node dev/tests/test_ui_state.js
 node dev/tests/test_onboarding.js
 node dev/tests/test_home_food.js
 node dev/tests/test_navigation.js
+node dev/tests/test_ui_clarity.js
 python3 dev/tests/test_food_thread_facts.py
 python3 dev/tests/test_weekly_food_review.py
 python3 dev/tests/test_recipe_link.py
