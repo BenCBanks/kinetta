@@ -185,9 +185,10 @@ function getStarted(healthConnected = false, hasHistory = false) {
   return rows.length ? `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">${rows.join('')}</div>` : '';
 }
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
-// Me's shortcut row: one tap to every main area, each with a small icon (owner 2026-10-18: "cute little icons").
-const ME_SHORTCUTS = [['/track', 'track', 'Record'], ['/activity', 'activity', 'Activities'], ['/progress', 'progress', 'Progress'],
-  ['/progress?view=fitness', 'heart', 'Fitness'], ['/plan', 'calendar', 'Plan'], ['/food', 'food', 'Nutrition']];
+// Me's shortcuts (owner 2026-10-18): small round icons for places one level deeper than the tab bar, never a repeat
+// of a tab. Friends and Goals live here instead of in the list below.
+const ME_SHORTCUTS = [['/plan', 'calendar', 'Plan'], ['/progress?view=fitness', 'flame', 'Fitness'], ['/progress?view=records', 'trophy', 'Records'],
+  ['/progress/routes', 'dist', 'Routes'], ['/me/goals', 'target', 'Goals'], ['/me/friends', 'people', 'Friends']];
 async function meOverview(el) {
   // A greeting instead of the word "Me" (2026-10-16, Ben: "Hi, Ben"); your photo at the top right opens your profile,
   // which replaces the separate name row that used to sit under the chart.
@@ -198,7 +199,8 @@ async function meOverview(el) {
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
-    <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => `<a href="${href}">${svg(ico)}<span>${label}</span></a>`).join('')}</nav>
+    <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => { const waiting = href === '/me/friends' && App.me.friend_requests;
+      return `<a href="${href}"${waiting ? ` aria-label="${label}, ${App.me.friend_requests} waiting"` : ''}>${svg(ico)}<span>${label}</span>${waiting ? `<b class="badge alert">${App.me.friend_requests}</b>` : ''}</a>`; }).join('')}</nav>
     <div id="t-last"></div>
     <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
     <div id="t-combined-week"></div><div id="t-friends"></div>
@@ -1179,7 +1181,7 @@ route(/^\/me$/, 'me', async (el) => {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
+    <div class="card list me-tools">${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
     <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}

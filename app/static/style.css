@@ -1545,6 +1545,8 @@ html.keyboard-open .kb-done { display: flex; }
   border-radius: 18px; background: var(--card); color: var(--tx); font-size: .85rem; font-weight: 600; text-align: center; overflow-wrap: anywhere; }
 .me-shortcuts a svg { width: 22px; height: 22px; padding: 9px; box-sizing: content-box; border-radius: 50%; background: var(--accent2); color: var(--accent); }
 .me-shortcuts a:active { transform: scale(.96); }
+.me-shortcuts a { position: relative; }
+.me-shortcuts .badge { position: absolute; top: 8px; right: 10px; }
 .me-agenda > h2 { margin-bottom: 12px; }
 .me-day-links { display: grid; grid-template-columns: 1fr; border-block: 1px solid var(--line); }
 .me-day-links a { display: flex; align-items: center; gap: 8px; min-height: 60px; font-size: 14px; color: var(--ink); }

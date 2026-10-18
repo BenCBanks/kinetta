@@ -730,8 +730,9 @@ behaviour (outbox, choices, Undo, corrections, daily note, Kit) is unchanged.
 
 ## Me as a landing pad (18 October, owner)
 
-Me is a simple landing pad: the greeting, high-level stats (the 14-day chart), then one row of six icon shortcuts
-(Record, Activities, Progress, Fitness, Plan, Nutrition) with small round icons, then the latest activity. **Your day**
+Me is a simple landing pad: the greeting, high-level stats (the 14-day chart), then six icon shortcuts with small round
+icons to places one level deeper than the tab bar, never repeating a tab: Plan, Fitness, Records, Routes, Goals and
+Friends (with a friend-request badge). Friends and Goals moved here from the list lower on Me. Then the latest activity. **Your day**
 appears only when it has something: an enrolled plan, or food logged today (its compact card and any pending weekly
 check-in). Nobody sees a food card on Me for a day with nothing logged; the food & training week also needs food today.
 Friends recently, setup, goals and Fitness & freshness follow. The Plan shortcut replaces the old Training plan row.
