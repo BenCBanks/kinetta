@@ -251,23 +251,30 @@ def route_name(c, aid):
 
 def match_route(c, user_id, aid):
     a = c.execute("""SELECT sport, distance_m, geom IS NOT NULL AS has_geom,
-                        summary_overrides ?| array['distance_m','moving_s','elapsed_s'] AS corrected FROM activities WHERE id = %s""", (aid,)).fetchone()
+                        summary_overrides ?| array['distance_m','moving_s','elapsed_s'] AS corrected FROM activities WHERE id = %s AND user_id = %s""", (aid,user_id)).fetchone()
     # a corrected distance/time no longer belongs to its recording, so it isn't matched to routes until restored
-    if not a['has_geom'] or not a['distance_m'] or a['distance_m'] < 400 or a['corrected']: return None
+    if not a or not a['has_geom'] or not a['distance_m'] or a['distance_m'] < 400 or a['corrected']: return None
     group = SPORT_GROUP.get(a['sport'], 'other')
     sports = [s for s, g in SPORT_GROUP.items() if g == group]
+    # Rank cheap candidates before the expensive shape comparison. MATERIALIZED
+    # keeps that comparison outside the sort; the named sort key lets Postgres 17
+    # carry the order through the CTE and stop at the first matching route.
     m = c.execute("""
-        SELECT o.id, o.route_id FROM activities o, activities n
-        WHERE n.id = %s AND o.user_id = %s AND o.id <> n.id AND o.sport = ANY(%s) AND o.geom IS NOT NULL
-          AND NOT o.summary_overrides ?| array['distance_m','moving_s','elapsed_s']
-          AND o.distance_m BETWEEN n.distance_m * 0.93 AND n.distance_m * 1.07
-          AND ST_DWithin(o.start_pt, n.start_pt, 200) AND ST_DWithin(o.end_pt, n.end_pt, 200)
-          -- points every 50 map units (~38 m here) instead of densifying 20x per segment: same scores within a few metres,
-          -- ~16x faster (home-start runs have dozens of candidates)
-          AND ST_FrechetDistance(ST_Segmentize(ST_Transform(ST_Simplify(o.geom, 0.0001), 3857), 50),
-                                 ST_Segmentize(ST_Transform(ST_Simplify(n.geom, 0.0001), 3857), 50))
-              < 250 / cos(radians(ST_Y(ST_StartPoint(n.geom))))
-        ORDER BY (o.route_id IS NULL), o.start_time DESC LIMIT 1""", (aid, user_id, sports)).fetchone()
+        WITH candidates AS MATERIALIZED (
+          SELECT o.id, o.route_id, o.start_time, (o.route_id IS NULL) AS unmatched,
+                 o.geom AS old_geom, n.geom AS new_geom
+          FROM activities o, activities n
+          WHERE n.id = %s AND o.user_id = %s AND n.user_id = o.user_id AND o.id <> n.id AND o.sport = ANY(%s) AND o.geom IS NOT NULL
+            AND NOT o.summary_overrides ?| array['distance_m','moving_s','elapsed_s']
+            AND o.distance_m BETWEEN n.distance_m * 0.93 AND n.distance_m * 1.07
+            AND ST_DWithin(o.start_pt, n.start_pt, 200) AND ST_DWithin(o.end_pt, n.end_pt, 200)
+          ORDER BY unmatched, o.start_time DESC
+        )
+        SELECT id, route_id FROM candidates
+        WHERE ST_FrechetDistance(ST_Segmentize(ST_Transform(ST_Simplify(old_geom, 0.0001), 3857), 50),
+                                ST_Segmentize(ST_Transform(ST_Simplify(new_geom, 0.0001), 3857), 50))
+            < 250 / cos(radians(ST_Y(ST_StartPoint(new_geom))))
+        ORDER BY unmatched, start_time DESC LIMIT 1""", (aid, user_id, sports)).fetchone()
     if not m: return None
     rid = m['route_id']
     if rid is None:
