@@ -185,22 +185,27 @@ function getStarted(healthConnected = false, hasHistory = false) {
   return rows.length ? `<h2 class="sec-head">${hasHistory ? 'Finish setup' : 'Get started'}</h2><div class="card list">${rows.join('')}</div>` : '';
 }
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
+// Me's shortcut row: one tap to every main area, each with a small icon (owner 2026-10-18: "cute little icons").
+const ME_SHORTCUTS = [['/track', 'track', 'Record'], ['/activity', 'activity', 'Activities'], ['/progress', 'progress', 'Progress'],
+  ['/progress?view=fitness', 'heart', 'Fitness'], ['/plan', 'calendar', 'Plan'], ['/food', 'food', 'Nutrition']];
 async function meOverview(el) {
   // A greeting instead of the word "Me" (2026-10-16, Ben: "Hi, Ben"); your photo at the top right opens your profile,
   // which replaces the separate name row that used to sit under the chart.
-  // Activity-first again (owner decision 2026-10-18, #164): the 14-day chart and latest activity lead; food, the weekly
-  // check-in and the food & training week appear only for people using food tracking.
+  // A simple landing pad (owner decisions 2026-10-18): high-level stats, then one row of icon shortcuts to everything
+  // else; the 14-day chart and latest activity lead. Food, the weekly check-in and the food & training week appear only
+  // once something is logged today. Your day shows only when it has something in it.
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
+    <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => `<a href="${href}">${svg(ico)}<span>${label}</span></a>`).join('')}</nav>
     <div id="t-last"></div>
-    <section class="me-agenda"><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div>
-      <div class="me-day-links"><a href="/plan">${svg('calendar')}Training plan${svg('chev')}</a></div></section>
+    <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
     <div id="t-combined-week"></div><div id="t-friends"></div>
     <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
-  // The Training plan row only stays when there is no plan card above it (2026-10-16: no shortcut twice on one screen).
-  planCard($('#t-plan', el)).then(() => { if (el.isConnected && $('#t-plan a[href="/plan"]', el)) $('.me-day-links', el)?.remove(); }).catch(() => {});
+  // Your day appears only when the plan or food card (or a pending check-in) has something to show.
+  const agenda = () => { const box = $('.me-agenda', el); if (box) box.hidden = !['#t-plan', '#t-food', '#t-checkin'].some(id => $(id, el)?.innerHTML.trim()); };
+  planCard($('#t-plan', el)).then(agenda).catch(() => {});
   let foodHistory=null,activityHistory=null,healthConnected=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null)return;
@@ -208,16 +213,17 @@ async function meOverview(el) {
     $('#t-setup', el).innerHTML = getStarted(healthConnected, activityHistory||foodHistory) +
       (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
   };
-  todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:on=>{
-    if(!on||!el.isConnected)return;
-    weeklyCheckinCard($('#t-checkin',el),{home:true});
+  todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
+    agenda();
+    if(!loggedToday||!el.isConnected)return;
+    weeklyCheckinCard($('#t-checkin',el),{home:true}).then(agenda);
     combinedWeek($('#t-combined-week',el));
   }}).catch(() => {
     if (!el.isConnected) return;
     foodHistory=false;drawSetup();
     // Only food users see a failure here; for anyone else the food card would have been empty anyway.
     if (!App.me.food_user && !App.me.kcal_target) return;
-    $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="ghost wide" id="tf-retry">Try again</button></div>';
+    $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="ghost wide" id="tf-retry">Try again</button></div>';agenda();
     $('#tf-retry',el).onclick = () => { invalidate('/api/food/day'); render(); };
   });
   // The existing feed applies friendship and sharing rules on the server; food never enters it.

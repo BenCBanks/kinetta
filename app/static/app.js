@@ -484,7 +484,7 @@ function render() {
   const el = $('#page');
   if (typeof Track !== 'undefined') Track.sync();
   const key = location.pathname + location.search;
-  // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab slides it in.
+  // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab fades it in.
   if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t)) el.classList.add('enter'); App.lastPath = location.pathname; }
   if (Native.syncPush) Native.syncPush();
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab

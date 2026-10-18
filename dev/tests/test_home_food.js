@@ -11,8 +11,11 @@ const box={isConnected:true,innerHTML:'old'};let foodUser;
 // Not using food tracking: Me shows no food at all, not even an invitation.
 context.day={day:'2026-10-17',food_user:false,has_history:true,entries:[],totals:{kcal:0,protein_g:0,carbs_g:0,fat_g:0},goal:{},burned:{items:[]}};
 context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(box.innerHTML,'');assert.equal(foodUser,false);assert.equal(context.App.me.food_user,false);
-// A food user with a goal and an empty today: compact numbers and one Log food button.
+// A food tracker with a goal but nothing logged today: still no food on Me (owner 2026-10-18), though Progress keeps food.
 context.day={...context.day,food_user:true,goal:{kcal:2000},targets:{protein_target:120}};
+box.innerHTML='old';context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(box.innerHTML,'');assert.equal(foodUser,false);assert.equal(context.App.me.food_user,true);
+// Something logged today: compact numbers and one Log food button.
+context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:0,protein_g:0,carbs_g:0,fat_g:0}};
 context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(foodUser,true);assert.match(box.innerHTML,/Food today/);assert.match(box.innerHTML,/Left 2000 kcal/);assert.match(box.innerHTML,/Protein 0\/120 g/);
 assert.equal((box.innerHTML.match(/<button/g)||[]).length,1,'one logging button on Me');assert.doesNotMatch(box.innerHTML,/Describe|Snap|Scan|Usual|Same as yesterday|kcal burned/);
 nodes.get('#tf-add').onclick();assert.deepEqual(calls.pop(),['describe','2026-10-17','lunch']);
@@ -22,7 +25,7 @@ context.todayFoodCard(box);assert.match(box.innerHTML,/Eaten 2430 kcal/);assert.
 context.day={...context.day,food_user:false,goal:{},unknown_nutrients:{protein_g:1},entries:[{meal:'lunch',pending:true}]};
 context.todayFoodCard(box);assert.match(box.innerHTML,/Goal not set/);assert.match(box.innerHTML,/Protein – g/);assert.match(box.innerHTML,/waiting to send/);
 box.isConnected=false;box.innerHTML='left';context.todayFoodCard(box);assert.equal(box.innerHTML,'left');
-console.log('home food: hidden for non-food users, compact food-user card with one Log food action, over/unknown/pending states, detached-view guard PASS');
+console.log('home food: hidden until something is logged today, compact card with one Log food action, over/unknown/pending states, detached-view guard PASS');
 
 // No real camera: both scanner engines reject like an unavailable browser camera.
 (async()=>{

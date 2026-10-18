@@ -44,3 +44,13 @@ console.log('Food chat: Search tool label PASS');
  assert.match(thread,/data-more aria-label="More options for this message"/);assert.match(thread,/class="thread-food" data-entry=/,'tap a logged food to edit it');
  console.log('Food chat: one bar (+, text, send), every tool in the + menu, labelled ⋯ controls, tap-to-edit foods PASS');
 }
+// Me shortcuts (2026-10-18): six labelled icons, each to a registered page.
+{
+ const pages=fs.readFileSync('app/static/pages.js','utf8'),c={};vm.createContext(c);
+ vm.runInContext(pages.match(/const ME_SHORTCUTS = \[[\s\S]*?\]\];/)[0]+'\nglobalThis.list=ME_SHORTCUTS;',c);
+ const list=JSON.parse(JSON.stringify(c.list));assert.deepEqual(list.map(x=>x[2]),['Record','Activities','Progress','Fitness','Plan','Nutrition']);
+ const patterns=[];for(const file of fs.readdirSync('app/static').filter(f=>f.endsWith('.js')))for(const m of fs.readFileSync('app/static/'+file,'utf8').matchAll(/^route\((\/.*?\/),/gm))patterns.push(vm.runInNewContext(m[1]));
+ for(const [href] of list)assert(patterns.some(re=>re.test(href.split('?')[0])),href+' is a real page');
+ assert(!/me-day-links/.test(pages),'the old Training plan row is replaced by the Plan shortcut');
+ console.log('Me shortcuts: Record, Activities, Progress, Fitness, Plan, Nutrition, each a real page PASS');
+}
