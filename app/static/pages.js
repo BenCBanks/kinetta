@@ -1164,11 +1164,11 @@ function profilePhotoSheet(done) {
 const SUPPORT_EMAIL = 'KinettaApp@gmail.com';
 route(/^\/me$/, 'me', async (el) => {
   const me = App.me;
-  // Personal overview first; secondary account controls retain their existing sheets.
+  // Personal overview first; secondary account controls retain their existing sheets. Nutrition goal is a food-user tool (#164).
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`)}${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
+    <div class="card list me-tools">${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/friends"', 'people', 'c-brand', 'Friends', me.friend_requests ? `${me.friend_requests} waiting` : '')}${row('a', 'href="/me/goals"', 'target', 'c-brand', 'Goals')}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
     <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
