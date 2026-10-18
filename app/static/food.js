@@ -87,17 +87,18 @@ async function weeklyFoodReviewCard(box){
   try{await load('/api/food/weekly-review',data=>{if(!valid())return;shown=!!data.entries;box.innerHTML=data.entries?weeklyReviewHtml(data):'';});}
   catch(e){if(!valid())return;const error='<div class="card"><p>'+ (shown?'Saved review shown. It could not refresh.':'Your weekly food review could not load.')+'</p><button type="button" class="linkbtn" data-weekly-retry>Retry review</button></div>';if(shown)box.insertAdjacentHTML('beforeend',error);else box.innerHTML=error;box.querySelector('[data-weekly-retry]').onclick=()=>weeklyFoodReviewCard(box);}
 }
-// Me is activity-first (owner decision 2026-10-18, #164): food shows only for people using it (a calorie goal or food
-// in the last 14 days), as one compact card with a single Log food button. Every other way to log lives in Nutrition.
+// Me is activity-first (owner decisions 2026-10-18): food appears on Me only once something is logged today, as one
+// compact card with a single Log food button. Every other way to log lives in Nutrition. food_user (a goal or food in
+// the last 14 days) still tells Progress whether to offer its Food & weight half.
 function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
   return load('/api/food/day', (D) => {
     if (!box.isConnected) return;
     onHistory?.(!!D.has_history || D.entries.length>0);
     App.mealHours = D.meal_hours || App.mealHours;
-    const foodUser = !!D.food_user || D.entries.length > 0;
-    if (App.me) App.me.food_user = foodUser;
-    onFoodUser?.(foodUser);
-    if (!foodUser) { box.innerHTML = ''; return; }
+    const loggedToday = D.entries.length > 0;
+    if (App.me) App.me.food_user = !!D.food_user || loggedToday;
+    onFoodUser?.(loggedToday);
+    if (!loggedToday) { box.innerHTML = ''; return; }
     const g = D.goal?.kcal, T = D.totals, pt = D.targets?.protein_target, left = g == null ? null : g - T.kcal;
     const protein = D.unknown_nutrients?.protein_g ? (D.unknown_nutrients.protein_g >= D.entries.length ? '–' : r0(T.protein_g) + '+') : r0(T.protein_g) + (pt ? '/' + r0(pt) : '');
     box.innerHTML = `<div class="card tfood" aria-label="Today’s food"><h2>Food today<a class="more" href="/food">Open log ›</a></h2>

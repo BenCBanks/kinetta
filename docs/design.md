@@ -296,8 +296,8 @@ Nutrition owns the resting-source preference, distinct from the food goal and ac
 - **Haptics:** sending Cheers gives a medium tap and removing it a light tap; holding Cheers to see people gives a
   selection tick. The iPhone app uses the Taptic Engine (`NativeHaptics.swift`, respects System Haptics); Android
   browsers vibrate briefly; Safari has no haptics. Never make a buzz a required signal.
-- **Navigation speed:** switching tabs shows the page instantly with no fade; screens opened inside a tab slide in from
-  the side in about 0.18 s. The tab bar persists between screens instead of being rebuilt, and it is solid, so no
+- **Navigation speed:** switching tabs shows the page instantly with no fade; screens opened inside a tab fade in
+  in about 0.2 s (a fade only since 18 October: the slide's leftover transform left pinned bars cut off on iPhone). The tab bar persists between screens instead of being rebuilt, and it is solid, so no
   background blur is drawn behind it.
 - **Less repetition:** Me drops its Training plan / Log food shortcut rows when the plan or food card above already
   shows that link or button. Progress's table is a slim fold row. Activity dates on the detail screen wrap instead of
@@ -725,5 +725,16 @@ behaviour (outbox, choices, Undo, corrections, daily note, Kit) is unchanged.
   right; several foods get one total; Undo is a quiet link; ⋯ holds Correct in chat and Delete message text. A reply with
   nothing else to do keeps ⋯ beside its text. Waiting/offline status is a small line under the bubble.
 - **Composer:** one rounded bar: +, the text field (grows to a few lines) and a round send arrow. Everything else (Snap,
-  Photo, Scan, Search, Usuals, Recipes, Paste, the one-tap usual and Daily note) lives in the + menu as icon tiles, which
+  Photo, Scan, Search, Usuals, Recipes, Paste, the one-tap usual and Daily note) lives in the + menu as plain icon tiles (no circles), which
   closes when you type or pick a tool. Transient "Saved" messages clear themselves.
+
+## Me as a landing pad (18 October, owner)
+
+Me is a simple landing pad: the greeting, high-level stats (the 14-day chart), then six icon shortcuts with small round
+icons to places one level deeper than the tab bar, never repeating a tab: Plan, Fitness, Records, Routes, Goals and
+Friends (with a friend-request badge). Plain green icons, no circles behind them (owner, 18 October). Friends and Goals moved here from the list lower on Me. Then the latest activity. **Your day**
+appears only when it has something: an enrolled plan, or food logged today (its compact card and any pending weekly
+check-in). Nobody sees a food card on Me for a day with nothing logged; the food & training week also needs food today.
+Friends recently, setup, goals and Fitness & freshness follow. The Plan shortcut replaces the old Training plan row.
+Bottom action bars such as Start this plan are pinned above the tab bar and the page reserves room for them.
+
