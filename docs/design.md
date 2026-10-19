@@ -30,7 +30,9 @@ AGENTS.md and CLAUDE.md link here; the shared DesignPrinciples agent guide conta
 | On primary action | White `#FFFFFF` | White `#FFFFFF` |
 | Success/progress | `#27715B` | `#8AD0B5` |
 | Error/destructive | `#C62828` | `#FF7B72` |
-| Warning | `#9A6200` | `#E8B85A` |
+| Control outline | `#7B8980` | `#82998C` |
+| On error fill | `#FFFFFF` | `#101C18` |
+| Warning | `#925C00` | `#E8B85A` |
 
 Color must explain something. Running uses evergreen, cycling slate blue, walking sage, swimming teal, hiking earth,
 rowing muted violet and lifting olive. Protein is slate blue, carbs amber and fat clay. Full light/dark values are in
@@ -857,3 +859,42 @@ different correction target, and estimated household units are not learned from 
 Existing consent/access/budget checks, public food catalogs and AI estimates remain; this does not add
 web grounding, change model prompts or establish model accuracy. Broader semantic ambiguity still
 requires reviewed real-provider evaluation under the AI architecture rules.
+
+## Color roles and compact screen hierarchy (19 October 2026)
+
+Keep the approved ivory/evergreen identity. There is no category requirement that a fitness or food app use a
+particular hue; Kinetta's palette is a brand choice. Readability, consistent roles and meaningful states determine
+whether it works. Use brand for navigation/actions, neutral text for ordinary numbers, named sport/macro series for
+charts, and labelled warning/error states for actual problems. A calorie surplus/deficit is a signed, named quantity,
+not a diagnosis or a moral judgement. Never make color the only way to understand a value, selection or chart.
+
+Use 4.5:1 contrast for ordinary text, including placeholders, across the surface where it actually appears; large
+text may use the WCAG 3:1 exception. Required control boundaries, focus and meaningful chart marks need 3:1 against
+adjacent surfaces. The `outline` token is for fields; the quieter `divider` token remains decorative. `on-error`
+pairs with the error fill; do not put white on the bright dark-theme error color. Small chart badges use neutral
+text plus a series mark. Calendar dates remain readable for adjacent months; solid, segmented, double-line and dotted food-status marks match their legend as well as their colors. Keep labels/direct values and existing
+accessible descriptions alongside chart colors. Test real rendered combinations as well as canonical tokens.
+The shared generator checks 150 text/action/semantic/outline/chart pairs in light and dark modes.
+
+Light/dark appearances have their own colors; do not invert the entire screen. Map tile treatment is consistent
+across preview, live, feed and detail maps; overlays and route strokes retain their own colors. Attribution uses an
+opaque theme surface. Isolate Leaflet layers below navigation and use 44px map buttons. Prefer 44px touch targets
+throughout Kinetta; WCAG's 24 CSS-pixel AA target criterion has spacing and other exceptions and is a different bar.
+Respect enlarged text, reduced motion and increased contrast; compact layouts must not shrink inputs below16px.
+
+Nutrition leads with its existing goal/calorie summary, three labelled macros and meals; more nutrients, energy
+sources/breakdown and optional training explanations follow the meal log. Progress keeps Totals/Fitness/Records/More
+stable and names the selected deeper view with a heading and selected More indicator. Explore keeps all searchable
+help text, with a category selector and expandable feature rows. The admin portal keeps desktop navigation, uses a
+labelled section selector on phones, balances metric cards in three/two columns and folds count methodology/daily
+rows behind named disclosures. Identity/session details remain available. Food review groups whole-recipe yield
+separately from today's destination/portion; its confirmation names the selected actions, follows the required fields and preserves drafts.
+
+Research: [Apple Dark Mode](https://developer.apple.com/design/human-interface-guidelines/dark-mode),
+[Apple UI design tips](https://developer.apple.com/design/tips/),
+[Material color roles](https://m3.material.io/m3/pages/color-roles),
+[WCAG text contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html),
+[non-text contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html),
+[use of color](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html) and
+[target size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
+This is a design standard, not a claim that every legacy component or physical iPhone flow is fully accessible.

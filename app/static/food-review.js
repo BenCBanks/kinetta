@@ -14,12 +14,12 @@ const FoodReview=(()=>{
       <div id="review-foods"></div><div id="review-totals"></div>
       <label class="check"><input type="checkbox" name="save_recipe"${saveRecipe?' checked':''}>Save as a recipe for later</label>
       <div id="review-name" hidden><label>Recipe name<input name="name" maxlength="80" autocomplete="off" placeholder="Name this recipe"></label></div>
-      <label class="check"><input type="checkbox" name="log_today" checked>Log food today</label>
-      <div id="review-destination"><label>Meal today<select name="meal"><option value="">Choose a meal</option>${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}"${k===meal?' selected':''}>${n}</option>`).join('')}</select></label></div>
-      <div id="review-recipe-basis" hidden><label>How is the whole recipe measured?<select name="basis"><option value="">Choose servings or weight</option><option value="servings">By servings</option><option value="weight">By cooked weight</option></select></label>
+      <div id="review-recipe-basis" hidden><h3>Whole recipe</h3><label>How is the whole recipe measured?<select name="basis"><option value="">Choose servings or weight</option><option value="servings">By servings</option><option value="weight">By cooked weight</option></select></label>
         <label id="review-yield" hidden>Servings in the whole recipe<input name="servings" inputmode="decimal" placeholder="How many does it make?"></label>
         <label id="review-weight" hidden>Whole cooked weight (g)<input name="total_g" inputmode="decimal" placeholder="Enter the total cooked weight"></label>
       </div>
+      <label class="check"><input type="checkbox" name="log_today" checked>Log food today</label>
+      <div id="review-destination"><h3>Your food today</h3><label>Meal today<select name="meal"><option value="">Choose a meal</option>${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}"${k===meal?' selected':''}>${n}</option>`).join('')}</select></label></div>
       <div id="review-log-amount"><label>Amount to log<select name="amount_kind"><option value="whole">The entered amounts above</option><option value="portion">A portion of this recipe</option></select></label>
         <label id="review-portion" hidden><span id="review-portion-label">Your portion</span><input name="portion" inputmode="decimal" placeholder="How much did you eat?"></label>
       </div>

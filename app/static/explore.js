@@ -48,20 +48,19 @@ route(/^\/me\/explore$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Explore Kinetta</h1>
     <p>Your guide to the everyday tools and the less obvious ones. Come back any time.</p>
     <form class="searchbox guide-search" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" aria-label="Search features" placeholder="Try weight, meals, maps or plans" autocomplete="off"></form>
-    <div class="guide-categories" role="group" aria-label="Feature categories"></div><p class="small muted" id="guide-count" role="status"></p><div id="guide-results"></div>`;
+    <label class="guide-categories">Category<select id="guide-category" aria-label="Feature category"></select></label><p class="small muted" id="guide-count" role="status"></p><div id="guide-results"></div>`;
   wireBack(el, '/me');
   let category = 'All';
   const cats = ['All', ...new Set(FEATURE_GUIDE.map((f) => f[0]))];
-  $('.guide-categories', el).innerHTML = cats.map((c) => `<button class="pill" data-guide-category="${esc(c)}" aria-pressed="${c === category}">${esc(c)}</button>`).join('');
+  $('#guide-category', el).innerHTML = cats.map(c=>`<option>${esc(c)}</option>`).join('');
   const draw = () => {
     const words = $('input', el).value.toLowerCase().trim().split(/\s+/).filter(Boolean);
     const rows = FEATURE_GUIDE.filter((f) => (category === 'All' || f[0] === category) && words.every((w) => f.join(' ').toLowerCase().includes(w)));
     $('#guide-count', el).textContent = `${rows.length} feature${rows.length === 1 ? '' : 's'}`;
-    $('#guide-results', el).innerHTML = rows.length ? rows.map(([group,title,desc,href,how,,feature]) => `<article class="card feature-guide-card"><div class="eyebrow">${esc(group)}${feature && !aiCan(feature) ? ' · optional AI' : ''}</div>
-      <h2>${esc(title)}</h2><p>${esc(desc)}</p><details><summary>How to use it</summary><p>${esc(how)}</p></details><a class="guide-open" href="${href}">Open ${esc(title)} ${svg('chev')}</a></article>`).join('') : '<div class="card empty">No features match. Try a shorter search or choose All.</div>';
+    $('#guide-results', el).innerHTML = rows.length ? rows.map(([group,title,desc,href,how,,feature]) => `<article class="card feature-guide-card"><details><summary><span><small class="eyebrow">${esc(group)}${feature && !aiCan(feature) ? ' · optional AI' : ''}</small><b>${esc(title)}</b></span></summary><p>${esc(desc)}</p><p>${esc(how)}</p><a class="guide-open" href="${href}">Open ${esc(title)} ${svg('chev')}</a></details></article>`).join('') : '<div class="card empty">No features match. Try a shorter search or choose All.</div>';
   };
   $('form', el).onsubmit = (e) => { e.preventDefault(); $('input', el).blur(); };
   $('input', el).oninput = draw;
-  $$('[data-guide-category]', el).forEach((b) => b.onclick = () => { category = b.dataset.guideCategory; $$('[data-guide-category]', el).forEach((x) => x.setAttribute('aria-pressed', x === b)); draw(); });
+  $('#guide-category',el).onchange=e=>{category=e.target.value;draw();};
   draw();
 });

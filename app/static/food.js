@@ -183,7 +183,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
   body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <p class="food-library-link"><a href="/food/meals">${svg('pot')}My recipes &amp; foods${svg('chev')}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-training"></div><div id="fd-meals"></div>`;
+    <p class="food-library-link"><a href="/food/meals">${svg('pot')}My recipes &amp; foods${svg('chev')}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div><div id="fd-details"></div><div id="fd-training"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -242,13 +242,14 @@ function drawDay(el, D) {
   const energyDetails = B.day_burn != null && (watchResting || B.deficit != null);
   const restingSourceLink = `<a class="small more-link" id="fd-resting-source" href="/food?view=needs">Resting calories: ${watchResting ? 'Apple Health' : 'Kinetta estimate'} · change ›</a>`;
   const fresh = !D.has_history && !D.entries.length && goal == null;
+  $('#fd-details',el).replaceChildren();
   if (fresh) firstFood($('#fd-sum', el), D.day);
   else $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
       <div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories eaten' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} eaten of ${r0(goal)}</p>`}</div>
         <button class="ghost" id="fd-goal" aria-label="Set the calorie goal for this day">${svg('edit')} ${goal == null ? 'Set goal' : 'Goal'}</button></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
       <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div><div class="macro-line"><b>${n}</b><span class="num">${macroTotal(D,k,target)}</span></div>${target && !D.unknown_nutrients?.[k] ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
-      ${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
+      <div class="nutrition-secondary">${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
       ${!energyDetails && goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
       ${!watchResting && B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>' : B.day_burn == null ? `<p class="small muted tc-bal">Resting calories have not synced for this day. Activities: ${r0(B.kcal)} kcal. Total burn is waiting for resting data.</p>`
@@ -263,7 +264,9 @@ function drawDay(el, D) {
         ${row(today ? watchResting ? 'Burned so far' : 'Burned by end of day' : 'Total burned', neg(B.day_burn), 'sum', today ? watchResting ? 'synced resting calories + activities already in Kinetta' : 'estimate for the whole day' : '')}
         ${row('Eaten' + sofar, pos(eaten))}
         ${!watchResting && G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
-        ${watchResting ? `<p class="small muted">Your food goal stays independent of calories burned.${today ? ' Resting calories build throughout the day; this is not a full-day projection.' : ''}${B.items.some(a=>a.estimated) ? ' * Activity calories are estimated when no recorded value is available.' : ''}</p>` : ''}<a class="small more-link" href="/food?view=energy">Running total ›</a>${restingSourceLink}</details>`}${energyDetails ? '' : restingSourceLink}</div>`;
+        ${watchResting ? `<p class="small muted">Your food goal stays independent of calories burned.${today ? ' Resting calories build throughout the day; this is not a full-day projection.' : ''}${B.items.some(a=>a.estimated) ? ' * Activity calories are estimated when no recorded value is available.' : ''}</p>` : ''}<a class="small more-link" href="/food?view=energy">Running total ›</a>${restingSourceLink}</details>`}${energyDetails ? '' : restingSourceLink}</div></div>`;
+  const secondary=$('.nutrition-secondary',el);
+  if(secondary){secondary.classList.add('card');$('#fd-details',el).replaceChildren(secondary);}
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
   const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
   // No usual target yet: Set goal opens the full goal setup rather than a one-day override.
