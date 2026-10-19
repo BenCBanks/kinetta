@@ -133,3 +133,13 @@ and returns its usual per-food items. “Not sure” answers send “a typical s
 estimator, and “how many calories in …” questions use the same review-only food path. Acknowledgements, cancel words,
 bare amounts and corrections to unconfirmed cards are code-only and never reach a provider. No model, prompt,
 grounding or budget configuration changed; stand-in tests check routing and wording, not estimate accuracy.
+
+Food-chat understanding (19 October 2026, owner-approved): one small model call per text message, made before the
+account lock and stored on the message so retries never pay twice, returns a validated reading (intent, foods with
+only the amounts actually said, target, meal, question topic). Code acts on it with the existing own-food, catalog,
+estimator, correction and review paths; the model supplies no nutrition and writes nothing. Amounts the model leaves
+blank are recovered only from the person's own words. Its wording is shown for questions and small talk only when every
+number in it was typed by the person or shown on the card, and never mentions calories. The model sees the message,
+the previous message and the unconfirmed card's food names, not the log, Health data or other people. Disabled unless
+`KINETTA_FOOD_CHAT_AI=1` and a reviewed `food_chat_understanding` report matches its fingerprint; otherwise, or on any
+failure, consent/access/budget refusal or daily cap (300 messages), the code-only rules answer as before.

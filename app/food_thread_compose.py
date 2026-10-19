@@ -112,9 +112,24 @@ def merge_unknown(c,uid,message,result):
     result['parts']=[{'index':0,'text':said,'status':'unknown','item':{},'logged':False}]
 
 
-def begin(c,uid,message,resolution,*,aliases=True,destination=None):
+def assume_typical(c,uid,result,assumed=()):
+    """Owner decision (19 Oct 2026, competing with ChatGPT): when only the amount is missing and AI estimates are
+    available, estimate a typical portion and say so on the card instead of asking. The person changes it in
+    Review food before anything is logged. Without AI the catalogs need an amount, so the question stays."""
+    from . import coach
+    names=list(assumed)
+    waiting=[p for p in result['parts'] if p['status']=='description' and (p.get('description') or {}).get('portion_only')]
+    if waiting and coach.allowed(uid,'food',connection=c):
+        for p in waiting:
+            detail=p['description']['detail'];names.append(spoken_food(detail).lower())
+            p.update(text='a typical serving of '+detail,status='unknown',item={},prefer_estimate=False)
+            for k in ('description','question','replies'):p.pop(k,None)
+    if names:result['assumed']=f"I assumed a typical portion of {', '.join(dict.fromkeys(names))}. Change it in Review food if that’s not right."
+
+
+def begin(c,uid,message,resolution,*,aliases=True,destination=None,assumed=()):
     result=engine.make_result(c,uid,message,resolution)
-    if destination:result.update({k:destination[k] for k in ('day','meal')})
+    if destination:result.update({k:destination[k] for k in ('day','meal') if destination.get(k)})
     result['composed']=True
     result['parts']=[own_part(c,uid,item,resolution['issued']) for item in resolution.get('items',[])]
     if (message.get('result') or {}).get('review_only'):
@@ -140,6 +155,7 @@ def begin(c,uid,message,resolution,*,aliases=True,destination=None):
         if alias:resolver._replace_group(result,{p['index'] for p in unresolved},alias)
     if (message.get('result') or {}).get('input',{}).get('kind','text')=='text' and not re.search(r'https?://|www\.',message['body'],re.I):
         for part in result['parts']:description_question(part)
+        assume_typical(c,uid,result,assumed)
     return write(c,uid,message,result)
 
 

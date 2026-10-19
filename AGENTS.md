@@ -119,8 +119,10 @@ and existing keyboard/food-thread regression tests are the reference.
   Preserve normal control actions, text selection, map/photo gestures, and software-keyboard tab visibility.
   Keep input text at least 16px to avoid focus zoom; browser-owned accessory controls are separate.
 - When a food description lacks the details needed to resolve it, ask a brief, specific follow-up
-  about the missing type or amount. Retain details already supplied and the original meal/day;
-  do not invent portions or nutrition or substitute catalog jargon for a helpful question.
+  about the missing type (a bare "taco"). When only the amount is missing and AI estimates are
+  available, assume a typical portion, say so on the card and let the person change it before
+  review (owner decision, 19 October 2026); without AI, ask for the amount. Retain details already
+  supplied and the original meal/day; never invent nutrition or substitute catalog jargon for a helpful question.
   Preserve valid saved-food matches, source/portion validation, explicit confirmation rules,
   ownership and retry safety. Unrelated foods remain separate.
 - Verify keyboard dismissal, draft preservation and focused-field visibility at phone width in both

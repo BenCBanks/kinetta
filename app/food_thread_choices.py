@@ -182,10 +182,10 @@ def retained_parts(previous,result):
 def continued_kind(previous,result):
     return 'preview' if retained_parts(previous,result) else 'continued'
 
-def restate(c,uid,previous,message,result,said):
+def restate(c,uid,previous,message,result,said,assumed=()):
     """Answering a question continues the earlier card as one complete description."""
     resolution=engine.resolve(c,uid,{**message,'body':said})
-    response=C.begin(c,uid,{**message,'body':said},resolution,destination={'day':result['day'],'meal':result['meal']})
+    response=C.begin(c,uid,{**message,'body':said},resolution,destination={'day':result['day'],'meal':result['meal']},assumed=assumed)
     continued=food_thread.finish_reply(c,uid,previous,{**result,'kind':continued_kind(previous,result),'parts':retained_parts(previous,result),'pending_count':0,'can_resolve':False,'continued_to':message['id']})
     return {**response,'messages':continued['messages']+response['messages']}
 
@@ -199,8 +199,8 @@ def typical(c,uid,previous,message,result,part):
     count=(d.get('portion') or {}).get('count')
     if count:return restate(c,uid,previous,message,result,f'{meal_chat.fmt(count)} typical {food}')
     if d.get('portion'):return restate(c,uid,previous,message,result,f'a typical {food}, '+d.get('detail',food))
-    question=f'No problem, I’ll estimate a typical {food}. '+('How many did you have?' if food=='taco' else 'About how big was it?')
-    return wait_on(c,uid,previous,message,result,'typical '+food,food,question,['1','2','3'] if food=='taco' else ['Small','Medium','Large'])
+    # No count either: one typical one, stated on the card (owner decision: assume, say so, let them change it).
+    return restate(c,uid,previous,message,result,f'a typical {food}',assumed=[f'one typical {food}'])
 
 
 def wait_on(c,uid,previous,message,result,detail,food,question,replies):
@@ -257,10 +257,12 @@ def description_follow_up(c,uid,previous,message,result,part,portion):
         elif old.get('grams'):said=meal_chat.fmt(old['grams'])+' g '+said
         elif old.get('share'):said={.5:'half',.25:'a quarter'}.get(old['share'],meal_chat.fmt(old['share']))+' of a '+said
     if not portion and not old and not sizes:
-        # "Chicken" answers the filling question, not the amount question.
-        # Keep the answer without silently treating it as one serving.
-        return wait_on(c,uid,previous,message,result,said,food,'How many tacos did you have? You can also give their total weight.' if food=='taco' else C.amount_question(said),
-                       ['1','2','3'] if food=='taco' else C.AMOUNT_REPLIES)
+        # "Chicken" answers the filling question, not the amount question. With AI estimates a typical portion is
+        # assumed and said on the card (owner decision); without, the amount is asked next.
+        from . import coach
+        if not coach.allowed(uid,'food',connection=c):
+            return wait_on(c,uid,previous,message,result,said,food,'How many tacos did you have? You can also give their total weight.' if food=='taco' else C.amount_question(said),
+                           ['1','2','3'] if food=='taco' else C.AMOUNT_REPLIES)
     return restate(c,uid,previous,message,result,said)
 
 
@@ -293,6 +295,10 @@ CANCEL=re.compile(r"(?:cancel|never ?mind|nvm|forget (?:it|that|about it)|scratc
 def cancel_words(c,uid,message):
     text=re.sub(r'\s+',' ',message['body'].casefold().replace('’',"'")).strip(' .!?,')
     if not CANCEL.fullmatch(text):return None
+    return cancel_latest(c,uid,message)
+
+
+def cancel_latest(c,uid,message):
     previous,result=_draft(c,uid,message)
     if not previous:
         return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'cancel','source':'code','text':'There’s nothing waiting to cancel. Logged food has Undo on its card.'})
@@ -301,19 +307,20 @@ def cancel_words(c,uid,message):
     return {'handled':True,'messages':updated+answer['messages']}
 
 
-def draft_edit(c,uid,message):
-    """'Actually 3 eggs', 'remove the toast' or 'it was lunch' change the unconfirmed card, before anything is logged."""
+def draft_edit(c,uid,message,intent=None,dest=None):
+    """'Actually 3 eggs', 'remove the toast' or 'it was lunch' change the unconfirmed card, before anything is logged.
+    The AI understanding step passes the same intent/destination it read; otherwise the rules parse the words."""
     from . import food_thread_edit as edits
     previous,result=_draft(c,uid,message)
     if not previous:return None
     def done(response,text):
         answer=food_thread.finish_reply(c,uid,message,{'kind':'edit','text':text,'source':'code','targets_message':previous['id']})
         return {**response,'messages':response['messages']+answer['messages']}
-    dest=edits._destination_info(message['body'],message['local_day'])
+    if intent is None and dest is None:dest=edits._destination_info(message['body'],message['local_day'])
     if dest:
         day=dest.get('day') or dt.date.fromisoformat(result['day']);meal=dest.get('meal') or result['meal']
         return done(edits.destination(c,uid,previous,day,meal),f"Okay, {('snack' if meal=='snacks' else meal)} {when_label(day,message['local_day'])}.")
-    intent=edits._intent(message['body'],message['local_day'])
+    intent=intent or edits._intent(message['body'],message['local_day'])
     if not intent or intent.get('destination') or intent.get('invalid'):return None
     parts=[p for p in result['parts'] if not p.get('logged')]
     words=set(intent.get('words') or [])
@@ -381,5 +388,5 @@ def spoken_label(part):
 
 def lower(name):
     """'Large coffee' reads 'large coffee' mid-sentence; keep brands such as 'KIND bar'."""
-    name=name.strip()
+    name=re.sub(r'^(?:an? )?typical (?:serving of )?','',name.strip(),flags=re.I)
     return name[:1].lower()+name[1:] if name[1:2].islower() else name

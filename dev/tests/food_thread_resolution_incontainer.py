@@ -35,6 +35,8 @@ class Resolution(unittest.TestCase):
    rows=c.execute('DELETE FROM ai_food_attempts WHERE user_id=ANY(%s) RETURNING day,charged_micros',(self.uids,)).fetchall()
    for r in rows:c.execute('UPDATE ai_service_budget SET charged_micros=charged_micros-%s WHERE day=%s',(r['charged_micros'],r['day']))
    c.execute('DELETE FROM users WHERE id=ANY(%s)',(self.uids,))
+ def no_ai(self):
+  with db.connect() as c:c.execute('UPDATE profile SET ai_ok=false WHERE user_id=%s',(self.uid,))
  def post(self,path,body=None,client=None,status=200):
   r=(client or self.a).post(path,json=body or {});self.assertEqual(r.status_code,status,r.text[:800]);return r.json()
  def send(self,text,media='text',**extra):
@@ -305,6 +307,7 @@ class Resolution(unittest.TestCase):
 
  def test_missing_amount_asks_before_catalog_or_model(self):
   day=(dt.date.today()-dt.timedelta(days=1)).isoformat()
+  self.no_ai()   # with AI estimates a typical portion is assumed (food_chat_quality); without, the amount is asked
   m,r=self.send('banana',day=day,meal='lunch')
   self.assertIn('Banana — about how much?',self.result(r)['text']);self.assertFalse(self.result(r)['can_resolve'])
   self.resolve(m);self.look.assert_not_called();self.model.assert_not_called();self.assertEqual(self.entries(),[])
@@ -350,7 +353,7 @@ class Resolution(unittest.TestCase):
   self.look.assert_called_once();self.assertIn('2',self.look.call_args.args[0]);self.model.assert_not_called()
 
  def test_32_taco_question_does_not_capture_unrelated_food(self):
-  original,_=self.send('taco');_,r=self.send('banana')
+  self.no_ai();original,_=self.send('taco');_,r=self.send('banana')
   self.assertFalse(self.result(r)['can_resolve'])
   self.assertIn('Banana — about how much?',self.result(r)['text'])
   current=self.a.get('/api/food/thread').json()
@@ -359,6 +362,7 @@ class Resolution(unittest.TestCase):
   self.assertEqual(self.result(r)['parts'][0]['text'],'banana')
 
  def test_33_taco_filling_first_does_not_assume_one(self):
+  self.no_ai()   # without AI estimates; with them a typical portion is assumed and stated (owner, 19 Oct)
   self.send('taco');_,r=self.send('chicken')
   self.assertIn('How many tacos',self.result(r)['text']);self.assertFalse(self.result(r)['can_resolve'])
   self.assertEqual(self.entries(),[]);self.look.assert_not_called();self.model.assert_not_called()
@@ -368,6 +372,7 @@ class Resolution(unittest.TestCase):
   self.assertIn('chicken',self.look.call_args.args[0]);self.assertIn('2',self.look.call_args.args[0])
 
  def test_34_taco_revised_filling_keeps_natural_question_history(self):
+  self.no_ai()   # without AI estimates; with them a typical portion is assumed and stated (owner, 19 Oct)
   original,r=self.send('taco');question=self.result(r)['text']
   self.send('chicken');_,r=self.send('beef')
   self.assertIn('How many',self.result(r)['text']);self.assertEqual(self.entries(),[])
