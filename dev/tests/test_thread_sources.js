@@ -27,7 +27,7 @@ const sendContext={};vm.createContext(sendContext);let saved;const field={value:
 // Household estimate units survive both preview and persisted-food rendering.
 c.r1=v=>Math.round(v*10)/10;
 vm.runInContext(food.slice(food.indexOf('function servingAmount('),food.indexOf('const fmtAmount =')),c);
-for (const [amount,label,expected] of [[.5,'1 cup','0.5 cup'],[.75,'1 cup','0.75 cup'],[20,'1 fl oz','20 fl oz'],[1.5,'1 bowl','1.5 bowl'],[.5,'2 eggs (100 g)','0.5 × 2 eggs (100 g)'],[1,'a small apple','a small apple'],[2,'1 serving','2 servings']]) {
+for (const [amount,label,expected] of [[2,'1 tacos','2 tacos'],[.5,'1 cup','0.5 cup'],[.75,'1 cup','0.75 cup'],[20,'1 fl oz','20 fl oz'],[1.5,'1 bowl','1.5 bowl'],[.5,'2 eggs (100 g)','0.5 × 2 eggs (100 g)'],[1,'a small apple','a small apple'],[2,'1 serving','2 servings']]) {
  assert.equal(c.servingAmount({amount,ref:{serving:{label}}}),expected);
 }
 assert.equal(c.servingAmount({amount:2}),'2 servings','legacy unknown portions stay generic');

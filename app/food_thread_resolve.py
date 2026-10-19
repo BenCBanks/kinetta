@@ -54,6 +54,12 @@ def claim(uid,mid,body):
         message=engine.locked_message(c,uid,mid)
         if message['state']=='pending':engine.process(c,uid,message)
         message=engine.locked_message(c,uid,mid);result=_stored(c,uid,message)
+        if body.allow_brand_estimate and body.part is not None:
+            part=next((p for p in result['parts'] if p['index']==body.part and not p.get('logged')),None)
+            if not part or part['status'] not in ('unknown','choose','quantity') or part.get('item',{}).get('kind') or part.get('drafts'):
+                raise HTTPException(409,'This food already has nutrition. Check its amount instead.')
+            if not coach.allowed(uid,'food',connection=c):raise HTTPException(403,coach.off())
+            part.update(status='unknown',looked_up=False,skip_alias=True,prefer_estimate=True)
         unknown=_unknown(result)
         if not unknown:return {'done':C.write(c,uid,message,result)}
         media=(message.get('result') or {}).get('input') or {'kind':'text'}
@@ -89,16 +95,17 @@ def claim(uid,mid,body):
 def _catalog(food,part):
     parsed=meal_chat.read_part(part['text'],[])
     portion=part.get('portion_override') or parsed.get('portion')
+    incomplete=False
     try:draft=S.catalog_draft(food,portion)
-    except HTTPException:draft=None
+    except HTTPException:draft=None;incomplete=True
     if draft:return {**part,'status':'ready','drafts':[draft],'entries':S.draft_entries([draft]),'looked_up':True}
     return {**part,'status':'quantity','catalog':part.get('catalog') or [food],'catalog_selected':part.get('catalog_selected',0),'looked_up':True,
-            'question':'Which food and portion should I use?','source':food.get('source')}
+            'catalog_incomplete':incomplete,'question':'This database entry has missing nutrition. Choose another result or enter the nutrition you know.' if incomplete else 'This food is listed by weight. What was the total weight you ate, in grams?','source':food.get('source')}
 
 
 def resolve_outside(uid,work,body):
     message,result=work['message'],work['result'];unknown=_unknown(result);media=work['media']
-    updates=[];estimate=[]
+    updates=[];estimate=[];fallback=[]
     # Parsing normalizes punctuation, so also inspect the original untouched input.
     has_link=bool(re.search(r'https?://|www\.',message['body'],re.I))
     if media['kind']=='barcode':
@@ -112,7 +119,7 @@ def resolve_outside(uid,work,body):
         # Long loose paragraphs stay intact for the estimator; public catalog
         # queries are short food words, never a truncated private conversation.
         # Classify links before *any* public database lookup, including tokenized URLs.
-        short=[p for p in unknown if not has_link and 2<=len(p['text'])<=200 and not re.search(r'https?://|www\.',p['text'],re.I)]
+        short=[p for p in unknown if not p.get('prefer_estimate') and not has_link and 2<=len(p['text'])<=200 and not re.search(r'https?://|www\.',p['text'],re.I)]
         def lookup_part(part):
             try:return meal_chat.lookup(part['text'])
             except Exception:return {'kind':'none','foods':[]}
@@ -122,12 +129,20 @@ def resolve_outside(uid,work,body):
             if has_link or re.search(r'https?://|www\.',part['text'],re.I):
                 updates.append({'indices':[part['index']],'part':{**part,'looked_up':True,'recipe_url':True,
                                 'question':'Import this recipe or add its nutrition.'}});continue
+            if part.get('prefer_estimate'):
+                estimate.append(part);continue
             lookup=lookups.get(part['index']) or {'kind':'none','foods':[]}
             if lookup['kind']=='brand' and not (body.allow_brand_estimate and (body.part is None or body.part==part['index'])):
                 updates.append({'indices':[part['index']],'part':{**part,'status':'choose','looked_up':True,
-                                'catalog':lookup['foods'],'question':'Which food and portion should I use?'}})
+                                'catalog':lookup['foods'],'question':'Which product did you have?' }})
             elif lookup['kind']=='plain' and lookup['foods']:
-                updates.append({'indices':[part['index']],'part':_catalog(lookup['foods'][0],part)})
+                candidate=_catalog(lookup['foods'][0],part)
+                update={'indices':[part['index']],'part':candidate}
+                if candidate['status']=='quantity' and not candidate.get('catalog_incomplete') and coach.allowed(uid,'food'):
+                    # A mass-only catalog entry cannot convert a known taco count.
+                    # Use the existing estimator with the complete food description.
+                    estimate.append(part);fallback.append(update)
+                else:updates.append(update)
             else:estimate.append(part)
     if estimate:
         text='\n'.join(p['text'] for p in estimate)
@@ -141,12 +156,12 @@ def resolve_outside(uid,work,body):
             with ai_budget.scope(uid,message['client_id']):
                 found=food_photo.estimate(estimate_body,user={'id':uid},strict=True)
             drafts=S.model_drafts(found)
-        except Exception as error:return updates,error
+        except Exception as error:return updates+fallback,error
         uncertain=bool(re.search(r"unclear|cannot tell|can't tell|portion (?:is )?(?:unknown|uncertain)|not visible",found.get('notes',''),re.I))
         merged={'index':min(p['index'] for p in estimate),'text':'\n'.join(p['text'] for p in estimate),
                 'status':'quantity' if uncertain else 'ready','drafts':drafts,'entries':S.draft_entries(drafts),
                 'logged':False,'looked_up':True,'source':'ai','learn_phrase':'\n'.join(p['text'] for p in estimate) if media['kind']=='text' else None,
-                'estimated':True,'question':'Which food and portion should I use?' if uncertain else None,
+                'estimated':True,'question':'Does this estimated amount look right? Choose an amount below.' if uncertain else None,
                 'scale_options':[{'label':'Smaller','factor':.5},{'label':'As estimated','factor':1},{'label':'Larger','factor':1.5}] if uncertain else []}
         updates.append({'indices':[p['index'] for p in estimate],'part':merged,'model':True})
     return updates,None

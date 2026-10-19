@@ -140,6 +140,9 @@ def process(c,uid,message):
     if (message.get('result') or {}).get('input'):
         from . import food_thread_compose as compose
         return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
+    from .food_thread_choices import conversational_help
+    help_reply=conversational_help(c,uid,message)
+    if help_reply is not None:return help_reply
     friendly=social_reply(message['body'])
     if friendly is not None:
         return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'small_talk','source':'code','text':friendly})

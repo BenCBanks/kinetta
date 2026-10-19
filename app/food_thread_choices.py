@@ -89,6 +89,42 @@ def manual(c,uid,message,body):
     return C.write(c,uid,message,result,force=not (message.get('result') or {}).get('review_only'),only={body.part})
 
 
+def conversational_help(c,uid,message):
+    """Help and explicit estimate requests refer to food, never become new foods."""
+    from . import food_thread_edit as edits,coach
+    text=re.sub(r'\s+',' ',message['body'].casefold().replace('’',"'")).strip(' .!?,')
+    confused=bool(re.fullmatch(r"(?:i (?:don'?t|do not) understand(?: (?:that|this|you))?|(?:i (?:have )?)?no idea(?: what you mean)?|what do you mean|(?:i'?m|i am) confused|huh|can you explain(?: (?:that|this))?)",text))
+    estimate=bool(re.fullmatch(r'(?:please )?(?:just )?(?:estimate(?: (?:it|them|that|the calories|calories))?|use (?:an? )?ai(?: estimate)?)(?: please)?',text))
+    confused=confused or text in {"i don't know",'i do not know',"i don't know what you mean","i don't know what that means",'what does that mean','not sure','help','help me','no clue','that makes no sense'}
+    if not confused and not estimate:return None
+    previous=edits._context(c,uid,message)
+    result=C.card(c,uid,previous) if previous else None
+    pending=[p for p in (result or {}).get('parts',[]) if p['status']!='ready' and not p.get('logged')]
+    def reply(value):return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'clarification_help','text':value,'source':'code'})
+    if not result:return reply('Tell me the food and amount, for example “2 chicken tacos”. I’ll help work out the calories, then you can review before logging.')
+    if not pending:return reply('Your food is ready. Tap Review food to check the amounts, choose a meal and confirm. Nothing is logged until you confirm.')
+    part=pending[0]
+    if estimate:
+        if part.get('description'):return reply((part.get('question') or 'How much did you eat?')+' I need that detail before estimating.')
+        if not coach.allowed(uid,'food',connection=c):return reply('AI estimates need AI access and your permission in Me → AI features. You can also tell me the total weight, or search for a food with the right serving size.')
+        if part.get('item',{}).get('kind') or part.get('drafts'):return reply('I already have nutrition for this food. Tell me how much you ate, or check the amount shown on its card.')
+        resolution=engine.resolve(c,uid,{**message,'body':part['text']})
+        response=C.begin(c,uid,message,resolution,aliases=False,destination={'day':result['day'],'meal':result['meal']})
+        message=engine.locked_message(c,uid,message['id'])
+        fresh=C.card(c,uid,message)
+        for p in fresh['parts']:
+            if p['status']=='unknown':p.update(prefer_estimate=True,skip_alias=True,looked_up=False)
+        response=C.write(c,uid,message,fresh)
+        continued=food_thread.finish_reply(c,uid,previous,{**result,'kind':continued_kind(previous,result),'parts':retained_parts(previous,result),'pending_count':0,'can_resolve':False,'continued_to':message['id']})
+        return {**response,'messages':continued['messages']+response['messages']}
+    if part.get('description'):
+        return reply('I’m asking about the food and how much you ate. '+(part.get('question') or 'For example, “2 chicken tacos”.'))
+    if part.get('catalog'):
+        if coach.allowed(uid,'food',connection=c):return reply('I kept the food and amount you told me. That database entry is measured by weight. Say “estimate it” and I’ll estimate the calories, or tell me the total weight if you know it.')
+        return reply('I kept the food and amount you told me. That database entry needs the total weight in grams. You can give that weight, or search for a result with a serving size that matches what you ate.')
+    return reply('I kept your food details. '+(part.get('question') or 'Tell me the amount you ate, or use Search to find the food.'))
+
+
 def follow_up(c,uid,message):
     try:
         with c.transaction(): return _follow_up(c,uid,message)
