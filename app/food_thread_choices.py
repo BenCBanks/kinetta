@@ -145,17 +145,16 @@ def description_follow_up(c,uid,previous,message,result,part,portion):
     if not portion:
         if old.get('count'):said=str(old['count'])+' '+said
         elif old.get('grams'):said=str(old['grams'])+' g '+said
-    target={**message,'result':{**(message.get('result') or {}),'destination':{'day':result['day'],'meal':result['meal']}}}
-    resolution=engine.resolve(c,uid,{**target,'body':said})
+    resolution=engine.resolve(c,uid,{**message,'body':said})
     resolution.update(day=result['day'],meal=result['meal'])
     if not portion and not old:
         # "Chicken" answers the filling question, not the amount question.
         # Keep the answer without silently treating it as one serving.
-        waiting=engine.make_result(c,uid,target,resolution)
-        waiting.update(composed=True,parts=[{'index':0,'text':said,'status':'description','logged':False,
+        waiting=engine.make_result(c,uid,message,resolution)
+        waiting.update(day=result['day'],meal=result['meal'],composed=True,parts=[{'index':0,'text':said,'status':'description','logged':False,
                     'description':{'food':'taco','detail':said},'question':'How many tacos did you have? You can also give their total weight.'}])
-        response=C.write(c,uid,target,waiting)
-    else:response=C.begin(c,uid,target,resolution)
+        response=C.write(c,uid,message,waiting)
+    else:response=C.begin(c,uid,message,resolution,destination={'day':result['day'],'meal':result['meal']})
     continued=food_thread.finish_reply(c,uid,previous,{**result,'kind':'continued',
                     'parts':[],'pending_count':0,'can_resolve':False,'continued_to':message['id']})
     return {**response,'messages':continued['messages']+response['messages']}

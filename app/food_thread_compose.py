@@ -42,8 +42,9 @@ def description_question(part):
                 'What kind of taco, and how many did you have? For example, “2 chicken tacos”.')
 
 
-def begin(c,uid,message,resolution,*,aliases=True):
+def begin(c,uid,message,resolution,*,aliases=True,destination=None):
     result=engine.make_result(c,uid,message,resolution)
+    if destination:result.update({k:destination[k] for k in ('day','meal')})
     result['composed']=True
     result['parts']=[own_part(c,uid,item,resolution['issued']) for item in resolution.get('items',[])]
     if not result['parts']:

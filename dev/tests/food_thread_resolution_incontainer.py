@@ -322,6 +322,8 @@ class Resolution(unittest.TestCase):
   _,r=self.send('2');self.assertIn('What kind of taco',self.result(r)['text'])
   self.assertNotIn('how many',self.result(r)['text']);self.assertEqual(self.entries(),[])
   m,r=self.send('chicken',day=dt.date.today().isoformat());self.assertEqual(self.result(r)['day'],day);self.assertEqual(self.result(r)['meal'],'dinner')
+  replay=self.post('/api/food/thread/messages',{'client_id':m['client_id'],'body':'chicken','day':dt.date.today().isoformat()})
+  self.assertFalse(replay['created'],'resolved day must not change immutable request metadata')
   self.look.side_effect=lambda text:{'kind':'plain','foods':[{**PLAIN,'name':'Chicken taco','serving':{'label':'1 taco','g':100}}]}
   self.resolve(m);rows=self.a.get('/api/food/day?d='+day).json()['entries']
   self.assertEqual(len(rows),1);self.assertEqual(rows[0]['kcal'],200);self.assertEqual(rows[0]['meal'],'dinner')
