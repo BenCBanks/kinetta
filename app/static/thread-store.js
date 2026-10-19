@@ -33,6 +33,19 @@ const ThreadDB = (() => {
   };
 })();
 
+// A native bundle can reach an older self-hosted server. Keep review metadata:
+// removing it to retry could let that server log food without confirmation.
+function foodThreadError(error,path) {
+  const extra=error.detail || error.payload?.detail;
+  const oldMessage=path==='/api/food/thread/messages' && error.status===422 &&
+    Array.isArray(extra) && extra.some(e=>e.type==='extra_forbidden' &&
+      ['review_only','draft_id'].includes(e.loc?.[1]));
+  const oldReview=error.status===404 && (extra || error.message)==='Not Found' &&
+    path.startsWith('/api/food/thread/reviews/');
+  if(oldMessage||oldReview)return 'Food review needs a server update. Your draft is kept on this phone. Ask the server owner to update Kinetta, then try again.';
+  return error.message;
+}
+
 // Injected transport/storage allow tests to reorder responses and switch accounts
 // through the same state machine the app uses. Every network step is replay-safe.
 function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
@@ -51,7 +64,8 @@ function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
           };
           const call = async (path,body) => {
             if(session()!==guard)throw Object.assign(Error('The account changed.'),{stale:true});
-            const r=await request(path,body);
+            let r;
+            try{r=await request(path,body);}catch(e){e.message=foodThreadError(e,path);throw e;}
             if(session()!==guard)throw Object.assign(Error('The account changed.'),{stale:true});
             await changed(owner,r);return r;
           };
