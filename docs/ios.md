@@ -110,6 +110,15 @@ also turn on **Automatic Distribution** for them in App Store Connect instead. M
 step 5 to have the **App Manager** role (or Admin); with a lower role the `beta` job fails with a note saying so, and
 the build can still be added by hand. Beta review needs **Test Information** and the reviewer sign-in filled in.
 
+Retrying distribution checks the build's external TestFlight state first. Already approved, testing or pending-review
+builds continue to group assignment without a second review submission. A 409 or 422 is accepted only when a fresh
+status read confirms review is pending or complete. Processing/temporarily missing TestFlight details are polled;
+rejected, expired or blocked builds stop with instructions. Failed API operations are named without account IDs.
+An uploaded build does not need rebuilding when only distribution fails. Check the failed operation and the build's
+status before retrying: in TestFlight, select the external group and use **Add Builds** (or **+** beside Builds) to add
+the existing build. For an approved build already assigned to the group, use **Start Testing** or **Notify Testers**
+if offered. See [Apple's external testing guide](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/).
+
 ## Before outside testers or the App Store
 
 Already done: the **privacy policy URL** (https://kinetta.app/privacy, which covers Apple Health), **delete my account**
