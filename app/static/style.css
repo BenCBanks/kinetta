@@ -2038,3 +2038,10 @@ html:has(.recipe-page) nav.tabs { display: none; }
 .food-ways .way {align-items:center;text-align:center;}
 .food-ways .way b {font-size:1rem;}
 @media (max-width:440px) { .food-ways {grid-template-columns:minmax(0,1fr);} .food-ways .way {flex-direction:row;justify-content:flex-start;min-height:80px;text-align:left;} .food-ways .way b {min-height:0;justify-content:flex-start;} }
+
+/* Unified food entry and explicit recipe yield. */
+.food-ways:has(+ .checkline) {grid-template-columns:1fr;}
+.checkline {display:flex;align-items:center;gap:10px;min-height:44px;margin:8px 0 16px;font-size:1rem;line-height:1.4;}
+.checkline input[type=checkbox] {width:22px;height:22px;flex:none;accent-color:var(--accent);}
+.thread-save-recipe {flex:none;margin:0 0 8px;}
+#dk-servings {width:90px;min-width:0;text-align:right;}

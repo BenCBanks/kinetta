@@ -221,3 +221,5 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 - **Calmer app typography:** app-specific 30px page titles, 18–20px card/section headings and 28px summary figures, tighter card/day spacing, readable body text and scalable inputs. Reactions use a small icon strip with full 44px choice targets and names on hover/keyboard focus.
 
 - **Keyboard and short food replies:** no extra app keyboard Done strip; tap background/message text or swipe down to dismiss, with field/control/selection/map exclusions. Bare unresolved taco descriptions ask type/count and preserve either-order replies and the original meal/day without guessing a serving.
+
+- Food entry uses one action with an optional save-as-recipe checkbox. Manual recipe additions have their own names and nutrition; recipes support an explicit serving yield or cooked weight, then offer a meal-and-portion review. Visible meal logs refresh after completed writes, including late chat acknowledgements. Short unknown descriptions ask for missing amounts/type before lookup; ingredient estimates preserve supplied weights and ambiguous edits ask which ingredient.

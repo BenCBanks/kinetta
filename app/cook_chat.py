@@ -108,6 +108,7 @@ def from_memory(text, mem):
         p = D.parse_line(piece)
         m = mem.get(key(p['query']))
         if not (m and p['amount']): return None
+        if not p['grams'] and (m.get('source')=='ai' or (m.get('ref') or {}).get('origin')=='ai'):return None
         grams = p['grams'] or (p['amount'] * m['units'][p['unit'] or 'each'] if (p['unit'] or 'each') in m['units'] else None)
         if not grams or grams >= 20000: return None
         said = f"{p['amount']:g} {p['unit']}" if p['unit'] else f"{p['amount']:g}"
@@ -268,6 +269,7 @@ def _as_item(x):
 # ---------- the endpoint ----------
 class SayIn(BaseModel):
     text: str = Field(min_length=1, max_length=600)
+    previous: str | None = Field(None, max_length=600)
 
 
 def _ai_ready(uid):
@@ -281,13 +283,57 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
     uid, text = user['id'], ' '.join(body.text.split())
     with db.connect() as c:
         d = D._get(c, uid, did)
+        if body.previous:
+            parsed=D.parse_line(numerals(text))
+            if parsed.get('grams') and not parsed.get('query'):
+                text=(text+' '+D.parse_line(numerals(body.previous))['query'])[:600]
+        correction=bool(re.match(r'^(?:remove|delete|take|change|make|oops|replace|set)\b',text,re.I))
+        if correction:
+            words=set(key(text).split())
+            targets=[it for it in d['items'] if set(key(it['name']).split()) and set(key(it['name']).split())<=words]
+            if len(targets)>1:
+                weights=[float(n) for n in re.findall(r'(\d+(?:\.\d+)?)\s*g\b',text,re.I)]
+                targets=[it for it in targets if any(abs((it.get('grams') or 0)-g)<.2 for g in weights)]
+            if len(targets)!=1:
+                return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
+                        'reply':'Which ingredient do you mean? Give its name and current amount so I change the right one.',
+                        'clarification':text,'by':'clarification'}
         found = from_memory(text, memory(c, uid))
+        if found is None and not correction:
+            parsed=[D.parse_line(piece) for piece in pieces(text)]
+            missing=next((p for p in parsed if not p.get('grams') or not p.get('query')),None)
+            if missing:
+                query=missing.get('query') or 'this ingredient'
+                reply=f'How many grams of {query} went in? Include the food name if you are adding something different.' if missing.get('query') else 'Which food is that amount for? Please include its name and weight.'
+                return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
+                        'reply':reply,'clarification':text,'by':'clarification'}
+            categories={'taco','tacos','sandwich','sandwiches','salad','soup','curry','smoothie','pizza','burrito','burritos'}
+            if any(p['query'].lower() in categories for p in parsed):
+                return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
+                        'reply':'What kind was it, and what went into it? Include the amount of each ingredient, or use + to enter the nutrition you know.',
+                        'clarification':text,'by':'clarification'}
     if found is None:
         if not _ai_ready(uid):
             from . import ai_access
-            return {'fallback': True, 'needs_ok': ai_access.has(uid, 'food') and bool(os.environ.get('GEMINI_API_KEY')) and coach.enabled()}
+            return {'fallback': True, 'query':text, 'needs_ok': ai_access.has(uid, 'food') and bool(os.environ.get('GEMINI_API_KEY')) and coach.enabled()}
         food_photo.brake(uid, DAILY_LIMIT, 'cook', 'messages')
         actions, reply = ai_actions(text, d['items'], uid)
+        if not correction:
+            remaining=[D.parse_line(piece) for piece in pieces(text)]
+            mismatch=False
+            for action in actions:
+                match=next((p for p in remaining if action.get('op')=='add' and p.get('grams') and
+                            abs((_n(action.get('grams')) or 0)-p['grams'])<.2 and key(str(action.get('name') or ''))==key(p['query'])),None)
+                if match is None:mismatch=True;break
+                remaining.remove(match)
+            if mismatch:
+                return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
+                        'reply':'The lookup did not match the amounts you gave. Please check the food and weight, or enter its nutrition with +.',
+                        'clarification':text,'by':'clarification'}
+        elif any(a.get('op') not in ('change','remove') or str(a.get('id'))!=targets[0]['id'] or a.get('op')=='change' and (not D.parse_line(text).get('grams') or abs((_n(a.get('grams')) or 0)-D.parse_line(text)['grams'])>=.2) for a in actions):
+            return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
+                    'reply':'The lookup did not identify a single matching ingredient. Please give its name and current amount.',
+                    'clarification':text,'by':'clarification'}
     else:
         actions, reply = None, None
     with db.connect() as c:
@@ -299,6 +345,7 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
             op, it = a.get('op'), by_id.get(str(a.get('id') or ''))
             if op == 'add':
                 x = _ai_item(a)
+                if x:x.update(amount=f"{x['grams']:g} g",units={})
                 if x: new.append(_as_item(x))
                 else: skipped += 1
             elif op == 'change' and it and (g := _n(a.get('grams'))) and 0 < g < 20000:
@@ -314,9 +361,9 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
         if len(items) > D.MAX_ITEMS: raise HTTPException(400, f'A dish can have up to {D.MAX_ITEMS} ingredients')
         added = [i['id'] for i in new]
         if added or changed or removed: d = D._save_items(c, uid, did, items)
-        if found is not None:
-            reply = 'Added ' + ', '.join(f"{i['name'].lower()} ({i['grams']:g} g)" for i in new) + '.'
-        elif skipped: reply = (reply + ' ' if reply else '') + "Some numbers didn't look right, so I left that out - try it with a weight."
+        if found is not None or new:
+            reply = ('AI nutrition estimate. ' if found is None else '') + 'Added ' + ', '.join(f"{i['name'].lower()} ({i['grams']:g} g)" for i in new) + '.'
+        if skipped: reply = (reply + ' ' if reply else '') + "Some numbers didn't look right, so I left that out - try it with a weight."
         return {'dish': D._view(c, uid, d), 'added': added, 'changed': changed, 'removed': removed,
                 'reply': reply or "I couldn't tell what went in - try something like 2 apples or 200 g rice.",
                 'by': 'memory' if found is not None else 'ai'}

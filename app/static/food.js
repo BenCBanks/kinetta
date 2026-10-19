@@ -306,6 +306,12 @@ function servingAmount(e) {
   return amount === 1 ? label : `${amount} × ${label}`;
 }
 const fmtAmount = (e) => (e.unit === 'g' ? `${r1(e.amount)} g` : /^of /.test(e.unit) ? `${r1(e.amount)} ${e.unit}` : e.unit === 'serving' ? servingAmount(e) : `${r1(e.amount)} × ${e.unit === 'dish' ? 'meal' : e.unit}`);
+let foodRefreshFrame=null;
+document.addEventListener('food:changed',()=>{
+  if(location.pathname!=='/food'||foodRefreshFrame!=null)return;
+  const owner=readOwner(),page=$('#page');
+  foodRefreshFrame=requestAnimationFrame(()=>{foodRefreshFrame=null;if(owner===readOwner()&&location.pathname==='/food'&&page===$('#page'))render();});
+});
 const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
 
 async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
@@ -477,8 +483,8 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways food-ways"><button class="way" id="as-photo">${svg('comment')}<span><b>Log food now</b><small>Describe, snap or scan · Today</small></span></button>
-      <button class="way" id="as-dish">${svg('pot')}<span><b>Create a Recipe</b><small>Build once, save for later</small></span></button></div>
+    <div class="ways food-ways"><button class="way" id="as-photo">${svg('comment')}<span><b>Add food</b><small>Describe, snap, scan or build a recipe</small></span></button></div>
+    <label class="checkline"><input type="checkbox" id="as-save-recipe">Save as a recipe for later</label>
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
@@ -492,10 +498,9 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
     const photo = $('#as-photo', b); if (photo) photo.onclick = () => {   // saved-meal lookup is local; model estimates separately require access and consent
-      const w = where(); close();
-      describeSheet(w.day, w.meal);
+      const w = where(),save=$('#as-save-recipe',b).checked; close();
+      if (save) newDish(null,w); else describeSheet(w.day, w.meal);
     };
-    $('#as-dish', b).onclick = (e) => { close(); newDish(e.currentTarget); };     // a saved dish is logged from Saved Dishes
     show(tab);
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
   });

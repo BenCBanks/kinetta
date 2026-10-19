@@ -147,14 +147,15 @@ def _sum_g(d):
 
 
 def serving_count(d,*,viewer=None):
+    if d.get('yield_servings'):return d['yield_servings']
     if viewer is not None and d.get('user_id')!=viewer and not d.get('recipe_source'):
         return float(d.get('servings') or 1)
-    return (d.get('recipe_source') or {}).get('servings') or 1
+    return d.get('yield_servings') or (d.get('recipe_source') or {}).get('servings') or 1
 
 
 def _weight(d):
     """The whole dish in grams: as typed in, else the ingredients added up; None for a typed-in total with no weight."""
-    if d.get('recipe_source') and (d['recipe_source'].get('pending') or any(not i.get('grams') for i in d['items'])):return d['cooked_g']
+    if (d.get('recipe_source') or {}).get('pending') or any(not i.get('grams') for i in d['items']):return d['cooked_g']
     return d['cooked_g'] or _sum_g(d)
 
 
@@ -171,7 +172,7 @@ def _out(d):
             'review': {**json.loads(d['ai_note']), 'at': d['ai_note_at'], 'changed_since': d['recipe_updated'] > d['ai_note_at']} if d.get('ai_note') else None}
 
 
-COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, serving, servings, created, updated, ai_note, ai_note_at, recipe_updated, known_fiber_g, recipe_source, known_sodium_mg, known_sugar_g, known_saturated_fat_g'
+COLS = 'id, user_id, name, items, known_kcal, known_protein_g, known_carbs_g, known_fat_g, cooked_g, serving, servings, created, updated, ai_note, ai_note_at, recipe_updated, known_fiber_g, recipe_source, known_sodium_mg, known_sugar_g, known_saturated_fat_g, yield_servings'
 
 
 
@@ -314,6 +315,7 @@ class DishEdit(N.KnownExtras):
     use_ingredients:StrictBool=False
     serving: str | None = Field(None, pattern='^(one|portion)$')
     servings: int | None = Field(None, ge=1, le=50)
+    yield_servings: float | None = Field(None, gt=0, le=50)
 
 
 @router.patch('/{did:int}')
@@ -332,7 +334,10 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
             if f'known_{k}' in v: sets[f'known_{k}'] = N.rounded(k,v[f'known_{k}'])
         if v.get('serving'): sets['serving'] = v['serving']
         if 'servings' in v: sets['servings'] = v['servings']
-        if set(sets) & {'cooked_g', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
+        if 'yield_servings' in v:
+            if v['yield_servings'] is None:raise HTTPException(400,'How many servings does the recipe make?')
+            sets['yield_servings'] = v['yield_servings']
+        if set(sets) & {'cooked_g', 'yield_servings', 'serving', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
         if d.get('recipe_source') and (any('known_'+k in sets for k in KNOWN) or body.use_ingredients or body.dismiss_pending):
             source=dict(d['recipe_source']);source['basis']='ingredients' if body.use_ingredients else ('entered' if any('known_'+k in sets for k in KNOWN) else source['basis']);source['edited']=True
             if body.dismiss_pending:
@@ -401,7 +406,8 @@ def item_add(did: int, body: ItemIn, user=Depends(current_user)):
     per100 = _per100(body) if body.grams is not None else None
     with db.connect() as c:
         dish=_get(c,user['id'],did,lock=True);items=dish['items']
-        if body.grams is None and (not dish.get('recipe_source') or body.kcal is None):raise HTTPException(400,'Enter a weight, or keep this imported ingredient with its known amount nutrition')
+        if not body.name.strip():raise HTTPException(400,'Name the food you are adding')
+        if body.grams is None and body.kcal is None:raise HTTPException(400,'Enter calories for the amount you are adding')
         if len(items) >= MAX_ITEMS: raise HTTPException(400, f'A meal can have up to {MAX_ITEMS} ingredients')
         item = {'id': secrets.token_hex(4), 'name': body.name.strip(), 'grams': _r(body.grams), **(_item_values(per100,body.grams) if per100 else {k:getattr(body,k) for k in NUM}),
                 'per100': per100, 'source': body.source, 'ref': body.ref}
@@ -424,7 +430,6 @@ def item_edit(did: int, iid: str, body: ItemEdit, user=Depends(current_user)):
         dish=_get(c,user['id'],did,lock=True);items=dish['items']
         n=_find(items,iid);old=items[n]
         if not old.get('per100'):
-            if not dish.get('recipe_source'):raise HTTPException(400,'Enter nutrition for this ingredient before changing its weight')
             per={k:old.get(k)*100/body.grams if old.get(k) is not None else None for k in NUM}
             if any(v is not None and v>N.PER100_LIMITS[k] for k,v in per.items()):raise HTTPException(400,'Check the weight for this ingredient’s known nutrition')
             items[n]={**old,'grams':_r(body.grams),'per100':per}
