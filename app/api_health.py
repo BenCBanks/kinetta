@@ -174,6 +174,11 @@ def enrich(uid, aid, w, parsed, meta):
         if not changed and 'avg_hr' in updates:
             updates['zones'] = json.dumps(summ.get('zones'))
             updates['effort'] = activities.num(summ.get('effort'))
+        if not changed and 'moving_s' in updates:
+            # A duration repair also changes time-based estimates on unchanged HR
+            # recordings. Do not require new GPS/HR samples to refresh those values.
+            for k in ('vo2max', 'vam'):
+                updates[k] = activities.num(summ.get(k))
         if changed and st['t']:
             cols = ('t',) + parsers.STREAMS
             arrays = [activities._floats(st[k]) for k in cols]
