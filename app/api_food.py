@@ -22,7 +22,7 @@ from . import db, energy, nutrients as N
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food')
-UA = 'Kinetta/1.0 (self-hosted fitness app; +https://kinetta.app)'
+UA = 'Kinetta/1.0 (fitness app; +https://kinetta.app)'
 MEALS = ('breakfast', 'lunch', 'dinner', 'snacks')
 _last_off = [0.0]
 _off_pace = threading.Lock()

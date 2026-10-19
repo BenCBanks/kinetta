@@ -6,16 +6,16 @@
 </p>
 
 <p align="center"><b>Your workouts and your food, in one app.</b><br>
-Activity tracking + food and health: runs, rides, walks, lifting, training plans, calories and macros. Private, and free to run on your own home server for personal use.</p>
+Activity tracking + food and health: runs, rides, walks, lifting, training plans, calories and macros. Private by design.</p>
 
-<p align="center"><a href="https://login.kinetta.app/beta">Join the hosted beta</a> · or run your own (below)</p>
+<p align="center"><a href="https://login.kinetta.app/beta">Join the beta</a> · <a href="https://kinetta.app">kinetta.app</a></p>
 
 ---
 
 Kinetta is a made-up word: *kinetic*, for the energy of moving every day, and *kin*, for the people you move with.
 
-It started as one family's replacement for Strava and a food-tracking app. Everything stays on a computer you
-control, each person's data is private to them, and nothing is sold, shared or used for ads.
+It started as one family's replacement for Strava and a food-tracking app. Each person's data is private to them,
+and nothing is sold, shared or used for ads.
 
 ## What it does
 
@@ -37,63 +37,25 @@ control, each person's data is private to them, and nothing is sold, shared or u
 - Each person has their own private account; the first account is the admin
 - Invite someone with a link: they pick their own username and password
 - Works on any phone as an app on the home screen, also offline for logging food
-- Optional AI coach notes (your own Gemini or Claude key; off by default)
+- Optional AI coach notes and food estimates (off until you turn them on)
 - Optional read-only SQL access to your own data (including every lifting set), if you like digging into numbers
 
-## Install it
+## Run a development copy
 
-You need a computer that stays on: a mini PC, an old laptop, a NAS (Synology, Unraid) or a Raspberry Pi 4/5 with
-**[Docker](https://docs.docker.com/get-docker/)** installed. Then, in a terminal:
+For contributors: a throwaway copy on your own machine for testing changes. You need
+**[Docker](https://docs.docker.com/get-docker/)**.
 
 ```sh
 git clone https://github.com/BenCBanks/kinetta.git
 cd kinetta
-docker compose up -d
+KINETTA_PORT=8798 docker compose -p kinettatest up -d --build
 ```
 
-(No git? Download the ZIP from the green **Code** button on GitHub, unzip it, and run `docker compose up -d` inside the folder.)
-
-Open **http://&lt;that computer's address&gt;:8790** in a browser and create your account. You are the admin.
-Kinetta makes up its own database passwords on the first start; there is nothing to fill in.
-
-**Next: reach it from your phone.** Phones need a secure `https://` address for the camera (barcodes, food photos)
-and to add Kinetta to the home screen. **[docs/connect.md](docs/connect.md)** walks you through the easy options
-(Tailscale for a family, a free Cloudflare Tunnel for a public address, or your own domain).
-
-**Then: invite your people.** Open `/admin` in a browser, sign in with your administrator password and authenticator code, and create an invitation. The first sign-in guides you through authenticator setup. See [the admin portal guide](docs/admin-portal.md).
-
-### Settings (optional)
-
-Copy `.env.example` to `.env`, fill in what you want, and run `docker compose up -d` again:
-
-| Setting | What it does |
-|---|---|
-| `TZ` | Your time zone, e.g. `Europe/Helsinki`. New accounts use their phone's time zone. |
-| `KINETTA_PORT` | The port Kinetta listens on (default `8790`). |
-| `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` | Turns on AI coach notes and food-photo estimates, billed to your own key. |
-| `FDC_API_KEY` | Better US food search ([free key](https://fdc.nal.usda.gov/api-key-signup.html)). |
-| `CLOUDFLARE_TUNNEL_TOKEN` | A public https address, see [docs/connect.md](docs/connect.md). |
-
-### Updating
-
-```sh
-cd kinetta
-git pull
-docker compose up -d --build
-```
-
-Your data is kept. Database changes are applied automatically when the new version starts.
-
-### Backups
-
-Your data lives in Docker volumes. A full copy of the database, to keep somewhere safe:
-
-```sh
-docker compose exec -T db pg_dump -U postgres -Fc fit > kinetta-$(date +%F).dump
-```
-
-Restore it into a fresh install with `docker compose exec -T db pg_restore -U postgres -d fit --clean --if-exists < kinetta-<date>.dump`.
-Uploaded original files (FIT/GPX) are in the `data` volume.
+Open **http://localhost:8798**; the first account you create is the administrator. Optional settings go in `.env`
+(copy `.env.example`): `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` turns on AI features, `FDC_API_KEY` improves US food
+search. Load made-up demo data with `dev/demo/seed.py` (see [dev/demo/README.md](dev/demo/README.md)), run the tests
+with `dev/tests/run.sh`, and remove the copy with `docker compose -p kinettatest down -v`. See [AGENTS.md](AGENTS.md)
+for how changes are made.
 
 ## Privacy
 
@@ -116,8 +78,7 @@ Uploaded original files (FIT/GPX) are in the `data` volume.
 
 Kinetta is **source-available** under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**:
 
-- **Free for noncommercial use.** Run it on your own home server for yourself and your family, study it, change it,
-  and share it for noncommercial purposes. Charities, schools and other noncommercial organizations may use it too.
+- **Free for noncommercial use.** Use it, study it, change it and share it for noncommercial purposes. Charities, schools and other noncommercial organizations may use it too.
 - **Not for commercial use without a license.** Selling it, offering it as a paid or hosted service, or using it in or
   for a business needs a commercial license from the author. Ask about one by opening an issue or through kinetta.app.
 

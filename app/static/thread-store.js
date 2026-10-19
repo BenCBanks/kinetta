@@ -34,7 +34,7 @@ const ThreadDB = (() => {
   };
 })();
 
-// A native bundle can reach an older self-hosted server. Keep review metadata:
+// A native bundle can reach an older server version. Keep review metadata:
 // removing it to retry could let that server log food without confirmation.
 function foodThreadError(error,path) {
   const extra=error.detail || error.payload?.detail;

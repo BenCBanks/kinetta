@@ -24,7 +24,7 @@ Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, [CC BY-SA]
 
 ## training-training-food-food-friends-friends-compare-co-6
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-7
 

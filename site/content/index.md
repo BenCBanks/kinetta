@@ -48,7 +48,7 @@ Want to *try it?*
 
 ## it-s-a-small-beta-for-now-ask-for-an-invite-13
 
-Request an invite for the hosted beta. You can also [run Kinetta on your own server](self-host) for personal use.
+Request an invite to the beta.
 
 ## kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14
 
@@ -64,7 +64,7 @@ Learn how to import workouts, build a recipe, set nutrition targets or compare y
 
 ## training-training-food-food-friends-friends-compare-co-17
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-18
 

@@ -30,7 +30,7 @@ The growth scenario exceeds Basic's published daily limit. Request prices for al
 
 1. Owner obtains the offer and confirms eligibility, currency, total beta/launch cost, renewal/termination and limits.
 2. Provider confirms the specific chains/menu items to test and permission to retain source-labelled logged snapshots, derived totals, owner export, Health writes and deliberately shared recipes, including after termination.
-3. Written terms settle caching/display/attribution, conversational inference/tool access, restrictions on recommendations, training prohibition, commercial hosting and self-hosted-key use.
+3. Written terms settle caching/display/attribution, conversational inference/tool access, restrictions on recommendations, training prohibition, commercial hosting and API-key use.
 4. Owner selects the provider, creates its account and accepts its terms. Only then implement integration; credentials remain in server settings.
 
 No email or sales form has been sent. No trial has been requested, terms accepted or spend authorized by this document.

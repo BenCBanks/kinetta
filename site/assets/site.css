@@ -1,5 +1,5 @@
 @font-face { font-family: "Source Serif 4"; src: url("fonts/source-serif-4.woff2") format("woff2"); font-weight: 200 900; font-display: swap; }
-/* kinetta.app: shared by every page (Home, Training, Food, Friends, Compare, Self-host, Privacy). */
+/* kinetta.app: shared by every page (Home, Training, Food, Friends, Compare, Guide, Privacy). */
 /* Layout: one long page that runs like a lap - hero with the track, the word, what it does (phones), privacy,
    install, people - every section a straight, the track oval returns as the section marker. */
 :root {
