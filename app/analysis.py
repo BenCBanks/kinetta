@@ -153,6 +153,12 @@ def summary(S, sport, session, profile):
     out = {}
     out['elapsed_s'] = float(S['t'][-1] - S['t'][0]) if n > 1 else session.get('elapsed_s')
     out['moving_s'] = float(dt[mv].sum()) if n > 1 else session.get('moving_s')
+    # Heart-rate timestamps are observations, not a movement recording. Sparse
+    # Health samples must not turn a full workout into a few seconds (or zero).
+    # Keep the device's active duration, including its pause handling, when no
+    # recorded distance supports a movement estimate. GPS/footpod logic stays as-is.
+    if n > 1 and S['dist'][-1] < 1 and (session.get('moving_s') or 0) > 0:
+        out['moving_s'] = session['moving_s']
     # the device's own total (watch/bike computer, often footpod- or wheel-calibrated) wins over distance rebuilt from GPS
     out['distance_m'] = session.get('distance_m') or (float(S['dist'][-1]) if n > 1 and S['dist'][-1] > 0 else None)
     up, down = ascent_descent(S)

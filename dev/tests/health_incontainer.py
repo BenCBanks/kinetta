@@ -89,6 +89,38 @@ try:
     assert api_health.save(uid,w)[2] is False
     with db.connect() as c:
         assert c.execute('SELECT avg_hr FROM activities WHERE id=%s AND user_id=%s',(aid,uid)).fetchone()['avg_hr']==133
+    # Sparse HR without a motion recording uses the device timer on initial
+    # import, replay and later profile-driven recalculation. All data is fictional.
+    for index, times in enumerate(([0, 18, 138, 258, 378, 498, 618, 738, 858, 978, 1098, 1200], [0, 120, 240, 360, 480, 600, 720, 840, 960, 1080, 1200])):
+        later = start + dt.timedelta(days=2+index)
+        sample = api_health.WorkoutIn(id=f'sparse-motion-timer-fixture-{index}', type='running',
+            start=later, end=later+dt.timedelta(seconds=1200), duration_s=1140, distance_m=3000,
+            heart_rate=[api_health.Beat(t=later+dt.timedelta(seconds=t),bpm=150) for t in times])
+        result, run_id, _ = api_health.save(uid, sample)
+        assert result == 'added'
+        with db.connect() as c:
+            row=c.execute('SELECT moving_s,vo2max FROM activities WHERE id=%s AND user_id=%s',(run_id,uid)).fetchone()
+            assert row['moving_s']==1140, 'active duration preserves the recorded one-minute pause'
+            before=c.execute('SELECT * FROM activity_streams WHERE activity_id=%s AND user_id=%s',(run_id,uid)).fetchone()
+            # Reproduce a legacy row with the bad duration and corresponding provenance.
+            bad=18 if index==0 else 0
+            c.execute("UPDATE activities SET moving_s=%s,vo2max=NULL,health_details=jsonb_set(health_details,'{imported,moving_s}',%s::jsonb) WHERE id=%s AND user_id=%s",(bad,json.dumps(bad),run_id,uid))
+        result, replay_id, updated=api_health.save(uid,sample)
+        assert result=='duplicate' and replay_id==run_id and updated
+        with db.connect() as c:
+            repaired=c.execute('SELECT moving_s,vo2max,splits_mi FROM activities WHERE id=%s AND user_id=%s',(run_id,uid)).fetchone()
+            assert repaired['moving_s']==1140 and repaired['vo2max'] is not None
+            assert not repaired['splits_mi'], 'summary time/distance cannot invent splits'
+            assert c.execute('SELECT * FROM activity_streams WHERE activity_id=%s AND user_id=%s',(run_id,uid)).fetchone()==before
+        assert api_health.save(uid,sample)[2] is False, 'repaired replay is stable'
+        assert activities.reprocess(uid,run_id)
+        with db.connect() as c:
+            assert c.execute('SELECT moving_s FROM activities WHERE id=%s AND user_id=%s',(run_id,uid)).fetchone()['moving_s']==1140
+            c.execute('UPDATE activities SET moving_s=1000 WHERE id=%s AND user_id=%s',(run_id,uid))
+        api_health.save(uid,sample)
+        with db.connect() as c:
+            assert c.execute('SELECT moving_s FROM activities WHERE id=%s AND user_id=%s',(run_id,uid)).fetchone()['moving_s']==1000, 'manual duration survives replay'
+    print('Sparse motion timer: initial import, 18/zero legacy replay, derived refresh, pause handling, profile recalculation, no invented splits and manual time preservation PASS')
 finally:
     if uid:
         with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(uid,))
