@@ -868,7 +868,7 @@ function showLogin(msg = '') {
   // waitlist opens in Safari (accounts are made on the server's web page)
   if (Native.on) {
     const p = $('.login .small.muted', root), srv = $('#l-server', root);
-    p.innerHTML = `New here? <a href="${Native.server}/beta" target="_blank" rel="noopener">Join the beta</a>${srv.hidden ? ' · <a href="#" id="l-other">Use a different server</a>' : ''}`;
+    p.innerHTML = `New here? <a href="${Native.server}/beta" target="_blank" rel="noopener">Join the beta</a>`;
     const o = $('#l-other', p); if (o) o.onclick = (e) => { e.preventDefault(); srv.hidden = false; o.remove(); $('input', srv).focus(); };
   }
   if (!Native.on) api('/api/beta').then((r) => {   // a server with the public waitlist on: point newcomers to it

@@ -1,6 +1,6 @@
 # Kinetta - start it with:   docker compose up -d
 # then open http://<this computer's address>:8790 and create your account (the first account is the admin).
-# Settings are optional: copy .env.example to .env and edit it. How to reach Kinetta from your phone: docs/connect.md
+# Settings are optional: copy .env.example to .env and edit it.
 name: kinetta
 
 x-image: &image
@@ -69,7 +69,7 @@ services:
       FDC_API_KEY: ${FDC_API_KEY:-}
       KINETTA_PUBLIC_URL: ${KINETTA_PUBLIC_URL:-}
       KINETTA_BETA_SIGNUP: ${KINETTA_BETA_SIGNUP:-}
-      # who to believe about a visitor's address (login-guessing limits): see docs/connect.md
+      # who to believe about a visitor's address (login-guessing limits)
       KINETTA_TRUST_CLOUDFLARE: ${KINETTA_TRUST_CLOUDFLARE:-}
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
     volumes:
@@ -86,7 +86,7 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
 
-  # Optional: a public https address through Cloudflare, without opening your router (docs/connect.md).
+  # Optional: a public https address through Cloudflare, without opening your router.
   # Start with:  docker compose --profile tunnel up -d
   # It sits on its own network with only the app, so it can't reach the database.
   tunnel:

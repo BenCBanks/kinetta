@@ -13,8 +13,8 @@ can be signed and uploaded automatically.
 
 ## What the app does today
 
-- **Log in to your own server.** The login screen asks for the server's address (`https://login.kinetta.app` by default,
-  or your own). The server must be on `https://`; iPhones don't let apps talk to plain `http://` addresses.
+- **Log in.** The app signs in to `https://login.kinetta.app`. (Developers can point a build at a test server; it
+  must be on `https://`, because iPhones don't let apps talk to plain `http://` addresses.)
 - **Me > Apple Health.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
   permission sheet. Optional weight reading and nutrition writing have separate controls, described below.
 - **Sync.** The first sync brings in the last 30 days ("Also bring in the past year" goes further back). After that,

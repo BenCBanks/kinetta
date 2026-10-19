@@ -12,7 +12,7 @@ If you use separate apps for training and food, here’s what you can keep in Ki
 
 ## us-prices-from-strava-https-www-strava-com-subscribe-a-3
 
-Beta access is by invitation. Future hosted pricing has not been announced. Self-hosting is free for noncommercial use; optional AI services may have provider costs.
+Beta access is by invitation. Pricing has not been announced.
 
 ## like-strava-and-myfitnesspal-combined-4
 
@@ -72,7 +72,7 @@ Weight trend
 
 ## training-training-food-food-friends-friends-compare-co-18
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-19
 

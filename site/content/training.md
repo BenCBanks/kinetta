@@ -32,7 +32,7 @@ Connected sources
 
 ## set-up-intervals-icu-or-health-auto-export-from-me-wat-8
 
-Apple Health leads **Me → Connections** in the iPhone app. File uploads work in the browser too. Self-hosters can find intervals.icu and Health Auto Export under **Advanced**.
+Apple Health leads **Me → Connections** in the iPhone app. File uploads work in the browser too. intervals.icu and Health Auto Export are under **Advanced**.
 
 ## apple-health-on-iphone-9
 
@@ -100,7 +100,7 @@ Record exercises, weight and reps as you train. Compare with the previous sessio
 
 ## training-training-food-food-friends-friends-compare-co-25
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Host it yourself](self-host) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-26
 

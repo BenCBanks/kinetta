@@ -29,7 +29,7 @@ implementation, CI, merge, deployment and TestFlight upload distinct. Do not sub
 | `app/` | FastAPI server (Python 3.12). `main.py` wires the routers; `api_*.py` are the endpoints; `db.py` has the schema |
 | `app/static/` | The phone app: plain JavaScript, no build step (`app.js` core + charts, `pages.js`, `food.js`, `plan.js`, `social.js`, `cook.js`, `lift.js` lifting, `native.js` iPhone-app-only parts, `style.css`) |
 | `mobile/` | The iPhone app: a Capacitor shell around `app/static` plus Apple Health (see `mobile/README.md`, `docs/ios.md`); built on a macOS runner by `.github/workflows/ios.yml` |
-| `site/` | The kinetta.app website: one page per tab (`index` Home, `training`, `food`, `friends`, `compare`, `privacy`, `self-host`), shared styles in `assets/site.css`. Written copy lives in `site/content/*.md`; layouts in `site/templates/`. Run `python3 dev/design/build_content.py` after changes. The feature catalog stays shared with the app; see `docs/website-content.md` |
+| `site/` | The kinetta.app website: one page per tab (`index` Home, `training`, `food`, `friends`, `compare`, `guide`, `privacy`), shared styles in `assets/site.css`. Written copy lives in `site/content/*.md`; layouts in `site/templates/`. Run `python3 dev/design/build_content.py` after changes. The feature catalog stays shared with the app; see `docs/website-content.md` |
 | `docs/` | Public guides (connecting phones, SQL access) |
 | `dev/demo/` | Made-up demo data for testing and screenshots |
 | `docker-compose.yml` | How people install it (app + PostgreSQL 17/PostGIS, passwords generated on first start) |

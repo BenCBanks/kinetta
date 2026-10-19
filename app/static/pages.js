@@ -1408,7 +1408,7 @@ route(/^\/track\/connections$/, 'track', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Bring in workouts from Apple Health or files. A watch is optional.</p>
     <div class="card" id="c-health"><h2>Apple Health</h2>${skel(1)}</div>
     <a class="card tap row-link" href="/track/import"><div class="grow"><h2>Upload files</h2><p>FIT, GPX, TCX or ZIP · your original watch files or activity history.</p></div><span class="chev">${svg('chev')}</span></a>
-    <details class="card" id="c-advanced"><summary>Advanced</summary><p class="small muted">For self-hosted installs and power users.</p><div id="c-body">${skel(2)}</div></details>`;
+    <details class="card" id="c-advanced"><summary>Advanced</summary><p class="small muted">For power users.</p><div id="c-body">${skel(2)}</div></details>`;
   wireBack(el, '/track');
   const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Apple Health</h2>
     <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · share nutrition, read weight or import workouts.':'Available in the Kinetta iPhone app.'}</p>
