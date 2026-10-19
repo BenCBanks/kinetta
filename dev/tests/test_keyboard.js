@@ -17,4 +17,9 @@ start({closest:()=>true});move(105,160);assert.equal(document.activeElement,fiel
 start();handlers.get('touchcancel')();move(100,170);assert.equal(document.activeElement,field,'cancelled gesture cannot dismiss');
 start(target,[point(100,100),point(110,110)]);move(100,170);assert.equal(document.activeElement,field,'pinch gesture cannot dismiss');
 start();const next = {};document.activeElement=next;move(100,170);assert.equal(document.activeElement,next,'newly focused field cannot be dismissed by old gesture');
-console.log('Keyboard dismissal: down, horizontal/up, selection/map, cancel, pinch and changed focus passed');
+const click=(extra={})=>handlers.get('click')({target,button:0,defaultPrevented:false,...extra});
+start();click();assert.equal(document.activeElement,null,'tap on background/message text dismisses');
+start();click({target:{closest:()=>true}});assert.equal(document.activeElement,field,'tap on another field/control/map preserves its action');
+start();click({defaultPrevented:true});assert.equal(document.activeElement,field,'handled clicks retain focus');
+start();document.getSelection=()=>({isCollapsed:false});click();assert.equal(document.activeElement,field,'selected text is preserved');
+console.log('Keyboard dismissal: outside tap, controls/selection, down, horizontal/up, selection/map, cancel, pinch and changed focus passed');

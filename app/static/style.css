@@ -1448,12 +1448,6 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 
 .photo-selection{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:18px}.photo-selection img{width:100%;height:110px;object-fit:cover}.photo-selection button{min-height:44px;width:100%}
 
-/* iPhone app: "Done" above the keyboard (keyboard.js) */
-.kb-done { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 2000; justify-content: flex-end; padding: 0 8px;
-  background: var(--card); border-top: 1px solid var(--line); }
-html.keyboard-open .kb-done { display: flex; }
-.kb-done button { min-height: 44px; padding: 0 14px; border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 16px; }
-
 /* Me personal overview and foreground Track (October 2026). */
 .me-heading h1 { margin: 0; }
 .me-agenda { margin: 16px 0; }
@@ -1763,9 +1757,6 @@ html:has(.food-thread) nav.tabs { display: none; }
 .food-thread button { min-height: 44px; min-width: 44px; font-size: 1rem; white-space: normal; }
 html.keyboard-open .thread-composer { bottom: env(safe-area-inset-bottom); }
 html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
-/* iPhone app (2026-10-18, owner screenshot): the Done strip (45 px, keyboard.js) sits at the bottom of the shrunken
-   WebView, which hid the chat bar. Keep the bar above it; browsers have no strip, so this only applies when it exists. */
-html.keyboard-open:has(body > .kb-done) .food-thread { padding-bottom: 49px; }
 /* Calmer chat text (2026-10-18, owner: "too big and overwhelming"): smaller card text, chip-sized choices, quiet links. */
 .thread-card, .thread-user { font-size: .95rem; }
 .food-thread .thread-choices { gap: 6px; margin-block: 8px; }
@@ -1927,7 +1918,7 @@ html.keyboard-open:has(body > .kb-done) .food-thread { padding-bottom: 49px; }
 
 #dl-n {width:4.5rem;text-align:center;font:700 1.6rem/1.2 var(--numf);padding:.4rem .25rem;}
 
-html.keyboard-open .food-thread:has(.shared-recipe-row) {padding-bottom:52px;}
+html.keyboard-open .food-thread:has(.shared-recipe-row) {padding-bottom:4px;}
 html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-shrink:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
 
 /* Optional Health categories and source-labelled weigh-ins. */
@@ -2024,7 +2015,6 @@ html:has(.recipe-page) nav.tabs { display: none; }
 .recipe-page .composer input { width: 0; font-size: max(16px, 1rem); min-height: 44px; }
 .recipe-page .composer .icon-btn { width: 44px; height: 44px; }
 .recipe-page .cmsg, .recipe-page .dish-sum { font-size: 1rem; }
-html.keyboard-open:has(body > .kb-done) .recipe-page { padding-bottom: 52px; }
 .recipe-page .dish-name-in { font-size: max(16px,1.2rem); }
 .recipe-page .ig { grid-template-columns: minmax(0,1fr) auto; gap: 3px 10px; }
 .recipe-page .ig-n { white-space: normal; overflow-wrap: anywhere; font-size: 1rem; }

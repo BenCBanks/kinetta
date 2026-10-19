@@ -1007,6 +1007,15 @@ if ('serviceWorker' in navigator && !window.Capacitor) navigator.serviceWorker.r
 function installKeyboardDismissal() {
   let gesture = null;
   const editable = (el) => el && (el.matches('input:not([type="checkbox"]):not([type="radio"]), textarea') || el.isContentEditable);
+  // Blank space and message text dismiss without consuming a control's action.
+  // Fields, map/photo gestures and active text selections keep their normal jobs.
+  document.addEventListener('click', (e) => {
+    const field = document.activeElement;
+    if (!editable(field) || e.defaultPrevented || e.button > 0 ||
+        document.getSelection?.()?.isCollapsed === false ||
+        e.target.closest('input, textarea, select, label, [contenteditable], button, a, summary, [role="button"], .map, .fmap, .media-track, .ph-view')) return;
+    field.blur();
+  });
   document.addEventListener('touchstart', (e) => {
     const field = document.activeElement;
     if (e.touches.length !== 1 || !editable(field) || e.target.closest('input, textarea, [contenteditable], .map, .fmap, .media-track, .ph-view')) { gesture = null; return; }

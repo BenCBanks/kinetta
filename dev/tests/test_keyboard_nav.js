@@ -29,12 +29,10 @@ n.event('keyboardWillHide'); assert.equal(n.open(), true, 'no flash during inter
 n.event('keyboardDidShow'); assert.equal(n.open(), true, 'cancelled dismissal stays hidden');
 n.event('keyboardDidHide'); assert.equal(n.open(), false, 'restore even while field remains focused');
 n.focus(); assert.equal(n.open(), false, 'external keyboard focus does not hide tabs');
-// the iPhone app's Done strip: added once to the page, closes the keyboard without first stealing focus
-const strip = n.document.body.children.find((c) => c.className === 'kb-done'); assert.ok(strip, 'Done strip added in the app');
-const doneButton = strip.children[0]; assert.equal(doneButton.textContent, 'Done');
-let prevented = false; doneButton.fire('pointerdown', {preventDefault: () => { prevented = true; }}); assert.ok(prevented, 'tap keeps focus');
-let blurred = false; n.document.activeElement = {blur: () => { blurred = true; }}; doneButton.fire('click'); assert.ok(blurred, 'Done closes the keyboard');
-assert.equal(setup().document.body.children.length, 0, 'no strip in a browser (Safari has its own Done bar)');
+assert.equal(n.document.body.children.length, 0, 'native keyboard has no app-supplied Done strip');
+assert.equal(setup().document.body.children.length, 0, 'browser has no app-supplied strip');
+let scrolled=null;n.focus({getBoundingClientRect:()=>({bottom:505}),scrollIntoView:opts=>{scrolled=opts;}});
+n.event('keyboardDidShow');assert.equal(scrolled.block,'nearest','only reveal the obscured field, without strip clearance');n.blur();
 const b = setup();
 b.focus(); assert.equal(b.open(), false);
 b.vv.height = 770; b.event('resize'); assert.equal(b.open(), false, 'browser chrome is not keyboard');
@@ -53,7 +51,7 @@ for (const extra of [{disabled: true}, {readOnly: true}, {inputMode: 'none'}, {m
 const content = setup(); content.focus({matches: () => false, isContentEditable: true});
 content.vv.height = 510; content.event('resize'); assert.equal(content.open(), true, 'contenteditable');
 assert.doesNotThrow(() => setup({viewport: false}));
-console.log('Keyboard navigation: native lifecycle, Done strip, cancelled dismissal, viewport modes, focus changes, physical keyboards and zoom passed');
+console.log('Keyboard navigation: native lifecycle, no accessory strip, cancelled dismissal, viewport modes, focus changes, physical keyboards and zoom passed');
 
 // Food layout follows the usable viewport on both OS event paths, without
 // changing size under a deliberate pinch gesture or requiring another focus.

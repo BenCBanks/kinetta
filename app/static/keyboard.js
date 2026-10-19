@@ -22,19 +22,9 @@
     addEventListener('keyboardWillShow', () => setOpen(true));
     addEventListener('keyboardDidShow', () => { setOpen(true); fitChat(); requestAnimationFrame(keepVisible); });
     addEventListener('keyboardDidHide', () => { setOpen(false); fitChat(); });
-    // A "Done" strip just above the keyboard closes it from any text box (2026-10-16, Ben). The app hides iOS's own
-    // ↑ ↓ ✓ bar (native.js); Safari keeps that bar, so this strip is only for the app. The WebView shrinks to sit above
-    // the keyboard, so the bottom of the page is the top of the keyboard.
-    const bar = document.createElement('div'), done = document.createElement('button');
-    bar.className = 'kb-done'; done.type = 'button'; done.textContent = 'Done'; bar.appendChild(done);
-    // pointerdown + preventDefault: tapping it doesn't move focus first (which would bounce the keyboard)
-    done.addEventListener('pointerdown', (e) => e.preventDefault());
-    done.addEventListener('click', () => { const el = document.activeElement; if (el && el.blur) el.blur(); });
-    const add = () => document.body.appendChild(bar);
-    if (document.body) add(); else addEventListener('DOMContentLoaded', add);
-    // the strip covers the bottom 44 px, so bring the box being typed in above it
+    // No accessory strip: the focused field uses the full visible WebView.
     const keepVisible = () => { const el = document.activeElement; if (!el || el === document.body) return;
-      const r = el.getBoundingClientRect(); if (r.bottom > innerHeight - 56) el.scrollIntoView({block: 'center'}); };
+      const r = el.getBoundingClientRect(); if (r.bottom > innerHeight - 8) el.scrollIntoView({block: 'nearest'}); };
     return;
   }
   const vv = window.visualViewport;
