@@ -178,17 +178,18 @@ const Track = (() => {
     const choices = [...OUTDOOR.map(([sport,label,kind]) => ({sport,label,sportLabel:kind,gps:true})), {label:'Lifting',lift:true}, ...indoor.map(([sport,label,kind]) => ({sport,label,sportLabel:kind,gps:false}))];
     let selected = Math.min(choices.length-1, Math.max(0, +store.get(key + ':choice') || 0));
     const done = new URLSearchParams(location.search).get('done');
-    el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup"><div class="track-quick" role="group" aria-label="Common activities">${TRACK_QUICK.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 ? '<optgroup label="Outdoor · GPS">' : i===OUTDOOR.length ? '</optgroup><optgroup label="Indoor · timer and sets">' : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label>
+    el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup"><div class="track-quick" role="group" aria-label="Common activities">${TRACK_QUICK.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${TRACK_QUICK.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 ? '<optgroup label="Outdoor · GPS">' : i===OUTDOOR.length ? '</optgroup><optgroup label="Indoor · timer and sets">' : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
+      <p class="small muted" id="track-guidance"></p><p class="small danger" id="track-ready-error" role="alert"></p><button class="primary wide" id="track-start">Start</button>
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><button type="button" class="ghost track-locate" id="track-locate">${svg('track')}Locate me</button></div>
-      <p class="small muted" id="track-guidance"></p><p class="small danger" id="track-ready-error" role="alert"></p><button class="primary wide" id="track-start">Start</button></form>
+      </form>
       <div id="track-open-lift"></div><section class="track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">More ways to add</h2><div class="card list">${Native.on ? `<a class="row-link" href="/track/health">${svg('heart')}<span class="grow">Apple Health</span>${svg('chev')}</a>` : ''}<a class="row-link" href="/track/connections">${svg('watch')}<span class="grow">Connections<small class="muted gs-sub">${Native.on ? 'Watch files and other apps' : 'Apple Health, watch files and other apps'}</small></span>${svg('chev')}</a><button class="row-link" id="track-past">${svg('calendar')}<span class="grow">Log a past activity</span>${svg('chev')}</button><a class="row-link" href="/track/import">${svg('upload')}<span class="grow">Upload activity files</span>${svg('chev')}</a></div></section>`;
-    const guide = () => { const c=choices[selected];$('#track-ready-map-wrap').hidden=!c.gps;$('#track-start').textContent=c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`;$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS continues while your screen is locked or you use another app.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'Track active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
-    const pick=(i)=>{selected=i;store.set(key+':choice',selected);$('#track-kind').value=String(i);$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();};
+    let view=null,dot=null,located=false,here=null,loadingMap=false;
+    const guide = () => { const c=choices[selected];$('#track-ready-map-wrap').hidden=!c.gps;ensureMap();$('#track-start').textContent=c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`;$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS continues while your screen is locked or you use another app.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'Track active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
+    const pick=(i)=>{selected=i;store.set(key+':choice',selected);$('#track-kind').value=String(i);const other=$('#track-other');other.open=false;$('summary',other).innerHTML=esc(TRACK_QUICK.includes(i)?'More activities':choices[i].label)+svg('down');$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();};
     $('#track-kind').onchange=(e)=>pick(+e.target.value);
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});guide();
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
     // (permission is remembered); a browser locates by itself only after the person has already allowed it.
-    let view=null,dot=null,located=false,here=null;
     const show=(lat,lon)=>{ located=true;here=[lat,lon];if(!view||!$('#track-ready-map')?.isConnected)return;view.map.setView([lat,lon],15);
       if(dot)dot.setLatLng([lat,lon]);else dot=view.L.circleMarker([lat,lon],{radius:7,color:col('--accent'),fillOpacity:1}).addTo(view.map); };
     const locate=async(quiet)=>{
@@ -208,7 +209,14 @@ const Track = (() => {
     const auto=()=>{ if(!located&&choices[selected].gps)locate(true); };
     $('#track-locate').onclick=()=>locate(false);
     $('#track-kind').addEventListener('change',auto);auto();
-    mapInto($('#track-ready-map'), [], {still:true}).then((v)=>{ if(!v)return;view=v;if(here)show(...here); }).catch(()=>{$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';});
+    function ensureMap(){
+      if(!choices[selected].gps||loadingMap)return;
+      if(view){requestAnimationFrame(()=>{if(el.isConnected)view.map.invalidateSize();});return;}
+      loadingMap=true;
+      mapInto($('#track-ready-map'), [], {still:true}).then(v=>{if(!v)return;view=v;if(here)show(...here);})
+        .catch(()=>{if(el.isConnected)$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';})
+        .finally(()=>{loadingMap=false;});
+    }
     $('#track-setup').onsubmit=async(e)=>{e.preventDefault();if(controlling)return;const c=choices[selected];if(c.lift){startLiftSheet();return;}await begin(c.sport,c.label,c.sportLabel,c.gps);};
     $('#track-past').onclick=()=>addActivitySheet();liftNowCard($('#track-open-lift'));
   }

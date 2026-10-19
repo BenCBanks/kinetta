@@ -6,25 +6,91 @@
 // The quick appreciation button. Its name lives only here, so it can be renamed in one place.
 const CHEER = {verb: 'Cheers', done: 'Cheers sent', many: 'cheers', title: 'Cheers'};   // 'Cheers' everywhere (2026-10-12)
 const REACTIONS=[['cheer','Cheers'],['strong','Strong'],['applause','Applause']];
+let closeReactionPicker = null;
+const reactionIcon = kind => kind==='strong'?'workout':kind==='applause'?'sparkle':'cheer';
 function reactionButtons(aid,s,detail=false){
   const selected=s.my_reaction??(s.cheered?'cheer':null),counts=s.reactions||{cheer:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0};
-  return `<div class="activity-reactions" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}">${REACTIONS.map(([kind,label])=>`<button type="button" class="pf cheer" data-react="${kind}"${kind==='cheer'?` data-cheer="${aid}"${detail?' data-tcheer':''}`:''} aria-pressed="${selected===kind}" aria-label="${label}">${svg(kind==='strong'?'workout':kind==='applause'?'sparkle':'cheer')}<span>${label}</span><span class="num">${counts[kind]||''}</span></button>`).join('')}</div>`;
+  return `<div class="activity-reactions" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS.map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
+    <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span>${REACTIONS.find(([k])=>k===selected)?.[1]||'Cheers'}</span></button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('down')}</button></div>
+    <button type="button" class="pf reaction-count" aria-label="See who reacted" hidden></button>
+    <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1">${svg(reactionIcon(kind))}<span>${label}</span></button>`).join('')}</div></div>`;
 }
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
   const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
-  let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS.map(([kind])=>[kind,+$(`[data-react="${kind}"] .num`,group).textContent||0]))};
-  const draw=()=>{if(!active())return;for(const [kind]of REACTIONS){const button=$(`[data-react="${kind}"]`,group);button.setAttribute('aria-pressed',String(state.my_reaction===kind));button.setAttribute('aria-busy',String(busy));$('.num',button).textContent=state.reactions[kind]||'';}};
+  const main=$('.reaction-main',group),more=$('.reaction-more',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
+  let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS.map(([k])=>[k,+group.getAttribute('data-count-'+k)||0]))};
+  let hoverTimer=null,leaveTimer=null,heldOpen=false;
+  const close=(focus=false)=>{
+    clearTimeout(hoverTimer);clearTimeout(leaveTimer);if(picker.hidden){if(focus===true&&active())main.focus({preventScroll:true});return;}picker.hidden=true;more.setAttribute('aria-expanded','false');heldOpen=false;
+    group.appendChild(picker);if(closeReactionPicker===close)closeReactionPicker=null;
+    if(focus&&active())main.focus({preventScroll:true});
+  };
+  const open=(focus=false)=>{
+    if(busy||!active())return;
+    if(closeReactionPicker&&closeReactionPicker!==close)closeReactionPicker();closeReactionPicker=close;
+    clearTimeout(hoverTimer);clearTimeout(leaveTimer);document.body.appendChild(picker);picker.hidden=false;more.setAttribute('aria-expanded','true');
+    const r=main.getBoundingClientRect(),p=picker.getBoundingClientRect(),vv=window.visualViewport;
+    const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight),above=r.top-p.height-8;
+    picker.style.left=Math.max(12,Math.min(r.left,innerWidth-p.width-12))+'px';
+    picker.style.top=Math.max(top+8,Math.min(above>=top+8?above:r.bottom+8,bottom-p.height-8))+'px';
+    if(focus)(options.find(b=>b.dataset.react===state.my_reaction)||options[0]).focus();
+  };
+  const draw=()=>{
+    if(!active())return;
+    const selected=state.my_reaction,label=REACTIONS.find(([k])=>k===selected)?.[1]||'Cheers';
+    main.innerHTML=svg(reactionIcon(selected))+`<span>${label}</span>`;main.setAttribute('aria-pressed',String(!!selected));
+    main.setAttribute('aria-label',selected?`${label}. Tap to remove; hold to change`:'Cheers. Tap to send; hold to choose');
+    main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
+    const used=REACTIONS.filter(([k])=>state.reactions[k]>0),total=used.reduce((n,[k])=>n+state.reactions[k],0);
+    count.hidden=!total;count.innerHTML=`<span class="reaction-icons">${used.map(([k])=>svg(reactionIcon(k))).join('')}</span><span class="num">${total}</span>`;
+    count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}. See who reacted`);
+    for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
+  };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};draw();}};
-  for(const [kind]of REACTIONS)cheerGesture($(`[data-react="${kind}"]`,group),async()=>{
-    if(busy||!active())return;busy=true;const was=state,next=state.my_reaction===kind?null:kind,counts={...state.reactions};
-    if(state.my_reaction)counts[state.my_reaction]=Math.max(0,counts[state.my_reaction]-1);if(next)counts[next]=(counts[next]||0)+1;
+  const choose=async(next)=>{
+    const focused=document.activeElement,restoreFocus=group.contains(focused)||picker.contains(focused),host=group.parentElement;
+    close();if(busy||!active()||state.my_reaction===next)return;
+    busy=true;const was=state,counts={...state.reactions};
+    if(state.my_reaction)counts[state.my_reaction]=Math.max(0,(counts[state.my_reaction]||0)-1);if(next)counts[next]=(counts[next]||0)+1;
     state={my_reaction:next,reactions:counts};draw();Native.haptic(next?'medium':'light');
-    try{let fresh=await api(`/api/activities/${aid}/reaction`,next?json('POST',{kind:next}):{method:'DELETE'});if(!active())return;
-      if(!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);
-      if(!active())return;state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};socialChanged(aid);changed?.(fresh);
-    }catch(x){if(active()){state=was;toast(x.message);}}finally{busy=false;draw();}
-  },()=>activityCheers(aid));
+    try{
+      let fresh=await api(`/api/activities/${aid}/reaction`,next?json('POST',{kind:next}):{method:'DELETE'});if(!active())return;
+      if(!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);if(!active())return;
+      state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};socialChanged(aid);changed?.(fresh);
+    }catch(x){if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?main:host?.querySelector('.reaction-main');if(button?.isConnected)button.focus({preventScroll:true});}}
+  };
+  cheerGesture(main,()=>{if(!picker.hidden){close();return;}choose(state.my_reaction?null:'cheer');},()=>{open();heldOpen=true;});
+  main.title='Tap to send or remove; hold to choose a reaction';
+  // iOS keeps a held touch captured on its original button. Resolve the release
+  // under the finger, so sliding onto a revealed choice selects it just once.
+  const release=main.onpointerup,cancel=main.onpointercancel;
+  main.onpointerup=e=>{const held=heldOpen;release(e);if(held){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-react]');if(b&&picker.contains(b))choose(b.dataset.react);}};
+  main.onpointercancel=e=>{cancel(e);close();};
+  main.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();open(true);}});
+  more.onclick=e=>{e.preventDefault();e.stopPropagation();picker.hidden?open(true):close(true);};
+  count.onclick=e=>{e.preventDefault();e.stopPropagation();close();activityCheers(aid);};
+  for(const b of options)b.onclick=e=>{e.preventDefault();e.stopPropagation();choose(b.dataset.react);if(active())main.focus({preventScroll:true});};
+  picker.addEventListener('keydown',e=>{
+    const i=options.indexOf(document.activeElement);let next=null;
+    if(['ArrowRight','ArrowDown'].includes(e.key))next=(i+1)%options.length;
+    if(['ArrowLeft','ArrowUp'].includes(e.key))next=(i+options.length-1)%options.length;
+    if(e.key==='Home')next=0;if(e.key==='End')next=options.length-1;
+    if(next!==null){e.preventDefault();options[next].focus();}
+    if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close(true);}
+    if(e.key==='Tab')close(true);
+  });
+  const outside=e=>{if(!picker.hidden&&!group.contains(e.target)&&!picker.contains(e.target))close();};
+  const escape=e=>{if(e.key==='Escape'&&!picker.hidden){e.preventDefault();close(true);}};
+  const scroll=e=>{if(!picker.contains(e.target))close();};
+  document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape);
+  const resize=()=>close();window.addEventListener('scroll',scroll,true);window.addEventListener('resize',resize);
+  const enter=e=>{if(e.pointerType==='mouse'&&matchMedia('(hover: hover)').matches){clearTimeout(leaveTimer);hoverTimer=setTimeout(()=>open(),250);}};
+  const leave=e=>{if(e.pointerType==='mouse'){clearTimeout(hoverTimer);leaveTimer=setTimeout(()=>close(),200);}};
+  const action=$('.reaction-action',group);action.addEventListener('pointerenter',enter);action.addEventListener('pointerleave',leave);
+  picker.addEventListener('pointerenter',()=>clearTimeout(leaveTimer));picker.addEventListener('pointerleave',leave);
+  viewResources.set(group,()=>{close();picker.remove();document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape);window.removeEventListener('scroll',scroll,true);window.removeEventListener('resize',resize);});
+  draw();
 }
 
 const VIS = {me: 'Only me', friends: 'Friends', everyone: 'Everyone on this Kinetta'};
@@ -42,11 +108,11 @@ const trimName = (m) => (!m ? 'Off' : imp() ? {200: '⅛ mi', 400: '¼ mi', 800:
 const profileHref = (p) => `/people/${encodeURIComponent(p.login)}`;
 const personLink = (p, label = p.name) => `<a class="person-link" href="${profileHref(p)}">${avatar(p)}<span class="grow"><b>${esc(label)}</b><small class="muted">@${esc(p.login)}</small></span></a>`;
 
-// A tap reacts immediately. A long press opens people and consumes the following click.
+// A tap reacts immediately. A long press opens reaction choices and consumes the following click.
 function cheerGesture(button, toggle, show) {
   if (!button || button.dataset.cheerBound) return;
   button.dataset.cheerBound = '1';
-  button.title = 'Tap to send or remove this reaction. Hold to see who reacted.';
+  button.title = 'Tap to send or remove this reaction. Hold to choose a reaction.';
   let timer = null, origin = null, suppressUntil = 0, held = false;
   const clear = () => { clearTimeout(timer); timer = null; origin = null; button.classList.remove('cheer-wait'); };
   button.onpointerdown = (e) => {
@@ -67,7 +133,7 @@ function cheerGesture(button, toggle, show) {
     e.preventDefault(); e.stopPropagation(); clear();
     if (e.detail !== 0 && Date.now() < suppressUntil) { suppressUntil = 0; return; }
     toggle();
-    try { if (!localStorage.getItem('fit.cheerHint')) { localStorage.setItem('fit.cheerHint', '1'); toast('Tip: hold a reaction to see who reacted'); } } catch (x) { /* private mode */ }
+    try { if (!localStorage.getItem('fit.cheerHint')) { localStorage.setItem('fit.cheerHint', '1'); toast('Tip: hold Cheers to choose Strong or Applause'); } } catch (x) { /* private mode */ }
   };
   button.oncontextmenu = (e) => {
     e.preventDefault(); e.stopPropagation(); clear();
@@ -219,8 +285,8 @@ const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" clas
 function wireTalk(box,aid,s,open){
   if(!box)return;const owner=readOwner();
   const pile=box.closest('.d-title')&&$('.cpile',box.closest('.d-title'));
-  const draw=()=>{if(!box.isConnected||owner!==readOwner())return;box.innerHTML=talkIcons(s,aid);
-    if(pile){pile.innerHTML=cheerPile(s.cheers);const pb=$('[data-cpile]',pile);if(pb)pb.onclick=()=>cheersSheet(s.cheers);}
+  const draw=()=>{if(!box.isConnected||owner!==readOwner())return;box.innerHTML=talkIcons(s,aid);cleanViews();
+    if(pile)pile.innerHTML=''; // The compact count already opens the people list.
     wireReactionGroup($('[data-reaction-group]',box),aid,fresh=>{s=fresh;draw();});
     $('[data-ttalk]',box).onclick=()=>commentsSheet(aid,s,fresh=>{s=fresh;draw();});
   };draw();if(open)commentsSheet(aid,s,fresh=>{s=fresh;draw();});
