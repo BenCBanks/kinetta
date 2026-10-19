@@ -303,5 +303,69 @@ class Resolution(unittest.TestCase):
   m,r=self.send('Photo of food',media='photo',day=day,meal='dinner')
   self.resolve(m,images=[JPEG]);rows=self.a.get('/api/food/day?d='+day).json()['entries'];self.assertEqual(len(rows),2);self.assertTrue(all(e['meal']=='dinner' for e in rows))
 
+ def test_30_taco_clarifies_before_any_source_guess(self):
+  m,r=self.send('taco');result=self.result(r)
+  self.assertIn('What kind of taco',result['text']);self.assertIn('how many',result['text'])
+  self.assertFalse(result['can_resolve']);self.assertEqual(self.entries(),[])
+  self.resolve(m);self.look.assert_not_called();self.model.assert_not_called()
+  self.post(f"/api/food/thread/messages/{m['id']}/process",client=self.b,status=404)
+  self.look.side_effect=lambda text:{'kind':'plain','foods':[{**PLAIN,'name':'Chicken taco','serving':{'label':'1 taco','g':100}}]}
+  follow,r=self.send('2 chicken tacos');self.assertTrue(self.result(r)['can_resolve'])
+  self.assertEqual(next(x['result'] for x in r['messages'] if x.get('reply_to')==m['id'])['kind'],'continued')
+  r=self.resolve(follow);self.assertEqual(self.result(r)['kind'],'log')
+  self.assertEqual(len(self.entries()),1);self.assertEqual(self.entries()[0]['kcal'],200)
+  self.resolve(follow);self.assertEqual(len(self.entries()),1);self.model.assert_not_called()
+
+ def test_31_taco_short_answers_keep_count_and_destination(self):
+  day=(dt.date.today()-dt.timedelta(days=1)).isoformat()
+  self.send('taco',day=day,meal='dinner')
+  _,r=self.send('2');self.assertIn('What kind of taco',self.result(r)['text'])
+  self.assertNotIn('how many',self.result(r)['text']);self.assertEqual(self.entries(),[])
+  m,r=self.send('chicken',day=dt.date.today().isoformat());self.assertEqual(self.result(r)['day'],day);self.assertEqual(self.result(r)['meal'],'dinner')
+  replay=self.post('/api/food/thread/messages',{'client_id':m['client_id'],'body':'chicken','day':dt.date.today().isoformat()})
+  self.assertFalse(replay['created'],'resolved day must not change immutable request metadata')
+  self.look.side_effect=lambda text:{'kind':'plain','foods':[{**PLAIN,'name':'Chicken taco','serving':{'label':'1 taco','g':100}}]}
+  self.resolve(m);rows=self.a.get('/api/food/day?d='+day).json()['entries']
+  self.assertEqual(len(rows),1);self.assertEqual(rows[0]['kcal'],200);self.assertEqual(rows[0]['meal'],'dinner')
+  self.look.assert_called_once();self.assertIn('2',self.look.call_args.args[0]);self.model.assert_not_called()
+
+ def test_32_taco_question_does_not_capture_unrelated_food(self):
+  original,_=self.send('taco');_,r=self.send('banana')
+  self.assertTrue(self.result(r)['can_resolve'])
+  current=self.a.get('/api/food/thread').json()
+  original_reply=next(x for x in current['messages'] if x.get('reply_to')==original['id'])
+  self.assertEqual(original_reply['result']['parts'][0]['status'],'description')
+  self.assertEqual(self.result(r)['parts'][0]['text'],'banana')
+
+ def test_33_taco_filling_first_does_not_assume_one(self):
+  self.send('taco');_,r=self.send('chicken')
+  self.assertIn('How many tacos',self.result(r)['text']);self.assertFalse(self.result(r)['can_resolve'])
+  self.assertEqual(self.entries(),[]);self.look.assert_not_called();self.model.assert_not_called()
+  m,r=self.send('2');self.assertTrue(self.result(r)['can_resolve'])
+  self.look.side_effect=lambda text:{'kind':'plain','foods':[{**PLAIN,'name':'Chicken taco','serving':{'label':'1 taco','g':100}}]}
+  self.resolve(m);self.assertEqual(self.entries()[0]['kcal'],200)
+  self.assertIn('chicken',self.look.call_args.args[0]);self.assertIn('2',self.look.call_args.args[0])
+
+ def test_34_taco_revised_filling_keeps_natural_question_history(self):
+  original,r=self.send('taco');question=self.result(r)['text']
+  self.send('chicken');_,r=self.send('beef')
+  self.assertIn('How many',self.result(r)['text']);self.assertEqual(self.entries(),[])
+  m,_=self.send('2')
+  self.look.side_effect=lambda text:{'kind':'plain','foods':[{**PLAIN,'name':'Beef taco','serving':{'label':'1 taco','g':100}}]}
+  self.resolve(m);text=self.look.call_args.args[0]
+  self.assertIn('beef',text);self.assertNotIn('chicken',text)
+  history=self.a.get('/api/food/thread').json()['messages']
+  old=next(x for x in history if x.get('reply_to')==original['id'])
+  self.assertEqual(old['result']['kind'],'continued');self.assertEqual(old['result']['text'],question)
+  self.assertEqual(old['result']['pending_count'],0)
+
+ def test_35_taco_question_does_not_change_partial_multi_food_flow(self):
+  self.own_food();_,r=self.send('taco and rice')
+  result=self.result(r)
+  self.assertEqual(len(result['parts']),2)
+  self.assertTrue(result['can_resolve'])
+  self.assertFalse(any(p.get('description') for p in result['parts']))
+  self.assertEqual(sum(e['kcal'] for e in self.entries()),130)
+
 # review regressions use the production API and fictional provider/catalog stand-ins
 unittest.main()

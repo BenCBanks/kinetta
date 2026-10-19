@@ -30,8 +30,21 @@ def own_part(c,uid,item,issued):
     return part
 
 
-def begin(c,uid,message,resolution,*,aliases=True):
+def description_question(part):
+    # A category alone cannot identify a mixed dish. Ask before a generic catalog
+    # match or estimator silently chooses a filling, size or number of tacos.
+    if part['status']!='unknown' or part.get('item',{}).get('kind'):return
+    parsed=meal_chat.read_part(part['text'],[])
+    if parsed.get('query')!=['taco']:return
+    portion=parsed.get('portion')
+    part.update(status='description',description={'food':'taco','portion':portion},
+                question='What kind of taco was it? For example, chicken, beef or beans.' if portion else
+                'What kind of taco, and how many did you have? For example, “2 chicken tacos”.')
+
+
+def begin(c,uid,message,resolution,*,aliases=True,destination=None):
     result=engine.make_result(c,uid,message,resolution)
+    if destination:result.update({k:destination[k] for k in ('day','meal')})
     result['composed']=True
     result['parts']=[own_part(c,uid,item,resolution['issued']) for item in resolution.get('items',[])]
     if not result['parts']:
@@ -43,6 +56,8 @@ def begin(c,uid,message,resolution,*,aliases=True):
     if aliases and unresolved and (message.get('result') or {}).get('input',{}).get('kind','text')=='text':
         alias=resolver._alias(c,uid,unresolved)
         if alias:resolver._replace_group(result,{p['index'] for p in unresolved},alias)
+    if len(result['parts'])==1 and (message.get('result') or {}).get('input',{}).get('kind','text')=='text':
+        for part in result['parts']:description_question(part)
     return write(c,uid,message,result)
 
 
@@ -252,7 +267,7 @@ def _write(c,uid,message,result,*,force=False,only=None):
     first=pending[0] if pending else None
     question=(first or {}).get('question') or (first or {}).get('item',{}).get('message')
     if pending and not (first or {}).get('needs_photo') and any(p.get('looked_up') or p['status'] in ('choose','quantity') for p in pending):
-        question=result.setdefault('question','Which food and portion should I use for the remaining items?')
+        question=(first or {}).get('question') or result.setdefault('question','Which food and portion should I use for the remaining items?')
     if first and (not question or len(question)>1000):question='Checking the remaining food. You can also search or enter its nutrition.'
     if ids:
         rows=c.execute('SELECT name,kcal FROM food_entries WHERE user_id=%s AND id=ANY(%s) ORDER BY id',(uid,ids)).fetchall()

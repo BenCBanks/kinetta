@@ -1,6 +1,7 @@
 """Server-validated source/portion/manual choices for a composed food card."""
 import copy
 import datetime as dt
+import re
 import time
 from fastapi import HTTPException
 from . import nutrients as N
@@ -111,6 +112,9 @@ def _follow_up(c,uid,message):
     response=None
     if dest:
         response=edits.destination(c,uid,previous,dest.get('day') or dt.date.fromisoformat(result['day']),dest.get('meal') or result['meal'])
+    elif len(pending)==1 and pending[0].get('description') and len(result['parts'])==1:
+        response=description_follow_up(c,uid,previous,message,result,pending[0],portion)
+        if response is not None:return response
     elif pure and len(pending)==1:
         response=choose(c,uid,previous,pending[0]['index'],portion=meal_chat.Portion(**portion))
     else:
@@ -125,3 +129,32 @@ def _follow_up(c,uid,message):
     if response is None:return None
     answer=food_thread.finish_reply(c,uid,message,{'kind':'edit','text':'Updated that food card.','source':'code','targets_message':previous['id']})
     return {**response,'messages':response['messages']+answer['messages']}
+
+
+def description_follow_up(c,uid,previous,message,result,part,portion):
+    # Restrict short filling replies to the question we actually asked. Unrelated
+    # food, questions and paragraphs remain separate messages, never taco toppings.
+    text=message['body'].strip()
+    fillings={'chicken','beef','bean','pork','fish','shrimp','steak','veggie','vegetarian','cheese','carnitas','soft','hard','shell','crispy','grilled'}
+    parsed=meal_chat.read_part(text,[]);query=set(parsed.get('query') or [])
+    if len(text)>120 or '\n' in text or re.search(r'https?://|www\.',text,re.I):return None
+    if not (query and ('taco' in query or query<=fillings) or portion and not query):return None
+    detail=part['description'].get('detail') or 'taco'
+    said=text if 'taco' in query else text+' '+('taco' if query else detail)
+    old=part['description'].get('portion') or {}
+    if not portion:
+        if old.get('count'):said=str(old['count'])+' '+said
+        elif old.get('grams'):said=str(old['grams'])+' g '+said
+    resolution=engine.resolve(c,uid,{**message,'body':said})
+    resolution.update(day=result['day'],meal=result['meal'])
+    if not portion and not old:
+        # "Chicken" answers the filling question, not the amount question.
+        # Keep the answer without silently treating it as one serving.
+        waiting=engine.make_result(c,uid,message,resolution)
+        waiting.update(day=result['day'],meal=result['meal'],composed=True,parts=[{'index':0,'text':said,'status':'description','logged':False,
+                    'description':{'food':'taco','detail':said},'question':'How many tacos did you have? You can also give their total weight.'}])
+        response=C.write(c,uid,message,waiting)
+    else:response=C.begin(c,uid,message,resolution,destination={'day':result['day'],'meal':result['meal']})
+    continued=food_thread.finish_reply(c,uid,previous,{**result,'kind':'continued',
+                    'parts':[],'pending_count':0,'can_resolve':False,'continued_to':message['id']})
+    return {**response,'messages':continued['messages']+response['messages']}

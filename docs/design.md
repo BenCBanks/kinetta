@@ -785,3 +785,31 @@ Research basis: [Facebook's published hold/hover pattern](https://about.fb.com/n
 [Slack's three quick reactions](https://slack.com/help/articles/360056881694-Manage-one-click-emoji-reactions-for-your-workspace-or-organization),
 and [Apple's target/readability guidance](https://developer.apple.com/design/tips/). These support a short icon chooser
 and generous hit areas; Kinetta's exact dimensions and type scale are product decisions, not measured competitor sizes.
+
+
+## Keyboard dismissal and short food descriptions (19 October 2026)
+
+Do not add an app-supplied Done strip above the keyboard or reserve space for one. Keep the
+software-keyboard tab visibility and visible-viewport sizing. Tap blank space/message text above the
+keyboard or swipe down outside the input to dismiss; do not consume actions on buttons, links,
+other fields, map/photo gestures or text selection. Native interactive scroll dismissal remains enabled.
+Safari may display its own system accessory controls; those are not app UI.
+
+This is the standing interaction standard for new and revised Kinetta flows. Preserve drafts,
+keep the focused composer visible, and keep input text at least 16px to avoid focus zoom.
+Food chat should ask a short, specific question about missing identity/type or quantity, carry
+forward answered details and the original meal/day, and preserve source review, explicit
+confirmation, account boundaries and retry safety. Never substitute catalog jargon for a helpful
+question or invent a portion or nutrition. Preserve valid saved-food matches. Verify dismissal,
+visible input and drafts at phone width in both themes; cover successive food replies and retries
+with regressions. Prompt/model changes still follow the AI architecture and evaluation requirements.
+
+The implemented regression below covers a bare taco; it does not establish that every ambiguous
+food description already follows this standard.
+
+A new, unresolved bare “taco” asks its type and count before choosing a generic catalog food or
+estimate. Existing exact saved foods retain their usual behavior. Count and filling can arrive in
+either order; continue the food description, retain its original meal/day, close the earlier pending
+question, and never invent a count or nutrition. Unrelated foods remain separate. Preserve specific
+clarification wording instead of replacing it with a generic “remaining items” question. This is
+deterministic routing/copy; no prompt/model change or model-accuracy claim.

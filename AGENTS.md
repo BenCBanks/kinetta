@@ -106,3 +106,24 @@ export file is different and is fine.)
 ## Design agent reference
 
 Read `docs/design.md` before any UI, brand, website or screenshot work. Evergreen Agenda is the approved design system; it supersedes the old ruby palette. Preserve the conditional Today panels, stable five-tab navigation and profile/activity privacy rules described there.
+
+
+## Keyboard and food-chat interaction standard
+
+Apply these rules to new work and preserve them when changing existing flows. The detailed
+[design standard](docs/design.md#keyboard-dismissal-and-short-food-descriptions-19-october-2026)
+and existing keyboard/food-thread regression tests are the reference.
+
+- Do not add an app-supplied keyboard Done bar or reserve space for one. Dismiss by tapping
+  background/message text or swiping down outside the field, retaining drafts and the visible composer.
+  Preserve normal control actions, text selection, map/photo gestures, and software-keyboard tab visibility.
+  Keep input text at least 16px to avoid focus zoom; browser-owned accessory controls are separate.
+- When a food description lacks the details needed to resolve it, ask a brief, specific follow-up
+  about the missing type or amount. Retain details already supplied and the original meal/day;
+  do not invent portions or nutrition or substitute catalog jargon for a helpful question.
+  Preserve valid saved-food matches, source/portion validation, explicit confirmation rules,
+  ownership and retry safety. Unrelated foods remain separate.
+- Verify keyboard dismissal, draft preservation and focused-field visibility at phone width in both
+  themes. Cover food clarification across successive replies and retries. Changes to prompts/models
+  still require the AI architecture and evaluation process above. The current bare-taco regression is
+  concrete coverage of this standard, not evidence that every ambiguous food is already handled.
