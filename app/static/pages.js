@@ -186,10 +186,10 @@ async function meOverview(el) {
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
-    <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => { const waiting = href === '/me/friends' && App.me.friend_requests;
-      return `<a href="${href}"${waiting ? ` aria-label="${label}, ${App.me.friend_requests} waiting"` : ''}>${svg(ico)}<span>${label}</span>${waiting ? `<b class="badge alert">${App.me.friend_requests}</b>` : ''}</a>`; }).join('')}</nav>
     <div id="t-last"></div>
     <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
+    <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => { const waiting = href === '/me/friends' && App.me.friend_requests;
+      return `<a href="${href}"${waiting ? ` aria-label="${label}, ${App.me.friend_requests} waiting"` : ''}>${svg(ico)}<span>${label}</span>${waiting ? `<b class="badge alert">${App.me.friend_requests}</b>` : ''}</a>`; }).join('')}</nav>
     <div id="t-combined-week"></div><div id="t-friends"></div>
     <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
   // Your day appears only when the plan or food card (or a pending check-in) has something to show.
@@ -812,7 +812,13 @@ const progressChoice = () => foodUser() && store.get(progressKey()) === 'food' ?
 function progressSwitch(section) {
   if (section === 'training' && !foodUser()) return '';
   store.set(progressKey(),section);
-  return `<nav class="progress-switch" aria-label="Progress focus"><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a></nav>`;
+  return `<details class="progress-focus"><summary aria-label="Change progress focus">${section === 'food' ? 'Food &amp; weight' : 'Training'}${svg('down')}</summary><nav aria-label="Progress focus"><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a></nav></details>`;
+}
+function wireProgressFocus(el) {
+  const menu=$('.progress-focus',el);if(!menu)return;
+  const close=e=>{if(menu.open&&(!menu.contains(e.target)||e.key==='Escape')){menu.open=false;if(e.key==='Escape')$('summary',menu).focus();}};
+  document.addEventListener('pointerdown',close);document.addEventListener('keydown',close);
+  viewResources.set(menu,()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',close);});
 }
 function nutritionHref(view, params = '') {
   return location.pathname === '/progress' ? `/progress?section=food&foodview=${view}${params ? '&' + params : ''}` : `/food?view=${view}${params ? '&' + params : ''}`;
@@ -830,8 +836,9 @@ async function foodProgress(el,q) {
 // the header every Progress view shares: title + bell, then View and the filters this view uses
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
-  el.innerHTML = `<div class="top"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
+  el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${progressSwitch('training')}${bellBtn()}</div></div>
     <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav><div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skel(2)}</div>`;
+  wireProgressFocus(el);
   if (foodUser()) combinedWeek($('#p-combined-week',el));
   $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
     if (k === 'plan') return go('/plan');

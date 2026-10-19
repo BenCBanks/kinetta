@@ -36,6 +36,7 @@ node dev/tests/test_training_food_ui.js
 node dev/tests/test_workout_sync_status.js
 node dev/tests/test_native_resting.js
 node dev/tests/test_social_gestures.js
+node dev/tests/test_reaction_picker.js
 node dev/tests/test_card_taps.js
 node dev/tests/test_ui_state.js
 node dev/tests/test_onboarding.js

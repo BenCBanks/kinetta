@@ -1458,9 +1458,9 @@ html.keyboard-open .kb-done { display: flex; }
 .me-agenda { margin: 24px 0; }
 /* Me shortcuts (2026-10-18): one tap to each main area, small round icons like the food chat's + menu. */
 .me-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr)); gap: 8px; margin: 16px 0; }
-.me-shortcuts a { display: grid; justify-items: center; align-content: center; gap: 6px; min-height: 84px; padding: 10px 4px; border: 1px solid var(--line);
+.me-shortcuts a { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 56px; padding: 8px 4px; border: 1px solid var(--line);
   border-radius: 18px; background: var(--card); color: var(--tx); font-size: .85rem; font-weight: 600; text-align: center; white-space: nowrap; }
-.me-shortcuts a svg { width: 26px; height: 26px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
+.me-shortcuts a svg { width: 20px; height: 20px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
 .me-shortcuts a:active { transform: scale(.96); }
 .me-shortcuts a { position: relative; }
 .me-shortcuts .badge { position: absolute; top: 8px; right: 10px; }
@@ -1533,8 +1533,13 @@ html.keyboard-open .kb-done { display: flex; }
 .track-quick button svg { width: 22px; height: 22px; }
 .track-quick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent2); color: var(--accent); }
 .track-quick button:active { transform: scale(.96); }
+.track-other > summary { display:flex; align-items:center; min-height:44px; gap:6px; color:var(--accent); font-size:.95rem; cursor:pointer; list-style:none; }
+.track-other > summary svg { width:16px; height:16px; }
+.track-other[open] > summary { margin-bottom:8px; }
+.track-other > label { padding-bottom:4px; }
 .track-ready-map-wrap { position: relative; }
 .track-ready-map, .live-record-map { height: clamp(240px, 39dvh, 380px); border-radius: 16px; overflow: hidden; background: var(--card2); }
+.track-ready-map { height: clamp(160px, 23dvh, 240px); }
 .track-locate { position: absolute; right: 12px; bottom: 12px; z-index: 500; background: var(--card); min-height: 44px; padding: 10px 14px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .track-locate svg { width: 18px; }
 #track-setup > p:empty { display: none; }
@@ -1659,9 +1664,15 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .home-workout > svg { width:20px; height:20px; flex-shrink:0; }
 
 /* The two Progress focuses (#122 C); the Food & weight half shows only for food users (#164). */
-.progress-switch { display:flex; gap:4px; padding:4px; border-radius:14px; background:var(--card2); margin-bottom:16px; }
-.progress-switch a { flex:1; min-height:44px; display:grid; align-content:center; text-align:center; border-radius:10px; padding:8px; font-size:.95rem; color:var(--tx2); }
-.progress-switch a[aria-current] { background:var(--card); color:var(--accent); font-weight:700; }
+.progress-heading { gap: 8px; flex-wrap: wrap; }
+.progress-heading > .acts { margin-left: auto; align-items: center; }
+.progress-focus { position: relative; font-size: .9rem; }
+.progress-focus > summary { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 6px; color: var(--accent); cursor: pointer; list-style: none; font-weight: 650; }
+.progress-focus > summary::-webkit-details-marker { display: none; }
+.progress-focus > summary svg { width: 16px; height: 16px; }
+.progress-focus nav { position: absolute; right: 0; top: 100%; z-index: 40; width: min(240px, calc(100vw - 44px)); padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--lift); }
+.progress-focus nav a { display: flex; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 8px; color: var(--tx); }
+.progress-focus nav a[aria-current] { color: var(--accent); background: var(--accent2); font-weight: 700; }
 .ql-capture-shortcuts { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .ql-capture-shortcuts button { min-height:44px; }
 .food-calendar { display:grid; grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr)); gap:8px; }
@@ -1970,12 +1981,23 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .training-food-card .linkbtn, .training-food-card a.small, #training-settings .linkbtn { min-height: 44px; display: inline-flex; align-items: center; }
 
 /* Named reactions remain readable and tappable on narrow phones and with larger text. */
-.activity-reactions { display:flex;flex-wrap:wrap;gap:4px;flex:1 1 100%;min-width:0; }
-.activity-reactions .pf { min-height:44px;padding:6px 10px;font-size:.9rem;flex-wrap:wrap;white-space:normal; }
-.activity-reactions .num:empty { display:none; }
-.post-ft:has(.activity-reactions) { flex-wrap:wrap;padding-block:8px; }
+.activity-reactions { display:flex; align-items:center; gap:0; flex:0 1 auto; min-width:0; max-width:100%; }
+.activity-reactions .pf { min-height:44px; padding:4px 6px; font-size:.9rem; white-space:nowrap; }
+.reaction-action { display:flex; align-items:center; }
+.activity-reactions .reaction-more { width:44px; min-width:44px; padding:0; justify-content:center; }
+.reaction-more svg { width:14px; height:14px; }
+.activity-reactions .reaction-count { gap:4px; min-width:44px; }
+.reaction-icons { display:flex; align-items:center; }
+.reaction-icons svg { width:14px; height:14px; margin-right:-3px; }
+.reaction-icons svg:last-child { margin-right:0; }
+.reaction-picker { position:fixed; z-index:1000; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; width:max-content; min-width:min(260px,calc(100vw - 24px)); max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); overflow:auto; padding:6px; border:1px solid var(--line); border-radius:20px; background:var(--card); color:var(--tx); box-shadow:var(--lift); }
+.reaction-picker button { display:grid; align-content:center; justify-items:center; gap:6px; min-width:0; min-height:76px; padding:8px 1px; border:0; border-radius:14px; background:none; color:inherit; font-size:max(13px,.75rem); font-weight:600; overflow-wrap:anywhere; }
+.reaction-picker button svg { width:28px; height:28px; color:var(--accent); }
+.reaction-picker button:hover,.reaction-picker button:focus-visible,.reaction-picker button[aria-checked="true"] { background:var(--accent2); color:var(--accent); }
+.post-ft:has(.activity-reactions) { flex-wrap:wrap; padding-block:4px; }
 .t-row:has(.activity-reactions) { flex-wrap:wrap; }
-.t-soc:has(.activity-reactions) { flex:1 1 100%;flex-wrap:wrap;margin:0; }
+.t-soc:has(.activity-reactions) { flex:1 0 100%; flex-wrap:wrap; margin:0; max-width:100%; }
+
 /* Keep the outer conversation still; only messages/ingredients scroll. The
    keyboard helper supplies the visible height for Safari and the native WebView. */
 html:has(.food-thread, .recipe-page), html:has(.food-thread, .recipe-page) body { overflow: hidden; }

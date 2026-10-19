@@ -70,7 +70,7 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
   labels, safe-area padding and a short active underline.
 - **Activities:** use Friends feed and My activities. Friends feed contains your activities and approved friends’ shared
   activities, newest first. My activities contains your own history with search and filters. Keep the short scope line,
-  privacy labels, comments, Cheers and long-press people lists. The names match mutual friendships, not a new Follow model.
+  privacy labels, comments, a compact reaction action and tappable reaction counts. The names match mutual friendships, not a new Follow model.
 - **Activity media:** GPS map always comes first, followed by equally sized photos. Without GPS, photos lead. Retain
   swipe, arrows, keyboard navigation, positions, Map shortcut and full-screen zoom/pan. Never move server privacy trimming
   into the client. Today links to the latest activity without repeating its full card or media. Detailed media stays larger. Reserve a theme-colored top safe area so native status-bar text stays readable over bright maps/photos. Marketing photo examples may
@@ -209,9 +209,7 @@ older history stay quiet. New workouts off means no alert and no bell entry. The
 count and clears when notifications are read. Logging out and back in to the same account keeps alerts on; only Turn
 off on this iPhone forgets them. Explain the Cheers hold once with a tip, since phones show no tooltips. Never ask an AI model to compose these alerts.
 
-Cheers reacts on an ordinary tap immediately, without a double-tap delay. Hold for500ms to see the people list;
-release after a hold must not send/remove Cheers. Cancel a hold on scroll, pointer cancellation or leaving the control.
-Keyboard activation still reacts; the context-menu key and visible people/count controls can open the list.
+Cheers reacts on an ordinary tap immediately, without a double-tap delay. Hold for 500ms to reveal Cheers, Strong and Applause in an anchored picker; opening/releasing the picker alone must not send/remove a reaction. Slide onto a choice and release, or tap a choice. Cancel a hold on scroll, pointer cancellation or leaving the control. A visible choice button and keyboard access reach the same picker; Escape/outside tap dismiss it. Tap the reaction count to see people.
 Comments opens its sheet before the network responds, with loading/failure/retry states. Posting shows pending feedback,
 preserves the draft on failure and prevents duplicate submissions. Keep44px targets, both themes and rollback on failure.
 
@@ -293,7 +291,7 @@ Nutrition owns the resting-source preference, distinct from the food goal and ac
 - **Feed cards:** only the profile photo and the name open a person's profile. Every other part of a card (date line,
   sport mark, title, numbers, map, empty space, the gaps in the footer) opens the activity. Cheers, comments, photos,
   media arrows and other inner controls keep their own jobs. The card dips slightly (scale .985) under the finger.
-- **Haptics:** sending Cheers gives a medium tap and removing it a light tap; holding Cheers to see people gives a
+- **Haptics:** sending Cheers gives a medium tap and removing it a light tap; holding Cheers to reveal choices gives a
   selection tick. The iPhone app uses the Taptic Engine (`NativeHaptics.swift`, respects System Haptics); Android
   browsers vibrate briefly; Safari has no haptics. Never make a buzz a required signal.
 - **Navigation speed:** switching tabs shows the page instantly with no fade; screens opened inside a tab fade in
@@ -748,3 +746,21 @@ messages remain visible until sent or cancelled, including after leaving or relo
 quick-log messages default to the local day when sent, regardless of the Nutrition date or an
 old link's date. Explicit correction controls remain available on logged food. Recipe creation
 stores a reusable ingredient list; logging a portion is a separate action from My Recipes.
+
+
+## Compact reactions and navigation clarity (19 October 2026)
+
+One reaction action replaces the three permanent buttons in feed cards and activity detail. Tap sends Cheers or removes
+the selected reaction; hold, desktop hover, the adjacent choice button or Arrow Down reveals a floating three-choice
+picker. Selected icon and label follow the person's reaction. Opening the picker never writes. Each person still has
+one reaction, count taps show the people list, failed saves roll back, and old-account or detached controls cannot write.
+Keep labels, 44px targets, arrow-key choice navigation, Escape/focus restoration and no selection on scroll/dismissal.
+
+On Me, the fourteen-day chart leads, followed by the latest activity and conditional Your day, then six smaller shortcuts.
+The shortcut destinations and five tabs stay stable. Progress keeps its Training default and optional Food & weight focus,
+with the focus choice in a compact labelled header menu. Track keeps five common sport choices; More activities reveals
+the full list and a non-common selection stays named. Start comes before the smaller preview map; indoor visits do not
+initialize a hidden map. Cache the recent lifting-session read briefly with the shared account-bound cache and retain
+mutation invalidation. Nutrition keeps its goal action/macros visible; secondary goal explanations and resting-source
+links live inside the existing energy breakdown when that breakdown is available. No target, privacy or recording
+algorithm changes belong to this clarity pass. Physical iPhone interaction/performance acceptance stays separate.

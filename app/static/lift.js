@@ -421,9 +421,11 @@ async function fillLiftCard(el, a) {
 // Track: keep the open lifting session one tap away.
 async function liftNowCard(box) {
   try {
-    const s = (await api('/api/lifts/sessions?limit=1'))[0];
+    await load('/api/lifts/sessions?limit=1', rows => {
+    const s = rows[0];
     if (!box.isConnected) return;
     box.innerHTML = s && s.lift_open && Date.now() - new Date(s.start_time) < 4 * 3600e3 ? `<a class="card tap lift-now" href="/track/lift/${s.id}"><span class="sp workout" aria-hidden="true">${svg('workout')}</span>
       <span class="grow"><b>Lifting now</b><small class="muted">Started ${esc(ftime(s.start_time))} · ${s.sets} set${s.sets === 1 ? '' : 's'} so far</small></span><span class="linkbtn">Carry on ›</span></a>` : '';
+    });
   } catch (x) { /* offline: nothing to show */ }
 }

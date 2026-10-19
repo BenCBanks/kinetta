@@ -48,7 +48,7 @@ const app=fs.readFileSync('app/static/app.js','utf8');
 }
 {
  const text=fs.readFileSync('app/static/pages.js','utf8'),data=new Map();
- const c={App:{me:{id:1}},Native:{base:'',token:'fictional-token-never-store'},location:{origin:'https://fictional.invalid'},store:{get:k=>data.get(k),set:(k,v)=>data.set(k,v)}};
+ const c={svg:()=>'',App:{me:{id:1}},Native:{base:'',token:'fictional-token-never-store'},location:{origin:'https://fictional.invalid'},store:{get:k=>data.get(k),set:(k,v)=>data.set(k,v)}};
  vm.createContext(c);vm.runInContext(text.slice(text.indexOf('const progressKey'),text.indexOf('function nutritionHref'))+'\nglobalThis.choice=progressChoice;',c);
  assert.equal(c.choice(),'training','not a food user: Training');assert.equal(c.progressSwitch('training'),'','no switch for non-food users');
  assert.match(c.progressSwitch('food'),/Training/,'an explicit food URL keeps a way back');data.clear();
