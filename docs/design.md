@@ -898,3 +898,11 @@ Research: [Apple Dark Mode](https://developer.apple.com/design/human-interface-g
 [use of color](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html) and
 [target size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
 This is a design standard, not a claim that every legacy component or physical iPhone flow is fully accessible.
+
+## Food screenshot corrections (19 October 2026)
+
+Nutrition macro bars stack vertically, one full-width bar per nutrient with its amount beside its label.
+Add food is centered on the whole header, independent of the back-link width. Remove the Today/choose-a-meal
+subtitle; the opening question sits16px below the header without a heading top margin. Meal/day selection stays
+in review. A newer native client reaching an older server keeps review metadata and drafts, explains the needed
+server update, and never retries through a legacy path that could log before confirmation.
