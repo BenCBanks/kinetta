@@ -44,7 +44,7 @@ Avoid decorative gradients, competing shadows and colored settings-icon boxes.
 Source Serif 4 is the locally hosted display face for the wordmark, page titles and section headings. Its Latin subset
 and OFL license are bundled with the app/site. Native system sans is used for app controls, labels, body and numbers;
 the marketing site retains Figtree body text. Use tabular numerals and explicit units. Ordinary bold text must not
-inherit display sizes. Page titles are about 38px (Today 44px), sections 23–25px, body 15–16px and small labels 11–13px.
+inherit display sizes. App page titles are 30px, sections 20px, card titles 18px, summary figures 28px and secondary stats 20px at the default text size. Body copy stays 15–16px and small labels 11–13px. Use the `text-app-*` tokens (in rem) so this hierarchy grows with text enlargement; do not shrink the root font. Marketing display sizes remain separate.
 
 The shared spacing scale is 4, 8, 12, 16, 22, 32 and 48px. Phones have 22px side margins, dropping to 16px when narrow.
 Use 12px control radii, 16px media radii and 18px quiet card radii. Cards use about 16px padding and a fine border with
@@ -764,3 +764,24 @@ initialize a hidden map. Cache the recent lifting-session read briefly with the 
 mutation invalidation. Nutrition keeps its goal action/macros visible; secondary goal explanations and resting-source
 links live inside the existing energy breakdown when that breakdown is available. No target, privacy or recording
 algorithm changes belong to this clarity pass. Physical iPhone interaction/performance acceptance stays separate.
+
+
+## Smaller reactions and calmer type (19 October 2026)
+
+The reaction chooser is a 146 × 54px icon strip at its default size, with three separate 44 × 44px
+choices and 22px icons. Names appear on hover/keyboard focus and remain explicit accessible names; the selected
+reaction still names itself on the main action. Keep the hold/slide, visible chooser and keyboard paths, count-to-people,
+rollback and owner guards. Do not turn it back into three labelled tiles or shrink its touch targets.
+
+App-only typography tokens reduce repeated display emphasis across Me, Activity, Progress, Nutrition, plans,
+profiles and sheets: 30px page / 20px section / 18px card / 28px hero figure / 20px secondary statistic.
+Cards use 14px padding and 12px separation; Me's decorative chart bars are shorter and latest-activity/day gaps tighter.
+Body copy, privacy/source explanations and tab labels stay readable; inputs are at least 16px and grow with rem text.
+Metric grids may wrap into fewer columns at enlarged text sizes. Live recording readouts retain their glanceable size.
+The generated shared theme contains these app-only tokens; marketing does not consume them.
+
+Research basis: [Facebook's published hold/hover pattern](https://about.fb.com/news/2016/02/reactions-now-available-globally/),
+[Messages Tapbacks](https://support.apple.com/en-ie/guide/iphone/iph018d3c336/ios),
+[Slack's three quick reactions](https://slack.com/help/articles/360056881694-Manage-one-click-emoji-reactions-for-your-workspace-or-organization),
+and [Apple's target/readability guidance](https://developer.apple.com/design/tips/). These support a short icon chooser
+and generous hit areas; Kinetta's exact dimensions and type scale are product decisions, not measured competitor sizes.

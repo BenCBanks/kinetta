@@ -13,7 +13,7 @@ function reactionButtons(aid,s,detail=false){
   return `<div class="activity-reactions" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS.map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
     <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span>${REACTIONS.find(([k])=>k===selected)?.[1]||'Cheers'}</span></button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('down')}</button></div>
     <button type="button" class="pf reaction-count" aria-label="See who reacted" hidden></button>
-    <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1">${svg(reactionIcon(kind))}<span>${label}</span></button>`).join('')}</div></div>`;
+    <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="${label}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1">${svg(reactionIcon(kind))}<span>${label}</span></button>`).join('')}</div></div>`;
 }
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
