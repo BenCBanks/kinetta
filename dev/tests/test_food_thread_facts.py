@@ -69,7 +69,7 @@ print(f'food thread facts: {checks} pure checks passed; no model/provider import
 
 for text in ['Chicken salad for lunch, about 450 calories total','Had 2 eggs, 300 calories so far']:
  check(f.classify(text,anchor) is None, 'Food description is not a totals question: '+text)
-check(f.classify('How much protein is in a chicken breast?',anchor)['kind']=='advice','General food question never claims personal totals')
+check(f.classify('How much protein is in a chicken breast?',anchor)=={'kind':'food_info','food':'a chicken breast'},'General food question looks up that food, never personal totals')
 check(f.classify('weekly average calories',anchor)['weekly'],'weekly adjective recognised')
 check(f.classify('calories last week',anchor)['day']==dt.date(2026,10,11),'last week ends last Sunday')
 check(f.answer(f.classify('how many calories at lunch today?',anchor),S)['facts']['logged'] is None,'empty requested meal is not whole-day totals')

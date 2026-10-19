@@ -2052,8 +2052,14 @@ html:has(.recipe-page) nav.tabs { display: none; }
 #dk-servings {width:90px;min-width:0;text-align:right;}
 
 /* Shared food review keeps capture and final confirmation in one conversation. */
-#thread-review {margin-bottom:8px;}
-#thread-review-note {margin:0 0 8px;}
+/* The review action is a slim strip attached to the composer, showing what's waiting. */
+.thread-review-strip {display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 32px);min-height:44px;margin:0 16px -1px;padding:6px 14px;
+  border:1px solid var(--line);border-bottom:0;border-radius:16px 16px 0 0;background:var(--card);color:var(--tx);font:inherit;font-size:.875rem;text-align:left;cursor:pointer;}
+.thread-review-strip[hidden] {display:none;}
+.thread-review-strip #thread-review-sum {min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thread-review-go {flex:none;color:var(--accent);font-weight:650;}
+.thread-review-strip:disabled {cursor:default;}
+.thread-review-strip:disabled .thread-review-go {color:var(--tx2);}
 .review-food-row {display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
 .review-food-row b {min-width:0;overflow-wrap:anywhere;}
 .review-food-row span {flex:none;color:var(--tx2);}

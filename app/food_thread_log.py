@@ -135,28 +135,87 @@ def social_reply(text):
     return None
 
 
+ACK=re.compile(r"(?:ok(?:ay)?|k+|kk|yes|yeah|yep|yup|sure|cool|great|nice|perfect|good|fine|got it|sounds good|looks (?:good|right)|lol|haha+|ha|hmm+|no|nope|nah|wow|oh|ah|👍|🙏|😂|😊|🙂)(?:[ ,!.]+(?:thanks|thank you|kit))?")
+NOTHING=re.compile(r"(?:nothing(?: yet| today| else)?|none|that'?s (?:it|all)|i'?m done|done|i (?:didn'?t|did not|haven'?t|have not) eat(?:en)?(?: anything)?(?: (?:yet|today))?|(?:i )?skipped (?:breakfast|lunch|dinner|a meal|my \w+)(?: today)?|no (?:breakfast|lunch|dinner|snacks?)(?: today)?|(?:i'?m )?fasting(?: today)?)")
+
+
+GENERIC_UNITS={'slice','piece','cup','glass','bowl','serving','portion','plate','handful','scoop','spoon','spoonful','tbsp','tsp','tablespoon','teaspoon','mug','bit','helping','plateful','bowlful'}
+
+
+def chat_reply(c,uid,message):
+    """Short replies that are not food never become food cards ('ok', 'nothing', 'is that right?')."""
+    from . import food_thread_edit as edits, food_thread_compose as compose
+    text=re.sub(r'\s+',' ',message['body'].casefold().replace('’',"'")).strip(' .!,')
+    previous=edits._context(c,uid,message)
+    card=compose.card(c,uid,previous) if previous and previous['state']!='cancelled' else None
+    live=card and not card.get('cancelled') and not card.get('food_review') and card.get('kind') not in ('reviewed','continued','undone')
+    pending=[p for p in (card or {}).get('parts',[]) if p['status']!='ready' and not p.get('logged')] if live else []
+    def reply(value,intent='small_talk'):
+        return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':intent,'source':'code','text':value})
+    if NOTHING.fullmatch(text.strip('?')):
+        if live and (card or {}).get('parts') and not pending and (message.get('result') or {}).get('review_only'):
+            return reply('Got it. Tap Review food to check the amounts and log it.')
+        return reply('Got it, nothing to add. Tell me whenever you eat something.')
+    if ACK.fullmatch(text.strip('?')):
+        if pending:return reply('To finish that food: '+(pending[0].get('question') or 'how much did you have?'))
+        if live and re.match(r'(?:no|nope|nah)\b',text):return reply('Tell me what to change, for example “make it 2”, “remove the toast” or “it was lunch”.')
+        if live and (message.get('result') or {}).get('review_only'):return reply('Great. Add anything else you had, or tap Review food to log it.')
+        return reply('Tell me what you ate, or ask about your food log, like “how much protein do I have left?”')
+    if text.endswith('?') and len(text)<=120:
+        if live and pending:return reply('I’m waiting on one detail for that food: '+(pending[0].get('question') or 'how much did you have?'),'clarification_help')
+        if live:return reply('Those numbers are estimates from the food database or AI. Check them in Review food; you can change any amount before it’s logged.','clarification_help')
+        return reply('I can log food you describe and answer questions about your log, like “how many calories have I had today?” For meal ideas, ask Kit.','clarification_help')
+    return None
+
+
+def bare_amount(c,uid,message):
+    """'2 slices' or '200 g' that no correction handler used is an amount without a food: ask, don't log '2 slices'."""
+    from . import food_thread_edit as edits
+    text=re.sub(r'\s+',' ',message['body'].casefold().replace('’',"'")).strip(' .!,')
+    portion,rest=meal_chat.amount(meal_chat.raw(meal_chat.LEAD.sub('',meal_chat.norm(message['body']).strip())))
+    if not portion or rest is None or re.match(r'(?:make|change|set|actually|only|it was|that was|halve|double)\b',text):return None
+    if not all(isinstance(w,str) and (w in meal_chat.FILLER or w in meal_chat.CORRECTION) for w in rest) or portion.get('unit') not in GENERIC_UNITS|{None}:return None
+    said=message['body'].strip(' .!?');live=edits._context(c,uid,message) is not None
+    return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'clarification_help','source':'code',
+        'text':f'{said[:1].upper()+said[1:]} of what? Send the food with its amount, like “2 eggs” or “200 g chicken”.'+(' To change the last food, say “make it '+said+'”.' if live else '')})
+
+
+def food_info(c,uid,message,question):
+    """'How many calories in an avocado?' looks the food up; nothing is logged unless they review it."""
+    from . import food_thread_compose as compose
+    food=question['food']
+    said={**message,'body':food if compose.has_amount(food) else 'a typical serving of '+food}
+    return compose.begin(c,uid,said,resolve(c,uid,said))
+
+
 def process(c,uid,message):
     if message['state']!='pending':return food_thread.answer_with(c,uid,message)
     if (message.get('result') or {}).get('input'):
         from . import food_thread_compose as compose
         return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
-    from .food_thread_choices import conversational_help
-    help_reply=conversational_help(c,uid,message)
-    if help_reply is not None:return help_reply
+    from .food_thread_choices import conversational_help, cancel_words
+    for early in (conversational_help,cancel_words):
+        reply=early(c,uid,message)
+        if reply is not None:return reply
     friendly=social_reply(message['body'])
     if friendly is not None:
         return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'small_talk','source':'code','text':friendly})
     question=facts.classify(message['body'],message['local_day'])
+    if question is not None and question['kind']=='food_info':return food_info(c,uid,message,question)
     if question is not None:return food_thread.answer_with(c,uid,message,question=question)
+    chat=chat_reply(c,uid,message)
+    if chat is not None:return chat
     from . import food_thread_edit as edits, food_thread_refs as refs
     from . import food_thread_choices as choices
-    for handler in (choices.follow_up,edits.handle_pending,refs.handle,edits.try_correction):
+    for handler in (choices.follow_up,choices.draft_edit,edits.handle_pending,refs.handle,edits.try_correction):
         try:
             with c.transaction(): outcome=handler(c,uid,message)
             if outcome is not None:return outcome
         except (HTTPException,ValidationError) as error:
             if isinstance(error,HTTPException) and error.status_code not in (400,422):raise
             return needs_detail(c,uid,message,{},error)
+    asked=bare_amount(c,uid,message)
+    if asked is not None:return asked
     from . import food_thread_numbers
     numbers=food_thread_numbers.preview(c,uid,message)
     if numbers is not None:return numbers

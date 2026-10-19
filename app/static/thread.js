@@ -76,7 +76,8 @@ const FoodThread = (() => {
     const parts=result.parts || (result.resolution?.items||[]).map((item,index)=>({index,status:item.status,item}));
     // One clarification at a time; the original card retains all pending parts.
     const part=parts.find(p=>p.status!=='ready'&&!p.logged);if(!part){const numbers=parts.find(p=>p.entered_numbers&&!p.logged);return numbers?`<button type="button" class="linkbtn" data-manual="${numbers.index}">Review numbers</button>`:'';}
-    if(part.description)return ''; // Answer the short food question in the composer.
+    // Short food questions are answered in the composer, or with one tap on a suggested reply.
+    if(part.description)return part.replies?.length?`<div class="thread-choices thread-replies">${part.replies.map(r=>`<button type="button" class="ghost" data-reply="${esc(r)}">${esc(r)}</button>`).join('')}</div>`:'';
     const item=part.item||{},options=[];
     for(const c of item.choices||[])options.push([c.name,{part:part.index,pick:{kind:c.kind,id:c.id}}]);
     for(const [i,f] of (part.catalog||[]).entries())options.push([f.name,{part:part.index,catalog:i}]);
@@ -108,7 +109,7 @@ const FoodThread = (() => {
     const day=entries[0]?.day||r.day,meal=entries[0]?.meal||r.meal;
     const canLog=!root.result?.review_only&&!r.cancelled&&(r.kind==='preview'||r.parts?.some(p=>p.status==='ready'&&!p.logged));
     return `<div class="thread-card" data-mid="${root.id}">${r.daily_note?`<h3>Your daily food summary</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed&&(!root.result?.review_only||entries.length)?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
-      ${root.result?.review_only&&r.kind!=='answer'&&!r.food_review&&!['reviewed','continued','cancelled'].includes(r.kind)?'<p class="small muted">Not logged · awaiting review</p>':''}${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${visible.length>1?`<p class="thread-total"><span>Total</span><b class="num">≈ ${homeCalories(visible.reduce((n,e)=>n+(e.kcal||0),0))} kcal</b></p>`:''}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||(r.food_review&&r.confirmed)||r.parts?.some(p=>p.entered_numbers&&!p.logged)?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':root.state==='answered'?'Reply text removed. Your saved food is kept.':'Message received. Waiting to check your food…'))}</p>`:''}
+      ${root.result?.review_only&&visible.length&&r.kind!=='answer'&&!r.food_review&&!['reviewed','continued','cancelled'].includes(r.kind)?'<p class="small muted">Not logged · awaiting review</p>':''}${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${visible.length>1?`<p class="thread-total"><span>Total</span><b class="num">≈ ${homeCalories(visible.reduce((n,e)=>n+(e.kcal||0),0))} kcal</b></p>`:''}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||(r.food_review&&r.confirmed)||r.parts?.some(p=>p.entered_numbers&&!p.logged)?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':root.state==='answered'?'Reply text removed. Your saved food is kept.':'Message received. Waiting to check your food…'))}</p>`:''}
       ${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
       ${r.error?`<p class="thread-error">${esc(r.error.message||r.error)}</p>`:''}${!r.cancelled&&(r.kind==='needs'||r.pending_count||r.parts?.some(p=>p.entered_numbers&&!p.logged))?choices(r):''}
       ${kitHtml(r)}<div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${r.error||r.parts?.some(p=>p.needs_photo)?(root.result?.input?.kind==='photo'?'<button type="button" class="linkbtn" data-reattach>Add the photo again</button>':'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>'):''}<button type="button" class="icon-btn thread-more" data-more aria-label="More options for this message">${svg('more')}</button></div></div>`;
@@ -116,25 +117,32 @@ const FoodThread = (() => {
   const pendingReview=()=>(typeof FoodReview!=='undefined'&&FoodReview.busy())||Q.mine().some(op=>/^\/api\/food\/thread\/reviews\/\d+\/confirm$/.test(op.path));
   const waitingJobs=ctx=>ctx.jobs.some(j=>j.draft_id===ctx.draftId&&!j.error);
   function held(ctx){
-    const ids=[];let ready=0,pending=0;
+    // A food still waiting on a question is left out of the review rather than blocking the others.
+    const ids=[];let ready=0,open=0,kcal=0;
     for(const m of ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.review_only&&m.result?.draft_id===ctx.draftId&&!ctx.jobs.some(j=>j.id===m.client_id&&j.error))){
       const r=ctx.messages.find(x=>x.reply_to===m.id)?.result||{};
       if(r.food_review||['reviewed','undone','cancelled'].includes(r.kind)||m.state==='cancelled')continue;
       const parts=r.parts||[];
-      if(parts.length){ids.push(m.id);for(const p of parts){if(p.logged)continue;if(p.status==='ready'&&(!p.entered_numbers||p.manual))ready++;else pending++;}}
+      const waiting=parts.filter(p=>!p.logged&&!(p.status==='ready'&&(!p.entered_numbers||p.manual)));
+      if(waiting.length){open++;continue;}
+      const done=parts.filter(p=>!p.logged);if(done.length){ids.push(m.id);for(const p of done){ready+=Math.max(1,(p.entries||[]).length);for(const e of p.entries||[])kcal+=Number(e.kcal)||0;}}
     }
-    return {ids,ready,pending};
+    return {ids,ready,open,kcal};
   }
   function primary(ctx){
-    if(!active(ctx))return;const state=held(ctx),button=$('#thread-review',ctx.el),note=$('#thread-review-note',ctx.el);
-    button.hidden=!state.ready;button.disabled=!!ctx.preparingReview||!!state.pending||waitingJobs(ctx)||pendingReview();button.textContent=ctx.preparingReview?'Preparing review…':'Review food';button.setAttribute('aria-busy',String(!!ctx.preparingReview));
-    note.hidden=!state.ready||!button.disabled;note.textContent=ctx.preparingReview?'Preparing your food review…':pendingReview()?'Your review is waiting to save.':state.pending?'Answer the remaining food question before reviewing.':'Waiting for your food details…';
+    // A slim strip on the composer (owner, 19 Oct 2026: the full-width button looked out of place).
+    if(!active(ctx))return;const state=held(ctx),button=$('#thread-review',ctx.el),sum=$('#thread-review-sum',ctx.el);
+    button.hidden=!state.ready;button.disabled=!!ctx.preparingReview||waitingJobs(ctx)||pendingReview();button.setAttribute('aria-busy',String(!!ctx.preparingReview));
+    const what=`${state.ready} food${state.ready===1?'':'s'} · ≈ ${homeCalories(state.kcal)} kcal`;
+    sum.textContent=ctx.preparingReview?'Preparing your review…':pendingReview()?'Your review is waiting to save…':button.disabled?`${what} · checking…`:what;
+    // Unanswered foods stay visible as question cards; the strip says only what will be reviewed.
+    button.setAttribute('aria-label',`Review food: ${sum.textContent}`+(state.open?`. ${state.open} unanswered food${state.open===1?' is':'s are'} not included.`:''));
     $('#thread-send',ctx.el).classList.add('primary');$('#thread-send',ctx.el).classList.remove('ghost');
   }
   async function review(ctx,{saveRecipe=ctx.saveRecipe}={}){
     if(!active(ctx)||ctx.preparingReview)return;
     if($('#thread-text',ctx.el).value.trim()){status(ctx,'Send your unsent text first, or clear it to review the foods already added.');return;}
-    const state=held(ctx);if(!state.ready||state.pending||waitingJobs(ctx)||pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
+    const state=held(ctx);if(!state.ready||waitingJobs(ctx)||pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
     ctx.preparingReview=true;primary(ctx);
     try {
       await FoodReview.open({messages:state.ids,draftId:ctx.draftId,meal:ctx.meal,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal,form});},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
@@ -182,7 +190,7 @@ const FoodThread = (() => {
   function wirePending(ctx,node,job){
     const retry=$('[data-retry]',node);if(retry)retry.onclick=async()=>{if(!active(ctx))return;
       if(job.draft_id&&job.draft_id!==ctx.draftId){
-        const state=held(ctx);if(state.ready||state.pending||waitingJobs(ctx)||$('#thread-text',ctx.el).value.trim()){status(ctx,'Finish your current food review before retrying this older message.');return;}
+        const state=held(ctx);if(state.ready||state.open||waitingJobs(ctx)||$('#thread-text',ctx.el).value.trim()){status(ctx,'Finish your current food review before retrying this older message.');return;}
         ctx.draftId=job.draft_id;ctx.context=null;ctx.reviewForm=null;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});store.del(contextKey(ctx.owner));
       }
       await ThreadDB.update(ctx.owner,job.id,j=>({...j,error:null,offline:false}));flush(ctx,true);};
@@ -212,6 +220,7 @@ const FoodThread = (() => {
     $$('[data-choice]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,'choose',JSON.parse(b.dataset.choice));}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
     $$('[data-entry]',node).forEach(b=>b.onclick=()=>{entrySheet(reply.entries[+b.dataset.entry],reply.entries[+b.dataset.entry].day);});
     const dest=$('[data-destination]',node);if(dest)dest.onclick=()=>destination(ctx,m,r);
+    $$('[data-reply]',node).forEach(b=>b.onclick=()=>{if(!$('#thread-text',ctx.el).value.trim())send(ctx,{body:b.dataset.reply});else status(ctx,'Send or clear your typed message first.');});
     $$('[data-estimate]',node).forEach(b=>b.onclick=()=>action(ctx,m.id,'resolve',{retry:true,allow_brand_estimate:true,part:+b.dataset.estimate}).catch(()=>{}));
     $$('[data-portion]',node).forEach(b=>b.onclick=()=>portion(ctx,m,+b.dataset.portion));
     $$('[data-manual]',node).forEach(b=>b.onclick=()=>manual(ctx,m,+b.dataset.manual,r));
@@ -263,7 +272,7 @@ const FoodThread = (() => {
     const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),ctx={el,owner,meal:Object.hasOwn(MEAL_NAMES,meal)?meal:(Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:null),session:readOwner(),draftId:(typeof resume==='string'?resume:resume?.id)||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resume?.form||null,messages:[],visibleClients:new Set(),context:resume?store.get(contextKey(owner)):null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current?.chatView?.dispose();current=ctx;store.set(reviewDraftKey(owner),{id:ctx.draftId,meal:ctx.meal,form:ctx.reviewForm});
     el.classList.add('food-thread');el.setAttribute('aria-live','off');
     const tile=(attr,ico,label)=>`<button type="button" ${attr}>${svg(ico)}<span>${label}</span></button>`;
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><h1>Add food</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Describe your food or use + to add it. We’ll ask for missing details, then review the amounts and meal. Saving a recipe is optional. Nothing is logged before you confirm.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div id="thread-usual-suggestion"></div><div class="thread-tools">${tile('data-tool="snap"','camera','Snap')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Scan')}${tile('id="thread-search"','search','Search')}${tile('id="thread-manual-add"','edit','Manual')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('data-tool="paste"','paste','Paste')}</div><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily summary</button></div><label class="vh" for="thread-text">Message about your food</label><button type="button" class="primary wide" id="thread-review" hidden>Review food</button><p class="small muted" id="thread-review-note" hidden></p><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="send" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><h1>Add food</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Describe your food or use + to add it. We’ll ask for missing details, then review the amounts and meal. Saving a recipe is optional. Nothing is logged before you confirm.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div id="thread-usual-suggestion"></div><div class="thread-tools">${tile('data-tool="snap"','camera','Snap')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Scan')}${tile('id="thread-search"','search','Search')}${tile('id="thread-manual-add"','edit','Manual')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('data-tool="paste"','paste','Paste')}</div><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily summary</button></div><label class="vh" for="thread-text">Message about your food</label><button type="button" class="thread-review-strip" id="thread-review" hidden><span id="thread-review-sum"></span><span class="thread-review-go">Review ›</span></button><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="send" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
     // The + menu holds every other way to add food, so the bar stays one line like a messaging app.
     const menu=$('#thread-menu',el),plus=$('#thread-plus',el),openMenu=open=>{menu.hidden=!open;plus.setAttribute('aria-expanded',String(open));plus.classList.toggle('open',open);};
     plus.onclick=()=>{Native.haptic('selection');openMenu(menu.hidden);};

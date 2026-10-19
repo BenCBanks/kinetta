@@ -30,22 +30,86 @@ def own_part(c,uid,item,issued):
     return part
 
 
+CATEGORIES={'taco','burrito','sandwich','salad','soup','curry','smoothie','pizza'}
+SIZES={'small','medium','large','big','regular','tall','grande','venti','jumbo','mini','kid','king'}
+# Words that already say how much: an article ("a banana"), a household unit or a size.
+IMPLIED=re.compile(r"^(?:a|an|one|another)\b|\b(?:\d|half|whole|couple|few|cups?|glass(?:es)?|bowls?|slices?|pieces?|plates?|cans?|bottles?|mugs?|scoops?|handfuls?|shots?|pints?|bars?|spoon\w*|tbsp|tsp|servings?|portions?|box(?:es)?|bags?|packets?|orders?|sides?|typical)\b")
+NOT_SURE=['Not sure']
+FILLINGS={'chicken','beef','bean','pork','fish','shrimp','steak','veggie','vegetarian','vegan','cheese','carnita','al','pastor','barbacoa','chorizo','soft','hard','shell','crispy','grilled','fried','tofu','turkey','egg','lamb','tuna','salmon','ham','sausage','mushroom','vegetable'}
+# Words that answer "what kind of <dish>?": anything else is treated as a separate food.
+TYPES={'taco':FILLINGS,'burrito':FILLINGS|{'breakfast','rice','bowl'},
+       'sandwich':FILLINGS|{'blt','club','reuben','sub','wheat','white','rye','sourdough','peanut','butter','jelly','pb','j','melt','wrap','bread','lettuce','tomato','mayo'},
+       'salad':FILLINGS|{'caesar','greek','cobb','garden','house','chef','side','caprese','kale','spinach','potato','pasta','fruit','dressing','ranch','lettuce','tomato','avocado'},
+       'soup':FILLINGS|{'tomato','noodle','lentil','minestrone','clam','chowder','split','pea','potato','broccoli','cream','onion','french','ramen','pho','miso'},
+       'pizza':FILLINGS|{'pepperoni','margherita','plain','hawaiian','supreme','meat','lover','bbq','white','thin','crust','deep','dish','slice','slices'},
+       'curry':FILLINGS|{'red','green','yellow','thai','indian','tikka','masala','korma','vindaloo','butter','coconut','lentil','chickpea','potato','rice'},
+       'smoothie':{'banana','strawberry','berry','mango','protein','green','peanut','butter','yogurt','milk','oat','spinach','pineapple','acai','chocolate','vanilla','fruit'}}
+AMOUNT_REPLIES=['1','2','Small','Medium','Large','Not sure']
+
+
+def has_amount(text):
+    text=meal_chat.norm(text).strip()
+    return bool(IMPLIED.search(text) or SIZES&set(meal_chat.toks(text)) or meal_chat.amount(meal_chat.raw(text))[0])
+
+
+def spoken_food(text):
+    """The food words as said, without leading fillers: 'some almonds' -> 'Almonds'."""
+    words=re.sub(r'^(?:(?:some|the|my|a bit of|a little)\s+)+','',' '.join(text.split()),flags=re.I)
+    return words[:1].upper()+words[1:]
+
+
+def amount_question(food):
+    return f'{spoken_food(food)} — about how much? For example “1”, “1 cup”, “a large one” or “150 g”.'
+
+
 def description_question(part):
     # A category alone cannot identify a mixed dish. Ask before a generic catalog
     # match or estimator silently chooses a filling, size or number of tacos.
     if part['status']!='unknown' or part.get('item',{}).get('kind') or re.search(r'https?://|www\.',part['text'],re.I):return
     parsed=meal_chat.read_part(part['text'],[])
     portion=parsed.get('portion')
+    if not portion and re.match(r'^(?:a|an|one)\b',meal_chat.norm(part['text']).strip()):portion={'count':1}
     query=parsed.get('query') or []
-    categories={'taco','burrito','sandwich','salad','soup','curry','smoothie','pizza'}
-    food=query[0] if len(query)==1 and query[0] in categories else None
+    food=query[0] if len(query)==1 and query[0] in CATEGORIES else None
     if not food:
-        if not portion and query and len(part['text'])<=200:
+        # Only a truly missing amount is asked; "a banana", "large fries" and
+        # "glass of wine" already say how much, so they go straight to an estimate.
+        if not has_amount(part['text']) and query and len(part['text'])<=200:
             part.update(status='description',description={'food':' '.join(query),'portion_only':True,'detail':part['text']},
-                        question=f'How much {part["text"]} did you have? Give a count with its size, or a weight in grams.')
+                        question=amount_question(part['text']),replies=AMOUNT_REPLIES)
         return
-    part.update(status='description',description={'food':food,'portion':portion},
-                question=('What kind of taco was it? For example, chicken, beef or beans.' if portion else 'What kind of taco, and how many did you have? For example, “2 chicken tacos”.') if food=='taco' else (f'What kind of {food} was it, and what went into it?' if portion else f'What kind of {food}, and how much did you have? Include the ingredients and a count with its size, or a weight.'))
+    if food=='taco':
+        question='What kind of taco was it? For example, chicken, beef or beans.' if portion else 'What kind of taco, and how many did you have? For example, “2 chicken tacos”.'
+        replies=['Chicken','Beef','Fish','Veggie',*NOT_SURE]
+    else:
+        question=f'What kind of {food} was it, and what went into it?' if portion else f'What kind of {food}, and how much did you have? For example, “a large chicken {food}”.'
+        replies=NOT_SURE
+    part.update(status='description',description={'food':food,'portion':portion},question=question,replies=replies)
+
+
+def spoken(body,anchor):
+    """A whole description without its day/meal words and opener: 'I had coffee with milk for breakfast' -> 'coffee with milk'."""
+    s=meal_chat.LEAD.sub('',meal_chat.norm(body).strip())
+    rest,_=meal_chat.when(s,anchor)
+    if rest is None:return None
+    rest=re.sub(r'^\s*(?:(?:i|we)\s+)?(?:just\s+)?(?:had|ate|have|got|grabbed|drank|eaten|log|add)\b\s*','',rest.strip())
+    return ' '.join(rest.split()).strip(' ,.;!')
+
+
+def merge_unknown(c,uid,message,result):
+    """New foods from one sentence go to the estimator as the person said them.
+
+    'Coffee with milk' or 'a burrito bowl with chicken, rice and beans' is one thing
+    eaten, not separate foods that each need an amount. Own-food matches keep the
+    per-food split, and so does the no-AI path, which searches one food at a time."""
+    from . import coach
+    parts=result['parts']
+    if len(parts)<2 or any(p['status']!='unknown' or p.get('item',{}).get('kind') or p.get('logged') for p in parts):return
+    # When every food has its own amount ("200 g rice, 1 medium banana") each is looked up exactly.
+    if all(has_amount(p['text']) for p in parts):return
+    said=spoken(message['body'],message['local_day'])
+    if not said or len(said)>200 or not coach.allowed(uid,'food',connection=c):return
+    result['parts']=[{'index':0,'text':said,'status':'unknown','item':{},'logged':False}]
 
 
 def begin(c,uid,message,resolution,*,aliases=True,destination=None):
@@ -54,12 +118,12 @@ def begin(c,uid,message,resolution,*,aliases=True,destination=None):
     result['composed']=True
     result['parts']=[own_part(c,uid,item,resolution['issued']) for item in resolution.get('items',[])]
     if (message.get('result') or {}).get('review_only'):
-        categories={'taco','burrito','sandwich','salad','soup','curry','smoothie','pizza'}
+        categories=CATEGORIES
         for part in result['parts']:
             item=part.get('item',{});parsed=meal_chat.read_part(part['text'],[]);query=parsed.get('query') or []
             if item.get('kind') and len(query)==1 and query[0] in categories and list(meal_chat.name_words(item.get('name','')))!=query:
                 part.update(status='unknown',item={});part.pop('entries',None)
-            elif item.get('kind') and part['status']=='ready' and not parsed.get('portion') and not re.search(r'\busual|\bsame|\bagain',part['text'],re.I):
+            elif item.get('kind') and part['status']=='ready' and not has_amount(part['text']) and not re.search(r'\busual|\bsame|\bagain',part['text'],re.I):
                 part.update(status='quantity',question=f'How much {item["name"]} did you have? Say grams or servings.')
                 item.update(status='quantity',message=part['question'],options=[{'label':label,'portion':{'count':count}} for count,label in ((.5,'½ serving'),(1,'1 serving'),(2,'2 servings'))])
                 part.pop('entries',None)
@@ -67,6 +131,8 @@ def begin(c,uid,message,resolution,*,aliases=True,destination=None):
         # Keep unparsed paragraphs for the consent-gated estimator, not a request
         # for the person to rewrite them. The complete text remains in storage.
         result['parts']=[{'index':0,'text':message['body'],'status':'unknown','item':{},'logged':False}]
+    text_input=(message.get('result') or {}).get('input',{}).get('kind','text')=='text'
+    if text_input and not re.search(r'https?://|www\.',message['body'],re.I):merge_unknown(c,uid,message,result)
     from . import food_thread_resolve as resolver
     unresolved=[p for p in result['parts'] if p['status'] in ('unknown','choose')]
     if aliases and unresolved and (message.get('result') or {}).get('input',{}).get('kind','text')=='text':
@@ -291,7 +357,7 @@ def _write(c,uid,message,result,*,force=False,only=None):
         names=', '.join(r['name'] for r in rows[:3])+(' and more' if len(rows)>3 else '')
         result['text']=f"Added {names} · about {facts.kcal(sum(r['kcal'] for r in rows)):,} kcal."
         if question:result['text']+=' '+question
-    elif ready and not pending:result['text']='Ready to log. Check the portions, then tap Log.'
+    elif ready and not pending:result['text']='Ready. Tap Review food when you’ve added everything.' if (message.get('result') or {}).get('review_only') else 'Ready to log. Check the portions, then tap Log.'
     else:result['text']=question or 'Choose a food or enter its nutrition.'
     if added:
         rows=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,added)).fetchall()
