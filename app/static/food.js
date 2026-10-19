@@ -301,7 +301,7 @@ function servingAmount(e) {
   if (!label || /^1?\s*(?:serving|portion)s?$/i.test(label)) return `${r1(e.amount)} serving${e.amount === 1 ? '' : 's'}`;
   // Keep the estimate's household unit and fractional precision; a serving may
   // be a cup, a fluid ounce or a named portion. Never infer a weight from it.
-  const unit = label.match(/^1\s+(cups?|fl\.?\s*oz|fluid ounces?|bowls?|slices?|pieces?|tbsp|tsp|tablespoons?|teaspoons?|ml|liters?|litres?|cans?|bottles?|glasses?|bars?|scoops?|packets?|mugs?)$/i);
+  const unit = label.match(/^1\s+(cups?|fl\.?\s*oz|fluid ounces?|bowls?|slices?|pieces?|tbsp|tsp|tablespoons?|teaspoons?|ml|liters?|litres?|cans?|bottles?|glasses?|bars?|scoops?|packets?|mugs?|tacos?)$/i);
   const amount = Number(Number(e.amount).toFixed(3));
   if (unit) return `${amount} ${unit[1]}`;
   return amount === 1 ? label : `${amount} × ${label}`;

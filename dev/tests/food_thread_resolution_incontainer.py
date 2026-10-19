@@ -388,5 +388,44 @@ class Resolution(unittest.TestCase):
   self.assertTrue(any(p.get('description') for p in result['parts']),'ready rice logs while the taco question stays pending')
   self.assertEqual(sum(e['kcal'] for e in self.entries()),130)
 
+ def review_send(self,text,draft,context=None):
+  return self.send(text,review_only=True,draft_id=draft,**({'context':context} if context else {}))
+ def taco_estimate(self):
+  return {'items':[{'name':'Chicken tacos','amount':'2 tacos','grams':200,'kcal':400,'protein_g':24,'carbs_g':40,'fat_g':16,'fiber_g':4}],
+          'notes':'Typical medium taco size; fictional stand-in, not real inference.','model':'stand-in'}
+ def mass_catalog(self):
+  return {'kind':'plain','foods':[{**PLAIN,'name':'Taco, corn tortilla, chicken, cheese','serving':{'label':'100 g','g':100}}]}
+ def test_36_review_taco_count_then_filling_uses_existing_estimator_when_mass_catalog_cannot_convert(self):
+  draft=str(uuid.uuid4());first,_=self.review_send('taco',draft);second,_=self.review_send('2',draft,first['client_id']);third,r=self.review_send('chicken',draft,second['client_id'])
+  self.assertEqual(self.entries(),[]);self.assertTrue(self.result(r)['can_resolve'])
+  self.look.return_value=self.mass_catalog();self.look.side_effect=None;self.model.return_value=self.taco_estimate()
+  r=self.resolve(third);result=self.result(r);self.assertEqual(result['kind'],'preview');self.assertEqual(result['parts'][0]['entries'][0]['kcal'],400);self.assertEqual(self.entries(),[])
+  self.model.assert_called_once();self.assertRegex(self.model.call_args.args[0].note,r'2(?:\.0)? chicken taco');self.assertNotIn('Which food and portion',result['text'])
+  self.resolve(third);self.model.assert_called_once()
+  review=self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':draft,'messages':[third['id']]})
+  self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'dinner'})
+  self.assertEqual([e['kcal'] for e in self.entries()],[400]);self.assertIn('AI',str(self.entries()[0]['ref']).upper())
+ def test_37_confusion_is_help_not_food_and_explicit_estimate_retains_known_description(self):
+  draft=str(uuid.uuid4());self.a.put('/api/profile',json={'ai_ok':False})
+  first,_=self.review_send('taco',draft);second,_=self.review_send('2',draft,first['client_id']);third,_=self.review_send('chicken',draft,second['client_id'])
+  self.look.return_value=self.mass_catalog();self.look.side_effect=None;r=self.resolve(third);self.assertEqual(self.result(r)['parts'][0]['status'],'quantity');self.model.assert_not_called()
+  for phrase in ['No idea what you mean',"I don't understand",'What does that mean?']:
+   _,r=self.review_send(phrase,draft,third['client_id']);self.assertEqual(self.result(r)['intent'],'clarification_help');self.assertNotIn('How much idea',self.result(r)['text']);self.assertFalse(self.result(r).get('can_resolve'));self.assertEqual(self.entries(),[])
+  self.a.put('/api/profile',json={'ai_ok':True});self.model.return_value=self.taco_estimate();estimate,r=self.review_send('estimate it',draft,third['client_id']);self.assertTrue(self.result(r)['can_resolve'])
+  self.look.reset_mock();r=self.resolve(estimate);self.look.assert_not_called();self.model.assert_called_once();self.assertRegex(self.model.call_args.args[0].note,r'2(?:\.0)? chicken taco');self.assertEqual(self.entries(),[])
+ def test_38_explicit_ai_button_respects_consent_and_product_choice_without_replacing_known_food(self):
+  draft=str(uuid.uuid4());self.look.return_value={'kind':'brand','foods':[{**PLAIN,'name':'Fictional brand taco'}]};self.look.side_effect=None
+  m,_=self.review_send('2 fictional brand tacos',draft);r=self.resolve(m);self.model.assert_not_called();self.assertEqual(self.result(r)['parts'][0]['status'],'choose')
+  self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'allow_brand_estimate':True,'part':0},client=self.b,status=404)
+  self.a.put('/api/profile',json={'ai_ok':False});self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'allow_brand_estimate':True,'part':0},status=403);self.model.assert_not_called()
+  self.a.put('/api/profile',json={'ai_ok':True});self.model.return_value=self.taco_estimate();r=self.resolve(m,allow_brand_estimate=True,part=0);self.model.assert_called_once();self.assertEqual(self.entries(),[])
+  self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'allow_brand_estimate':True,'part':0},status=409)
+ def test_39_failed_estimate_keeps_weight_catalog_and_no_duplicate_ai_work(self):
+  draft=str(uuid.uuid4());m,_=self.review_send('2 chicken tacos',draft);self.look.return_value=self.mass_catalog();self.look.side_effect=None;self.model.side_effect=HTTPException(503,'Fictional estimate unavailable')
+  r=self.resolve(m);result=self.result(r);self.assertEqual(result['parts'][0]['status'],'quantity');self.assertIn('weight',result['text']);self.assertIn('error',result);self.assertEqual(self.entries(),[])
+  self.resolve(m);self.model.assert_called_once()
+ def test_40_confusion_without_food_never_looks_up_or_estimates_the_sentence(self):
+  _,r=self.send('No idea what you mean');self.assertEqual(self.result(r)['intent'],'clarification_help');self.look.assert_not_called();self.model.assert_not_called();self.assertEqual(self.entries(),[])
+
 # review regressions use the production API and fictional provider/catalog stand-ins
 unittest.main()

@@ -908,3 +908,19 @@ in review. A newer native client reaching an older server keeps review metadata 
 server update, and never retries through a legacy path that could log before confirmation.
 
 Food-send recovery: reopening a review draft resumes a server-saved pending message using its existing ID. Never replay legacy auto-log messages on open. Sending has a bounded wait and visible Retry/Cancel; failed messages retain their own Retry/Cancel and do not block new messages or their review. New text does not inherit failed-message context. Daily summary is an optional evening recap, not a push notification.
+
+## Food chat should feel like texting (19 October 2026)
+
+Sending text preserves composer focus and the visible keyboard. Send/Return submits, Shift+Enter adds a line, and
+IME composition is never submitted halfway through. The newest sent message and reply stay visible through
+keyboard/viewport/composer resizing; deliberate history scrolling stops automatic following until the person
+returns to the bottom or sends again. Keep normal tap/swipe keyboard dismissal and photo/map selection rules.
+
+Keep the supplied food type, amount and destination through short replies. Confusion such as “No idea what you
+mean” is a request for help with the existing food, never a new food to measure. Explain the next useful action
+in ordinary words. Known saved-food nutrition stays authoritative. When an otherwise usable plain database
+entry cannot convert a stated household amount, reuse the existing consent/access/budget-gated estimator with
+the completed food description. Incomplete catalog nutrition remains incomplete. Named brands still require
+a product choice or an explicit request to estimate. Offer “Estimate calories with AI” for eligible unresolved
+catalog choices; “estimate it” uses the same path and preserves already-given details. Estimates remain labeled
+and wait for final review/confirmation. No model, prompt, release gate or consent default changes here.

@@ -117,3 +117,12 @@ Daily code summaries are independently opt-in and never call a provider. Their r
 The daily Kit cap also covers requests for older notes made on the same current local day. A separate durable local-day counter survives message/reply deletion; existing UTC service/provider budgets still apply independently.
 
 Training-day targets use one deterministic day-goal calculation in the food log, calendar, insights and Kit meal options. Tools receive the calculated food calorie target only; raw workout, weight, age and plan records used by backend arithmetic are not added to food-only model responses or tool permissions. Normal targets, explicit day overrides and unknown-intake rules remain in force.
+
+Food-chat household-portion recovery reuses the existing estimator when a plain catalog entry cannot convert an
+explicitly described amount (for example two chicken tacos with only per-100g catalog nutrition). It sends the
+completed food description, not the surrounding confusion/help conversation. Valid saved-food/catalog portions
+keep their arithmetic; catalog data with missing required nutrition is not silently replaced. Named brands need
+an explicit estimate request or product choice. Help sentences are handled without provider calls. Existing
+access/consent/budget, strict source validation, cancellation/replay and final confirmation remain in force.
+No model/prompt/grounding configuration or reviewed release gate changes; stand-ins test routing contracts, not
+real estimate accuracy.
