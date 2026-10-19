@@ -26,6 +26,7 @@ const ThreadDB = (() => {
     erase: owner => tx('jobs',s=>{const r=s.openCursor();r.onsuccess=()=>{const cursor=r.result;if(cursor){if(cursor.value.owner===owner)cursor.delete();cursor.continue();}};}),
     list: owner => tx('jobs',(s,done) => { const r=s.getAll();r.onsuccess=()=>done(r.result.filter(j=>j.owner===owner).sort((a,b)=>a.at.localeCompare(b.at))); }),
     put: (owner,id,value) => tx('jobs',(s) => s.put({...value,owner,id,key:key(owner,id)})),
+    ensure: (owner,id,value) => tx('jobs',s=>{const r=s.get(key(owner,id));r.onsuccess=()=>{if(!r.result)s.put({...value,owner,id,key:key(owner,id)});};}),
     update: (owner,id,fn) => tx('jobs',(s,done)=>{const r=s.get(key(owner,id));r.onsuccess=()=>{if(!r.result){done(null);return;}const value=fn(r.result);s.put(value);done(value);};}),
     remove: (owner,id) => tx('jobs',s=>s.delete(key(owner,id))),
     read: owner => tx('state',(s,done)=>{const r=s.get(owner);r.onsuccess=()=>done(r.result || {});}),
@@ -46,26 +47,48 @@ function foodThreadError(error,path) {
   return error.message;
 }
 
+// Resume only authenticated review drafts; legacy auto-log messages must never
+// be replayed as a side effect of opening this screen. No photo pixels are rebuilt.
+async function restoreFoodPending({db,owner,draftId,messages}) {
+  let restored=false;
+  for(const m of messages) {
+    const meta=m.result||{};
+    if(m.kind!=='user'||m.state!=='pending'||meta.review_only!==true||meta.draft_id!==draftId||messages.some(r=>r.reply_to===m.id))continue;
+    await db.ensure(owner,m.client_id,{id:m.client_id,mid:m.id,body:m.body,at:m.captured_at,
+      phase:'process',review_only:true,draft_id:draftId,media:meta.input?.kind||'text',
+      ...(meta.input?.barcode?{barcode:meta.input.barcode}:{}),...(meta.destination||{})});
+    restored=true;
+  }
+  return restored;
+}
+
 // Injected transport/storage allow tests to reorder responses and switch accounts
 // through the same state machine the app uses. Every network step is replay-safe.
-function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
-  const busy = new Set();
+function foodOutbox({db,request,session,changed,progress=async()=>{},online=()=>navigator.onLine,timeoutMs=path=>path.endsWith('/resolve')?180000:30000}) {
+  const busy = new Set(), sending = new Set();
   return {
-    async flush(owner) {
-      if (busy.has(owner) || !online()) return;
+    isSending: (owner,id)=>sending.has(JSON.stringify([owner,id])),
+    async flush(owner,{force=false}={}) {
+      if (busy.has(owner) || (!online()&&!force)) return;
       const guard=session();busy.add(owner);
       try {
         for (let job of await db.list(owner)) {
-          if (session()!==guard || !online()) break;
-          if (job.error && job.phase!=='cancel') break; // Preserve conversational order until Retry or Cancel.
+          if (session()!==guard || (!online()&&!force)) break;
+          if (job.error && job.phase!=='cancel') continue; // Failed messages keep Retry without blocking new messages.
           const write = async patch => {
             job=await db.update(owner,job.id,current=>current.phase==='cancel'?current:{...current,...patch});
             if(!job||job.phase==='cancel')throw Object.assign(Error('Stopped sending this message.'),{interrupted:true});
           };
           const call = async (path,body) => {
             if(session()!==guard)throw Object.assign(Error('The account changed.'),{stale:true});
-            let r;
-            try{r=await request(path,body);}catch(e){e.message=foodThreadError(e,path);throw e;}
+            let r,timer;const controller=new AbortController();
+            const sendingKey=JSON.stringify([owner,job.id]);sending.add(sendingKey);await progress(owner);
+            try{
+              r=await Promise.race([request(path,body,{signal:controller.signal}),new Promise((_,reject)=>{
+                timer=setTimeout(()=>{reject(Object.assign(Error('Sending took too long. Your message is kept. Tap Retry to try again.'),{timeout:true}));controller.abort();},timeoutMs(path));
+              })]);
+            }catch(e){e.message=foodThreadError(e,path);throw e;}
+            finally{clearTimeout(timer);sending.delete(sendingKey);await progress(owner);}
             if(session()!==guard)throw Object.assign(Error('The account changed.'),{stale:true});
             await changed(owner,r);return r;
           };
@@ -100,7 +123,7 @@ function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
             if(!e.offline&&!e.stale&&!e.interrupted) {
               await db.update(owner,job.id,current=>current.phase==='cancel'?current:{...current,error:e.message});
             }
-            break;
+            await progress(owner);if(e.stale||e.interrupted)break;
           }
         }
       } finally {busy.delete(owner);}

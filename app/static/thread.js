@@ -24,11 +24,11 @@ const FoodThread = (() => {
     if(completed){ctx.draftId=uuid();store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});ctx.context=null;ctx.reviewForm=null;store.del(contextKey(ctx.owner));}
     remember(ctx);draw(ctx);
   }
-  const outbox=foodOutbox({db:ThreadDB,request:(path,body)=>api(path,json('POST',body)),session:()=>readOwner()+':'+privacyEpoch,changed:merge});
-  async function flush(ctx=null) {
+  const outbox=foodOutbox({db:ThreadDB,request:(path,body,options)=>api(path,{...json('POST',body),...options}),session:()=>readOwner()+':'+privacyEpoch,changed:merge,progress:async owner=>{const ctx=current;if(ctx&&active(ctx)&&ctx.owner===owner){ctx.jobs=await ThreadDB.list(owner);if(active(ctx))draw(ctx);}}});
+  async function flush(ctx=null,force=false) {
     const owner=ctx?.owner||ownerKey();
     if(!owner||owner!==ownerKey()||(ctx&&ctx.session!==readOwner()))return;
-    try {await outbox.flush(owner);const view=current;if(view&&active(view)&&view.owner===owner){view.jobs=await ThreadDB.list(owner);draw(view);}}
+    try {await outbox.flush(owner,{force});const view=current;if(view&&active(view)&&view.owner===owner){view.jobs=await ThreadDB.list(owner);draw(view);}}
     catch(e){if(current&&active(current))status(current,e.message);}
   }
   function status(ctx,text){if(!active(ctx))return;const box=$('#thread-status',ctx.el);box.textContent=text;clearTimeout(ctx.statusTimer);if(['Saved.','Food removed.'].includes(text))ctx.statusTimer=setTimeout(()=>{if(box.textContent===text)box.textContent='';},2500);}
@@ -82,16 +82,17 @@ const FoodThread = (() => {
     const visible=entries.length?entries:(['preview','needs'].includes(r.kind)||r.pending_count||r.parts?.some(p=>p.status==='ready'&&!p.logged)?preview:[]),changed=changedNumbers(r,entries),removed=r.kind==='log'&&!entries.length&&r.entry_ids?.length;
     const day=entries[0]?.day||r.day,meal=entries[0]?.meal||r.meal;
     const canLog=!root.result?.review_only&&!r.cancelled&&(r.kind==='preview'||r.parts?.some(p=>p.status==='ready'&&!p.logged));
-    return `<div class="thread-card" data-mid="${root.id}">${r.daily_note?`<h3>Your daily food note</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed&&(!root.result?.review_only||entries.length)?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
-      ${root.result?.review_only&&!r.food_review&&!['reviewed','continued','cancelled'].includes(r.kind)?'<p class="small muted">Not logged · awaiting review</p>':''}${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${visible.length>1?`<p class="thread-total"><span>Total</span><b class="num">≈ ${homeCalories(visible.reduce((n,e)=>n+(e.kcal||0),0))} kcal</b></p>`:''}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||(r.food_review&&r.confirmed)||r.parts?.some(p=>p.entered_numbers&&!p.logged)?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':root.state==='answered'?'Reply text removed. Your saved food is kept.':'Saved on this phone. Waiting to send…'))}</p>`:''}
+    return `<div class="thread-card" data-mid="${root.id}">${r.daily_note?`<h3>Your daily food summary</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed&&(!root.result?.review_only||entries.length)?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
+      ${root.result?.review_only&&!r.food_review&&!['reviewed','continued','cancelled'].includes(r.kind)?'<p class="small muted">Not logged · awaiting review</p>':''}${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${visible.map(food).join('')}${visible.length>1?`<p class="thread-total"><span>Total</span><b class="num">≈ ${homeCalories(visible.reduce((n,e)=>n+(e.kcal||0),0))} kcal</b></p>`:''}${!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||(r.food_review&&r.confirmed)||r.parts?.some(p=>p.entered_numbers&&!p.logged)?`<p>${esc(removed?'This food was removed from your log.':reply?.body||(root.state==='cancelled'?'Cancelled message.':root.state==='answered'?'Reply text removed. Your saved food is kept.':'Message received. Waiting to check your food…'))}</p>`:''}
       ${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
       ${r.error?`<p class="thread-error">${esc(r.error.message||r.error)}</p>`:''}${!r.cancelled&&(r.kind==='needs'||r.pending_count||r.parts?.some(p=>p.entered_numbers&&!p.logged))?choices(r):''}
       ${kitHtml(r)}<div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${r.error||r.parts?.some(p=>p.needs_photo)?(root.result?.input?.kind==='photo'?'<button type="button" class="linkbtn" data-reattach>Add the photo again</button>':'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>'):''}<button type="button" class="icon-btn thread-more" data-more aria-label="More options for this message">${svg('more')}</button></div></div>`;
   }
   const pendingReview=()=>(typeof FoodReview!=='undefined'&&FoodReview.busy())||Q.mine().some(op=>/^\/api\/food\/thread\/reviews\/\d+\/confirm$/.test(op.path));
+  const waitingJobs=ctx=>ctx.jobs.some(j=>j.draft_id===ctx.draftId&&!j.error);
   function held(ctx){
     const ids=[];let ready=0,pending=0;
-    for(const m of ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.review_only)){
+    for(const m of ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.review_only&&m.result?.draft_id===ctx.draftId&&!ctx.jobs.some(j=>j.id===m.client_id&&j.error))){
       const r=ctx.messages.find(x=>x.reply_to===m.id)?.result||{};
       if(r.food_review||['reviewed','undone','cancelled'].includes(r.kind)||m.state==='cancelled')continue;
       const parts=r.parts||[];
@@ -101,14 +102,14 @@ const FoodThread = (() => {
   }
   function primary(ctx){
     if(!active(ctx))return;const state=held(ctx),button=$('#thread-review',ctx.el),note=$('#thread-review-note',ctx.el);
-    button.hidden=!state.ready;button.disabled=!!ctx.preparingReview||!!state.pending||!!ctx.jobs.length||pendingReview();button.textContent=ctx.preparingReview?'Preparing review…':'Review food';button.setAttribute('aria-busy',String(!!ctx.preparingReview));
+    button.hidden=!state.ready;button.disabled=!!ctx.preparingReview||!!state.pending||waitingJobs(ctx)||pendingReview();button.textContent=ctx.preparingReview?'Preparing review…':'Review food';button.setAttribute('aria-busy',String(!!ctx.preparingReview));
     note.hidden=!state.ready||!button.disabled;note.textContent=ctx.preparingReview?'Preparing your food review…':pendingReview()?'Your review is waiting to save.':state.pending?'Answer the remaining food question before reviewing.':'Waiting for your food details…';
     $('#thread-send',ctx.el).classList.add('primary');$('#thread-send',ctx.el).classList.remove('ghost');
   }
   async function review(ctx,{saveRecipe=ctx.saveRecipe}={}){
     if(!active(ctx)||ctx.preparingReview)return;
     if($('#thread-text',ctx.el).value.trim()){status(ctx,'Send your unsent text first, or clear it to review the foods already added.');return;}
-    const state=held(ctx);if(!state.ready||state.pending||ctx.jobs.length||pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
+    const state=held(ctx);if(!state.ready||state.pending||waitingJobs(ctx)||pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
     ctx.preparingReview=true;primary(ctx);
     try {
       await FoodReview.open({messages:state.ids,draftId:ctx.draftId,meal:ctx.meal,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal,form});},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
@@ -130,13 +131,18 @@ const FoodThread = (() => {
       const id='message-'+m.id;ids.add(id);let node=list.querySelector(`[data-key="${id}"]`);
       const separator=m.local_day!==lastDay?`<h2 class="thread-day">${esc(dayLabel(m.local_day))}</h2>`:'';lastDay=m.local_day;
       const user=`<div class="thread-user"><p>${esc(m.body)}</p><time class="vh" datetime="${esc(m.captured_at)}">${esc(dayLabel(m.local_day))} · ${esc(new Date(m.captured_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}</time></div>`;
-      const html=`${separator}${m.result?.receipt||m.result?.daily_note?'':user}${replyHtml(m,reply)}${job?pendingHtml(job):''}`;
+      const html=`${separator}${m.result?.receipt||m.result?.daily_note?'':user}${replyHtml(m,reply)}${job?pendingHtml(job,outbox.isSending(ctx.owner,job.id)):''}`;
       if(!node){node=document.createElement('article');node.dataset.key=id;}
       if(node===anchor)anchor=anchor.nextElementSibling;else list.insertBefore(node,anchor);
       if(node._html!==html){node.innerHTML=html;node._html=html;wireCard(ctx,node,m,reply);if(job)wirePending(ctx,node,job);}
     }
-    for(const j of ctx.jobs.filter(j=>!roots.some(m=>m.client_id===j.id))){const id='queued-'+j.id;ids.add(id);let node=list.querySelector(`[data-key="${id}"]`);if(!node){node=document.createElement('article');node.dataset.key=id;list.append(node);}const html=`<div class="thread-user"><p>${esc(j.body)}</p></div>${pendingHtml(j)}`;if(node._html!==html){node.innerHTML=html;node._html=html;wirePending(ctx,node,j);}}
+    for(const j of ctx.jobs.filter(j=>!roots.some(m=>m.client_id===j.id))){const id='queued-'+j.id;ids.add(id);let node=list.querySelector(`[data-key="${id}"]`);if(!node){node=document.createElement('article');node.dataset.key=id;list.append(node);}const html=`<div class="thread-user"><p>${esc(j.body)}</p></div>${pendingHtml(j,outbox.isSending(ctx.owner,j.id))}`;if(node._html!==html){node.innerHTML=html;node._html=html;wirePending(ctx,node,j);}}
     for(const node of [...list.children])if(!ids.has(node.dataset.key))node.remove();
+    // Failed local messages keep their original place; a fresh reply belongs at
+    // the bottom, rather than above an appended block of older failures.
+    const order=[...roots.map(m=>({key:'message-'+m.id,at:m.captured_at})),...ctx.jobs.filter(j=>!roots.some(m=>m.client_id===j.id)).map(j=>({key:'queued-'+j.id,at:j.at}))].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)||a.key.localeCompare(b.key));
+    const nodes=new Map([...list.children].map(node=>[node.dataset.key,node]));
+    order.forEach((row,index)=>{const node=nodes.get(row.key);if(list.children[index]!==node)list.insertBefore(node,list.children[index]||null);});
     ctx.el.classList.toggle('has-messages',!!roots.length||!!ctx.jobs.length);
     list.hidden=!roots.length&&!ctx.jobs.length;
     $('#thread-empty',ctx.el).hidden=!list.hidden;
@@ -144,9 +150,17 @@ const FoodThread = (() => {
     if(!ctx.pauseFollow&&(bottom||ctx.follow||ctx.initial)){list.scrollTop=list.scrollHeight;if(list.children.length)ctx.initial=false;}
     ctx.follow=false;primary(ctx);
   }
-  function pendingHtml(job){return `<div class="thread-pending"><p>${esc(job.error|| (job.phase==='cancel'?'Cancelling when connected…':job.offline||!navigator.onLine?'Saved on this phone · waiting for connection':job.phase==='resolve'?'Checking food…':'Saved on this phone · waiting to send'))}</p>${job.error?'<button type="button" class="linkbtn" data-retry>Retry</button>':''}<button type="button" class="linkbtn" data-cancel>Cancel</button></div>`;}
+  function pendingHtml(job,sending=false){
+    const text=job.error||(job.phase==='cancel'?'Cancelling when connected…':sending?(job.mid?'Checking food…':'Sending…'):job.offline||!navigator.onLine?'Saved on this phone · waiting for connection':job.mid?'Message received · waiting to check your food':'Saved on this phone · waiting to send');
+    return `<div class="thread-pending"><p>${esc(text)}</p>${job.phase!=='cancel'&&!sending?'<button type="button" class="linkbtn" data-retry>Retry</button>':''}<button type="button" class="linkbtn" data-cancel>Cancel</button></div>`;
+  }
   function wirePending(ctx,node,job){
-    const retry=$('[data-retry]',node);if(retry)retry.onclick=async()=>{if(!active(ctx))return;await ThreadDB.update(ctx.owner,job.id,j=>({...j,error:null}));flush(ctx);};
+    const retry=$('[data-retry]',node);if(retry)retry.onclick=async()=>{if(!active(ctx))return;
+      if(job.draft_id&&job.draft_id!==ctx.draftId){
+        const state=held(ctx);if(state.ready||state.pending||waitingJobs(ctx)||$('#thread-text',ctx.el).value.trim()){status(ctx,'Finish your current food review before retrying this older message.');return;}
+        ctx.draftId=job.draft_id;ctx.context=null;ctx.reviewForm=null;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});store.del(contextKey(ctx.owner));
+      }
+      await ThreadDB.update(ctx.owner,job.id,j=>({...j,error:null,offline:false}));flush(ctx,true);};
     $('[data-cancel]',node).onclick=async()=>{if(!active(ctx))return;try{
       await ThreadDB.update(ctx.owner,job.id,j=>({...j,error:null,phase:'cancel',images:undefined}));
       ctx.jobs=await ThreadDB.list(ctx.owner);draw(ctx);
@@ -189,12 +203,12 @@ const FoodThread = (() => {
     try{const data=await api('/api/food/thread/reviews/draft/'+ctx.draftId);if(!active(ctx)||ctx.epoch!==epoch||ctx.readVersion!==version)return;ctx.before=data.before;ctx.preferences=data.preferences;$('#thread-daily-note',ctx.el).hidden=!ctx.preferences?.daily_note||ctx.preferences.daily_note==='off';
       if(!before){const first=data.messages[0]?.id;ctx.messages=data.has_more?ctx.messages.filter(m=>m.id<first):[];}
       for(const m of data.messages||[])if(m.kind==='user'&&m.result?.draft_id===ctx.draftId)ctx.visibleClients.add(m.client_id);
-      await merge(ctx.owner,data,false);ctx.jobs=await ThreadDB.list(ctx.owner);draw(ctx);status(ctx,'');if(!before)daily(ctx);}
+      await merge(ctx.owner,data,false);const restored=await restoreFoodPending({db:ThreadDB,owner:ctx.owner,draftId:ctx.draftId,messages:data.messages||[]});if(!active(ctx))return;ctx.jobs=await ThreadDB.list(ctx.owner);draw(ctx);status(ctx,'');if(restored)flush(ctx);if(!before)daily(ctx);}
     catch(e){status(ctx,e.offline?'Offline. Your saved conversation and pending messages stay on this phone.':foodThreadError(e,'/api/food/thread/reviews/draft/'+ctx.draftId));}
   }
   function latestContext(ctx){
-    const previous=ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.draft_id===ctx.draftId&&['log','needs','preview','undone'].includes(m.result?.kind)).sort((a,b)=>Date.parse(a.captured_at)-Date.parse(b.captured_at)||a.id-b.id).at(-1);
-    const pending=ctx.jobs.filter(j=>j.phase!=='cancel').sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)).at(-1);
+    const previous=ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.draft_id===ctx.draftId&&!ctx.jobs.some(j=>j.id===m.client_id&&j.error)&&['log','needs','preview','undone'].includes(m.result?.kind)).sort((a,b)=>Date.parse(a.captured_at)-Date.parse(b.captured_at)||a.id-b.id).at(-1);
+    const pending=ctx.jobs.filter(j=>j.phase!=='cancel'&&!j.error&&j.draft_id===ctx.draftId).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)).at(-1);
     return pending&&(!previous||Date.parse(pending.at)>Date.parse(previous.captured_at))?pending.id:previous?.client_id;
   }
   async function send(ctx,{body,media='text',barcode,images}={}) {
@@ -202,7 +216,8 @@ const FoodThread = (() => {
     if(ctx.preparingReview||pendingReview()){status(ctx,'Your food review is still saving. Wait or reconnect before adding more foods.');return;}
     if(text.length>4000){status(ctx,'Keep this message under 4,000 characters.');return;}
     // A self context prevents the server from falling back to a previous visit's food.
-    const id=uuid(),job={id,body:text,at:new Date().toISOString(),media,barcode,images,review_only:true,draft_id:ctx.draftId,phase:'process',context:ctx.context||latestContext(ctx)||id,day:isoDay(new Date()),...(ctx.meal?{meal:ctx.meal}:{})};
+    const context=ctx.jobs.some(j=>j.id===ctx.context&&j.error)?null:ctx.context;
+    const id=uuid(),job={id,body:text,at:new Date().toISOString(),media,barcode,images,review_only:true,draft_id:ctx.draftId,phase:'process',context:context||latestContext(ctx)||id,day:isoDay(new Date()),...(ctx.meal?{meal:ctx.meal}:{})};
     const button=$('#thread-send',ctx.el);if(button.disabled)return;button.disabled=true;
     try{if(!body||field.value.trim()===text){finishNativeDraft(ctx);saveDraft(ctx,'');}await ThreadDB.put(ctx.owner,job.id,job);if(!active(ctx))return;ctx.visibleClients.add(job.id);
       if(!body||field.value.trim()===text){field.value='';field.style.height='';store.del(draftKey(ctx.owner));}ctx.context=null;ctx.reviewForm=null;store.del(contextKey(ctx.owner));
@@ -213,16 +228,16 @@ const FoodThread = (() => {
     if(!active(ctx)||!ctx.preferences?.daily_note||ctx.preferences.daily_note==='off'||ctx.dailyBusy)return;
     const day=isoDay(new Date()),hour=Number(new Intl.DateTimeFormat('en-US',{hour:'numeric',hourCycle:'h23',timeZone:tz()}).format(new Date()));
     if(!explicit&&(hour<20||ctx.dailyDay===day))return;
-    ctx.dailyBusy=true;if(explicit)status(ctx,'Preparing today’s note…');
-    try{const data=await api('/api/food/thread/daily-note',json('POST',{}));if(!active(ctx))return;ctx.dailyDay=day;await merge(ctx.owner,data);if(explicit)status(ctx,data.deleted?'Today’s note was deleted. Another will be available tomorrow.':'Today’s note is saved.');}
+    ctx.dailyBusy=true;if(explicit)status(ctx,'Preparing today’s summary…');
+    try{const data=await api('/api/food/thread/daily-note',json('POST',{}));if(!active(ctx))return;ctx.dailyDay=day;await merge(ctx.owner,data);if(explicit)status(ctx,data.deleted?'Today’s summary was deleted. Another will be available tomorrow.':'Today’s summary is saved.');}
     catch(e){ctx.dailyDay=day;if(explicit)status(ctx,e.message);}finally{ctx.dailyBusy=false;}
   }
-  function preferences(ctx){if(!ctx.preferences){status(ctx,'Wait for food chat settings to load, then try again.');return;}const p=ctx.preferences;sheet('Food chat settings',`<form class="form" id="thread-preferences"><p>Food waits for the final review before it is logged. Logged cards have Undo and Edit.</p><label>Feedback<select name="tone"><option value="supportive"${p.tone==='supportive'?' selected':''}>Supportive</option><option value="numbers"${p.tone==='numbers'?' selected':''}>Just the numbers</option></select></label><label>Daily food note<select name="daily_note"><option value="off"${!p.daily_note||p.daily_note==='off'?' selected':''}>Off</option><option value="code"${p.daily_note==='code'?' selected':''}>Code summary</option><option value="ai"${p.daily_note==='ai'?' selected':''}>Code summary + optional Kit</option></select></label><p>Off by default. When on, a code note appears after 8 pm when you visit food chat, or tap Daily note. Kit still needs a separate tap, AI access and consent, at most once a day. Nothing is pushed to your phone.</p><button class="primary wide">Save settings</button></form>`,(b,close)=>{$('#thread-preferences',b).onsubmit=async e=>{e.preventDefault();if(!active(ctx))return;try{const value={tone:e.target.tone.value,daily_note:e.target.daily_note.value};const saved=await api('/api/food/thread/preferences',json('PUT',value));if(!active(ctx))return;ctx.preferences=saved;$('#thread-daily-note',ctx.el).hidden=value.daily_note==='off';close();daily(ctx);toast('Food chat settings saved');}catch(e){toast(e.message);}};});}
+  function preferences(ctx){if(!ctx.preferences){status(ctx,'Wait for food chat settings to load, then try again.');return;}const p=ctx.preferences;sheet('Food chat settings',`<form class="form" id="thread-preferences"><p>Food waits for the final review before it is logged. Logged cards have Undo and Edit.</p><label>Feedback<select name="tone"><option value="supportive"${p.tone==='supportive'?' selected':''}>Supportive</option><option value="numbers"${p.tone==='numbers'?' selected':''}>Just the numbers</option></select></label><label>Evening food summary<select name="daily_note"><option value="off"${!p.daily_note||p.daily_note==='off'?' selected':''}>Off</option><option value="code"${p.daily_note==='code'?' selected':''}>Food log summary</option><option value="ai"${p.daily_note==='ai'?' selected':''}>Food log summary + optional AI advice</option></select></label><p>Off by default. A recap of your logged calories and protein, with a suggestion for tomorrow. It appears when you open Add food after 8 pm, or choose Daily summary from +. The food log summary does not use AI. Optional Kit advice needs a separate tap and your AI permission, at most once a day. No notifications are sent.</p><button class="primary wide">Save settings</button></form>`,(b,close)=>{$('#thread-preferences',b).onsubmit=async e=>{e.preventDefault();if(!active(ctx))return;try{const value={tone:e.target.tone.value,daily_note:e.target.daily_note.value};const saved=await api('/api/food/thread/preferences',json('PUT',value));if(!active(ctx))return;ctx.preferences=saved;$('#thread-daily-note',ctx.el).hidden=value.daily_note==='off';close();daily(ctx);toast('Food chat settings saved');}catch(e){toast(e.message);}};});}
   function page(el,{day,meal}={}){
     const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),ctx={el,owner,meal:Object.hasOwn(MEAL_NAMES,meal)?meal:(Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:null),session:readOwner(),draftId:(typeof resume==='string'?resume:resume?.id)||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resume?.form||null,messages:[],visibleClients:new Set(),context:resume?store.get(contextKey(owner)):null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current=ctx;store.set(reviewDraftKey(owner),{id:ctx.draftId,meal:ctx.meal,form:ctx.reviewForm});
     el.classList.add('food-thread');el.setAttribute('aria-live','off');
     const tile=(attr,ico,label)=>`<button type="button" ${attr}>${svg(ico)}<span>${label}</span></button>`;
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><h1>Add food</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Describe your food or use + to add it. We’ll ask for missing details, then review the amounts and meal. Saving a recipe is optional. Nothing is logged before you confirm.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div id="thread-usual-suggestion"></div><div class="thread-tools">${tile('data-tool="snap"','camera','Snap')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Scan')}${tile('id="thread-search"','search','Search')}${tile('id="thread-manual-add"','edit','Manual')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('data-tool="paste"','paste','Paste')}</div><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily note</button></div><label class="vh" for="thread-text">Message about your food</label><button type="button" class="primary wide" id="thread-review" hidden>Review food</button><p class="small muted" id="thread-review-note" hidden></p><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="/food">${svg('back')}Nutrition</a><h1>Add food</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2>What did you eat?</h2><p>Describe your food or use + to add it. We’ll ask for missing details, then review the amounts and meal. Saving a recipe is optional. Nothing is logged before you confirm.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div id="thread-usual-suggestion"></div><div class="thread-tools">${tile('data-tool="snap"','camera','Snap')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Scan')}${tile('id="thread-search"','search','Search')}${tile('id="thread-manual-add"','edit','Manual')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('data-tool="paste"','paste','Paste')}</div><button type="button" class="linkbtn" id="thread-daily-note" hidden>Daily summary</button></div><label class="vh" for="thread-text">Message about your food</label><button type="button" class="primary wide" id="thread-review" hidden>Review food</button><p class="small muted" id="thread-review-note" hidden></p><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="enter" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
     // The + menu holds every other way to add food, so the bar stays one line like a messaging app.
     const menu=$('#thread-menu',el),plus=$('#thread-plus',el),openMenu=open=>{menu.hidden=!open;plus.setAttribute('aria-expanded',String(open));plus.classList.toggle('open',open);};
     plus.onclick=()=>{Native.haptic('selection');openMenu(menu.hidden);};

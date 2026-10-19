@@ -1,7 +1,7 @@
 // Execute the production outbox with durable stand-in storage and reordered transport.
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const ctx={console,navigator:{onLine:true}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/thread-store.js','utf8'),ctx);
+const ctx={console,navigator:{onLine:true},AbortController,setTimeout,clearTimeout};vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/thread-store.js','utf8'),ctx);
 function fixture(){
  const rows=new Map();let session='account-a',calls=[],releases=[],fail=null;
  const db={list:async owner=>[...rows.values()].filter(j=>j.owner===owner),put:async(owner,id,v)=>rows.set(id,{...v,owner,id}),remove:async(owner,id)=>rows.delete(id),update:async(owner,id,fn)=>{if(!rows.has(id))return null;const v=fn(rows.get(id));rows.set(id,v);return v;}};
