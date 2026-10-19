@@ -3,19 +3,19 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const source = fs.readFileSync('app/static/keyboard.js', 'utf8');
 function setup({native = false, coarse = true, viewport = true} = {}) {
-  const handlers = {}, classes = new Set(), frames = [];
+  const handlers = {}, classes = new Set(), frames = [], styles = {};
   const listen = (name, fn) => (handlers[name] ||= []).push(fn);
   const vv = {height: 844, offsetTop: 0, scale: 1, addEventListener: listen};
   const made = [];
   const element = (tag) => { const on = {}, el = {tag, children: [], addEventListener: (n, fn) => (on[n] ||= []).push(fn),
     appendChild(c) { this.children.push(c); }, fire(n, e = {}) { for (const fn of on[n] || []) fn(e); }}; made.push(el); return el; };
   const document = {activeElement: null, addEventListener: listen, createElement: element, body: element('body'),
-    documentElement: {classList: {toggle(name, on) { if (on) classes.add(name); else classes.delete(name); }}}};
+    documentElement: {style: {setProperty(name, value) { styles[name] = value; }}, classList: {toggle(name, on) { if (on) classes.add(name); else classes.delete(name); }}}};
   const context = {document, innerHeight: 844, addEventListener: listen,
     requestAnimationFrame: (fn) => frames.push(fn), matchMedia: () => ({matches: coarse}),
     window: {Capacitor: {isNativePlatform: () => native}, visualViewport: viewport ? vv : null}};
   vm.runInNewContext(source, context);
-  return {document, vv, context, made, open: () => classes.has('keyboard-open'),
+  return {document, vv, context, made, styles, open: () => classes.has('keyboard-open'),
     event(name) { for (const fn of handlers[name] || []) fn(); while (frames.length) frames.shift()(); },
     focus(extra = {}) { document.activeElement = {matches: () => true, ...extra}; this.event('focusin'); },
     blur() { document.activeElement = null; this.event('focusout'); }};
@@ -54,3 +54,23 @@ const content = setup(); content.focus({matches: () => false, isContentEditable:
 content.vv.height = 510; content.event('resize'); assert.equal(content.open(), true, 'contenteditable');
 assert.doesNotThrow(() => setup({viewport: false}));
 console.log('Keyboard navigation: native lifecycle, Done strip, cancelled dismissal, viewport modes, focus changes, physical keyboards and zoom passed');
+
+// Food layout follows the usable viewport on both OS event paths, without
+// changing size under a deliberate pinch gesture or requiring another focus.
+for (const native of [false, true]) {
+  const t = setup({native});
+  assert.equal(t.styles['--chat-height'], '844px');
+  t.vv.height = 460; t.vv.offsetTop = 12; t.event('resize');
+  assert.equal(t.styles['--chat-height'], '460px');
+  assert.equal(t.styles['--chat-top'], '12px');
+  t.vv.offsetTop = 20; t.event('scroll');
+  assert.equal(t.styles['--chat-top'], '20px', 'follow Safari focus pan');
+  t.vv.scale = 2; t.vv.height = 230; t.event('resize');
+  assert.equal(t.styles['--chat-height'], '460px', 'pinch keeps layout stable');
+  t.vv.scale = 1; t.vv.height = 844; t.vv.offsetTop = 0; t.event('resize');
+  assert.equal(t.styles['--chat-height'], '844px', 'keyboard dismissal restores full height');
+}
+const fallback = setup({native:true, viewport:false});
+fallback.context.innerHeight = 480; fallback.event('resize');
+assert.equal(fallback.styles['--chat-height'], '480px');
+console.log('Food viewport: browser/native resize, focus pan, keyboard dismissal, pinch and absent visualViewport passed');

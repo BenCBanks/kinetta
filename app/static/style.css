@@ -1736,7 +1736,7 @@ button.thread-food { cursor: pointer; }
 .thread-tools button svg { width: 26px; height: 26px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
 #thread-usual-suggestion button { margin-bottom: 8px; }
 .thread-compose-row { display: flex; align-items: flex-end; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 26px; background: var(--card); }
-.thread-compose-row textarea { flex: 1; min-height: 40px; max-height: 160px; padding: 9px 4px; border: 0; background: none; resize: none; font-size: max(16px, 1rem); line-height: 1.4; }
+.thread-compose-row textarea { flex: 1; width: 0; min-width: 0; min-height: 40px; max-height: 160px; padding: 9px 4px; border: 0; background: none; resize: none; font-size: max(16px, 1rem); line-height: 1.4; }
 .thread-compose-row textarea:focus { outline: none; box-shadow: none; }
 /* Chat mode (owner, 2026-10-18): no tab bar while chatting, like a messaging app; ‹ Nutrition goes back. */
 html:has(.food-thread) { --tab-h: 0px; }
@@ -1976,17 +1976,26 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .post-ft:has(.activity-reactions) { flex-wrap:wrap;padding-block:8px; }
 .t-row:has(.activity-reactions) { flex-wrap:wrap; }
 .t-soc:has(.activity-reactions) { flex:1 1 100%;flex-wrap:wrap;margin:0; }
+/* Keep the outer conversation still; only messages/ingredients scroll. The
+   keyboard helper supplies the visible height for Safari and the native WebView. */
+html:has(.food-thread, .recipe-page), html:has(.food-thread, .recipe-page) body { overflow: hidden; }
+.shell.food-thread, .shell.recipe-page { position: fixed; top: var(--chat-top, 0px); left: 0; right: 0;
+  width: 100%; height: var(--chat-height, 100dvh); min-height: 0; overflow: hidden; }
+.shell.food-thread { padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
+.food-thread > *, .recipe-page > * { min-width: 0; }
+.thread-heading { grid-template-columns: auto minmax(0, 1fr) auto; }
+.food-thread .thread-heading h1 { text-align: center; overflow-wrap: anywhere; }
 /* Recipe editing is a focused phone flow: scroll the recipe above its input. */
 html:has(.recipe-page) { --tab-h: 0px; }
 html:has(.recipe-page) nav.tabs { display: none; }
-.shell.recipe-page { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+.shell.recipe-page { min-height: 0; display: flex; flex-direction: column; overflow: hidden;
   padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
 .recipe-page > .top { flex: none; margin-bottom: 8px; gap: 4px; }
 .recipe-page .top .acts { gap: 4px; }
 .recipe-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; overflow-wrap: anywhere; padding: 2px 2px 12px; }
-.recipe-page > .composer { flex: none; position: relative; bottom: auto; margin: 8px 0 0; }
+.recipe-page > .composer { min-width: 0; max-width: 100%; flex: none; position: relative; bottom: auto; margin: 8px 0 0; }
 .recipe-page > .finish { flex: none; margin: 8px 0 0; }
-.recipe-page .composer input { font-size: 1rem; min-height: 44px; }
+.recipe-page .composer input { width: 0; font-size: max(16px, 1rem); min-height: 44px; }
 .recipe-page .composer .icon-btn { width: 44px; height: 44px; }
 .recipe-page .cmsg, .recipe-page .dish-sum { font-size: 1rem; }
 html.keyboard-open:has(body > .kb-done) .recipe-page { padding-bottom: 52px; }

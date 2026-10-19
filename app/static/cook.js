@@ -23,11 +23,6 @@ async function newDish(btn) {
 
 route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
   el.classList.add('recipe-page');
-  // Safari overlays its keyboard; the native app resizes its WebView instead.
-  const vv=window.visualViewport;
-  const fit=()=>{if(vv&&Math.abs(vv.scale-1)<.05)el.style.height=`${vv.height}px`;};
-  fit();vv?.addEventListener('resize',fit);
-  viewResources.set(el,()=>vv?.removeEventListener('resize',fit));
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div>${skel(2)}`;
   wireBack(el, '/food');
   try { await load(`/api/dishes/${id}`, (d) => drawDish(el, d), {maxAge: 0}); }
