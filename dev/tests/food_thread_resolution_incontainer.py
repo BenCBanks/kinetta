@@ -306,7 +306,7 @@ class Resolution(unittest.TestCase):
  def test_missing_amount_asks_before_catalog_or_model(self):
   day=(dt.date.today()-dt.timedelta(days=1)).isoformat()
   m,r=self.send('banana',day=day,meal='lunch')
-  self.assertIn('How much banana',self.result(r)['text']);self.assertFalse(self.result(r)['can_resolve'])
+  self.assertIn('Banana — about how much?',self.result(r)['text']);self.assertFalse(self.result(r)['can_resolve'])
   self.resolve(m);self.look.assert_not_called();self.model.assert_not_called();self.assertEqual(self.entries(),[])
   following,r=self.send('120 g');self.assertEqual(self.result(r)['day'],day);self.assertEqual(self.result(r)['meal'],'lunch')
   self.assertTrue(self.result(r)['can_resolve']);self.assertIn('banana',self.result(r)['parts'][0]['text'])
@@ -352,7 +352,7 @@ class Resolution(unittest.TestCase):
  def test_32_taco_question_does_not_capture_unrelated_food(self):
   original,_=self.send('taco');_,r=self.send('banana')
   self.assertFalse(self.result(r)['can_resolve'])
-  self.assertIn('How much banana',self.result(r)['text'])
+  self.assertIn('Banana — about how much?',self.result(r)['text'])
   current=self.a.get('/api/food/thread').json()
   original_reply=next(x for x in current['messages'] if x.get('reply_to')==original['id'])
   self.assertEqual(original_reply['result']['parts'][0]['status'],'description')

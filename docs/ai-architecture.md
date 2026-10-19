@@ -126,3 +126,10 @@ an explicit estimate request or product choice. Help sentences are handled witho
 access/consent/budget, strict source validation, cancellation/replay and final confirmation remain in force.
 No model/prompt/grounding configuration or reviewed release gate changes; stand-ins test routing contracts, not
 real estimate accuracy.
+
+Food-chat routing pass (19 October 2026): when a sentence names several new foods and at least one has no amount,
+the existing estimator receives that sentence as written (“2 eggs and toast”) instead of one request per word group,
+and returns its usual per-food items. “Not sure” answers send “a typical serving of …” / “typical taco” to the same
+estimator, and “how many calories in …” questions use the same review-only food path. Acknowledgements, cancel words,
+bare amounts and corrections to unconfirmed cards are code-only and never reach a provider. No model, prompt,
+grounding or budget configuration changed; stand-in tests check routing and wording, not estimate accuracy.

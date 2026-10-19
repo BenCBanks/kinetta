@@ -924,3 +924,26 @@ the completed food description. Incomplete catalog nutrition remains incomplete.
 a product choice or an explicit request to estimate. Offer “Estimate calories with AI” for eligible unresolved
 catalog choices; “estimate it” uses the same path and preserves already-given details. Estimates remain labeled
 and wait for final review/confirmation. No model, prompt, release gate or consent default changes here.
+
+## Food chat answers like a person (19 October 2026, owner review of #187/#188)
+
+The owner found the chat assuming wrong, replying with nonsense and fighting the UI. Rules from that pass:
+
+- **Only food becomes food.** Acknowledgements (“ok”, “lol”), “nothing”, “I skipped breakfast”, unrecognised
+  questions and bare amounts (“2 slices”) get a short reply, never a food card asking “How much ok did you have?”.
+  “Cancel” / “never mind” removes the latest unconfirmed card.
+- **An amount already said is enough.** “A banana”, “large fries”, “glass of wine” go straight to an estimate.
+  Ask once, only when the amount is truly missing: “Coffee — about how much? For example “1”, “1 cup”, “a large
+  one” or “150 g”.” Several new foods in one sentence where one lacks an amount (“coffee with milk”, “2 eggs and
+  toast”) are one description, not one question per ingredient. When every food has its amount, each is still
+  looked up exactly.
+- **Answers continue the question.** Sizes (“medium”), dish types (“caesar with chicken” after salad), and extra
+  detail are added to the same food; unrelated food (“banana” after taco) stays separate. “Not sure” estimates a
+  typical version and says so; “what do you mean” explains the question.
+- **Corrections work before review.** “Actually 3 eggs”, “remove the toast”, “it was lunch” change only the named
+  food on the unconfirmed card.
+- **Questions about a food look it up** (“how many calories in an avocado?”) and show a card; nothing is logged
+  unless reviewed.
+- **Quick replies.** Question cards offer one-tap answers (1, 2, Small, Medium, Large, Not sure; fillings for tacos).
+- **Review is a slim strip on the composer**, not a full-width button: “3 foods · ≈ 405 kcal · Review ›”. It counts
+  finished foods only. An unanswered question never blocks reviewing the others; that food stays in the chat.

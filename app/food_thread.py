@@ -213,7 +213,7 @@ def answer_with(c, uid, message, question=None):
     if message['state']!='pending':
         raise HTTPException(409,'This message is no longer pending')
     question=question or facts.classify(message['body'],message['local_day'])
-    if question is None:
+    if question is None or question['kind']=='food_info':
         return {'handled':False,'messages':message_entries(c,uid,[message])}
     if question['kind']=='clarify':
         result={'kind':'answer','intent':'clarify','text':question['text'],'source':'code'}

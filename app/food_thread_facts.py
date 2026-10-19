@@ -27,6 +27,10 @@ def classify(text, anchor):
     kind = None
     if re.search(r'\b(?:how much|how many).*\b(?:left|remaining)\b',text):
         text=re.sub(r'\b(?:can|could|should|may) i (?:eat|have|try)\b','',text)
+    info=re.fullmatch(r"(?:how many (?:calories|cals|kcal)|how much (?:protein|fat|carbs?|fib(?:er|re)|sugar|calories)|(?:calories|protein|carbs|macros|nutrition)) (?:are |is )?in (.+?)[?.!]*",text) or re.fullmatch(r"(?:what are the )?(?:calories|macros|nutrition) (?:for|of) (.+?)[?.!]*",text) or re.fullmatch(r"(?:does|do) (?:a |an |the )?(.+?) have (?:a lot of |much |many |any )?(?:protein|calories|carbs|fat|fib(?:er|re)|sugar)[?.!]*",text)
+    if info and 2<=len(info[1])<=120 and not re.search(r'\b(?:today|yesterday|left|logged|my (?:day|log|week))\b',info[1]):
+        food=info[1].strip()
+        return {'kind':'food_info','food':food}
     food_question = bool(re.search(r'\b(?:how (?:much|many).*\bin (?:a |an |the )?|does .+ have)\b', text))
     if food_question:
         return {'kind':'advice','day':anchor,'meal':None,'nutrient':'calories','weekly':False,'average':False}
@@ -188,7 +192,9 @@ def answer(question, S):
             result['text']=text
             return result
         if question.get('meal') and kind=='left': target=None
-        if not entries:text=f'Nothing is logged for {label} yet.'
+        if not entries and kind=='left' and target and not question.get('meal'):
+            text=f"All of your {display(target):,} {unit}{' ' + nutrient if nutrient != 'calories' else ''} goal is left; nothing is logged for {label} yet."
+        elif not entries:text=f'Nothing is logged for {label} yet.'
         elif value is None:text=f'{nutrient.capitalize()} is unknown for some foods logged for {label}; the total is incomplete.'
         elif kind=='left' and target:
             remaining=target-value
