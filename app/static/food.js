@@ -107,7 +107,7 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
       ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</a>
       <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
     syncCheckinPrimary(box.closest?.('#page'));
-    $('#tf-add', box).onclick = () => describeSheet(D.day, guessMeal());
+    $('#tf-add', box).onclick = () => describeSheet(D.day, null);
   }, {maxAge: 5000});
 }
 function yesterdayMeal(day, meal) {
@@ -191,24 +191,22 @@ route(/^\/food$/, 'food', async (el) => {
   const dp = $('#fd-date', el);
   dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
   dp.onchange = () => { if (dp.value) go(dp.value === today ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
-  $('#fq-add', el).onclick = () => addSheet(day, guessMeal());
+  $('#fq-add', el).onclick = () => describeSheet(day,null);
   await load(`/api/food/day?d=${day}`, (D) => drawDay(el, D), {maxAge: 5000});
   if (q.get('add') === '1' && el.isConnected) {
-    history.replaceState(null, '', '/food'); addSheet(day, guessMeal());
+    history.replaceState(null, '', '/food'); describeSheet(day,null);
   }
 });
 
-// someone who has never logged food and has no goal: three steps instead of a card of zeros (2026-10-12; restored in
+// Someone who has never logged food sees one entry action and optional targets. (2026-10-12; restored in
 // the 2026-10-18 UI pass, it had been left unused)
 function firstFood(box, day) {
   const step = (id, ico, c, label, sub) => `<button class="row-link" id="${id}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></button>`;
   box.innerHTML = `<h2 class="sec-head">Start your food log</h2><div class="card list first-food">
-    ${step('ff-log', 'search', 'c-green', 'Log something you ate', 'Search, scan a barcode, snap a photo or describe it.')}
-    ${step('ff-goal', 'target', 'c-brand', 'Set your daily targets · optional', 'An estimate for calories and protein. You choose what to save.')}
-    ${step('ff-dish', 'pot', 'c-orange', 'Save a meal you eat often', 'A smoothie or a family recipe: built once, logged in a tap.')}</div>`;
+    ${step('ff-log', 'search', 'c-green', 'Log something you ate', 'Describe it, search, scan or take a photo. Save a recipe at the end if you like.')}
+    ${step('ff-goal', 'target', 'c-brand', 'Set your daily targets · optional', 'An estimate for calories and protein. You choose what to save.')}</div>`;
   $('#ff-goal', box).onclick = () => go('/food/setup');
-  $('#ff-log', box).onclick = () => addSheet(day, guessMeal());
-  $('#ff-dish', box).onclick = (e) => newDish(e.currentTarget);
+  $('#ff-log', box).onclick = () => describeSheet(day,null);
 }
 function ring(v, target, label) {
   const pct = target ? Math.min(1.25, v / target) : 0, R = 34, C = 2 * Math.PI * R;
@@ -285,7 +283,7 @@ function drawDay(el, D) {
   }).join('') + (D.entries.length || !D.has_history ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
   $$('[data-yesterday-meal]',el).forEach(b=>b.onclick=()=>yesterdayMeal(D.day,b.dataset.yesterdayMeal));
   $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
-  $$('[data-add]', el).forEach((b) => b.onclick = () => addSheet(D.day, b.dataset.add));
+  $$('[data-add]', el).forEach((b) => b.onclick = () => describeSheet(D.day, b.dataset.add));
   $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
   $$('.meal', el).forEach((card) => swipeRows(card, (id) => removeFoodEntry(D.entries.find((e) => String(e.id) === id), {button: $(`.sw-del[data-del="${id}"]`, card)})));
   $$('[data-id]', el).forEach((b) => b.onclick = () => {
@@ -316,6 +314,7 @@ const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/foo
 
 async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
   const owner=readOwner();
+  if(thread&&typeof FoodThread!=='undefined'&&FoodThread.collecting()){const result=await FoodThread.stage(items);toast(result.queued?'Food draft saved on this phone · waiting to send':'Added for review');return result;}
   items = items.map((it) => ({...foodStorage(it), client_id: it.client_id || newId()}));
   const query=new URLSearchParams();if(thread){query.set('thread','true');query.set('captured_at',new Date().toISOString());}if(restoreFrom)query.set('restore_from',restoreFrom);
   const r = await sendOrQueue('/api/food/entries'+(query.size?'?'+query:''), 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
@@ -369,7 +368,7 @@ function mealMenu(D, meal) {
     <button class="ghost" id="mm-save"${list.length ? '' : ' disabled'}>Save these foods as a combination</button></div>`, (b, close) => {
     $$('[data-me]', b).forEach(x => x.onclick = () => { close(); entrySheet(list.find(e => String(e.id) === x.dataset.me), D.day); });
     $$('[data-remove-food]', b).forEach(x => x.onclick = () => removeFoodEntry(list.find(e => String(e.id) === x.dataset.removeFood), {button: x, after: close}));
-    $('#mm-add', b).onclick = () => { close(); addSheet(D.day, meal); };
+    $('#mm-add', b).onclick = () => { close(); describeSheet(D.day, meal); };
     const cp = $('#mm-copy', b); if (cp) cp.onclick = () => { close(); copyDay(D.day, isoDay(new Date()), meal); };
     // naming happens right here (the phone's own pop-up box looked out of place in the iPhone app)
     $('#mm-save', b).onclick = () => {
@@ -484,7 +483,6 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
     <div class="ways food-ways"><button class="way" id="as-photo">${svg('comment')}<span><b>Add food</b><small>Describe, snap, scan or build a recipe</small></span></button></div>
-    <label class="checkline"><input type="checkbox" id="as-save-recipe">Save as a recipe for later</label>
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
@@ -498,8 +496,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
     const photo = $('#as-photo', b); if (photo) photo.onclick = () => {   // saved-meal lookup is local; model estimates separately require access and consent
-      const w = where(),save=$('#as-save-recipe',b).checked; close();
-      if (save) newDish(null,w); else describeSheet(w.day, w.meal);
+      const w=where();close();describeSheet(w.day,w.meal);
     };
     show(tab);
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
@@ -575,8 +572,9 @@ async function tUsuals(body, where, close) {
   try {
     const usual = await api('/api/food/usual');
     const foods = usual.map(recentToFood);
-    const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd" data-q="${i}" aria-label="Log ${esc(f.name)} now (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
-    body.innerHTML = '<div data-shared-usuals></div>'+(usual.length ? `<p class="small muted">+ logs your usual amount</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
+    const collecting=typeof FoodThread!=='undefined'&&FoodThread.collecting();
+    const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd" data-q="${i}" aria-label="${collecting?'Add':'Log'} ${esc(f.name)} (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
+    body.innerHTML = '<div data-shared-usuals></div>'+(usual.length ? `<p class="small muted">+ ${collecting?'adds your usual amount for review':'logs your usual amount'}</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
       : '<p class="small muted">Foods you log often will appear here. Search to add something new.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>');
     sharedRecipes($('[data-shared-usuals]',body),where,close);
     const ts = $('#tr-search', body); if (ts) ts.onclick = () => $('.sheet [data-t=search]').click();
@@ -584,7 +582,7 @@ async function tUsuals(body, where, close) {
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
       try { const result=await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
-        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
+        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.held?'Usual amount added for review':result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
@@ -785,9 +783,9 @@ async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,active=(
 // foods and foods you've logged before, with no AI (meal_chat.py), so it works with AI turned off. New foods are looked
 // up in the food databases in one request: a brand you named offers that brand's products to pick from; everyday foods
 // go to the AI estimator automatically when you have AI access and consent, and without AI offer plain database matches.
-// Add logs whatever is ready; anything still being worked out stays on the page.
+// Ready food waits in the shared draft until the final review is confirmed.
 function describeSheet(day, meal) {
-  go(`/food/describe?meal=${encodeURIComponent(meal)}`);
+  go('/food/describe'+(meal?'?meal='+encodeURIComponent(meal):''));
 }
 route(/^\/food\/describe$/, 'food', (el) => {
   if(typeof FoodThread!=='undefined')return FoodThread.page(el,{day:new URLSearchParams(location.search).get('d'),meal:new URLSearchParams(location.search).get('meal')});

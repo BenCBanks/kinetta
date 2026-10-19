@@ -53,6 +53,16 @@ def begin(c,uid,message,resolution,*,aliases=True,destination=None):
     if destination:result.update({k:destination[k] for k in ('day','meal')})
     result['composed']=True
     result['parts']=[own_part(c,uid,item,resolution['issued']) for item in resolution.get('items',[])]
+    if (message.get('result') or {}).get('review_only'):
+        categories={'taco','burrito','sandwich','salad','soup','curry','smoothie','pizza'}
+        for part in result['parts']:
+            item=part.get('item',{});parsed=meal_chat.read_part(part['text'],[]);query=parsed.get('query') or []
+            if item.get('kind') and len(query)==1 and query[0] in categories and list(meal_chat.name_words(item.get('name','')))!=query:
+                part.update(status='unknown',item={});part.pop('entries',None)
+            elif item.get('kind') and part['status']=='ready' and not parsed.get('portion') and not re.search(r'\busual|\bsame|\bagain',part['text'],re.I):
+                part.update(status='quantity',question=f'How much {item["name"]} did you have? Say grams or servings.')
+                item.update(status='quantity',message=part['question'],options=[{'label':label,'portion':{'count':count}} for count,label in ((.5,'½ serving'),(1,'1 serving'),(2,'2 servings'))])
+                part.pop('entries',None)
     if not result['parts']:
         # Keep unparsed paragraphs for the consent-gated estimator, not a request
         # for the person to rewrite them. The complete text remains in storage.
@@ -244,8 +254,9 @@ def write(c,uid,message,result,*,force=False,only=None):
 
 
 def _write(c,uid,message,result,*,force=False,only=None):
+    if (message.get('result') or {}).get('review_only'):force=False
     check_live(message,result)
-    auto=food_thread.preferences(c,uid)['auto_log']
+    auto=food_thread.preferences(c,uid)['auto_log'] and not (message.get('result') or {}).get('review_only')
     added=[];changed=False
     for part in result['parts']:
         if only is not None and part['index'] not in only:continue

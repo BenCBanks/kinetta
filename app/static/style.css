@@ -2045,3 +2045,13 @@ html:has(.recipe-page) nav.tabs { display: none; }
 .checkline input[type=checkbox] {width:22px;height:22px;flex:none;accent-color:var(--accent);}
 .thread-save-recipe {flex:none;margin:0 0 8px;}
 #dk-servings {width:90px;min-width:0;text-align:right;}
+
+/* Shared food review keeps capture and final confirmation in one conversation. */
+#thread-review {margin-bottom:8px;}
+#thread-review-note {margin:0 0 8px;}
+.review-food-row {display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
+.review-food-row b {min-width:0;overflow-wrap:anywhere;}
+.review-food-row span {flex:none;color:var(--tx2);}
+.food-final-review .check {align-items:center;white-space:normal;}
+.food-final-review [hidden] {display:none!important;}
+.review-food-row small {display:block;margin-top:3px;}

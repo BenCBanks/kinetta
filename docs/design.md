@@ -816,22 +816,25 @@ deterministic routing/copy; no prompt/model change or model-accuracy claim.
 
 ## Food entry, named ingredients and recipe completion (19 October 2026)
 
-Nutrition's Add food sheet has one describe/capture action, with an optional **Save as a recipe for later**
-checkbox instead of competing Log food/Create recipe actions. The permanent conversation offers the same
-checkbox; a typed unsent message carries into the ingredient composer for review. Existing recipe-library
-creation, imports, source review and private sharing remain available.
+Nutrition has one Add food action. All new food and recipe creation uses the same conversation and capture
+tools. Enter ingredients first; manual, search, usual and saved-recipe picks stay in the draft. The final
+**Review food** sheet offers **Save as a recipe for later** and independently **Log food today**. Only then
+ask for a recipe name and explicit serving yield or whole cooked weight. No new food is auto-logged by
+Send, even if an older client enabled auto-log. Existing recipe editing, imports and sharing remain available.
 
-The ingredient + menu says **Manually add a food**. Ask for its name and the nutrition of the actual amount
-being added. Weight is optional; keep unknown nutrients and weight unknown. Store it as an ingredient,
-without overwriting the recipe total. If a recipe uses an entered/published total, ask whether to keep
-that total or use ingredient totals. A missing ingredient weight prevents a partial ingredient sum from
-being presented as the whole cooked weight; an explicitly entered cooked weight can still be used.
+The + menu's Manual tool opens **Manually add a food**. Ask for its name and the nutrition of the actual
+amount being added. Weight is optional; keep unknown nutrients and weight unknown. Store the named food
+as an ingredient if a recipe is saved. A missing ingredient weight prevents a partial sum from being
+presented as the whole cooked weight; an explicit cooked weight remains available.
 
-Recipes offer By servings (explicit number of servings made) and By weight (whole cooked grams). Finishing
-asks whether to log some today or save it for later. Logging requires choosing a meal and entering the
-number of servings or grams eaten, with a nutrition preview and no prefilled amount. An unnamed recipe
-asks for a name. Saving ingredients, saving a recipe and logging a portion are distinct operations.
-Existing recipes retain their legacy serving arithmetic until an explicit new yield is entered.
+The entered amounts are the default amount to log; do not ask users to repeat quantities they already
+supplied. If they ate a portion of the recipe, choose servings or cooked weight and enter the yield and
+amount eaten separately, with a nutrition preview. Meal is blank unless explicitly chosen earlier.
+Saving without logging is supported. Recipe creation, log entries and their receipt commit together after
+one explicit confirmation; retries cannot duplicate either. Changed source numbers require another tap
+after showing the new values. Reload/navigation preserves unfinished ingredients and unsent text. Offline
+confirmation waits durably and prevents adding more to that draft until acknowledged. Existing recipes
+retain their legacy serving arithmetic until an explicit new yield is entered.
 
 Food writes invalidate pending reads and notify a visible Nutrition log to reload, including delayed
 conversation acknowledgements received after navigating away. Coalesce refreshes and guard the current
@@ -840,9 +843,9 @@ the visible log without requiring another login. Browser checks cannot prove phy
 
 Short unknown foods without an amount ask for quantity before catalog/model resolution; simple mixed
 categories (taco, burrito, sandwich, salad, soup, curry, smoothie, pizza) ask for type too. Ready parts of
-a mixed message stay logged while unresolved parts ask their own questions. Quantity-only replies retain
-the original meal/day; unrelated foods remain separate. Saved foods and learned exact usuals retain
-their established behavior. Long descriptions, photos and source/portion review use the existing paths.
+a mixed message stay in the draft while unresolved parts ask their own questions. Quantity-only replies retain
+the original meal/day; unrelated foods remain separate. An exact saved food still asks for its amount if none was supplied; explicit learned-usual requests
+keep their established quantities. Long descriptions, photos and source/portion review use the existing paths.
 Ingredient chat requires a known remembered amount or explicit weight before a new estimate; ambiguous
 corrections ask which ingredient. Model actions cannot silently change supplied weights or choose a
 different correction target, and estimated household units are not learned from model-invented counts.

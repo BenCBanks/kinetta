@@ -58,8 +58,12 @@ function foodOutbox({db,request,session,changed,online=()=>navigator.onLine}) {
           try {
             if(job.offline)await db.update(owner,job.id,current=>({...current,offline:false}));
             if (job.phase==='cancel') { await call('/api/food/thread/cancel',{client_id:job.id});await db.remove(owner,job.id);continue; }
+            if(job.items||job.dish){
+              await call('/api/food/thread/reviews/'+(job.items?'items':'dish'),{client_id:job.id,draft_id:job.draft_id,...(job.items?{items:job.items}:job.dish)});
+              await db.remove(owner,job.id);continue;
+            }
             if (!job.mid) {
-              const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.day?{day:job.day}:{}),...(job.meal?{meal:job.meal}:{}),...(job.context?{context:job.context}:{}),...(job.barcode?{barcode:job.barcode}:{})});
+              const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.review_only?{review_only:true}:{}),...(job.draft_id?{draft_id:job.draft_id}:{}),...(job.day?{day:job.day}:{}),...(job.meal?{meal:job.meal}:{}),...(job.context?{context:job.context}:{}),...(job.barcode?{barcode:job.barcode}:{})});
               await write({mid:r.message.id,phase:'process'});
             }
             let r;

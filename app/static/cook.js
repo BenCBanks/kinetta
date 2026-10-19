@@ -11,15 +11,12 @@ const RECIPE_SOURCE_LABELS=Object.freeze({site:'Published by site',ingredients:'
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
 Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l6-6 6 6"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'});
-const recipeStartDrafts = new Map(); // Unsent text stays account-bound in memory, outside URLs/history.
 const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 
-// New dish (Add food, Saved Dishes, the first-run steps): straight to an empty dish page. Editing a saved dish starts
-// from Saved Dishes (its Edit button), so there's no in-between "create or edit" list any more (2026-10-12, Ben).
-async function newDish(btn, where = null, ingredient = '') {
-  if (btn) btn.disabled = true;
-  try { const d = await api('/api/dishes', json('POST', {})); App.cache.delete('/api/dishes');const query=new URLSearchParams(where||{});if(ingredient)recipeStartDrafts.set(queueOwner()+':'+d.id,ingredient);go(`/food/cook/${d.id}${query.size?'?'+query:''}`); }
-  catch (x) { toast(x.message); if (btn) btn.disabled = false; }
+// New recipes share food entry; the optional recipe choice appears only at final review.
+async function newDish(btn,where=null){
+  if(typeof FoodThread!=='undefined'&&FoodThread.collecting())return FoodThread.review({saveRecipe:true});
+  go('/food/describe?save=1'+(where?.meal?'&meal='+encodeURIComponent(where.meal):''));
 }
 
 route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
@@ -88,7 +85,6 @@ function drawDish(el, d) {
   $('#dk-help', el).onclick = () => sheet('How recipes work', cookSteps(d));
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
-  const startKey=queueOwner()+':'+d.id,starting=recipeStartDrafts.get(startKey);if(starting){recipeStartDrafts.delete(startKey);$('#dk-t',el).value=starting.slice(0,600);}
   labelButton(el, d, set);
   $('#dk-plus', el).onclick = () => plusMenu(el, d, set);
   const sh = $('#dk-share', el); if (sh) sh.onclick = () => shareDishSheet(d, set);
@@ -229,6 +225,9 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
       else { const g = num(f.g); if (!(g > 0)) { toast('How many grams did you have?'); return; } body.grams = g; }
       const label=btn.textContent;btn.disabled = true;btn.textContent='Saving portion…';
       try {
+        if(typeof FoodThread!=='undefined'&&FoodThread.collecting()){
+          const held=await FoodThread.stageDish(d.id,body);close();done(false);toast(held.queued?'Recipe portion saved for review on this phone':'Recipe portion added for review');return;
+        }
         const r = await sendOrQueue(`/api/dishes/${d.id}/portion${location.pathname==='/food/describe'?'?thread=true&captured_at='+encodeURIComponent(new Date().toISOString()):''}`, 'POST', body, d.name);
         if(!r.queued&&r.messages&&typeof FoodThread!=='undefined'){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
         if(readOwner()!==owner)return;
@@ -493,8 +492,10 @@ function typeSheet(name, grams, done) {
     f.onsubmit = async (e) => {   // stays open if the server says no, so the numbers aren't lost
       e.preventDefault(); const n = (v) => (v.trim() === '' ? null : +v.replace(',', '.')), btn = $('button.primary', f);
       btn.disabled = true;
-      if (await done({name: f.name.value.trim(), grams: n(f.grams.value), kcal: n(f.kcal.value), protein_g: n(f.protein_g.value), carbs_g: n(f.carbs_g.value), fat_g: n(f.fat_g.value),fiber_g:n(f.fiber_g.value),...extraFormValues(f)})) close();
-      else btn.disabled = false;
+      try {
+        if (await done({name: f.name.value.trim(), grams: n(f.grams.value), kcal: n(f.kcal.value), protein_g: n(f.protein_g.value), carbs_g: n(f.carbs_g.value), fat_g: n(f.fat_g.value),fiber_g:n(f.fiber_g.value),...extraFormValues(f)})) close();
+        else btn.disabled = false;
+      } catch (error) { toast(error.message); btn.disabled = false; }
     };
   });
 }
