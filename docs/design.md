@@ -871,7 +871,7 @@ not a diagnosis or a moral judgement. Never make color the only way to understan
 Use 4.5:1 contrast for ordinary text, including placeholders, across the surface where it actually appears; large
 text may use the WCAG 3:1 exception. Required control boundaries, focus and meaningful chart marks need 3:1 against
 adjacent surfaces. The `outline` token is for fields; the quieter `divider` token remains decorative. `on-error`
-pairs with the error fill; do not put white on the bright dark-theme error color. Small chart badges use neutral
+pairs with the error fill; do not put white on the bright dark-theme error color. Selected segments and chips have an evergreen boundary in addition to their fill. Small chart badges use neutral
 text plus a series mark. Calendar dates remain readable for adjacent months; solid, segmented, double-line and dotted food-status marks match their legend as well as their colors. Keep labels/direct values and existing
 accessible descriptions alongside chart colors. Test real rendered combinations as well as canonical tokens.
 The shared generator checks 150 text/action/semantic/outline/chart pairs in light and dark modes.
