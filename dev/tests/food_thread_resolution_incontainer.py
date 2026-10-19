@@ -357,5 +357,13 @@ class Resolution(unittest.TestCase):
   self.assertEqual(old['result']['kind'],'continued');self.assertEqual(old['result']['text'],question)
   self.assertEqual(old['result']['pending_count'],0)
 
+ def test_35_taco_question_does_not_change_partial_multi_food_flow(self):
+  self.own_food();_,r=self.send('taco and rice')
+  result=self.result(r)
+  self.assertEqual(len(result['parts']),2)
+  self.assertTrue(result['can_resolve'])
+  self.assertFalse(any(p.get('description') for p in result['parts']))
+  self.assertEqual(sum(e['kcal'] for e in self.entries()),130)
+
 # review regressions use the production API and fictional provider/catalog stand-ins
 unittest.main()

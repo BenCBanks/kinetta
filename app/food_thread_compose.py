@@ -55,7 +55,7 @@ def begin(c,uid,message,resolution,*,aliases=True):
     if aliases and unresolved and (message.get('result') or {}).get('input',{}).get('kind','text')=='text':
         alias=resolver._alias(c,uid,unresolved)
         if alias:resolver._replace_group(result,{p['index'] for p in unresolved},alias)
-    if (message.get('result') or {}).get('input',{}).get('kind','text')=='text':
+    if len(result['parts'])==1 and (message.get('result') or {}).get('input',{}).get('kind','text')=='text':
         for part in result['parts']:description_question(part)
     return write(c,uid,message,result)
 
