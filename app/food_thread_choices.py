@@ -90,12 +90,20 @@ def manual(c,uid,message,body):
     return C.write(c,uid,message,result,force=not (message.get('result') or {}).get('review_only'),only={body.part})
 
 
+UNSURE=re.compile(r"(?:i'?m |i am )?(?:not sure|unsure|no idea|no clue|(?:i )?(?:don'?t|do not|dunno) (?:know|remember)|can'?t remember|idk|dunno|whatever|any|anything|doesn'?t matter|normal|regular|typical|average|the usual kind)")
+
+
+def is_unsure(text):
+    """'Not sure', 'no idea', 'whatever is normal': estimate a typical version (shared with the AI step)."""
+    return bool(UNSURE.fullmatch(re.sub(r'\s+',' ',text.casefold().replace('’',"'")).strip(' .!?,')))
+
+
 def conversational_help(c,uid,message):
     """Help and explicit estimate requests refer to food, never become new foods."""
     from . import food_thread_edit as edits,coach
     text=re.sub(r'\s+',' ',message['body'].casefold().replace('’',"'")).strip(' .!?,')
     # "Not sure" answers a food question (estimate a typical one); "what do you mean" asks about the question.
-    unsure=bool(re.fullmatch(r"(?:i'?m |i am )?(?:not sure|unsure|no idea|no clue|(?:i )?(?:don'?t|do not|dunno) (?:know|remember)|can'?t remember|idk|dunno|whatever|any|anything|doesn'?t matter|normal|regular|typical|average|the usual kind)",text))
+    unsure=is_unsure(text)
     confused=bool(re.fullmatch(r"(?:i (?:don'?t|do not) understand(?: (?:that|this|you|the question))?|(?:i (?:have )?)?no idea what you mean|what do you mean|(?:i'?m|i am) confused|huh|can you explain(?: (?:that|this))?|i (?:don'?t|do not) know what (?:you mean|that means)|what does that mean|help|help me|that makes no sense)",text))
     estimate=bool(re.fullmatch(r'(?:please )?(?:just |can you )?(?:estimate(?: (?:it|them|that|the calories|calories))?|guess|make a guess|use (?:an? )?ai(?: estimate)?|you (?:decide|pick|choose))(?: please| for me)?',text))
     if not confused and not estimate and not unsure:return None

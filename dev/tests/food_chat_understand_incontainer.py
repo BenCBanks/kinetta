@@ -90,6 +90,15 @@ class Understanding(unittest.TestCase):
         question=next(m for m in history if m.get('reply_to') and m['body']=='What kind of taco, and how many?')
         self.assertEqual(question['result']['kind'],'continued','the question card is continued, not left open')
 
+    def test_not_sure_estimates_typical_and_new_food_is_not_merged_with_card(self):
+        self.say('taco',understood('log',[{'name':'taco','quantity':None}],missing='type',reply='What kind of taco was it?'))
+        reply,messages=self.say('not sure',understood('answer',[{'name':'taco','quantity':None}],missing='type',reply='What kind of taco was it?'))
+        self.assertEqual(self.card(messages)['kind'],'preview','not sure estimates a typical taco instead of asking again')
+        self.assertIn('typical taco',self.card(messages)['assumed'])
+        reply,messages=self.say('coffee',understood('log',[{'name':'taco','quantity':1},{'name':'coffee','quantity':None}]))
+        names=[p['text'] for p in self.card(messages)['parts']]
+        self.assertTrue(all('taco' not in n for n in names),names)
+
     def test_corrections_remove_move_and_cancel(self):
         _,messages=self.say('2 eggs and toast',understood('log',[{'name':'egg','quantity':2},{'name':'toast','quantity':None}]))
         self.assertIn('typical portion of toast',self.card(messages)['assumed'])
