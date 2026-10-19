@@ -113,7 +113,7 @@ class Conversation(unittest.TestCase):
     def test_not_sure_estimates_a_typical_version_and_keeps_details(self):
         self.say('taco')
         body,result,_=self.say('not sure');self.assertEqual(result['kind'],'preview',body)
-        self.assertEqual(self.model.call_args.args[0].note,'a typical taco');self.assertIn('one typical taco',result['assumed'])
+        self.assertEqual(self.model.call_args.args[0].note,'a typical taco');self.assertIn('a typical portion of taco.',result['assumed'])
         self.say('taco');body,result,_=self.say('chicken')
         self.assertEqual(self.model.call_args.args[0].note,'a typical serving of chicken taco');self.assertIn('typical portion of chicken taco',result['assumed'])
         body,_,messages=self.say('2');self.assertEqual(body,'Changed chicken taco to 2.')

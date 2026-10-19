@@ -208,7 +208,7 @@ def typical(c,uid,previous,message,result,part):
     if count:return restate(c,uid,previous,message,result,f'{meal_chat.fmt(count)} typical {food}')
     if d.get('portion'):return restate(c,uid,previous,message,result,f'a typical {food}, '+d.get('detail',food))
     # No count either: one typical one, stated on the card (owner decision: assume, say so, let them change it).
-    return restate(c,uid,previous,message,result,f'a typical {food}',assumed=[f'one typical {food}'])
+    return restate(c,uid,previous,message,result,f'a typical {food}',assumed=[food])
 
 
 def wait_on(c,uid,previous,message,result,detail,food,question,replies):

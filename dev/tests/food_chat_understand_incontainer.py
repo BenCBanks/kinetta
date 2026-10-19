@@ -94,7 +94,7 @@ class Understanding(unittest.TestCase):
         self.say('taco',understood('log',[{'name':'taco','quantity':None}],missing='type',reply='What kind of taco was it?'))
         reply,messages=self.say('not sure',understood('answer',[{'name':'taco','quantity':None}],missing='type',reply='What kind of taco was it?'))
         self.assertEqual(self.card(messages)['kind'],'preview','not sure estimates a typical taco instead of asking again')
-        self.assertIn('typical taco',self.card(messages)['assumed'])
+        self.assertIn('typical portion of taco.',self.card(messages)['assumed'])
         reply,messages=self.say('coffee',understood('log',[{'name':'taco','quantity':1},{'name':'coffee','quantity':None}]))
         names=[p['text'] for p in self.card(messages)['parts']]
         self.assertTrue(all('taco' not in n for n in names),names)
