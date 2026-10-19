@@ -52,7 +52,7 @@ body.has-sheet, body.map-open { overflow: hidden; }
 /* ---------- form controls ---------- */
 label { display: grid; gap: 6px; font-weight: 600; font-size: 13px; color: var(--tx2); min-width: 0; }
 input, select, textarea { min-height: 44px; padding: 9px 14px; border-radius: var(--r2); border: 1px solid var(--line); background: var(--card);
-  font-size: 16px; font-weight: 400; width: 100%; min-width: 0; transition: border-color .15s, box-shadow .15s; }
+  font-size: max(16px,1rem); font-weight: 400; width: 100%; min-width: 0; transition: border-color .15s, box-shadow .15s; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 textarea { min-height: 96px; resize: vertical; }
 input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
@@ -176,7 +176,7 @@ details.fold-row[open] { padding-bottom: 12px; }
 .back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 14px 0 6px; border: 0; border-radius: 999px; background: var(--card);
   box-shadow: var(--shadow); color: var(--tx); font-weight: 600; font-size: 15px; }
 .back svg { width: 20px; height: 20px; } .back:active { transform: scale(.96); }
-.sec-head, .shell .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 20px; font-weight: 750;
+.sec-head, .shell .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: var(--text-app-section); font-weight: 750;
   letter-spacing: -.02em; margin: 22px 2px 10px; }
 .sec-head a { font-size: 14px; font-weight: 600; letter-spacing: 0; }
 .sec-head .count { font-size: 15px; color: var(--tx3); font-weight: 600; margin-left: 6px; margin-right: auto; }
@@ -214,8 +214,8 @@ nav.tabs :is(a,button):active { transform: scale(.94); }
 .card.list { padding-top: 4px; padding-bottom: 4px; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); min-height: 52px; }
 .row:first-child { border-top: 0; }
-.row-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; min-height: 52px; color: inherit;
-  border-top: 1px solid var(--line); font-size: 16px; }
+.row-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; min-height: 48px; color: inherit;
+  border-top: 1px solid var(--line); font-size: .95rem; }
 .row-link:first-child, .card > h2 + .row-link { border-top: 0; }
 button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; }
 .row-link:active { opacity: .6; }
@@ -331,10 +331,10 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sheet .grab::after { content: ''; position: absolute; left: -60px; right: -60px; top: -14px; bottom: -14px; }
 .sheet .grab, .sheet header { touch-action: none; }
 .sheet header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-.sheet header h2 { font-size: 22px; font-weight: 800; letter-spacing: -.025em; }
+.sheet header h2 { font-size: var(--text-app-section); font-weight: 800; letter-spacing: -.025em; }
 .sheet.settle { transition: transform .16s ease-out; }
 .sheet input, .sheet select, .sheet textarea { background: var(--card); }
-.pick-list .row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; font-size: 16px; }
+.pick-list .row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; font-size: .95rem; }
 .pick-list .tick { color: var(--accent); } .pick-list .tick svg, .pick-list .row-link svg { width: 20px; height: 20px; }
 
 /* ---------- sport marks + stats ---------- */
@@ -356,9 +356,9 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .stats3.tiles .stat { --c: var(--tile1); border-radius: 18px; padding: 12px 12px 14px; background: color-mix(in srgb, var(--c) 10%, var(--card)); border: 1px solid color-mix(in srgb, var(--c) 18%, transparent); }
 .stats3.tiles .stat:nth-child(2) { --c: var(--tile2); } .stats3.tiles .stat:nth-child(3) { --c: var(--tile3); }
 .stats3.tiles .stat small { color: color-mix(in srgb, var(--c) 80%, var(--tx)); letter-spacing: .03em; }
-.stats3.tiles .stat b { font-size: 24px; margin-top: 6px; color: var(--tx); }
-.hero-num { font: 800 46px/1 var(--numf); letter-spacing: -.04em; margin-top: 4px; }
-.hero-num i { font: 600 17px var(--font); font-style: normal; color: var(--tx3); margin-left: 5px; letter-spacing: 0; }
+.stats3.tiles .stat b { font-size: var(--text-app-stat); margin-top: 6px; color: var(--tx); }
+.hero-num { font: 700 var(--text-app-metric)/1.1 var(--numf); letter-spacing: -.04em; margin-top: 4px; }
+.hero-num i { font: 500 14px var(--font); font-style: normal; color: var(--tx3); margin-left: 5px; letter-spacing: 0; }
 .hero-sub { margin: 6px 0 0; color: var(--tx2); font-weight: 500; }
 
 /* ---------- activity posts (feed, Mine, Today) ---------- */
@@ -552,7 +552,7 @@ tr.muted td { color: var(--tx3); }
 
 /* ---------- Progress ---------- */
 .bigstat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.bigstat .stat b { font-size: 24px; }
+.bigstat .stat b { font-size: var(--text-app-stat); }
 .pred { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .pred div { background: var(--card2); border-radius: var(--r3); padding: 14px 16px; } .pred b { display: block; font: 800 23px var(--numf); letter-spacing: -.02em; }
 /* green = faster than your best ever at that distance (2026-10-13); the line under it says so */
@@ -864,7 +864,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .hms span { color: var(--tx3); font-size: 13px; font-weight: 600; }
 #ps-pace { margin: 8px 0 0; }
 .plan-hero .ph-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.plan-hero h2 { font-size: 28px; font-weight: 800; letter-spacing: -.03em; margin: 2px 0; }
+.plan-hero h2 { font-size: var(--text-app-section); font-weight: 800; letter-spacing: -.03em; margin: 2px 0; }
 .ph-ring .ring b { font-size: 18px; }
 .ph-week { font-weight: 700; margin: 12px 0; }
 .ptrack { height: 8px; border-radius: 999px; background: var(--card2); overflow: hidden; margin: 4px 0 8px; }
@@ -1247,11 +1247,11 @@ button.lift-prev:active { background: var(--card2); }
 /* ---------- Evergreen Agenda · shared across every route and sheet ---------- */
 :root { --display: var(--font-display); --numf: var(--font); --shadow: none; }
 .shell { max-width: 800px; padding-inline: var(--space-5); }
-.shell h1 { font-family: var(--display); font-weight: 650; font-size: 38px; letter-spacing: -.035em; }
+.shell h1 { font-family: var(--display); font-weight: 650; font-size: var(--text-app-title); letter-spacing: -.03em; }
 .sec-head, .card > h2, .post-title, .sheet-head h2, .plan-hero h2 { font-family: var(--display); font-weight: 650; }
-.sec-head { font-size: 25px; margin-top: 26px; }
-.card { border: 1px solid var(--line); padding: 16px; margin-bottom: 16px; }
-.card > h2 { font-size: 23px; }
+.sec-head { font-size: var(--text-app-section); margin-top: 20px; }
+.card { border: 1px solid var(--line); padding: 14px; margin-bottom: 12px; }
+.card > h2 { font-size: var(--text-app-card-title); }
 .primary { box-shadow: none; min-height: 44px; }
 .ghost, .primary.sm, .ghost.sm { min-height: 44px; }
 .icon-btn { background: transparent; box-shadow: none; flex: none; }
@@ -1269,9 +1269,10 @@ button.lift-prev:active { background: var(--card2); }
 .stats3.tiles .stat { background: var(--card2); border-color: transparent; padding: 12px 8px; border-radius: 12px; }
 .stats3.tiles .stat small { color: var(--tx2); }
 .stat, .hero .stat { min-width: 0; }
-.stat b { font-size: clamp(18px, 5.3vw, 26px); overflow-wrap: anywhere; }
+.stat b { font-size: var(--text-app-stat); overflow-wrap: anywhere; }
 .stat b i { font-size: 12px; font-weight: 400; }
-.hero .stat b, .public-profile ~ .card .stat b { font-size: clamp(18px, 5.3vw, 26px); }
+.hero .stat b, .public-profile ~ .card .stat b { font-size: var(--text-app-stat); }
+.stats3 { grid-template-columns:repeat(auto-fit,minmax(min(100%,6rem),1fr)); }
 nav.tabs { left: 0; right: 0; bottom: 0; max-width: 800px; border-radius: 0; box-shadow: none; border-top: 1px solid var(--line); padding: 7px 10px calc(env(safe-area-inset-bottom) + 7px); background: var(--card); }
 /* Software keyboard takes precedence over global navigation on every route. */
 html.keyboard-open { --tab-h: 0px; }
@@ -1301,7 +1302,7 @@ nav.tabs :is(a,button)[aria-current="page"] { background: transparent; }
 nav.tabs :is(a,button)[aria-current="page"]::after { content: ''; width: 24px; height: 3px; border-radius: 2px; background: var(--accent); position: absolute; bottom: 0; }
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .post { padding: 0; }
-.post .post-title { font-size: 23px; }
+.post .post-title { font-size: var(--text-app-card-title); }
 .post .stats3 .stat + .stat { border-left: 1px solid var(--line); padding-left: 10px; }
 #t-last > .post { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding-bottom: 12px; }
 #t-last .post-profile, #t-last .post-link { padding-inline: 0; }
@@ -1326,8 +1327,8 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .sport-overview .num { color: var(--tx2); }
 .tcard.balance { background: var(--card); }
 .nutrition-summary { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 14px; }
-.nutrition-summary .hero-num { font-size: 34px; }
-.macro-bars { display: grid; gap: 12px; margin-top: 18px; }
+.nutrition-summary .hero-num { font-size: var(--text-app-metric); }
+.macro-bars { display: grid; gap: 10px; margin-top: 12px; }
 .macro-bars .macro-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
 .macro-bars .track { margin-top: 6px; height: 6px; }
 .tfood { background: var(--card); }
@@ -1337,7 +1338,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 /* Compact agenda and trustworthy metric wrapping at narrow widths. */
 .macro-bars .macro-line b { font: 600 14px/1.4 var(--font); letter-spacing: 0; }
 .stat b { white-space: normal; }
-.stats3.big .stat b { font-size: clamp(18px,5.3vw,24px); }
+.stats3.big .stat b { font-size: var(--text-app-stat); }
 .sec-head a, .card > h2 a.more { display: inline-flex; align-items: center; min-height: 44px; }
 .pf, .pill-sel, .day-nav .icon-btn, .day-nav button { min-height: 44px; }
 #t-plan .plan-today { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 0 0 16px; }
@@ -1393,7 +1394,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 
 /* A personal greeting and one-tap Kit review keep Today concise. */
 #t-review { flex-shrink: 0; }
-.latest-activity-link { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--tx); }
+.latest-activity-link { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--tx); }
 .latest-activity-link small, .latest-activity-link b { display: block; }
 .latest-activity-link small { font-size: 11px; color: var(--tx3); }
 .latest-activity-link b { font-size: 15px; font-weight: 550; overflow-wrap: anywhere; }
@@ -1455,7 +1456,7 @@ html.keyboard-open .kb-done { display: flex; }
 
 /* Me personal overview and foreground Track (October 2026). */
 .me-heading h1 { margin: 0; }
-.me-agenda { margin: 24px 0; }
+.me-agenda { margin: 16px 0; }
 /* Me shortcuts (2026-10-18): one tap to each main area, small round icons like the food chat's + menu. */
 .me-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr)); gap: 8px; margin: 16px 0; }
 .me-shortcuts a { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 56px; padding: 8px 4px; border: 1px solid var(--line);
@@ -1499,21 +1500,21 @@ html.keyboard-open .kb-done { display: flex; }
 .track-banner span { flex: 1; }
 .track-banner svg { width: 20px; }
 .profile-mileage h2 { margin: 0; }
-.mileage-total { margin: 18px 0; }
-.mileage-total b { font-size: 32px; font-weight: 600; }
+.mileage-total { margin: 12px 0; }
+.mileage-total b { font-size: var(--text-app-metric); font-weight: 600; }
 .mileage-total .small { display: block; margin-top: 4px; }
 .mileage-bars { display: flex; gap: 6px; }
 .mileage-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; }
 .mileage-day > .num { font-size: 11px; }
 .mileage-day small { font-size: 10px; text-align: center; line-height: 1.35; }
-.mileage-column { height: 90px; width: 100%; max-width: 32px; display: flex; align-items: flex-end; }
+.mileage-column { height: 76px; width: 100%; max-width: 32px; display: flex; align-items: flex-end; }
 .mileage-column i { display: block; width: 100%; height: calc(var(--h, .015) * 100%); min-height: 2px; border-radius: 4px 4px 0 0; background: var(--accent); }
 @media (min-width: 700px) { .track-clock { font-size: 68px; } .track-map { height: 320px; } }
 .track-question { font-family: var(--font-display); font-weight: 600; line-height: 1.2; }
 .track-session > h2 { font-family: var(--font-display); }
 #track-content .track-sports button { transition: background-color .15s, color .15s; }
 @media (prefers-reduced-motion: reduce) { #track-content .track-sports button { transition: none; } }
-.me-agenda > h2, .profile-mileage h2 { font-family: var(--font-display); font-size: 24px; font-weight: 600; }
+.me-agenda > h2, .profile-mileage h2 { font-family: var(--font-display); font-size: var(--text-app-section); font-weight: 600; }
 .mileage-day small { font-size: 11px; }
 
 #track-setup > p { margin: 0; }
@@ -1990,9 +1991,12 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-icons { display:flex; align-items:center; }
 .reaction-icons svg { width:14px; height:14px; margin-right:-3px; }
 .reaction-icons svg:last-child { margin-right:0; }
-.reaction-picker { position:fixed; z-index:1000; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; width:max-content; min-width:min(260px,calc(100vw - 24px)); max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); overflow:auto; padding:6px; border:1px solid var(--line); border-radius:20px; background:var(--card); color:var(--tx); box-shadow:var(--lift); }
-.reaction-picker button { display:grid; align-content:center; justify-items:center; gap:6px; min-width:0; min-height:76px; padding:8px 1px; border:0; border-radius:14px; background:none; color:inherit; font-size:max(13px,.75rem); font-weight:600; overflow-wrap:anywhere; }
-.reaction-picker button svg { width:28px; height:28px; color:var(--accent); }
+/* A small icon strip: visual size is independent of its 44px choice targets. */
+.reaction-picker { position:fixed; z-index:1000; display:grid; grid-template-columns:repeat(3,44px); gap:2px; width:max-content; max-width:calc(100vw - 24px); padding:4px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--tx); box-shadow:var(--lift); }
+.reaction-picker button { position:relative; display:grid; place-items:center; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:none; color:inherit; }
+.reaction-picker button svg { width:22px; height:22px; color:var(--accent); }
+.reaction-picker button span { position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); padding:4px 8px; border-radius:8px; background:var(--ink); color:var(--onink); font:600 max(12px,.8rem)/1.4 var(--font); white-space:nowrap; opacity:0; pointer-events:none; }
+.reaction-picker button:hover span,.reaction-picker button:focus-visible span { opacity:1; }
 .reaction-picker button:hover,.reaction-picker button:focus-visible,.reaction-picker button[aria-checked="true"] { background:var(--accent2); color:var(--accent); }
 .post-ft:has(.activity-reactions) { flex-wrap:wrap; padding-block:4px; }
 .t-row:has(.activity-reactions) { flex-wrap:wrap; }
@@ -2021,7 +2025,7 @@ html:has(.recipe-page) nav.tabs { display: none; }
 .recipe-page .composer .icon-btn { width: 44px; height: 44px; }
 .recipe-page .cmsg, .recipe-page .dish-sum { font-size: 1rem; }
 html.keyboard-open:has(body > .kb-done) .recipe-page { padding-bottom: 52px; }
-.recipe-page .dish-name-in { font-size: 1.45rem; }
+.recipe-page .dish-name-in { font-size: max(16px,1.2rem); }
 .recipe-page .ig { grid-template-columns: minmax(0,1fr) auto; gap: 3px 10px; }
 .recipe-page .ig-n { white-space: normal; overflow-wrap: anywhere; font-size: 1rem; }
 .recipe-page .ig-g { grid-column: 1; white-space: normal; font-size: .85rem; }

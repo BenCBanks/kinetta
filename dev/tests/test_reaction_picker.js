@@ -20,6 +20,9 @@ function setup(){
   api:(url,opts)=>new Promise((resolve,reject)=>pending.push({url,opts,resolve,reject})),socialChanged:id=>changes.push(id),toast:s=>errors.push(s),
   setTimeout:f=>{timers.set(++timer,f);return timer;},clearTimeout:id=>timers.delete(id)};
  vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const REACTIONS='),source.indexOf('\nconst VIS ='))+source.slice(source.indexOf('function cheerGesture'),source.indexOf('\nfunction activityCheers')),ctx);
+ // Icon-only choices must retain a stable accessible name for each reaction.
+ const markup=vm.runInContext('reactionButtons(7,{reactions:{}})',ctx);
+ for(const label of ['Cheers','Strong','Applause'])assert(markup.includes('role="menuitemradio" aria-label="'+label+'"'));
  ctx.activityCheers=id=>people.push(id);ctx.wireReactionGroup(group,7);
  return {ctx,document,window,group,main,more,count,picker,options,pending,resources,timers,changes,people,errors,setOwner:v=>{owner=v;},setHit:v=>{hit=v;}};
 }
