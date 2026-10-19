@@ -21,6 +21,9 @@ try:
  with patch.object(cook_chat,'_ai_ready',return_value=True),patch.object(cook_chat,'product_refs',return_value=''),patch.object(food_photo,'ask',return_value=(action,{'usageMetadata':{}},'stand-in')) as ask:
   response=client.post(f'/api/dishes/{did}/say',json={'text':'add 100 g rice'});assert response.status_code==200,response.text
   assert ask.call_count==1 and 'weight unknown' in ask.call_args.args[0][0]['text']
+  assert response.json()['by']=='clarification' and response.json()['dish']['items'][0]['grams'] is None,'An add-rice request must not change a different ingredient'
+  response=client.post(f'/api/dishes/{did}/say',json={'text':'change fictional salad to 100 g'});assert response.status_code==200,response.text
+  assert ask.call_count==2
   changed=response.json()['dish'];assert changed['items'][0]['grams']==100 and changed['items'][0]['kcal']==200
   assert not changed['recipe_source'].get('site_recipe_changed')
  # Remembered AI identity survives, but another recipe's note/unknown flags do not.

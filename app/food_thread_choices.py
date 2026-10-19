@@ -86,7 +86,7 @@ def manual(c,uid,message,body):
     replacement={**part,'manual':True,'status':'ready','entries':entries,'looked_up':True}
     replacement.pop('drafts',None);replacement.pop('templates',None)
     result['parts']=[replacement if p['index']==body.part else p for p in result['parts']]
-    return C.write(c,uid,message,result,force=True,only={body.part})
+    return C.write(c,uid,message,result,force=not (message.get('result') or {}).get('review_only'),only={body.part})
 
 
 def follow_up(c,uid,message):
@@ -112,7 +112,7 @@ def _follow_up(c,uid,message):
     response=None
     if dest:
         response=edits.destination(c,uid,previous,dest.get('day') or dt.date.fromisoformat(result['day']),dest.get('meal') or result['meal'])
-    elif len(pending)==1 and pending[0].get('description') and len(result['parts'])==1:
+    elif len(pending)==1 and pending[0].get('description'):
         response=description_follow_up(c,uid,previous,message,result,pending[0],portion)
         if response is not None:return response
     elif pure and len(pending)==1:
@@ -131,16 +131,32 @@ def _follow_up(c,uid,message):
     return {**response,'messages':response['messages']+answer['messages']}
 
 
+def retained_parts(previous,result):
+    return [p for p in result['parts'] if p['status']=='ready' and not p.get('logged')] if (previous.get('result') or {}).get('review_only') else []
+
+def continued_kind(previous,result):
+    return 'preview' if retained_parts(previous,result) else 'continued'
+
 def description_follow_up(c,uid,previous,message,result,part,portion):
     # Restrict short filling replies to the question we actually asked. Unrelated
     # food, questions and paragraphs remain separate messages, never taco toppings.
     text=message['body'].strip()
-    fillings={'chicken','beef','bean','pork','fish','shrimp','steak','veggie','vegetarian','cheese','carnitas','soft','hard','shell','crispy','grilled'}
+    if part['description'].get('portion_only'):
+        parsed=meal_chat.read_part(text,[])
+        detail=part['description']['detail'];query=set(parsed.get('query') or [])
+        if not portion or query and not query<=set(meal_chat.read_part(detail,[]).get('query') or []):return None
+        said=text if query else text+' '+detail
+        resolution=engine.resolve(c,uid,{**message,'body':said})
+        response=C.begin(c,uid,message,resolution,destination={'day':result['day'],'meal':result['meal']})
+        continued=food_thread.finish_reply(c,uid,previous,{**result,'kind':continued_kind(previous,result),'parts':retained_parts(previous,result),'pending_count':0,'can_resolve':False,'continued_to':message['id']})
+        return {**response,'messages':continued['messages']+response['messages']}
+    fillings={'chicken','beef','bean','pork','fish','shrimp','steak','veggie','vegetarian','cheese','carnitas','soft','hard','shell','crispy','grilled','pepperoni','mushroom','vegetable','fruit','yogurt','lentil','tomato'}
     parsed=meal_chat.read_part(text,[]);query=set(parsed.get('query') or [])
     if len(text)>120 or '\n' in text or re.search(r'https?://|www\.',text,re.I):return None
-    if not (query and ('taco' in query or query<=fillings) or portion and not query):return None
-    detail=part['description'].get('detail') or 'taco'
-    said=text if 'taco' in query else text+' '+('taco' if query else detail)
+    food=part['description']['food']
+    if not (query and (food in query or query<=fillings) or portion and not query):return None
+    detail=part['description'].get('detail') or food
+    said=text if food in query else text+' '+(food if query else detail)
     old=part['description'].get('portion') or {}
     if not portion:
         if old.get('count'):said=str(old['count'])+' '+said
@@ -152,9 +168,9 @@ def description_follow_up(c,uid,previous,message,result,part,portion):
         # Keep the answer without silently treating it as one serving.
         waiting=engine.make_result(c,uid,message,resolution)
         waiting.update(day=result['day'],meal=result['meal'],composed=True,parts=[{'index':0,'text':said,'status':'description','logged':False,
-                    'description':{'food':'taco','detail':said},'question':'How many tacos did you have? You can also give their total weight.'}])
+                    'description':{'food':food,'detail':said},'question':'How many tacos did you have? You can also give their total weight.' if food=='taco' else f'How much {said} did you have? Give a count with its size, or a weight in grams.'}])
         response=C.write(c,uid,message,waiting)
     else:response=C.begin(c,uid,message,resolution,destination={'day':result['day'],'meal':result['meal']})
-    continued=food_thread.finish_reply(c,uid,previous,{**result,'kind':'continued',
-                    'parts':[],'pending_count':0,'can_resolve':False,'continued_to':message['id']})
+    continued=food_thread.finish_reply(c,uid,previous,{**result,'kind':continued_kind(previous,result),
+                    'parts':retained_parts(previous,result),'pending_count':0,'can_resolve':False,'continued_to':message['id']})
     return {**response,'messages':continued['messages']+response['messages']}

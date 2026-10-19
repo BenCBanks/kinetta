@@ -51,6 +51,8 @@ app.include_router(meal_reminders.router)
 app.include_router(api_coach.router)
 app.include_router(meal_chat.router)
 app.include_router(food_thread.router)
+from . import food_entry_review
+app.include_router(food_entry_review.router)
 app.include_router(recipe_import.router)
 app.include_router(admin_auth.router)
 app.include_router(api_admin.router)

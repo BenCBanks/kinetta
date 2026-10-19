@@ -88,6 +88,9 @@ def needs_detail(c,uid,message,result,error):
 
 
 def commit_log(c,uid,message,result):
+    if (message.get('result') or {}).get('review_only'):
+        from . import food_thread_compose as compose
+        return compose.begin(c,uid,message,result['resolution'],destination=result)
     resolution=result['resolution']
     if resolution.get('status')!='ready' or not resolution.get('items'):
         raise HTTPException(409,'This food still needs a detail before logging')
@@ -155,11 +158,11 @@ def process(c,uid,message):
     numbers=food_thread_numbers.preview(c,uid,message)
     if numbers is not None:return numbers
     resolution=resolve(c,uid,message);result=make_result(c,uid,message,resolution)
-    if result['kind']=='needs':
+    if result['kind']=='needs' or (message.get('result') or {}).get('review_only'):
         from . import food_thread_compose as compose
         return compose.begin(c,uid,message,resolution)
     p=food_thread.preferences(c,uid) or {}
-    if result['kind']=='preview' and p.get('auto_log',True):
+    if result['kind']=='preview' and p.get('auto_log',True) and not (message.get('result') or {}).get('review_only'):
         try:
             with c.transaction(): return commit_log(c,uid,message,result)
         except (HTTPException,ValidationError) as error:

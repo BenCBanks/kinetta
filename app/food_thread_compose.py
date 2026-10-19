@@ -33,13 +33,19 @@ def own_part(c,uid,item,issued):
 def description_question(part):
     # A category alone cannot identify a mixed dish. Ask before a generic catalog
     # match or estimator silently chooses a filling, size or number of tacos.
-    if part['status']!='unknown' or part.get('item',{}).get('kind'):return
+    if part['status']!='unknown' or part.get('item',{}).get('kind') or re.search(r'https?://|www\.',part['text'],re.I):return
     parsed=meal_chat.read_part(part['text'],[])
-    if parsed.get('query')!=['taco']:return
     portion=parsed.get('portion')
-    part.update(status='description',description={'food':'taco','portion':portion},
-                question='What kind of taco was it? For example, chicken, beef or beans.' if portion else
-                'What kind of taco, and how many did you have? For example, “2 chicken tacos”.')
+    query=parsed.get('query') or []
+    categories={'taco','burrito','sandwich','salad','soup','curry','smoothie','pizza'}
+    food=query[0] if len(query)==1 and query[0] in categories else None
+    if not food:
+        if not portion and query and len(part['text'])<=200:
+            part.update(status='description',description={'food':' '.join(query),'portion_only':True,'detail':part['text']},
+                        question=f'How much {part["text"]} did you have? Give a count with its size, or a weight in grams.')
+        return
+    part.update(status='description',description={'food':food,'portion':portion},
+                question=('What kind of taco was it? For example, chicken, beef or beans.' if portion else 'What kind of taco, and how many did you have? For example, “2 chicken tacos”.') if food=='taco' else (f'What kind of {food} was it, and what went into it?' if portion else f'What kind of {food}, and how much did you have? Include the ingredients and a count with its size, or a weight.'))
 
 
 def begin(c,uid,message,resolution,*,aliases=True,destination=None):
@@ -47,6 +53,16 @@ def begin(c,uid,message,resolution,*,aliases=True,destination=None):
     if destination:result.update({k:destination[k] for k in ('day','meal')})
     result['composed']=True
     result['parts']=[own_part(c,uid,item,resolution['issued']) for item in resolution.get('items',[])]
+    if (message.get('result') or {}).get('review_only'):
+        categories={'taco','burrito','sandwich','salad','soup','curry','smoothie','pizza'}
+        for part in result['parts']:
+            item=part.get('item',{});parsed=meal_chat.read_part(part['text'],[]);query=parsed.get('query') or []
+            if item.get('kind') and len(query)==1 and query[0] in categories and list(meal_chat.name_words(item.get('name','')))!=query:
+                part.update(status='unknown',item={});part.pop('entries',None)
+            elif item.get('kind') and part['status']=='ready' and not parsed.get('portion') and not re.search(r'\busual|\bsame|\bagain',part['text'],re.I):
+                part.update(status='quantity',question=f'How much {item["name"]} did you have? Say grams or servings.')
+                item.update(status='quantity',message=part['question'],options=[{'label':label,'portion':{'count':count}} for count,label in ((.5,'½ serving'),(1,'1 serving'),(2,'2 servings'))])
+                part.pop('entries',None)
     if not result['parts']:
         # Keep unparsed paragraphs for the consent-gated estimator, not a request
         # for the person to rewrite them. The complete text remains in storage.
@@ -56,7 +72,7 @@ def begin(c,uid,message,resolution,*,aliases=True,destination=None):
     if aliases and unresolved and (message.get('result') or {}).get('input',{}).get('kind','text')=='text':
         alias=resolver._alias(c,uid,unresolved)
         if alias:resolver._replace_group(result,{p['index'] for p in unresolved},alias)
-    if len(result['parts'])==1 and (message.get('result') or {}).get('input',{}).get('kind','text')=='text':
+    if (message.get('result') or {}).get('input',{}).get('kind','text')=='text' and not re.search(r'https?://|www\.',message['body'],re.I):
         for part in result['parts']:description_question(part)
     return write(c,uid,message,result)
 
@@ -238,8 +254,9 @@ def write(c,uid,message,result,*,force=False,only=None):
 
 
 def _write(c,uid,message,result,*,force=False,only=None):
+    if (message.get('result') or {}).get('review_only'):force=False
     check_live(message,result)
-    auto=food_thread.preferences(c,uid)['auto_log']
+    auto=food_thread.preferences(c,uid)['auto_log'] and not (message.get('result') or {}).get('review_only')
     added=[];changed=False
     for part in result['parts']:
         if only is not None and part['index'] not in only:continue

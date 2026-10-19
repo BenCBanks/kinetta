@@ -21,7 +21,7 @@ const app=fs.readFileSync('app/static/app.js','utf8');c.Native={base:'',headers:
 assert.equal(c.changedNumbers({logged_totals:{kcal:200,protein_g:0},logged_unknown:['protein_g']},[{kcal:200,protein_g:0,ref:{unknown_nutrients:[]}}]),true,'providing a known zero changes the meaning of an unknown nutrient');
 
 // Each Send consumes an explicit correction context, even when the textarea keeps another draft.
-const sendContext={};vm.createContext(sendContext);let saved;const field={value:'Unsent next draft'},button={disabled:false};Object.assign(sendContext,{active:()=>true,$:selector=>selector==='#thread-text'?field:button,uuid:()=> 'fictional-send',isoDay:()=> '2026-10-18',latestContext:()=> 'latest',ThreadDB:{put:async(owner,id,job)=>saved=job,list:async()=>[]},store:{del(){}},draftKey:()=> 'draft',contextKey:()=> 'context',draw(){},status(){},Native:{haptic(){}},flush(){}});vm.runInContext(thread.slice(thread.indexOf('  async function send('),thread.indexOf('  function preferences(')),sendContext);
+const sendContext={};vm.createContext(sendContext);let saved;const field={value:'Unsent next draft'},button={disabled:false};Object.assign(sendContext,{pendingReview:()=>false,active:()=>true,$:selector=>selector==='#thread-text'?field:button,uuid:()=> 'fictional-send',isoDay:()=> '2026-10-18',latestContext:()=> 'latest',ThreadDB:{put:async(owner,id,job)=>saved=job,list:async()=>[]},store:{del(){}},draftKey:()=> 'draft',contextKey:()=> 'context',draw(){},status(){},Native:{haptic(){}},flush(){}});vm.runInContext(thread.slice(thread.indexOf('  async function send('),thread.indexOf('  function preferences(')),sendContext);
 (async()=>{for(const media of ['text','photo','barcode']){const ctx={owner:'fictional-owner',el:{},visibleClients:new Set(),context:'explicit-old-card'};await sendContext.send(ctx,{body:'A new '+media,media,images:media==='photo'?['fictional-image']:undefined});assert.equal(ctx.context,null);assert.equal(saved.context,'explicit-old-card');assert.equal(field.value,'Unsent next draft');}console.log('food send: text/photo/barcode consume explicit context without clearing a separate draft PASS')})().catch(e=>{console.error(e);process.exitCode=1});
 
 // Household estimate units survive both preview and persisted-food rendering.
@@ -32,3 +32,10 @@ for (const [amount,label,expected] of [[.5,'1 cup','0.5 cup'],[.75,'1 cup','0.75
 }
 assert.equal(c.servingAmount({amount:2}),'2 servings','legacy unknown portions stay generic');
 console.log('food amounts: cups/fl oz/fractions and original serving descriptions retained without changing nutrition PASS');
+
+// A confirmation still in flight must block new capture just like a durable offline confirmation.
+{
+ let sending=false,queued=[];const gate={Q:{mine:()=>queued},FoodReview:{busy:()=>sending}};vm.createContext(gate);vm.runInContext(thread.slice(thread.indexOf('  const pendingReview='),thread.indexOf('  function held('))+'\nglobalThis.waiting=pendingReview;',gate);
+ assert.equal(gate.waiting(),false);sending=true;assert.equal(gate.waiting(),true);sending=false;queued=[{path:'/api/food/thread/reviews/7/confirm'}];assert.equal(gate.waiting(),true);queued=[{path:'/api/food/entries'}];assert.equal(gate.waiting(),false);
+ console.log('Food review gate: active confirmation and offline final review block a new draft; unrelated queued writes do not PASS');
+}

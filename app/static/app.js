@@ -235,11 +235,12 @@ function invalidateFeed() {
   readEpochs.set('feed:home', readEpoch('feed:home') + 1); App.cache.delete('feed:home');
 }
 const invalidate = (prefix, {health=true}={}) => {
-  if(health && prefix==='/api/food') Native.queueNutritionSync?.();
+  if(health && prefix.replace(/\/$/,'')==='/api/food') Native.queueNutritionSync?.();
   if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) invalidateFeed();
   const paths = new Set([...App.cache.keys(), ...[...pendingReads.keys()].map((k) => JSON.parse(k)[1])]);
   for (const p of paths) if (p.startsWith(prefix)) { readEpochs.set(p, readEpoch(p) + 1); App.cache.delete(p); }
   for (const k of pendingReads.keys()) if (JSON.parse(k)[1].startsWith(prefix)) pendingReads.delete(k);
+  if(prefix.startsWith('/api/food')&&typeof CustomEvent!=='undefined')document.dispatchEvent(new CustomEvent('food:changed'));
 };
 const prefetch = (path) => {
   const owner = readOwner(), epoch = readEpoch(path);

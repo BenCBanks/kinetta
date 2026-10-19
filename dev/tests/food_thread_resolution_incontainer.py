@@ -65,7 +65,7 @@ class Resolution(unittest.TestCase):
     self.assertEqual(repeated['kcal'],540)
     self.post(f"/api/food/thread/messages/{m['id']}/undo")
  def test_01_partial_ready_failure_retry(self):
-  self.own_food();m,r=self.send('rice and mysterious curry')
+  self.own_food();m,r=self.send('rice and two bowls of mysterious curry')
   self.assertEqual(sum(e['kcal'] for e in self.entries()),130);self.assertEqual(self.result(r)['pending_count'],1)
   self.model.side_effect=HTTPException(503,'Fictional provider unavailable')
   r=self.resolve(m);self.assertEqual(sum(e['kcal'] for e in self.entries()),130);self.assertIn('error',self.result(r))
@@ -87,7 +87,7 @@ class Resolution(unittest.TestCase):
   self.assertEqual(sorted(e['kcal'] for e in self.entries()),[540,600]);self.assertTrue(next(x for x in self.a.get('/api/food/foods').json() if x['id']==f['id'])['origin_edited'])
  def test_03_require_tap_and_source_stale(self):
   fid=self.own_food();self.a.put('/api/food/thread/preferences',json={'auto_log':False})
-  m=self.root('rice and mysterious curry');r=self.resolve(m);self.assertEqual(self.result(r)['kind'],'preview');self.assertEqual(self.entries(),[])
+  m=self.root('rice and two bowls of mysterious curry');r=self.resolve(m);self.assertEqual(self.result(r)['kind'],'preview');self.assertEqual(self.entries(),[])
   self.assertEqual(len(self.a.get('/api/food/foods').json()),1,'AI food learned only after logging')
   self.a.put('/api/food/foods/'+str(fid),json={'name':'Rice','serving_g':100,'kcal':150,'protein_g':3,'carbs_g':28,'fat_g':.3})
   r=self.post(f"/api/food/thread/messages/{m['id']}/log",{'confirm':True},status=409);self.assertTrue(r['changed']);self.assertEqual(self.entries(),[])
@@ -100,7 +100,7 @@ class Resolution(unittest.TestCase):
   self.assertEqual(self.entries()[0]['source'],'usda');self.assertEqual(self.entries()[0]['ref']['origin'],'catalog')
   brand={**PLAIN,'name':'Fictional Brand crackers','brand':'Fictional Brand','serving':{'label':'1 package','g':30}}
   self.look.side_effect=lambda text:{'kind':'brand','foods':[brand]}
-  m=self.root('Fictional Brand crackers');r=self.resolve(m);self.assertEqual(self.result(r)['pending_count'],1);self.model.assert_not_called()
+  m=self.root('1 serving Fictional Brand crackers');r=self.resolve(m);self.assertEqual(self.result(r)['pending_count'],1);self.model.assert_not_called()
   self.post(f"/api/food/thread/messages/{m['id']}/choose",{'catalog':0,'portion':{'count':1,'unit':'serving'}})
   self.assertEqual(sorted(e['kcal'] for e in self.entries()),[30,400]);self.model.assert_not_called()
  def test_05_portion_question_and_half_does_not_change_alias_basis(self):
@@ -117,7 +117,7 @@ class Resolution(unittest.TestCase):
   self.model.side_effect=cancel;r=self.resolve(m);self.assertTrue(r.get('cancelled'),json.dumps(r,default=str)[:1800]);self.assertEqual(self.entries(),[])
   self.post('/api/food/thread/cancel',{'client_id':str(m['client_id'])})
   r=self.post('/api/food/thread/messages',{'client_id':str(m['client_id']),'body':m['body']},status=409);self.assertEqual(r['detail']['code'],'message_cancelled')
-  m=self.root('another mysterious food')
+  m=self.root('two bowls of another mysterious food')
   def delete(*args,**kwargs):
    r=self.a.delete(f"/api/food/thread/messages/{m['id']}",headers={'Content-Type':'application/json'});self.assertEqual(r.status_code,200,r.text[:500]);return ESTIMATE
   self.model.side_effect=delete;r=self.resolve(m);self.assertTrue(r.get('cancelled'),json.dumps(r,default=str)[:1800]);self.assertEqual(self.entries(),[])
@@ -208,7 +208,7 @@ class Resolution(unittest.TestCase):
  def test_15_catalog_result_survives_model_failure(self):
   self.look.side_effect=lambda text:{'kind':'plain','foods':[PLAIN]} if 'grain' in text else {'kind':'none','foods':[]}
   self.model.side_effect=HTTPException(503,'Fictional model failure')
-  m=self.root('plain grain and mysterious curry');self.resolve(m)
+  m=self.root('200 g plain grain and two bowls of mysterious curry');self.resolve(m)
   self.assertEqual([e['kcal'] for e in self.entries()],[200])
   self.model.side_effect=None;self.resolve(m,retry=True)
   self.assertEqual(sorted(e['kcal'] for e in self.entries()),[200,540])
@@ -228,7 +228,7 @@ class Resolution(unittest.TestCase):
   self.assertIn('error',self.result(r));self.assertEqual(self.entries(),[])
   self.estimate.start()
  def test_18_consent_revoked_during_request_drops_late_estimate(self):
-  self.own_food();m=self.root('rice and mysterious curry')
+  self.own_food();m=self.root('rice and two bowls of mysterious curry')
   def revoke(*args,**kwargs):
    self.assertEqual(self.a.put('/api/profile',json={'ai_ok':False}).status_code,200);return ESTIMATE
   self.model.side_effect=revoke;r=self.resolve(m)
@@ -243,7 +243,7 @@ class Resolution(unittest.TestCase):
   self.assertTrue(any(x['body']=='Photo of food' for x in self.a.get('/api/food/thread').json()['messages']))
 
  def test_20_photo_intent_cannot_relog_a_partial_text_meal(self):
-  self.own_food();m=self.root('rice and mysterious curry')
+  self.own_food();m=self.root('rice and two bowls of mysterious curry')
   self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'images':[JPEG]},status=409)
   self.model.assert_not_called();self.assertEqual([e['kcal'] for e in self.entries()],[130])
 
@@ -255,7 +255,7 @@ class Resolution(unittest.TestCase):
  def test_22_review_ambiguous_followup_kept(self):
   brand={**PLAIN,'brand':'Fictional Brand','name':'Fictional Brand crackers'}
   self.look.side_effect=lambda text:{'kind':'brand','foods':[brand]}
-  m=self.root('Fictional Brand crackers');self.resolve(m)
+  m=self.root('1 serving Fictional Brand crackers');self.resolve(m)
   second,r=self.send('2');self.assertEqual(r['messages'][-1]['reply_to'],second['id'])
   self.assertEqual(self.a.get('/api/food/thread').status_code,200)
  def test_23_review_paid_estimate_survives_grounding_conflict(self):
@@ -266,7 +266,7 @@ class Resolution(unittest.TestCase):
   self.resolve(m);self.assertEqual(self.model.call_count,1)
  def test_24_review_manual_only_selected_part(self):
   self.own_food();self.a.put('/api/food/thread/preferences',json={'auto_log':False})
-  m=self.root('rice and mysterious curry');self.resolve(m)
+  m=self.root('rice and two bowls of mysterious curry');self.resolve(m)
   r=self.post(f"/api/food/thread/messages/{m['id']}/manual",{'part':0,'items':[{'name':'Reviewed rice','kcal':140}], 'confirm':True})
   self.assertEqual([e['name'] for e in self.entries()],['Reviewed rice'])
   self.assertTrue(any(p.get('drafts') and not p.get('logged') for p in self.result(r)['parts']))
@@ -278,13 +278,13 @@ class Resolution(unittest.TestCase):
  def test_26_review_catalog_failure_is_per_part(self):
   bad={**PLAIN,'per100':{**PLAIN['per100'],'protein_g':None}}
   self.look.side_effect=lambda text:{'kind':'plain','foods':[bad if 'rice' in text else PLAIN]}
-  m=self.root('200 g rice, banana');r=self.resolve(m)
+  m=self.root('200 g rice, 1 medium banana');r=self.resolve(m)
   self.assertTrue(self.entries());self.assertEqual(self.result(r)['pending_count'],1)
  def test_27_review_catalog_switch_and_retry_new(self):
   self.a.put('/api/food/thread/preferences',json={'auto_log':False})
   foods=[{**PLAIN,'name':'First grain'},{**PLAIN,'name':'Second grain'}]
   self.look.side_effect=lambda text:{'kind':'brand','foods':foods}
-  m=self.root('Fictional grain');self.resolve(m)
+  m=self.root('1 serving Fictional grain');self.resolve(m)
   self.post(f"/api/food/thread/messages/{m['id']}/choose",{'catalog':0,'portion':{'count':1,'unit':'serving'}})
   r=self.post(f"/api/food/thread/messages/{m['id']}/choose",{'catalog':1,'portion':{'count':1,'unit':'serving'}})
   self.assertEqual(self.result(r)['parts'][0]['entries'][0]['name'],'Second grain')
@@ -302,6 +302,26 @@ class Resolution(unittest.TestCase):
   self.post('/api/food/thread/messages',{'client_id':m['client_id'],'body':'rice','day':day,'meal':'lunch'},status=409)
   m,r=self.send('Photo of food',media='photo',day=day,meal='dinner')
   self.resolve(m,images=[JPEG]);rows=self.a.get('/api/food/day?d='+day).json()['entries'];self.assertEqual(len(rows),2);self.assertTrue(all(e['meal']=='dinner' for e in rows))
+
+ def test_missing_amount_asks_before_catalog_or_model(self):
+  day=(dt.date.today()-dt.timedelta(days=1)).isoformat()
+  m,r=self.send('banana',day=day,meal='lunch')
+  self.assertIn('How much banana',self.result(r)['text']);self.assertFalse(self.result(r)['can_resolve'])
+  self.resolve(m);self.look.assert_not_called();self.model.assert_not_called();self.assertEqual(self.entries(),[])
+  following,r=self.send('120 g');self.assertEqual(self.result(r)['day'],day);self.assertEqual(self.result(r)['meal'],'lunch')
+  self.assertTrue(self.result(r)['can_resolve']);self.assertIn('banana',self.result(r)['parts'][0]['text'])
+  replay=self.post('/api/food/thread/messages',{'client_id':following['client_id'],'body':'120 g'})
+  self.assertFalse(replay['created'])
+  self.assertEqual(next(x['result'] for x in r['messages'] if x.get('reply_to')==m['id'])['kind'],'continued')
+
+ def test_partial_clarification_keeps_already_logged_food(self):
+  self.own_food();original,r=self.send('rice and taco',meal='lunch')
+  self.assertEqual(len(self.entries()),1);self.assertIn('What kind of taco',self.result(r)['text'])
+  self.own_food('Chicken taco',200)
+  _,r=self.send('2 chicken tacos')
+  self.assertEqual(sorted(e['kcal'] for e in self.entries()),[130,400])
+  self.assertTrue(all(e['meal']=='lunch' for e in self.entries()))
+  self.look.assert_not_called();self.model.assert_not_called()
 
  def test_30_taco_clarifies_before_any_source_guess(self):
   m,r=self.send('taco');result=self.result(r)
@@ -331,7 +351,8 @@ class Resolution(unittest.TestCase):
 
  def test_32_taco_question_does_not_capture_unrelated_food(self):
   original,_=self.send('taco');_,r=self.send('banana')
-  self.assertTrue(self.result(r)['can_resolve'])
+  self.assertFalse(self.result(r)['can_resolve'])
+  self.assertIn('How much banana',self.result(r)['text'])
   current=self.a.get('/api/food/thread').json()
   original_reply=next(x for x in current['messages'] if x.get('reply_to')==original['id'])
   self.assertEqual(original_reply['result']['parts'][0]['status'],'description')
@@ -363,8 +384,8 @@ class Resolution(unittest.TestCase):
   self.own_food();_,r=self.send('taco and rice')
   result=self.result(r)
   self.assertEqual(len(result['parts']),2)
-  self.assertTrue(result['can_resolve'])
-  self.assertFalse(any(p.get('description') for p in result['parts']))
+  self.assertFalse(result['can_resolve'])
+  self.assertTrue(any(p.get('description') for p in result['parts']),'ready rice logs while the taco question stays pending')
   self.assertEqual(sum(e['kcal'] for e in self.entries()),130)
 
 # review regressions use the production API and fictional provider/catalog stand-ins

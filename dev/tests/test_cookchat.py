@@ -29,13 +29,13 @@ check('known food by weight: no AI', s == 200 and r.get('by') == 'memory' and r[
 check('values per 100 g kept', abs(r['dish']['items'][-1]['kcal'] - 156) < 0.5, r['dish']['items'][-1])
 check('reply says what was added', 'apple' in r['reply'] and r['added'] == [r['dish']['items'][-1]['id']], r['reply'])
 s, r = p.post(f'/api/dishes/{did}/say', {'text': 'two apples'})
-check('a count needs a known size: asks', s == 200 and (r.get('fallback') or r.get('by') == 'ai'), r)
+check('a count needs a known size: asks', s == 200 and r.get('by') == 'clarification', r)
 
 # several pieces in one message
 s, r = p.post(f'/api/dishes/{did}/say', {'text': '100 g apple and 50 g apple'})
 check('several at once', s == 200 and r.get('by') == 'memory' and len(r['added']) == 2, r)
 s, r = p.post(f'/api/dishes/{did}/say', {'text': 'salt and pepper'})
-check('unknown: search (or AI)', s == 200 and (r.get('fallback') or r.get('by') == 'ai'), r)
+check('unknown amount: asks before search or AI', s == 200 and r.get('by') == 'clarification', r)
 check('empty refused', p.post(f'/api/dishes/{did}/say', {'text': ''})[0] == 422)
 check('too long refused', p.post(f'/api/dishes/{did}/say', {'text': 'x' * 601})[0] == 422)
 q = person('zz_test_cookchat2')

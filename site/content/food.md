@@ -16,7 +16,7 @@ a hot dog and a Diet Coke from Costco
 
 ## 2-things-about-550-kcal-check-below-or-tell-me-what-to-4
 
-Added to dinner: 2 foods, about **550 kcal**. Undo any time, or tell me what to change.
+Ready for review: 2 foods, about **550 kcal**. Check the foods and amounts before logging.
 
 ## make-it-two-hot-dogs-5
 
@@ -24,7 +24,7 @@ make it two hot dogs
 
 ## now-about-1-100-kcal-ready-to-add-to-dinner-6
 
-Updated. Dinner is now about **1,100 kcal**.
+Updated to about **1,100 kcal**. Review food, choose Dinner and confirm to log.
 
 ## or-snap-a-photo-scan-a-barcode-or-search-your-workouts-7
 
@@ -36,7 +36,7 @@ Build a recipe once. Log your portion.
 
 ## tap-cook-a-meal-and-type-the-ingredients-like-a-text-m-9
 
-Choose **Create a Recipe**, add ingredients and save it in **My Recipes**. When you eat it again, log a serving or weigh your plate.
+Use **Add food** for the ingredients, then choose **Save as a recipe for later** in the final review. Name it and enter its whole serving yield or cooked weight separately from how much you eat. Save for later, log a portion today, or do both.
 
 ## your-day-at-a-glance-with-honest-feedback-10
 
@@ -60,7 +60,7 @@ Your food log, with or without AI.
 
 ## search-usda-and-open-food-facts-scan-barcodes-or-enter-15
 
-Find foods in USDA and Open Food Facts, scan a packaged product or enter known calories and macros with Quick. Your usuals and My Recipes make repeat logging easier. Edit or remove a logged food from its meal, with Undo if you remove it by mistake.
+Find foods in USDA and Open Food Facts, scan a packaged product or manually add a named food with known nutrition. Your usuals and My Recipes make repeat logging easier. Edit or remove a logged food from its meal, with Undo if you remove it by mistake.
 
 ## story-heading-19
 

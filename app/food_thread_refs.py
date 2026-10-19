@@ -27,6 +27,13 @@ def insert(c,uid,message,rows,day,meal):
 def save(c,uid,message,rows,day,meal):
     if not rows:raise HTTPException(400,'Choose at least one food to copy')
     if meal_chat.too_big(rows):raise HTTPException(400,'That amount is too large')
+    if (message.get('result') or {}).get('review_only'):
+        from . import food_thread_compose as compose
+        # A copied log is a deliberate historical snapshot, with no live entry IDs.
+        fields=('name','brand','amount','unit',*N.ALL,'source','ref')
+        entries=[N.storage({k:row.get(k) for k in fields}) for row in rows]
+        return compose.write(c,uid,message,{'composed':True,'day':str(day),'meal':meal,
+            'parts':[{'index':0,'text':message['body'],'status':'ready','manual':True,'entries':entries,'logged':False}]})
     result={'kind':'log','entry_ids':insert(c,uid,message,rows,day,meal),'day':str(day),'meal':meal,
             'text':f"{meal.capitalize()} · {', '.join(r['name'] for r in rows[:3])} · about {facts.kcal(sum(r['kcal'] for r in rows)):,} kcal from your log.",
             'source':'your food log','as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
@@ -136,6 +143,7 @@ def choose(c,uid,message,result,portion=None,omit=None):
 
 
 def preview(c,uid,message,rows,reference,day,meal):
+    if (message.get('result') or {}).get('review_only'):return save(c,uid,message,rows,day,meal)
     if not rows:raise HTTPException(400,'Choose at least one food to copy')
     result={'kind':'preview','reference':reference,'day':str(day),'meal':meal,'source':'your food log',
             'preview_entries':[{k:r.get(k) for k in ('name','amount','unit',*N.ALL,'source')} for r in rows],

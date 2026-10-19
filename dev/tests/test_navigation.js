@@ -58,3 +58,19 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  c.App.me={id:1};assert.equal(c.choice(),'training','a stored food choice is ignored once food tracking stops');
  console.log('navigation Progress: Training default, switch only for food users, remembered per account, no credentials in preference keys PASS');
 }
+// A deeper Progress view keeps the stable More control and names its current destination.
+{
+ const text=fs.readFileSync('app/static/pages.js','utf8');
+ const pv=vm.runInNewContext(text.match(/const PVIEWS = (\[.*?\]);/s)[1]);
+ const pm=vm.runInNewContext(text.match(/const PMORE = (\[.*?\]);/s)[1]);
+ let more,handler;
+ const c={PVIEWS:pv,PMORE:pm,progressSwitch:()=>'',bellBtn:()=>'',pillBtn:()=>'<button id="p-view">More</button>',esc:String,skel:()=>'',wireProgressFocus(){},foodUser:()=>false,
+  $:()=>more,location:{search:''},URLSearchParams,pickSheet:(title,html,fn)=>{handler=fn},pickRows:()=>'',go:()=>{}};
+ vm.createContext(c);vm.runInContext(text.slice(text.indexOf('function pHead('),text.indexOf('// each view takes')),c);
+ for(const [view,label] of [['calendar','Calendar'],['heatmap','Heatmap'],['lifting','Lifting']]){
+  const classes=[],attrs={};more={classList:{add:x=>classes.push(x)},setAttribute:(k,v)=>attrs[k]=v};const el={};c.pHead(el,view,'filters kept');
+  assert.match(el.innerHTML,new RegExp('progress-view-title">'+label));assert(classes.includes('current-view'));assert.match(attrs['aria-label'],new RegExp(label));assert.match(el.innerHTML,/More<\/button>/);assert.match(el.innerHTML,/filters kept/);more.onclick();assert.equal(typeof handler,'function');
+ }
+ more={classList:{add(){throw Error('Totals should select its existing tab')}},setAttribute(){}};const el={};c.pHead(el,'totals','');assert(!el.innerHTML.includes('progress-view-title'));
+ console.log('navigation deeper Progress views: stable More, named current view, active indicator, filters and chooser remain available PASS');
+}

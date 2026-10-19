@@ -18,14 +18,24 @@ for name in ('app/static/theme.css', 'site/assets/theme.css'):
         if not path.exists() or path.read_text() != css:
             sys.exit(f'{name} is out of date. Run python3 dev/design/build_tokens.py')
     else: path.write_text(css)
-# Core text/control contrast is checked against actual canonical color pairs.
+# Check the intended roles, rather than treating decorative dividers as control outlines.
 def luminance(hex_color):
     values = [int(hex_color[i:i+2],16)/255 for i in (1,3,5)]
     linear = [v/12.92 if v<=0.04045 else ((v+0.055)/1.055)**2.4 for v in values]
     return sum(v*w for v,w in zip(linear,(0.2126,0.7152,0.0722)))
+def contrast(foreground, background):
+    a,b=sorted([luminance(foreground),luminance(background)])
+    return (b+0.05)/(a+0.05)
+checks=0
 for theme in ('light','dark'):
     p=tokens[theme]
-    for fg,bg in [('text','canvas'),('text-secondary','surface'),('text-muted','surface'),('brand','canvas'),('on-action','action')]:
-        a,b=sorted([luminance(p[fg]),luminance(p[bg])]); ratio=(b+0.05)/(a+0.05)
-        if ratio < 4.5: sys.exit(f'{theme}: {fg}/{bg} contrast {ratio:.2f} below 4.5')
-print('Design tokens match; core text/action color pairs pass 4.5:1 contrast')
+    pairs=[(fg,bg,4.5) for fg in ('text','text-secondary','text-muted','brand','error','warning','success')
+           for bg in ('canvas','surface','soft','brand-soft')]
+    pairs += [('on-action','action',4.5),('on-error','error',4.5)]
+    pairs += [(fg,bg,3) for fg in ('outline','run','ride','walk','hike','swim','row','ski','workout','other',
+                                  'series-1','series-2','series-3','series-4','series-5')
+              for bg in ('canvas','surface','soft')]
+    for fg,bg,minimum in pairs:
+        ratio=contrast(p[fg],p[bg]);checks+=1
+        if ratio < minimum: sys.exit(f'{theme}: {fg}/{bg} contrast {ratio:.2f} below {minimum}')
+print(f'Design tokens match; {checks} text, action, semantic, outline and chart pairs pass contrast checks')

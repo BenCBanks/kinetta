@@ -35,6 +35,8 @@ class MessageIn(BaseModel):
     barcode: str | None = Field(None,pattern=r'^\d{6,14}$')
     captured_at: AwareDatetime | None = None
     context: UUID | None = None
+    review_only: StrictBool = False
+    draft_id: UUID | None = None
 
     @field_validator('body')
     @classmethod
@@ -113,6 +115,8 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if body.media=='barcode' and not body.barcode:raise HTTPException(422,'Scan or type a barcode')
         if body.media!='barcode' and body.barcode:raise HTTPException(422,'Use barcode input for a scanned product')
         metadata={'input':{'kind':body.media,**({'barcode':body.barcode} if body.barcode else {})}} if body.media!='text' else None
+        if body.draft_id:metadata={**(metadata or {}),'draft_id':str(body.draft_id)}
+        if body.review_only:metadata={**(metadata or {}),'review_only':True}
         if body.context:metadata={**(metadata or {}),'context':str(body.context)}
         destination={k:v for k,v in {'day':body.day.isoformat() if body.day else None,'meal':body.meal}.items() if v is not None}
         if destination:metadata={**(metadata or {}),'destination':destination}
@@ -125,7 +129,7 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if not created:
             row = c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id = %s AND client_id = %s',
                             (uid, body.client_id)).fetchone()
-            if row['body'] != body.body or row['kind'] != 'user' or any((row.get('result') or {}).get(k)!=(metadata or {}).get(k) for k in ('input','context','destination')):
+            if row['body'] != body.body or row['kind'] != 'user' or any((row.get('result') or {}).get(k)!=(metadata or {}).get(k) for k in ('input','context','destination','review_only','draft_id')):
                 raise HTTPException(409, 'That message identity was already used for different text')
         response.status_code = 201 if created else 200
         return {'message': message_entries(c, uid, [row])[0], 'created': created}
@@ -183,7 +187,7 @@ def finish_reply(c, uid, message, result):
     if row is None: raise HTTPException(409,'A reply already exists; reload this message')
     updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
                              WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
-                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**{k:message['result'][k] for k in ('input','receipt','context','destination','daily_note') if (message.get('result') or {}).get(k) is not None}}),message['id'],uid)).fetchone()
+                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**{k:message['result'][k] for k in ('input','receipt','context','destination','daily_note','review_only','review_request','draft_id') if (message.get('result') or {}).get(k) is not None}}),message['id'],uid)).fetchone()
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 
@@ -245,6 +249,7 @@ def log_message(mid: int, body: LogIn, response: Response, user=Depends(current_
     if body.confirm is not True:raise HTTPException(400,'Tap Log to confirm these foods')
     with db.connect() as c:
         message=engine.locked_message(c,user['id'],mid)
+        if (message.get('result') or {}).get('review_only'):raise HTTPException(409,'Use the final food review to save this draft')
         result,changed=engine.explicit_log(c,user['id'],message)
         if changed:response.status_code=409
         return result

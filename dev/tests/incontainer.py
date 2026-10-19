@@ -80,22 +80,26 @@ food_photo.ask = fake_ask
 with db.connect() as c: c.execute('UPDATE profile SET ai_ok = (user_id = %s)', (uid,))
 cd = api_dishes.dish_add(api_dishes.DishIn(name='Test cook chat'), user={'id': uid})['id']
 r = cook_chat.say(cd, cook_chat.SayIn(text='2 apples and a tbsp of olive oil'), user={'id': uid})
-ck(r['by'] == 'ai' and len(r['added']) == 1 and r['dish']['items'][0]['units'] == {'each': 182.0}, f'ai add {r}')
+ck(r['by']=='clarification' and not r['added'] and not asked_cook, 'unknown household amounts ask before a model can guess')
+r = cook_chat.say(cd, cook_chat.SayIn(text='364 g apples and 13.5 g olive oil'), user={'id': uid})
+ck(r['by'] == 'ai' and len(r['added']) == 1 and r['dish']['items'][0]['units'] == {}, f'ai add {r}')
 ck('left that out' in r['reply'], 'impossible numbers (9000 kcal of oil) skipped and said')
 ck('alex' not in asked_cook[-1] and 'Test cook chat' not in asked_cook[-1], 'only ingredients and the message are sent')
-r = cook_chat.say(cd, cook_chat.SayIn(text='3 apples'), user={'id': uid})
-ck(r['by'] == 'memory' and r['dish']['items'][-1]['grams'] == 546 and len(asked_cook) == 1, f'remembered size, no AI {r}')
+r = cook_chat.say(cd, cook_chat.SayIn(text='546 g apples'), user={'id': uid})
+ck(r['by'] == 'memory' and r['dish']['items'][-1]['grams'] == 546 and len(asked_cook) == 1, f'remembered nutrition with explicit weight, no AI {r}')
 first = r['dish']['items'][0]['id']
 def fix(parts, schema, label, timeout=45):
     asked_cook.append(parts[0]['text'])
-    return {'actions': [{'op': 'change', 'id': first, 'grams': 200}, {'op': 'remove', 'id': 'nope'}], 'reply': 'Made it 200 g.'}, {}, 'stand-in'
+    return {'actions': [{'op': 'change', 'id': first, 'grams': 200}], 'reply': 'Made it 200 g.'}, {}, 'stand-in'
 food_photo.ask = fix
 r = cook_chat.say(cd, cook_chat.SayIn(text='oops the apples were 200 g'), user={'id': uid})
+ck(r['by']=='clarification' and len(asked_cook)==1, 'two apple ingredients require clarification before any model or change')
+r = cook_chat.say(cd, cook_chat.SayIn(text='change the 364 g apples to 200 g'), user={'id': uid})
 ck(r['changed'] == [first] and r['dish']['items'][0]['grams'] == 200 and r['removed'] == [], f'correction {r}')
 ck(f'{first} | Apple | 364' in asked_cook[-1], 'the dish so far is sent so it can be corrected')
 ck(refused(lambda: cook_chat.say(cd, cook_chat.SayIn(text='x'), user={'id': jid}), 404), "only the cook's dish")
 with db.connect() as c: c.execute('UPDATE profile SET ai_ok = false WHERE user_id = %s', (uid,))
-r = cook_chat.say(cd, cook_chat.SayIn(text='a pinch of saffron'), user={'id': uid})
+r = cook_chat.say(cd, cook_chat.SayIn(text='1 g saffron'), user={'id': uid})
 ck(r.get('fallback') and r.get('needs_ok') and len(asked_cook) == 2, 'AI off: search instead, and nothing sent')
 api_dishes.dish_delete(cd, user={'id': uid})
 

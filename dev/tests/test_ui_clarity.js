@@ -13,14 +13,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 // Nutrition: someone new to food sees three steps instead of a card of zeros; each step does what it says.
 {
  const food=fs.readFileSync('app/static/food.js','utf8'),calls=[],nodes=new Map();
- const c={svg:()=>'',go:p=>calls.push(['go',p]),guessMeal:()=> 'lunch',addSheet:(...a)=>calls.push(['add',...a]),newDish:()=>calls.push(['dish']),$:s=>nodes.get(s)};
+ const c={svg:()=>'',go:p=>calls.push(['go',p]),guessMeal:()=> 'lunch',describeSheet:(...a)=>calls.push(['describe',...a]),newDish:()=>calls.push(['dish']),$:s=>nodes.get(s)};
  for(const id of ['#ff-goal','#ff-log','#ff-dish'])nodes.set(id,{onclick:null});
  vm.createContext(c);vm.runInContext(food.slice(food.indexOf('function firstFood('),food.indexOf('function ring(')),c);
  const box={innerHTML:''};c.firstFood(box,'2026-10-18');
  assert.match(box.innerHTML,/Start your food log/);assert.match(box.innerHTML,/Log something you ate/);assert.match(box.innerHTML,/optional/);
- nodes.get('#ff-log').onclick();assert.deepEqual(calls.pop(),['add','2026-10-18','lunch']);
+ nodes.get('#ff-log').onclick();assert.deepEqual(calls.pop(),['describe','2026-10-18',null]);
  nodes.get('#ff-goal').onclick();assert.deepEqual(calls.pop(),['go','/food/setup']);
- nodes.get('#ff-dish').onclick({currentTarget:{}});assert.deepEqual(calls.pop(),['dish']);
+ assert.doesNotMatch(box.innerHTML,/ff-dish/,'saving a recipe is offered at final review, without a competing entry action');
  // Only with no history, no entries and no goal; copy shortcuts only with history.
  assert.match(food,/const fresh = !D\.has_history && !D\.entries\.length && goal == null;/);
  assert.match(food,/D\.has_history&&D\.day===isoDay\(new Date\(\)\)&&m===guessMeal\(\)/);

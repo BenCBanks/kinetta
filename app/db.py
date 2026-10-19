@@ -1235,6 +1235,12 @@ MIGRATIONS = [
     ALTER TABLE notifications ADD COLUMN cancelled boolean NOT NULL DEFAULT false;
     UPDATE notifications SET reaction_kind='cheer' WHERE kind='cheer';""",
 
+    # 62: explicit recipe yield; legacy remembered share counts retain their original meaning.
+    """
+    ALTER TABLE dishes ADD COLUMN yield_servings double precision
+      CHECK (yield_servings > 0 AND yield_servings <= 50);
+    """,
+
 ]
 
 
