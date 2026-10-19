@@ -94,6 +94,8 @@ def score(case, intent, foods, u=None, card=''):
                 allowed = f['quantity'] if isinstance(f['quantity'], list) else [f['quantity']]
                 if match and f['quantity'] is not None and match['quantity'] not in allowed: qty_ok = False
             checks['quantities'] = qty_ok
+    if case.get('absent'):
+        checks['no_repeats'] = not any(meal_chat.stem(w) in words(p['name']) for w in case['absent'] for p in foods)
     if u is not None:
         if case['missing']: checks['missing'] = u['missing'] in (case['missing'] if isinstance(case['missing'], list) else [case['missing']])
         if case['target']: checks['target'] = meal_chat.stem(case['target']) in words(u['target'] or '')

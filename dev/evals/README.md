@@ -37,7 +37,7 @@ first). `dev/evals/chat_eval.py` runs inside a throwaway app container: `CHAT_EV
 chat for free; `CHAT_EVAL_MODE=ai` with `CHAT_EVAL_ACCEPT_PAID_CALLS=1` calls the real model through the normal budget
 accounting, so the container's `KINETTA_AI_DAILY_USD` is a hard dollar cap. Results stay private.
 
-First runs (gemini-3.1-flash-lite, 19 Oct 2026, fictional cases): code-only rules 192/212 on a lenient intent+food-word
+First runs (gemini-3.1-flash-lite, 19 Oct 2026, fictional cases; later run after live fixes: 214/216, 0 invented): code-only rules 192/212 on a lenient intent+food-word
 measure (no amounts checked); model 210/212 on the strict measure (intent 212/212, foods 137/138, invented amounts 0,
 reply number violations 0), about $0.085 per full run. The case set was written by the same author as the rules, so it
 favours them; the owner's qualitative review of real replies is still required before enabling.
