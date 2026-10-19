@@ -22,6 +22,9 @@ API = "https://api.appstoreconnect.apple.com/v1/"
 BUNDLE = "com.kinetta.app"
 WAIT_MINUTES = 90      # Apple's processing is usually 10-30 minutes
 POLL_SECONDS = 30
+BETA_WAIT_MINUTES = 5  # Keep binary (90 min) + TestFlight readiness inside the 100-minute CI job.
+REVIEW_COMPLETE_OR_PENDING = frozenset({"WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW", "BETA_APPROVED",
+                                      "READY_FOR_BETA_TESTING", "IN_BETA_TESTING"})
 
 
 class Stop(Exception):
@@ -34,8 +37,16 @@ def call(method, path, body=None):
     data = json.dumps(body).encode() if body is not None else None
     request = Request(API + path, data=data, method=method,
                       headers={"Authorization": "Bearer " + jwt, "Content-Type": "application/json"})
-    with urlopen(request, timeout=60) as response:
-        raw = response.read()
+    try:
+        with urlopen(request, timeout=60) as response:
+            raw = response.read()
+    except HTTPError as error:
+        # Identify the failed operation without exposing app/build/group IDs or query values.
+        resources = {"apps", "builds", "betaGroups", "betaBuildLocalizations", "betaAppReviewSubmissions",
+                     "betaAppReviewSubmission", "buildBetaDetail", "relationships"}
+        safe_path = "/".join(part if part in resources else "{id}" for part in path.split("?")[0].split("/"))
+        error.operation = method + " /v1/" + safe_path
+        raise
     return json.loads(raw) if raw else {}
 
 
@@ -79,20 +90,48 @@ def what_to_test(build_id, text):
                        "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}}})
 
 
-def submit_for_review(build_id):
+def external_state(build_id):
+    try:
+        detail = call("GET", f"builds/{build_id}/buildBetaDetail").get("data") or {}
+        return (detail.get("attributes") or {}).get("externalBuildState")
+    except HTTPError as error:
+        if error.code == 404:
+            return None  # The TestFlight resource can appear after binary processing completes.
+        raise
+
+
+def submit_for_review(build_id, sleep=time.sleep):
+    for _ in range(BETA_WAIT_MINUTES * 60 // POLL_SECONDS):
+        state = external_state(build_id)
+        if state in REVIEW_COMPLETE_OR_PENDING:
+            print(f"Beta review already pending or complete ({state}); continuing to tester groups.", flush=True)
+            return
+        if state == "READY_FOR_BETA_SUBMISSION":
+            break
+        if state not in (None, "PROCESSING", "MISSING_EXPORT_COMPLIANCE"):
+            # Only known states reach the public log; never dump Apple's account records.
+            reasons = {"BETA_REJECTED": "Apple rejected the beta build. Read the review message",
+                       "EXPIRED": "The beta build has expired. Upload a new build",
+                       "PROCESSING_EXCEPTION": "Apple could not finish processing the beta build",
+                       "IN_EXPORT_COMPLIANCE_REVIEW": "Apple is reviewing export compliance. Wait for that review"}
+            raise Stop(reasons.get(state, "The beta build's review status could not be confirmed") +
+                       " in App Store Connect > TestFlight. No new beta review was submitted.")
+        sleep(POLL_SECONDS)
+    else:
+        raise Stop("TestFlight did not become ready for beta review. Check build status and export compliance "
+                   "in App Store Connect > TestFlight before retrying.")
     try:
         call("POST", "betaAppReviewSubmissions",
              {"data": {"type": "betaAppReviewSubmissions",
                        "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}}})
     except HTTPError as error:
-        if error.code != 409:
+        if error.code not in (409, 422):
             raise
-        # 409 also covers "already submitted"; only that case is fine.
-        existing = call("GET", f"builds/{build_id}/betaAppReviewSubmission").get("data")
-        if not existing:
-            raise Stop("Apple refused the beta review submission (" + (apple_error(error) or "HTTP 409") + "). Usual "
-                       "causes: Test Information or the reviewer sign-in is missing (TestFlight > Test Information), "
-                       "or another build is still waiting for review.")
+        # Another attempt or Apple's automatic approval may have moved this build
+        # between the read and write. A refusal alone never counts as success.
+        if external_state(build_id) not in REVIEW_COMPLETE_OR_PENDING:
+            raise
+        print("Apple confirmed beta review is already pending or complete; continuing to tester groups.", flush=True)
 
 
 def message(raw):
@@ -129,7 +168,7 @@ def main(sleep=time.sleep):
                  {"data": {"type": "builds", "id": build["id"], "attributes": {"usesNonExemptEncryption": False}}})
         what_to_test(build["id"], message(os.environ.get("WHAT_TO_TEST")))
         if external:
-            submit_for_review(build["id"])
+            submit_for_review(build["id"], sleep)
         for group in chosen:
             call("POST", f"betaGroups/{group['id']}/relationships/builds", {"data": [{"type": "builds", "id": build["id"]}]})
         note = (" External testers get it as soon as Apple's beta review approves it (the first build of a new "
@@ -142,8 +181,9 @@ def main(sleep=time.sleep):
         hints = {401: "Check that Key ID, Issuer ID and .p8 belong to the same active team key.",
                  403: "The API key may need the App Manager role to manage TestFlight groups (Users and Access > Integrations)."}
         detail = apple_error(error)
-        print(f"::error::App Store Connect returned HTTP {error.code}" + (f" ({detail})" if detail else "") + ". "
-              + hints.get(error.code, "Apple API request failed; re-run the job or add the build by hand."))
+        operation = getattr(error, "operation", "Apple API request")
+        print(f"::error::{operation}: App Store Connect returned HTTP {error.code}" + (f" ({detail})" if detail else "") + ". "
+              + hints.get(error.code, "Check build status and this operation in App Store Connect > TestFlight before retrying."))
     except (URLError, TimeoutError):
         print("::error::App Store Connect could not be reached. Re-run the job or add the build by hand.")
     except (ValueError, KeyError, OverflowError):

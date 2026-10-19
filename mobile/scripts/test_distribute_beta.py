@@ -21,12 +21,13 @@ ENV = {"RUNNER_TEMP": "/tmp", "KEY_ID": "private-key-id", "ISSUER": "private-iss
 class FakeAppStore:
     """Answers the handful of requests the script makes and records the writes."""
 
-    def __init__(self, states=("PROCESSING", "VALID"), groups=None, review=201, localizations=()):
+    def __init__(self, states=("PROCESSING", "VALID"), groups=None, review=201, localizations=(), external=("READY_FOR_BETA_SUBMISSION",)):
         self.states, self.writes, self.polls = list(states), [], 0
         self.groups = groups if groups is not None else [
             {"id": "private-beta", "attributes": {"name": "Beta", "isInternalGroup": False}},
             {"id": "private-family", "attributes": {"name": "Family", "isInternalGroup": True}}]
-        self.review, self.localizations, self.submitted = review, list(localizations), False
+        self.review, self.localizations = review, list(localizations)
+        self.external, self.beta_reads = list(external), 0
 
     def __call__(self, request, timeout=None):
         url, method = urlsplit(request.full_url), request.get_method()
@@ -48,8 +49,12 @@ class FakeAppStore:
             return self.reply({"data": [{"id": "private-build", "attributes": {"processingState": state, "usesNonExemptEncryption": None}}]})
         if path == "builds/private-build/betaBuildLocalizations":
             return self.reply({"data": self.localizations})
-        if path == "builds/private-build/betaAppReviewSubmission":
-            return self.reply({"data": {"id": "x"} if self.submitted else None})
+        if path == "builds/private-build/buildBetaDetail":
+            self.beta_reads += 1
+            state = self.external.pop(0) if len(self.external) > 1 else self.external[0]
+            if state is None:
+                raise HTTPError(request.full_url, 404, "private", {}, io.BytesIO(b'{}'))
+            return self.reply({"data": {"attributes": {"externalBuildState": state}}})
         if path == "betaAppReviewSubmissions" and self.review != 201:
             raise HTTPError(request.full_url, self.review, "private", {},
                             io.BytesIO(b'{"errors":[{"code":"STATE_ERROR","title":"Build cannot be submitted"}]}'))
@@ -106,20 +111,70 @@ class Distribution(unittest.TestCase):
         self.assertEqual(store.polls, distribute.WAIT_MINUTES * 60 // distribute.POLL_SECONDS)
         self.assertIn("still processing", output)
 
-    def test_review_already_submitted_is_fine_other_refusals_are_not(self):
-        store = FakeAppStore(states=("VALID",), review=409)
-        store.submitted = True
+    def test_approved_testing_and_pending_review_skip_resubmission(self):
+        for state in distribute.REVIEW_COMPLETE_OR_PENDING:
+            with self.subTest(state=state):
+                store = FakeAppStore(states=("VALID",), external=(state,))
+                code, output = run(store)
+                self.assertEqual(code, 0)
+                self.assertIn(state, output)
+                self.assertFalse(any(p == "betaAppReviewSubmissions" for _, p, _ in store.writes))
+                self.assertTrue(any(p.startswith("betaGroups/") for _, p, _ in store.writes))
+
+    def test_processing_and_missing_resource_wait_before_review(self):
+        store = FakeAppStore(states=("VALID",), external=(None, "PROCESSING", "MISSING_EXPORT_COMPLIANCE", "READY_FOR_BETA_SUBMISSION"))
         self.assertEqual(run(store)[0], 0)
-        store = FakeAppStore(states=("VALID",), review=409)
+        self.assertEqual(store.beta_reads, 4)
+        self.assertEqual(sum(p == "betaAppReviewSubmissions" for _, p, _ in store.writes), 1)
+
+    def test_review_race_conflict_or_422_requires_confirmed_state(self):
+        for status in (409, 422):
+            for state in distribute.REVIEW_COMPLETE_OR_PENDING:
+                with self.subTest(status=status, state=state):
+                    store = FakeAppStore(states=("VALID",), review=status, external=("READY_FOR_BETA_SUBMISSION", state))
+                    self.assertEqual(run(store)[0], 0)
+                    self.assertTrue(any(p.startswith("betaGroups/") for _, p, _ in store.writes))
+
+    def test_review_refusals_are_not_treated_as_success(self):
+        for status in (409, 422, 403):
+            store = FakeAppStore(states=("VALID",), review=status)
+            code, output = run(store)
+            self.assertEqual(code, 1)
+            self.assertIn("POST /v1/betaAppReviewSubmissions", output)
+            self.assertIn("STATE_ERROR: Build cannot be submitted", output)
+            self.assertFalse(any(p.startswith("betaGroups/") for _, p, _ in store.writes))
+            self.assertNotIn("private-", output)
+            if status == 403:
+                self.assertIn("App Manager", output)
+        store = FakeAppStore(states=("VALID",), review=422, external=("READY_FOR_BETA_SUBMISSION", None))
+        self.assertEqual(run(store)[0], 1, 'missing status cannot turn a 422 into success')
+
+    def test_rejected_expired_compliance_and_unknown_states_stop(self):
+        for state in ("BETA_REJECTED", "EXPIRED", "PROCESSING_EXCEPTION", "IN_EXPORT_COMPLIANCE_REVIEW", "private-unknown-state"):
+            store = FakeAppStore(states=("VALID",), external=(state,))
+            code, output = run(store)
+            self.assertEqual(code, 1)
+            self.assertIn("App Store Connect > TestFlight", output)
+            self.assertFalse(any(p == "betaAppReviewSubmissions" or p.startswith("betaGroups/") for _, p, _ in store.writes))
+            self.assertNotIn("private-", output)
+
+    def test_beta_readiness_wait_is_bounded(self):
+        store = FakeAppStore(states=("VALID",), external=("PROCESSING",))
         code, output = run(store)
         self.assertEqual(code, 1)
-        self.assertIn("STATE_ERROR: Build cannot be submitted", output)
-        self.assertIn("Test Information", output)
-        self.assertFalse(any(p.startswith("betaGroups/") for _, p, _ in store.writes))
-        store = FakeAppStore(states=("VALID",), review=403)
-        code, output = run(store)
+        self.assertEqual(store.beta_reads, distribute.BETA_WAIT_MINUTES * 60 // distribute.POLL_SECONDS)
+        self.assertIn("before retrying", output)
+        self.assertFalse(any(p == "betaAppReviewSubmissions" for _, p, _ in store.writes))
+
+    def test_failed_operation_masks_resource_ids_and_queries(self):
+        store = FakeAppStore(states=("VALID",), external=("BETA_APPROVED",))
+        def failed_group(request, timeout=None):
+            if request.get_method() == "POST" and "relationships/builds" in request.full_url:
+                raise HTTPError(request.full_url, 422, "private", {}, io.BytesIO(b'{}'))
+            return store(request, timeout)
+        code, output = run(failed_group)
         self.assertEqual(code, 1)
-        self.assertIn("App Manager", output)
+        self.assertIn("POST /v1/betaGroups/{id}/relationships/builds", output)
         self.assertNotIn("private-", output)
 
 
