@@ -802,7 +802,8 @@ keep the focused composer visible, and keep input text at least 16px to avoid fo
 Food chat should ask a short, specific question about missing identity/type or quantity, carry
 forward answered details and the original meal/day, and preserve source review, explicit
 confirmation, account boundaries and retry safety. Never substitute catalog jargon for a helpful
-question or invent a portion or nutrition. Preserve valid saved-food matches. Verify dismissal,
+question or invent nutrition. (Missing amounts: superseded below, 19 October 2026 — with AI estimates a
+typical portion is assumed and stated.) Preserve valid saved-food matches. Verify dismissal,
 visible input and drafts at phone width in both themes; cover successive food replies and retries
 with regressions. Prompt/model changes still follow the AI architecture and evaluation requirements.
 
@@ -933,8 +934,10 @@ The owner found the chat assuming wrong, replying with nonsense and fighting the
   questions and bare amounts (“2 slices”) get a short reply, never a food card asking “How much ok did you have?”.
   “Cancel” / “never mind” removes the latest unconfirmed card.
 - **An amount already said is enough.** “A banana”, “large fries”, “glass of wine” go straight to an estimate.
-  Ask once, only when the amount is truly missing: “Coffee — about how much? For example “1”, “1 cup”, “a large
-  one” or “150 g”.” Several new foods in one sentence where one lacks an amount (“coffee with milk”, “2 eggs and
+  When the amount is missing and AI estimates are available, assume a typical portion and say so on the card
+  (“I assumed a typical portion of coffee. Change it in Review food if that’s not right.”) — owner decision,
+  competing with ChatGPT. Without AI, ask once: “Coffee — about how much? For example “1”, “1 cup”, “a large
+  one” or “150 g”.” A bare dish word (“taco”) still asks what kind. Several new foods in one sentence where one lacks an amount (“coffee with milk”, “2 eggs and
   toast”) are one description, not one question per ingredient. When every food has its amount, each is still
   looked up exactly.
 - **Answers continue the question.** Sizes (“medium”), dish types (“caesar with chicken” after salad), and extra
@@ -947,3 +950,10 @@ The owner found the chat assuming wrong, replying with nonsense and fighting the
 - **Quick replies.** Question cards offer one-tap answers (1, 2, Small, Medium, Large, Not sure; fillings for tacos).
 - **Review is a slim strip on the composer**, not a full-width button: “3 foods · ≈ 405 kcal · Review ›”. It counts
   finished foods only. An unanswered question never blocks reviewing the others; that food stays in the chat.
+
+## AI understanding in the food chat (19 October 2026, owner-approved)
+
+When enabled, a small model call reads each message (log, answer, correct, remove, move, cancel, questions, chat)
+and code does the rest. Its wording appears only for questions and small talk: short, plain, no compliments or
+judgments about food (“delicious”, “healthy”), never says food was logged, and never contains a number the person
+didn't type. Assumed portions show as a muted line on the card until reviewed.

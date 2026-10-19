@@ -82,13 +82,14 @@ class Conversation(unittest.TestCase):
                 body,result,_=self.say(text)
                 self.assertEqual(result['kind'],'preview',body);self.assertTrue(self.foods(result))
 
-    def test_missing_amount_is_one_readable_question_with_quick_replies(self):
+    def test_missing_amount_assumes_a_typical_portion_and_says_so(self):
         body,result,_=self.say('coffee with milk')
-        self.assertTrue(body.startswith('Coffee with milk — about how much?'),body)
-        self.assertEqual(len(result['parts']),1,'one food described with "with" is one question, not one per ingredient')
-        self.assertIn('Not sure',result['parts'][0]['replies'])
-        body,result,_=self.say('large')
-        self.assertEqual(result['kind'],'preview');self.assertIn('1 large coffee with milk',self.model.call_args.args[0].note)
+        self.assertEqual(result['kind'],'preview',body);self.assertEqual(self.model.call_args.args[0].note,'a typical serving of coffee with milk')
+        self.assertIn('typical portion of coffee with milk',result['assumed'])
+        with db.connect() as c:c.execute('UPDATE profile SET ai_ok=false WHERE user_id=%s',(self.uid,))
+        body,result,_=self.say('greek yogurt')
+        self.assertTrue(body.startswith('Greek yogurt — about how much?'),'without AI estimates the amount is still asked');self.assertIn('Not sure',result['parts'][0]['replies'])
+        body,result,_=self.say('large');self.assertIn('1 large greek yogurt',result['parts'][0]['text'])
 
     def test_new_foods_in_one_sentence_are_estimated_together(self):
         body,result,_=self.say('I had 2 eggs and toast for breakfast')
@@ -111,18 +112,20 @@ class Conversation(unittest.TestCase):
 
     def test_not_sure_estimates_a_typical_version_and_keeps_details(self):
         self.say('taco')
-        body,result,_=self.say('not sure');self.assertIn('typical taco. How many',body);self.assertEqual(result['parts'][0]['replies'],['1','2','3'])
-        body,_,_=self.say('chicken');self.assertEqual(body,'How many did you have?')
-        body,result,_=self.say('2');self.assertEqual(result['kind'],'preview');self.assertEqual(self.model.call_args.args[0].note,'2 chicken taco')
+        body,result,_=self.say('not sure');self.assertEqual(result['kind'],'preview',body)
+        self.assertEqual(self.model.call_args.args[0].note,'a typical taco');self.assertIn('one typical taco',result['assumed'])
+        self.say('taco');body,result,_=self.say('chicken')
+        self.assertEqual(self.model.call_args.args[0].note,'a typical serving of chicken taco');self.assertIn('typical portion of chicken taco',result['assumed'])
+        body,_,messages=self.say('2');self.assertEqual(body,'Changed chicken taco to 2.')
         self.say('salad')
-        body,_,_=self.say('caesar with chicken');self.assertTrue(body.startswith('Caesar salad with chicken — about how much?'),body)
+        body,result,_=self.say('caesar with chicken');self.assertEqual(self.model.call_args.args[0].note,'a typical serving of caesar salad with chicken')
         self.say('burrito')
         body,_,_=self.say('what do you mean');self.assertIn('Or say “not sure”',body)
 
     def test_unrelated_food_is_never_a_dish_type(self):
         self.say('taco')
         body,result,_=self.say('banana')
-        self.assertTrue(body.startswith('Banana — about how much?'),body);self.assertEqual(result['parts'][0]['text'],'banana')
+        self.assertEqual(result['parts'][0]['text'],'a typical serving of banana');self.assertNotIn('taco',self.model.call_args.args[0].note)
 
     def test_food_questions_look_the_food_up_without_logging(self):
         body,result,_=self.say('how many calories in an avocado?')

@@ -23,3 +23,21 @@ The new coach needs `KINETTA_COACH_TOOLS_ENABLED=1` and `KINETTA_AI_EVAL_REPORT`
 Food-chat Kit additionally requires `food_chat` in the same private report: `case_count >= 30`, `unsupported_numeric_claims: 0`, `isolation_failures: 0`, `health_disclosures: 0`, and `qualitative_review_passed: true`. Review food-only questions, unknown nutrients, reassurance, missing days, source/portion fidelity and proposed meals with the actual food-scoped tool runner. Include malicious tool/name content and activity/Health requests; no stored Health data may appear in that scope. A general coach report alone does not enable food-chat Kit. Tests exercise this contract with stand-ins; they do not supply a real passing report or measure model accuracy.
 
 The food-chat review also covers the optional daily Kit version: a date-specific food-review question through the same restricted food tools, with no code summary or stored Health/body data in the model input. The daily module participates in the release fingerprint. Stand-in tests for one attempt per local day, failures, crash leases and deletion are contract evidence only; they are not the private qualitative/model evaluation.
+
+## Food-chat understanding (19 October 2026)
+
+`app/food_thread_understand.py` reads what a food-chat message means (log, answer a question, correct, remove, move,
+cancel, ask about the log or a food, chat) and which foods and amounts were said. Code does everything else. It is
+off unless `KINETTA_FOOD_CHAT_AI=1` and the private report has `food_chat_understanding` with
+`candidate_fingerprint` from `app.ai_release.understanding_fingerprint()`, `case_count >= 200`, `intent_accuracy >= 0.95`,
+`invented_amounts: 0`, `reply_number_violations: 0`, `better_than_rules: true` and `qualitative_review_passed: true`.
+
+`dev/evals/chat_cases.py` holds 212 fictional messages with the expected reading (setup messages build the card
+first). `dev/evals/chat_eval.py` runs inside a throwaway app container: `CHAT_EVAL_MODE=rules` scores the code-only
+chat for free; `CHAT_EVAL_MODE=ai` with `CHAT_EVAL_ACCEPT_PAID_CALLS=1` calls the real model through the normal budget
+accounting, so the container's `KINETTA_AI_DAILY_USD` is a hard dollar cap. Results stay private.
+
+First runs (gemini-3.1-flash-lite, 19 Oct 2026, fictional cases): code-only rules 192/212 on a lenient intent+food-word
+measure (no amounts checked); model 210/212 on the strict measure (intent 212/212, foods 137/138, invented amounts 0,
+reply number violations 0), about $0.085 per full run. The case set was written by the same author as the rules, so it
+favours them; the owner's qualitative review of real replies is still required before enabling.

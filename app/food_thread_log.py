@@ -176,6 +176,12 @@ def bare_amount(c,uid,message):
     if not portion or rest is None or re.match(r'(?:make|change|set|actually|only|it was|that was|halve|double)\b',text):return None
     if not all(isinstance(w,str) and (w in meal_chat.FILLER or w in meal_chat.CORRECTION) for w in rest) or portion.get('unit') not in GENERIC_UNITS|{None}:return None
     said=message['body'].strip(' .!?');live=edits._context(c,uid,message) is not None
+    # "2" right after a card whose portion was assumed ("1 typical chicken taco") sets that amount.
+    from . import food_thread_choices as choices
+    previous,card=choices._draft(c,uid,message)
+    if card and card.get('assumed') and len([p for p in card.get('parts',[]) if not p.get('logged')])==1:
+        edited=choices.draft_edit(c,uid,message,intent={'portion':portion,'words':[]})
+        if edited is not None:return edited
     return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'clarification_help','source':'code',
         'text':f'{said[:1].upper()+said[1:]} of what? Send the food with its amount, like “2 eggs” or “200 g chicken”.'+(' To change the last food, say “make it '+said+'”.' if live else '')})
 
@@ -193,6 +199,14 @@ def process(c,uid,message):
     if (message.get('result') or {}).get('input'):
         from . import food_thread_compose as compose
         return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
+    from . import food_thread_understand as understand
+    try:
+        with c.transaction():
+            understood=understand.apply(c,uid,message)
+        if understood is not None:return understood
+    except (HTTPException,ValidationError) as error:
+        # A failed AI-guided step is undone; the rules below answer the same message.
+        if isinstance(error,HTTPException) and error.status_code not in (400,404,409,422):raise
     from .food_thread_choices import conversational_help, cancel_words
     for early in (conversational_help,cancel_words):
         reply=early(c,uid,message)
