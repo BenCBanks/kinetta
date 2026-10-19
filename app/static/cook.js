@@ -482,20 +482,31 @@ async function searchFlow(el, d, set, text) {
   } catch (x) { if (my === searchSeq) res.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 function typeSheet(name, grams, done) {
-  sheet('Manually add a food', `<form class="form" id="ty"><label>Ingredient<input name="name" value="${esc(name)}" maxlength="120" required></label>
+  sheet('Manually add a food', `<form class="form" id="ty"><label>Food name<input name="name" value="${esc(name)}" maxlength="120" required></label>
     <div class="two"><label>Weight (g)<input name="grams" inputmode="decimal" value="${esc(grams)}" placeholder="Optional"></label><label>Calories<input name="kcal" inputmode="decimal" required></label></div>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal"></label></div>
     <div class="two"><label>Fat (g)<input name="fat_g" inputmode="decimal"></label><label>Fiber (g)<input name="fiber_g" inputmode="decimal"></label></div>
     ${extraInputs()}<p class="small muted">Nutrition for the amount you are adding. Weight is optional; unknown nutrients stay blank.</p>
-    <div class="actions"><button class="primary">Add</button></div></form>`, (b, close) => {
-    guardFoodSheet(b,close,readOwner());const f = $('#ty', b); f.kcal.focus();
+    <p class="err" id="ty-error" role="alert"></p><div class="actions"><button class="primary">Add</button></div></form>`, (b, close) => {
+    guardFoodSheet(b,close,readOwner());const f = $('#ty', b); (name.trim()?f.kcal:f.elements.name).focus();
     f.onsubmit = async (e) => {   // stays open if the server says no, so the numbers aren't lost
       e.preventDefault(); const n = (v) => (v.trim() === '' ? null : +v.replace(',', '.')), btn = $('button.primary', f);
       btn.disabled = true;
+      $('#ty-error',b).textContent='';
       try {
-        if (await done({name: f.name.value.trim(), grams: n(f.grams.value), kcal: n(f.kcal.value), protein_g: n(f.protein_g.value), carbs_g: n(f.carbs_g.value), fat_g: n(f.fat_g.value),fiber_g:n(f.fiber_g.value),...extraFormValues(f)})) close();
-        else btn.disabled = false;
-      } catch (error) { toast(error.message); btn.disabled = false; }
+        const values={name:f.elements.name.value.trim(),grams:n(f.grams.value),kcal:n(f.kcal.value),protein_g:n(f.protein_g.value),carbs_g:n(f.carbs_g.value),fat_g:n(f.fat_g.value),fiber_g:n(f.fiber_g.value),...extraFormValues(f)};
+        if(values.kcal===null)throw Object.assign(Error('Enter the calories for this amount of food.'),{field:'kcal'});
+        if(!values.name)throw Object.assign(Error('Give this food a name.'),{field:'name'});
+        const limits={grams:30000,kcal:20000,protein_g:2000,carbs_g:2000,fat_g:2000,fiber_g:1000,sodium_mg:1000000,sugar_g:2000,saturated_fat_g:2000};
+        for(const [key,limit] of Object.entries(limits)){
+          const value=values[key];if(value==null)continue;
+          if(!Number.isFinite(value)||value<0||value>limit||(key==='grams'&&value===0))throw Object.assign(Error(key==='grams'?'Enter a weight above zero and up to 30,000 g, or leave it blank.':'Enter a number from 0 to '+limit.toLocaleString()+' for this amount of food.'),{field:key});
+        }
+        if (await done(values)) close();else btn.disabled=false;
+      } catch (error) {
+        $('#ty-error',b).textContent=error.message;btn.disabled=false;
+        const field=f.elements[error.field];if(field){field.setAttribute('aria-invalid','true');field.setAttribute('aria-describedby','ty-error');field.oninput=()=>field.removeAttribute('aria-invalid');field.focus();}
+      }
     };
   });
 }

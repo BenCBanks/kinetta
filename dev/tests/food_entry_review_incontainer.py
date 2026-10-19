@@ -37,6 +37,9 @@ class Review(unittest.TestCase):
   self.post('/api/food/thread/reviews/items',body);review=self.prepare([m]);self.assertEqual(review['review']['totals']['kcal'],400);self.assertIsNone(review['review']['totals']['protein_g'])
   choices={'save_recipe':True,'name':'Fictional sauce recipe','basis':'servings','servings':4,'whole':False,'portion':1.5}
   result=self.confirm(review,**choices);self.assertEqual(self.rows('food_entries')[0]['kcal'],150)
+  receipt=next(x for x in result['messages'] if x.get('reply_to')==review['id']);self.assertEqual([e['kcal'] for e in receipt['entries']],[150]);self.assertEqual(receipt['entries'][0]['meal'],'dinner')
+  replay=self.confirm(review,**choices);self.assertEqual(next(x for x in replay['messages'] if x.get('reply_to')==review['id'])['entries'],receipt['entries'])
+  restored=self.a.get('/api/food/thread/reviews/draft/'+self.draft).json();self.assertEqual(next(x for x in restored['messages'] if x.get('reply_to')==review['id'])['entries'],receipt['entries'])
   dish=self.rows('dishes')[0];self.assertEqual(dish['items'][0]['name'],'Fictional sauce');self.assertEqual(dish['yield_servings'],4)
   self.assertIn('protein_g',self.rows('food_entries')[0]['ref']['unknown_nutrients'])
   self.assertTrue(self.confirm(review,**choices)['replayed']);self.assertEqual(len(self.rows('dishes')),1);self.assertEqual(len(self.rows('food_entries')),1)

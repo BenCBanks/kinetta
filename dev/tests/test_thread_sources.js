@@ -32,3 +32,10 @@ for (const [amount,label,expected] of [[.5,'1 cup','0.5 cup'],[.75,'1 cup','0.75
 }
 assert.equal(c.servingAmount({amount:2}),'2 servings','legacy unknown portions stay generic');
 console.log('food amounts: cups/fl oz/fractions and original serving descriptions retained without changing nutrition PASS');
+
+// A confirmation still in flight must block new capture just like a durable offline confirmation.
+{
+ let sending=false,queued=[];const gate={Q:{mine:()=>queued},FoodReview:{busy:()=>sending}};vm.createContext(gate);vm.runInContext(thread.slice(thread.indexOf('  const pendingReview='),thread.indexOf('  function held('))+'\nglobalThis.waiting=pendingReview;',gate);
+ assert.equal(gate.waiting(),false);sending=true;assert.equal(gate.waiting(),true);sending=false;queued=[{path:'/api/food/thread/reviews/7/confirm'}];assert.equal(gate.waiting(),true);queued=[{path:'/api/food/entries'}];assert.equal(gate.waiting(),false);
+ console.log('Food review gate: active confirmation and offline final review block a new draft; unrelated queued writes do not PASS');
+}

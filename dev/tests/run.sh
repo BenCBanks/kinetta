@@ -68,6 +68,7 @@ node dev/tests/test_health_session.js
 node dev/tests/test_weekly_food_review.js
 node dev/tests/test_thread_sources.js
 node dev/tests/test_food_search.js
+node dev/tests/test_manual_food_form.js
 node dev/tests/test_food_remove.js
 node dev/tests/test_feed_cache.js
 node dev/tests/test_keyboard.js

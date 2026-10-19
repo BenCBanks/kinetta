@@ -1,6 +1,8 @@
 // A single final review for entered food: saving a recipe and logging are independent choices.
 'use strict';
 const FoodReview=(()=>{
+  const sending=new Set();
+  const changed=()=>dispatchEvent(new CustomEvent('food:review-state'));
   const number=input=>{const text=input.value.trim();return text===''?null:Number(text.replace(',','.'));};
   async function open({messages,draftId,meal,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
     const owner=readOwner(),id=newId();let prepared;
@@ -55,6 +57,7 @@ const FoodReview=(()=>{
         const request={confirm:true,save_recipe:recipe,log_today:logging,name:recipe?f.elements.name.value.trim():null,meal:logging?f.elements.meal.value:null,
           basis,servings:basis==='servings'?number(f.elements.servings):null,total_g:basis==='weight'?number(f.elements.total_g):null,whole:!part,portion:part?number(f.elements.portion):null};
         const button=$('#review-confirm',body),label=button.textContent;button.disabled=true;button.textContent='Saving…';$('#review-error',body).textContent='';
+        sending.add(owner);changed();
         try{
           const result=await sendOrQueue(`/api/food/thread/reviews/${prepared.id}/confirm`,'POST',request,'Food review');
           if(owner!==readOwner())return;
@@ -66,9 +69,9 @@ const FoodReview=(()=>{
           if(!valid())return;
           if(error.payload?.changed&&error.payload.review){review=error.payload.review;foods();draw();}
           $('#review-error',body).textContent=error.message;button.disabled=false;button.textContent=label;
-        }
+        } finally {sending.delete(owner);changed();}
       };
     });
   }
-  return {open};
+  return {open,busy:()=>sending.has(readOwner())};
 })();

@@ -834,7 +834,12 @@ Saving without logging is supported. Recipe creation, log entries and their rece
 one explicit confirmation; retries cannot duplicate either. Changed source numbers require another tap
 after showing the new values. Reload/navigation preserves unfinished ingredients and unsent text. Offline
 confirmation waits durably and prevents adding more to that draft until acknowledged. Existing recipes
-retain their legacy serving arithmetic until an explicit new yield is entered.
+retain their legacy serving arithmetic until an explicit new yield is entered. Manual additions focus the
+food name first when it is missing. Invalid numbers stay in that form with a labelled inline error, never
+an uneditable retry queue. Recipe-link, extra nutrient and quick weigh-in fields retain a16px minimum.
+Review preparation shows progress and blocks duplicate requests. An in-flight confirmation blocks new
+capture even after the review is closed; keep the next unsent text. Completed receipts carry their linked
+food rows, destination, saved-recipe acknowledgement and Undo, including replay and reload.
 
 Food writes invalidate pending reads and notify a visible Nutrition log to reload, including delayed
 conversation acknowledgements received after navigating away. Coalesce refreshes and guard the current

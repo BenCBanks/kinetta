@@ -234,6 +234,8 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
         text=(f'Saved {name} to My Recipes. ' if recipe_id else '')+(f'Logged to {body.meal} today.' if ids else 'Nothing was added to your food log.')
         result={**r,'kind':'log' if ids else 'answer','confirmed':request_key,'recipe_id':recipe_id,'entry_ids':ids,'entry_digests':entry_digests,'logged_totals':values,'logged_unknown':[k for k,v in values.items() if v is None],'day':str(day),'meal':body.meal,'text':text}
         saved=T.finish_reply(c,uid,m,result)
+        T.link_entries(c,uid,saved['messages'],ids)
+        saved['messages']=T.message_entries(c,uid,saved['messages'])
         return {**saved,'messages':messages+saved['messages'],'recipe_id':recipe_id}
 
 

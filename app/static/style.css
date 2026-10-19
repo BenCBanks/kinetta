@@ -1680,7 +1680,8 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .me-heading .kit-help { width:44px; padding:0; justify-content:center; }
 .me-heading .kit-help::after { display:none; }
 
-#quick-weight input, #quick-weight button { font-size:1rem; }
+#quick-weight button { font-size:1rem; }
+#quick-weight input { font-size:max(16px,1rem); }
 #quick-weight label { font-size:.9rem; }
 
 /* Pending food and weight writes remain reviewable after errors. */
@@ -1815,7 +1816,7 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .recipe-import { max-width:42rem; margin-inline:auto; display:grid; gap:var(--s3, 12px); padding-bottom:1rem; }
 .recipe-import .card { margin:0; }
 .recipe-import .form { margin:0; }
-.recipe-import input,.recipe-import textarea,.recipe-import select { max-width:100%; min-width:0; font-size:1rem; }
+.recipe-import input,.recipe-import textarea,.recipe-import select { max-width:100%; min-width:0; font-size:max(16px,1rem); }
 .recipe-import textarea { resize:vertical; line-height:1.5; }
 .recipe-import button,.recipe-import summary,.recipe-import .linkbtn,.recipe-source summary { min-height:44px; }
 .recipe-import summary,.recipe-source summary { display:flex; align-items:center; cursor:pointer; }
@@ -1857,7 +1858,7 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .extra-nutrients dd small {display:block;font-size:.85rem;color:var(--tx2);line-height:1.5;}
 .extra-fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));gap:.8rem;}
 .extra-fields label {min-width:0;line-height:1.5;font-size:1rem;}
-.extra-fields input {width:100%;min-height:44px;font-size:1rem;}
+.extra-fields input {width:100%;min-height:44px;font-size:max(16px,1rem);}
 .macpreview > .extra-nutrients {grid-column:1 / -1;text-align:left;}
 .macpreview .extra-nutrients b {font:600 1rem var(--numf);}
 .tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
