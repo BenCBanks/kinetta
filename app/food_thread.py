@@ -144,6 +144,7 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if body.media=='barcode' and not body.barcode:raise HTTPException(422,'Scan or type a barcode')
         if body.media!='barcode' and body.barcode:raise HTTPException(422,'Use barcode input for a scanned product')
         if body.itemize and body.media!='photo':raise HTTPException(422,'Ingredient estimates need a photo')
+        if body.itemize and not body.review_only:raise HTTPException(422,'Ingredient estimates need the final food review. Update the app and try again.')
         metadata={'input':{'kind':body.media,**({'barcode':body.barcode} if body.barcode else {})}} if body.media!='text' else None
         if body.itemize:metadata['input']['itemize']=True
         if body.draft_id:metadata={**(metadata or {}),'draft_id':str(body.draft_id)}

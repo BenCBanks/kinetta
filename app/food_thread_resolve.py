@@ -61,6 +61,9 @@ def claim(uid,mid,body):
             if not coach.allowed(uid,'food',connection=c):raise HTTPException(403,coach.off())
             part.update(status='unknown',looked_up=False,skip_alias=True,prefer_estimate=True)
         media=(message.get('result') or {}).get('input') or {'kind':'text'}
+        from .food_thread_photo import requested
+        if media['kind']=='photo' and (body.itemize or media.get('itemize') or requested(body.note or message['body'])) and not (message.get('result') or {}).get('review_only'):
+            raise HTTPException(409,'Ingredient estimates need the final food review. Update the app and add this photo again.')
         previous=None
         if body.itemize and (body.image or body.images) and media['kind']=='photo':
             if not (message.get('result') or {}).get('review_only') or result.get('kind') not in ('preview','needs') or any(p.get('logged') for p in result['parts']):

@@ -11,11 +11,12 @@ import base64
 import binascii
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from . import coach, ai_access, ai_budget
 from .auth import current_user
@@ -52,6 +53,13 @@ class PhotoIn(BaseModel):
     images: list[str] = Field(default_factory=list, max_length=6)
     note: str | None = Field(None, max_length=2000)        # the person's words; several lines = a short chat (Describe or snap)
     itemize: StrictBool = False
+
+    @field_validator('note')
+    @classmethod
+    def readable_note(cls,value):
+        if value and re.search(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]',value):
+            raise ValueError('Remove control characters from this food description')
+        return value
 
 
 def image_batch(image, images):

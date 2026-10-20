@@ -119,5 +119,15 @@ class PhotoContext(unittest.TestCase):
   caption=('Photo of food: turkey sub with cheese and mayo. '+('Extra portion details. '*110)).strip()
   m=self.root(caption,media='photo',review_only=True,draft_id=str(uuid.uuid4()))
   r=self.result(self.resolve(m,images=[JPEG]));self.assertEqual(r['parts'][0]['photo_description'],caption);self.assertIn(caption,str(self.model.call_args.args[0]))
+ def test_legacy_auto_log_cannot_enable_ingredient_mode(self):
+  self.post('/api/food/thread/messages',{'client_id':str(uuid.uuid4()),'body':'A sub','media':'photo','itemize':True},status=422)
+  for text,note in [('Please itemize this sub',None),('A sub','Itemize the ingredients')]:
+   m=self.root(text,media='photo');calls=self.model.call_count
+   self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'images':[JPEG],**({'note':note} if note else {})},status=409)
+   self.assertEqual(self.model.call_count,calls);self.assertEqual(self.entries(),[])
+ def test_invalid_description_is_rejected_before_model_or_storage(self):
+  m,_=self.photo()
+  self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'images':[JPEG],'note':'Sub\u0000with mayo'},status=422)
+  self.assertEqual(self.model.call_count,0)
 
 if __name__=='__main__':unittest.main()
