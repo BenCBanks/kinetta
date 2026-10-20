@@ -46,6 +46,17 @@ class Review(unittest.TestCase):
   self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch',**choices},status=409)
   self.post(f"/api/food/thread/messages/{review['id']}/undo");self.assertEqual(self.rows('food_entries'),[]);self.assertEqual(len(self.rows('dishes')),1)
   r=self.a.post(f"/api/food/thread/reviews/{review['id']}/confirm",json={'confirm':True,'meal':'dinner',**choices});self.assertIn(r.status_code,(200,404,409));self.assertEqual(self.rows('food_entries'),[])
+ def test_calorie_edits_scale_that_food_only_and_are_validated(self):
+  items=[{'day':str(dt.date.today()),'meal':'snacks','name':'Fictional bun','amount':1,'unit':'serving','kcal':120,'protein_g':4,'carbs_g':20,'fat_g':2},
+         {'day':str(dt.date.today()),'meal':'snacks','name':'Fictional mustard','amount':1,'unit':'serving','kcal':5,'protein_g':0,'carbs_g':1,'fat_g':0}]
+  m,_=self.stage(items);review=self.prepare([m])
+  for bad in ({'0':-1},{'0':6000},{'x':10}):self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'dinner','kcal':bad},status=422)
+  self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'dinner','kcal':{'9':10}},status=422)
+  self.assertEqual(self.rows('food_entries'),[])
+  self.confirm(review,kcal={'0':180})
+  rows={r['name']:r for r in self.rows('food_entries')}
+  self.assertEqual((rows['Fictional bun']['kcal'],rows['Fictional bun']['protein_g'],rows['Fictional bun']['carbs_g']),(180,6,30),'macros scale with the calories')
+  self.assertTrue(rows['Fictional bun']['ref']['origin_edited']);self.assertEqual(rows['Fictional mustard']['kcal'],5,'other foods unchanged')
  def test_one_off_uses_the_given_amounts_without_creating_a_recipe(self):
   items=[{'day':str(dt.date.today()),'meal':'snacks','name':name,'amount':amount,'unit':'g','kcal':kcal} for name,amount,kcal in [('Fictional oats',100,200),('Fictional milk',200,100)]]
   m,_=self.stage(items);r=self.prepare([m]);self.confirm(r,meal='lunch')

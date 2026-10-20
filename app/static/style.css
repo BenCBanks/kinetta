@@ -2154,3 +2154,31 @@ nav.tabs, button, .row-link, .card.tap, .chip, .seg, .thread-tools, .thread-step
 .primary, .ghost, .icon-btn, .chip, .back, nav.tabs :is(a, button), .card.tap, .row-link, button.thread-food, .post-link
   { transition: transform .08s ease-out, opacity .08s ease-out; }
 button.thread-food:active { opacity: .7; }
+
+/* Add to log sheet (owner, 20 Oct 2026): calories edit in place, one total, a Save-as-recipe switch. */
+.food-final-review .review-where { margin: 0 0 6px; }
+.food-final-review .review-food-row { align-items: center; }
+.kcal-edit { flex: none; white-space: nowrap; min-height: 40px; padding: 4px 10px; border: 1px dashed var(--line); border-radius: 10px; background: none;
+  color: var(--tx); font: inherit; font-weight: 600; }
+.kcal-edit small { font-weight: 400; color: var(--tx2); }
+.kcal-box { display: inline-flex; flex: none; align-items: center; gap: 4px; }
+.kcal-box input { -moz-appearance: textfield; appearance: textfield; width: 5em; min-height: 40px; padding: 6px 8px; text-align: right; font-size: max(16px, 1rem); }
+.review-total { display: grid; gap: 2px; margin: 8px 0 16px; }
+.review-total > div { display: flex; justify-content: space-between; align-items: baseline; }
+.review-total b { font-size: 1.15rem; }
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 8px 0;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 12px; cursor: pointer; }
+.switch-row > span { display: grid; gap: 2px; } .switch-row small { color: var(--tx2); font-size: .85rem; }
+.switch-row input[type=checkbox] { appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 50px; height: 30px; margin: 0;
+  border-radius: 999px; background: var(--line); transition: background .15s ease; cursor: pointer; }
+.switch-row input[type=checkbox]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s ease; }
+.switch-row input[type=checkbox]:checked { background: var(--accent); }
+.switch-row input[type=checkbox]:checked::after { transform: translateX(20px); }
+.switch-row input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#review-recipe { display: grid; gap: 4px; margin-bottom: 12px; } #review-recipe[hidden] { display: none; }
+.kcal-box input::-webkit-outer-spin-button, .kcal-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.switch-row, .switch-row small { font-weight: 400; } .switch-row b { font-weight: 650; }
+#review-recipe { gap: 10px; }
+.food-final-review .kcal-edit { display: inline-flex; align-items: baseline; gap: 3px; }
+.food-final-review .kcal-edit small { display: inline; margin: 0; }
