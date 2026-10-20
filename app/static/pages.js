@@ -272,25 +272,8 @@ async function meOverview(el) {
     if (!el.isConnected) return;
     $('#t-friends',el).innerHTML = rows.length ? `<section class="card home-friends"><h2>Friends recently<a class="more" href="/activity">Feed ›</a></h2>${rows.map(a => `<a class="home-workout" href="/activity/friends/${a.id}">${avatar(a.owner)}<span><b>${esc(a.owner.name)}</b><small>${esc(a.name)} · ${esc(when(a.start_time))}</small></span>${svg('chev')}</a>`).join('')}</section>` : '';
   }).catch(() => {});
-  load('/api/coach/week', (r) => {
-    const box = $('#t-review', el); if (!box) return;
-    if (!r.enabled && !r.paused && !r.latest) { box.innerHTML = ''; return; }
-    const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
-    async function reviewNow(btn, close) {
-      btn.disabled = true; btn.textContent = 'Thinking…';
-      try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
-      catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
-    }
-    if (r.paused) { box.innerHTML = `<p class="small muted">AI is paused. Search, barcodes and manual logging still work.</p>${r.latest ? `<p>${esc(r.latest.text)}</p>` : ''}`; return; }
-    box.innerHTML = `<button class="icon-btn kit-help" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}</button>`;
-    $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', wk
-      ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text">${esc(r.latest.text)}</p>
-          ${r.enabled ? '<button class="ghost wide" id="rv-now">Review this week now</button>' : ''}`
-      : `<p>Kit writes a short review every Sunday evening.</p><p class="small muted">You can also ask for a review of this week so far.</p>
-          <button class="primary wide" id="rv-now">Review this week now</button>`, (sb, close) => {
-        const button = $('#rv-now', sb); if (button) button.onclick = () => reviewNow(button, close);
-      });
-  }).catch(() => {});
+  const kit=$('#t-review',el);
+  if(kit&&aiCan('coach'))kit.innerHTML=`<a class="icon-btn kit-help" href="/me/kit?from=me" aria-label="Ask Kit">${svg('sparkle')}</a>`;
   const overviewLoads = await Promise.allSettled([
     load('/api/activities?limit=3', (d) => {
       if (!el.isConnected) return;
@@ -473,7 +456,7 @@ function drawDetail(el, a) {
   // with a map, the map runs to the top of the screen and the buttons float over it (2026-10-12, Ben)
   const topBar = `<div class="top${a.line || a.photos?.length ? ' over' : ''}">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
   el.innerHTML = `${a.line || a.photos?.length ? `<div class="map-head">${activityMedia(a, {mapId: 'd-map', detail: true, full: !!a.line})}${topBar}</div>` : topBar}
-    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${a.ai_note || aiCan('coach') ? `<button class="icon-btn kit-help" id="d-kit" aria-label="Ask Kit about this activity">${svg('sparkle')}</button>` : ''}</div>
+    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${aiCan('coach') ? `<button class="icon-btn kit-help" id="d-kit" aria-label="Ask Kit about this activity">${svg('sparkle')}</button>` : ''}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}
@@ -500,7 +483,7 @@ function drawDetail(el, a) {
   wireActivityMedia(el);
   if (a.lifts) fillLiftCard(el, a);
   const kb = $('#d-kit', el);
-  if (kb) kb.onclick = () => activityKit(a);
+  if (kb) kb.onclick = () => go(KitChat.href('activity',a.id));
   let marker = null, pts = null, mapObj = null;
   const mapBox = $('#d-map', el);
   if (a.line) lazy(mapBox, async () => {
@@ -1247,7 +1230,7 @@ route(/^\/me$/, 'me', async (el) => {
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       </div>
-    ${me.coach ? `<h2 class="sec-head">Kit & food AI</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food AI: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${me.coach_tools && aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
+    ${me.coach ? `<h2 class="sec-head">Kit</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food estimates: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${aiCan('coach') ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
@@ -1257,7 +1240,7 @@ route(/^\/me$/, 'me', async (el) => {
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
   $('#m-profile', el).onclick = () => go(profileHref(me));   // your public profile, editable in place (social.js)
 
-  const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit & food AI', aiExplain());
+  const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit', aiExplain());
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');
@@ -1289,6 +1272,7 @@ route(/^\/me$/, 'me', async (el) => {
     const n = Q.mine().length + chat + shortcuts;
     if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
     if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
+    if(typeof KitChat!=='undefined')KitChat.eraseDevice();
     if (typeof Track !== 'undefined') await Track.pause();
     try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
     await Native.forget();
@@ -1366,6 +1350,7 @@ function deleteSheet() {
         // Once the server confirms deletion, every cleanup gets its own chance.
         const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
         await cleanup(()=>Native.forget({deleted:true}));
+        await cleanup(()=>typeof KitChat!=='undefined'?KitChat.eraseDevice():null);
         await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
         await cleanup(()=>typeof TrainingFood!=='undefined'?TrainingFood.eraseDevice():null);
         await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);

@@ -1,8 +1,8 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const thread=fs.readFileSync('app/static/thread.js','utf8'),food=fs.readFileSync('app/static/food.js','utf8');
-const c={};vm.createContext(c);vm.runInContext(thread.slice(thread.indexOf('  function source('),thread.indexOf('  function food(')),c);
-assert.equal(c.source({source:'recent',ref:{source:'usda'}}),'USDA');assert.equal(c.source({source:'custom',ref:{origin:'ai',origin_edited:true}}),'AI estimate · Edited');assert.equal(c.source({source:'recent',ref:{origin:'catalog',origin_ref:{source:'off'}}}),'Open Food Facts');assert.equal(c.source({source:'custom',ref:{origin:'label'}}),'Nutrition label');
+const c={};vm.createContext(c);vm.runInContext(food.match(/function kitFoodWords[^\n]+/)[0],c);assert.equal(c.kitFoodWords('Use an AI estimate instead'),'Use Kit’s estimate instead');vm.runInContext(thread.slice(thread.indexOf('  function source('),thread.indexOf('  function food(')),c);
+assert.equal(c.source({source:'recent',ref:{source:'usda'}}),'USDA');assert.equal(c.source({source:'custom',ref:{origin:'ai',origin_edited:true}}),'Kit’s estimate · Edited');assert.equal(c.source({source:'recent',ref:{origin:'catalog',origin_ref:{source:'off'}}}),'Open Food Facts');assert.equal(c.source({source:'custom',ref:{origin:'label'}}),'Nutrition label');
 let owner='a',closed=0,prevented=0,stopped=0;const handlers=[];c.readOwner=()=>owner;c.toast=()=>{};vm.runInContext(food.slice(food.indexOf('function guardFoodSheet'),food.indexOf('function addSheet')),c);c.guardFoodSheet({addEventListener:(event,fn,capture)=>{assert(capture);handlers.push(fn)}},()=>closed++,'a');const event={preventDefault(){prevented++},stopImmediatePropagation(){stopped++}};handlers[0](event);assert.equal(closed,0);owner='b';handlers[0](event);handlers[1](event);assert.equal(closed,2);assert.equal(prevented,2);assert.equal(stopped,2);
 console.log('food sources: provenance survives recent reuse/AI edits/labels; stale food-sheet clicks and submits blocked before writes PASS');
 

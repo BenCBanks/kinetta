@@ -6,10 +6,10 @@ Owner brief: 20 October 2026. Implementation and release are separate; this docu
 
 - Kit is one assistant for training, nutrition, strength, goals and progress. The same Ask Kit action opens the same conversation from any tab. The current screen adds context, rather than creating another kind of coach.
 - The first empty screen offers a few useful starting questions, relevant to the entry screen. A tap sends the chosen question. After the first message these suggestions disappear; the conversation uses the same bubbles, typing indicator, composer, scrolling and keyboard behavior as Add food.
-- Assume one private ongoing conversation, synced across devices, with Clear chat. Food logging remains its own focused Add food flow. No automatic daily reset for Kit. This retention choice is pending the owner's answer.
+- Assume one private ongoing conversation, synced across devices, with Clear chat. Food logging remains its own focused Add food flow. No automatic daily reset for Kit. The owner confirmed this retention choice.
 - Kit can read the signed-in person's fitness/nutrition records through fixed, bounded application tools. This means relevant records on demand, not sending the entire database with every message. No credentials, precise route coordinates, other people's records or arbitrary SQL are model tools. Apple Health permissions still control Health disclosures.
 - Algorithms calculate totals, trends and allowed changes. Quantitative claims must point to exact tool evidence. Unknown nutrients and unlogged days remain unknown. Kit may explain general nutrition/training concepts without fabricating personal evidence.
-- Assume proposed changes require an explicit review/confirmation. Existing plan and known-food proposal validators remain authoritative. Other actions link to the actual app feature and its normal editor; model text never writes arbitrary fields. This action policy is pending the owner's answer.
+- Assume proposed changes require an explicit review/confirmation. Existing plan and known-food proposal validators remain authoritative. Other actions link to the actual app feature and its normal editor; model text never writes arbitrary fields. The owner confirmed review and confirmation for changes.
 - Every AI-enabled account can find Kit. Provider readiness, consent, budgets and reviewed evaluation still control model work. No payment tier or new subscription is introduced.
 - Retire evening food summaries entirely, including their settings, automatic triggers and older-client generation endpoints. Existing historical notes may remain readable. Nutrition insights start through Kit.
 - Food-facing labels use Kit (for example “Kit’s estimate”); storage/source identifiers stay compatible. Explain AI providers and data sharing plainly in consent/privacy controls.
@@ -25,6 +25,6 @@ Owner brief: 20 October 2026. Implementation and release are separate; this docu
 
 ## Evaluation and release
 
-No paid model calls are authorized yet. A budget question has been sent to the owner. Stand-in tests validate contracts and UI; they cannot establish model usefulness or accuracy. New prompts/tools/conversation behavior need matching reviewed real-provider evidence before enabling. Do not create a passing private report from test stand-ins. Record paid results and qualitative review honestly, compare the current and proposed versions on the same cases, and keep unrelated food-model gates intact.
+The owner authorized up to $5 total for paid model evaluations. Stand-in tests validate contracts and UI; they cannot establish model usefulness or accuracy. New prompts/tools/conversation behavior need matching reviewed real-provider evidence before enabling. Do not create a passing private report from test stand-ins. Record paid results and qualitative review honestly, compare the current and proposed versions on the same cases, and keep unrelated food-model gates intact.
 
 The PR is the requested deliverable. Merge, live deployment and TestFlight need separate approval. Physical iPhone keyboard/VoiceOver and real provider acceptance remain distinct from browser and unsigned-build checks.

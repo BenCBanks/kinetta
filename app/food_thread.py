@@ -194,6 +194,7 @@ def set_preferences(body: PreferencesIn, user=Depends(current_user)):
     values = body.model_dump(exclude_unset=True)
     if not values or any(v is None for v in values.values()):
         raise HTTPException(422, 'Choose a logging or feedback preference')
+    if values.get('daily_note') not in (None,'off'):raise HTTPException(410,'Evening summaries have been retired. Open Kit from Nutrition for insights.')
     names = {'auto_log': 'food_chat_auto_log', 'tone': 'food_chat_tone','daily_note':'food_chat_daily_note'}
     with db.connect() as c:
         sets = ', '.join(names[key] + ' = %s' for key in values)
@@ -409,5 +410,4 @@ def kit_message(mid:int,body:KitIn,user=Depends(current_user)):
 
 @router.post('/daily-note')
 def daily_note(body:AnswerIn,user=Depends(current_user)):
-    from . import food_thread_daily
-    return food_thread_daily.create(user['id'])
+    raise HTTPException(410,'Evening summaries have been retired. Open Kit from Nutrition for insights.')

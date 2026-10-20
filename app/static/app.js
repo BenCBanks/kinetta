@@ -498,7 +498,7 @@ function render() {
   Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if (el.isConnected && key === location.pathname + location.search) window.scrollTo(0, App.scroll[key] || 0); });
-    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {

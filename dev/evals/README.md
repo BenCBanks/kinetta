@@ -41,3 +41,7 @@ First runs (gemini-3.1-flash-lite, 19 Oct 2026, fictional cases; later run after
 measure (no amounts checked); model 210/212 on the strict measure (intent 212/212, foods 137/138, invented amounts 0,
 reply number violations 0), about $0.085 per full run. The case set was written by the same author as the rules, so it
 favours them; the owner's qualitative review of real replies is still required before enabling.
+
+## Shared Kit conversation
+
+The app-wide assistant additionally requires a `kit` report block with `case_count >=40`, `unsupported_numeric_claims:0`, `isolation_failures:0`, `health_disclosures:0`, `conversation_review_passed:true` and `qualitative_review_passed:true`. The existing reviewed coach/food comparison and matching source/model fingerprint are still required. Include all sports, strength, individual food records/unknown nutrients, goals, general diet/exercise education, multi-turn follow-ups, proposed changes and app actions, missing histories and injection/consent failures. Compare the current coach and candidate on the same fictional records and questions. Record real responses and token/cost/latency; schema/evidence pass is not proof of useful or medically sound advice. Owner review and physical-phone checks remain separate.

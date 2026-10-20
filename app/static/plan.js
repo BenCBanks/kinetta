@@ -141,7 +141,7 @@ function planOverview(box, d) {
         : '<p class="small">No fast runs recorded yet, so go by feel:</p><ul class="small"><li><b>Easy</b>: you can talk in full sentences.</li><li><b>Tempo</b>: comfortably hard, a few words at a time.</li><li><b>Intervals</b>: hard but controlled, like a 5K race.</li></ul>'}</div>
     <div class="card"><h2>All weeks</h2>${d.weeks.map((wk) => `<details class="pweek"><summary><span><b>Week ${wk.n}</b> · ${esc(wk.phase)}<small class="muted"> · ${esc(pday(wk.start, {month: 'short', day: 'numeric'}))}</small></span><span class="small num">${wk.done ? `${wk.done} / ` : ''}${wk.planned} ${esc(U)}</span></summary>${wk.workouts.map((x) => workoutRow(x, U)).join('')}</details>`).join('')}</div>
     <div class="card"><h2>Manage plan</h2>
-      <div class="btncol">${App.me?.coach_tools && App.me.ai_ok ? '<a class="ghost" href="/me/kit?review=plan">Ask Kit to review upcoming workouts</a>' : ''}<a class="ghost" href="/plan?new=1">Change race, level or days</a>
+      <div class="btncol">${aiCan('coach') ? '<a class="ghost" href="/me/kit?from=plan">Ask Kit to review upcoming workouts</a>' : ''}<a class="ghost" href="/plan?new=1">Change race, level or days</a>
       <button class="ghost" id="pl-restart">Restart from week 1</button>
       <button class="ghost danger" id="pl-end">End plan</button></div>
       <p class="small muted">Changing or restarting builds a new schedule; your recorded runs are always kept.</p></div>`;
