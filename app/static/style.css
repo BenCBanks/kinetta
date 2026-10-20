@@ -1714,8 +1714,6 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 
 .connections-shortcuts > a > svg { width:24px; height:24px; flex:none; }
 
-.me-heading .kit-help { width:44px; padding:0; justify-content:center; }
-.me-heading .kit-help::after { display:none; }
 
 #quick-weight button { font-size:1rem; }
 #quick-weight input { font-size:max(16px,1rem); }
