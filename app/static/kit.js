@@ -139,15 +139,18 @@ const KitChat = (() => {
           const data=await api('/api/coach/conversation/memory');if(!valid())return;
           box.innerHTML=`<p>Kit can keep short statements you share about your preferences, goals and routines, in your own words. It keeps up to twelve for six months. Current records and what you say now take priority.</p><label class="check"><input type="checkbox" id="kit-memory-on" ${data.enabled?'checked':''}>Remember useful details</label><p class="small muted">Turning this off also removes saved memories. Removing a memory stops its use in future chats; messages in your current chat stay until you leave.</p><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<article class="card"><p>${esc(m.text)}</p><button type="button" class="linkbtn danger" data-kit-forget="${m.id}">Forget this</button></article>`).join(''):'<p class="muted">No saved memories yet.</p>'}</div>${data.memories.length?'<button type="button" class="ghost wide danger" id="kit-forget-all">Forget all memories</button>':''}<p class="err" id="kit-memory-error" role="alert"></p>`;
           $('#kit-memory-on',box).onchange=async e=>{
+            if(!valid())return;
             const enabled=e.target.checked;
             if(!enabled&&!confirm('Turn off memory and remove everything Kit remembers? Your records stay saved.')){e.target.checked=true;return;}
             e.target.disabled=true;
             try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;e.target.checked=!enabled;e.target.disabled=false;}}
           };
           $$('[data-kit-forget]',box).forEach(button=>button.onclick=async()=>{
+            if(!valid())return;
             button.disabled=true;try{await api('/api/coach/conversation/memory/'+button.dataset.kitForget,{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;button.disabled=false;}}
           });
           const all=$('#kit-forget-all',box);if(all)all.onclick=async()=>{
+            if(!valid())return;
             if(!confirm('Forget all saved Kit memories? Your records and current chat stay saved.'))return;
             all.disabled=true;try{await api('/api/coach/conversation/memory',{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;all.disabled=false;}}
           };
@@ -208,7 +211,7 @@ const KitChat = (() => {
     const link=document.createElement('a');link.className='icon-btn kit-help';link.href=href(screen);link.setAttribute('aria-label','Ask Kit');link.innerHTML=svg('sparkle');
     (heading.querySelector('.acts')||heading).append(link);
   }
-  return {mount,href,open,entry,eraseDevice,starters,actions};
+  return {mount,href,open,entry,eraseDevice,starters,actions,memorySettings};
 })();
 route(/^\/me\/kit$/,()=>({nutrition:'food',activity:'activity',progress:'progress',track:'track',strength:'track'}[new URLSearchParams(location.search).get('from')]||'me'),el=>KitChat.mount(el));
 function kitReview(selection, options = {}) {

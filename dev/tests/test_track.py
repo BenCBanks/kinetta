@@ -67,4 +67,4 @@ try:
 finally:
     admin = login(*ALEX)
     for name in ('zz_test_track_owner', 'zz_test_track_viewer'):
-        admin.post(f'/api/admin/people/{name}/remove', {'password': ALEX[1]})
+        admin.post(f'/api/admin/people/{name}/remove', {'confirm':name})

@@ -763,6 +763,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   };
   load('/api/blocks', drawBlocked, {maxAge: 0}).catch(() => {});
   const save = async (body, msg) => {
+    if(sharingOwner!==readOwner()||!box.isConnected)return;
     const controls=$$('button[data-vis],button[data-trim],#sh-d input',box);controls.forEach(b=>b.disabled=true);
     try {
       await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner()||!box.isConnected)return;
@@ -782,6 +783,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   wireSeg(box, 'trim', (m) => save({trim_m: +m}, m === '0' ? 'Maps show the whole route' : `Maps hide the first and last ${trimName(+m)}`));
   const f = $('#sh-d', box); f.onchange = () => save({details: readChecks(f)}, 'Saved');
   $('#sh-find', box).onchange = async (e) => {
+    if(sharingOwner!==readOwner()||!box.isConnected)return;
     const on = e.target.checked;
     try { await api('/api/sharing', json('PUT', {findable: on})); toast(on ? 'People can find you by name' : "You're hidden from friend search"); }
     catch (x) { e.target.checked = !on; toast(x.message); }
