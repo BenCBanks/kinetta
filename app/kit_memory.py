@@ -9,13 +9,19 @@ STATEMENT = re.compile(r"^(?:I(?: am |[’']m | prefer | avoid | eat | follow | 
 
 
 def remember(c, uid, question, health_included=False):
-    text = question.strip()
-    if len(text) > 400 or '?' in text or not STATEMENT.search(text):
-        return
-    if re.search(r"\b(?:remember|forget|ignore|instruction|system|maybe|might|perhaps|not sure)\b", text, re.I):
-        return
-    c.execute("""INSERT INTO kit_memories(user_id,text,health_included) VALUES (%s,%s,%s)
-      ON CONFLICT(user_id,text) DO UPDATE SET updated=now(),health_included=kit_memories.health_included OR excluded.health_included""", (uid,text,health_included))
+    # Retain a clear statement even when the next sentence asks a question:
+    # "I'm vegetarian. What could I eat?" keeps only "I'm vegetarian."
+    statements=[]
+    for part in re.split(r'(?<=[.!?])\s+|\n+',question):
+        text=part.strip()
+        if not text or len(text)>400 or '?' in text or not STATEMENT.search(text):continue
+        if re.search(r"\b(?:remember|forget|ignore|instruction|system|maybe|might|perhaps|not sure)\b",text,re.I):continue
+        statements.append(text)
+        if len(statements)==3:break
+    for text in statements:
+        c.execute("""INSERT INTO kit_memories(user_id,text,health_included) VALUES (%s,%s,%s)
+          ON CONFLICT(user_id,text) DO UPDATE SET updated=now(),health_included=kit_memories.health_included OR excluded.health_included""",(uid,text,health_included))
+
     c.execute("""DELETE FROM kit_memories WHERE user_id=%s AND id NOT IN
       (SELECT id FROM kit_memories WHERE user_id=%s ORDER BY updated DESC,id DESC LIMIT %s)""", (uid,uid,LIMIT))
 

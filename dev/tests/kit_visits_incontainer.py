@@ -41,12 +41,13 @@ try:
         first=visit();second=visit();foreign=visit(b)
         request(a,'POST','/visits',{'visit_id':first['visit_id']}) # lost start acknowledgement is idempotent
         request(b,'POST','/visits',{'visit_id':first['visit_id']},409)
-        message=ask(first,'I prefer vegetarian meals.')
+        message=ask(first,'I prefer vegetarian meals. What could I eat tonight?')
         assert len(request(a,'GET','?visit_id='+first['visit_id'])['messages'])==1
         assert not request(a,'GET','?visit_id='+second['visit_id'])['messages']
         assert not request(b,'GET','?visit_id='+foreign['visit_id'])['messages']
         request(b,'GET','?visit_id='+first['visit_id'],status=409)
         memory=request(a,'GET','/memory');assert memory['memories'][0]['text']=='I prefer vegetarian meals.'
+        assert 'What could' not in memory['memories'][0]['text'],'question is not a saved preference'
         assert not request(b,'GET','/memory')['memories']
         ask(second,'What should I focus on?')
         assert 'I prefer vegetarian meals.' in seen[-1][1] and not seen[-1][2]['history'],'new visit has saved context, not the prior transcript'
