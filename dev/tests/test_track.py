@@ -47,7 +47,12 @@ try:
     request(owner,'POST','/api/activities/track',dict(body,visibility='me'))
     assert request(owner,'GET',f'/api/activities/{aid}')['visibility']=='everyone'
     request(owner,'PUT','/api/sharing',{'default':'friends'})
-    friends=request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4())))
+    # A stale displayed default cannot silently republish a private/friends-only workout.
+    changed_default=request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4()),expected_sharing_default='everyone'),expected=409)
+    assert changed_default['detail']['code']=='sharing_changed' and changed_default['detail']['sharing_default']=='friends'
+    friends=request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4()),expected_sharing_default='friends'))
+    # A lost acknowledgement remains idempotent even when the default later changes.
+    assert request(owner,'POST','/api/activities/track',dict(body,expected_sharing_default='me'))=={'id':aid,'duplicate':True}
     assert request(owner,'GET',f"/api/activities/{friends['id']}")['visibility']=='friends'
     request(viewer,'GET',f"/api/shared/{friends['id']}",expected=404)
     # Same recording id on another account must neither expose nor mutate the first account's record.

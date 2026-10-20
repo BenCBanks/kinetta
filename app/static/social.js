@@ -766,11 +766,11 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
     const controls=$$('button[data-vis],button[data-trim],#sh-d input',box);controls.forEach(b=>b.disabled=true);
     try {
-      await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner()||!box.isConnected)return;
+      await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner())return;
       if(body.default){s.default=body.default;App.me.share_default=body.default;keep('/api/me',App.me);}
       if(body.trim_m!==undefined)s.trim_m=body.trim_m;
       if(body.details)s.details=body.details;
-      invalidate('/api/');toast(msg);
+      invalidate('/api/');if(box.isConnected)toast(msg);
     }catch(x){
       if(sharingOwner===readOwner()&&box.isConnected){
         $$('[data-vis]',box).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.vis===s.default)));
