@@ -7,11 +7,13 @@ import copy
 import datetime as dt
 import hashlib
 import json
+import math
+import re
 import secrets
 from typing import Literal
 from uuid import UUID,uuid4,uuid5
 from fastapi import APIRouter,Depends,HTTPException,Response
-from pydantic import BaseModel,ConfigDict,Field,StrictBool
+from pydantic import BaseModel,ConfigDict,Field,StrictBool,field_validator
 from . import db,nutrients as N,api_dishes as D,api_food as F,food_thread as T
 from . import food_thread_compose as C,food_thread_log as E
 from .auth import current_user
@@ -43,6 +45,33 @@ class ConfirmIn(Strict):
     total_g:float|None=Field(None,gt=0,le=30000)
     whole:StrictBool=True
     portion:float|None=Field(None,gt=0,le=20000)
+    # Calories changed on the sheet, by food position ("0": 180). That food's other nutrients scale with it.
+    kcal:dict[str,float]|None=None
+
+    @field_validator('kcal')
+    @classmethod
+    def kcal_edits(cls,value):
+        if value is None:return value
+        if len(value)>60 or any(not re.fullmatch(r'\d{1,2}',k) or not math.isfinite(v) or not 0<=v<=5000 for k,v in value.items()):
+            raise ValueError('Enter calories between 0 and 5,000')
+        return value
+
+
+def edit_kcal(public,edits):
+    """Apply calorie edits from the sheet; the food's other nutrients scale by the same ratio when it had calories."""
+    if not edits:return public
+    foods=copy.deepcopy(public['foods'])
+    for key,kcal in edits.items():
+        i=int(key)
+        if i>=len(foods):raise HTTPException(422,'Choose a food on this review')
+        e=foods[i];old=e.get('kcal') or 0
+        ratio=kcal/old if old else None
+        for k in N.ALL:
+            if k=='kcal':e[k]=N.rounded('kcal',kcal)
+            elif ratio is not None and e.get(k) is not None:e[k]=N.rounded(k,e[k]*ratio)
+        e['ref']={**(e.get('ref') or {}),'origin_edited':True,'edited_from_kcal':old}
+    totals={k:N.rounded(k,sum(e[k] for e in foods)) if all(N.known(e,k) for e in foods) else None for k in N.ALL}
+    return {**public,'foods':foods,'totals':totals}
 
 
 def digest(value):
@@ -203,6 +232,7 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
             fresh={**r,**public,'signature':signature,'text':'Food details changed. Review the updated numbers before confirming.'}
             T.finish_reply(c,uid,m,fresh);response.status_code=409
             return {'changed':True,'detail':fresh['text'],'review':fresh,'id':mid}
+        public=edit_kcal(public,body.kcal)
         factor=1 if body.whole else body.portion/(body.servings if body.basis=='servings' else body.total_g)
         values={k:N.rounded(k,v*factor) if v is not None else None for k,v in public['totals'].items()}
         recipe_id=None;name=(body.name or '').strip() or public['names'];day=D._today(c,uid).date()

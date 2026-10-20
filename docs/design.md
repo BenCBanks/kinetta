@@ -973,3 +973,9 @@ didn't type. Assumed portions show as a muted line on the card until reviewed.
   “not sure”, the chat estimates. Clear foods (“banana”, “rice”, “2 eggs and toast”) are estimated straight away.
 - **Keyboard (iPhone app):** the WebView keeps its size and the chat shrinks by the announced keyboard height with
   the keyboard animation, so the text box rides up with the keyboard rather than after it.
+
+**Add to log sheet (20 October 2026, owner):** “Adding to <meal ⌄> today” at the top; each food with its amount and
+a tappable calorie number (a dashed box) that turns into a small number field in place, so calories can be corrected
+without another screen. The edited food’s other nutrients scale by the same ratio and the row says “Edited”. One total
+with smaller macros. A “Save as a recipe” switch reveals the recipe name, measure and “what I ate” options. One button
+that says what will happen (“Add to Snacks”, “Save recipe and add to Snacks”, “Save recipe”). The chat clears after.
