@@ -109,7 +109,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         history=[]
         health=coach.health_ok(c,uid)
         for old in reversed(prior):
-            if not health and any(t not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','goals','app_features'} for t in (old['answer'] or {}).get('tools_used',[])):continue
+            if not health and (old['answer'] or {}).get('health_included'):continue
             history.extend([{'role':'user','text':old['question']},{'role':'assistant','text':json.dumps(old['answer'],default=str)[:2500]}])
     answer=None;error=None
     try:
@@ -129,7 +129,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         if not coach.allowed(uid,connection=c) or not ai_release.enabled('kit'):
             answer=None;error='Kit access or consent changed. No answer was added.'
         # Consent can change while the last provider call is in flight. Do not save Health output after revocation.
-        if answer and any(t not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','goals','app_features'} for t in answer.get('tools_used',[])) and not coach.health_ok(c,uid):
+        if answer and answer.get('health_included') and not coach.health_ok(c,uid):
             answer=None;error=coach.HEALTH_NO
         if answer:
             answer={k:v for k,v in answer.items() if k not in {'usage','latency_ms'}}

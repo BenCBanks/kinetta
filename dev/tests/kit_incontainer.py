@@ -106,6 +106,24 @@ try:
  else:raise AssertionError('Health scope disclosed')
  with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(uid,))
  assert tools.call('activities',dates)['activities']
+ # Current profile evidence is preloaded once, identical lookups are cached and the final round must answer.
+ calls=[]
+ def bounded_turn(messages,definitions):
+  calls.append(bool(definitions))
+  if definitions:return [{'name':'profile','args':{},'id':'call-'+str(len(calls))}],'',{}
+  return [],json.dumps({'interpretation':'Use the saved target as context, not proof of what you ate.','facts':[{'evidence_id':'e1','path':['protein_target'],'value':120}]}),{}
+ with patch('app.coach.provider',return_value='gemini'):
+  verified=coach_chat.answer(uid,'Explain my saved protein target',kit=True,turn=bounded_turn)
+ assert calls==[True,True,True,True,False] and verified['facts'][0]['value']==120
+ assert not verified['health_included']
+ # A previously consented Health answer must not be included after permission is withdrawn.
+ with db.connect() as c:
+  c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(uid,))
+  c.execute("INSERT INTO kit_turns(user_id,client_id,generation,question,state,answer) VALUES (%s,%s,%s,'Sensitive earlier question','answered',%s)",(uid,uuid.uuid4(),generation,json.dumps({'interpretation':'Fictional sensitive detail','health_included':True,'tools_used':['activities']})))
+ with patch('app.coach.provider',return_value='gemini'),patch('app.ai_release.enabled',return_value=True),patch('app.coach_chat.answer',side_effect=response):
+  next_body=message('Please review my food today');req(a,'POST',root+'/messages',next_body);req(a,'POST',root+'/messages/'+next_body['client_id']+'/answer',{'generation':generation})
+  assert all('Fictional sensitive detail' not in h['text'] for h in seen[-1][2]['history'])
+ with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(uid,))
  # Conversation history and data export are personal; deletion cascades all Kit rows.
  import tempfile
  with tempfile.NamedTemporaryFile(suffix='.zip') as f:
