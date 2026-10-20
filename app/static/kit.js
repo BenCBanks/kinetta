@@ -14,7 +14,7 @@ const KitChat = (() => {
   let current,entryDraft;
   const owner=()=>App.me&&JSON.stringify([Native.base||location.origin,App.me.id]);
   const key=(o,k)=>'fit.kit.'+k+':'+o;
-  const active=c=>current===c&&c.el.isConnected&&c.owner===owner()&&c.session===readOwner();
+  const active=c=>current===c&&!c.closed&&c.el.isConnected&&c.owner===owner()&&c.session===readOwner();
   const save=(c,k,v)=>{localStorage.setItem(key(c.owner,k),JSON.stringify(v));};
   const status=(c,text)=>{if(active(c))$('#kit-status',c.el).textContent=text||'';};
   function href(screen='me',activityId=null,question=null){const q=new URLSearchParams({from:Object.hasOwn(screens,screen)?screen:'me'});if(activityId)q.set('activity',activityId);if(question)q.set('question',question.slice(0,1500));return '/me/kit?'+q;}
@@ -54,7 +54,7 @@ const KitChat = (() => {
     controls(c);c.view?.pin();
   }
   async function refresh(c,before=null){
-    const data=await api('/api/coach/conversation'+(before?'?before='+before:''));if(!active(c))return;
+    const data=await api('/api/coach/conversation?visit_id='+encodeURIComponent(c.visit_id)+(before?'&before='+before:''));if(!active(c))return;
     if(c.generation&&c.generation!==data.generation){if(c.job&&!$('#kit-text',c.el).value){$('#kit-text',c.el).value=c.job.question;try{save(c,'draft',c.job.question);}catch{}}c.messages=[];c.job=null;c.sending=false;c.answerErrors={};store.del(key(c.owner,'pending'));status(c,'This chat was cleared on another device. Your draft is kept.');}
     c.generation=data.generation;c.ready=data.ready;c.before=data.before;c.loaded=true;
     const rows=before?[...data.messages,...c.messages]:data.messages;
@@ -75,9 +75,9 @@ const KitChat = (() => {
   }
   const later=c=>{clearTimeout(c.timer);c.timer=setTimeout(()=>{if(active(c))refresh(c).catch(e=>status(c,e.message));},2500);};
   async function answer(c,id){
-    if(!active(c)||c.sending)return;c.answerErrors||={};delete c.answerErrors[id];c.sending=true;const generation=c.generation,valid=()=>active(c)&&c.generation===generation;controls(c);
+    if(!active(c)||c.sending)return;c.answerErrors||={};delete c.answerErrors[id];c.sending=true;const generation=c.generation,visit_id=c.visit_id,valid=()=>active(c)&&c.generation===generation&&c.visit_id===visit_id;controls(c);
     try{
-      const row=await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation}));if(!valid())return;
+      const row=await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation,visit_id}));if(!valid())return;
       if(row.cancelled){await refresh(c);return;}
       c.messages=c.messages.map(m=>String(m.client_id)===String(id)?row:m);draw(c);
       if(row.state==='running')later(c);else await refresh(c).catch(()=>status(c,'Your answer is saved. Return when online to refresh the full history.'));
@@ -85,7 +85,7 @@ const KitChat = (() => {
     finally{if(valid())c.sending=false;if(valid()){controls(c);if(c.messages.some(m=>m.state==='running'))later(c);}}
   }
   async function deliver(c){
-    if(!active(c)||c.sending||!c.job)return;c.sending=true;const generation=c.generation,valid=()=>active(c)&&c.generation===generation;c.jobError='';draw(c);
+    if(!active(c)||c.sending||!c.job)return;c.sending=true;const generation=c.generation,visit_id=c.visit_id,valid=()=>active(c)&&c.generation===generation&&c.visit_id===visit_id;c.jobError='';draw(c);
     try{
       const m=await api('/api/coach/conversation/messages',json('POST',c.job));if(!valid())return;
       c.messages=[...c.messages.filter(x=>x.client_id!==m.client_id),m].sort((a,b)=>a.id-b.id);
@@ -100,7 +100,7 @@ const KitChat = (() => {
     if(!c.ready){status(c,'Kit chat isn’t available yet. Your draft is kept.');return;}
     const question=(text??$('#kit-text',c.el).value).trim();if(!question)return;
     if(c.job){status(c,'Retry the saved question before sending another.');return;}
-    const job={client_id:newId(),generation:c.generation,question,context:c.context};
+    const job={client_id:newId(),generation:c.generation,visit_id:c.visit_id,question,context:c.context};
     try{save(c,'pending',job);c.job=job;await deliver(c);}catch(e){status(c,'This phone could not save your question. Keep it here and try again.');}
   }
   function savedReviews(){
@@ -113,30 +113,98 @@ const KitChat = (() => {
       });
     });
   }
+  function leave(c){
+    if(c.closed)return;
+    const field=$('#kit-text',c.el),waiting=c.job?.question||c.messages.findLast(m=>['pending','running'].includes(m.state))?.question;
+    if(!field?.value&&waiting)try{save(c,'draft',waiting);}catch{}
+    c.closed=true;clearTimeout(c.timer);store.del(key(c.owner,'pending'));
+    if(c.session===readOwner())api('/api/coach/conversation/visits/'+c.visit_id+'/end',{method:'POST',keepalive:true}).catch(()=>{});
+  }
+  async function begin(c){
+    c.closed=false;c.loaded=false;c.messages=[];c.job=null;c.sending=false;c.before=null;c.answerErrors={};c.visit_id=newId();
+    const visit=c.visit_id;draw(c);status(c,'Opening a fresh chat…');
+    const start=async()=>{
+      const data=await api('/api/coach/conversation/visits',json('POST',{visit_id:visit}));
+      if(!active(c)||c.visit_id!==visit)return;
+      c.generation=data.generation;status(c,'');await refresh(c);
+    };
+    try{await start();}catch(e){if(active(c)&&c.visit_id===visit){status(c,e.message);const retry=$('#kit-load-retry',c.el);retry.hidden=false;retry.onclick=async()=>{retry.hidden=true;try{await start();}catch(x){if(active(c)){status(c,x.message);retry.hidden=false;}}};}}
+  }
+  function memorySettings(){
+    const session=readOwner();
+    sheet('What Kit remembers','<div id="kit-memory"><p class="muted">Loading memory…</p></div>',body=>{
+      const box=$('#kit-memory',body),valid=()=>session===readOwner()&&body.isConnected;
+      const draw=async()=>{
+        try{
+          const data=await api('/api/coach/conversation/memory');if(!valid())return;
+          box.innerHTML=`<p>Kit can keep short statements you share about your preferences, goals and routines, in your own words. It keeps up to twelve for six months. Current records and what you say now take priority.</p><label class="check"><input type="checkbox" id="kit-memory-on" ${data.enabled?'checked':''}>Remember useful details</label><p class="small muted">Turning this off also removes saved memories. Removing a memory stops its use in future chats; messages in your current chat stay until you leave.</p><div class="kit-memories">${data.memories.length?data.memories.map(m=>`<article class="card"><p>${esc(m.text)}</p><button type="button" class="linkbtn danger" data-kit-forget="${m.id}">Forget this</button></article>`).join(''):'<p class="muted">No saved memories yet.</p>'}</div>${data.memories.length?'<button type="button" class="ghost wide danger" id="kit-forget-all">Forget all memories</button>':''}<p class="err" id="kit-memory-error" role="alert"></p>`;
+          $('#kit-memory-on',box).onchange=async e=>{
+            const enabled=e.target.checked;
+            if(!enabled&&!confirm('Turn off memory and remove everything Kit remembers? Your records stay saved.')){e.target.checked=true;return;}
+            e.target.disabled=true;
+            try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;e.target.checked=!enabled;e.target.disabled=false;}}
+          };
+          $$('[data-kit-forget]',box).forEach(button=>button.onclick=async()=>{
+            button.disabled=true;try{await api('/api/coach/conversation/memory/'+button.dataset.kitForget,{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;button.disabled=false;}}
+          });
+          const all=$('#kit-forget-all',box);if(all)all.onclick=async()=>{
+            if(!confirm('Forget all saved Kit memories? Your records and current chat stay saved.'))return;
+            all.disabled=true;try{await api('/api/coach/conversation/memory',{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;all.disabled=false;}}
+          };
+        }catch(e){if(valid())box.innerHTML=`<p class="err">${esc(e.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}
+      };draw();
+    });
+  }
   async function mount(el){
     const ctx=context(),back=screens[ctx.screen],c={el,context:ctx,owner:owner(),session:readOwner(),messages:[],loaded:false,sending:false};current=c;
     el.classList.add('food-thread','kit-chat');
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}">${svg('back')}${back[0]}</a><h1>Ask Kit</h1><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></header><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><section id="kit-intro"><div class="kit-mark" aria-hidden="true">${svg('sparkle')}</div><h2>What’s on your mind?</h2><p>Training, food, progress, or your next step. Let’s look at what works for you.</p><p class="small">Your messages, recent chat and relevant records go to ${esc(App.me.ai_provider||'your configured AI provider')}. Health sharing follows your connection permissions.</p><div class="kit-starters">${starters[ctx.screen].map(([label],i)=>`<button type="button" class="ghost" data-kit-start="${i}">${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}${svg('chev')}</button>`).join('')}</div></section><form id="kit-composer" class="thread-composer"><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div><p id="kit-status" role="status" aria-live="polite"></p></form>`;
-    const field=$('#kit-text',el);field.value=store.get(key(c.owner,'draft'))||(entryDraft?.owner===c.owner?entryDraft.question:null)||new URLSearchParams(location.search).get('question')?.slice(0,1500)||'';entryDraft=null;c.job=store.get(key(c.owner,'pending'));
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}">${svg('back')}${back[0]}</a><h1>Ask Kit</h1><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></header><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><section id="kit-intro"><div class="kit-mark" aria-hidden="true">${svg('sparkle')}</div><h2>A fresh start with Kit</h2><p>Your training and nutrition assistant. Ask about your progress, plan your next step, or get help using Kinetta.</p><p class="small">Each visit starts a new chat. Kit can remember useful details you share. <button type="button" class="linkbtn" id="kit-intro-memory">View and manage memory</button></p><p class="small muted">Your messages, saved memories and relevant records go to ${esc(App.me.ai_provider||'your configured AI provider')}. Health sharing follows your connection permissions.</p><div class="kit-starters">${starters[ctx.screen].map(([label],i)=>`<button type="button" class="ghost" data-kit-start="${i}">${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}${svg('chev')}</button>`).join('')}</div><button class="ghost wide" id="kit-load-retry" hidden>Try loading again</button></section><form id="kit-composer" class="thread-composer"><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div><p id="kit-status" role="status" aria-live="polite"></p></form>`;
+    const field=$('#kit-text',el),oldJob=store.get(key(c.owner,'pending'));
+    field.value=store.get(key(c.owner,'draft'))||(entryDraft?.owner===c.owner?entryDraft.question:null)||oldJob?.question||new URLSearchParams(location.search).get('question')?.slice(0,1500)||'';
+    entryDraft=null;store.del(key(c.owner,'pending'));
     const resize=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,140)+'px';};
     field.oninput=()=>{try{save(c,'draft',field.value);}catch(e){status(c,'Your draft could not be saved on this phone.');}resize();controls(c);};
     field.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send(c);}};
     $('#kit-composer',el).onsubmit=e=>{e.preventDefault();send(c);};
     $$('[data-kit-start]',el).forEach(b=>b.onclick=()=>send(c,questionFor(c,+b.dataset.kitStart)));
+    $('#kit-intro-memory',el).onclick=memorySettings;
     $('#kit-older',el).onclick=async()=>{const list=$('#thread-messages',el),h=list.scrollHeight,y=list.scrollTop;try{await refresh(c,c.before);list.scrollTop=y+list.scrollHeight-h;}catch(e){status(c,e.message);}};
-    $('#kit-settings',el).onclick=()=>sheet('Kit chat',`<p>One private conversation across Kinetta. Kit checks your own records when needed. Apple Health sharing follows your connection permissions.</p><a class="linkbtn wide" href="/me#ai">Kit & data permissions</a><button type="button" class="linkbtn wide" id="kit-saved">Earlier Kit reviews</button><button type="button" class="ghost wide danger" id="kit-clear">Clear chat</button><p class="small muted">Clears Kit’s conversation on all your devices. Your food log, workouts, plans and goals stay saved.</p>`,(body,close)=>{$('#kit-saved',body).onclick=()=>{close();savedReviews();};$('#kit-clear',body).onclick=()=>{close();sheet('Clear Kit chat?','<p>Your records stay saved. This conversation will be removed on all your devices.</p><button type="button" class="primary wide danger" id="kit-clear-confirm">Clear chat</button>',(body,dismiss)=>{$('#kit-clear-confirm',body).onclick=async e=>{e.target.disabled=true;try{const data=await api('/api/coach/conversation/clear',json('POST',{generation:c.generation,confirmed:true}));if(!active(c))return;clearTimeout(c.timer);c.generation=data.generation;c.sending=false;c.answerErrors={};c.messages=[];c.job=null;c.jobError='';store.del(key(c.owner,'pending'));store.del(key(c.owner,'draft'));field.value='';dismiss();status(c,'');draw(c);}catch(x){if(active(c)){status(c,x.message);e.target.disabled=false;}}};});};});
+    $('#kit-settings',el).onclick=()=>sheet('Kit chat',`<p>Chats start fresh when you leave. Kit checks your own records when needed and can keep useful details you share.</p><button type="button" class="linkbtn wide" id="kit-memory-open">What Kit remembers</button><a class="linkbtn wide" href="/me#ai">Kit & data permissions</a><button type="button" class="linkbtn wide" id="kit-saved">Earlier Kit reviews</button><button type="button" class="ghost wide" id="kit-clear">Start a new chat</button><p class="small muted">Your food, workouts, plans, goals and saved memories stay available.</p>`,(body,close)=>{
+      $('#kit-memory-open',body).onclick=()=>{close();memorySettings();};
+      $('#kit-saved',body).onclick=()=>{close();savedReviews();};
+      $('#kit-clear',body).onclick=async e=>{
+        if(!active(c)||!c.loaded)return;e.target.disabled=true;
+        const previousVisit=c.visit_id;
+        try{const data=await api('/api/coach/conversation/clear',json('POST',{generation:c.generation,visit_id:previousVisit,confirmed:true}));if(!active(c)||c.visit_id!==previousVisit)return;clearTimeout(c.timer);c.visit_id=data.visit_id;c.generation=data.generation;c.sending=false;c.answerErrors={};c.messages=[];c.before=null;c.job=null;c.jobError='';store.del(key(c.owner,'pending'));store.del(key(c.owner,'draft'));field.value='';close();status(c,'');draw(c);}catch(x){if(active(c)){status(c,x.message);e.target.disabled=false;}}
+      };
+    });
     c.view=foodChatViewport({list:$('#thread-messages',el),composer:$('#kit-composer',el),field,send:$('#kit-send',el),active:()=>active(c)});
-    const events=new AbortController();document.addEventListener('visibilitychange',()=>{if(!document.hidden&&active(c))refresh(c).catch(e=>status(c,e.message));},{signal:events.signal});
-    viewResources.set(el,()=>{clearTimeout(c.timer);events.abort();c.view.dispose();});
-    controls(c);resize();
-    try{await refresh(c);if(active(c)&&c.job){c.jobError='A saved question is ready to retry.';draw(c);}}catch(e){status(c,e.message);$('#kit-intro',el).insertAdjacentHTML('beforeend','<button class="ghost wide" id="kit-load-retry">Try loading again</button>');$('#kit-load-retry',el).onclick=()=>refresh(c).catch(x=>status(c,x.message));}
+    const events=new AbortController();
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden){leave(c);return;}
+      if(current===c&&c.el.isConnected&&c.owner===owner()&&c.session===readOwner()){
+        if(c.closed){field.value=store.get(key(c.owner,'draft'))||field.value;resize();begin(c);}else refresh(c).catch(e=>status(c,e.message));
+      }
+    },{signal:events.signal});
+    window.addEventListener('pagehide',()=>leave(c),{signal:events.signal});
+    window.addEventListener('pageshow',()=>{if(current===c&&c.closed&&c.el.isConnected&&c.session===readOwner())begin(c);},{signal:events.signal});
+    viewResources.set(el,()=>{leave(c);events.abort();c.view.dispose();});
+    controls(c);resize();await begin(c);
     if(active(c))c.view.pin(true);
   }
   function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
   function entry(el,path){
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
-    if(!screen||!kitChatOn()||el.querySelector('.kit-help'))return;
+    if(!screen||!kitChatOn())return;
     const heading=el.querySelector('.top');if(!heading)return;
+    if(path==='/me'){
+      if(el.querySelector('.kit-invitation'))return;
+      heading.querySelector('.kit-help')?.remove();
+      const link=document.createElement('a');link.className='kit-invitation';link.href=href('me');
+      link.innerHTML=`<span class="kit-invitation-mark" aria-hidden="true">${svg('sparkle')}</span><span><b>Ask Kit</b><small>Your training & nutrition assistant</small></span>${svg('chev')}`;
+      heading.after(link);return;
+    }
+    if(el.querySelector('.kit-help'))return;
     const link=document.createElement('a');link.className='icon-btn kit-help';link.href=href(screen);link.setAttribute('aria-label','Ask Kit');link.innerHTML=svg('sparkle');
     (heading.querySelector('.acts')||heading).append(link);
   }

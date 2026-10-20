@@ -216,7 +216,7 @@ async function homeFeed(el) {
   // A fresh cached feed already contains the current cards/maps. Avoid fetching and rebuilding it.
   const fresh = hit && Date.now() - hit.at < 15000;
   try { if (!fresh) { const pg = await feedPage(); if (account !== readOwner() || epoch !== readEpoch('feed:home')) return; App.cache.set('feed:home', {data: pg, at: Date.now()}); keep('feed:home', pg); if (list.isConnected && (!hit || JSON.stringify(hit.data) !== JSON.stringify(pg))) draw(pg); } }
-  catch (x) { if (!hit) throw x; }
+  catch (x) { if (!hit) throw x; if(typeof PageRefresh!=='undefined')PageRefresh.failed(x); }
   more.onclick = async () => {
     more.disabled = true; more.textContent = 'Loading…';
     try {
@@ -612,7 +612,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
       <input type="search" name="q" placeholder="Name or @username" aria-label="Search people" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
     <p class="small muted people-search-help">Find someone on Kinetta, or <button type="button" class="linkbtn" id="fr-browse">browse people</button>.</p>
     <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-lists">${skel(1)}</div>
-    <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Who sees new activities, and which details</small></span><span class="chev">${svg('chev')}</span></a>`;
+    <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Default audience for new activities, and shared details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
   const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el);
   const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}<span class="btnrow tight">${btns}</span></div>`;
@@ -739,9 +739,10 @@ function reportSheet(p, what = {}, onBlocked) {
 route(/^\/me\/sharing$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Sharing</h1><div id="sh-body">${skel(2)}</div>`;
   wireBack(el, '/me');
-  const s = await api('/api/sharing'), box = $('#sh-body', el);
+  const sharingOwner=readOwner(),s = await api('/api/sharing'), box = $('#sh-body', el);
+  if(!el.isConnected)return;
   box.innerHTML = `<div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
-      <p class="small muted">Activities you already have keep their setting. You can change it on each activity.</p></div>
+      <p class="small muted">New accounts start with Everyone on Kinetta. Your saved choice applies to new activities; older activities keep their own setting. You can choose a different audience before saving a phone recording.</p></div>
     <div class="card"><h2>What others see</h2><form class="checks" id="sh-d">${detailChecks(s.details)}</form>
       <p class="small muted">Distance, time and the type of activity are always shown to the people who can see it. Splits and laps are shared only with pace. Private notes and Kit’s notes are never shared. You can choose differently on each activity.</p></div>
     <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
@@ -762,7 +763,20 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   };
   load('/api/blocks', drawBlocked, {maxAge: 0}).catch(() => {});
   const save = async (body, msg) => {
-    try { await api('/api/sharing', json('PUT', body)); invalidate('/api/'); toast(msg); } catch (x) { toast(x.message); }
+    const controls=$$('button[data-vis],button[data-trim],#sh-d input',box);controls.forEach(b=>b.disabled=true);
+    try {
+      await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner()||!box.isConnected)return;
+      if(body.default){s.default=body.default;App.me.share_default=body.default;keep('/api/me',App.me);}
+      if(body.trim_m!==undefined)s.trim_m=body.trim_m;
+      if(body.details)s.details=body.details;
+      invalidate('/api/');toast(msg);
+    }catch(x){
+      if(sharingOwner===readOwner()&&box.isConnected){
+        $$('[data-vis]',box).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.vis===s.default)));
+        $$('[data-trim]',box).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.trim===s.trim_m)));
+        $$('input',f).forEach(b=>b.checked=!!s.details[b.name]);toast(x.message);
+      }
+    }finally{if(sharingOwner===readOwner()&&box.isConnected)controls.forEach(b=>b.disabled=false);}
   };
   wireSeg(box, 'vis', (v) => save({default: v}, `New activities: ${VIS[v].toLowerCase()}`));
   wireSeg(box, 'trim', (m) => save({trim_m: +m}, m === '0' ? 'Maps show the whole route' : `Maps hide the first and last ${trimName(+m)}`));

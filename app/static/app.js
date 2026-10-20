@@ -31,13 +31,17 @@ function readOnce(path) {
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
   const owner = readOwner();
-  let r;
+  let r,body=null;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
   if (App.me && path !== '/api/me' && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
-  try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, headers: {...headers, ...Native.headers(), ...(opts.headers || {})}}); }
-  catch (e) { throw Object.assign(new Error("Can't reach Kinetta - check your connection."), {offline: true}); }
-  let body = null; try { body = await r.json(); } catch (e) { /* empty */ }
+  const timeout=!opts.signal&&(!opts.method||opts.method.toUpperCase()==='GET')?new AbortController():null;
+  const timer=timeout?setTimeout(()=>timeout.abort(),20000):null;
+  try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, ...(timeout?{signal:timeout.signal}:{}), headers: {...headers, ...Native.headers(), ...(opts.headers || {})}});
+    try{body=await r.json();}catch(e){if(timeout?.signal.aborted)throw e;}
+  }
+  catch (e) { throw Object.assign(new Error(timeout?.signal.aborted ? 'This is taking too long. Try refreshing again.' : "Can't reach Kinetta - check your connection."), timeout?.signal.aborted ? {status:504} : {offline:true}); }
+  finally { if(timer)clearTimeout(timer); }
   if (owner !== readOwner()) throw Object.assign(new Error('The account changed while this request was running. Please try again.'), {stale: true});
   if (!r.ok) {
     const d = body && body.detail;
@@ -64,7 +68,8 @@ async function load(path, render, {maxAge = 15000} = {}) {
   try { data = await readOnce(path); }
   catch (e) {
     if (owner !== readOwner() || epoch !== readEpoch(path)) return null;
-    if (!e.offline) throw e;
+    if(!e.offline){if(hit&&e.status>=500){if(typeof PageRefresh!=='undefined')PageRefresh.failed(e);return hit.data;}throw e;}
+    if(typeof PageRefresh!=='undefined')PageRefresh.failed(e);
     netState(true);
     if (hit) return hit.data;
     const k = kept(path); if (!k) throw e;
@@ -231,14 +236,15 @@ function netbar() {
 addEventListener('online', () => { netState(false); Q.flush().catch(e => toast(e.message)); });
 addEventListener('offline', () => netState(true));
 setInterval(() => { if (Q.mine().length) Q.flush().catch(e => toast(e.message)); }, 30000);
-function invalidateFeed() {
-  readEpochs.set('feed:home', readEpoch('feed:home') + 1); App.cache.delete('feed:home');
+function invalidateFeed({keepData=false}={}) {
+  readEpochs.set('feed:home', readEpoch('feed:home') + 1);
+  const hit=App.cache.get('feed:home');if(keepData&&hit)hit.at=0;else App.cache.delete('feed:home');
 }
-const invalidate = (prefix, {health=true}={}) => {
+const invalidate = (prefix, {health=true,keepData=false}={}) => {
   if(health && prefix.replace(/\/$/,'')==='/api/food') Native.queueNutritionSync?.();
-  if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) invalidateFeed();
+  if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) invalidateFeed({keepData});
   const paths = new Set([...App.cache.keys(), ...[...pendingReads.keys()].map((k) => JSON.parse(k)[1])]);
-  for (const p of paths) if (p.startsWith(prefix)) { readEpochs.set(p, readEpoch(p) + 1); App.cache.delete(p); }
+  for (const p of paths) if (p.startsWith(prefix)) { readEpochs.set(p, readEpoch(p) + 1); const hit=App.cache.get(p);if(keepData&&hit)hit.at=0;else App.cache.delete(p); }
   for (const k of pendingReads.keys()) if (JSON.parse(k)[1].startsWith(prefix)) pendingReads.delete(k);
   if(prefix.startsWith('/api/food')&&typeof CustomEvent!=='undefined')document.dispatchEvent(new CustomEvent('food:changed'));
 };
@@ -495,10 +501,17 @@ function render() {
   if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t)) el.classList.add('enter'); App.lastPath = location.pathname; }
   if (Native.syncPush) Native.syncPush();
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
-  Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
+  const targetY=App.scroll[key]||0;
+  let touched=false;const interactions=new AbortController();
+  for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
+  const result=page.fn(el,...m.slice(1));
+  if(typeof KitChat!=='undefined')KitChat.entry(el,path);
+  if(typeof PageRefresh!=='undefined')PageRefresh.mounted(el,path);
+  requestAnimationFrame(()=>{if(el.isConnected&&key===location.pathname+location.search&&!touched)window.scrollTo(0,targetY);});
+  return Promise.resolve(result).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
-    requestAnimationFrame(() => { if (el.isConnected && key === location.pathname + location.search) window.scrollTo(0, App.scroll[key] || 0); });
-    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    requestAnimationFrame(() => { if(el.isConnected&&key===location.pathname+location.search&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
+    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if(typeof PageRefresh!=='undefined')PageRefresh.mounted(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {
@@ -524,7 +537,12 @@ document.addEventListener('pointerdown', (e) => {
   const a = e.target.closest('[data-prefetch]'); if (a) prefetch(a.dataset.prefetch);
 }, {passive: true});
 window.addEventListener('popstate', render);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && App.me) Q.flush().catch(e => toast(e.message)); if (!document.hidden && App.me && navigator.onLine && Date.now() - (App.hiddenAt || 0) > 60000) { invalidate('/api/'); render(); } if (document.hidden) App.hiddenAt = Date.now(); });
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){App.hiddenAt=Date.now();return;}
+  if(!App.me)return;Q.flush().catch(e=>toast(e.message));
+  // Chats, recording and editors own their recovery. Never discard active work on app return.
+  if(navigator.onLine&&Date.now()-(App.hiddenAt||0)>60000&&typeof PageRefresh!=='undefined'&&PageRefresh.available())PageRefresh.run();
+});
 
 // ---------- skeleton ----------
 const skel = (n = 3) => Array.from({length: n}, () => '<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join('');
@@ -847,8 +865,8 @@ function aiError(btn, msg) {
 }
 // ---------- AI consent (2026-10-11): coach notes, weekly reviews and food photos send data to the AI service ----------
 const aiExplain = () => `<p>Kit is Kinetta’s AI assistant for training, nutrition and progress. Ask questions, review your records, estimate food, or prepare a plan or meal proposal that you review before confirming.</p>
-  <p class="small muted">Your question, recent Kit conversation and the relevant food, workout, strength, goal, recipe or body records are sent to ${esc(App.me.ai_provider || 'the configured AI provider')}. Kit reads selected records through private account tools; it does not receive your whole database or login credentials. Apple Health sharing follows your separate connection permissions.</p>
-  <p class="small muted">Kit conversations are saved privately across your devices. Clear chat removes the conversation while keeping your records. You can turn Kit off in Me and download or delete your account data under Your data.</p>`;
+  <p class="small muted">Your question, current chat, saved Kit memories and the relevant food, workout, strength, goal, recipe or body records are sent to ${esc(App.me.ai_provider || 'the configured AI provider')}. Kit reads selected records through private account tools; it does not receive your whole database or login credentials. Apple Health sharing follows your separate connection permissions.</p>
+  <p class="small muted">Kit starts a fresh chat when you leave. It can remember useful statements you share about preferences, goals and routines. View, remove or turn off memory in Kit’s chat settings. Your food, workouts and goals stay saved. You can turn Kit off in Me and download or delete your account data under Your data.</p>`;
 function aiSheet(after) {   // ask once; after() runs when they turn it on
   sheet('Turn on Kit?', `<div class="form">${aiExplain()}<div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
     $('#ai-no', b).onclick = close;
@@ -909,6 +927,8 @@ function showNewAccount({title, intro, button, send}) {
     <p class="small muted">What you'll type to log in: lowercase letters, numbers or _.</p>
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
     <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
+    <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone on Kinetta</option><option value="friends">Approved friends</option><option value="me">Only me</option></select></label>
+    <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
@@ -923,7 +943,7 @@ function showNewAccount({title, intro, button, send}) {
     if (!f.name.value.trim() || !f.login.value.trim()) { err.textContent = 'Enter your name and a username.'; return; }
     if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; f.password.focus(); return; }
     b.disabled = true; err.textContent = '';
-    try { await send({name: f.name.value, login: f.login.value.trim().toLowerCase(), password: f.password.value, ...phoneDefaults()}); history.replaceState(null, '', '/me'); await start(); }
+    try { await send({name: f.name.value, login: f.login.value.trim().toLowerCase(), password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults()}); history.replaceState(null, '', '/me'); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }
@@ -936,7 +956,7 @@ async function showJoin(token) {
     return;
   }
   showNewAccount({title: 'Join Kinetta', button: 'Create my account',
-    intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Your activities and food log are private to you.`,
+    intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
 // "Join the beta" (public waitlist, only when the server has KINETTA_BETA_SIGNUP=1): no account yet, an admin invites them

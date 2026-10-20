@@ -108,7 +108,7 @@ draft reload or an offline delay. If that card disappeared, choose one of your
 logged foods. A changed held preview refreshes its numbers and asks you to tap Log
 again; it does not save changed numbers in the first tap.
 
-Ask Kit opens the same ongoing conversation from Nutrition or another tab. Empty chats offer relevant starting questions; after the first turn they use Add food’s familiar conversation layout. Kit can look up relevant own nutrition, training and progress records through fixed tools, with Health sharing controlled by existing permissions. Suggested changes need review and confirmation; opening the chat never calls a model. See [the Kit decision record](kit-assistant.md) for conversation storage, Clear chat, privacy and the separate reviewed release gate.
+Ask Kit opens a fresh private chat each visit from Nutrition or another tab, with manageable saved memory of useful user statements. Empty chats offer relevant starting questions; after the first turn they use Add food’s familiar conversation layout. Kit can look up relevant own nutrition, training and progress records through fixed tools, with Health sharing controlled by existing permissions. Suggested changes need review and confirmation; opening the chat never calls a model. See [the Kit decision record](kit-assistant.md) for conversation storage, Clear chat, privacy and the separate reviewed release gate.
 
 Evening food summaries and their settings/shortcut were retired on 20 October 2026. No new summary or optional daily Kit note is generated. Older notes stay readable and exportable. Nutrition insights now start from the Kit icon on Nutrition.
 

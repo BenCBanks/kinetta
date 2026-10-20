@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 function client(storage=new Map()) {
- const c={document:{querySelector:()=>null,addEventListener(){}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{origin:'https://fictional.invalid'},Native:{base:'',token:'fictional-never-store',headers:()=>({})},navigator:{onLine:true},addEventListener(){},setInterval(){},console,URLSearchParams,FormData,crypto:{randomUUID:require('node:crypto').randomUUID}};
+ const c={document:{querySelector:()=>null,addEventListener(){}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{origin:'https://fictional.invalid'},Native:{base:'',token:'fictional-never-store',headers:()=>({})},navigator:{onLine:true},addEventListener(){},setInterval(){},console,URLSearchParams,FormData,AbortController,setTimeout,clearTimeout,crypto:{randomUUID:require('node:crypto').randomUUID}};
  c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/app.js','utf8')+'\nglobalThis.ui={App,Q,sendOrQueue,api,keep,kept};',c);
  c.ui.App.me={id:1,login:'zz_test_one'};c.netbar=()=>{};c.netState=()=>{};c.toast=()=>{};c.render=()=>{};return c;
 }

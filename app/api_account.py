@@ -184,6 +184,7 @@ class NewAccountIn(BaseModel):
     password: str = Field(min_length=8, max_length=200)
     tz: str | None = Field(None, max_length=64)            # the phone's time zone (Intl API)
     units: str | None = Field(None, pattern='^(imperial|metric)$')
+    share_default: str = Field('everyone', pattern='^(me|friends|everyone)$')
 
 
 def _create(c, body, is_admin=False):
@@ -197,7 +198,7 @@ def _create(c, body, is_admin=False):
                             (login, name, auth.hash_pw(body.password), is_admin)).fetchone()['id']
     except errors.UniqueViolation:
         raise HTTPException(409, 'That username is taken')
-    c.execute('INSERT INTO profile (user_id, tz, units) VALUES (%s, %s, %s)', (uid, tz, body.units or 'imperial'))
+    c.execute('INSERT INTO profile (user_id, tz, units, share_default) VALUES (%s, %s, %s, %s)', (uid, tz, body.units or 'imperial',body.share_default))
     return uid
 
 

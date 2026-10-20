@@ -37,7 +37,7 @@ def kit_fingerprint():
     """Kit has its own reviewed scope; unrelated food-photo models do not select its release."""
     from . import coach
     root=Path(__file__).parent
-    names=['kit_thread.py','kit_tools.py','coach_chat.py','coach_tools.py','coach_proposals.py','coach.py','ai_access.py','ai_budget.py']
+    names=['kit_thread.py','kit_memory.py','kit_tools.py','coach_chat.py','coach_tools.py','coach_proposals.py','coach.py','ai_access.py','ai_budget.py']
     config={'files':{n:hashlib.sha256((root/n).read_bytes()).hexdigest() for n in names},
             'provider':coach.provider(),
             'model':os.environ.get('GEMINI_MODEL','gemini-3.8-flash') if coach.provider()=='gemini' else coach.MODEL}

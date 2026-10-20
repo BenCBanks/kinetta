@@ -164,7 +164,7 @@ See [Recording activities](docs/activity-tracking.md).
   stay unknown, and delayed corrections remember their original food context
   (#122 D).
 
-- **Shared Kit assistant (release gated):** one private ongoing chat across training, nutrition, strength, goals and progress, with contextual starting prompts, relevant own-record lookups, verified numeric evidence, explicit review/confirmation for changes, Retry and Clear chat. Requires AI access/consent and a matching separately reviewed Kit report. Existing food-chat answers and reviews remain readable.
+- **Shared Kit assistant (release gated):** one assistant across training, nutrition, strength, goals and progress, with a fresh chat each visit and manageable automatic memory of useful user statements, with contextual starting prompts, relevant own-record lookups, verified numeric evidence, explicit review/confirmation for changes, Retry and Start a new chat. Requires AI access/consent and a matching separately reviewed Kit report. Existing food-chat answers and reviews remain readable.
 
 - **Evening food summaries retired (20 October 2026):** the setting, shortcut and automatic generation are removed. Nutrition insights start through the Nutrition Kit icon. Historical notes remain readable/exportable.
 
@@ -223,3 +223,5 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 - **Keyboard and short food replies:** no extra app keyboard Done strip; tap background/message text or swipe down to dismiss, with field/control/selection/map exclusions. Bare unresolved taco descriptions ask type/count and preserve either-order replies and the original meal/day without guessing a serving.
 
 - Food entry uses one conversation and capture flow. Foods stay in an unfinished draft until final review, where an optional save-as-recipe checkbox, explicit meal and portion support saving, logging or both with one retry-safe confirmation. Manual foods retain their names, source and unknown nutrients as recipe ingredients; serving yield and cooked weight stay separate from the amount eaten. Visible meal logs refresh after completed writes, including late chat acknowledgements. Short unknown descriptions ask for missing amounts/type before lookup; ingredient estimates preserve supplied weights and ambiguous edits ask which ingredient.
+
+- **Refresh and sharing:** pull-to-refresh and Refresh page on the main read-only tabs, retained cached content during refresh, protected active chats/forms on app return. New accounts default to Everyone on Kinetta with a signup choice; existing privacy choices remain. Phone recordings show their audience before Save.

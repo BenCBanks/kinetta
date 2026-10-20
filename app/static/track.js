@@ -59,8 +59,8 @@ const Track = (() => {
     if (!incoming) { if (session?.native) { session = null; store.del(key); } return; }
     const same = session?.id === incoming.id;
     const points = same && incoming.pointOffset === session.points.length ? [...session.points, ...incoming.points] : incoming.points;
-    const name = same ? session.name : null;
-    session = {...incoming, points}; if (name) session.name = name;
+    const name = same ? session.name : null,visibility=same?session.visibility:null;
+    session = {...incoming, points}; if (name) session.name = name;if(visibility)session.visibility=visibility;
     message = result.message || ''; persist(); update(); refreshMap();
   }
   async function pullNative() {
@@ -147,7 +147,7 @@ const Track = (() => {
       <p id="track-status" class="small muted" role="status"></p>
       <div class="track-live-metrics">${session.gps ? `<div><small>Distance · ${U.du()}</small><b class="num" id="track-distance"></b></div>` : ''}<div><small>Active time</small><b class="num" id="track-time"></b></div>${session.gps ? `<div><small>${session.sport === 'ride' ? 'Avg. speed · ' + U.du() + '/h' : 'Avg. pace · /' + U.du()}</small><b class="num" id="track-pace"></b></div>` : ''}</div>
       ${session.gps && display === 'map' ? '<div class="track-map live-record-map" id="track-map"></div>' : ''}
-      ${review ? `<form class="form" id="track-save-form"><label>Activity name<input name="activity_name" value="${esc(session.name || session.label)}" maxlength="200" required></label><p class="small muted">Private by default. You can change sharing after saving.</p>${session.points.some((p) => p.segment !== session.points[0]?.segment) ? '<p class="small muted">Your activity map keeps every recorded section. Shared previews show the longest continuous section.</p>' : ''}<button class="primary wide" id="track-save"${saving ? ' disabled' : ''}>${saving ? 'Saving…' : 'Save activity'}</button><p class="small danger" id="track-save-error" role="alert"></p></form><button class="ghost wide" id="track-continue"${saving ? ' disabled' : ''}>Continue recording</button>` : `<div class="track-actions ${paused ? '' : 'recording-actions'}"><button class="${paused ? 'ghost' : 'primary'}" id="track-pause">${paused ? 'Resume' : 'Pause'}</button>${paused ? '<button class="primary" id="track-finish">Finish</button>' : ''}</div><p class="small muted">${session.native ? 'Recording continues with the screen locked or another app open.' : 'Browser recording pauses when you leave this page. Use the iPhone app for background GPS.'}</p>${paused && session.gps && !session.native ? '<button class="ghost wide" id="track-timer">Continue without GPS</button>' : ''}`}
+      ${review ? `<form class="form" id="track-save-form"><label>Activity name<input name="activity_name" value="${esc(session.name || session.label)}" maxlength="200" required></label><label>Who can see this activity<select name="visibility">${Object.entries({me:'Only me',friends:'Approved friends',everyone:'Everyone on Kinetta'}).map(([value,label])=>`<option value="${value}"${value===(session.visibility||App.me.share_default||'everyone')?' selected':''}>${label}</option>`).join('')}</select></label><p class="small muted">Shared maps hide the start and end using your privacy settings.</p>${session.points.some((p) => p.segment !== session.points[0]?.segment) ? '<p class="small muted">Your activity map keeps every recorded section. Shared previews show the longest continuous section.</p>' : ''}<button class="primary wide" id="track-save"${saving ? ' disabled' : ''}>${saving ? 'Saving…' : 'Save activity'}</button><p class="small danger" id="track-save-error" role="alert"></p></form><button class="ghost wide" id="track-continue"${saving ? ' disabled' : ''}>Continue recording</button>` : `<div class="track-actions ${paused ? '' : 'recording-actions'}"><button class="${paused ? 'ghost' : 'primary'}" id="track-pause">${paused ? 'Resume' : 'Pause'}</button>${paused ? '<button class="primary" id="track-finish">Finish</button>' : ''}</div><p class="small muted">${session.native ? 'Recording continues with the screen locked or another app open.' : 'Browser recording pauses when you leave this page. Use the iPhone app for background GPS.'}</p>${paused && session.gps && !session.native ? '<button class="ghost wide" id="track-timer">Continue without GPS</button>' : ''}`}
       <button class="linkbtn danger track-discard" id="track-discard"${saving ? ' disabled' : ''}>Discard recording</button></section>`;
     $$('[data-display]', el).forEach((b) => b.onclick = () => { display = b.dataset.display; draw(); });
     update(); if (session.gps) refreshMap();
@@ -160,14 +160,15 @@ const Track = (() => {
       $('#track-continue').onclick = () => { session.state = 'paused'; resume(); };
       form.onsubmit = async (e) => {
         e.preventDefault(); if (saving) return; const name = form.elements.namedItem('activity_name').value.trim(); if (!name) { form.elements.namedItem('activity_name').setCustomValidity('Add an activity name'); form.elements.namedItem('activity_name').reportValidity(); return; } form.elements.namedItem('activity_name').setCustomValidity('');
-        session.name = name; persist(); saving = true; const active = session, k = key;
-        const payload = {client_id: session.id, sport: session.sport, sport_label: session.sportLabel || null, name, start: new Date(session.start).toISOString(), elapsed_s: (session.finishedAt - session.start) / 1000, moving_s: TrackMath.seconds(session), points: session.points};
+        session.name = name;session.visibility=form.elements.namedItem('visibility').value; persist(); saving = true; const active = session, k = key;
+        const payload = {visibility:session.visibility,client_id: session.id, sport: session.sport, sport_label: session.sportLabel || null, name, start: new Date(session.start).toISOString(), elapsed_s: (session.finishedAt - session.start) / 1000, moving_s: TrackMath.seconds(session), points: session.points};
         draw();
         try { const result = await api('/api/activities/track', json('POST', payload)); if (session?.id !== active.id || key !== k) return; if (session.native) { nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});await TrackNative.call('clear', {id:session.id}); } store.del(k); session = null; invalidate('/api/'); toast('Activity saved'); if (location.pathname === '/track') go(`/track?done=${result.id}`, {replace:true}); else sync(); }
         catch (x) { if (session?.id === active.id && key === k) { draw(); const err = $('#track-save-error'); if (err) err.textContent = x.message + ' Your draft is kept. Retry when ready.'; } }
         finally { saving = false; if (session?.id === active.id && key === k) { const btn = $('#track-save'); if (btn) { btn.disabled = false; btn.textContent = 'Save activity'; } for (const id of ['track-continue', 'track-discard']) { const b = $('#' + id); if (b) b.disabled = false; } } }
       };
     }
+    const audience=$('#track-save-form select[name=visibility]');if(audience)audience.onchange=()=>{session.visibility=audience.value;persist();};
     $('#track-discard').onclick = discard;
   }
   const OUTDOOR = [['run','Run'],['run','Trail run','Trail Running'],['ride','Ride'],['ride','Mountain bike','Mountain Biking'],['walk','Walk'],['hike','Hike'],['swim','Open-water swim','Open Water'],['row','Row on water'],['ski','Ski'],['other','Other outdoor activity']];

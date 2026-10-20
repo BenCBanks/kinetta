@@ -15,7 +15,7 @@ const context={visibleClients:new Set(['visible-newer','late-upload-older']),mes
 assert.equal(c.latestContext(context),'visible-newer');context.jobs.push({id:'new-pending',at:'2026-10-16T17:00:00Z',phase:'process'});assert.equal(c.latestContext(context),'new-pending');
 console.log('food cards: changed nutrition suppresses stale feedback; held items are not edits; correction context follows capture time rather than late delivery PASS');
 
-const app=fs.readFileSync('app/static/app.js','utf8');c.Native={base:'',headers:()=>({})};c.App={me:{id:1}};c.FormData=FormData;c.fetch=async()=>({ok:false,status:409,json:async()=>({changed:true,messages:[]})});vm.runInContext(app.slice(app.indexOf('async function api('),app.indexOf('const json =')),c);
+const app=fs.readFileSync('app/static/app.js','utf8');c.Native={base:'',headers:()=>({})};c.App={me:{id:1}};c.FormData=FormData;c.AbortController=AbortController;c.setTimeout=setTimeout;c.clearTimeout=clearTimeout;c.fetch=async()=>({ok:false,status:409,json:async()=>({changed:true,messages:[]})});vm.runInContext(app.slice(app.indexOf('async function api('),app.indexOf('const json =')),c);
 (async()=>{await assert.rejects(c.api('/api/food/thread/messages/1/log'),e=>e.code==='preview_changed'&&e.message.includes('tap Log again'));await assert.rejects(c.api('/api/activities/1'),e=>!e.code&&e.message==='Error 409');console.log('changed food preview gets a clear second-tap message; other API errors retain their meaning PASS');})().catch(e=>{console.error(e);process.exitCode=1});
 
 assert.equal(c.changedNumbers({logged_totals:{kcal:200,protein_g:0},logged_unknown:['protein_g']},[{kcal:200,protein_g:0,ref:{unknown_nutrients:[]}}]),true,'providing a known zero changes the meaning of an unknown nutrient');
