@@ -11,6 +11,20 @@ struct HealthSyncState: Codable {
     var error: String?
     var needsLogin = false
     var backgroundDeliveryEnabled = false
+    // Optional for compatibility with records saved before unlock recovery existed.
+    var protectedDataPause: Bool?
+
+    mutating func pauseForProtectedData() {
+        protectedDataPause = true
+        error = nil
+    }
+
+    mutating func completeProtectedDataRetry(succeeded: Bool) {
+        if succeeded && pending.isEmpty {
+            protectedDataPause = nil
+            error = nil
+        }
+    }
 
     mutating func enqueue(_ ids: [String], anchor: Data?) {
         var known = Set(pending)

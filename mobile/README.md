@@ -70,3 +70,9 @@ The macOS workflow runs Foundation-only inbox contracts and unsigned builds. Phy
 ## Food Share storage foundation (#122 T2)
 
 `ShareFoodState`, `ShareFoodStore` and `ShareFoodKeychain` define private durable jobs and separate device-only credentials for a future Share extension. No Share action or runtime binding is enabled yet. macOS tests use fictional credentials and temporary files, never real Keychain/Health/network access. See [the food-sharing design](../docs/food-sharing.md).
+
+## Locked Health recovery and notification invitation
+
+The native workout engine records a temporary protected-data pause on `HKError.errorDatabaseInaccessible`, preserving its cursor and UUID queue. A protected-data availability listener, normal activation/Health wake and finite `BGAppRefreshTask` fallback retry it. The fallback is registered at launch and declared in Info.plist (`fetch` plus the permitted identifier); iOS scheduling and force-quit behavior still require physical testing. No new Health types or destinations are added.
+
+The bundled web pages offer a native-only, account-scoped notification invitation after an eligible home screen loads. Device preferences remember a30-day Not now delay and a two-ask maximum. Permission/registration use the existing bridge and authenticated push endpoint; denied permission offers the app's iPhone Settings page. External entries and busy interaction/Health/recording contexts remain quiet. See the detailed acceptance scenarios in [docs/ios.md](../docs/ios.md#protected-data-recovery-and-notification-invitation-acceptance). A new build is needed for the native recovery and these bundled page changes; no TestFlight upload is implied by CI.

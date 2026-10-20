@@ -7,7 +7,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const root = $('#app');
 const col = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';   // real colour for SVG attributes
-const App = {me: null, cache: new Map(), pages: [], scroll: {}};
+const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
 // A quick tap can prefetch and open the same page before either request finishes.
 const pendingReads = new Map();
 const readEpochs = new Map();
@@ -475,6 +475,7 @@ function quickWeighIn() {
 }
 function render() {
   if (!App.me) return;
+  App.pageReady = false;
   const path = location.pathname.replace(/\/+$/, '') || '/me';
   const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
   const m = path.match(page.re) || [], activeTab = typeof page.tab === 'function' ? page.tab(...m.slice(1)) : page.tab;
@@ -497,6 +498,7 @@ function render() {
   Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if (el.isConnected && key === location.pathname + location.search) window.scrollTo(0, App.scroll[key] || 0); });
+    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {

@@ -2214,3 +2214,8 @@ button.thread-food:active { opacity: .7; }
   padding: 0; border: 0; border-radius: 16px; box-shadow: none; }
 .switch-row input[type=checkbox]::after { top: 2px; left: 2px; width: 27px; height: 27px; }
 .switch-row input[type=checkbox]:checked::after { transform: translateX(20px); }
+
+/* Native notification invitation: one short sheet, existing theme and comfortable actions. */
+.push-invitation > p:first-child { margin-top: 0; }
+.push-invitation > button { min-height: 44px; justify-content: center; text-align: center; }
+.push-invitation > button + button { margin-top: 10px; }

@@ -73,6 +73,27 @@ const Native = (() => {
   let pushTask = null, pushEnableTask = null, pushAccount = null, pushAt = 0;
   const pushOwner = () => App.me && JSON.stringify([N.base, App.me.id]);
   N.pushSupported = !!push;
+  N.pushEntryBlocked = false;
+  N.pushNavigationReady = Promise.resolve();
+  N.readPushInvitation = async () => {
+    const account = pushOwner();
+    if (!account) return null;
+    const saved = await get('push.invitation.' + encodeURIComponent(account));
+    if (account !== pushOwner()) return null;
+    try { return JSON.parse(saved || 'null'); } catch { return null; }
+  };
+  N.writePushInvitation = async (choice, account) => {
+    if (!account || account !== pushOwner()) throw new Error('Account changed.');
+    await put('push.invitation.' + encodeURIComponent(account), JSON.stringify(choice));
+  };
+  N.openPushSettings = async ({enable = false} = {}) => {
+    const account = pushOwner(), token = N.token;
+    if (!push?.openSettings) throw new Error('Open iPhone Settings, then Kinetta → Notifications.');
+    if (enable && account) await put('push.wanted', account);
+    if (account !== pushOwner() || token !== N.token) throw new Error('Account changed.');
+    pushAt = 0;
+    await push.openSettings();
+  };
   N.pushStatus = async () => {
     if (!push) return {supported: false};
     const status = await push.status();
@@ -88,7 +109,9 @@ const Native = (() => {
     await put('push.owner', account); await put('push.wanted', account);
   };
   N.enablePush = () => pushEnableTask || (pushEnableTask = (async () => {
+    const account = pushOwner(), token = N.token;
     if (pushTask) await pushTask;
+    if (!account || account !== pushOwner() || token !== N.token) throw new Error('Notification registration stopped because the account changed.');
     pushTask = N.registerPush(true);
     try { await pushTask; } finally { pushTask = null; }
   })().finally(() => { pushEnableTask = null; }));
@@ -108,12 +131,14 @@ const Native = (() => {
   const openPush = async () => {
     if (!push || !App.me) return;
     const account = pushOwner();
-    const {url} = await push.takePending();
+    const {url, externalEntry} = await push.takePending();
+    if (account !== pushOwner()) return;
+    if (url || externalEntry) { N.pushEntryBlocked = true; window.dispatchEvent(new Event('kinetta:external-entry')); }
     if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people)|food\/cook\/\d+)$/.test(url)) go(url);
   };
   N.syncPush = () => {
     if (!push || !App.me || !N.token) return;
-    openPush().catch(() => {});
+    N.pushNavigationReady = openPush().catch(() => {});
     const account = pushOwner();
     if (pushTask || (pushAccount === account && Date.now() - pushAt < 60000)) return;
     pushAccount = account; pushAt = Date.now();
@@ -126,10 +151,12 @@ const Native = (() => {
   let badgeShown = null;
   N.setBadge = (n) => { if (!push || !push.setBadge || n === badgeShown) return; badgeShown = n; push.setBadge({count: n}).catch(() => { badgeShown = null; }); };
   if (push) {
-    push.addListener('notificationOpened', () => openPush().catch(() => {}));
+    const external = () => { N.pushEntryBlocked = true; window.dispatchEvent(new Event('kinetta:external-entry')); };
+    push.addListener('externalEntryOpened', external);
+    push.addListener('notificationOpened', () => { external(); N.pushNavigationReady = openPush().catch(() => {}); });
     const back = () => { N.syncPush(); if (typeof Social !== 'undefined') { Social.at = 0; Social.refresh(); } };
     window.addEventListener('focus', back);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) back(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) N.pushEntryBlocked = false; else back(); });
   }
 
   // ---------- Apple Health ----------
@@ -312,6 +339,8 @@ const Native = (() => {
   };
   N.bindFoodHealth=async context=>{context.guard();await N.healthCall(foodHealth.bind({owner:context.account}),'Unlock your phone and try Health sharing again.');context.guard();};
   N.connectFoodHealth=async (kind,{includeOlder=false}={})=>{
+    N.healthSetup = (N.healthSetup || 0) + 1;
+    try {
     N.healthPaused=false;
     if(!foodHealth||!['weight','nutrition'].includes(kind))throw new Error('Install the latest Kinetta iPhone build for Health weight and nutrition.');
     await N.flushHealthOff();
@@ -321,7 +350,8 @@ const Native = (() => {
     await put(foodHealthKey(kind),context.account);context.guard();
     App.me[kind==='weight'?'health_weight_read':'health_nutrition_write']=state.enabled;
     if(kind==='weight')App.me.health_weight_ai_ok=state.health_weight_ai_ok;
-    N.lastFoodHealth=0;if(N.foodHealthSyncing)await N.foodHealthSyncing.catch(()=>{});context.guard();return N.syncFoodHealth();
+    N.lastFoodHealth=0;if(N.foodHealthSyncing)await N.foodHealthSyncing.catch(()=>{});context.guard();return await N.syncFoodHealth();
+    } finally { N.healthSetup--; }
   };
   N.rememberHealthOff=async kinds=>{
     const account=owner();if(!account)return;
