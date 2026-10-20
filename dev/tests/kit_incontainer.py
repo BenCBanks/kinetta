@@ -38,10 +38,13 @@ try:
   assert req(b,'GET',root)['messages']==[]
   follow=message('What should I do about that?');req(a,'POST',root+'/messages',follow);req(a,'POST',root+'/messages/'+follow['client_id']+'/answer',{'generation':generation});assert seen[-1][2]['history'][0]['text']==body['question']
   assert seen[-1][2]['kit'] is True and len(seen[-1][2]['history'])==2
+  # A greeting is a valid message; Kit can reply and ask what the person wants. Blank text is still rejected.
+  req(a,'POST',root+'/messages',message('   '),422)
+  hi=message('Hi');assert req(a,'POST',root+'/messages',hi)['question']=='Hi';assert req(a,'POST',root+'/messages/'+hi['client_id']+'/answer',{'generation':generation})['state']=='answered' and seen[-1][1].endswith('Question: Hi')
   # Bounded history and pagination use the same account; no source identity can be supplied.
   with db.connect() as c:
    for n in range(55):c.execute("INSERT INTO kit_turns(user_id,client_id,generation,question,state,answer) VALUES (%s,%s,%s,%s,'answered',%s)",(uid,uuid.uuid4(),generation,'Earlier question '+str(n),json.dumps(result['answer'])))
-  page=req(a,'GET',root);assert len(page['messages'])==50 and page['before'];older=req(a,'GET',root+'?before='+str(page['before']));assert len(older['messages'])==7
+  page=req(a,'GET',root);assert len(page['messages'])==50 and page['before'];older=req(a,'GET',root+'?before='+str(page['before']));assert len(older['messages'])==8
   req(a,'POST',root+'/clear',{'generation':generation,'confirmed':'true'},422)
   new=req(a,'POST',root+'/clear',{'generation':generation,'confirmed':True});assert not new['messages'] and new['generation']!=generation
   req(a,'POST',root+'/messages',body,409);generation=new['generation']

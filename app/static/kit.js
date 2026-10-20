@@ -30,7 +30,7 @@ const KitChat = (() => {
   const questionFor=(c,i)=>c.context.screen==='activity'&&i===0&&!c.context.activity_id?'Review my latest own workout against my recent history. Use the workout date to find the latest one, rather than the upload order.':starters[c.context.screen][i]?.[1];
   function controls(c){
     const busy=c.sending||c.messages.some(m=>['pending','running'].includes(m.state));
-    $('#kit-send',c.el).disabled=!c.loaded||!c.ready||busy||!aiCan('coach')||$('#kit-text',c.el).value.trim().length<3;
+    $('#kit-send',c.el).disabled=!c.loaded||!c.ready||busy||!aiCan('coach')||!$('#kit-text',c.el).value.trim();
     $$('[data-kit-start]',c.el).forEach(b=>b.disabled=!c.loaded||!c.ready||busy||!aiCan('coach'));
   }
   function factLabel(f){
@@ -98,7 +98,7 @@ const KitChat = (() => {
   async function send(c,text){
     if(!active(c)||!c.loaded||c.sending)return;
     if(!c.ready){status(c,'Kit chat isn’t available yet. Your draft is kept.');return;}
-    const question=(text??$('#kit-text',c.el).value).trim();if(question.length<3)return;
+    const question=(text??$('#kit-text',c.el).value).trim();if(!question)return;
     if(c.job){status(c,'Retry the saved question before sending another.');return;}
     const job={client_id:newId(),generation:c.generation,question,context:c.context};
     try{save(c,'pending',job);c.job=job;await deliver(c);}catch(e){status(c,'This phone could not save your question. Keep it here and try again.');}

@@ -21,14 +21,14 @@ class Context(Empty):
 class MessageIn(Empty):
     client_id: UUID
     generation: UUID
-    question: str=Field(min_length=3,max_length=1500)
+    question: str=Field(min_length=1,max_length=1500)
     context: Context=Field(default_factory=Context)
 
     @field_validator('question')
     @classmethod
     def words(cls,v):
         v=v.strip()
-        if len(v)<3:raise ValueError('Please write a question')
+        if not v:raise ValueError('Please write a message')
         return v
 
 

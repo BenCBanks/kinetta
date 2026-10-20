@@ -1249,7 +1249,7 @@ MIGRATIONS = [
       id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       client_id uuid NOT NULL, generation uuid NOT NULL,
-      question text NOT NULL CHECK(length(question) BETWEEN 3 AND 1500),
+      question text NOT NULL CHECK(length(question) BETWEEN 1 AND 1500),
       context jsonb NOT NULL DEFAULT '{}',
       state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','running','answered','failed')),
       lease uuid, expires timestamptz, answer jsonb, error text,
