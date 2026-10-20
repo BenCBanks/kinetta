@@ -659,7 +659,7 @@ function savedSheet(m, w, closeParent, after) {
       if (!confirm(`Delete the saved meal ${m.name}?`)) return;
       try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Deleted'); after(); } catch (x) { toast(x.message); }
     };
-    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!aiCan('coach')){mealCoach(m);return;}close();closeParent();go(KitChat.href('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`));};
+    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!aiCan('coach')){mealCoach(m);return;}close();closeParent();KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
   });
 }
 function tQuick(body, where, close) {

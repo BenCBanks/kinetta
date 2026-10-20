@@ -11,13 +11,21 @@ const KitChat = (() => {
     plan:[['Review my upcoming week','Review my upcoming training using my current plan, recent load and permitted plan options.'],['Help me adjust my plan','Do any permitted plan adjustments fit my recent training? Show a proposal for review if useful.'],['Explain my training','Explain the purpose of my upcoming workouts and how they relate to my goal.']],
     strength:[['Review my strength work','Review my recorded completed strength sets. What progress can I verify?'],['Plan my next step','What should I consider for my next strength session given my records and goals?'],['Help me record sets','How do I record strength exercises and sets in Kinetta?']],
     track:[['Choose a workout','Given my current plan and recent training, what should I consider doing next?'],['Help me record','How do I record a workout or strength session in Kinetta?'],['Talk about exercise','Help me choose exercise that fits my goals. Ask me what you need to know.']]};
-  let current;
+  let current,entryDraft;
   const owner=()=>App.me&&JSON.stringify([Native.base||location.origin,App.me.id]);
   const key=(o,k)=>'fit.kit.'+k+':'+o;
   const active=c=>current===c&&c.el.isConnected&&c.owner===owner()&&c.session===readOwner();
   const save=(c,k,v)=>{localStorage.setItem(key(c.owner,k),JSON.stringify(v));};
   const status=(c,text)=>{if(active(c))$('#kit-status',c.el).textContent=text||'';};
   function href(screen='me',activityId=null,question=null){const q=new URLSearchParams({from:Object.hasOwn(screens,screen)?screen:'me'});if(activityId)q.set('activity',activityId);if(question)q.set('question',question.slice(0,1500));return '/me/kit?'+q;}
+  function open(screen='me',activityId=null,question=null){
+    const o=owner();
+    if(o&&question){
+      if(store.get(key(o,'draft')))toast('Your existing Kit draft is kept.');
+      else try{localStorage.setItem(key(o,'draft'),JSON.stringify(question.slice(0,1500)));}catch{entryDraft={owner:o,question:question.slice(0,1500)};}
+    }
+    go(href(screen,activityId));
+  }
   function context(){const q=new URLSearchParams(location.search),screen=Object.hasOwn(screens,q.get('from'))?q.get('from'):q.get('review')==='plan'?'plan':'me';const id=Number(q.get('activity'));return {screen,activity_id:Number.isSafeInteger(id)&&id>0?id:null};}
   const questionFor=(c,i)=>c.context.screen==='activity'&&i===0&&!c.context.activity_id?'Review my latest own workout against my recent history. Use the workout date to find the latest one, rather than the upload order.':starters[c.context.screen][i]?.[1];
   function controls(c){
@@ -91,7 +99,7 @@ const KitChat = (() => {
     const ctx=context(),back=screens[ctx.screen],c={el,context:ctx,owner:owner(),session:readOwner(),messages:[],loaded:false,sending:false};current=c;
     el.classList.add('food-thread','kit-chat');
     el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}">${svg('back')}${back[0]}</a><h1>Ask Kit</h1><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></header><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><section id="kit-intro"><div class="kit-mark" aria-hidden="true">${svg('sparkle')}</div><h2>What’s on your mind?</h2><p>Training, food, progress, or your next step. Let’s look at what works for you.</p><div class="kit-starters">${starters[ctx.screen].map(([label],i)=>`<button type="button" class="ghost" data-kit-start="${i}">${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}${svg('chev')}</button>`).join('')}</div></section><form id="kit-composer" class="thread-composer"><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div><p id="kit-status" role="status" aria-live="polite"></p></form>`;
-    const field=$('#kit-text',el);field.value=store.get(key(c.owner,'draft'))||new URLSearchParams(location.search).get('question')?.slice(0,1500)||'';c.job=store.get(key(c.owner,'pending'));
+    const field=$('#kit-text',el);field.value=store.get(key(c.owner,'draft'))||(entryDraft?.owner===c.owner?entryDraft.question:null)||new URLSearchParams(location.search).get('question')?.slice(0,1500)||'';entryDraft=null;c.job=store.get(key(c.owner,'pending'));
     const resize=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,140)+'px';};
     field.oninput=()=>{try{save(c,'draft',field.value);}catch(e){status(c,'Your draft could not be saved on this phone.');}resize();controls(c);};
     field.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send(c);}};
@@ -106,7 +114,7 @@ const KitChat = (() => {
     try{await refresh(c);if(active(c)&&c.job){c.jobError='A saved question is ready to retry.';draw(c);}}catch(e){status(c,e.message);$('#kit-intro',el).insertAdjacentHTML('beforeend','<button class="ghost wide" id="kit-load-retry">Try loading again</button>');$('#kit-load-retry',el).onclick=()=>refresh(c).catch(x=>status(c,x.message));}
     if(active(c))c.view.pin(true);
   }
-  function eraseDevice(){const o=owner();if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o)for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));}
+  function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
   function entry(el,path){
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
     if(!screen||!aiCan('coach')||el.querySelector('.kit-help'))return;
@@ -114,7 +122,7 @@ const KitChat = (() => {
     const link=document.createElement('a');link.className='icon-btn kit-help';link.href=href(screen);link.setAttribute('aria-label','Ask Kit');link.innerHTML=svg('sparkle');
     (heading.querySelector('.acts')||heading).append(link);
   }
-  return {mount,href,entry,eraseDevice,starters,actions};
+  return {mount,href,open,entry,eraseDevice,starters,actions};
 })();
 route(/^\/me\/kit$/,()=>({nutrition:'food',activity:'activity',progress:'progress',track:'track',strength:'track'}[new URLSearchParams(location.search).get('from')]||'me'),el=>KitChat.mount(el));
 function kitReview(selection, options = {}) {
