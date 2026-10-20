@@ -333,6 +333,9 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"track:{user['id']}:{body.client_id}",))
         found = c.execute("SELECT id FROM activities WHERE user_id = %s AND source = 'track' AND source_id = %s", (user['id'], body.client_id)).fetchone()
         if found: return {'id': found['id'], 'duplicate': True}
+        if body.visibility is None and body.expected_sharing_default is None:
+            # Installed app builds without the audience picker told people recordings start private.
+            body.visibility = 'me'
         if body.visibility is None and body.expected_sharing_default is not None:
             # A cached phone setting must not override a newer privacy choice.
             # Hold this choice through the insert, including a concurrent settings save.

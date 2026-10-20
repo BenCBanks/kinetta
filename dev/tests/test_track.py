@@ -16,7 +16,7 @@ try:
     start = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=400)
     body = {'client_id': str(uuid.uuid4()), 'sport': 'run', 'name': 'Fictional recorded run', 'start': start.isoformat(), 'moving_s': 100, 'elapsed_s': 200,
             'points': [{'lat': 0, 'lon': 10, 't': 1, 'accuracy': 5, 'segment': 0}, {'lat': .0001, 'lon': 10, 't': 6, 'accuracy': 5, 'segment': 0},
-                       {'lat': 1, 'lon': 10, 't': 150, 'accuracy': 5, 'segment': 1}, {'lat': 1.0001, 'lon': 10, 't': 155, 'accuracy': 5, 'segment': 1}]}
+                       {'lat': 1, 'lon': 10, 't': 150, 'accuracy': 5, 'segment': 1}, {'lat': 1.0001, 'lon': 10, 't': 155, 'accuracy': 5, 'segment': 1}], 'expected_sharing_default': 'everyone'}
     first = request(owner, 'POST', '/api/activities/track', body)
     aid = first['id']
     assert request(owner, 'POST', '/api/activities/track', body) == {'id': aid, 'duplicate': True}
@@ -33,6 +33,9 @@ try:
     assert activity['visibility'] == 'everyone', 'recording follows the account sharing default'
     assert request(viewer,'GET',f'/api/shared/{aid}')['id']==aid
     private=request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4()),visibility='me'))
+    legacy={k:v for k,v in body.items() if k!='expected_sharing_default'}
+    old_app=request(owner,'POST','/api/activities/track',dict(legacy,client_id=str(uuid.uuid4())))
+    assert request(owner,'GET',f"/api/activities/{old_app['id']}")['visibility']=='me','older app builds without the picker keep their private promise'
     assert request(owner,'GET',f"/api/activities/{private['id']}")['visibility']=='me'
     request(viewer,'GET',f"/api/shared/{private['id']}",expected=404)
     request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4()),visibility='invalid'),expected=422)
@@ -65,7 +68,7 @@ try:
     request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), moving_s=float('nan')), expected=422)
     for bad in [dict(body['points'][1], t=50), dict(body['points'][1], lat=20)]:
         request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), points=[body['points'][0], bad]), expected=422)
-    yoga = request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), sport='workout', sport_label='Yoga', points=[], name='Fictional yoga'))
+    yoga = request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), sport='workout', sport_label='Yoga', points=[], name='Fictional yoga', expected_sharing_default='friends'))
     detail = request(owner, 'GET', f"/api/activities/{yoga['id']}")
     assert detail['sport_label'] == 'Yoga' and detail['moving_s'] == 100
     print('PASS tracking: segments, sharing default/review, retry/concurrency, account isolation, invalid GPS and yoga')
