@@ -70,6 +70,12 @@ class Understanding(unittest.TestCase):
         with open(self.report.name,'w') as f:json.dump({'reviewed':True,'food_chat_understanding':{'candidate_fingerprint':'stale'}},f)
         self.say('hello');self.model.assert_not_called()
 
+    def test_obvious_messages_skip_the_model_for_speed(self):
+        reply,_=self.say('thanks',understood('chat',reply='unused'));self.model.assert_not_called()
+        reply,_=self.say('how much protein do I have left',understood('ask_log',topic='left',nutrient='protein'))
+        self.model.assert_not_called();self.assertIn('110 g protein',reply['body'])
+        reply,_=self.say('who are you',understood('chat',reply='I help you log food.'));self.assertEqual(self.model.call_count,1)
+
     def test_chat_reply_uses_ai_wording_without_new_numbers(self):
         reply,_=self.say('who are you',understood('chat',reply='I’m Kit. Tell me what you ate and I’ll help you log it.'))
         self.assertEqual(reply['body'],'I’m Kit. Tell me what you ate and I’ll help you log it.')

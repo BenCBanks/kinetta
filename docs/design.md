@@ -957,3 +957,19 @@ When enabled, a small model call reads each message (log, answer, correct, remov
 and code does the rest. Its wording appears only for questions and small talk: short, plain, no compliments or
 judgments about food (“delicious”, “healthy”), never says food was logged, and never contains a number the person
 didn't type. Assumed portions show as a muted line on the card until reviewed.
+
+## Food chat, iPhone feedback pass (19–20 October 2026, owner)
+
+- **+ opens a bottom sheet** of tools (Camera, Photo, Barcode, Search, Usuals, Recipes, Manual). No inline panel
+  and no "Add <usual food>" suggestion above the composer (owner: poor design; the suggestions were not good).
+- **Typing bubble** while a message is sent and checked; no interim "isn't in your foods yet" text.
+- **Amounts change in the chat:** each unconfirmed food shows “− 3 servings +”; − / + change only that food.
+  Corrections by message still work (“actually 3 eggs”).
+- **Add to log** replaces Review: the composer strip reads “2 foods · ≈ 400 kcal · Add to log ›” and opens a short
+  sheet: foods with calories, one total (macros smaller), meal buttons pre-chosen from the time of day, one
+  **Add to log** button. Recipe saving and logging part of a recipe sit behind “Save as a recipe, or log part of it”.
+- **Clear chat** in the chat’s … menu; the chat also starts fresh each day (conversation only; logged food stays).
+- **Clarify a little:** generic words (“chips”, “cereal”, “taco”) get one “what kind?” question; once answered or
+  “not sure”, the chat estimates. Clear foods (“banana”, “rice”, “2 eggs and toast”) are estimated straight away.
+- **Keyboard (iPhone app):** the WebView keeps its size and the chat shrinks by the announced keyboard height with
+  the keyboard animation, so the text box rides up with the keyboard rather than after it.

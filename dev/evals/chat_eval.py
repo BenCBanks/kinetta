@@ -128,7 +128,8 @@ def main():
                 if u is None:
                     totals['model_failures'] += 1; u = {'intent': None, 'foods': [], 'missing': None, 'target': None, 'new_quantity': None, 'meal': None, 'topic': None, 'nutrient': None, 'reply': ''}
                 intent, foods, said = u['intent'], u['foods'], u['reply']
-                if said and U.safe_reply(said, case['message'], card) is None: totals['reply_number_violations'] += 1
+                typed = set(re.findall(r'\d+', case['message'] + ' ' + card))
+                if any(n not in typed for n in re.findall(r'\d+', said or '')): totals['reply_number_violations'] += 1
                 # An amount was said if the message has a number, article, size or unit anywhere.
                 said_amount = compose.has_amount(case['message']) or re.search(r"\b(?:a|an|one|grande|venti|tall)\b", case['message'].lower())
                 if not case['setup'] and not said_amount:

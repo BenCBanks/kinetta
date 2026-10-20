@@ -72,8 +72,11 @@ quantity = the number they said, including weights and volumes ("200g chicken" -
 "a"/"an"/"one" anywhere before the food = 1; null when they gave no amount. Never guess a quantity.
 unit = the unit they said ("cup", "slice", "g", "oz", "bowl"), else null. size = small/medium/large/etc if said.
 brand = a restaurant or brand they named. details = cooking method or other detail they said.
-missing: "amount" when a food has no quantity, unit or size at all and the amount matters; "type" when a dish
-word alone ("taco", "sandwich", "salad", "pizza", "burrito", "soup") does not say what kind; else "none".
+missing: "type" when one generic word could be very different foods and calories ("chips", "cereal", "taco",
+"sandwich", "salad", "pizza", "burrito", "soup", "curry", "smoothie", "bar", "shake") and nothing says what kind;
+"amount" when only the amount is missing; else "none". Most foods need no question: "banana", "coffee", "rice",
+"oatmeal", "2 eggs and toast" are clear enough to estimate. Never ask about a food again once its question has been
+answered or they said they are not sure (the card shows what was asked).
 meal/day: only if they said it. topic/nutrient: only for ask_log, else "none".
 
 reply: one or two short, friendly, plain sentences to show them. No compliments or opinions about the food
@@ -218,13 +221,31 @@ def describe(food):
     return words + (f' ({food["details"]})' if food['details'] and food['details'].lower() not in food['name'].lower() else '')
 
 
+def obvious(c, uid, message):
+    """Speed (owner, 20 Oct 2026): skip the model when code already knows the answer for certain, saving about a
+    second. Exact greetings/thanks, questions about logged totals, and a food that fully matches the person's own
+    foods while no question is waiting. Everything else is read by the model."""
+    from . import food_thread_log as engine, food_thread_facts as facts, food_thread_edit as edits, food_thread_compose as compose
+    body = message['body']
+    if engine.social_reply(body) is not None: return True
+    question = facts.classify(body, message['local_day'])
+    if question and question['kind'] in ('totals', 'left', 'history', 'burn'): return True
+    if edits._intent(body, message['local_day']) is not None: return False
+    previous = edits._context(c, uid, message)
+    card = compose.card(c, uid, previous) if previous else None
+    if card and card.get('pending_count') and not card.get('cancelled'): return False
+    resolution = engine.resolve(c, uid, message)
+    items = resolution.get('items') or []
+    return resolution.get('status') == 'ready' and bool(items) and all(i.get('kind') for i in items)
+
+
 def prepare(uid, mid):
     """Called before the message lock: one model call per message, stored so a retry never pays twice."""
     with db.connect() as c:
         message = c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE id=%s AND user_id=%s', (mid, uid)).fetchone()
         result = (message or {}).get('result') or {}
         if not message or message['kind'] != 'user' or message['state'] != 'pending' or 'understanding' in result or result.get('input'): return
-        if not allowed(c, uid): return
+        if not allowed(c, uid) or obvious(c, uid, message): return
         ctx = context(c, uid, message)
     try: understood = clean(ask_model(uid, message, ctx), message['body'])
     except HTTPException as error:
@@ -295,12 +316,15 @@ def apply(c, uid, message):
             previous = edits._context(c, uid, message)
             result = compose.card(c, uid, previous) if previous else None
             if result and result.get('pending_count') and not result.get('cancelled'):
-                if u['missing'] != 'none' and reply:
-                    part = next(p for p in result['parts'] if p['status'] != 'ready' and not p.get('logged'))
+                part = next(p for p in result['parts'] if p['status'] != 'ready' and not p.get('logged'))
+                asked = bool(part.get('description'))   # we already asked about this food once: estimate now
+                if u['missing'] == 'type' and reply and not asked:
                     food = (part.get('description') or {}).get('food') or foods[0]['name']
                     return choices.wait_on(c, uid, previous, message, result, said, food, reply, replies_for(u['missing'], foods))
+                if asked and u['missing'] == 'type':
+                    said = ' and '.join(describe({**f, 'name': 'typical ' + f['name']} if not f['name'].lower().startswith('typical') else f) for f in foods)
                 return choices.restate(c, uid, previous, message, result, said, assumed=assumed)
-        if u['missing'] != 'none' and reply and len(foods) == 1:
+        if u['missing'] == 'type' and reply and len(foods) == 1:
             waiting = engine.make_result(c, uid, message, engine.resolve(c, uid, {**message, 'body': said}))
             waiting.update(composed=True, parts=[{'index': 0, 'text': said, 'status': 'description', 'logged': False,
                            'description': {'food': foods[0]['name'], 'portion_only': u['missing'] == 'amount', 'detail': said,

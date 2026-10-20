@@ -2115,3 +2115,31 @@ body .leaflet-container .leaflet-control-attribution { background: var(--card); 
 .cd-f.over { background: repeating-linear-gradient(90deg,var(--warn) 0 4px,transparent 4px 7px); }
 .cd-f.under { background: transparent; border-block: 1px solid var(--s1); }
 .cd-f.partial { opacity: 1; background: repeating-linear-gradient(90deg,var(--tx3) 0 2px,transparent 2px 5px); }
+
+/* Food chat polish (owner, 19 Oct 2026): tools in a sheet, amounts change in the chat, a typing bubble,
+   a simple Add to log sheet, and the composer riding up with the iPhone keyboard. */
+.thread-tools-sheet { margin: 4px 0 8px; }
+.thread-tools-sheet button { display: grid; justify-items: center; gap: 6px; min-height: 76px; padding: 10px 2px; border: 0; border-radius: 16px;
+  background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; }
+.thread-tools-sheet button svg { width: 26px; height: 26px; color: var(--accent); }
+.thread-food.has-stepper .tf-main { flex: 1; min-width: 0; }
+.thread-stepper { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; }
+.thread-stepper .num { min-width: 0; font-size: .9rem; color: var(--tx); }
+.food-thread .thread-stepper .icon-btn { width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--bg); color: var(--accent); font-size: 1.1rem; font-weight: 600; line-height: 1; }
+.thread-thinking { width: max-content; padding: 12px 16px; }
+.thread-typing { display: inline-flex; gap: 5px; align-items: center; height: 18px; }
+.thread-typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--tx3); animation: thread-typing 1.2s infinite ease-in-out; }
+.thread-typing span:nth-child(2) { animation-delay: .15s; } .thread-typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes thread-typing { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .thread-typing span { animation: none; opacity: .6; } }
+.review-total { display: grid; gap: 2px; margin: 4px 0 14px; } .review-total b { font-size: 1.1rem; }
+.review-meals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 0 12px; padding: 0; border: 0; }
+.review-meals legend { margin-bottom: 6px; color: var(--tx2); font-size: .85rem; }
+.review-meals label { display: block; }
+.review-meals input { position: absolute; opacity: 0; pointer-events: none; }
+.review-meals span { display: grid; place-items: center; min-height: 44px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 999px; font-size: .85rem; text-align: center; }
+.review-meals input:checked + span { border-color: var(--accent); background: var(--accent2); color: var(--accent); font-weight: 600; }
+.review-meals input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.review-more { margin-top: 12px; } .review-more summary { min-height: 44px; display: flex; align-items: center; color: var(--accent); cursor: pointer; }
+html.keyboard-moving .shell.food-thread, html.keyboard-moving .shell.recipe-page { transition: height .25s cubic-bezier(.2, .8, .2, 1); }
