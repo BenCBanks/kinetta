@@ -60,6 +60,12 @@ const KitChat = (() => {
     const rows=before?[...data.messages,...c.messages]:data.messages;
     c.messages=[...new Map(rows.map(m=>[m.client_id,m])).values()].sort((a,b)=>a.id-b.id);
     if(c.job&&c.job.generation!==c.generation){c.job=null;store.del(key(c.owner,'pending'));}
+    const accepted=c.job&&c.messages.find(m=>m.client_id===c.job.client_id&&m.question===c.job.question);
+    if(accepted){
+      const field=$('#kit-text',c.el);if(field.value.trim()===c.job.question){field.value='';field.style.height='';store.del(key(c.owner,'draft'));}
+      c.job=null;store.del(key(c.owner,'pending'));
+    }
+
     if(!c.ready)status(c,'Kit chat is awaiting reviewed evaluation on this server. Your normal app tools remain available.');
     draw(c);
     const waiting=c.messages.find(m=>m.state==='pending');
@@ -73,7 +79,7 @@ const KitChat = (() => {
       const row=await api('/api/coach/conversation/messages/'+id+'/answer',json('POST',{generation}));if(!valid())return;
       if(row.cancelled){await refresh(c);return;}
       c.messages=c.messages.map(m=>String(m.client_id)===String(id)?row:m);draw(c);
-      if(row.state==='running')later(c);
+      if(row.state==='running')later(c);else await refresh(c).catch(()=>status(c,'Your answer is saved. Return when online to refresh the full history.'));
     }catch(e){if(valid()){c.answerErrors[id]=e.message;status(c,e.message);await refresh(c).catch(()=>{});draw(c);}}
     finally{if(valid())c.sending=false;if(valid()){controls(c);if(c.messages.some(m=>m.state==='running'))later(c);}}
   }
