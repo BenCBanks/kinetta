@@ -53,7 +53,7 @@ try:
   for result in pool.map(run,jobs):
    results.append(result)
    with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=%s',(uid,)).fetchone()
-   report={'reviewed':False,'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,'candidate_fingerprint':ai_release.fingerprint(),'case_count':len(CASES),'baseline_results_reused':bool(args.baseline_results),'results':results,'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],'owner_qualitative_review':'pending','food_comparison':'not part of this conversation-only benchmark; unchanged food estimator needs its existing reviewed evidence'}
+   report={'reviewed':False,'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,'candidate_fingerprint':ai_release.kit_fingerprint(),'case_count':len(CASES),'baseline_results_reused':bool(args.baseline_results),'results':results,'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],'owner_qualitative_review':'pending','food_comparison':'separate food-estimation release rules are unchanged'}
    Path(args.output).write_text(json.dumps(report,default=str,indent=2))
  print(json.dumps({'complete':True,'cases':len(CASES),'responses':len(results),'cost':report['reserved_or_estimated_usd'],'requests':report['requests']}),flush=True)
 finally:
