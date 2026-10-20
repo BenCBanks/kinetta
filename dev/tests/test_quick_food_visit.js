@@ -5,7 +5,7 @@ const source=fs.readFileSync('app/static/thread.js','utf8');
 const pending=[],field={value:'2 eggs',style:{}},button={disabled:false};
 const ctx={draftId:'draft-one',day:'2026-10-17',meal:'lunch',owner:'fictional',visibleClients:new Set(),messages:[{kind:'user',client_id:'previous-visit',captured_at:'2026-10-18T12:00:00Z',result:{kind:'log'}}],jobs:[]};
 const c={pendingReview:()=>false,Set,Date,Object,isoDay:()=> '2026-10-18',uuid:()=> 'fresh-message',active:()=>true,$:id=>id==='#thread-text'?field:button,ThreadDB:{put:async(owner,id,job)=>pending.push(job),list:async()=>pending},draftKey:()=>'draft',contextKey:()=>'context',finishNativeDraft(){},saveDraft(){},store:{del(){}},draw(){},status(){},Native:{haptic(){}},flush(){}};
-vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function latestContext('),source.indexOf('  async function daily(')),c);
+vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function latestContext('),source.indexOf('  function preferences(')),c);
 (async()=>{
  assert.equal(c.latestContext(ctx),undefined,'a fresh visit must not attach old conversation context');
  await c.send(ctx);

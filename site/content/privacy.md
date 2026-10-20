@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 18, 2026
+Last updated October 20, 2026
 
 ## intro
 
@@ -31,6 +31,8 @@ Information we collect
 We store the account details you provide, including your username, display name, password hash, optional photo and biography.
 
 ## collect-food
+
+Kit conversation questions, replies and pending-send identifiers are private account records. Kit keeps one ongoing conversation across your devices until you clear it or delete your account. Clear chat removes the conversation and prevents interrupted answers from restoring it; it does not delete your food, workouts, plans or goals. Kit conversations are included in your data download. Drafts and interrupted sends may be stored privately on your device under the selected server and account.
 
 Food conversation text and links to logged foods are private account records. They are included in your download and removed with your account. Logged AI estimates may become reusable private foods with their source and assumptions marked. You can edit or remove saved foods in My foods.
 
@@ -93,7 +95,9 @@ Optional AI features
 
 ## ai
 
-If you enable an AI feature, the configured provider receives the information needed for that feature: selected food text or photos for estimates; workout measurements and relevant training history for training notes; food summaries and weight trends for nutrition reviews; or ingredients for recipe feedback. Kinetta supports Google’s Gemini and Anthropic’s Claude; the app identifies the configured provider. AI use is optional, and Apple Health workouts require your separate agreement before inclusion. You can change these choices in Me. Previously generated results remain stored until the associated records or account are deleted.
+If you enable an AI feature, the configured provider receives the information needed for that feature: selected food text or photos for estimates; workout measurements and relevant training history for training notes; food summaries and weight trends for nutrition reviews; or ingredients for recipe feedback. When you ask Kit, the provider also receives your question, a bounded recent conversation and relevant records selected through account-specific tools, such as food, workouts, strength sets, goals, saved recipes or body settings. It does not receive your whole database or account credentials. Apple Health sharing choices still apply, including the separate choice for Health-derived weight.
+
+Kinetta supports Google’s Gemini and Anthropic’s Claude; the app identifies the configured provider. AI use is optional, and Apple Health workouts require your separate agreement before inclusion. You can change these choices in Me. Previously generated results remain stored until the associated records or account are deleted.
 
 ## provider-retention-heading
 

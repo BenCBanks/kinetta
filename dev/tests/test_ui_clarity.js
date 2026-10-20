@@ -36,7 +36,7 @@ console.log('Food chat: Search tool label PASS');
 {
  const thread=fs.readFileSync('app/static/thread.js','utf8'),markup=thread.slice(thread.indexOf('el.innerHTML=`<header class="thread-heading">'),thread.indexOf('// + opens the tools'));
  const menu=markup.slice(markup.indexOf('id="thread-menu"'),markup.indexOf('class="thread-compose-row"'));
- for(const tool of ['data-tool="snap"','data-tool="library"','data-tool="scan"','id="thread-search"','id="thread-usuals"','id="thread-recipes"','id="thread-manual-add"','id="thread-daily-note"'])
+ for(const tool of ['data-tool="snap"','data-tool="library"','data-tool="scan"','id="thread-search"','id="thread-usuals"','id="thread-recipes"','id="thread-manual-add"'])
   assert(menu.includes(tool),tool+' lives in the + menu');
  const bar=markup.slice(markup.indexOf('class="thread-compose-row"'),markup.indexOf('id="thread-status"'));
  assert.match(bar,/id="thread-plus"[^>]*aria-expanded="false"/);assert.match(bar,/id="thread-text"/);assert.match(bar,/id="thread-send" aria-label="Send"/);

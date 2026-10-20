@@ -498,7 +498,7 @@ function render() {
   Promise.resolve(page.fn(el, ...m.slice(1))).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if (el.isConnected && key === location.pathname + location.search) window.scrollTo(0, App.scroll[key] || 0); });
-    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {
@@ -846,14 +846,15 @@ function aiError(btn, msg) {
   p.textContent = msg;
 }
 // ---------- AI consent (2026-10-11): coach notes, weekly reviews and food photos send data to the AI service ----------
-const aiExplain = () => `<p>Kit is Kinetta’s AI coach. Kit can write a short <b>workout note</b> on each new workout, a <b>weekly review</b> on Sundays, <b>estimate the food in a photo</b>, <b>review your eating</b> and give <b>feedback on your recipes</b>.</p>
-  <p class="small muted">To do that, the workout's numbers and your recent training, your food log, the recipe, or the photo, are sent to ${esc(App.me.ai_provider || 'an AI service')}, which writes the text. Nothing is sent while this is off, and you can turn it off any time under Me.</p>`;
+const aiExplain = () => `<p>Kit is Kinetta’s AI assistant for training, nutrition and progress. Ask questions, review your records, estimate food, or prepare a plan or meal proposal that you review before confirming.</p>
+  <p class="small muted">Your question, recent Kit conversation and the relevant food, workout, strength, goal, recipe or body records are sent to ${esc(App.me.ai_provider || 'the configured AI provider')}. Kit reads selected records through private account tools; it does not receive your whole database or login credentials. Apple Health sharing follows your separate connection permissions.</p>
+  <p class="small muted">Kit conversations are saved privately across your devices. Clear chat removes the conversation while keeping your records. You can turn Kit off in Me and download or delete your account data under Your data.</p>`;
 function aiSheet(after) {   // ask once; after() runs when they turn it on
-  sheet('Turn on AI features?', `<div class="form">${aiExplain()}<div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
+  sheet('Turn on Kit?', `<div class="form">${aiExplain()}<div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
     $('#ai-no', b).onclick = close;
     $('#ai-yes', b).onclick = async (e) => {
       e.target.disabled = true;
-      try { await api('/api/profile', json('PUT', {ai_ok: true})); App.me.ai_ok = true; keep('/api/me', App.me); close(); toast('AI features on'); if (after) after(); }
+      try { await api('/api/profile', json('PUT', {ai_ok: true})); App.me.ai_ok = true; keep('/api/me', App.me); close(); toast('Kit is on'); if (after) after(); }
       catch (x) { toast(x.message); e.target.disabled = false; }
     };
   });

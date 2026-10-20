@@ -1241,6 +1241,35 @@ MIGRATIONS = [
       CHECK (yield_servings > 0 AND yield_servings <= 50);
     """,
 
+    # 63: one private Kit conversation; generation fences cleared and in-flight turns.
+    """CREATE TABLE kit_conversations (
+      user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      generation uuid NOT NULL, created timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE kit_turns (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id uuid NOT NULL, generation uuid NOT NULL,
+      question text NOT NULL CHECK(length(question) BETWEEN 1 AND 1500),
+      context jsonb NOT NULL DEFAULT '{}',
+      state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','running','answered','failed')),
+      lease uuid, expires timestamptz, answer jsonb, error text,
+      created timestamptz NOT NULL DEFAULT now(), UNIQUE(user_id,client_id));
+    CREATE INDEX kit_turns_history ON kit_turns(user_id,id DESC);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['kit_conversations','kit_turns'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING(user_id=fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING(true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+      FOREACH t IN ARRAY ARRAY['goals','gear','health_resting','custom_foods','saved_meals'] LOOP
+        EXECUTE format('GRANT SELECT ON %I TO fit_coach',t);
+        EXECUTE format('CREATE POLICY coach_own_rows ON %I FOR SELECT TO fit_coach USING
+          (user_id=nullif(current_setting(''kinetta.coach_user_id'',true),'''')::bigint)',t);
+      END LOOP;
+    END $$;
+    UPDATE profile SET food_chat_daily_note='off';
+    """,
 ]
 
 

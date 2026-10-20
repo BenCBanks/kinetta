@@ -28,6 +28,7 @@ node dev/tests/test_track.js
 node dev/tests/test_track_native.js
 node dev/tests/test_native_sync.js
 node dev/tests/test_push_invitation.js
+node dev/tests/test_kit_chat_ui.js
 node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
 node dev/tests/test_combined_week_ui.js
@@ -117,6 +118,9 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_s
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_receipts_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_kit_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_daily_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_transport_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_release_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_copy_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_checkin_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_import_incontainer.py

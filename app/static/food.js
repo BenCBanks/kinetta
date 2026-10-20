@@ -1,3 +1,5 @@
+// Source IDs remain compatible; only user-facing food copy uses the Kit name.
+function kitFoodWords(text){return String(text||'').replace(/\bAI estimates\b/g,'Kit’s estimates').replace(/\ban AI estimate\b/g,'Kit’s estimate').replace(/\bAI estimate\b/g,'Kit’s estimate').replace(/\bAI features\b/g,'Kit settings').replace(/\bAI\b/g,'Kit');}
 // Kinetta — Food log pages. Fast logging: search (own foods + recent first, then Open Food Facts + USDA),
 // barcode, quick add, photo (Gemini estimate), saved meals, copy a day. Every entry editable; deletes have Undo.
 'use strict';
@@ -12,7 +14,7 @@ const EXTRA_NUTRIENTS = [['sodium_mg','Sodium','mg','sodium_target_mg'],['sugar_
 const FOOD_NUTRIENTS = ['kcal','protein_g','carbs_g','fat_g','fiber_g',...EXTRA_NUTRIENTS.map(([k])=>k)];
 const nutrientKnown = (v,k) => v[k]!=null && !(v.ref?.unknown_nutrients||[]).includes(k);
 function nutrientNumber(v,unit){if(v==null)return 'Unknown';if(v===0)return '0 '+unit;return v<(unit==='mg'?1:.1)?'&lt;'+(unit==='mg'?'1':'0.1')+' '+unit:(unit==='mg'?r0(v):r1(v))+' '+unit;}
-function nutrientSource(v){const r=v.ref||{},origin=r.origin||v.origin,source=r.origin_ref?.source||r.source||v.source;return (origin==='ai'?'AI estimate':origin==='label'?'Nutrition label':({usda:'USDA',off:'Open Food Facts',label:'Nutrition label',quick:'Entered by you',dish:'Saved recipe',custom:'My food'}[source]||''))+((r.origin_edited||v.origin_edited)?' · Edited':'');}
+function nutrientSource(v){const r=v.ref||{},origin=r.origin||v.origin,source=r.origin_ref?.source||r.source||v.source;return (origin==='ai'?'Kit’s estimate':origin==='label'?'Nutrition label':({usda:'USDA',off:'Open Food Facts',label:'Nutrition label',quick:'Entered by you',dish:'Saved recipe',custom:'My food'}[source]||''))+((r.origin_edited||v.origin_edited)?' · Edited':'');}
 function extraInputs(v={},targets=false){return `<details class="extra-nutrients extra-inputs"><summary>${targets?'Optional nutrient limits':'More nutrients'}</summary><p class="small muted">${targets?'Leave these unset unless you want your own daily limits. These do not change your calorie goal.':'For this amount of food. Leave a value blank if you don’t know it; a reported zero stays zero.'}</p>${!targets&&nutrientSource(v)?`<p class="small muted">Source: ${esc(nutrientSource(v))}</p>`:''}<div class="extra-fields">${EXTRA_NUTRIENTS.map(([key,label,unit,target])=>{const k=targets?target:key;return `<label>${label} (${unit})<input name="${k}" inputmode="decimal" value="${esc((targets||nutrientKnown(v,k))?v[k]??'':'')}" aria-label="${label} ${targets?'daily limit in ': 'in '}${unit}"></label>`;}).join('')}</div></details>`;}
 function extraFormValues(f,targets=false){return Object.fromEntries(EXTRA_NUTRIENTS.map(([key,, ,target])=>{const k=targets?target:key,raw=f.elements.namedItem(k)?.value.trim()??'',value=raw===''?null:Number(raw.replace(',','.'));if(value!==null&&(!Number.isFinite(value)||value<0))throw Error('Enter a positive number or zero, or leave the nutrient blank.');return [k,value];}));}
 function foodStorage(entry){const missing=FOOD_NUTRIENTS.filter(k=>!nutrientKnown(entry,k));if(missing.includes('kcal'))throw Error('Add calories before logging this food.');const out={...entry,ref:{...(entry.ref||{}),unknown_nutrients:[...new Set([...(Array.isArray(entry.ref?.unknown_nutrients)?entry.ref.unknown_nutrients.filter(k=>typeof k==='string'&&!FOOD_NUTRIENTS.includes(k)):[]),...missing])]}};for(const k of FOOD_NUTRIENTS)if(missing.includes(k))out[k]=['kcal','protein_g','carbs_g','fat_g'].includes(k)?0:null;return out;}
@@ -58,9 +60,9 @@ async function weeklyCheckinCard(box,{home=false}={}){
     const page=box.closest('#page');if(home&&page){page.dataset.checkinPending=String(!!pending);syncCheckinPrimary(page);}
     if(home&&!pending){box.innerHTML='';return;}
     if(row)box.innerHTML=checkinDetails(row,pending);
-    else{const r=data.readiness||{},action=r.action||'food';box.innerHTML=`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>${esc(r.reason||'Not enough data yet.')}</p>${action==='weight'?'<button class="primary wide" type="button" data-checkin-weight>Log weight</button>':`<a class="primary wide" href="${action==='goal'?'/food/setup':'/food/describe'}">${action==='goal'?'Choose a goal':'Log food'}</a>`}<p class="small muted">No watch or AI needed. Suggestions wait for complete enough food and weight records.</p></section>`;const weight=$('[data-checkin-weight]',box);if(weight)weight.onclick=()=>{if(valid())quickWeighIn();};}
+    else{const r=data.readiness||{},action=r.action||'food';box.innerHTML=`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>${esc(r.reason||'Not enough data yet.')}</p>${action==='weight'?'<button class="primary wide" type="button" data-checkin-weight>Log weight</button>':`<a class="primary wide" href="${action==='goal'?'/food/setup':'/food/describe'}">${action==='goal'?'Choose a goal':'Log food'}</a>`}<p class="small muted">No watch or Kit needed. Suggestions wait for complete enough food and weight records.</p></section>`;const weight=$('[data-checkin-weight]',box);if(weight)weight.onclick=()=>{if(valid())quickWeighIn();};}
     if(!home){const history=(data.history||[]).filter(r=>r.id!==row?.id&&r.week<data.week);if(history.length)box.insertAdjacentHTML('beforeend',`<details class="checkin-history"><summary>Previous check-ins</summary>${history.map(r=>checkinDetails(r)).join('')}</details>`);}
-    $$('[data-checkin-help]',box).forEach(b=>b.onclick=()=>{if(!valid())return;sheet('How your check-in works',`<div class="checkin-explanation"><p>We use the last 28 completed days. At least 7 fully logged food days and 3 weigh-ins spanning 10 days are needed. Very partial days and today are left out.</p><p>Average food minus the energy equivalent of your weight trend gives an observed daily burn estimate. It includes your usual workouts; it is not a direct measurement. The formula estimate is shown for comparison.</p><p>Your chosen goal and pace shape the calorie suggestion. It cannot go below estimated resting burn. Water changes, missing food and scale variation can affect the result.</p><p>Accept changes only your calorie target. Your chosen resting-calorie source and macro targets stay as set. Not now hides the card on Me until next week; this record remains in Progress.</p><p>No AI or watch is needed. You can change your goal or target any time.</p></div>`);});
+    $$('[data-checkin-help]',box).forEach(b=>b.onclick=()=>{if(!valid())return;sheet('How your check-in works',`<div class="checkin-explanation"><p>We use the last 28 completed days. At least 7 fully logged food days and 3 weigh-ins spanning 10 days are needed. Very partial days and today are left out.</p><p>Average food minus the energy equivalent of your weight trend gives an observed daily burn estimate. It includes your usual workouts; it is not a direct measurement. The formula estimate is shown for comparison.</p><p>Your chosen goal and pace shape the calorie suggestion. It cannot go below estimated resting burn. Water changes, missing food and scale variation can affect the result.</p><p>Accept changes only your calorie target. Your chosen resting-calorie source and macro targets stay as set. Not now hides the card on Me until next week; this record remains in Progress.</p><p>No Kit or watch is needed. You can change your goal or target any time.</p></div>`);});
     syncCheckinPrimary(page);
     for(const [selector,action]of [['[data-checkin-accept]','accept'],['[data-checkin-later]','later']]){const button=$(selector,box);if(button)button.onclick=async()=>{
       if(!valid())return;$$('.checkin-actions button',box).forEach(b=>b.disabled=true);const status=$('[data-checkin-status]',box);status.textContent=action==='accept'?'Updating your calorie target…':'Saving your choice…';
@@ -505,7 +507,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
   });
 }
-const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.origin==='ai'?'AI estimate'+(f.origin_edited?' · Edited':''):f.origin==='label'?'Nutrition label':f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
+const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.origin==='ai'?'Kit’s estimate'+(f.origin_edited?' · Edited':''):f.origin==='label'?'Nutrition label':f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
   <div class="r"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><small class="muted">kcal</small></div></button>`;
 function tSearch(body, where, close) {
   body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search foods, brands…" aria-label="Search foods and brands" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
@@ -602,7 +604,7 @@ async function tSaved(body, where, close) {
     const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
       (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal), d.serving === 'one' ? 'kcal a serving' : 'kcal total');
     body.innerHTML = `<p class="small muted">Tap a recipe to log a portion. Use Edit to change its ingredients, weight or nutrition for next time.</p><div class="btncol recipe-library-actions"><button class="ghost wide" id="tm-link">Recipe from a link</button><button class="linkbtn" id="tm-dish">+ Create a Recipe</button></div>
-      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="Edit ${esc(d.name)}">${svg('edit')} Edit</button></div>`).join('')}</div>` : '<p class="small muted">No saved recipes yet. Create one below, with or without AI.</p>'}
+      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="Edit ${esc(d.name)}">${svg('edit')} Edit</button></div>`).join('')}</div>` : '<p class="small muted">No saved recipes yet. Create one below, with or without Kit.</p>'}
       ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
@@ -657,7 +659,7 @@ function savedSheet(m, w, closeParent, after) {
       if (!confirm(`Delete the saved meal ${m.name}?`)) return;
       try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Deleted'); after(); } catch (x) { toast(x.message); }
     };
-    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => mealCoach(m);
+    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!kitChatOn()){mealCoach(m);return;}close();closeParent();KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
   });
 }
 function tQuick(body, where, close) {
@@ -734,7 +736,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
 function foodEditor(food, after) {
   const owner=readOwner();
   const ps = food && food.per_serving || {};
-  sheet(food ? 'Edit my food' : 'New food', `${food?.origin==='ai'?`<p class="small">AI estimate${food.origin_edited?' · Edited':''}. ${esc(food.origin_notes||'Check the numbers and portion before using them.')}</p>`:''}<form class="form" id="fe">
+  sheet(food ? 'Edit my food' : 'New food', `${food?.origin==='ai'?`<p class="small">Kit’s estimate${food.origin_edited?' · Edited':''}. ${esc(food.origin_notes||'Check the numbers and portion before using them.')}</p>`:''}<form class="form" id="fe">
     <label>Name<input name="name" required maxlength="200" value="${esc(food ? food.name : '')}"></label>
     <div class="two"><label>Brand<input name="brand" value="${esc(food && food.brand || '')}"></label><label>Barcode<input name="barcode" inputmode="numeric" value="${esc(food && food.barcode || '')}"></label></div>
     <div class="two"><label>Serving<input name="serving_label" value="${esc(food && food.serving ? food.serving.label : '1 serving')}"></label><label>Serving grams<input name="serving_g" inputmode="decimal" value="${food && food.serving && food.serving.g ? r1(food.serving.g) : ''}"></label></div>
@@ -776,16 +778,16 @@ async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,active=(
   } catch(e) { if(active())toast(e.message||"A photo couldn't be opened"); return; }
   if(!active())return;
   sheet(recipe?'Review recipe screenshots':label?'Photos of one ingredient':'Review your food photos','<div id="photo-selection"></div>',(root,close)=>{
-    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(recipe?'Choose views of one recipe, including its ingredients and nutrition. Food AI will read them into a draft; check servings and numbers before saving.':label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div><button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(recipe?'Read recipe screenshots':label?'Read these photos':'Use these photos')+'</button>';
+    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(recipe?'Choose views of one recipe, including its ingredients and nutrition. Kit will read them into a draft; check servings and numbers before saving.':label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div><button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(recipe?'Read recipe screenshots':label?'Read these photos':'Use these photos')+'</button>';
       $$('[data-remove-photo]',box).forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.removePhoto,1);draw()});$('#photos-use',box).onclick=()=>{if(!active())return;close();confirm(photos.slice())};};draw();
   });
 }
 // Describe what you ate (2026-10-12; reworked 2026-10-15, Ben: logging food should be very little effort, in your own
 // words, without leaning on AI). "2 eggs and toast for breakfast", "a bowl of the chili I made Sunday", then "make it
 // 300 grams", "also a coffee" or "remove the toast". The server matches each food against your own saved meals, My
-// foods and foods you've logged before, with no AI (meal_chat.py), so it works with AI turned off. New foods are looked
+// foods and foods you've logged before, with no AI (meal_chat.py), so it works with Kit turned off. New foods are looked
 // up in the food databases in one request: a brand you named offers that brand's products to pick from; everyday foods
-// go to the AI estimator automatically when you have AI access and consent, and without AI offer plain database matches.
+// go to the AI estimator automatically when you have Kit access and consent, and without AI offer plain database matches.
 // Ready food waits in the shared draft until the final review is confirmed.
 function describeSheet(day, meal) {
   go('/food/describe'+(meal?'?meal='+encodeURIComponent(meal):''));
@@ -825,7 +827,7 @@ function describePage(b, day, meal) {
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* native picker */ } };
     dp.onchange = () => { if (dp.value) $('#ql-dayl', b).textContent = dayLabel(dp.value); sent = null; draw(); };
     dest.onchange = () => { sent = null; draw(); };
-    $('#ql-plus', b).onclick = () => sheet('Add food', `<div class="btncol">${canEstimate ? '<button class="ghost" id="ql-snap">Snap a food photo</button>' + (navigator.clipboard?.read ? '<button class="ghost" id="ql-paste">Paste a screenshot</button>' : '') : '<p class="small muted">Food photo estimates are available with AI enabled in Me.</p>'}<button class="ghost" id="ql-scan">Scan a barcode</button><button class="ghost" id="ql-search">Search foods and brands</button></div>`, (menu, done) => {
+    $('#ql-plus', b).onclick = () => sheet('Add food', `<div class="btncol">${canEstimate ? '<button class="ghost" id="ql-snap">Snap a food photo</button>' + (navigator.clipboard?.read ? '<button class="ghost" id="ql-paste">Paste a screenshot</button>' : '') : '<p class="small muted">Food photo estimates are available with Kit enabled in Me.</p>'}<button class="ghost" id="ql-scan">Scan a barcode</button><button class="ghost" id="ql-search">Search foods and brands</button></div>`, (menu, done) => {
       const snap = $('#ql-snap', menu); if (snap) snap.onclick = () => { done(); file.click(); };
       const paste = $('#ql-paste', menu); if (paste) paste.onclick = async () => {   // iPhone text boxes never offer Paste for a picture
         done(); let files = [];
@@ -836,7 +838,7 @@ function describePage(b, day, meal) {
       $('#ql-search', menu).onclick = () => { done(); addSheet(dp.value, dest.value, '', 'search'); };
     });
     $$('[data-capture]',b).forEach(button => button.onclick = () => {
-      if (button.dataset.capture === 'paste' && (!navigator.clipboard?.read || !canEstimate)) { input.focus(); toast(canEstimate ? 'Paste text in the food box, or choose a picture with Snap' : 'Paste text in the food box. Photo estimates need AI enabled in Me.'); return; }
+      if (button.dataset.capture === 'paste' && (!navigator.clipboard?.read || !canEstimate)) { input.focus(); toast(canEstimate ? 'Paste text in the food box, or choose a picture with Snap' : 'Paste text in the food box. Photo estimates need Kit enabled in Me.'); return; }
       $('#ql-plus',b).click(); const action = $('.sheet #ql-' + button.dataset.capture); if (action) action.click();
     });
     // photos, screenshots of a recipe or its nutrition facts: all go to the same estimate
@@ -868,14 +870,14 @@ function describePage(b, day, meal) {
       if (i.status === 'quantity') return `<div class="ql-row ql-ask"><p class="small"><b>${esc(i.name)}</b>${esc(savedDay(i.saved_day))}</p><p class="small muted">${esc(i.message)}</p>${i.options && i.options.length ? `<div class="chips wrap">${i.options.map((o, n) => `<button class="chip" data-amount="${i.index}" data-n="${n}">${esc(o.label)}</button>`).join('')}</div>` : ''}</div>`;
       const x = batchOf(i.index);   // not in your foods
       if (x && x.state === 'searching') return `<div class="ql-row ql-ask"><p class="small muted" role="status">Looking up “${esc(i.text)}”…</p></div>`;
-      if (x && (x.state === 'products' || x.state === 'plain')) return `<div class="ql-row ql-ask"><p class="small">${x.state === 'products' ? `Which one is your “${esc(i.text)}”? Check the serving on your package.` : `Pick the closest match for “${esc(i.text)}”.`}</p><div class="results">${x.foods.map((f,n) => `<button class="fe" data-product="${i.index}" data-n="${n}"><div><b>${esc(f.name)}</b><small class="muted">${f.brand ? esc(f.brand) + ' · ' : ''}${f.source === 'usda' ? 'USDA' : 'Open Food Facts'}${f.serving?.label ? ' · ' + esc(f.serving.label) : ''}</small></div></button>`).join('')}</div><button class="ghost wide" data-search="${i.index}">Search instead</button>${canEstimate ? `<button class="ghost wide" data-retry-ai="${x.id}">Use an AI estimate instead</button>` : ''}</div>`;
-      if (x && x.state === 'loading') return x.idx[0] === i.index ? `<div class="ql-row ql-ask"><p class="small muted">Estimating “${esc(x.idx.map((n) => parts[n].text).join(', '))}” with AI…</p></div>` : '';
+      if (x && (x.state === 'products' || x.state === 'plain')) return `<div class="ql-row ql-ask"><p class="small">${x.state === 'products' ? `Which one is your “${esc(i.text)}”? Check the serving on your package.` : `Pick the closest match for “${esc(i.text)}”.`}</p><div class="results">${x.foods.map((f,n) => `<button class="fe" data-product="${i.index}" data-n="${n}"><div><b>${esc(f.name)}</b><small class="muted">${f.brand ? esc(f.brand) + ' · ' : ''}${f.source === 'usda' ? 'USDA' : 'Open Food Facts'}${f.serving?.label ? ' · ' + esc(f.serving.label) : ''}</small></div></button>`).join('')}</div><button class="ghost wide" data-search="${i.index}">Search instead</button>${canEstimate ? `<button class="ghost wide" data-retry-ai="${x.id}">Use Kit’s estimate instead</button>` : ''}</div>`;
+      if (x && x.state === 'loading') return x.idx[0] === i.index ? `<div class="ql-row ql-ask"><p class="small muted">Estimating “${esc(x.idx.map((n) => parts[n].text).join(', '))}” with Kit…</p></div>` : '';
       if (x && x.state === 'done') return x.idx[0] === i.index ? x.items.map((a, n) => a.removed ? '' : `<div class="ql-row" data-ai="${x.id}-${n}"><button class="ql-main" data-open="ai-${x.id}-${n}" aria-expanded="${open === `ai-${x.id}-${n}`}">
-          <span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'AI estimate'].filter(Boolean).join(' · '))}</small></span>
+          <span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'Kit’s estimate'].filter(Boolean).join(' · '))}</small></span>
           <span class="r"><b class="num">${r0(a.kcal)}</b><small class="muted">kcal</small></span></button>
           <button class="icon-btn ql-x" data-unai="${x.id}-${n}" aria-label="Remove ${esc(a.name)}">${svg('close')}</button>
           ${open === `ai-${x.id}-${n}` ? `<div class="pnums">${[['kcal', 'kcal'], ['protein_g', 'Protein'], ['carbs_g', 'Carbs'], ['fat_g', 'Fat']].map(([k, l]) => `<label><small>${l}</small><input data-edit="${x.id}-${n}" name="${k}" inputmode="decimal" value="${a[k] == null ? '' : esc(String(Math.round(a[k] * 10) / 10))}" aria-label="${l}"></label>`).join('')}</div>` : ''}</div>`).join('') : '';
-      return `<div class="ql-row ql-ask"><p class="small muted">${canEstimate ? esc(i.message) : `Not in your foods yet: “${esc(i.text)}”`}</p>${x && x.error ? `<p class="small err">${esc(x.error)}</p>` : ''}<div class="btncol">${x && x.error && x.state === 'missing' ? `<button class="ghost wide" data-retry-product="${x.id}">Look it up again</button>` : ''}${canEstimate && x ? `<button class="ghost wide" data-retry-ai="${x.id}">${x.state === 'error' ? 'Try the AI estimate again' : 'Estimate with AI'}</button>` : ''}<button class="ghost wide" data-search="${i.index}">Search for “${esc(i.text)}”</button></div></div>`;
+      return `<div class="ql-row ql-ask"><p class="small muted">${canEstimate ? esc(i.message) : `Not in your foods yet: “${esc(i.text)}”`}</p>${x && x.error ? `<p class="small err">${esc(x.error)}</p>` : ''}<div class="btncol">${x && x.error && x.state === 'missing' ? `<button class="ghost wide" data-retry-product="${x.id}">Look it up again</button>` : ''}${canEstimate && x ? `<button class="ghost wide" data-retry-ai="${x.id}">${x.state === 'error' ? 'Try Kit’s estimate again' : 'Estimate with Kit'}</button>` : ''}<button class="ghost wide" data-search="${i.index}">Search for “${esc(i.text)}”</button></div></div>`;
     };
     const draw = () => {
       if (!active()) return;
@@ -889,8 +891,8 @@ function describePage(b, day, meal) {
       wire();
     };
     // a photo estimate covers the whole meal: its rows follow the matched foods
-    const photoRows = () => batches.filter((x) => x.photo).map((x) => (x.state === 'loading' ? '<div class="ql-row ql-ask"><p class="small muted">Estimating your photo with AI…</p></div>'
-      : (x.items || []).map((a, n) => a.removed ? '' : `<div class="ql-row" data-ai="${x.id}-${n}"><button class="ql-main" data-open="ai-${x.id}-${n}"><span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'AI estimate'].filter(Boolean).join(' · '))}</small></span><span class="r"><b class="num">${r0(a.kcal)}</b><small class="muted">kcal</small></span></button><button class="icon-btn ql-x" data-unai="${x.id}-${n}" aria-label="Remove ${esc(a.name)}">${svg('close')}</button>${open === `ai-${x.id}-${n}` ? `<div class="pnums">${[['kcal', 'kcal'], ['protein_g', 'Protein'], ['carbs_g', 'Carbs'], ['fat_g', 'Fat']].map(([k, l]) => `<label><small>${l}</small><input data-edit="${x.id}-${n}" name="${k}" inputmode="decimal" value="${a[k] == null ? '' : esc(String(Math.round(a[k] * 10) / 10))}" aria-label="${l}"></label>`).join('')}</div>` : ''}</div>`).join(''))).join('');
+    const photoRows = () => batches.filter((x) => x.photo).map((x) => (x.state === 'loading' ? '<div class="ql-row ql-ask"><p class="small muted">Estimating your photo with Kit…</p></div>'
+      : (x.items || []).map((a, n) => a.removed ? '' : `<div class="ql-row" data-ai="${x.id}-${n}"><button class="ql-main" data-open="ai-${x.id}-${n}"><span class="grow"><b>${esc(a.name)}</b><small class="muted">${esc([a.amount, 'Kit’s estimate'].filter(Boolean).join(' · '))}</small></span><span class="r"><b class="num">${r0(a.kcal)}</b><small class="muted">kcal</small></span></button><button class="icon-btn ql-x" data-unai="${x.id}-${n}" aria-label="Remove ${esc(a.name)}">${svg('close')}</button>${open === `ai-${x.id}-${n}` ? `<div class="pnums">${[['kcal', 'kcal'], ['protein_g', 'Protein'], ['carbs_g', 'Carbs'], ['fat_g', 'Fat']].map(([k, l]) => `<label><small>${l}</small><input data-edit="${x.id}-${n}" name="${k}" inputmode="decimal" value="${a[k] == null ? '' : esc(String(Math.round(a[k] * 10) / 10))}" aria-label="${l}"></label>`).join('')}</div>` : ''}</div>`).join(''))).join('');
     const aiAt = (key) => { const [id, n] = key.split('-').map(Number); const x = batches.find((y) => y.id === id); return x && x.items[n]; };
     const wire = () => {
       $$('[data-open]', box).forEach((el) => el.onclick = () => { const k = el.dataset.open; open = open === (isNaN(+k) ? k : +k) ? null : (isNaN(+k) ? k : +k); draw(); });
@@ -933,12 +935,12 @@ function describePage(b, day, meal) {
         const r = await api('/api/food/photo', json('POST', {...(Array.isArray(x.photo)?{images:x.photo}:{image:x.photo||null}), note: words.join('\n').slice(-2000) || null}));
         if (!active() || !batches.includes(x)) return;
         x.items = r.items.map((it) => ({...it, client_id: newId()})); x.state = 'done';
-        if (!x.items.length) { x.state = 'error'; x.error = "The AI couldn't find food in that."; }
+        if (!x.items.length) { x.state = 'error'; x.error = "Kit couldn't find food in that."; }
       } catch (e) { if (!active() || !batches.includes(x)) return; x.state = 'error'; x.error = e.message; }
       sent = null; draw();
     };
     // Every new food in one request. A brand you named: pick the product. Everyday foods: estimated together
-    // with AI when you have it (no extra tap), or the closest plain database foods to pick from without it.
+    // with Kit when you have it (no extra tap), or the closest plain database foods to pick from without it.
     const lookup = async (list) => {
       for (const x of list) Object.assign(x, {state: 'searching', error: null});
       draw();
@@ -993,7 +995,7 @@ function describePage(b, day, meal) {
         const changed = !fresh.length && r.note === 'changed' && text && batches.find((x) => x.opted && !x.photo && x.idx.some((n) => parts[n].portion));
         if (changed) { changed.said.push(text); estimate(changed); }
         const named = fresh.map((n) => `“${parts[n].text}”`).join(', ');
-        if (wait) wait.textContent = changed ? 'Updating the AI estimate.' : !fresh.length ? r.message : `${named} ${fresh.length === 1 ? 'isn’t' : 'aren’t'} in your foods yet, so I’m looking ${fresh.length === 1 ? 'it' : 'them'} up.`;
+        if (wait) wait.textContent = changed ? 'Updating Kit’s estimate.' : !fresh.length ? r.message : `${named} ${fresh.length === 1 ? 'isn’t' : 'aren’t'} in your foods yet, so I’m looking ${fresh.length === 1 ? 'it' : 'them'} up.`;
         draw();
       } catch (x) { if (active()) { if (wait) wait.textContent = x.message; if (text) input.value = text; } }
       finally { if (active()) setBusy(false); }
@@ -1480,7 +1482,7 @@ function dietCoachContent(box) {
         <button class="primary wide" id="dc-go">${svg('sparkle')}Review my eating</button></div>`;
     const b = $('#dc-go', box);
     if (!aiCan('coach')) { if (L) b.remove(); else box.innerHTML = ''; return; }
-    if (r.paused) { b.replaceWith(Object.assign(document.createElement('p'), {className:'small muted',textContent:'AI is paused. Search, barcodes and manual logging still work.'})); return; }
+    if (r.paused) { b.replaceWith(Object.assign(document.createElement('p'), {className:'small muted',textContent:'Kit is paused. Search, barcodes and manual logging still work.'})); return; }
     b.onclick = async () => {
       if (!App.me.ai_ok) { aiSheet(() => b.click()); return; }
       b.disabled = true; const was = b.innerHTML; b.textContent = 'Reading your log…';
@@ -1515,17 +1517,16 @@ function mealCoach(m) {
 
 function dietCoach(box) {
   if (!box) return;
-  const account = App.me.login;
-  load('/api/food/review', (r) => {
-    if (App.me?.login !== account || !box.isConnected || (!r.latest && !aiCan('coach'))) return;
+  if (kitChatOn()) { box.innerHTML = `<a class="icon-btn kit-help" href="/me/kit?from=nutrition" aria-label="Ask Kit about nutrition">${svg('sparkle')}</a>`; return; }
+  // Until shared Kit chat is released, keep the food-log review that already works.
+  const account = App.me.login, show = () => {
     box.innerHTML = `<button class="icon-btn kit-help" aria-label="Ask Kit about your food log">${svg('sparkle')}</button>`;
     $('button', box).onclick = () => sheet('Kit · Food log', '<div id="food-kit"></div>', (root) => dietCoachContent($('#food-kit', root)));
-  }).catch(() => {
-    if (box.isConnected && App.me?.login === account && aiCan('coach')) {
-      box.innerHTML = `<button class="icon-btn kit-help" aria-label="Ask Kit about your food log">${svg('sparkle')}</button>`;
-      $('button', box).onclick = () => sheet('Kit · Food log', '<div id="food-kit"></div>', root => dietCoachContent($('#food-kit',root)));
-    }
-  });
+  };
+  load('/api/food/review', (r) => {
+    if (App.me?.login !== account || !box.isConnected || (!r.latest && !aiCan('coach'))) return;
+    show();
+  }).catch(() => { if (box.isConnected && App.me?.login === account && aiCan('coach')) show(); });
 }
 
 // The resting source changes burn accounting only; the food target remains a separate explicit action.

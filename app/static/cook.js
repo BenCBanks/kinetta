@@ -7,7 +7,7 @@
 // or by portion (a pot of chili), and logging happens in Add food, not here.
 'use strict';
 
-const RECIPE_SOURCE_LABELS=Object.freeze({site:'Published by site',ingredients:'Matched ingredients',estimated_ingredients:'Ingredients · includes AI estimates',entered:'Entered by you',unknown:'Unknown'});
+const RECIPE_SOURCE_LABELS=Object.freeze({site:'Published by site',ingredients:'Matched ingredients',estimated_ingredients:'Ingredients · includes Kit’s estimates',entered:'Entered by you',unknown:'Unknown'});
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
 Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l6-6 6 6"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'});
@@ -53,7 +53,7 @@ function drawDish(el, d) {
   const source=d.recipe_source||{}, imported=!!source.import_id, display=imported?d.per_serving:t;
   el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
   const sums = has ? `<p class="dish-sum num"><b>${r0(display.kcal)} kcal${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${r0(display[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn(imported?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach') && has) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
+  el.innerHTML = `<div class="top">${backBtn(imported?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
     <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
     ${mine?'<p class="small muted">Add ingredients, then choose whether to log a portion. This recipe is saved for reuse.</p>':''}
     ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button></div><p id="recipe-title-status" class="small muted" role="status">Tap the pencil to rename. The title saves automatically.</p>`
@@ -79,7 +79,7 @@ function drawDish(el, d) {
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
-  const kit = $('#dk-kit', el); if (kit) kit.onclick = () => recipeKit(d, mine, set);
+  const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&aiCan('coach') ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
   if (!mine) return;
   $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Leave this unmatched line out of the recipe nutrition? If you added it separately, its nutrition will be included.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
   $('#dk-help', el).onclick = () => sheet('How recipes work', cookSteps(d));
@@ -597,5 +597,5 @@ function recipeKit(d, mine, set) {
 
 function recipeSourceCard(d){
   const s=d.recipe_source,labels=RECIPE_SOURCE_LABELS;
-  return `<div class="card recipe-source"><p class="small">Makes ${esc(d.serving_count)} servings · ${d.totals.kcal==null?'Calories unknown':`${Math.round(d.totals.kcal/5)*5} kcal in the whole recipe`}</p>${s.source_url?`<a class="linkbtn" href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">Original recipe</a>`:'<p class="small muted">From a recipe screenshot · AI estimates</p>'}<p class="small muted">${esc([...new Set(Object.values(s.sources||{}).map(k=>labels[k]||'Unknown'))].join(' · '))}${s.edited?' · Edited':''}</p>${s.site_recipe_changed?'<p class="small muted">Published values describe the site’s original recipe; ingredients were edited.</p>':''}${s.pending?.length?`<details><summary>Unmatched ingredients (${s.pending.length})</summary>${s.pending.map(t=>`<p>${esc(t)}${d.mine!==false?` <button class="linkbtn" data-dismiss-pending="${esc(t)}">Leave this line out</button>`:''}</p>`).join('')}</details>`:''}</div>`;
+  return `<div class="card recipe-source"><p class="small">Makes ${esc(d.serving_count)} servings · ${d.totals.kcal==null?'Calories unknown':`${Math.round(d.totals.kcal/5)*5} kcal in the whole recipe`}</p>${s.source_url?`<a class="linkbtn" href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">Original recipe</a>`:'<p class="small muted">From a recipe screenshot · Kit’s estimates</p>'}<p class="small muted">${esc([...new Set(Object.values(s.sources||{}).map(k=>labels[k]||'Unknown'))].join(' · '))}${s.edited?' · Edited':''}</p>${s.site_recipe_changed?'<p class="small muted">Published values describe the site’s original recipe; ingredients were edited.</p>':''}${s.pending?.length?`<details><summary>Unmatched ingredients (${s.pending.length})</summary>${s.pending.map(t=>`<p>${esc(t)}${d.mine!==false?` <button class="linkbtn" data-dismiss-pending="${esc(t)}">Leave this line out</button>`:''}</p>`).join('')}</details>`:''}</div>`;
 }

@@ -36,7 +36,7 @@ const FEATURE_GUIDE = [
   ['Tools', 'Notifications', 'Control which supported notifications you receive.', '/me/notifications', 'Choose notification types in Me. Phone alerts are supported in the native iPhone app and need its notification permission.', 'push alerts reminders'],
   ['Tools', 'Units & time zone', 'Choose miles/pounds or kilometres/kilograms, and keep daily totals on your local day.', '/me?setup=body', 'Set units in Me and the time zone in Body & heart rate. Day boundaries follow that setting.', 'imperial metric midnight date'],
   ['Tools', 'Your data', 'Download your records or delete your account from Me.', '/me', 'Open Your data. Downloads may open Safari on iPhone. Account deletion requires your password and removes your account data.', 'export zip delete account privacy'],
-  ['Nutrition', 'Describe what you ate', 'Type it like you’d tell a friend: “2 eggs and toast for breakfast” or “a bowl of the chili I made Sunday”.', '/food?add=1', 'In Add food, type the foods and amounts; + offers photo, barcode, search and manual tools. Saved foods are checked first. Answer any follow-up about the food type or amount before reviewing. Change amounts with − and +, then Add to log lets you choose the meal and, optionally, save a named recipe. Database coverage varies; AI estimates need availability and consent.', 'chat conversational talk leftovers portion grams saved monday quick log'],
+  ['Nutrition', 'Describe what you ate', 'Type it like you’d tell a friend: “2 eggs and toast for breakfast” or “a bowl of the chili I made Sunday”.', '/food?add=1', 'In Add food, type the foods and amounts; + offers photo, barcode, search and manual tools. Saved foods are checked first. Answer any follow-up about the food type or amount before reviewing. Change amounts with − and +, then Add to log lets you choose the meal and, optionally, save a named recipe. Database coverage varies; Kit’s estimates need availability and consent.', 'chat conversational talk leftovers portion grams saved monday quick log'],
   ['Optional AI', 'Food estimates & nutrition labels', 'With AI turned on, new everyday foods you describe are estimated for you, and photos or nutrition labels can be read. Check the result before saving.', '/food?add=1', 'These features must be available for your account and turned on in Me. Food search, barcodes and named manual foods remain available without AI. Add food checks your own foods first. When you name a brand, you pick the product from the food databases; database coverage varies.', 'photo snap camera ai calories estimate', 'food'],
   ['Optional AI', 'Kit training & nutrition reviews', 'Kit offers optional AI notes about workouts and reviews of training, food logs and recipes.', '/me', 'Turn on AI features in Me if they are available for your account. Allow Apple Health workouts separately if you want them included. Reviews you have already saved remain readable.', 'coach weekly review ai analysis', 'coach'],
 ];
@@ -44,6 +44,8 @@ function aiCan(feature) {
   const access = App.me?.ai_access?.[feature];
   return !!App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
 }
+// Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
+function kitChatOn() { return !!App.me?.kit_chat && aiCan('coach'); }
 route(/^\/me\/explore$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Explore Kinetta</h1>
     <p>Your guide to the everyday tools and the less obvious ones. Come back any time.</p>
