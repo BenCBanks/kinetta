@@ -6,6 +6,7 @@ from . import food_photo
 class ResolveIn(food_photo.PhotoIn):
     model_config=ConfigDict(extra='forbid')
     note: str | None = Field(None,max_length=4000)
+    itemize: StrictBool | None = None   # omitted keeps the photo's original choice; false explicitly turns it off
     retry: StrictBool=False
     allow_brand_estimate: StrictBool=False
     part: int | None = Field(None,ge=0,lt=100)

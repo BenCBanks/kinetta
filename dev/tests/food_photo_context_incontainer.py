@@ -129,5 +129,14 @@ class PhotoContext(unittest.TestCase):
   m,_=self.photo()
   self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'images':[JPEG],'note':'Sub\u0000with mayo'},status=422)
   self.assertEqual(self.model.call_count,0)
+ def test_retry_can_keep_or_turn_off_itemization_and_clear_description(self):
+  self.itemized();m,_=self.photo(True);self.resolve(m,images=[JPEG],itemize=True)
+  self.model.side_effect=HTTPException(502,'Fictional provider failure')
+  failed=self.result(self.resolve(m,images=[JPEG],itemize=True,note='Half a sub, no cheese'))
+  self.assertTrue(failed['photo_request_itemize']);self.assertEqual(failed['photo_request_note'],'Half a sub, no cheese')
+  self.model.side_effect=None;self.model.return_value=(ESTIMATE,{},'stand-in')
+  r=self.result(self.resolve(m,images=[JPEG],itemize=False,note='',retry=True))
+  self.assertFalse(r['parts'][0]['photo_itemized']);self.assertFalse(r['photo_request_itemize']);self.assertEqual(r['parts'][0]['photo_description'],'')
+  self.assertNotIn('The person requests an itemized',str(self.model.call_args.args[0]));self.assertEqual(self.entries(),[])
 
 if __name__=='__main__':unittest.main()

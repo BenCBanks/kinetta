@@ -346,8 +346,9 @@ const FoodThread = (() => {
     const file=$('#ql-file',el);file.onchange=()=>{const files=[...file.files];file.value='';const pending=ctx.photoRetry;ctx.photoRetry=null;
       const retry=typeof pending==='number'?{id:pending}:pending,replaceDraft=field.value;
       const prior=retry?ctx.messages.find(m=>m.reply_to===retry.id)?.result:null;
-      const original=retry?prior?.photo_request_note||prior?.parts?.find(p=>p.photo_description)?.photo_description||ctx.messages.find(m=>m.id===retry.id)?.body||'':replaceDraft;
-      reviewFoodPhotos(files,(images,details)=>retry?action(ctx,retry.id,'resolve',{retry:true,images,note:details.note,itemize:details.itemize}).catch(e=>toast(e.message)):send(ctx,{body:details.note||'Photo of food',media:'photo',images,itemize:details.itemize,replaceDraft}),{description:original==='Photo of food'?'':original,itemize:!!(retry?.itemize||prior?.parts?.some(p=>p.photo_itemized)||ctx.messages.find(m=>m.id===retry?.id)?.result?.input?.itemize),active:()=>active(ctx)});
+      const original=retry?prior?.photo_request_note??prior?.parts?.find(p=>p.photo_description)?.photo_description??ctx.messages.find(m=>m.id===retry.id)?.body??'':replaceDraft;
+      const itemize=retry?.itemize??prior?.photo_request_itemize??!!(prior?.parts?.some(p=>p.photo_itemized)||ctx.messages.find(m=>m.id===retry?.id)?.result?.input?.itemize);
+      reviewFoodPhotos(files,(images,details)=>retry?action(ctx,retry.id,'resolve',{retry:true,images,note:details.note,itemize:details.itemize}).catch(e=>toast(e.message)):send(ctx,{body:details.note||'Photo of food',media:'photo',images,itemize:details.itemize,replaceDraft}),{description:original==='Photo of food'?'':original,itemize,active:()=>active(ctx)});
     };
     $$('[data-tool]',el).forEach(b=>b.onclick=()=>{const tool=b.dataset.tool;
       if(tool==='snap'||tool==='library'){if(!aiCan('food')){status(ctx,'Food photos need Kit access and your consent. You can type, search or enter numbers instead.');return;}if(tool==='snap')file.setAttribute('capture','environment');else file.removeAttribute('capture');file.click();}

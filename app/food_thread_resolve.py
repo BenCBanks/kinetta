@@ -19,6 +19,12 @@ def _unknown(result):
     return [p for p in result['parts'] if not p.get('logged') and p['status']=='unknown']
 
 
+def _photo_mode(media,message,body):
+    from .food_thread_photo import requested
+    said=body.note if body.note is not None else message['body']
+    return media['kind']=='photo' and (body.itemize if body.itemize is not None else bool(media.get('itemize') or requested(said)))
+
+
 def _alias(c,uid,parts):
     phrase='\n'.join(p['text'] for p in parts)
     row=c.execute('SELECT templates FROM food_chat_aliases WHERE user_id=%s AND key=%s',(uid,C.alias_key(phrase))).fetchone()
@@ -61,11 +67,11 @@ def claim(uid,mid,body):
             if not coach.allowed(uid,'food',connection=c):raise HTTPException(403,coach.off())
             part.update(status='unknown',looked_up=False,skip_alias=True,prefer_estimate=True)
         media=(message.get('result') or {}).get('input') or {'kind':'text'}
-        from .food_thread_photo import requested
-        if media['kind']=='photo' and (body.itemize or media.get('itemize') or requested(body.note or message['body'])) and not (message.get('result') or {}).get('review_only'):
+        itemize=_photo_mode(media,message,body)
+        if itemize and not (message.get('result') or {}).get('review_only'):
             raise HTTPException(409,'Ingredient estimates need the final food review. Update the app and add this photo again.')
         previous=None
-        if body.itemize and (body.image or body.images) and media['kind']=='photo':
+        if (body.image or body.images) and media['kind']=='photo' and not _unknown(result) and (body.itemize is not None or body.note is not None):
             if not (message.get('result') or {}).get('review_only') or result.get('kind') not in ('preview','needs') or any(p.get('logged') for p in result['parts']):
                 raise HTTPException(409,'This food is already in review or logged. Add a new photo for a separate estimate.')
             # Retain the original card while the replacement is in flight. Failed
@@ -86,7 +92,7 @@ def claim(uid,mid,body):
         if media['kind']=='photo' and not raw_images:
             for p in unknown:p.update({'looked_up':True,'question':'Add the photo again, or describe the food.','needs_photo':True})
             return {'done':C.write(c,uid,message,result)}
-        digest=hashlib.sha256(json.dumps([[(p['index'],p['text'],p.get('lookup_revision')) for p in unknown],raw_images,body.allow_brand_estimate,body.part,body.note,body.itemize],sort_keys=True).encode()).hexdigest()
+        digest=hashlib.sha256(json.dumps([[(p['index'],p['text'],p.get('lookup_revision')) for p in unknown],raw_images,body.allow_brand_estimate,body.part,body.note,itemize],sort_keys=True).encode()).hexdigest()
         old=c.execute('SELECT * FROM food_chat_jobs WHERE user_id=%s AND message_id=%s FOR UPDATE',(uid,mid)).fetchone()
         now=dt.datetime.now(dt.timezone.utc)
         if old and old['state']=='running' and old['expires']>now:
@@ -101,6 +107,7 @@ def claim(uid,mid,body):
                      state='running',input_hash=excluded.input_hash''',(uid,mid,lease,digest))
         shown=copy.deepcopy(previous or result);shown.pop('error',None);shown['processing']=True
         if media['kind']=='photo' and body.note is not None:shown['photo_request_note']=body.note
+        if media['kind']=='photo':shown['photo_request_itemize']=itemize
         food_thread.finish_reply(c,uid,message,shown)
         return {'message':message,'result':copy.deepcopy(result),'media':media,'lease':lease,'photo_previous':previous}
 
@@ -160,12 +167,11 @@ def resolve_outside(uid,work,body):
     if estimate:
         text='\n'.join(p['text'] for p in estimate)
         if media['kind']=='photo':text=message['body'] if message['body']!='Photo of food' else ''
-        if body.note:text=body.note.strip() if media['kind']=='photo' else (text+'\n'+body.note).strip()
+        if body.note is not None:text=body.note.strip() if media['kind']=='photo' else (text+'\n'+body.note).strip()
         if len(text)>4000:return updates,HTTPException(422,'That food note is too long; your original message is kept')
         # PhotoIn's public legacy note limit remains 2000. The permanent thread
         # already accepted 4000 characters; no one has to rewrite a saved message.
-        from .food_thread_photo import requested
-        itemize=media['kind']=='photo' and (body.itemize or media.get('itemize') or requested(text))
+        itemize=_photo_mode(media,message,body)
         estimate_body=ResolveIn(image=body.image,images=body.images,note=text or None,itemize=bool(itemize))
         try:
             with ai_budget.scope(uid,message['client_id']):
