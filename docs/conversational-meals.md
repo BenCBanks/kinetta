@@ -43,8 +43,8 @@ Matching ignores capitals, accents and plurals (taco/tacos). Names with “and�
 is **not** guessed:
 
 - First, Kinetta checks USDA and Open Food Facts for branded products containing every requested name/brand word. Choose a candidate, check the package and serving, then confirm its amount. No generic substitute is silently logged. Coverage and catalog accuracy vary; search or scan the barcode if the exact product is missing. Database failures retain Search and Retry options.
-- With AI access and consent, tap **Estimate with AI** (or **Use an AI estimate instead**). Only the words of the foods that weren't found (for example “a hot dog”) go to the AI
-  estimator, and its estimate is shown as **AI estimate**, editable, in the same list. Later corrections about that
+- With AI access and consent, tap **Estimate with Kit** (or **Use Kit’s estimate instead**). Only the words of the foods that weren't found (for example “a hot dog”) go to the AI
+  estimator, and its estimate is shown as **Kit’s estimate**, editable, in the same list. Later corrections about that
   food go to the AI as well. Your saved foods, recipes and history are never sent.
 - With AI off, the food gets a **Search for “…”** button. After you add the rest, Add food opens on Search with those
   words filled in.
@@ -108,11 +108,9 @@ draft reload or an offline delay. If that card disappeared, choose one of your
 logged foods. A changed held preview refreshes its numbers and asks you to tap Log
 again; it does not save changed numbers in the first tap.
 
-When separately enabled after evaluation, food advice, reassurance and day reviews offer an optional Kit answer. Tap Ask Kit to request it; history reads and page opens never call a model. Kit sees the current question and authenticated food tools, not your stored Health, body, weight, workouts or the deterministic burn summary. It labels its interpretation and shows verified food records and limits. Review proposed meal opens the shared portion/meal confirmation; nothing is logged before Confirm and log food. From Me: open chat, Send a question, Ask Kit (three taps plus typing); a proposed meal adds Review and Confirm (five total). An incomplete/unknown nutrient prevents a full total or unsupported meal suggestion. The saved answer remains in private server history, while reopening quick log starts a fresh view; a lost confirmation acknowledgement reuses its proposal. Physical iPhone behaviour and qualitative answer accuracy remain separate checks.
+Ask Kit opens the same ongoing conversation from Nutrition or another tab. Empty chats offer relevant starting questions; after the first turn they use Add food’s familiar conversation layout. Kit can look up relevant own nutrition, training and progress records through fixed tools, with Health sharing controlled by existing permissions. Suggested changes need review and confirmation; opening the chat never calls a model. See [the Kit decision record](kit-assistant.md) for conversation storage, Clear chat, privacy and the separate reviewed release gate.
 
-Daily note is off in Food chat settings. Choose Code summary to get a saved note when visiting chat after 8 pm in your account's time zone, or tap Daily note earlier. It states when the numbers were calculated, and later food stays in the live log. Supportive/Just the numbers also applies to the note. Code summary + optional Kit adds a separately requested richer version when evaluated AI access and consent allow it. It can be attempted only once per local day, including a failed request; refresh, toggling and deleting do not create extra attempts. Nothing is pushed to your phone and no food or target changes. Turning Off stops future notes; old notes remain individually deletable/exportable. From Me, chat → Settings → select mode → Save enables the setting (four taps plus native selector choice); once enabled, chat → Daily note is two taps from Me.
-
-The daily Kit cap also covers requests for older notes made on the same current local day. A separate durable local-day counter survives message/reply deletion; existing UTC service/provider budgets still apply independently.
+Evening food summaries and their settings/shortcut were retired on 20 October 2026. No new summary or optional daily Kit note is generated. Older notes stay readable and exportable. Nutrition insights now start from the Kit icon on Nutrition.
 
 Picker receipts are opt-in for food logged from the conversation. Ordinary day-view
 adds and copies do not create chat messages. Restoring a deleted item relinks the

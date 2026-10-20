@@ -79,9 +79,9 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
       daily overrides and Health/resting choices are preserved. Available from Me and Nutrition without a watch or AI.
 - [x] Native Me setup restores optional Connect Apple Health until sync is enabled, including accounts with history;
       finished setup never leaves an empty heading/card. Physical-iPhone permission/haptic/text checks remain separate.
-- [x] Describe what you ate in your own words (several foods, amounts, day/meal, follow-up corrections): matched against your own meals, foods and history with no AI; only unknown foods go to the AI estimate, and without AI you search for them
+- [x] Describe what you ate in your own words (several foods, amounts, day/meal, follow-up corrections): matched against your own meals, foods and history with no AI; only unknown foods go to Kit’s estimate, and without AI you search for them
 - [x] Log by search (USDA + Open Food Facts), barcode, quick add (cal/P/C/F), custom foods, saved meals, recipes
-- [x] Photo (+ optional description) -> AI estimate (Gemini Flash-Lite; cost varies with input and retries, with durable caps) -> check -> logged
+- [x] Photo (+ optional description) -> Kit’s estimate (Gemini Flash-Lite; cost varies with input and retries, with durable caps) -> check -> logged
 - [x] Edit / move / copy / delete any entry; copy a day or a meal
 - [x] Daily totals vs targets (calories + macros), remaining
 - [x] Weight log + trend line; later: expenditure estimate from weight trend + food
@@ -155,8 +155,8 @@ See [Recording activities](docs/activity-tracking.md).
   Snap, Photo library, Scan, Paste and keyboard dictation share the conversation.
   New entries default to Today; already logged food stays saved and pending uploads
   remain visible across visits. Create a Recipe saves reusable ingredients separately.
-  Optional daily note and private switch acceptance remain separate #122 D
-  requirements.
+  Private switch acceptance remains a separate #122 D requirement; the optional
+  daily note was retired on 20 October 2026.
 
 - [x] Search, Quick, usual and recipe-portion logs can create neutral conversation
   cards atomically; replays respect Undo and text deletion. Stable recipe-portion
@@ -164,9 +164,9 @@ See [Recording activities](docs/activity-tracking.md).
   stay unknown, and delayed corrections remember their original food context
   (#122 D).
 
-- **Optional food-chat Kit answer (release gated):** code answers remain available with AI off. An explicit food-only question can save a labelled AI interpretation, verified food facts and an existing-recipe/usual proposal; confirming a proposal saves an atomic conversation receipt with source and fibre retained. Retry, Undo and message deletion do not duplicate or resurrect food. This capability needs a matching human-reviewed food-chat evaluation report before it becomes available.
+- **Shared Kit assistant (release gated):** one private ongoing chat across training, nutrition, strength, goals and progress, with contextual starting prompts, relevant own-record lookups, verified numeric evidence, explicit review/confirmation for changes, Retry and Clear chat. Requires AI access/consent and a matching separately reviewed Kit report. Existing food-chat answers and reviews remain readable.
 
-- **Optional daily food note:** off by default; after enabling, code summarises the logged day with incomplete/low-intake safeguards and one practical idea. An explicit optional Kit version is limited to one attempt per local day behind the food-chat evaluation/consent/access gate. Saved notes show when calculated; ordinary history reads never spend AI tokens. No notification is sent.
+- **Evening food summaries retired (20 October 2026):** the setting, shortcut and automatic generation are removed. Nutrition insights start through the Nutrition Kit icon. Historical notes remain readable/exportable.
 
 Connections now leads with Apple Health status and Connect/Manage in the iPhone app, then Upload files. intervals.icu and Health Auto Export remain under Advanced for power users. A watch is optional. Garmin Health sharing can be delayed and excludes GPS tracks; on your own Health-sourced outdoor workout without a route, Add the map explains Garmin Connect website → activity → settings gear → Export Original, then uploads the original ZIP/FIT through the existing importer. Matching sport/time/distance enriches the existing activity and keeps user edits; other recordings remain separate. No provider connection is required.
 

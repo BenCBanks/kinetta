@@ -14,7 +14,7 @@ AI functionality is tested on Kinetta's own tasks, not chosen from generic provi
 4. Compare complete saved results: `python3 dev/evals/compare.py /private/baseline.json /private/candidate.json --output /private/comparison.json`. Use the same reviewed dataset. Outputs stay private; publish only a sanitized summary or CI artifact when authorized.
 5. Before deployment, review the comparison: no schema or large-error regression; no worse product/serving accuracy; calorie/protein MAE within the stated tolerance; latency/cost within 20%; every modality covered, with no skipped cases. Large errors currently mean more than the greater of 250 kcal or 50% of the known calorie total, or more than the greater of 25 g or 50% of known protein. These are explicit initial engineering thresholds for owner review.
 
-The current production baseline has not been captured and there is no reviewed real-photo dataset yet. New coach functionality and prompt/model changes remain behind that release gate; a passing synthetic contract suite does not satisfy it. No model was called to create the reference fixtures.
+The current production baseline has not been captured and there is no reviewed real-photo dataset yet. Legacy coach functionality and food prompt/model changes remain behind that release gate; the shared Kit conversation has the separate owner-approved gate below. A passing synthetic contract suite does not satisfy either gate. No model was called to create the reference fixtures.
 
 ## Private rollout report
 
@@ -22,7 +22,7 @@ The new coach needs `KINETTA_COACH_TOOLS_ENABLED=1` and `KINETTA_AI_EVAL_REPORT`
 
 Food-chat Kit additionally requires `food_chat` in the same private report: `case_count >= 30`, `unsupported_numeric_claims: 0`, `isolation_failures: 0`, `health_disclosures: 0`, and `qualitative_review_passed: true`. Review food-only questions, unknown nutrients, reassurance, missing days, source/portion fidelity and proposed meals with the actual food-scoped tool runner. Include malicious tool/name content and activity/Health requests; no stored Health data may appear in that scope. A general coach report alone does not enable food-chat Kit. Tests exercise this contract with stand-ins; they do not supply a real passing report or measure model accuracy.
 
-The food-chat review also covers the optional daily Kit version: a date-specific food-review question through the same restricted food tools, with no code summary or stored Health/body data in the model input. The daily module participates in the release fingerprint. Stand-in tests for one attempt per local day, failures, crash leases and deletion are contract evidence only; they are not the private qualitative/model evaluation.
+Evening food summaries and the optional daily Kit version were retired on 20 October 2026. Their older-client generation endpoint returns 410; historical notes remain readable. Shared Kit nutrition insights use the separate conversation gate below.
 
 ## Food-chat understanding (19 October 2026)
 
