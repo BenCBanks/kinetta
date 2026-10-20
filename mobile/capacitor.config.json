@@ -4,7 +4,8 @@
   "webDir": "www",
   "ios": {
     "contentInset": "never",
-    "limitsNavigationsToAppBoundDomains": false
+    "limitsNavigationsToAppBoundDomains": false,
+    "allowsLinkPreview": false
   },
   "plugins": {
     "Keyboard": {
