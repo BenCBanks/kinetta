@@ -106,6 +106,21 @@ try:
         with patch('app.coach_chat.answer',side_effect=real_answer),patch('app.coach_chat._gemini_turn',side_effect=end_during_turn):
             result=request(a,'POST','/messages/'+pending['client_id']+'/answer',{'generation':fifth['generation'],'visit_id':fifth['visit_id']})
             assert result['cancelled'] and len(turns)==1
+        # A permission change during profile preloading must stop the FIRST provider call.
+        # No remembered Health context may slip through between the history read and transport.
+        with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(uid,))
+        sixth=visit();pending=body(sixth,'Help me choose a routine.');request(a,'POST','/messages',pending)
+        from app.kit_tools import KitTools
+        original_call=KitTools.call
+        def revoke_after_profile(self,name,args):
+            value=original_call(self,name,args)
+            if name=='profile':
+                with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(uid,))
+            return value
+        with patch('app.coach_chat.answer',side_effect=real_answer),patch('app.kit_tools.KitTools.call',new=revoke_after_profile),patch('app.coach_chat._gemini_turn') as transport:
+            result=request(a,'POST','/messages/'+pending['client_id']+'/answer',{'generation':sixth['generation'],'visit_id':sixth['visit_id']})
+            assert result['state']=='failed' and not result['answer'] and not transport.called
+            assert 'Apple Health' in result['error']
         # Memory is personal exported data; visits/messages/memories cascade on account deletion.
         with tempfile.NamedTemporaryFile(suffix='.zip') as f:
             _write_export(uid,f.name)
