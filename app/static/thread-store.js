@@ -55,7 +55,7 @@ async function restoreFoodPending({db,owner,draftId,messages}) {
     const meta=m.result||{};
     if(m.kind!=='user'||m.state!=='pending'||meta.review_only!==true||meta.draft_id!==draftId||messages.some(r=>r.reply_to===m.id))continue;
     await db.ensure(owner,m.client_id,{id:m.client_id,mid:m.id,body:m.body,at:m.captured_at,
-      phase:'process',review_only:true,draft_id:draftId,media:meta.input?.kind||'text',
+      phase:'process',review_only:true,draft_id:draftId,media:meta.input?.kind||'text',itemize:!!meta.input?.itemize,
       ...(meta.input?.barcode?{barcode:meta.input.barcode}:{}),...(meta.destination||{})});
     restored=true;
   }
@@ -100,7 +100,7 @@ function foodOutbox({db,request,session,changed,progress=async()=>{},online=()=>
               await db.remove(owner,job.id);continue;
             }
             if (!job.mid) {
-              const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.review_only?{review_only:true}:{}),...(job.draft_id?{draft_id:job.draft_id}:{}),...(job.day?{day:job.day}:{}),...(job.meal?{meal:job.meal}:{}),...(job.context?{context:job.context}:{}),...(job.barcode?{barcode:job.barcode}:{})});
+              const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.itemize?{itemize:true}:{}),...(job.review_only?{review_only:true}:{}),...(job.draft_id?{draft_id:job.draft_id}:{}),...(job.day?{day:job.day}:{}),...(job.meal?{meal:job.meal}:{}),...(job.context?{context:job.context}:{}),...(job.barcode?{barcode:job.barcode}:{})});
               await write({mid:r.message.id,phase:'process'});
             }
             let r;
@@ -111,7 +111,7 @@ function foodOutbox({db,request,session,changed,progress=async()=>{},online=()=>
               else {await db.remove(owner,job.id);continue;}
             }
             if(job.phase==='resolve') {
-              r=await call(`/api/food/thread/messages/${job.mid}/resolve`,{...(job.images?.length?{images:job.images}:{}),retry:!!job.retry});
+              r=await call(`/api/food/thread/messages/${job.mid}/resolve`,{...(job.images?.length?{images:job.images}:{}),retry:!!job.retry,...(job.note!==undefined?{note:job.note}:{}),...(job.itemize?{itemize:true}:{})});
               const result=(r.messages||[]).find(m=>m.reply_to===job.mid)?.result || {};
               if(r.processing||result.processing)break; // Another request holds the bounded server lease.
               await db.remove(owner,job.id); // Source errors remain on the server card with explicit Retry.

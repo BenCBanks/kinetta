@@ -199,6 +199,11 @@ def process(c,uid,message):
     if (message.get('result') or {}).get('input'):
         from . import food_thread_compose as compose
         return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
+    # Photo questions refer to the selected card, before generic log questions
+    # or model intent parsing can turn them into a new food or today's totals.
+    from . import food_thread_photo
+    photo_answer=food_thread_photo.answer(c,uid,message)
+    if photo_answer is not None:return photo_answer
     from . import food_thread_understand as understand
     try:
         with c.transaction():

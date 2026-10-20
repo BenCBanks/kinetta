@@ -216,6 +216,9 @@ def ground_estimates(c,uid,part):
         portion={'grams':grams} if grams else p
         item=meal_chat.item_for(c,uid,{'text':f['name'],'pick':None,'portion':portion,'new':True,'saved_day':None},catalog,issued)
         if item['status']!='ready':continue
+        # Ingredient rows must not become a whole saved dish through a partial
+        # name match ("lentils" is not "lentil and tomato soup").
+        if part.get('photo_itemized') and meal_chat.name_words(f['name'])!=meal_chat.name_words(item['name']):continue
         draft['own']={k:item[k] for k in ('kind','id','portion','expected')}
         draft['own']['issued']=issued
         original=draft.get('learn_portion') or p
