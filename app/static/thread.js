@@ -101,7 +101,7 @@ const FoodThread = (() => {
   function kitHtml(r){
     const k=r.kit;
     if(k)return `<section class="thread-kit"><h3>Kit’s view</h3><p>${esc(k.interpretation)}</p>${k.facts?.length?`<details><summary>Verified food records</summary><dl>${k.facts.map(f=>`<div class="kv"><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join('')}</dl></details>`:''}${k.limitations?.length?`<details><summary>Data limits</summary>${k.limitations.map(l=>`<p>${esc(l)}</p>`).join('')}</details>`:''}${k.selection?.kind==='food'?'<button type="button" class="ghost" data-kit-review>Review proposed meal</button>':''}</section>`;
-    if(r.daily_note||!aiCan('coach')||!(r.offer_kit||r.intent==='review'))return '';
+    if(r.daily_note||!kitChatOn()||!(r.offer_kit||r.intent==='review'))return '';
     return `<a class="linkbtn" href="/me/kit?from=nutrition">Ask Kit about nutrition ${svg('chev')}</a>`;
   }
   function replyHtml(root,reply) {

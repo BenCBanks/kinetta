@@ -44,6 +44,8 @@ function aiCan(feature) {
   const access = App.me?.ai_access?.[feature];
   return !!App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
 }
+// Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
+function kitChatOn() { return !!App.me?.kit_chat && aiCan('coach'); }
 route(/^\/me\/explore$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Explore Kinetta</h1>
     <p>Your guide to the everyday tools and the less obvious ones. Come back any time.</p>

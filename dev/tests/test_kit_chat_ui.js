@@ -6,6 +6,14 @@ for(const group of Object.values(c.Kit.starters))assert.equal(group.length,3);
 for(const [,path] of Object.values(c.Kit.actions))assert(path.startsWith('/')&&!path.startsWith('//'));
 const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,2);assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
+// Shared chat entries appear only when the server's reviewed Kit gate is on; otherwise older Kit reviews stay.
+{const explore=fs.readFileSync('app/static/explore.js','utf8'),gate=explore.slice(explore.indexOf('function aiCan('),explore.indexOf('route(/^\\/me\\/explore$/'));
+ const g={App:{me:{ai_ok:true,coach:true,ai_access:{coach:{available:true,entitled:true}}}}};vm.createContext(g);vm.runInContext(gate,g);
+ assert.equal(g.kitChatOn(),false,'no Kit chat until the server reports kit_chat');g.App.me.kit_chat=true;assert.equal(g.kitChatOn(),true);g.App.me.ai_ok=false;assert.equal(g.kitChatOn(),false,'consent off hides Kit chat');
+ let made=0;const e={kitChatOn:()=>false,href:s=>'/me/kit?from='+s,document:{createElement(){made++;return {setAttribute(){}}}},svg:()=>''};vm.createContext(e);vm.runInContext(source.slice(source.indexOf('  function entry(el,path){'),source.indexOf('  return {mount,')).replace('function entry','globalThis.entry=function'),e);
+ const page={querySelector:s=>s==='.top'?{querySelector:()=>null,append(){}}:null};e.entry(page,'/food');assert.equal(made,0,'gated Kit adds no tab-home entry');e.kitChatOn=()=>true;e.entry(page,'/food');assert.equal(made,1);
+ for(const [file,needle] of [['app/static/pages.js',"kitChatOn() ? go(KitChat.href('activity'"],['app/static/food.js','if (kitChatOn()) { box.innerHTML'],['app/static/plan.js',"kitChatOn() ? '<a class=\"ghost\" href=\"/me/kit?from=plan\">"],['app/static/thread.js',"!kitChatOn()||!(r.offer_kit"]])
+   assert(fs.readFileSync(file,'utf8').includes(needle),file+' gates its Kit chat entry');}
 (async()=>{
  let saved,delivered=0,status='',field={value:'My unsent question'};
  const sender={active:()=>true,$:()=>field,newId:()=> 'stable-uuid',save:(ctx,k,v)=>{saved=v},deliver:async()=>delivered++,status:(ctx,v)=>status=v};vm.createContext(sender);vm.runInContext(pick('  async function send(c,text){','  async function mount(el){'),sender);
@@ -14,7 +22,7 @@ const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
  ctx.job=null;ctx.ready=false;await sender.send(ctx);assert.equal(delivered,1);assert.equal(field.value,'My unsent question');assert(status.includes('isn’t available'));
  // A server-accepted message after a lost acknowledgement reconciles the durable local send.
  const removed=[];field={value:'Accepted earlier',style:{}};
- const loader={api:async()=>({generation:'generation-a',messages:[{id:1,client_id:'accepted',question:'Accepted earlier',state:'answered'}],ready:true,before:null}),active:()=>true,$:()=>field,store:{del:k=>removed.push(k)},key:(o,k)=>k,draw(){},status(){},Map,answer(){throw Error('Answered messages cannot call the model again')},later(){}};
+ const loader={aiCan:()=>true,App:{me:{ai_ok:true}},api:async()=>({generation:'generation-a',messages:[{id:1,client_id:'accepted',question:'Accepted earlier',state:'answered'}],ready:true,before:null}),active:()=>true,$:()=>field,store:{del:k=>removed.push(k)},key:(o,k)=>k,draw(){},status(){},Map,answer(){throw Error('Answered messages cannot call the model again')},later(){}};
  vm.createContext(loader);vm.runInContext(pick('  async function refresh(c,before=null){','  const later='),loader);
  const resumed={generation:'generation-a',owner:'one',messages:[],job:{client_id:'accepted',question:'Accepted earlier',generation:'generation-a'}};
  await loader.refresh(resumed);assert.equal(resumed.job,null);assert.equal(field.value,'');assert(removed.includes('pending')&&removed.includes('draft'));

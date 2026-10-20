@@ -659,7 +659,7 @@ function savedSheet(m, w, closeParent, after) {
       if (!confirm(`Delete the saved meal ${m.name}?`)) return;
       try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Deleted'); after(); } catch (x) { toast(x.message); }
     };
-    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!aiCan('coach')){mealCoach(m);return;}close();closeParent();KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
+    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!kitChatOn()){mealCoach(m);return;}close();closeParent();KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
   });
 }
 function tQuick(body, where, close) {
@@ -1516,7 +1516,17 @@ function mealCoach(m) {
 }
 
 function dietCoach(box) {
-  if(box&&aiCan('coach'))box.innerHTML=`<a class="icon-btn kit-help" href="/me/kit?from=nutrition" aria-label="Ask Kit about nutrition">${svg('sparkle')}</a>`;
+  if (!box) return;
+  if (kitChatOn()) { box.innerHTML = `<a class="icon-btn kit-help" href="/me/kit?from=nutrition" aria-label="Ask Kit about nutrition">${svg('sparkle')}</a>`; return; }
+  // Until shared Kit chat is released, keep the food-log review that already works.
+  const account = App.me.login, show = () => {
+    box.innerHTML = `<button class="icon-btn kit-help" aria-label="Ask Kit about your food log">${svg('sparkle')}</button>`;
+    $('button', box).onclick = () => sheet('Kit · Food log', '<div id="food-kit"></div>', (root) => dietCoachContent($('#food-kit', root)));
+  };
+  load('/api/food/review', (r) => {
+    if (App.me?.login !== account || !box.isConnected || (!r.latest && !aiCan('coach'))) return;
+    show();
+  }).catch(() => { if (box.isConnected && App.me?.login === account && aiCan('coach')) show(); });
 }
 
 // The resting source changes burn accounting only; the food target remains a separate explicit action.

@@ -30,7 +30,7 @@ const KitChat = (() => {
   const questionFor=(c,i)=>c.context.screen==='activity'&&i===0&&!c.context.activity_id?'Review my latest own workout against my recent history. Use the workout date to find the latest one, rather than the upload order.':starters[c.context.screen][i]?.[1];
   function controls(c){
     const busy=c.sending||c.messages.some(m=>['pending','running'].includes(m.state));
-    $('#kit-send',c.el).disabled=!c.loaded||!c.ready||busy||!aiCan('coach')||!$('#kit-text',c.el).value.trim();
+    $('#kit-send',c.el).disabled=!c.loaded||!c.ready||busy||!aiCan('coach')||$('#kit-text',c.el).value.trim().length<3;
     $$('[data-kit-start]',c.el).forEach(b=>b.disabled=!c.loaded||!c.ready||busy||!aiCan('coach'));
   }
   function factLabel(f){
@@ -67,6 +67,7 @@ const KitChat = (() => {
     }
 
     if(!c.ready)status(c,'Kit chat isn’t available yet. Your food log and other app tools still work.');
+    else if(!aiCan('coach'))status(c,App.me?.ai_ok?'Kit isn’t available for your account. Your food log and other app tools still work.':'Kit is off. Turn it on in Me to chat.');
     draw(c);
     const waiting=c.messages.find(m=>m.state==='pending');
     if(waiting&&!c.sending&&!c.answerErrors?.[waiting.client_id])answer(c,waiting.client_id);
@@ -134,7 +135,7 @@ const KitChat = (() => {
   function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
   function entry(el,path){
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
-    if(!screen||!aiCan('coach')||el.querySelector('.kit-help'))return;
+    if(!screen||!kitChatOn()||el.querySelector('.kit-help'))return;
     const heading=el.querySelector('.top');if(!heading)return;
     const link=document.createElement('a');link.className='icon-btn kit-help';link.href=href(screen);link.setAttribute('aria-label','Ask Kit');link.innerHTML=svg('sparkle');
     (heading.querySelector('.acts')||heading).append(link);
