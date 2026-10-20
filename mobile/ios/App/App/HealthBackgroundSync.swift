@@ -3,6 +3,7 @@ import HealthKit
 import Security
 import UIKit
 import Capacitor
+import BackgroundTasks
 
 private struct HealthSyncCredentials: Codable {
     let owner: String
@@ -31,6 +32,81 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
     // Main-thread only: join repeated taps instead of presenting overlapping sheets.
     private var permissionWaiters: [(Error?) -> Void] = []
     private let keyAccount = "apple-health-sync"
+    static let refreshIdentifier = "com.kinetta.app.health-refresh"
+    private var protectedDataObserver: NSObjectProtocol?
+    private var refreshTask: BGAppRefreshTask?
+    private var refreshDeadline: DispatchWorkItem?
+    private var runFailed = false
+
+    // Register synchronously during application launch, before iOS can deliver a refresh task.
+    func registerRecovery() {
+        guard protectedDataObserver == nil else { return }
+        protectedDataObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.start() }
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshIdentifier, using: .main) { task in
+            guard let refresh = task as? BGAppRefreshTask else { task.setTaskCompleted(success: false); return }
+            self.runRefresh(refresh)
+        }
+    }
+
+    private func runRefresh(_ refresh: BGAppRefreshTask) {
+        refresh.expirationHandler = { self.serial.async { self.expireRefresh(refresh) } }
+        serial.async {
+            self.refreshTask = refresh
+            let deadline = DispatchWorkItem { self.expireRefresh(refresh) }
+            self.refreshDeadline = deadline
+            self.serial.asyncAfter(deadline: .now() + 25, execute: deadline)
+            do {
+                if self.credentials == nil { try self.restore() }
+                guard HKHealthStore.isHealthDataAvailable(), self.credentials != nil, self.state?.needsLogin == false else {
+                    self.completeRefresh(success: false); return
+                }
+                self.observe()
+                self.kick()
+            } catch {
+                // Before the first unlock the queue/Keychain can themselves be protected.
+                self.scheduleProtectedRetry()
+                self.completeRefresh(success: false)
+            }
+        }
+    }
+
+    private func expireRefresh(_ refresh: BGAppRefreshTask) {
+        guard refreshTask === refresh else { return }
+        cancel()
+        if credentials != nil {
+            observe()
+            if state?.protectedDataPause == true || state?.pending.isEmpty == false { scheduleProtectedRetry() }
+        }
+    }
+
+    private func completeRefresh(success: Bool) {
+        refreshDeadline?.cancel(); refreshDeadline = nil
+        let refresh = refreshTask; refreshTask = nil
+        refresh?.setTaskCompleted(success: success)
+    }
+
+    private func scheduleProtectedRetry() {
+        guard state?.needsLogin != true else { return }
+        let request = BGAppRefreshTaskRequest(identifier: Self.refreshIdentifier)
+        request.earliestBeginDate = Date().addingTimeInterval(60)
+        // iOS chooses the actual time. A denied/unavailable scheduler never loses the queue.
+        try? BGTaskScheduler.shared.submit(request)
+    }
+
+    private func protectedPause(_ error: Error?) -> Bool {
+        guard let error = error as NSError?, error.domain == HKErrorDomain,
+              error.code == HKError.Code.errorDatabaseInaccessible.rawValue else { return false }
+        runFailed = true
+        if var saved = state {
+            saved.pauseForProtectedData()
+            state = saved
+            try? persist(saved)
+        }
+        scheduleProtectedRetry()
+        return true
+    }
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 30
@@ -163,7 +239,10 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
                     self.store.enableBackgroundDelivery(for: .workoutType(), frequency: .immediate) { _, _ in }
                     self.kick()
                 }
-            } catch { /* Protected files/Keychain can be unavailable before the first unlock. Retry on activation. */ }
+            } catch {
+                // Recovery must also survive a process killed while waiting for its first unlock.
+                self.scheduleProtectedRetry()
+            }
         }
     }
 
@@ -231,10 +310,14 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
 
     private func observe() {
         guard observer == nil else { return }
+        let observerVersion = version
         let query = HKObserverQuery(sampleType: .workoutType(), predicate: nil) { _, completion, error in
             self.serial.async {
-                guard self.credentials != nil else { completion(); return }
-                if error != nil { self.recordError("Apple Health could not read workouts. Unlock your phone and try again."); completion(); return }
+                guard observerVersion == self.version, self.credentials != nil else { completion(); return }
+                if let error = error {
+                    if !self.protectedPause(error) { self.recordError("Apple Health could not read workouts. Check Health permissions and try Sync now.") }
+                    completion(); return
+                }
                 self.completions.append(completion)
                 self.kick()
             }
@@ -254,15 +337,18 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
         activeCompletions.removeAll(); completions.removeAll()
         busy = false; rerun = false
         refreshRange = nil
+        completeRefresh(success: false)
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.refreshIdentifier)
         endBackgroundTask()
     }
 
     private func kick() {
         guard credentials != nil, state != nil, state?.needsLogin == false else {
-            completions.forEach { $0() }; completions.removeAll(); return
+            completions.forEach { $0() }; completions.removeAll(); completeRefresh(success: false); return
         }
         if busy { rerun = true; return }
         busy = true
+        runFailed = false
         attempted.removeAll()
         activeCompletions = completions; completions.removeAll()
         let run = version
@@ -294,6 +380,7 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
                 self.serial.async {
                     guard run == self.version else { return }
                     self.queries.removeAll()
+                    if self.protectedPause(error) { self.refreshRange = range; self.rerun = false; self.finish(); return }
                     do {
                         guard error == nil, var next = self.state, (samples?.count ?? 0) <= 2000 else {
                             throw self.failure("Could not refresh this Health history. Try a shorter range.")
@@ -320,8 +407,9 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
                 self.serial.async {
                     guard run == self.version else { return }
                     self.queries.removeAll()
+                    if self.protectedPause(error) { self.rerun = false; self.finish(); return }
                     do {
-                        guard error == nil, let nextAnchor = nextAnchor, var next = self.state else { throw self.failure("Apple Health could not read workouts. Unlock your phone and retry.") }
+                        guard error == nil, let nextAnchor = nextAnchor, var next = self.state else { throw self.failure("Apple Health could not read workouts. Check Health permissions and try Sync now.") }
                         let ids = (samples as? [HKWorkout] ?? []).map { $0.uuid.uuidString }
                         next.enqueue(ids, anchor: try NSKeyedArchiver.archivedData(withRootObject: nextAnchor, requiringSecureCoding: true))
                         try self.persist(next)
@@ -344,15 +432,18 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
             self.serial.async {
                 guard run == self.version else { return }
                 self.queries.removeAll()
+                if self.protectedPause(error) { self.rerun = false; self.finish(); return }
                 guard error == nil, let workout = samples?.first as? HKWorkout else {
                     // An empty read may mean denied access or a locked phone. It is never a server acknowledgement.
-                    self.recordError("A pending workout could not be read. Unlock your phone and check Health permissions.")
+                    self.recordError("A pending workout is still waiting. Check Health permissions and try Sync now.")
                     self.drain(run: run); return
                 }
                 self.details(workout, run: run) { result in
                     switch result {
                     case .success(let payload): self.upload(payload, id: id, run: run)
-                    case .failure: self.recordError("Apple Health could not read all workout details. Unlock your phone and retry."); self.drain(run: run)
+                    case .failure(let error):
+                        if self.protectedPause(error) { self.rerun = false; self.finish() }
+                        else { self.recordError("A workout is still waiting for Health details. Check permissions and try Sync now."); self.drain(run: run) }
                     }
                 }
             }
@@ -512,6 +603,7 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 
     private func recordError(_ message: String) {
+        runFailed = true
         guard var saved = state else { return }
         saved.error = message
         try? persist(saved)
@@ -525,6 +617,13 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
     private func finish() {
         activeCompletions.forEach { $0() }; activeCompletions.removeAll()
         busy = false
+        let succeeded = !runFailed && state?.pending.isEmpty == true && state?.needsLogin == false
+        if succeeded, var saved = state, saved.protectedDataPause == true || saved.error != nil {
+            saved.completeProtectedDataRetry(succeeded: true)
+            try? persist(saved)
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.refreshIdentifier)
+        }
+        completeRefresh(success: succeeded)
         endBackgroundTask()
         if rerun { rerun = false; kick() }
     }

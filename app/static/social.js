@@ -820,12 +820,14 @@ async function pushCard(box, r) {
     ${!r.push_ready ? '<p class="small muted">The server’s Apple notification setup is not complete yet. Your notifications still appear under the bell.</p>' : ''}
     ${status.enabled ? `<div class="checks one" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${r.push[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>
       <button class="ghost wide" id="np-off">Turn off on this iPhone</button>`
-      : status.denied ? '<p class="small muted">Notifications are blocked for Kinetta. Allow them in iPhone Settings → Notifications → Kinetta, then return here.</p>'
+      : status.denied ? '<p class="small muted">Notifications are blocked for Kinetta. Allow them in iPhone Settings → Notifications → Kinetta, then return here.</p><button type="button" class="primary wide" id="np-settings">Open iPhone Settings</button>'
       : `<p class="small muted">Get an alert on this iPhone for friend requests, Cheers and other reactions, comments, meals shared with you, and new workouts from your watch or Apple Health. Choose which ones after turning them on.</p>
         <button class="primary wide" id="np-on">Turn on iPhone notifications</button>`}
     <p class="err" role="alert" id="np-error"></p></div><div id="np-meal-reminders"></div>`;
   mealReminderCard($('#np-meal-reminders',box));
   const error = $('#np-error', box), b = $('#np-on', box), off = $('#np-off', box);
+  const settings = $('#np-settings', box);
+  if (settings) settings.onclick = async () => { if (account !== readOwner()) return; try { await Native.openPushSettings({enable:true}); } catch (x) { error.textContent = x.message; } };
   if (b) b.onclick = async () => {
     b.disabled = true; b.textContent = 'Connecting…'; error.textContent = '';
     try { await Native.enablePush(); if (box.isConnected && account === readOwner()) pushCard(box, r); }

@@ -7,6 +7,20 @@ final class NativePushCenter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NativePushCenter()
     weak var plugin: KinettaPushPlugin?
     var pendingURL: String?
+    private(set) var externalEntry = false
+    private var pendingExternalEntry = false
+
+    func markExternalEntry() {
+        externalEntry = true
+        pendingExternalEntry = UIApplication.shared.applicationState != .active
+        plugin?.notifyListeners("externalEntryOpened", data: [:])
+    }
+    func beginForegroundEntry() {
+        externalEntry = pendingExternalEntry
+        pendingExternalEntry = false
+    }
+    func becameActive() { pendingExternalEntry = false }
+
     var registration: ((Result<Data, Error>) -> Void)?
 
     func start() { UNUserNotificationCenter.current().delegate = self }
@@ -24,9 +38,10 @@ final class NativePushCenter: NSObject, UNUserNotificationCenterDelegate {
     }
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
-        if let path = response.notification.request.content.userInfo["url"] as? String,
-           path.hasPrefix("/"), !path.hasPrefix("//"), !path.contains(":") {
-            DispatchQueue.main.async {
+        DispatchQueue.main.async {
+            self.markExternalEntry()
+            if let path = response.notification.request.content.userInfo["url"] as? String,
+               path.hasPrefix("/"), !path.hasPrefix("//"), !path.contains(":") {
                 self.pendingURL = path
                 self.plugin?.notifyListeners("notificationOpened", data: [:])
             }
@@ -44,13 +59,17 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "register", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "unregister", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "takePending", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setBadge", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "setBadge", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise)
     ]
     override func load() { NativePushCenter.shared.plugin = self }
     @objc func status(_ call: CAPPluginCall) {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let allowed = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-            call.resolve(["allowed": allowed, "denied": settings.authorizationStatus == .denied])
+            DispatchQueue.main.async {
+                call.resolve(["allowed": allowed, "denied": settings.authorizationStatus == .denied,
+                              "externalEntry": NativePushCenter.shared.externalEntry])
+            }
         }
     }
     @objc func register(_ call: CAPPluginCall) {
@@ -114,11 +133,19 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
     }
+    @objc func openSettings(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let url = URL(string: UIApplication.openSettingsURLString) else { call.reject("Open iPhone Settings, then Kinetta."); return }
+            UIApplication.shared.open(url) { opened in
+                if opened { call.resolve() } else { call.reject("Open iPhone Settings, then Kinetta.") }
+            }
+        }
+    }
     @objc func takePending(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             let path = NativePushCenter.shared.pendingURL
             NativePushCenter.shared.pendingURL = nil
-            call.resolve(["url": path ?? ""])
+            call.resolve(["url": path ?? "", "externalEntry": NativePushCenter.shared.externalEntry])
         }
     }
 }

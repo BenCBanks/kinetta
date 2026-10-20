@@ -77,6 +77,20 @@ function device(background = null, push = null) {
   const badges = []; push.setBadge = async ({count}) => badges.push(count);
   pushDevice.n.setBadge(3); pushDevice.n.setBadge(3); pushDevice.n.setBadge(0);
   assert.deepEqual(badges, [3, 0]);
+  // The new invitation's device-local choice is scoped to server+account, never its token.
+  const invitationOwner = JSON.stringify([pushDevice.n.base, 6]);
+  await pushDevice.n.writePushInvitation({asks:1,lastAsked:123,done:false}, invitationOwner);
+  assert.equal((await pushDevice.n.readPushInvitation()).asks,1);
+  pushDevice.ctx.App.me={id:7};assert.equal(await pushDevice.n.readPushInvitation(),null);
+  await assert.rejects(pushDevice.n.writePushInvitation({asks:2},invitationOwner),/Account changed/);
+  pushDevice.ctx.App.me={id:6};assert.equal((await pushDevice.n.readPushInvitation()).asks,1);
+  pushDevice.n.base='https://other.example.test';assert.equal(await pushDevice.n.readPushInvitation(),null);
+  // Waiting for an automatic push check cannot turn an old Enable tap into a new account's permission prompt.
+  let releaseStatus, permissionRequests=0;
+  const racing=device(null,{status:()=>new Promise(r=>releaseStatus=r),register:async()=>{permissionRequests++;return {};},takePending:async()=>({url:''}),addListener(){},unregister:async()=>{}});
+  await racing.n.ready;racing.n.base='https://example.test';racing.n.token='first-login';racing.n.syncPush();
+  const waitingEnable=racing.n.enablePush();racing.ctx.App.me={id:2};racing.n.token='second-login';releaseStatus({allowed:false});
+  await assert.rejects(waitingEnable,/account changed/);assert.equal(permissionRequests,0,'old tap never prompts Apple for the new account');
   const d = device(); await d.n.ready; d.n.base = 'https://example.test'; d.n.token = 'first';
   d.saved.set('health.on', '1');
   assert.equal(await d.n.healthOn(), false, 'legacy device consent is not inherited');

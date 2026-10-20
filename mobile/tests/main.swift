@@ -35,3 +35,46 @@ let previousAnchor = restored.anchor
 restored.enqueue(["one", "one"], anchor: previousAnchor)
 check(restored.pending == ["one"] && restored.anchor == previousAnchor, "detail refresh requeues an acknowledged UUID without moving the new-workout anchor")
 print("Swift Health queue: persistence, replay, partial/invalid acknowledgements and expired auth passed")
+
+// The production record's lock/unlock transition never advances the anchored query or drops UUIDs.
+var locked = HealthSyncState(owner: "https://example.test/account-locked", since: Date(timeIntervalSince1970: 0))
+locked.enqueue(["workout-one"], anchor: Data([7]))
+let lockedAnchor = locked.anchor, lockedQueue = locked.pending
+locked.error = "Old attempt failed"
+locked.pauseForProtectedData()
+check(locked.anchor == lockedAnchor && locked.pending == lockedQueue, "locked error preserves queue and anchor exactly")
+check(locked.protectedDataPause == true && locked.error == nil, "a lock pause is not a Connections failure")
+locked.completeProtectedDataRetry(succeeded: false)
+check(locked.protectedDataPause == true && locked.pending == lockedQueue, "failed unlocked retry retains pause and pending workout")
+
+// Stand-in upload acknowledges the same UUID; replay creates only one fictional server activity.
+var activities = Set<String>()
+func unlockAndUpload(_ saved: inout HealthSyncState) {
+    saved.enqueue(["workout-one", "workout-one"], anchor: Data([8]))
+    for id in saved.pending {
+        let first = activities.insert(id).inserted
+        check(saved.acknowledge(id:id,results:[["id":id,"result":first ? "added" : "duplicate"]]), "unlock upload has matching acknowledgement")
+    }
+    saved.completeProtectedDataRetry(succeeded:true)
+}
+unlockAndUpload(&locked)
+check(activities.count == 1 && locked.pending.isEmpty && locked.protectedDataPause == nil && locked.error == nil, "locked then unlock uploads once and clears the temporary pause")
+unlockAndUpload(&locked)
+check(activities.count == 1, "repeated anchored deliveries create one server activity")
+
+// Killed while locked: durable pause, cursor and references survive; the next wake/activation retries.
+locked.enqueue(["workout-one"], anchor: Data([9]))
+locked.pauseForProtectedData()
+try JSONEncoder().encode(locked).write(to:file,options:.atomic)
+var afterKill = try JSONDecoder().decode(HealthSyncState.self,from:Data(contentsOf:file))
+check(afterKill.protectedDataPause == true && afterKill.anchor == Data([9]) && afterKill.pending == ["workout-one"], "killed locked process preserves recovery state")
+unlockAndUpload(&afterKill)
+check(afterKill.pending.isEmpty && afterKill.protectedDataPause == nil && activities.count == 1, "next wake or activation uploads idempotently after a killed locked process")
+
+// Existing installations can decode an older record with no pause field.
+let encoded = try JSONEncoder().encode(afterKill)
+var oldRecord = try JSONSerialization.jsonObject(with:encoded) as! [String:Any]
+oldRecord.removeValue(forKey:"protectedDataPause")
+let legacy = try JSONDecoder().decode(HealthSyncState.self,from:JSONSerialization.data(withJSONObject:oldRecord))
+check(legacy.protectedDataPause == nil && legacy.owner == afterKill.owner, "pre-recovery durable records remain compatible")
+print("Swift protected-data recovery: unchanged cursor/queue, temporary pause, unlock upload once, killed/relaunched retry and legacy records passed (Health/network stand-ins)")
