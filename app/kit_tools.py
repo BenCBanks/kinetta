@@ -1,5 +1,6 @@
 """Kit's app-wide tools: fixed SQL, bound identity, bounded records and consent-aware scopes."""
 import datetime as dt
+from typing import Literal
 from pydantic import Field
 from . import db, coach
 from .coach_tools import AccountTools, Empty, Range, Activity, TOOLS
@@ -9,7 +10,14 @@ class Page(Range):
     before_id: int | None = Field(default=None, gt=0)
 
 
+class Stored(Empty):
+    kind: Literal['recipes','foods','meals']
+    record_id: int | None = Field(default=None,gt=0)
+    before_id: int | None = Field(default=None,gt=0)
+
+
 EXTRA = {
+    'stored_foods': (Stored, 'Own saved recipes, custom foods or saved meal combinations, including incomplete nutrients. Lists are paginated; pass record_id for ingredient details of one own record. Missing/other-account IDs are not found. Read only; never invent missing nutrition.'),
     'activities': (Page, 'Own workouts of every sport in inclusive local dates, newest first. Up to 50 rows; use next_before_id for older rows. Includes exact totals and explicit missing-data limits.'),
     'food_log': (Page, 'Own individual food entries in inclusive local dates: meals, quantities, source and known nutrients. Up to 50 rows; next_before_id pages older records. Unlogged is not zero; unknown nutrient flags remain explicit.'),
     'strength_history': (Page, 'Own completed strength sets with exercise names, reps, kg and duration. Up to 50 sets per page; no invented strength values.'),
@@ -33,7 +41,7 @@ class KitTools(AccountTools):
         ctx = db.coach_scope(connection, self._uid) if connection is not None else db.coach_connect(self._uid)
         with ctx as c:
             # Food/app tools remain usable without disclosing unconsented Health records.
-            if name not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','goals','app_features'} and not coach.health_ok(c, self._uid):
+            if name not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','stored_foods','goals','app_features'} and not coach.health_ok(c, self._uid):
                 raise ValueError(coach.HEALTH_NO)
             return getattr(self, '_' + name)(c, parsed)
 
@@ -107,6 +115,34 @@ class KitTools(AccountTools):
 
     def _body_profile(self,c,_):
         return c.execute('SELECT height_cm,weight_kg,birth_year,sex,max_hr,rest_hr,activity_factor FROM profile WHERE user_id=%s',(self._uid,)).fetchone() or {}
+
+    def _stored_foods(self,c,r):
+        from .api_dishes import _out
+        fields=('kcal','protein_g','carbs_g','fat_g','fiber_g','sodium_mg','sugar_g','saturated_fat_g')
+        # Table names come only from this fixed mapping, never from model SQL/identifiers.
+        table={'recipes':'dishes','foods':'custom_foods','meals':'saved_meals'}[r.kind]
+        rows=c.execute('SELECT * FROM '+table+' WHERE user_id=%s AND (%s::bigint IS NULL OR id=%s) AND (%s::bigint IS NULL OR id<%s) ORDER BY id DESC LIMIT 11',(self._uid,r.record_id,r.record_id,r.before_id,r.before_id)).fetchall()
+        if r.record_id and not rows:raise ValueError('Stored food not found')
+        def item(value):
+            missing=(value.get('ref') or {}).get('unknown_nutrients') or []
+            return {**{k:value.get(k) for k in ('name','amount','unit')},
+                    **{k:None if k in missing else value.get(k) for k in fields}}
+        out=[]
+        for raw in rows[:10]:
+            if r.kind=='recipes':
+                d=_out(raw);entry={k:d[k] for k in ('id','name','totals','serving_count','per_serving','cooked_g')}
+                if r.record_id:entry['ingredients']=[item(i) for i in d['items'][:60]]
+            elif r.kind=='foods':
+                entry={k:raw.get(k) for k in ('id','name','brand','serving_label','serving_g','origin',*fields)}
+                for k in (raw.get('origin_ref') or {}).get('unknown_nutrients') or []:
+                    if k in fields:entry[k]=None
+            else:
+                items=[item(i) for i in raw['items'][:60]]
+                entry={'id':raw['id'],'name':raw['name'],'totals':{k:round(sum(float(i[k]) for i in items),1) if items and all(i[k] is not None for i in items) else None for k in fields}}
+                if r.record_id:entry['foods']=items
+            out.append(entry)
+        return {'kind':r.kind,'records':out,'next_before_id':rows[9]['id'] if len(rows)>10 else None,
+                'limitations':['Only your saved records, not another person’s recipes. Missing nutrition is unknown; saved food is not proof it was eaten. Ingredient details are returned only for an explicitly selected own record.']}
 
     def _gear(self,c,_):
         rows=c.execute('''SELECT g.id,g.kind,g.name,g.retired,g.alert_distance_m,g.start_distance_m+coalesce(sum(a.distance_m),0) AS distance_m

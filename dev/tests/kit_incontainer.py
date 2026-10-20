@@ -83,6 +83,19 @@ try:
  assert not ot.call('food_log',dates)['foods']
  assert len(tools.call('goals',{})['activity_goals'])==1 and not ot.call('goals',{})['activity_goals']
  assert tools.call('gear',{})['gear'][0]['name']=='Fictional shoes'
+ with db.connect() as c:
+  food_id=c.execute("INSERT INTO custom_foods(user_id,name,kcal,protein_g) VALUES (%s,'Fictional custom food',100,0) RETURNING id",(uid,)).fetchone()['id']
+  recipe_id=c.execute("INSERT INTO dishes(user_id,name,known_kcal) VALUES (%s,'Fictional incomplete recipe',400) RETURNING id",(uid,)).fetchone()['id']
+  meal_id=c.execute('INSERT INTO saved_meals(user_id,name,items) VALUES (%s,%s,%s) RETURNING id',(uid,'Fictional saved meal',json.dumps([{'name':'Fictional soup','kcal':100,'protein_g':0,'ref':{'unknown_nutrients':['protein_g']}}]))).fetchone()['id']
+ assert tools.call('stored_foods',{'kind':'foods','record_id':food_id})['records'][0]['kcal']==100
+ recipe=tools.call('stored_foods',{'kind':'recipes','record_id':recipe_id})['records'][0]
+ assert recipe['totals']['kcal']==400 and recipe['totals']['protein_g'] is None
+ assert tools.call('stored_foods',{'kind':'meals','record_id':meal_id})['records'][0]['totals']['protein_g'] is None
+ for kind,record_id in [('foods',food_id),('recipes',recipe_id),('meals',meal_id)]:
+  assert not ot.call('stored_foods',{'kind':kind})['records']
+  try:ot.call('stored_foods',{'kind':kind,'record_id':record_id})
+  except ValueError:pass
+  else:raise AssertionError('Foreign stored food')
  assert tools.call('strength_history',dates)['sets']==[]
  assert any(f['path']=='/track' for f in tools.call('app_features',{})['features'])
  for name,args in [('activities',{**dates,'user_id':other}),('food_log',{**dates,'sql':'SELECT * FROM users'}),('activity',{'activity_id':aid,'user_id':uid})]:
@@ -130,7 +143,7 @@ try:
   _write_export(uid,f.name)
   with zipfile.ZipFile(f.name) as z:
    assert 'data/kit_turns.jsonl' in z.namelist() and 'data/kit_conversations.jsonl' in z.namelist()
-   assert b'lease' not in z.read('data/kit_turns.jsonl')
+   assert all('lease' not in json.loads(line) for line in z.read('data/kit_turns.jsonl').splitlines())
  with db.connect() as c:
   c.execute('DELETE FROM users WHERE id=%s',(uid,));assert c.execute('SELECT count(*) AS n FROM kit_turns WHERE user_id=%s',(uid,)).fetchone()['n']==0
  print('Kit real DB: session ownership, RLS/read-only tools, missing nutrients, all sports/goals/gear/strength, Health consent, history, UUID replay, lease concurrency/expiry, clear fencing, late consent revocation, pagination/export/delete PASS')

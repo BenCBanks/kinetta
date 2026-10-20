@@ -9,7 +9,7 @@ from pathlib import Path
 from app import db,coach_chat,ai_budget,ai_release
 from kit_cases import CASES
 
-p=argparse.ArgumentParser();p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,required=True);p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',required=True);p.add_argument('--candidate-commit',required=True);p.add_argument('--output',required=True);args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--accept-paid-calls',action='store_true');p.add_argument('--budget-usd',type=float,required=True);p.add_argument('--baseline',required=True);p.add_argument('--baseline-commit',required=True);p.add_argument('--candidate-commit',required=True);p.add_argument('--output',required=True);p.add_argument('--baseline-results');args=p.parse_args()
 if not args.accept_paid_calls or not 0<args.budget_usd<=5:p.error('Explicit paid authorization and budget up to $5 required')
 # Conservative request reservations leave a margin below the owner's total limit.
 os.environ['KINETTA_AI_DAILY_USD']=str(min(args.budget_usd*.9,4.5));os.environ['KINETTA_AI_USER_DAILY_MICROUSD']=str(round(args.budget_usd*.9*1e6));os.environ['KINETTA_AI_USER_DAILY_ATTEMPTS']='400';os.environ['KINETTA_AI_DAILY_ATTEMPTS']='400'
@@ -44,12 +44,16 @@ try:
   row={'case':cid,'variant':variant,'question':question,'history':rest[0] if rest else [],'answer':answer,'error':error,'latency_ms':round((time.monotonic()-began)*1000),'tool_coverage':bool(answer and set(answer.get('tools_used',[]))&expected)}
   print(json.dumps({'case':cid,'variant':variant,'answered':answer is not None,'tool_coverage':row['tool_coverage'],'error':error}),flush=True)
   return row
- jobs=[(i,v,case) for i,case in enumerate(CASES) for v in ('baseline','candidate')]
+ previous=json.loads(Path(args.baseline_results).read_text()) if args.baseline_results else {}
+ reused=[r for r in previous.get('results',[]) if r['variant']=='baseline']
+ results.extend(reused)
+ done={r['case'] for r in reused}
+ jobs=[(i,v,case) for i,case in enumerate(CASES) for v in ('baseline','candidate') if v!='baseline' or case[0] not in done]
  with ThreadPoolExecutor(max_workers=2) as pool:
   for result in pool.map(run,jobs):
    results.append(result)
    with db.connect() as c:cost=c.execute('SELECT coalesce(sum(charged_micros),0) AS n,count(*) AS requests FROM ai_food_attempts WHERE user_id=%s',(uid,)).fetchone()
-   report={'reviewed':False,'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,'candidate_fingerprint':ai_release.fingerprint(),'case_count':len(CASES),'results':results,'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],'owner_qualitative_review':'pending','food_comparison':'not part of this conversation-only benchmark; unchanged food estimator needs its existing reviewed evidence'}
+   report={'reviewed':False,'baseline_commit':args.baseline_commit,'candidate_commit':args.candidate_commit,'candidate_fingerprint':ai_release.fingerprint(),'case_count':len(CASES),'baseline_results_reused':bool(args.baseline_results),'results':results,'reserved_or_estimated_usd':float(cost['n'])/1e6,'requests':cost['requests'],'owner_qualitative_review':'pending','food_comparison':'not part of this conversation-only benchmark; unchanged food estimator needs its existing reviewed evidence'}
    Path(args.output).write_text(json.dumps(report,default=str,indent=2))
  print(json.dumps({'complete':True,'cases':len(CASES),'responses':len(results),'cost':report['reserved_or_estimated_usd'],'requests':report['requests']}),flush=True)
 finally:

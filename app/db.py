@@ -1262,7 +1262,7 @@ MIGRATIONS = [
         EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING(true)',t);
         EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
       END LOOP;
-      FOREACH t IN ARRAY ARRAY['goals','gear','health_resting'] LOOP
+      FOREACH t IN ARRAY ARRAY['goals','gear','health_resting','custom_foods','saved_meals'] LOOP
         EXECUTE format('GRANT SELECT ON %I TO fit_coach',t);
         EXECUTE format('CREATE POLICY coach_own_rows ON %I FOR SELECT TO fit_coach USING
           (user_id=nullif(current_setting(''kinetta.coach_user_id'',true),'''')::bigint)',t);

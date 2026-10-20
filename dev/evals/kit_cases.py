@@ -46,4 +46,6 @@ CASES=[
  ('followup-food','What should I focus on next with that goal?',{'profile','goals','nutrition_summary','meal_options'},[
   {'role':'user','text':'I want to build a more consistent food logging routine.'},
   {'role':'assistant','text':'We can look at your recorded days and identify a small step that fits your routine.'}]),
+ ('saved-meals','Which saved meal combinations do I have, and what nutrition is missing?',{'stored_foods'}),
+ ('saved-recipes','Which recipes and custom foods have I saved, including incomplete ones?',{'stored_foods'}),
 ]

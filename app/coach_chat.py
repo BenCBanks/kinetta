@@ -197,7 +197,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         if not food_only and not kit:
             with db.coach_connect(uid) as c:
                 if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
-        if kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','goals','app_features'} and 'error' not in e for e in evidence):
+        if kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','stored_foods','goals','app_features'} and 'error' not in e for e in evidence):
             with db.coach_connect(uid) as c:
                 if not coach.health_ok(c,uid):raise ValueError(coach.HEALTH_NO)
         with ai_budget.scope(uid):
@@ -209,7 +209,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             checked = checked_answer(_json(text), evidence)
             return {**checked, 'prompt_version': 'kit-shared-1' if kit else PROMPT_VERSION, 'usage': usage,
                     'latency_ms': round((time.monotonic() - began) * 1000),
-                    'health_included':kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','goals','app_features'} and 'data' in e for e in evidence),
+                    'health_included':kit and any(e['tool'] not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','stored_foods','goals','app_features'} and 'data' in e for e in evidence),
                     'tools_used': [e['tool'] for e in evidence]}
         results = []
         for call in calls:
