@@ -93,13 +93,44 @@ const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 function mileageChart(box, series) {
   const rows = series.days || [], max = Math.max(1, ...rows.map((r) => +r.distance_m || 0));
   const total = rows.reduce((n, r) => n + (+r.distance_m || 0), 0);
+  const range = rows.length ? `${fdate(rows[0].d + 'T12:00', {month:'short',day:'numeric'})} – ${fdate(rows[rows.length - 1].d + 'T12:00', {month:'short',day:'numeric'})}` : '';
+  const labels = rows.map((r) => `${fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${U.dist(r.distance_m || 0, 1)} ${U.du()}`);
   box.innerHTML = `<h2>Last 14 days</h2><p class="mileage-total num"><b>${U.dist(total, 1)}</b> ${U.du()}</p>
-    <div class="mileage-bars fortnight-bars" role="img" aria-label="Distance in ${U.du()} for the last 14 days: ${esc(rows.map((r) => `${r.d}: ${U.dist(r.distance_m || 0, 1)}`).join(', '))}">${rows.map((r) => {
+    <div class="mileage-bars fortnight-bars" role="group" aria-label="Daily distance for the last 14 days">${rows.map((r, i) => {
       const date = new Date(r.d + 'T12:00');
-      return `<div class="mileage-day${r.today ? ' current-day' : ''}"><div class="mileage-column"><i data-h="${Math.max(.015, (+r.distance_m || 0) / max)}"></i></div><small>${esc(date.toLocaleDateString([], {weekday: 'narrow'}))}<b>${date.getDate()}</b></small></div>`;
+      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><span class="mileage-column" aria-hidden="true"><i data-h="${Math.max(.015, (+r.distance_m || 0) / max)}"></i></span><small aria-hidden="true">${esc(date.toLocaleDateString([], {weekday: 'narrow'}))}</small></button>`;
     }).join('')}</div>
-    <p class="small muted mileage-range">${rows.length ? `${esc(fdate(rows[0].d + 'T12:00', {month:'short',day:'numeric'}))} – ${esc(fdate(rows[rows.length - 1].d + 'T12:00', {month:'short',day:'numeric'}))}` : ''}</p>
+    <p class="small muted mileage-range" role="status" aria-live="polite" aria-atomic="true">${esc(range)}</p>
     ${total ? '' : '<p class="small muted">No distance recorded in the last 14 days. Timed activities still appear below.</p>'}`;
+  const buttons = [...box.querySelectorAll('.mileage-day')], readout = box.querySelector('.mileage-range');
+  let selected = null;
+  const show = (index) => {
+    readout.textContent = index == null ? range : labels[index];
+    buttons.forEach((button, i) => button.classList.toggle('is-inspected', i === index));
+  };
+  buttons.forEach((button, index) => {
+    // Touch uses click; simulated hover must not replace a pinned phone selection.
+    button.onpointerenter = (e) => { if (e.pointerType === 'mouse') show(index); };
+    button.onpointerleave = (e) => { if (e.pointerType === 'mouse') show(selected); };
+    button.onfocus = () => show(index);
+    button.onblur = () => show(selected);
+    button.onclick = () => {
+      selected = selected === index ? null : index;
+      buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(i === selected)));
+      show(selected);
+    };
+    button.onkeydown = (e) => {
+      if (e.key === 'Escape') {
+        selected = null;
+        buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
+        show(null);
+      } else if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+        e.preventDefault();
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next].focus();
+      }
+    };
+  });
 }
 
 // A shared private reader keeps Me and both Progress halves consistent.
