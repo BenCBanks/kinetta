@@ -333,7 +333,7 @@ const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () =
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
 const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
-    ${friends ? `<a class="icon-btn" href="/me/friends" aria-label="Find friends">${svg('search')}</a>` : ''}
+    ${friends ? `<a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a>` : ''}
     ${bellBtn()}</div></div>`;
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';
@@ -1207,7 +1207,7 @@ route(/^\/me$/, 'me', async (el) => {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
+    <div class="card list me-tools">${row('a', `href="${profileHref(me)}"`, 'user', 'c-brand', 'Your profile<small class="muted">Edit, share &amp; see your progress</small>')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
     <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}

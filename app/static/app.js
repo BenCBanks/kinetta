@@ -477,7 +477,7 @@ function render() {
   if (!App.me) return;
   const path = location.pathname.replace(/\/+$/, '') || '/me';
   const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
-  const m = path.match(page.re) || [], activeTab = page.tab;
+  const m = path.match(page.re) || [], activeTab = typeof page.tab === 'function' ? page.tab(...m.slice(1)) : page.tab;
   // The tab bar stays put between screens (2026-10-16): only the page is replaced, so a tap never waits for the bar to be
   // rebuilt and its badges don't blink. The first render (or after logging in again) builds it.
   const nav = $('nav.tabs', root), fresh = '<main class="shell" id="page"></main>';

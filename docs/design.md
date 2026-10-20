@@ -981,3 +981,12 @@ a tappable calorie number (a dashed box) that turns into a small number field in
 without another screen. The edited food’s other nutrients scale by the same ratio and the row says “Edited”. One total
 with smaller macros. A “Save as a recipe” switch reveals the recipe name, measure and “what I ate” options. One button
 that says what will happen (“Add to Snacks”, “Save recipe and add to Snacks”, “Save recipe”). The chat clears after.
+
+
+## Social profiles and finding people (20 October 2026)
+
+Profiles have explicit Edit profile and Share profile actions. One editor saves name and plain-text bio together, preserves both drafts after failure, and keeps drafts when the nested photo sheet is used. Public identity stays separate from private body/account settings. The owner's profile highlights Me; another person's profile highlights Activity.
+
+Last 30 days shows visible workouts, distance (or active days for workouts without distance), time and active-day consistency, with the previous 30 days' workout count. All-time and sport summaries follow. Every number uses the same server visibility/block rule as the activity list, independently of pagination; the owner's friend preview excludes Only me. Dates follow the viewer's timezone. Profile links require sign-in and keep existing sharing choices. Managing workouts and Sharing & privacy are direct links; no bulk privacy change occurs when a profile link is shared.
+
+Activity has a visible Find people entry. Friends accepts names and @usernames, shows known friend matches immediately, then debounces the server search and discards stale responses. Typed search shows one result list; clearing restores friends/requests. Browse people is explicit, rather than repeating friends in an always-open directory. Preserve the query when visiting a profile and returning, and retain it with Retry after failure. Name-search opt-out, exact-username discovery and blocking remain server-enforced. Remove/block sit in a named friendship-management sheet, available from Friends and a friend's profile, with confirmation and cache invalidation of previously opened shared details.
