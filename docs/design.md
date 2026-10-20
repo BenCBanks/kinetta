@@ -273,6 +273,8 @@ text equivalents and identical feed visibility/block rules remain. Activity hist
 and Progress. No start/resume/import controls or active-session panels appear there or on Me. Track's nav indicator
 can signal a recording without adding controls to another screen.
 
+Owner revision, 20 October: remove the small date numbers beneath these bars, retaining weekday letters and the date range. Hover or keyboard focus shows the full day and its distance with units in the readout beneath the chart. Tap/click pins that day; tap again or Escape clears it. Arrow keys move between days. Keep zero-distance days selectable and expose each bar as a named button, including on authenticated profiles that share this chart.
+
 Track uses a last-used sport selector, an outdoor map that finds the person as soon as an outdoor activity is chosen (owner, 16 October: like Strava, no repeated permission prompts; the iPhone app asks Core Location, which remembers the answer; a browser locates by itself only when already allowed), Locate me to re-centre, and one prominent Start action.
 Outdoor GPS and every supported indoor kind are available in that selector, including lifting. The visible “More ways to add” list (formerly the closed Activity tools fold) holds
 past entries/imports/connections/Health. During GPS recording, distance/active time/average pace or speed lead the

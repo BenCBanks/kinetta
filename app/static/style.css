@@ -1520,8 +1520,9 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .fortnight-bars { gap: 4px; align-items: flex-end; }
 .fortnight-bars .mileage-column { height: 110px; max-width: 18px; }
 .fortnight-bars .mileage-day small { font-size: 10px; line-height: 1.5; }
-.fortnight-bars .mileage-day small b { display: block; font-weight: 400; }
-.fortnight-bars .current-day small, .fortnight-bars .current-day small b { color: var(--accent); font-weight: 750; }
+.fortnight-bars .mileage-day { padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx2); }
+.fortnight-bars .mileage-day.is-inspected { background: var(--accent2); box-shadow: inset 0 0 0 1px var(--accent); }
+.fortnight-bars .current-day small { color: var(--accent); font-weight: 750; }
 .mileage-range { text-align: right; margin: 8px 0 0; }
 .track-ready { gap: 12px; }
 .track-ready select { width: 100%; min-height: 50px; font-size: 17px; }
