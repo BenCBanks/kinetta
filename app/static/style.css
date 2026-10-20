@@ -1761,6 +1761,8 @@ html:has(.food-thread) nav.tabs { display: none; }
 .food-thread button { min-height: 44px; min-width: 44px; font-size: 1rem; white-space: normal; }
 /* With the keyboard up the home-indicator inset is under the keyboard: no extra gap above it (owner, 20 Oct 2026). */
 html.keyboard-open #thread-status:empty { display: none; }
+/* iPhone app: pages get room under the keyboard so a focused field can scroll above it (chat pages are fixed). */
+html.keyboard-open body { padding-bottom: var(--kb, 0px); }
 html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 /* Calmer chat text (2026-10-18, owner: "too big and overwhelming"): smaller card text, chip-sized choices, quiet links. */
 .thread-card, .thread-user { font-size: .95rem; }
