@@ -39,7 +39,8 @@ check(b.get('/api/food/thread')[1]['messages'] == [], 'another account sees no m
 check(b.delete('/api/food/thread/messages/' + str(mid))[0] == 404, 'another account cannot delete')
 check(b.post('/api/food/thread/messages', body)[0] == 201, 'same client identity is separate per account')
 old=b.post('/api/food/thread/messages', {'client_id':str(uuid.uuid4()),'body':'Fictional reset clock','captured_at':'1970-01-01T00:00:00Z'})[1]['message']
-check(old['local_day'] == dt.date.today().isoformat(), 'reset phone clock clamps to arrival day')
+# The server files it under the account's own day (its time zone), which can differ from this machine's date by one.
+check(abs((dt.date.fromisoformat(old['local_day']) - dt.date.today()).days) <= 1, 'reset phone clock clamps to arrival day')
 b.delete('/api/food/thread/messages/'+str(old['id']))
 check(a.get('/api/me')[1] == before, 'opening/appending do not save targets or other profile settings')
 for malformed in ({'body': 'missing ID'}, {'client_id': key, 'body': ' '}, {'client_id': key, 'body': 'x' * 4001},

@@ -144,8 +144,8 @@ class Service(unittest.TestCase):
  def test_11_fraction_default_and_lease_renewal(self):
   with patch.dict(os.environ,{'KINETTA_AI_DAILY_USD':'5','KINETTA_AI_USER_DAILY_MICROUSD':''}):
    with db.connect() as c:
-    c.execute("INSERT INTO ai_food_attempts(id,user_id,day,model,kind,reserved_micros,charged_micros,state) VALUES (gen_random_uuid(),%s,current_date,'gemini-3.1-flash-lite','fraction-test',1000000,1000000,'failed')",(self.uids[2],))
-    c.execute("UPDATE ai_service_budget SET charged_micros=charged_micros+1000000 WHERE day=current_date")
+    c.execute("INSERT INTO ai_food_attempts(id,user_id,day,model,kind,reserved_micros,charged_micros,state) VALUES (gen_random_uuid(),%s,(now() AT TIME ZONE 'UTC')::date,'gemini-3.1-flash-lite','fraction-test',1000000,1000000,'failed')",(self.uids[2],))
+    c.execute("UPDATE ai_service_budget SET charged_micros=charged_micros+1000000 WHERE day=(now() AT TIME ZONE 'UTC')::date")
    self.refused(lambda:self.reserve(self.uids[2]))
   rid=self.reserve()
   with db.connect() as c:c.execute("UPDATE ai_food_attempts SET lease_until=now()+interval '1 second' WHERE id=%s",(rid,))
