@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app import auth,db,kit_memory
 from app.main import app
 from app.api_mydata import _write_export
+from app.coach_chat import answer as real_answer
 root='/api/coach/conversation';uids=[];seen=[]
 def request(client,method,path,body=None,status=200):
     r=client.request(method,root+path,json=body)
@@ -96,6 +97,14 @@ try:
             future=pool.submit(request,a,'POST','/messages/'+pending['client_id']+'/answer',{'generation':fourth['generation'],'visit_id':fourth['visit_id']});assert started.wait(10)
             with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=false WHERE user_id=%s',(uid,))
             release.set();result=future.result();assert result['state']=='failed' and not result['answer']
+        # Leaving during a provider round prevents a second paid round, not just late rendering.
+        fifth=visit();pending=body(fifth,'Help me use Kinetta.');request(a,'POST','/messages',pending);turns=[]
+        def end_during_turn(messages,definitions,**kwargs):
+            turns.append(True);request(a,'POST','/visits/'+fifth['visit_id']+'/end')
+            return [{'name':'profile','args':{},'id':'one'}],'',{}
+        with patch('app.coach_chat.answer',side_effect=real_answer),patch('app.coach_chat._gemini_turn',side_effect=end_during_turn):
+            result=request(a,'POST','/messages/'+pending['client_id']+'/answer',{'generation':fifth['generation'],'visit_id':fifth['visit_id']})
+            assert result['cancelled'] and len(turns)==1
         # Memory is personal exported data; visits/messages/memories cascade on account deletion.
         with tempfile.NamedTemporaryFile(suffix='.zip') as f:
             _write_export(uid,f.name)

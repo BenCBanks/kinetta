@@ -185,7 +185,7 @@ const Q = {
         if (failed && (failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed')) break;
       }
     } finally { Q.busy = false; netState(offline); netbar(); }
-    if (sent && owner === readOwner()) { invalidate('/api/'); toast(`Sent ${sent} pending item${sent > 1 ? 's' : ''}`); if(location.pathname==='/food/describe' && typeof FoodThread!=='undefined')FoodThread.refresh();else render(); }
+    if (sent && owner === readOwner()) { invalidate('/api/'); toast(`Sent ${sent} pending item${sent > 1 ? 's' : ''}`); if(location.pathname==='/food/describe' && typeof FoodThread!=='undefined')FoodThread.refresh();else if(typeof PageRefresh==='undefined'||PageRefresh.available())render(); }
   },
   review() {
     const owner = readOwner();

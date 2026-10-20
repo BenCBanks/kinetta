@@ -163,7 +163,7 @@ def _claude_turn(messages, definitions, *, system=SYSTEM):
                          'totalTokenCount': response.usage.input_tokens + response.usage.output_tokens}
 
 
-def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None):
+def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None, active=None):
     """`turn` is a stand-in hook for deterministic tests; production uses the configured provider."""
     if not coach.allowed(uid): raise ValueError(coach.off())
     if not food_only and not kit:
@@ -193,6 +193,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         turn = (lambda m,d:adapter(m,d,system=KIT_SYSTEM)) if kit else adapter
     usage, began, calls_used = {'promptTokenCount': 0, 'candidatesTokenCount': 0, 'thoughtsTokenCount': 0, 'totalTokenCount': 0}, time.monotonic(), 0
     for round_index in range(MAX_ROUNDS):
+        if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
         if not coach.allowed(uid):raise ValueError(coach.off())
         if not food_only and not kit:
             with db.coach_connect(uid) as c:
@@ -203,6 +204,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         with ai_budget.scope(uid):
             # Reserve the final round for an answer, rather than paying for a lookup that cannot be used.
             calls, text, tokens = turn(messages, [] if kit and round_index==MAX_ROUNDS-1 else definitions)
+        if active is not None and not active():raise ValueError('This Kit visit ended. Start a fresh chat.')
         for key in usage: usage[key] += int(tokens.get(key) or 0)
         if not calls:
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
