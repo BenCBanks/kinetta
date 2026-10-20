@@ -198,6 +198,7 @@ function warmFeed() {
 }
 async function homeFeed(el) {
   el.innerHTML = `${actTop(false, true)}${whoseSeg('')}
+    <a class="people-search-entry" href="/me/friends?find=1">${svg('search')}<span>Find people</span>${svg('chev')}</a>
     <div class="feed-list" id="ff-list">${skel(3)}</div><button class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   wireWhose(el);
   const list = $('#ff-list', el), more = $('#ff-more', el);
@@ -468,10 +469,11 @@ function shareFields(box, aid, s) {
 }
 
 // ---------- Me > Friends: search by name or username, requests, your friends ----------
-route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
+const profileTab = (login) => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity';
+route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   login = decodeURIComponent(login);
   const own = !!App.me && login.toLowerCase() === App.me.login.toLowerCase();
-  el.innerHTML = `<div class="top">${backBtn(own ? 'Me' : 'People')}</div><div id="person-profile">${skel(2)}</div>`;
+  el.innerHTML = `<div class="top">${backBtn(own ? 'Me' : 'People')}<a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a></div><div id="person-profile">${skel(2)}</div>`;
   wireBack(el, own ? '/me' : '/me/friends');
   const box = $('#person-profile', el);
   const path0 = '/api/people/' + encodeURIComponent(login) + '/profile' + (own ? '?as_friend=true' : '');
@@ -479,16 +481,18 @@ route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
     const p = r.person;
     // Your own profile is shown the way friends see it, with your name, bio and photo editable in place (2026-10-16, Ben)
     const action = r.mine ? '' :
-      r.status === 'friends' ? '<span class="badge on">Friends</span>' :
+      r.status === 'friends' ? `<button type="button" class="ghost" data-person-manage>Friends ${svg('more')}</button>` :
       r.status === 'sent' ? '<button class="ghost" data-person-action="cancel">Request sent</button>' :
       r.status === 'incoming' ? '<button class="primary" data-person-action="accept">Approve request</button>' : '<button class="primary" data-person-action="add">Add friend</button>';
     const pencil = `<span class="pf-pen" aria-hidden="true">${svg('edit')}</span>`;
-    box.innerHTML = `${r.mine ? '<div class="pf-preview"><b>Your profile, as friends see it</b><span>Tap your photo, name or bio to change them.</span></div>' : ''}
+    box.innerHTML = `${r.mine ? '<div class="pf-preview"><b>Your profile, as friends see it</b><span>Only shared workouts appear here. You choose what to show.</span></div>' : ''}
       <div class="profile public-profile">${r.mine ? `<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p, 'lg')}<span class="av-cam">${svg('camera')}</span></button>` : avatar(p, 'lg')}<div>${r.mine ? `<button type="button" class="pf-edit" id="pf-name" aria-label="Edit your name"><h1>${esc(p.name)}</h1>${pencil}</button>` : `<h1>${esc(p.name)}</h1>`}<div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
-      ${r.mine ? `<button type="button" class="pf-edit pf-bio${p.bio ? '' : ' empty'}" id="pf-bio" aria-label="${p.bio ? 'Edit your bio' : 'Add a bio'}"><span class="profile-bio">${p.bio ? esc(p.bio) : 'Add a bio — a line about you for friends'}</span>${pencil}</button>` : p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${action}${r.mine ? '' : '<button class="ghost" data-person-report>Report or block</button>'}</div>
-      <section class="card profile-mileage" id="profile-mileage" aria-label="Shared distance chart"></section><div class="card"><h2>Shared activity overview</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
+      ${r.mine ? `<button type="button" class="pf-edit pf-bio${p.bio ? '' : ' empty'}" id="pf-bio" aria-label="${p.bio ? 'Edit your bio' : 'Add a bio'}"><span class="profile-bio">${p.bio ? esc(p.bio) : 'Add a bio — a line about you for friends'}</span>${pencil}</button>` : p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${r.mine ? '<button type="button" class="primary" id="pf-edit-profile">Edit profile</button><button type="button" class="ghost" id="pf-share">Share profile</button>' : action + '<button class="ghost" data-person-report>Report or block</button>'}</div>
+      ${r.mine ? '<div class="profile-tools"><a href="/activity?view=mine">Manage workouts</a><a href="/me/sharing">Sharing &amp; privacy</a></div>' : ''}
+      ${profileProgress(r.recent, r.mine)}
+      <section class="card profile-mileage" id="profile-mileage" aria-label="Shared distance chart"></section><div class="card"><h2>All-time shared progress</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
         <div class="sport-overview">${(r.sports || []).map((s) => `<div class="row"><b>${esc(SPORT_NAMES[s.sport] || s.sport)}</b><span class="num">${s.activities} activities · ${s.distance_m ? U.dist(s.distance_m) + ' ' + U.du() : dur(s.time_s, true)}</span></div>`).join('')}</div><p class="small muted">${r.mine ? 'Activities set to “Only me” are left out here, as they are for everyone else.' : 'Only activities this person shares with you are included.'}</p></div>
-      <h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length ? r.items.map((a) => postCard(a)).join('') : `<div class="card empty"><b>No shared activities yet</b>${r.mine ? 'You haven’t shared any activities with friends yet.' : 'This person has not shared any activities you can see.'}</div>`}</div>
+      <h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length ? r.items.map((a) => postCard(a)).join('') : `<div class="card empty"><b>No shared activities yet</b>${r.mine ? 'Choose a workout and use Sharing to add it to your profile.<a class="ghost wide" href="/activity?view=mine">Choose a workout</a>' : 'This person has not shared any activities you can see.'}</div>`}</div>
       <button class="ghost wide" id="person-more"${r.next ? '' : ' hidden'}>Show more</button>`;
     mileageChart($('#profile-mileage', box), r.mileage || {});
     feedMaps(box); wireCheers(box);
@@ -505,6 +509,8 @@ route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
         if (box.isConnected) draw(await api(path0));
       } catch (x) { toast(x.message); act.disabled = false; }
     };
+    const manage = $('[data-person-manage]', box);
+    if (manage) manage.onclick = () => friendshipSheet(p, ({blocked}) => blocked ? go('/me/friends', {replace:true}) : reload());
     const report = $('[data-person-report]', box);
     if (report) report.onclick = () => reportSheet(p, {}, () => go('/me/friends', {replace: true}));
     const more = $('#person-more', box);
@@ -525,51 +531,118 @@ route(/^\/people\/([^/]+)$/, 'activity', async (el, login) => {
   await load(path0, draw, {maxAge: 0});
 });
 
-// In-place editing on your own profile: the name or bio turns into a box with Save / Cancel; the photo opens its sheet.
-function wireProfileEditing(box, p, reload) {
-  $('#pf-photo', box).onclick = () => profilePhotoSheet(reload);
-  const edit = (button, field) => {
-    const multi = field === 'bio', value = field === 'bio' ? p.bio || '' : p.name;
-    const form = document.createElement('form'); form.className = 'form pf-form';
-    form.innerHTML = `${multi ? `<textarea name="v" rows="3" maxlength="280" placeholder="A little about you" aria-label="Bio">${esc(value)}</textarea>`
-      : `<input name="v" value="${esc(value)}" maxlength="60" required autocomplete="name" enterkeyhint="done" aria-label="Name">`}
-      <p class="err" role="alert"></p><div class="actions"><button type="button" class="ghost" data-cancel>Cancel</button><button class="primary" type="submit">Save</button></div>`;
-    button.replaceWith(form); form.elements.v.focus();
-    $('[data-cancel]', form).onclick = () => form.replaceWith(button);
-    form.onsubmit = async (e) => {
-      e.preventDefault(); const save = $('[type="submit"]', form), v = form.elements.v.value.trim(); save.disabled = true;
-      try {
-        const account = await api('/api/account', json('PUT', {[field]: v}));
-        if (field === 'name') App.me.name = account.name; else App.me.bio = v;
-        invalidate('/api/me'); keep('/api/me', App.me); toast(field === 'name' ? 'Name saved' : 'Bio saved'); reload();
-      } catch (x) { $('.err', form).textContent = x.message; save.disabled = false; }
+function friendshipSheet(p, onChange) {
+  sheet(p.name, `<p>You’re friends on Kinetta.</p><a class="ghost wide" href="${profileHref(p)}" data-close>View profile</a><button class="ghost wide danger" type="button" data-remove>Remove friend</button><button class="ghost wide danger" type="button" data-block>Block</button><p class="err" role="alert"></p>`, (b, close) => {
+    const change = (selector, block) => {
+      const button = $(selector, b);
+      button.onclick = async () => {
+        const message = block ? `Block ${p.name}? Neither of you can find or see the other on Kinetta. They aren’t told.` : `Remove ${p.name} from your friends? You’ll stop seeing each other’s friends-only activities.`;
+        if (!confirm(message)) return;
+        $$('button', b).forEach(x => x.disabled = true);
+        try {
+          await api(block ? `/api/people/${encodeURIComponent(p.login)}/block` : `/api/friends/${encodeURIComponent(p.login)}`, block ? json('POST', {}) : {method:'DELETE'});
+          invalidate('/api/friends'); invalidate('/api/people/'); invalidate('/api/shared/'); invalidate('/api/blocks'); invalidateFeed();
+          close(); toast(block ? `${p.name} is blocked` : 'Friend removed'); await onChange({blocked:block});
+        } catch (x) { $('.err', b).textContent = x.message; $$('button', b).forEach(x => x.disabled = false); }
+      };
     };
-  };
-  $('#pf-name', box).onclick = (e) => edit(e.currentTarget, 'name');
-  $('#pf-bio', box).onclick = (e) => edit(e.currentTarget, 'bio');
+    change('[data-remove]', false); change('[data-block]', true);
+  });
+}
+
+// These numbers are calculated on the server from the same workouts the viewer can open.
+function profileProgress(recent, mine) {
+  if (!recent) return '';
+  const now = recent.current, before = recent.previous;
+  return `<section class="card profile-progress"><h2>Last 30 days</h2><p class="small muted">${esc(fdate(recent.start + 'T12:00', {month:'short',day:'numeric'}))} – ${esc(fdate(recent.end + 'T12:00', {month:'short',day:'numeric'}))}</p>
+    ${now.activities ? `<div class="stats3">${stat('Workouts', now.activities)}${now.distance_m > 0 ? stat('Distance', U.dist(now.distance_m, 1), U.du()) : stat('Active days', now.active_days)}${stat('Time', dur(now.time_s, true))}</div><p class="profile-consistency"><b>${now.active_days} active ${now.active_days === 1 ? 'day' : 'days'}</b> · ${before.activities} ${before.activities === 1 ? 'workout' : 'workouts'} in the previous 30 days</p>` : `<p class="muted">${mine ? 'Your shared workouts will build your progress here.' : 'No shared workouts in this period.'}</p>`}
+    <p class="small muted">${mine ? 'Your progress from workouts shared with friends or everyone.' : 'Based on workouts shared with you.'}</p></section>`;
+}
+
+function shareProfile(p) {
+  const url = `${appBase()}${profileHref(p)}`;
+  const copySheet = () => sheet('Share your profile', `<p>People need a Kinetta account to open your profile. Your sharing choices still apply.</p><label class="form">Profile link<input readonly value="${esc(url)}" aria-label="Profile link"></label><button type="button" class="primary wide" id="pf-copy">Copy link</button><p class="small muted" id="pf-copy-status" role="status"></p>`, (b) => {
+    const input = $('input', b); input.onclick = () => input.select();
+    $('#pf-copy', b).onclick = async () => {
+      try { await navigator.clipboard.writeText(url); $('#pf-copy-status', b).textContent = 'Link copied'; }
+      catch { input.select(); $('#pf-copy-status', b).textContent = 'Select and copy the link above.'; }
+    };
+  });
+  if (navigator.share) navigator.share({title: `${p.name} on Kinetta`, url}).catch((e) => { if (e.name !== 'AbortError') copySheet(); });
+  else copySheet();
+}
+
+// One editor saves identity fields together; errors leave both drafts in place.
+function wireProfileEditing(box, p, reload) {
+  const photo = () => profilePhotoSheet(() => { invalidate('/api/me'); keep('/api/me', App.me); reload(); });
+  $('#pf-photo', box).onclick = photo;
+  $('#pf-share', box).onclick = () => shareProfile(p);
+  const edit = (focus) => sheet('Edit profile', `<form class="form" id="pf-editor">
+    <p class="small muted">Your name, photo and bio are visible to people who find your profile. Workouts follow your sharing choices.</p>
+    <button type="button" class="ghost wide" id="pf-editor-photo">${svg('camera')}Change profile photo</button>
+    <label>Name<input name="name" value="${esc(p.name)}" maxlength="60" required autocomplete="name" enterkeyhint="next"></label>
+    <label>Bio<textarea name="bio" rows="3" maxlength="280" placeholder="What you enjoy, what you’re working toward…">${esc(p.bio || '')}</textarea></label>
+    <p class="small muted" id="pf-bio-count">${(p.bio || '').length}/280</p><p class="err" role="alert"></p>
+    <div class="actions"><button type="button" class="ghost" data-cancel>Cancel</button><button class="primary" type="submit">Save profile</button></div></form>`, (b, close) => {
+    const form = $('#pf-editor', b), save = $('[type="submit"]', form);
+    $('#pf-editor-photo', b).onclick = photo;
+    form.elements.bio.oninput = () => { $('#pf-bio-count', b).textContent = `${form.elements.bio.value.length}/280`; };
+    $('[data-cancel]', form).onclick = close;
+    if (focus) form.elements[focus].focus();
+    form.onsubmit = async (e) => {
+      e.preventDefault(); if (save.disabled) return;
+      const name = form.elements.name.value.trim(), bio = form.elements.bio.value.trim();
+      save.disabled = true; save.textContent = 'Saving…'; $('.err', form).textContent = '';
+      try {
+        const account = await api('/api/account', json('PUT', {name, bio}));
+        App.me.name = account.name; App.me.bio = bio;
+        invalidate('/api/me'); invalidate('/api/people/'); invalidateFeed(); keep('/api/me', App.me);
+        close(); toast('Profile saved'); reload();
+      } catch (x) { $('.err', form).textContent = x.message; save.disabled = false; save.textContent = 'Save profile'; }
+    };
+  });
+  $('#pf-edit-profile', box).onclick = () => edit();
+  $('#pf-name', box).onclick = () => edit('name');
+  $('#pf-bio', box).onclick = () => edit('bio');
 }
 
 route(/^\/me\/friends$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Friends</h1>
-    <form class="searchbox" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
-      <input type="search" name="q" placeholder="Search by name or username" aria-label="Search people" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"></form>
-    <div id="fr-found"></div><div id="fr-lists">${skel(1)}</div>
+  el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1>Friends</h1>
+    <form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
+      <input type="search" name="q" placeholder="Name or @username" aria-label="Search people" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
+    <p class="small muted people-search-help">Find someone on Kinetta, or <button type="button" class="linkbtn" id="fr-browse">browse people</button>.</p>
+    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-lists">${skel(1)}</div>
     <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Who sees new activities, and which details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
   const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el);
   const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}<span class="btnrow tight">${btns}</span></div>`;
   const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
-    sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Requested</button>`,
+    sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel request</button>`,
     incoming: `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button>`})[p.status] || `<button class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button>`;
-  let last = null, people = [];
+  const input = f.elements.q, clear = $('#fr-clear', el), status = $('#fr-status', el);
+  const initial = new URLSearchParams(location.search);
+  input.value = initial.get('q') || '';
+  let last = null, people = [], known = [], browsing = false;
   const who = (login) => (people.find((p) => p.login === login) || {}).name || login;
-  const refresh = async () => { invalidate('/api/feed/friends'); invalidate('/api/people/'); invalidateFeed(); App.cache.delete('/api/friends'); await load('/api/friends', draw, {maxAge: 0}); find(true); };
+  const drawListError = (x) => {
+    if (!lists.isConnected) return;
+    lists.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" id="fr-list-retry">Retry friends</button>`;
+    $('#fr-list-retry', lists).onclick = () => render();
+  };
+  const refresh = async () => {
+    clearTimeout(t); searchVersion++;
+    // A removed/blocked friendship also invalidates previously opened shared details.
+    invalidate('/api/feed/friends'); invalidate('/api/people/'); invalidate('/api/shared/'); invalidate('/api/blocks'); invalidateFeed(); App.cache.delete('/api/friends');
+    await load('/api/friends', draw, {maxAge: 0}).catch(drawListError);
+    if (found.isConnected) await find(true);
+  };
   const act = (box, sel, fn) => $$(sel, box).forEach((b) => b.onclick = async () => {
     b.disabled = true;
     try { if (await fn(b) === false) { b.disabled = false; return; } await refresh(); }
     catch (x) { toast(x.message); b.disabled = false; }
   });
   const wire = (box) => {
+    $$('[data-manage]', box).forEach((button) => button.onclick = () => friendshipSheet(people.find(p => p.login === button.dataset.manage), refresh));
     act(box, '[data-add]', async (b) => { const r = await api('/api/friends', json('POST', {login: b.dataset.add})); toast(r.status === 'friends' ? `You and ${r.name} are friends now` : `Request sent to ${r.name}`); });
     act(box, '[data-ok]', async (b) => { await api(`/api/friends/${encodeURIComponent(b.dataset.ok)}/accept`, json('POST', {})); toast(`You and ${who(b.dataset.ok)} are friends now`); });
     act(box, '[data-no]', (b) => api(`/api/friends/${encodeURIComponent(b.dataset.no)}/decline`, json('POST', {})));
@@ -578,40 +651,59 @@ route(/^\/me\/friends$/, 'me', async (el) => {
       if (!confirm(`Block ${who(b.dataset.blk)}? They can't see your activities, find you or ask to be friends, and you won't see theirs. They aren't told.`)) return false;
       await api(`/api/people/${encodeURIComponent(b.dataset.blk)}/block`, json('POST', {})); toast(`${who(b.dataset.blk)} is blocked`);
     });
-    act(box, '[data-rm]', async (b) => {
-      if (!confirm(`Remove ${who(b.dataset.rm)} from your friends? You'll stop seeing each other's friends-only activities.`)) return false;
-      await api('/api/friends/' + encodeURIComponent(b.dataset.rm), {method: 'DELETE'});
-    });
   };
+  const drawResults = (rows, pending = false) => {
+    found.innerHTML = `<h2 class="sec-head">${browsing ? 'People on Kinetta' : 'Search results'}</h2><div class="card list">${rows.length ? rows.map((p) => person(p, btnFor(p))).join('') : pending ? '<p class="small muted">Searching…</p>' : '<p class="small muted">No people found. Try their full username, or check the spelling.</p>'}</div>`;
+    wire(found);
+  };
+  let t, searchVersion = 0;
   async function find(again) {
-    const q = f.q.value.trim();
+    const q = input.value.trim();
+    clear.hidden = !q && !browsing; lists.hidden = !!q || browsing;
+    if (!q && !browsing) { last = null; found.innerHTML = ''; status.textContent = ''; found.setAttribute('aria-busy', 'false'); return; }
     if (q === last && !again) return; last = q;
     const request = ++searchVersion;
-    found.setAttribute('aria-busy', 'true');
+    found.setAttribute('aria-busy', 'true'); status.textContent = 'Searching…';
     try {
       const r = await api('/api/people/search?q=' + encodeURIComponent(q));
       if (request !== searchVersion || !found.isConnected) return;
       people = [...new Map(people.concat(r).map((p) => [p.login, p])).values()];
-      found.innerHTML = `<h2 class="sec-head">${q ? 'Search results' : 'People on Kinetta'}</h2><div class="card list">${r.length ? r.map((p) => person(p, btnFor(p))).join('') : `<p class="small muted">${q ? `No people found for “${esc(q)}”.` : 'No other discoverable people yet.'}</p>`}</div>`;
-      wire(found);
-    } catch (x) { if (request === searchVersion && found.isConnected) { last = null; found.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" data-retry>Retry search</button>`; $('[data-retry]', found).onclick = () => find(true); } }
+      drawResults(r); status.textContent = `${r.length}${r.length === 20 ? '+' : ''} ${r.length === 1 ? 'person' : 'people'} found`;
+    } catch (x) { if (request === searchVersion && found.isConnected) { last = null; status.textContent = ''; found.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" data-retry>Retry search</button>`; $('[data-retry]', found).onclick = () => find(true); } }
     finally { if (request === searchVersion) found.setAttribute('aria-busy', 'false'); }
   }
-  let t, searchVersion = 0;
-  f.q.oninput = () => { clearTimeout(t); last = null; searchVersion++; t = setTimeout(() => find(), 180); };
+  const search = () => {
+    clearTimeout(t); last = null; searchVersion++; browsing = false;
+    const q = input.value.trim(), url = new URL(location.href);
+    if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
+    url.searchParams.delete('find'); history.replaceState(history.state, '', url.pathname + url.search);
+    if (!q) { find(); return; }
+    clear.hidden = false; lists.hidden = true;
+    const term = q.replace(/^@/, '').toLocaleLowerCase();
+    drawResults(known.filter(p => p.name.toLocaleLowerCase().includes(term) || p.login.toLocaleLowerCase().includes(term)).slice(0, 20), true);
+    found.setAttribute('aria-busy', 'true'); status.textContent = 'Searching…';
+    t = setTimeout(() => find(), 180);
+  };
+  input.oninput = search;
+  clear.onclick = () => { input.value = ''; search(); input.focus(); };
+  $('#fr-browse', el).onclick = () => { clearTimeout(t); input.value = ''; browsing = true; find(true); };
   viewResources.set(f, () => { clearTimeout(t); searchVersion++; });
-  f.onsubmit = (e) => { e.preventDefault(); find(); };
+  f.onsubmit = (e) => { e.preventDefault(); clearTimeout(t); find(true); };
   const draw = (r) => {
-    Social.set(r.incoming.length); people = people.concat(r.incoming, r.friends, r.outgoing);
+    Social.set(r.incoming.length);
+    known = r.incoming.map(p => ({...p, status:'incoming'})).concat(r.friends.map(p => ({...p,status:'friends'})), r.outgoing.map(p => ({...p,status:'sent'})));
+    people = [...new Map(people.concat(known).map(p => [p.login, p])).values()];
     lists.innerHTML = (r.incoming.length ? `<h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2><div class="card list">${r.incoming.map((p) =>
         person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button><button class="ghost sm danger" data-blk="${esc(p.login)}" aria-label="Block ${esc(p.name)}">Block</button>`, 'req')).join('')}</div>` : '') +
-      `<h2 class="sec-head">Your friends${r.friends.length ? ` <span class="count">${r.friends.length}</span>` : ''}</h2><div class="card list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="ghost sm" data-rm="${esc(p.login)}" aria-label="Remove ${esc(p.name)}">Remove</button>`)).join('')
+      `<h2 class="sec-head">Your friends${r.friends.length ? ` <span class="count">${r.friends.length}</span>` : ''}</h2><div class="card list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="icon-btn" type="button" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button>`)).join('')
         : '<p class="small muted">No friends yet. Search for someone above. They approve it first, then you each see what the other shares with friends.</p>'}</div>` +
       (r.outgoing.length ? `<h2 class="sec-head">Requests you sent</h2><div class="card list">${r.outgoing.map((p) => person(p, `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel</button>`)).join('')}</div>` : '');
     wire(lists);
   };
-  await load('/api/friends', draw, {maxAge: 0});
-  find();
+  const searching = find();
+  if (initial.has('find')) input.focus();
+  await load('/api/friends', draw, {maxAge: 0}).catch(drawListError);
+  await searching;
 });
 
 // ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------

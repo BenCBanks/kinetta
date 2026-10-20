@@ -183,7 +183,7 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
     with where you stand with each: never anything they've logged. At most 20 people; an empty query discovers people.
     Someone who turned off "Let people find me" shows up only when the search is exactly their username, or when
     you're already friends or have a request between you."""
-    q = q.strip()
+    q = q.strip().removeprefix('@').strip()
     like = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
     with db.connect() as c:
         rows = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent
@@ -192,7 +192,8 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
             WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT {blocked}
               AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
               AND (%(q)s = '' OR u.login ILIKE %(match)s OR u.name ILIKE %(match)s)
-            ORDER BY (u.login = lower(%(q)s)) DESC, (f.status = 'accepted') DESC NULLS LAST, u.name, u.login LIMIT 20""".replace('{blocked}', blocked('u.id')),
+            ORDER BY (u.login = lower(%(q)s)) DESC, (lower(u.name) = lower(%(q)s)) DESC,
+                     (f.status = 'accepted') DESC NULLS LAST, u.name, u.login LIMIT 20""".replace('{blocked}', blocked('u.id')),
                          {'viewer': user['id'], 'me': user['id'], 'q': q, 'match': '%' + like + '%'}).fetchall()
     rel = lambda r: 'friends' if r['status'] == 'accepted' else ('sent' if r['sent'] else 'incoming') if r['status'] else None
     return [{'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'status': rel(r)} for r in rows]
@@ -223,6 +224,22 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         # Use the identical visibility predicate, before pagination. Dates follow the viewer's settings.
         zone = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
         today = dt.datetime.now(ZoneInfo(zone)).date()
+        # Both periods reuse the feed's visibility rule, even for the owner's friend preview.
+        recent_start, recent_end = today - dt.timedelta(days=29), today + dt.timedelta(days=1)
+        params.update(chart_zone=zone, recent_start=recent_start, recent_end=recent_end,
+                      previous_start=recent_start - dt.timedelta(days=30))
+        periods = c.execute(f"""SELECT
+                    CASE WHEN a.start_time AT TIME ZONE %(chart_zone)s >= %(recent_start)s THEN 'current' ELSE 'previous' END AS period,
+                    count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
+                    coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s,
+                    count(DISTINCT (a.start_time AT TIME ZONE %(chart_zone)s)::date) AS active_days
+                    FROM activities a WHERE {visible}
+                    AND a.start_time AT TIME ZONE %(chart_zone)s >= %(previous_start)s
+                    AND a.start_time AT TIME ZONE %(chart_zone)s < %(recent_end)s GROUP BY 1""", params).fetchall()
+        empty_period = {'activities': 0, 'distance_m': 0, 'time_s': 0, 'active_days': 0}
+        by_period = {row['period']: {k: row[k] for k in empty_period} for row in periods}
+        recent = {'start': recent_start, 'end': today, 'current': by_period.get('current', empty_period),
+                  'previous': by_period.get('previous', empty_period)}
         first_day = today - dt.timedelta(days=13)
         params.update(chart_zone=zone, chart_start=first_day, chart_end=today + dt.timedelta(days=1))
         distances = c.execute(f"""SELECT (a.start_time AT TIME ZONE %(chart_zone)s)::date AS d,
@@ -241,7 +258,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
     items = [shared_activity(row) for row in rows[:limit]]
     last = rows[limit - 1] if len(rows) > limit else None
     return {'person': {k: person[k] for k in ('login', 'name', 'photo', 'created', 'bio')}, 'status': status,
-            'mileage': mileage, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
+            'mileage': mileage, 'recent': recent, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
             'next': {'before': last['start_time'], 'before_id': last['id']} if last else None}
 
 
