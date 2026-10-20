@@ -146,7 +146,7 @@ class Conversation(unittest.TestCase):
     def test_clear_chat_and_daily_fresh_start_keep_logged_food(self):
         self.say('a banana')
         with db.connect() as c:
-            c.execute("INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,carbs_g,fat_g,source) VALUES (%s,current_date,'lunch','Fictional logged food',1,'serving',100,1,1,1,'quick')",(self.uid,))
+            c.execute("INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,carbs_g,fat_g,source) VALUES (%s,(now() AT TIME ZONE 'UTC')::date,'lunch','Fictional logged food',1,'serving',100,1,1,1,'quick')",(self.uid,))
             # Yesterday's conversation, over 3 hours old, goes on the next read; a just-after-midnight one stays.
             c.execute("UPDATE food_chat_messages SET local_day=local_day-1,created=now()-interval '5 hours' WHERE user_id=%s",(self.uid,))
         self.say('an apple')
