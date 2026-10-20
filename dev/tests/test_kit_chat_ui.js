@@ -9,8 +9,9 @@ const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 (async()=>{
  let saved,delivered=0,status='',field={value:'My unsent question'};
  const sender={active:()=>true,$:()=>field,newId:()=> 'stable-uuid',save:(ctx,k,v)=>{saved=v},deliver:async()=>delivered++,status:(ctx,v)=>status=v};vm.createContext(sender);vm.runInContext(pick('  async function send(c,text){','  async function mount(el){'),sender);
- const ctx={loaded:true,sending:false,generation:'generation-a',context:{screen:'nutrition'}};await sender.send(ctx);assert.equal(saved.question,'My unsent question');assert.equal(saved.client_id,'stable-uuid');assert.equal(saved.generation,'generation-a');assert.equal(delivered,1);await sender.send(ctx);assert.equal(delivered,1,'existing durable question is retried, never duplicated');
+ const ctx={loaded:true,ready:true,sending:false,generation:'generation-a',context:{screen:'nutrition'}};await sender.send(ctx);assert.equal(saved.question,'My unsent question');assert.equal(saved.client_id,'stable-uuid');assert.equal(saved.generation,'generation-a');assert.equal(delivered,1);await sender.send(ctx);assert.equal(delivered,1,'existing durable question is retried, never duplicated');
  ctx.job=null;sender.save=()=>{throw Error('quota')};await sender.send(ctx);assert.equal(field.value,'My unsent question');assert.equal(delivered,1);assert(status.includes('could not save'));
+ ctx.job=null;ctx.ready=false;await sender.send(ctx);assert.equal(delivered,1);assert.equal(field.value,'My unsent question');assert(status.includes('isn’t available'));
  // A server-accepted message after a lost acknowledgement reconciles the durable local send.
  const removed=[];field={value:'Accepted earlier',style:{}};
  const loader={api:async()=>({generation:'generation-a',messages:[{id:1,client_id:'accepted',question:'Accepted earlier',state:'answered'}],ready:true,before:null}),active:()=>true,$:()=>field,store:{del:k=>removed.push(k)},key:(o,k)=>k,draw(){},status(){},Map,answer(){throw Error('Answered messages cannot call the model again')},later(){}};

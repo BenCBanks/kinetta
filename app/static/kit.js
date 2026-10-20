@@ -30,8 +30,8 @@ const KitChat = (() => {
   const questionFor=(c,i)=>c.context.screen==='activity'&&i===0&&!c.context.activity_id?'Review my latest own workout against my recent history. Use the workout date to find the latest one, rather than the upload order.':starters[c.context.screen][i]?.[1];
   function controls(c){
     const busy=c.sending||c.messages.some(m=>['pending','running'].includes(m.state));
-    $('#kit-send',c.el).disabled=!c.loaded||busy||!aiCan('coach')||!$('#kit-text',c.el).value.trim();
-    $$('[data-kit-start]',c.el).forEach(b=>b.disabled=!c.loaded||busy||!aiCan('coach'));
+    $('#kit-send',c.el).disabled=!c.loaded||!c.ready||busy||!aiCan('coach')||!$('#kit-text',c.el).value.trim();
+    $$('[data-kit-start]',c.el).forEach(b=>b.disabled=!c.loaded||!c.ready||busy||!aiCan('coach'));
   }
   function factLabel(f){
     const labels={kcal:'Calories (kcal)',protein_g:'Protein (g)',carbs_g:'Carbohydrates (g)',fat_g:'Fat (g)',fiber_g:'Fiber (g)',sodium_mg:'Sodium (mg)',sugar_g:'Sugar (g)',saturated_fat_g:'Saturated fat (g)',protein_target:'Protein goal (g)',kcal_target:'Calorie goal (kcal)',distance_m:'Distance (m)',moving_s:'Moving time (seconds)'};
@@ -66,7 +66,7 @@ const KitChat = (() => {
       c.job=null;store.del(key(c.owner,'pending'));
     }
 
-    if(!c.ready)status(c,'Kit chat is awaiting reviewed evaluation on this server. Your normal app tools remain available.');
+    if(!c.ready)status(c,'Kit chat isn’t available yet. Your food log and other app tools still work.');
     draw(c);
     const waiting=c.messages.find(m=>m.state==='pending');
     if(waiting&&!c.sending&&!c.answerErrors?.[waiting.client_id])answer(c,waiting.client_id);
@@ -96,6 +96,7 @@ const KitChat = (() => {
   }
   async function send(c,text){
     if(!active(c)||!c.loaded||c.sending)return;
+    if(!c.ready){status(c,'Kit chat isn’t available yet. Your draft is kept.');return;}
     const question=(text??$('#kit-text',c.el).value).trim();if(question.length<3)return;
     if(c.job){status(c,'Retry the saved question before sending another.');return;}
     const job={client_id:newId(),generation:c.generation,question,context:c.context};
