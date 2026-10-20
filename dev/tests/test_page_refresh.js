@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const handlers={},notices=[],toasts=[],invalidations=[];let rendered=0,finish,blocked=false,owner='one';
-const c={IC:{},App:{me:{id:1},scroll:{}},location:{pathname:'/activity',search:'?view=mine'},scrollY:0,readOwner:()=>owner,toast:t=>toasts.push(t),invalidate:(...args)=>invalidations.push(args),render:()=>{rendered++;return new Promise(r=>finish=r)},$$:()=>[],getSelection:()=>({toString:()=>''}),document:{documentElement:{classList:{contains:()=>false}},querySelector:()=>blocked,addEventListener:(n,fn)=>handlers[n]=fn,createElement:()=>({setAttribute(){},style:{},hidden:false}),body:{append:el=>notices.push(el)}}};
+const c={pendingReads:new Map(),IC:{},App:{me:{id:1},scroll:{}},location:{pathname:'/activity',search:'?view=mine'},scrollY:0,readOwner:()=>owner,toast:t=>toasts.push(t),invalidate:(...args)=>invalidations.push(args),render:()=>{rendered++;return new Promise(r=>finish=r)},$$:()=>[],getSelection:()=>({toString:()=>''}),document:{documentElement:{classList:{contains:()=>false}},querySelector:()=>blocked,addEventListener:(n,fn)=>handlers[n]=fn,createElement:()=>({setAttribute(){},style:{},hidden:false}),body:{append:el=>notices.push(el)}}};
 vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/refresh.js','utf8')+'\nglobalThis.refresh=PageRefresh;',c);
 const target={closest:()=>false,parentElement:null,scrollTop:0};
 const start=(x=30,y=50)=>handlers.touchstart({touches:[{clientX:x,clientY:y}],target});
@@ -15,6 +15,7 @@ let prevented=0;const move=(x,y)=>handlers.touchmove({touches:[{clientX:x,client
  c.location.pathname='/me/kit';start();move(30,250);handlers.touchend();assert.equal(rendered,1,'chat history has its own gestures');c.location.pathname='/activity';
  start();move(30,250);handlers.touchcancel();handlers.touchend();assert.equal(rendered,1,'cancelled gestures never refresh');
  const task=c.refresh.run();c.refresh.failed(Error('offline'));finish();await task;assert(toasts.at(-1).includes('saved view'));
+ const before=toasts.length;let finishRead;const reading=new Promise(ok=>finishRead=ok).finally(()=>c.pendingReads.clear());c.pendingReads.set(JSON.stringify([owner,'/api/home-card']),reading);const cards=c.refresh.run();finish();await new Promise(setImmediate);assert.equal(toasts.length,before,'home-card reads finish before reporting Up to date');finishRead({});await cards;assert.equal(toasts.at(-1),'Up to date');
  const previous=toasts.length,late=c.refresh.run();owner='two';finish();await late;assert.equal(toasts.length,previous,'late refresh feedback cannot appear on another account');
  assert(prevented>0);console.log('Page refresh: threshold/direction/top/sheet/chat/cancel guards, single request, retained-cache epochs, read-only refresh and stale-account feedback PASS');
 })().catch(e=>{console.error(e);process.exit(1)});

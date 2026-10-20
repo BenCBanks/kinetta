@@ -19,7 +19,15 @@ const PageRefresh=(()=>{
     App.scroll[key]=scrollY;
     invalidate('/api/',{health:false,keepData:true});
     if(typeof Social!=='undefined')Social.at=0;
-    try{await render();if(owner===readOwner()&&key===pageKey())toast(failure||App.offline?'Couldn’t refresh. Your saved view is kept.':'Up to date');}
+    try{await render();
+      // Some home cards start their own reads after the route's first render.
+      // Keep the refresh status until those reads (and their dependent reads) settle.
+      for(let pass=0;pass<5&&owner===readOwner()&&key===pageKey();pass++){
+        const reads=typeof pendingReads==='undefined'?[]:[...pendingReads].filter(([k])=>JSON.parse(k)[0]===owner).map(([,promise])=>promise);
+        if(!reads.length)break;
+        const results=await Promise.allSettled(reads);failure||=results.find(r=>r.status==='rejected')?.reason;
+      }
+      if(owner===readOwner()&&key===pageKey())toast(failure||App.offline?'Couldn’t refresh. Your saved view is kept.':'Up to date');}
     catch(e){if(owner===readOwner()&&key===pageKey())toast(e.message);}
     finally{busy=false;failure=null;hide();$$('[data-page-refresh]').forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy');});}
   }
