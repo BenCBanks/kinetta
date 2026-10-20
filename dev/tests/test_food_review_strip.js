@@ -38,3 +38,15 @@ c.aiCan=()=>false;assert(!c.replyHtml({id:1,state:'answered',result:{review_only
 c.aiCan=()=>true;assert(c.replyHtml({id:1,state:'answered',result:{review_only:true}},photoAnswer).includes('data-photo-itemize="3"'));
 c.App.me.food_photo_itemize=false;assert(!c.replyHtml({id:1,state:'answered',result:{review_only:true}},photoAnswer).includes('data-photo-itemize'),'unreviewed ingredient prompt has no action');
 console.log('photo breakdown: saved answers remain readable; new analysis requires current food consent/access PASS');
+
+Object.assign(c,{food:e=>`<div class="thread-food">${e.name}</div>`});
+const root={id:1,state:'answered',result:{review_only:true}};
+for(const values of [[210],[200,100],[0]]){
+ const entries=values.map((kcal,i)=>({name:'Food '+i,kcal}));
+ const html=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{estimated:true,entries}]}});
+ assert.match(html,/Estimate breakdown/);assert.match(html,/thread-total/);
+ assert(html.includes('≈ '+values.reduce((a,b)=>a+b,0)+' kcal'));
+}
+const unknown=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{estimated:true,entries:[{name:'Unknown food',kcal:null}]}]}});
+assert.match(unknown,/Incomplete/);assert(!unknown.includes('≈ 0 kcal'));
+console.log('all estimate cards: visible row breakdown and total even one/zero, unknown total stays incomplete PASS');

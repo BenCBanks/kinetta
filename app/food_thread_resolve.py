@@ -22,7 +22,13 @@ def _unknown(result):
 def _photo_mode(media,message,body):
     from .food_thread_photo import requested
     said=body.note if body.note is not None else message['body']
-    return media['kind']=='photo' and (body.itemize if body.itemize is not None else bool(media.get('itemize') or requested(said)))
+    from . import ai_release
+    # New review drafts always request ingredient detail once its food comparison
+    # is approved, for descriptions as well as photos. Legacy explicit choices stay compatible.
+    if body.itemize is not None:return body.itemize
+    if (message.get('result') or {}).get('review_only') and media['kind'] in ('text','photo'):
+        return ai_release.food_photo_itemization_enabled()
+    return media['kind']=='photo' and bool(media.get('itemize') or requested(said))
 
 
 def _alias(c,uid,parts):

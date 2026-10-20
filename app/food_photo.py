@@ -140,6 +140,9 @@ def brake(user_id, limit=DAILY_LIMIT, kind='photo', what='estimates'):
 
 @router.post('/photo')
 def photo(body: PhotoIn, user=Depends(current_user)):
+    from . import ai_release
+    if 'itemize' not in body.model_fields_set:
+        body=body.model_copy(update={'itemize':ai_release.food_photo_itemization_enabled()})
     return estimate(body,user)
 
 
@@ -154,7 +157,6 @@ def estimate(body,user,*,strict=False):
     if not key: raise HTTPException(503, 'Photo logging needs a Gemini key on the server')
     note = (body.note or '').strip()
     imgs = image_batch(body.image, body.images)
-    if body.itemize and not imgs: raise HTTPException(422, 'Add the photo to estimate its ingredients')
     if not imgs and not note: raise HTTPException(400, 'Add photos or a description')
     brake(user['id'])
 
@@ -168,7 +170,9 @@ def estimate(body,user,*,strict=False):
         parts.append({'text': 'The person requests an itemized calorie breakdown. For mixed foods such as a sub, '
                       'list the ingredients (bread, filling, cheese, sauces) as separate items with their estimated '
                       'portions and nutrition. Do not also include the whole sandwich or a total as an item: the '
-                      'app adds the items. Include each ingredient only once across all photos. Use the person’s '
+                      'app adds the items. Include each ingredient only once across all photos or the text description. '
+                      'For text-only descriptions, use stated ingredients and portions; label any typical ingredients '
+                      'or amounts you assume. Keep a single food such as a banana as one item. Use the person’s '
                       'description for hidden ingredients; do not claim to see them. In notes, clearly state '
                       'assumptions about hidden ingredients and amounts. These are estimates, not measured facts.'})
     parts.extend({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs)

@@ -111,7 +111,7 @@ function foodOutbox({db,request,session,changed,progress=async()=>{},online=()=>
               else {await db.remove(owner,job.id);continue;}
             }
             if(job.phase==='resolve') {
-              r=await call(`/api/food/thread/messages/${job.mid}/resolve`,{...(job.images?.length?{images:job.images}:{}),retry:!!job.retry,...(job.itemize?{itemize:true}:{})});
+              r=await call(`/api/food/thread/messages/${job.mid}/resolve`,{...(job.images?.length?{images:job.images}:{}),retry:!!job.retry,...(job.note!==undefined?{note:job.note}:{}),...(job.itemize?{itemize:true}:{})});
               const result=(r.messages||[]).find(m=>m.reply_to===job.mid)?.result || {};
               if(r.processing||result.processing)break; // Another request holds the bounded server lease.
               await db.remove(owner,job.id); // Source errors remain on the server card with explicit Retry.

@@ -47,7 +47,9 @@ class PhotoContext(unittest.TestCase):
   key=str(uuid.uuid4());m=self.post('/api/food/thread/messages',{'client_id':key,'body':text,'media':media,**extra},status=201)['message']
   r=self.post(f"/api/food/thread/messages/{m['id']}/process");return m,r
  def root(self,text='two bowls of mysterious curry',**extra):return self.send(text,**extra)[0]
- def resolve(self,m,**body):return self.post(f"/api/food/thread/messages/{m['id']}/resolve",body)
+ def resolve(self,m,**body):
+  body.setdefault('itemize',False)
+  return self.post(f"/api/food/thread/messages/{m['id']}/resolve",body)
  def result(self,response):return response['messages'][-1]['result']
  def entries(self):return self.a.get('/api/food/day').json()['entries']
  def own_food(self,name='Rice',kcal=130):return self.post('/api/food/foods',{'name':name,'serving_label':'1 serving','serving_g':100,'kcal':kcal,'protein_g':3,'carbs_g':28,'fat_g':.3})['id']
@@ -97,7 +99,7 @@ class PhotoContext(unittest.TestCase):
   answer=self.result(reply);self.assertEqual(answer['intent'],'photo_breakdown');self.assertEqual(answer['breakdown_total'],520,str(answer));self.assertEqual(len(answer['breakdown']),4);self.assertEqual(self.model.call_count,n);self.assertEqual(self.entries(),[])
   self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'images':[JPEG],'itemize':True},client=self.b,status=404)
   self.post('/api/food/thread/messages',{'client_id':str(uuid.uuid4()),'body':'Itemize this','media':'text','itemize':True},status=422)
-  self.post('/api/food/photo',{'note':'a sub','itemize':True},status=422)
+  self.post('/api/food/photo',{'note':'a turkey sub with cheese and mayo','itemize':True})
  def test_replace_existing_photo_without_duplicate_food(self):
   m,draft=self.photo();self.resolve(m,images=[JPEG]);_,reply=self.send('Break down the calories by ingredient',context=m['client_id'],review_only=True,draft_id=draft)
   answer=self.result(reply);self.assertEqual(answer['photo_itemize'],m['id']);self.assertIn('not estimated separately',answer['text']);self.assertEqual(len(answer['breakdown']),1)
@@ -142,7 +144,7 @@ class PhotoContext(unittest.TestCase):
   from app.food_thread_photo import requested
   for text in ['Please itemize this sub','Give me a list of calories in that picture','Can you break down the calories?','Calories per ingredient','Each ingredient and its calories']:
    self.assertTrue(requested(text),text)
-  for text in ['A turkey sub with mayo','200 g rice','Make it two','Remove cheese']:
+  for text in ['A turkey sub with mayo','200 g rice','Make it two','Remove cheese','Break down my calories today','Show a breakdown for last week']:
    self.assertFalse(requested(text),text)
  def test_ingredient_does_not_become_a_similarly_named_saved_dish(self):
   self.own_food(name='Turkey sub sandwich',kcal=900)
@@ -171,5 +173,36 @@ class PhotoContext(unittest.TestCase):
   r=self.result(self.resolve(m,images=[JPEG],itemize=False,note='',retry=True))
   self.assertFalse(r['parts'][0]['photo_itemized']);self.assertFalse(r['photo_request_itemize']);self.assertEqual(r['parts'][0]['photo_description'],'')
   self.assertNotIn('The person requests an itemized',str(self.model.call_args.args[0]));self.assertEqual(self.entries(),[])
+
+ def test_reviewed_text_and_photo_estimates_itemize_without_opt_in(self):
+  self.itemized()
+  for media in ['text','photo']:
+   draft=str(uuid.uuid4());m=self.root('A 6-inch turkey sub with cheese and mayo; I ate half.',media=media,review_only=True,draft_id=draft)
+   r=self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'images':[JPEG]} if media=='photo' else {})
+   p=self.result(r)['parts'][0];self.assertTrue(p['photo_itemized']);self.assertEqual(len(p['entries']),4)
+   self.assertIn('text-only descriptions',str(self.model.call_args.args[0]))
+   calls=self.model.call_count
+   _,answer=self.send('Break down the calories by ingredient',context=m['client_id'],review_only=True,draft_id=draft)
+   result=self.result(answer);self.assertEqual(len(result['breakdown']),4);self.assertEqual(result['breakdown_total'],520)
+   self.assertEqual(self.model.call_count,calls);self.assertEqual(self.entries(),[])
+ def test_direct_text_and_photo_preview_routes_default_to_reviewed_breakdown(self):
+  self.itemized()
+  for body in [{'note':'A turkey sub with cheese and mayo'},{'images':[JPEG]}]:
+   result=self.post('/api/food/photo',body);self.assertEqual(len(result['items']),4)
+   self.assertIn('The person requests an itemized',str(self.model.call_args.args[0]));self.assertEqual(self.entries(),[])
+ def test_unapproved_automatic_mode_keeps_original_estimator_and_honest_rows(self):
+  self.gate_mock.return_value=False
+  for media in ['text','photo']:
+   draft=str(uuid.uuid4());m=self.root('Two bowls of fictional curry',media=media,review_only=True,draft_id=draft)
+   r=self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'images':[JPEG]} if media=='photo' else {})
+   p=self.result(r)['parts'][0];self.assertFalse(p['photo_itemized']);self.assertEqual(len(p['entries']),1)
+   self.assertNotIn('The person requests an itemized',str(self.model.call_args.args[0]));self.assertEqual(self.entries(),[])
+ def test_photo_bytes_never_enter_thread_or_food_records(self):
+  self.itemized();m,draft=self.photo();self.post(f"/api/food/thread/messages/{m['id']}/resolve",{'images':[JPEG]})
+  before=self.a.get('/api/food/thread/reviews/draft/'+draft).json();self.assertNotIn(JPEG,json.dumps(before))
+  review=self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':draft,'messages':[m['id']]})
+  result=self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'dinner'})
+  self.assertNotIn(JPEG,json.dumps(result));self.assertNotIn(JPEG,json.dumps(self.entries()))
+  self.post('/api/food/thread/clear',{'confirm':True});self.assertEqual(self.a.get('/api/food/thread/reviews/draft/'+draft).json()['messages'],[])
 
 if __name__=='__main__':unittest.main()

@@ -759,14 +759,14 @@ function foodEditor(food, after) {
 // ---------- photo + description -> Gemini estimate (2026-10-09) ----------
 // The photo is shrunk on the phone (max 1280 px JPEG), sent with the optional description, never stored.
 async function shrinkPhoto(file, max = 1280) {
-  const url = URL.createObjectURL(file);
+  const url = typeof file==='string'?file:URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
     const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
     const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
     return c.toDataURL('image/jpeg', 0.82);
-  } finally { URL.revokeObjectURL(url); }
+  } finally { if(typeof file!=='string')URL.revokeObjectURL(url); }
 }
 // Selection stays local until the explicit confirmation; one request covers all retained views.
 async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,description=null,itemize=false,active=()=>true}={}) {
@@ -778,11 +778,11 @@ async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,descript
   } catch(e) { if(active())toast(e.message||"A photo couldn't be opened"); return; }
   if(!active())return;
   const canItemize=!!App.me?.food_photo_itemize;
-  itemize=canItemize&&itemize;
+  itemize=canItemize;
   let note=description??'';
   sheet(recipe?'Review recipe screenshots':label?'Photos of one ingredient':'Review your food photos','<div id="photo-selection"></div>',(root,close)=>{
-    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(recipe?'Choose views of one recipe, including its ingredients and nutrition. Kit will read them into a draft; check servings and numbers before saving.':label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div>'+(description!==null?`<label class="photo-description" for="photos-description">Describe this food <span class="muted">(optional)</span><textarea id="photos-description" rows="3" maxlength="4000" placeholder="For example, a 6-inch turkey sub with cheese and mayo; I ate half.">${esc(note)}</textarea></label>${canItemize?`<label class="check photo-itemize"><input type="checkbox" id="photos-itemize"${itemize?' checked':''}><span>Itemize ingredients<small class="muted">Estimate bread, filling, cheese and sauces separately, with a total.</small></span></label>`:''}<p class="small muted">Kit estimates portions and hidden ingredients. Check the assumptions before logging.</p>`:'')+'<button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(recipe?'Read recipe screenshots':label?'Read these photos':description!==null?'Estimate with Kit':'Use these photos')+'</button>';
-      const field=$('#photos-description',box),toggle=$('#photos-itemize',box);if(field)field.oninput=()=>{note=field.value;};if(toggle)toggle.onchange=()=>{itemize=toggle.checked;};
+    const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(recipe?'Choose views of one recipe, including its ingredients and nutrition. Kit will read them into a draft; check servings and numbers before saving.':label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div>'+(description!==null?`<label class="photo-description" for="photos-description">Describe this food <span class="muted">(optional)</span><textarea id="photos-description" rows="3" maxlength="4000" placeholder="For example, a 6-inch turkey sub with cheese and mayo; I ate half.">${esc(note)}</textarea></label><p class="small muted">Every estimate shows its food breakdown and total. Your photo appears temporarily in the chat, then disappears when you log the food or clear the chat.</p><p class="small muted">Kit estimates portions and hidden ingredients. Check the assumptions before logging.</p>`:'')+'<button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(recipe?'Read recipe screenshots':label?'Read these photos':description!==null?'Estimate with Kit':'Use these photos')+'</button>';
+      const field=$('#photos-description',box);if(field)field.oninput=()=>{note=field.value;};
       $$('[data-remove-photo]',box).forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.removePhoto,1);draw()});$('#photos-use',box).onclick=()=>{if(!active())return;close();confirm(photos.slice(),{note:note.trim(),itemize})};};draw();
   });
 }

@@ -1754,15 +1754,18 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 #thread-messages { overflow-anchor: none; position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 14px; padding: 12px 0 8px; }
 #thread-messages article { min-width: 0; overflow-wrap: anywhere; }
 .thread-user { margin: 0 0 8px auto; width: fit-content; max-width: 80%; padding: 10px 14px; border-radius: 20px 20px 6px 20px; background: var(--accent); color: var(--ontx); }
+.thread-photos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.thread-photos img { display:block; width:min(240px, 100%); height:auto; max-height:220px; object-fit:contain; border-radius:10px; }
+.thread-breakdown-title { margin:4px 0 8px; font-weight:650; }
 .thread-user p { margin: 0; white-space: pre-wrap; }
 .thread-card { max-width: 92%; padding: 12px 14px; border-radius: 20px 20px 20px 6px; background: var(--card); border: 1px solid var(--line); }
 .thread-card p { margin: 6px 0; }
-.thread-food { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--tx); font: inherit; text-align: left; border-radius: 0; }
+.thread-food { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--tx); font: inherit; text-align: left; border-radius: 0; }
 .thread-food:first-of-type, .thread-destination + .thread-food, .thread-updated + .thread-food { border-top: 0; }
 button.thread-food { cursor: pointer; }
-.thread-food .tf-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.thread-food .tf-main { flex: 1 1 10rem; min-width: 0; display: grid; gap: 2px; }
 .thread-food small { font-size: .8rem; color: var(--tx2); }
-.thread-food .tf-kcal { flex: none; font-weight: 650; }
+.thread-food .tf-kcal { flex: none; margin-left:auto; font-weight: 650; }
 .thread-food .tf-kcal small { font-weight: 400; }
 .thread-total { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; font-size: .9rem; }
 .thread-more { margin-left: auto; color: var(--tx2); }
@@ -2169,10 +2172,10 @@ body .leaflet-container .leaflet-control-attribution { background: var(--card); 
 .thread-tools-sheet button { display: grid; justify-items: center; gap: 6px; min-height: 76px; padding: 10px 2px; border: 0; border-radius: 16px;
   background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; }
 .thread-tools-sheet button svg { width: 26px; height: 26px; color: var(--accent); }
-.thread-food.has-stepper .tf-main { flex: 1; min-width: 0; }
+.thread-food.has-stepper .tf-main { flex: 1 1 10rem; min-width: 0; }
 .thread-stepper { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; }
 .thread-stepper .num { min-width: 0; font-size: .9rem; color: var(--tx); }
-.food-thread .thread-stepper .icon-btn { width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; border-radius: 50%;
+.food-thread .thread-stepper .icon-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border-radius: 50%;
   border: 1px solid var(--line); background: var(--bg); color: var(--accent); font-size: 1.1rem; font-weight: 600; line-height: 1; }
 .thread-thinking { width: max-content; padding: 12px 16px; }
 .thread-typing { display: inline-flex; gap: 5px; align-items: center; height: 18px; }
@@ -2274,3 +2277,10 @@ button.thread-food:active { opacity: .7; }
 .page-refresh-button[aria-busy="true"] svg {animation:refresh-turn 1s linear infinite}
 @keyframes refresh-turn {to {transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce) {.page-refresh-button[aria-busy="true"] svg {animation:none}}
+
+/* Food estimate breakdowns keep words readable when text is enlarged on a narrow phone. */
+@media (max-width:360px) {
+  .food-thread .thread-heading { grid-template-columns:minmax(0,1fr) auto; }
+  .food-thread .thread-heading h1 { grid-column:1 / -1; grid-row:2; text-align:center; }
+  .food-thread .thread-heading #thread-settings { grid-column:2; grid-row:1; }
+}
