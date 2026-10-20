@@ -156,7 +156,7 @@ def resolve_outside(uid,work,body):
             else:estimate.append(part)
     if estimate:
         text='\n'.join(p['text'] for p in estimate)
-        if media['kind']=='photo':text=message['body'] if not message['body'].startswith('Photo of food') else ''
+        if media['kind']=='photo':text=message['body'] if message['body']!='Photo of food' else ''
         if body.note:text=body.note.strip() if media['kind']=='photo' else (text+'\n'+body.note).strip()
         if len(text)>4000:return updates,HTTPException(422,'That food note is too long; your original message is kept')
         # PhotoIn's public legacy note limit remains 2000. The permanent thread

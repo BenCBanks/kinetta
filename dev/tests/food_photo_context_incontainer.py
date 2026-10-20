@@ -115,5 +115,9 @@ class PhotoContext(unittest.TestCase):
   self.own_food(name='Turkey sub sandwich',kcal=900)
   self.itemized();m,_=self.photo(True);part=self.result(self.resolve(m,images=[JPEG],itemize=True))['parts'][0]
   turkey=next(e for e in part['entries'] if e['name']=='Turkey');self.assertEqual(turkey['kcal'],100)
+ def test_full_caption_including_photo_of_food_prefix_is_kept(self):
+  caption='Photo of food: turkey sub with cheese and mayo. '+('Extra portion details. '*110)
+  m=self.root(caption,media='photo',review_only=True,draft_id=str(uuid.uuid4()))
+  r=self.result(self.resolve(m,images=[JPEG]));self.assertEqual(r['parts'][0]['photo_description'],caption);self.assertIn(caption,str(self.model.call_args.args[0]))
 
 if __name__=='__main__':unittest.main()

@@ -29,3 +29,11 @@ assert.equal(nodes['#thread-review'].hidden,true,'nothing finished, nothing to r
 const html=c.choices({kind:'needs',parts:[{...question,replies:['1','<b>']}]});
 assert.match(html,/data-reply="1"/);assert.match(html,/data-reply="&lt;b&gt;"/,'reply labels are escaped');
 console.log('food review strip: finished foods only, open questions never block, calorie total, sending waits, escaped quick replies PASS');
+// New ingredient-analysis controls need current food capability/consent, while
+// the saved explanatory answer remains readable when generation is unavailable.
+Object.assign(c,{previewRows:()=>null,changedNumbers:()=>false,kitFoodWords:s=>s,kitHtml:()=>'',svg:()=>'',food:()=>{throw Error('An answer must not render another food')}});
+vm.runInContext(source.slice(source.indexOf('  function replyHtml('),source.indexOf('  // A "typing" bubble')),c);
+const photoAnswer={entries:[],body:'Saved photo answer',result:{kind:'answer',photo_itemize:3}};
+c.aiCan=()=>false;assert(!c.replyHtml({id:1,state:'answered',result:{review_only:true}},photoAnswer).includes('data-photo-itemize'));
+c.aiCan=()=>true;assert(c.replyHtml({id:1,state:'answered',result:{review_only:true}},photoAnswer).includes('data-photo-itemize="3"'));
+console.log('photo breakdown: saved answers remain readable; new analysis requires current food consent/access PASS');
