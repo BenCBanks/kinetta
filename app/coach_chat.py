@@ -190,7 +190,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
         if not calls:
             if not evidence or (kit and not any('data' in e for e in evidence)): raise ValueError('Kit did not consult your data. Please try again.')
             checked = checked_answer(_json(text), evidence)
-            return {**checked, 'prompt_version': PROMPT_VERSION, 'usage': usage,
+            return {**checked, 'prompt_version': 'kit-shared-1' if kit else PROMPT_VERSION, 'usage': usage,
                     'latency_ms': round((time.monotonic() - began) * 1000),
                     'tools_used': [e['tool'] for e in evidence]}
         results = []
