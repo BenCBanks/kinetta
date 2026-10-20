@@ -134,6 +134,37 @@ class Conversation(unittest.TestCase):
         self.assertEqual(self.model.call_args.args[0].note,'a typical serving of greek yogurt')
         self.assertEqual(self.a.get('/api/food/day').json()['entries'],[])
 
+    def test_steppers_change_one_food_inside_an_estimate(self):
+        _,result,_=self.say('2 eggs and toast')
+        mid=next(r for r in self.a.get('/api/food/thread').json()['messages'] if r['kind']=='user' and r['body']=='2 eggs and toast')['id']
+        part=result['parts'][0];self.assertEqual(part['entry_drafts'],[0,1])
+        r=self.a.post(f'/api/food/thread/messages/{mid}/choose',json={'part':part['index'],'draft':1,'factor':2}).json()
+        card=next(m for m in r['messages'] if m.get('reply_to')==mid)['result']
+        self.assertEqual(self.foods(card),[('Eggs',200),('Toast',200)],'only the toast doubled')
+        self.assertEqual(self.a.post(f'/api/food/thread/messages/{mid}/choose',json={'part':part['index'],'draft':9,'factor':2}).status_code,422)
+
+    def test_clear_chat_and_daily_fresh_start_keep_logged_food(self):
+        self.say('a banana')
+        with db.connect() as c:
+            c.execute("INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,carbs_g,fat_g,source) VALUES (%s,current_date,'lunch','Fictional logged food',1,'serving',100,1,1,1,'quick')",(self.uid,))
+            # Yesterday's conversation, over 3 hours old, goes on the next read; a just-after-midnight one stays.
+            c.execute("UPDATE food_chat_messages SET local_day=local_day-1,created=now()-interval '5 hours' WHERE user_id=%s",(self.uid,))
+        self.say('an apple')
+        with db.connect() as c:c.execute("UPDATE food_chat_messages SET local_day=local_day-1 WHERE user_id=%s AND body='an apple'",(self.uid,))
+        bodies=[m['body'] for m in self.a.get('/api/food/thread').json()['messages'] if m['kind']=='user']
+        self.assertEqual(bodies,['an apple'])
+        self.assertEqual(self.a.post('/api/food/thread/clear',json={'confirm':False}).status_code,400)
+        r=self.a.post('/api/food/thread/clear',json={'confirm':True}).json();self.assertTrue(r['food_kept'])
+        self.assertEqual(self.a.get('/api/food/thread').json()['messages'],[])
+        self.assertEqual([e['name'] for e in self.a.get('/api/food/day').json()['entries']],['Fictional logged food'])
+        with db.connect() as c:cid=c.execute("SELECT client_id FROM food_chat_cancellations WHERE user_id=%s LIMIT 1",(self.uid,)).fetchone()['client_id']
+        replay=self.a.post('/api/food/thread/messages',json={'client_id':str(cid),'body':'an apple','review_only':True})
+        self.assertEqual(replay.status_code,409,'a phone retry cannot bring a cleared message back')
+
+    def test_generic_word_asks_once_without_ai_understanding(self):
+        body,result,_=self.say('chips');self.assertEqual(body,'What kind of chips? For example, “tortilla chips”.')
+        body,result,_=self.say('tortilla');self.assertEqual(result['kind'],'preview',body)
+
     def test_remaining_goal_with_nothing_logged(self):
         body,_,_=self.say('how much protein do I have left')
         self.assertEqual(body,'All of your 110 g protein goal is left; nothing is logged for today yet.')

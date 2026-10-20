@@ -10,7 +10,7 @@ from . import meal_chat,food_thread,food_thread_log as engine
 from . import food_thread_compose as C,food_thread_sources as S,food_thread_resolve as resolver
 
 
-def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,new=False):
+def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,new=False,draft=None):
     result=C.card(c,uid,message)
     if not result:return None
     C.check_live(message,result)
@@ -34,7 +34,8 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
         part=resolver._catalog(part['catalog'][catalog],part)
         part['catalog_selected']=catalog
     elif part.get('drafts'):
-        if factor is not None:S.scale_drafts(part['drafts'],factor)
+        if draft is not None and not 0<=draft<len(part['drafts']):raise HTTPException(422,'Choose a food on this card')
+        if factor is not None:S.scale_drafts([part['drafts'][draft]] if draft is not None else part['drafts'],factor)
         elif portion:
             p=portion.clean()
             draft=part['drafts'][0]
@@ -112,7 +113,7 @@ def conversational_help(c,uid,message):
     pending=[p for p in (result or {}).get('parts',[]) if p['status']!='ready' and not p.get('logged')]
     def reply(value):return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'clarification_help','text':value,'source':'code'})
     if not result:return reply('Tell me the food and amount, for example “2 chicken tacos”. I’ll help work out the calories, then you can review before logging.')
-    if not pending:return reply('Your food is ready. Tap Review food to check the amounts, choose a meal and confirm. Nothing is logged until you confirm.')
+    if not pending:return reply('Your food is ready. Change amounts with − or +, then tap Add to log. Nothing is logged until you do.')
     part=pending[0]
     if part.get('description') and confused:
         return reply('I need one detail to estimate this food. '+(part.get('question') or 'How much did you have?')+' Or say “not sure” and I’ll estimate a typical one.')
@@ -376,7 +377,7 @@ def draft_edit(c,uid,message,intent=None,dest=None):
 
 def separate(c,uid,message,previous):
     return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'clarification_help','source':'code','targets_message':previous['id'],
-            'text':'I can’t change that amount from here. Tap Review food to adjust it before logging.'})
+            'text':'I couldn’t change that one from here. Use − or + on the food instead.'})
 
 
 def portion_text(p,name):

@@ -30,11 +30,13 @@ def own_part(c,uid,item,issued):
     return part
 
 
-CATEGORIES={'taco','burrito','sandwich','salad','soup','curry','smoothie','pizza'}
+CATEGORIES={'taco','burrito','sandwich','salad','soup','curry','smoothie','pizza','chip','cereal'}
 SIZES={'small','medium','large','big','regular','tall','grande','venti','jumbo','mini','kid','king'}
 # Words that already say how much: an article ("a banana"), a household unit or a size.
 IMPLIED=re.compile(r"^(?:a|an|one|another)\b|\b(?:\d|half|whole|couple|few|cups?|glass(?:es)?|bowls?|slices?|pieces?|plates?|cans?|bottles?|mugs?|scoops?|handfuls?|shots?|pints?|bars?|spoon\w*|tbsp|tsp|servings?|portions?|box(?:es)?|bags?|packets?|orders?|sides?|typical)\b")
 NOT_SURE=['Not sure']
+EXAMPLES={'chip':'tortilla chips','cereal':'Cheerios with milk','sandwich':'turkey on wheat','salad':'caesar with chicken','soup':'chicken noodle',
+          'pizza':'2 slices of pepperoni','burrito':'chicken and rice','curry':'chicken tikka masala','smoothie':'banana and peanut butter'}
 FILLINGS={'chicken','beef','bean','pork','fish','shrimp','steak','veggie','vegetarian','vegan','cheese','carnita','al','pastor','barbacoa','chorizo','soft','hard','shell','crispy','grilled','fried','tofu','turkey','egg','lamb','tuna','salmon','ham','sausage','mushroom','vegetable'}
 # Words that answer "what kind of <dish>?": anything else is treated as a separate food.
 TYPES={'taco':FILLINGS,'burrito':FILLINGS|{'breakfast','rice','bowl'},
@@ -43,6 +45,8 @@ TYPES={'taco':FILLINGS,'burrito':FILLINGS|{'breakfast','rice','bowl'},
        'soup':FILLINGS|{'tomato','noodle','lentil','minestrone','clam','chowder','split','pea','potato','broccoli','cream','onion','french','ramen','pho','miso'},
        'pizza':FILLINGS|{'pepperoni','margherita','plain','hawaiian','supreme','meat','lover','bbq','white','thin','crust','deep','dish','slice','slices'},
        'curry':FILLINGS|{'red','green','yellow','thai','indian','tikka','masala','korma','vindaloo','butter','coconut','lentil','chickpea','potato','rice'},
+       'chip':{'potato','tortilla','corn','kettle','bbq','sour','cream','onion','salt','vinegar','cheddar','plain','pita','veggie','bagel','doritos','lays','pringles','tostitos','fritos','cheetos','banana','apple'},
+       'cereal':{'granola','oat','bran','corn','flake','frosted','cheerios','muesli','rice','krispies','chex','honey','nut','raisin','chocolate','sugar','plain','fruit','loops','puffs'},
        'smoothie':{'banana','strawberry','berry','mango','protein','green','peanut','butter','yogurt','milk','oat','spinach','pineapple','acai','chocolate','vanilla','fruit'}}
 AMOUNT_REPLIES=['1','2','Small','Medium','Large','Not sure']
 
@@ -82,7 +86,9 @@ def description_question(part):
         question='What kind of taco was it? For example, chicken, beef or beans.' if portion else 'What kind of taco, and how many did you have? For example, “2 chicken tacos”.'
         replies=['Chicken','Beef','Fish','Veggie',*NOT_SURE]
     else:
-        question=f'What kind of {food} was it, and what went into it?' if portion else f'What kind of {food}, and how much did you have? For example, “a large chicken {food}”.'
+        noun={'chip':'chips','cereal':'cereal'}.get(food,food)
+        example=EXAMPLES.get(food,f'chicken {food}')
+        question=f'What kind of {noun}? For example, “{example}”.'
         replies=NOT_SURE
     part.update(status='description',description={'food':food,'portion':portion},question=question,replies=replies)
 
@@ -124,7 +130,7 @@ def assume_typical(c,uid,result,assumed=()):
             detail=p['description']['detail'];names.append(spoken_food(detail).lower())
             p.update(text='a typical serving of '+detail,status='unknown',item={},prefer_estimate=False)
             for k in ('description','question','replies'):p.pop(k,None)
-    if names:result['assumed']=f"I assumed a typical portion of {', '.join(dict.fromkeys(names))}. Change it in Review food if that’s not right."
+    if names:result['assumed']=f"I assumed a typical portion of {', '.join(dict.fromkeys(names))}. Use − or + to change it."
 
 
 def begin(c,uid,message,resolution,*,aliases=True,destination=None,assumed=()):
@@ -356,6 +362,9 @@ def _write(c,uid,message,result,*,force=False,only=None):
     if auto or force:
         for part in result['parts']:
             if (only is None or part['index'] in only) and part['status']=='ready' and not part.get('logged') and (force or not part.get('requires_tap')):added+=log_part(c,uid,message,result,part)
+    for part in result['parts']:
+        # Which estimate each preview row came from, so a row's − / + changes just that food.
+        if part.get('drafts') and not part.get('logged'):part['entry_drafts']=[i for i,d in enumerate(part['drafts']) for _ in (d.get('own_entries') or [None])]
     linked=[r['entry_id'] for r in c.execute('SELECT entry_id FROM food_chat_entries WHERE user_id=%s AND message_id=%s',(uid,message['id']))]
     ids=list(dict.fromkeys(linked+added));pending=[p for p in result['parts'] if p['status']!='ready']
     ready=[p for p in result['parts'] if p['status']=='ready' and not p.get('logged')]
@@ -373,7 +382,7 @@ def _write(c,uid,message,result,*,force=False,only=None):
         names=', '.join(r['name'] for r in rows[:3])+(' and more' if len(rows)>3 else '')
         result['text']=f"Added {names} · about {facts.kcal(sum(r['kcal'] for r in rows)):,} kcal."
         if question:result['text']+=' '+question
-    elif ready and not pending:result['text']='Ready. Tap Review food when you’ve added everything.' if (message.get('result') or {}).get('review_only') else 'Ready to log. Check the portions, then tap Log.'
+    elif ready and not pending:result['text']='Ready. Tap Add to log when you’ve added everything.' if (message.get('result') or {}).get('review_only') else 'Ready to log. Check the portions, then tap Log.'
     else:result['text']=question or 'Choose a food or enter its nutrition.'
     if added:
         rows=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,added)).fetchall()

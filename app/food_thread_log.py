@@ -154,16 +154,16 @@ def chat_reply(c,uid,message):
         return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':intent,'source':'code','text':value})
     if NOTHING.fullmatch(text.strip('?')):
         if live and (card or {}).get('parts') and not pending and (message.get('result') or {}).get('review_only'):
-            return reply('Got it. Tap Review food to check the amounts and log it.')
+            return reply('Got it. Tap Add to log when you’re ready.')
         return reply('Got it, nothing to add. Tell me whenever you eat something.')
     if ACK.fullmatch(text.strip('?')):
         if pending:return reply('To finish that food: '+(pending[0].get('question') or 'how much did you have?'))
         if live and re.match(r'(?:no|nope|nah)\b',text):return reply('Tell me what to change, for example “make it 2”, “remove the toast” or “it was lunch”.')
-        if live and (message.get('result') or {}).get('review_only'):return reply('Great. Add anything else you had, or tap Review food to log it.')
+        if live and (message.get('result') or {}).get('review_only'):return reply('Great. Add anything else you had, or tap Add to log.')
         return reply('Tell me what you ate, or ask about your food log, like “how much protein do I have left?”')
     if text.endswith('?') and len(text)<=120:
         if live and pending:return reply('I’m waiting on one detail for that food: '+(pending[0].get('question') or 'how much did you have?'),'clarification_help')
-        if live:return reply('Those numbers are estimates from the food database or AI. Check them in Review food; you can change any amount before it’s logged.','clarification_help')
+        if live:return reply('Those numbers are estimates from the food database or AI. Change any amount with − or + before you add it to your log.','clarification_help')
         return reply('I can log food you describe and answer questions about your log, like “how many calories have I had today?” For meal ideas, ask Kit.','clarification_help')
     return None
 

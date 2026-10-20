@@ -16,7 +16,7 @@ function setup({native = false, coarse = true, viewport = true} = {}) {
     window: {Capacitor: {isNativePlatform: () => native}, visualViewport: viewport ? vv : null}};
   vm.runInNewContext(source, context);
   return {document, vv, context, made, styles, open: () => classes.has('keyboard-open'),
-    event(name) { for (const fn of handlers[name] || []) fn(); while (frames.length) frames.shift()(); },
+    event(name, detail) { for (const fn of handlers[name] || []) fn(detail); while (frames.length) frames.shift()(); },
     focus(extra = {}) { document.activeElement = {matches: () => true, ...extra}; this.event('focusin'); },
     blur() { document.activeElement = null; this.event('focusout'); }};
 }
@@ -55,7 +55,19 @@ console.log('Keyboard navigation: native lifecycle, no accessory strip, cancelle
 
 // Food layout follows the usable viewport on both OS event paths, without
 // changing size under a deliberate pinch gesture or requiring another focus.
-for (const native of [false, true]) {
+// Native: the WebView keeps its size; the chat shrinks by the announced keyboard height at the start of the
+// keyboard animation, so the composer slides up with the keyboard instead of after it (owner, 19 Oct 2026).
+{
+  const t = setup({native: true});
+  assert.equal(t.styles['--chat-height'], '844px');
+  t.event('keyboardWillShow', {keyboardHeight: 384});
+  assert.equal(t.styles['--chat-height'], '460px', 'composer moves with the keyboard, not after it');
+  assert.equal(t.styles['--chat-top'], '0px');
+  t.event('keyboardDidShow', {keyboardHeight: 384}); assert.equal(t.styles['--chat-height'], '460px');
+  t.event('keyboardWillHide'); assert.equal(t.styles['--chat-height'], '844px', 'and back down with it');
+  t.event('keyboardDidHide'); assert.equal(t.open(), false);
+}
+for (const native of [false]) {
   const t = setup({native});
   assert.equal(t.styles['--chat-height'], '844px');
   t.vv.height = 460; t.vv.offsetTop = 12; t.event('resize');

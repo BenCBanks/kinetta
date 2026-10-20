@@ -243,6 +243,7 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
 def draft(draft_id:UUID,user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
+        T.purge_old(c,uid)
         roots=c.execute(f"SELECT {T.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND kind='user' AND result->>'draft_id'=%s ORDER BY id LIMIT 100",(uid,str(draft_id))).fetchall()
         replies=c.execute(f"SELECT {T.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND reply_to=ANY(%s) ORDER BY id",(uid,[m['id'] for m in roots])).fetchall() if roots else []
         return {'messages':T.message_entries(c,uid,sorted(roots+replies,key=lambda m:m['id'])),'preferences':T.preferences(c,uid),'has_more':False,'before':None}

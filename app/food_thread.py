@@ -79,9 +79,37 @@ def link_entries(c,uid,messages,ids):
                      ON CONFLICT (message_id,entry_id) DO NOTHING""",(uid,[m['id'] for m in messages],ids))
 
 
+def purge_old(c,uid):
+    """The chat starts fresh each day (owner, 19 Oct 2026). Logged food is never touched: only conversation rows go.
+    Messages from earlier local days are removed once they are over 3 hours old, so a late-night meal still being
+    reviewed just after midnight isn't cleared from under the person."""
+    tz=(c.execute('SELECT tz FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}).get('tz')
+    c.execute("""DELETE FROM food_chat_messages WHERE user_id=%s AND reply_to IS NULL
+                 AND local_day < (now() AT TIME ZONE %s)::date AND created < now() - interval '3 hours'""",(uid,db.valid_tz(tz) or db.DEFAULT_TZ))
+
+
+class ClearIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    confirm: StrictBool
+
+
+@router.post('/clear')
+def clear(body: ClearIn, user=Depends(current_user)):
+    """Clear chat: every message goes; logged food stays. Tombstones stop a phone's retry from bringing one back."""
+    if body.confirm is not True:raise HTTPException(400,'Confirm clearing the chat')
+    uid=user['id']
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+        c.execute('''INSERT INTO food_chat_cancellations(user_id,client_id)
+                     SELECT user_id,client_id FROM food_chat_messages WHERE user_id=%s AND kind='user' ON CONFLICT DO NOTHING''',(uid,))
+        n=c.execute('DELETE FROM food_chat_messages WHERE user_id=%s AND reply_to IS NULL',(uid,)).rowcount
+        return {'cleared':True,'messages':n,'food_kept':True}
+
+
 @router.get('')
 def history(before: int | None = Query(None, gt=0), limit: int = Query(30, ge=1, le=100), user=Depends(current_user)):
     with db.connect() as c:
+        purge_old(c,user['id'])
         roots = c.execute("""SELECT id FROM food_chat_messages WHERE user_id = %s AND kind = 'user'
                              AND (%s::bigint IS NULL OR id < %s) ORDER BY id DESC LIMIT %s""",
                           (user['id'], before, before, limit + 1)).fetchall()
@@ -273,6 +301,7 @@ class ChoiceIn(BaseModel):
     omit: list[int] | None = Field(None,max_length=100)
     catalog: int | None = Field(None,ge=0,lt=10)
     factor: float | None = Field(None,gt=0,le=100,allow_inf_nan=False)
+    draft: int | None = Field(None,ge=0,lt=30)   # one food inside an estimate (the card's − / + buttons)
     new: StrictBool = False
 
 
@@ -282,7 +311,7 @@ def choose_message(mid: int, body: ChoiceIn, response: Response, user=Depends(cu
     with db.connect() as c:
         message=engine.locked_message(c,user['id'],mid)
         from . import food_thread_choices as choices
-        result=choices.choose(c,user['id'],message,body.part,body.pick,body.portion,body.catalog,body.factor,body.new)
+        result=choices.choose(c,user['id'],message,body.part,body.pick,body.portion,body.catalog,body.factor,body.new,draft=body.draft)
         if result is None:result=edits.choose(c,user['id'],message,body.part,body.pick,body.portion,body.select,body.omit)
         if result.get('changed'):response.status_code=409
         return result
