@@ -2144,3 +2144,11 @@ body .leaflet-container .leaflet-control-attribution { background: var(--card); 
 .review-meals input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .review-more { margin-top: 12px; } .review-more summary { min-height: 44px; display: flex; align-items: center; color: var(--accent); cursor: pointer; }
 html.keyboard-moving .shell.food-thread, html.keyboard-moving .shell.recipe-page { transition: height .25s cubic-bezier(.2, .8, .2, 1); }
+
+/* Native feel (owner, 20 Oct 2026): pressing a control never selects its text, and every tappable thing answers
+   the finger at once. Text in inputs, messages and notes stays selectable. */
+nav.tabs, button, .row-link, .card.tap, .chip, .seg, .thread-tools, .thread-stepper, summary, a.ghost, a.primary, .back, .post-link
+  { -webkit-user-select: none; user-select: none; }
+.primary, .ghost, .icon-btn, .chip, .back, nav.tabs :is(a, button), .card.tap, .row-link, button.thread-food, .post-link
+  { transition: transform .08s ease-out, opacity .08s ease-out; }
+button.thread-food:active { opacity: .7; }
