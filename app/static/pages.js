@@ -90,18 +90,39 @@ App.navCount = 0;
 const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 
 // Shared profile chart: viewer-local dates, explicit units, zeros retained on the same scale.
-function mileageChart(box, series) {
-  const rows = series.days || [], max = Math.max(1, ...rows.map((r) => +r.distance_m || 0));
+function mileagePeriods(series) {
+  const days = series.days || [];
+  const today = series.today || days.find(r => r.today)?.d || days.at(-1)?.d || new Date().toISOString().slice(0, 10);
+  // Work with civil dates in UTC so browser timezone and DST cannot move a Sunday boundary.
+  const start = new Date(today + 'T12:00:00Z'); start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+  const byDay = new Map(days.map(r => [r.d, r]));
+  const week = Array.from({length:7}, (_, i) => {
+    const date = new Date(start); date.setUTCDate(start.getUTCDate() + i); const d = date.toISOString().slice(0, 10);
+    return {d, distance_m: d > today ? 0 : byDay.get(d)?.distance_m || 0, today: d === today, future: d > today};
+  });
+  return {days: week, weeks: Array.isArray(series.weeks) && series.weeks.length === 7 ? series.weeks : null};
+}
+
+function mileageChart(box, series, period = 'days') {
+  const periods = mileagePeriods(series), weekly = period === 'weeks' && !!periods.weeks;
+  const rows = weekly ? periods.weeks : periods.days, max = Math.max(1, ...rows.map((r) => +r.distance_m || 0));
   const total = rows.reduce((n, r) => n + (+r.distance_m || 0), 0);
-  const range = rows.length ? `${fdate(rows[0].d + 'T12:00', {month:'short',day:'numeric'})} – ${fdate(rows[rows.length - 1].d + 'T12:00', {month:'short',day:'numeric'})}` : '';
-  const labels = rows.map((r) => `${fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${U.dist(r.distance_m || 0, 1)} ${U.du()}`);
-  box.innerHTML = `<h2>Last 14 days</h2><p class="mileage-total num"><b>${U.dist(total, 1)}</b> ${U.du()}</p>
-    <div class="mileage-bars fortnight-bars" role="group" aria-label="Daily distance for the last 14 days">${rows.map((r, i) => {
+  const dateLabel = (d) => fdate(d + 'T12:00', {month:'short',day:'numeric'});
+  const range = `${dateLabel(rows[0].d)} – ${dateLabel(weekly ? rows.at(-1).end : rows.at(-1).d)}`;
+  const labels = rows.map((r) => `${weekly ? `${dateLabel(r.d)} – ${dateLabel(r.end)}${r.today ? ' (so far)' : ''}` : fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${r.future ? 'Not yet' : `${U.dist(r.distance_m || 0, 1)} ${U.du()}`}`);
+  box.innerHTML = `<div class="mileage-heading"><h2>${weekly ? 'Last 7 weeks' : 'This week'}</h2><div class="mileage-toggle" role="group" aria-label="Distance chart period"><button type="button" data-mileage-period="days" aria-pressed="${!weekly}">Days</button><button type="button" data-mileage-period="weeks" aria-pressed="${weekly}"${periods.weeks ? '' : ' disabled title="Weekly distance needs a server update"'}>Weeks</button></div></div><p class="mileage-total num"><b>${U.dist(total, 1)}</b> ${U.du()}</p>
+    <div class="mileage-bars seven-bars" role="group" aria-label="${weekly ? 'Weekly distance, weeks start Sunday' : 'Daily distance, Sunday to Saturday'}">${rows.map((r, i) => {
       const date = new Date(r.d + 'T12:00');
-      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><span class="mileage-column" aria-hidden="true"><i data-h="${Math.max(.015, (+r.distance_m || 0) / max)}"></i></span><small aria-hidden="true">${esc(date.toLocaleDateString([], {weekday: 'narrow'}))}</small></button>`;
+      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><span class="mileage-column" aria-hidden="true"><i data-h="${Math.max(.015, (+r.distance_m || 0) / max)}"></i></span><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
     }).join('')}</div>
     <p class="small muted mileage-range" role="status" aria-live="polite" aria-atomic="true">${esc(range)}</p>
-    ${total ? '' : '<p class="small muted">No distance recorded in the last 14 days. Timed activities still appear below.</p>'}`;
+    ${total ? '' : `<p class="small muted">No distance recorded ${weekly ? 'in these weeks' : 'this week'}. Timed activities still appear below.</p>`}`;
+  box.querySelectorAll('[data-mileage-period]').forEach(button => button.onclick = () => {
+    if ((button.dataset.mileagePeriod === 'weeks') === weekly) return;
+    const focus = button.dataset.mileagePeriod;
+    mileageChart(box, series, focus);
+    box.querySelector(`[data-mileage-period="${focus}"]`).focus({preventScroll:true});
+  });
   const buttons = [...box.querySelectorAll('.mileage-day')], readout = box.querySelector('.mileage-range');
   let selected = null;
   const show = (index) => {
@@ -282,7 +303,7 @@ async function meOverview(el) {
     load('/api/stats', (s) => {
       if (!el.isConnected) return;
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
-      mileageChart($('#me-distance', el), {days:s.recent_days || []});
+      mileageChart($('#me-distance', el), {days:s.recent_days || [], today:s.chart_today, weeks:s.chart_weeks});
     }),
     load('/api/fitness?days=60', (f) => {
       if (!el.isConnected) return;
