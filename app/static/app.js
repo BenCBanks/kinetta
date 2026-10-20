@@ -513,7 +513,8 @@ document.addEventListener('click', (e) => {
   const a = e.target.closest('a[href^="/"]');
   if (!a || e.metaKey || e.ctrlKey || a.target) return;
   e.preventDefault();
-  if (a.dataset.tab && location.pathname.startsWith('/' + a.dataset.tab) && location.pathname.split('/').length <= 2) { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
+  // The tab you're on (owner, 20 Oct 2026): its plain home page; already there, scroll to the top (like iPhone tab bars).
+  if (a.dataset.tab && location.pathname === '/' + a.dataset.tab && !location.search) { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
   if (a.dataset.tab) App.scroll[a.getAttribute('href')] = 0;
   go(a.getAttribute('href'));
 });

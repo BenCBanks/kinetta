@@ -23,7 +23,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  assert.doesNotMatch(box.innerHTML,/ff-dish/,'saving a recipe is offered at final review, without a competing entry action');
  // Only with no history, no entries and no goal; copy shortcuts only with history.
  assert.match(food,/const fresh = !D\.has_history && !D\.entries\.length && goal == null;/);
- assert.match(food,/D\.has_history&&D\.day===isoDay\(new Date\(\)\)&&m===guessMeal\(\)/);
+ assert.doesNotMatch(food,/data-usual-meal=|data-yesterday-meal=/,'no Same as yesterday / Your usuals buttons on empty meals (owner, 20 Oct 2026)');
  assert.match(food,/D\.entries\.length \|\| !D\.has_history \? ''/);
  assert.doesNotMatch(food,/Reminders · optional|edit or create/,'no run-on link line');
  assert.match(food,/\['reminders', 'Meal reminders'/,'reminders moved into More');

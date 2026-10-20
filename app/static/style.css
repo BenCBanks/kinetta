@@ -2182,3 +2182,9 @@ button.thread-food:active { opacity: .7; }
 #review-recipe { gap: 10px; }
 .food-final-review .kcal-edit { display: inline-flex; align-items: baseline; gap: 3px; }
 .food-final-review .kcal-edit small { display: inline; margin: 0; }
+
+/* The switch keeps an iPhone shape: general form-input sizing, padding and borders must not stretch it (owner). */
+.switch-row input[type=checkbox] { box-sizing: border-box; width: 51px; height: 31px; min-width: 51px; min-height: 0; max-height: 31px;
+  padding: 0; border: 0; border-radius: 16px; box-shadow: none; }
+.switch-row input[type=checkbox]::after { top: 2px; left: 2px; width: 27px; height: 27px; }
+.switch-row input[type=checkbox]:checked::after { transform: translateX(20px); }
