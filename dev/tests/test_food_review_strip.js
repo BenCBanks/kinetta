@@ -5,7 +5,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('app/static/thread.js','utf8');
 const el=()=>({hidden:true,disabled:false,textContent:'',attrs:{},setAttribute(k,v){this.attrs[k]=v;},classList:{add(){},remove(){}}});
 const nodes={'#thread-review':el(),'#thread-review-sum':el(),'#thread-send':el()};
-const c={Set,Number,Math,JSON,$:id=>nodes[id],active:()=>true,homeCalories:n=>String(Math.round(n)),Q:{mine:()=>[]},FoodReview:{busy:()=>false},
+const c={Set,Number,Math,JSON,App:{me:{food_photo_itemize:true}},$:id=>nodes[id],active:()=>true,homeCalories:n=>String(Math.round(n)),Q:{mine:()=>[]},FoodReview:{busy:()=>false},
   esc:s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]),aiCan:()=>true};
 vm.createContext(c);
 vm.runInContext(source.slice(source.indexOf('  const pendingReview='),source.indexOf('  async function review(')),c);
@@ -36,4 +36,5 @@ vm.runInContext(source.slice(source.indexOf('  function replyHtml('),source.inde
 const photoAnswer={entries:[],body:'Saved photo answer',result:{kind:'answer',photo_itemize:3}};
 c.aiCan=()=>false;assert(!c.replyHtml({id:1,state:'answered',result:{review_only:true}},photoAnswer).includes('data-photo-itemize'));
 c.aiCan=()=>true;assert(c.replyHtml({id:1,state:'answered',result:{review_only:true}},photoAnswer).includes('data-photo-itemize="3"'));
+c.App.me.food_photo_itemize=false;assert(!c.replyHtml({id:1,state:'answered',result:{review_only:true}},photoAnswer).includes('data-photo-itemize'),'unreviewed ingredient prompt has no action');
 console.log('photo breakdown: saved answers remain readable; new analysis requires current food consent/access PASS');

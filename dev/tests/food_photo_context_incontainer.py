@@ -1,11 +1,14 @@
 """Thread source/portion/replay tests: fictional accounts and provider stand-ins only."""
-import base64,datetime as dt,io,json,threading,unittest,uuid
+import base64,datetime as dt,io,json,os,tempfile,threading,unittest,uuid
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from app import db,auth,food_photo,food_thread,meal_chat
+from app import db,auth,food_photo,food_thread,meal_chat,ai_release
 from app.main import app
+
+itemization_gate=ai_release.food_photo_itemization_enabled
 
 PW='green teapot on the hill'
 JPEG=base64.b64encode(b'\xff\xd8'+b'fictional-image-stand-in').decode()
@@ -16,6 +19,7 @@ PLAIN={'source':'usda','id':'fictional-plain','name':'Plain grain','brand':None,
 
 class PhotoContext(unittest.TestCase):
  def setUp(self):
+  self.gate=patch('app.ai_release.food_photo_itemization_enabled',return_value=True);self.gate_mock=self.gate.start()
   self.uids=[];self.clients=[];accounts=[]
   with db.connect() as c:
    for _ in range(2):
@@ -30,7 +34,7 @@ class PhotoContext(unittest.TestCase):
   self.lookup=patch('app.meal_chat.lookup',side_effect=lambda text:{'kind':'none','foods':[],'text':text});self.look=self.lookup.start()
   self.estimate=patch('app.food_photo.ask',return_value=(ESTIMATE,{},'stand-in'));self.model=self.estimate.start()
  def tearDown(self):
-  self.estimate.stop();self.lookup.stop();self.no_network.stop()
+  self.estimate.stop();self.lookup.stop();self.no_network.stop();self.gate.stop()
   with db.connect() as c:
    rows=c.execute('DELETE FROM ai_food_attempts WHERE user_id=ANY(%s) RETURNING day,charged_micros',(self.uids,)).fetchall()
    for r in rows:c.execute('UPDATE ai_service_budget SET charged_micros=charged_micros-%s WHERE day=%s',(r['charged_micros'],r['day']))
@@ -54,6 +58,35 @@ class PhotoContext(unittest.TestCase):
  def ingredients(self):
   return {'items':[{'name':name,'amount':amount,'grams':grams,'kcal':kcal,'protein_g':10,'carbs_g':20,'fat_g':5,'fiber_g':None} for name,amount,grams,kcal in [('Bread','1 roll',90,250),('Turkey','3 slices',60,100),('Cheese','1 slice',20,80),('Mayo','1 tbsp',15,90)]], 'notes':'Fictional stand-in: assumed one tablespoon of hidden mayo; amounts are estimates.'}
  def itemized(self):self.model.return_value=(self.ingredients(),{},'stand-in')
+ def test_food_comparison_gate_requires_review_and_current_code_models(self):
+  with tempfile.TemporaryDirectory() as directory:
+   report=Path(directory)/'report.json'
+   with patch.dict(os.environ,{'KINETTA_AI_EVAL_REPORT':str(report),'KINETTA_KIT_ENABLED':'1'}):
+    self.assertFalse(itemization_gate())
+    valid={'reviewed':True,'candidate_fingerprint':ai_release.fingerprint(),'food':{'passed':True}}
+    def check(data):
+     report.write_text(json.dumps(data));return itemization_gate()
+    self.assertTrue(check(valid))
+    for bad in [None,[],{}, {'food':[]}, {'food':None},
+                {**valid,'reviewed':'true'}, {**valid,'candidate_fingerprint':'old'},
+                {**valid,'food':{'passed':False}}, {**valid,'food':{'passed':'true'}},
+                {'reviewed':True,'candidate_fingerprint':ai_release.kit_fingerprint(),'kit':{'passed':True}}]:
+     self.assertFalse(check(bad),str(bad))
+    report.write_text('{');self.assertFalse(itemization_gate());check(valid)
+    with patch.dict(os.environ,{'GEMINI_FOOD_MODEL':'changed-food-model'}):self.assertFalse(itemization_gate())
+    with patch('app.ai_release.fingerprint',return_value='changed-source'):self.assertFalse(itemization_gate())
+ def test_unreviewed_prompt_is_blocked_but_descriptions_and_saved_answers_work(self):
+  self.gate_mock.return_value=False
+  self.assertFalse(self.a.get('/api/me').json()['food_photo_itemize'])
+  self.post('/api/food/photo',{'images':[JPEG],'itemize':True},status=503)
+  self.assertEqual(self.model.call_count,0)
+  m,draft=self.photo();original=self.result(self.resolve(m,images=[JPEG],note='Half a turkey sub'))['parts']
+  self.assertIn('Half a turkey sub',str(self.model.call_args.args[0]));calls=self.model.call_count
+  failed=self.result(self.resolve(m,images=[JPEG],itemize=True));self.assertEqual(failed['parts'],original)
+  self.assertEqual(self.model.call_count,calls);self.assertIn('error',failed)
+  _,reply=self.send('Itemized calories please',context=m['client_id'],review_only=True,draft_id=draft)
+  answer=self.result(reply);self.assertEqual(answer['intent'],'photo_breakdown');self.assertEqual(len(answer['breakdown']),1)
+  self.assertNotIn('photo_itemize',answer);self.assertIn('not available yet',answer['text']);self.assertEqual(self.entries(),[])
  def test_description_itemization_followup_replay_ownership(self):
   self.itemized();m,draft=self.photo(True);r=self.resolve(m,images=[JPEG],itemize=True)
   part=self.result(r)['parts'][0];self.assertTrue(part['photo_itemized']);self.assertEqual(len(part['entries']),4);self.assertEqual(sum(e['kcal'] for e in part['entries']),520)

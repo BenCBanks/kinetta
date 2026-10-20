@@ -147,6 +147,9 @@ def estimate(body,user,*,strict=False):
     ai_budget.require_enabled()
     ai_access.require(user['id'], 'food')
     if coach.enabled() and not coach.allowed(user['id'], 'food'): raise HTTPException(403, coach.off())
+    from . import ai_release
+    if body.itemize and not ai_release.food_photo_itemization_enabled():
+        raise HTTPException(503,'Separate ingredient estimates are not available yet. You can still estimate the whole meal with a description.')
     key = os.environ.get('GEMINI_API_KEY')
     if not key: raise HTTPException(503, 'Photo logging needs a Gemini key on the server')
     note = (body.note or '').strip()

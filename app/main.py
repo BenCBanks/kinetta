@@ -161,7 +161,7 @@ def me(user=Depends(current_user)):
         from .admin_usage import opened
         opened(c,user['id'])
         food_user = api_food.food_user(c, user['id'])    # Progress shows its Food & weight half only for food users
-    return {**user, 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
+    return {**user, 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'food_photo_itemize': ai_release.food_photo_itemization_enabled(), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):
