@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 function client(storage=new Map()) {
- const c={document:{querySelector:()=>null,addEventListener(){}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{origin:'https://fictional.invalid'},Native:{base:'',token:'fictional-never-store',headers:()=>({})},navigator:{onLine:true},addEventListener(){},setInterval(){},console,URLSearchParams,FormData,crypto:{randomUUID:require('node:crypto').randomUUID}};
+ const c={document:{querySelector:()=>null,addEventListener(){}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{origin:'https://fictional.invalid'},Native:{base:'',token:'fictional-never-store',headers:()=>({})},navigator:{onLine:true},addEventListener(){},setInterval(){},console,URLSearchParams,FormData,AbortController,setTimeout,clearTimeout,crypto:{randomUUID:require('node:crypto').randomUUID}};
  c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/app.js','utf8')+'\nglobalThis.ui={App,Q,sendOrQueue,api,keep,kept};',c);
  c.ui.App.me={id:1,login:'zz_test_one'};c.netbar=()=>{};c.netState=()=>{};c.toast=()=>{};c.render=()=>{};return c;
 }
@@ -32,6 +32,7 @@ function client(storage=new Map()) {
   c=client();c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[],label:'Food'});c.api=async()=>{throw Object.assign(Error('Sign in again'),failure)};await c.ui.Q.flush();assert.equal(c.ui.Q.mine()[0].error,null);let sent=0;c.api=async()=>{sent++;return {}};await c.ui.Q.flush();assert.equal(sent,1);assert.equal(c.ui.Q.mine().length,0);
  }
  c=client();c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[],label:'Committed food'});c.api=async()=>({messages:[{}]});c.FoodThread={accept:async()=>{throw Error('Fictional render/quota failure')}};await c.ui.Q.flush();assert.equal(c.ui.Q.all().length,0,'post-commit drawing errors do not requeue saved food');
+ c=client();let redraws=0;c.PageRefresh={available:()=>false};c.render=()=>redraws++;c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[],label:'Queued food'});c.api=async()=>({});await c.ui.Q.flush();assert.equal(redraws,0,'background queue delivery preserves an active chat or editor');
  assert([...storage.values()].every(v=>!v.includes('fictional-never-store')),'credentials never persist in owner keys');
  console.log('offline queue: failures/reload, explicit retry, owner/server binding, in-flight races, storage quota, API identity constraint and legacy compatibility PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

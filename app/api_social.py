@@ -336,7 +336,7 @@ class SharingIn(BaseModel):
 def sharing(user=Depends(current_user)):
     with db.connect() as c:
         p = c.execute('SELECT share_default, share_details, share_trim_m, findable FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
-    return {'default': p.get('share_default', 'me'), 'details': details_of(p.get('share_details')), 'trim_m': p.get('share_trim_m', 400),
+    return {'default': p.get('share_default', 'everyone'), 'details': details_of(p.get('share_details')), 'trim_m': p.get('share_trim_m', 400),
             'trims': TRIMS, 'findable': p.get('findable', True)}
 
 

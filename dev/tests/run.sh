@@ -26,9 +26,11 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_track.js
 node dev/tests/test_track_native.js
+node dev/tests/test_recording_sharing.js
 node dev/tests/test_native_sync.js
 node dev/tests/test_push_invitation.js
 node dev/tests/test_kit_chat_ui.js
+node dev/tests/test_kit_memory_ui.js
 node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
 node dev/tests/test_combined_week_ui.js
@@ -52,6 +54,7 @@ python3 dev/tests/test_food_thread_facts.py
 python3 dev/tests/test_weekly_food_review.py
 python3 dev/tests/test_recipe_link.py
 node dev/tests/test_async_reads.js
+node dev/tests/test_page_refresh.js
 node dev/tests/test_food_refresh.js
 node dev/tests/test_offline_queue.js
 node dev/tests/test_client_uuid.js
@@ -119,6 +122,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_thread_receipts_inc
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_kit_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_daily_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/kit_visits_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_transport_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_release_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_copy_incontainer.py

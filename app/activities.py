@@ -118,7 +118,7 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connect
                    start_time=start, tz=tz, device=parsed.get('device'), source=source, source_id=meta.get('source_id'),
                    file_sha256=sha, file_path=path, strava_id=meta.get('strava_id'), gear_id=gear_id,
                    laps=json.dumps(parsed.get('laps') or [], default=str),
-                   visibility='me' if source == 'track' else prof.get('share_default') or 'me')   # who sees it: the person's choice for new activities
+                   visibility=prof.get('share_default') or 'everyone')   # who sees it: the person's choice for new activities
         for k in ('elapsed_s', 'moving_s', 'distance_m', 'ascent_m', 'descent_m', 'avg_hr', 'max_hr', 'avg_cad', 'avg_power',
                   'max_power', 'max_speed', 'avg_temp', 'calories', 'avg_vo', 'avg_gct', 'avg_stride', 'gap_s_per_km', 'effort',
                   'decoupling', 'vo2max', 'max_alt', 'min_alt', 'vam', 'norm_power', 'steps', 'pool_length_m', 'lengths',

@@ -1,6 +1,6 @@
 # Getting ready for external testers
 
-Readiness checkpoint: October 17, 2026. The owner has authorized the reviewed release and TestFlight build.
+Readiness checkpoint: October 20, 2026. See the [current usability and wider-beta assessment](usage-readiness.md) for measured limits and the next go/no-go checks. The owner has authorized the reviewed release and TestFlight build.
 The current release outcome is recorded separately; physical-device acceptance and external tester readiness remain gates.
 [The current roadmap](../ROADMAP.md) and #122 supersede historical setup notes below.
 

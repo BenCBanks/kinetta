@@ -287,11 +287,13 @@ class TrackIn(BaseModel):
     elapsed_s: float = Field(gt=0, le=172800)
     moving_s: float = Field(gt=0, le=172800)
     points: list[TrackPoint] = Field(default_factory=list, max_length=24000)
+    visibility: str | None = Field(None, pattern='^(me|friends|everyone)$')
+    expected_sharing_default: str | None = Field(None, pattern='^(me|friends|everyone)$')
 
 
 @router.post('/activities/track')
 def save_track(body: TrackIn, user=Depends(current_user)):
-    """One private activity per account/recording. Retry after a lost acknowledgement returns the same id."""
+    """One activity per account/recording, using its reviewed or default audience. Retry after a lost acknowledgement returns the same id."""
     from . import parsers
     start = body.start
     if not start.tzinfo: raise HTTPException(422, 'Recording start needs a time zone')
@@ -331,8 +333,20 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"track:{user['id']}:{body.client_id}",))
         found = c.execute("SELECT id FROM activities WHERE user_id = %s AND source = 'track' AND source_id = %s", (user['id'], body.client_id)).fetchone()
         if found: return {'id': found['id'], 'duplicate': True}
+        if body.visibility is None and body.expected_sharing_default is None:
+            # Installed app builds without the audience picker told people recordings start private.
+            body.visibility = 'me'
+        if body.visibility is None and body.expected_sharing_default is not None:
+            # A cached phone setting must not override a newer privacy choice.
+            # Hold this choice through the insert, including a concurrent settings save.
+            profile=c.execute('SELECT share_default FROM profile WHERE user_id=%s FOR SHARE',(user['id'],)).fetchone()
+            audience=(profile or {}).get('share_default') or 'everyone'
+            if audience!=body.expected_sharing_default:
+                raise HTTPException(409,{'code':'sharing_changed','message':'Your sharing setting changed. Review the audience before saving.','sharing_default':audience})
         raw = body.model_dump_json().encode()
         _, aid = activities.store(user['id'], parsed, meta, raw=raw, ext='.json', source='track', connection=c)
+        if body.visibility is not None:
+            c.execute('UPDATE activities SET visibility=%s WHERE user_id=%s AND id=%s',(body.visibility,user['id'],aid))
     return {'id': aid, 'duplicate': False}
 
 

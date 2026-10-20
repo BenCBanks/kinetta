@@ -4,7 +4,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const app=fs.readFileSync('app/static/app.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8');
 (async()=>{
  for(const failure of ['throw','never']){
-  const c={App:{me:{id:1}},Native:{base:'',on:true,headers:()=>({}),pauseHealth:()=>{if(failure==='throw')throw Error('stop failed');return new Promise(()=>{});}},FormData:class{},fetch:async()=>({ok:false,status:401,json:async()=>({detail:'Expired'})}),showLogin:()=>c.loginShown=true,readOwner:()=>String(c.App.me?.id)};
+  const c={AbortController,setTimeout,clearTimeout,App:{me:{id:1}},Native:{base:'',on:true,headers:()=>({}),pauseHealth:()=>{if(failure==='throw')throw Error('stop failed');return new Promise(()=>{});}},FormData:class{},fetch:async()=>({ok:false,status:401,json:async()=>({detail:'Expired'})}),showLogin:()=>c.loginShown=true,readOwner:()=>String(c.App.me?.id)};
   vm.createContext(c);vm.runInContext(app.slice(app.indexOf('async function api('),app.indexOf('const json =')),c);
   await assert.rejects(c.api('/api/me'),e=>e.status===401);assert.equal(c.App.me,null);assert(c.loginShown,'401 always shows login despite native failure');
  }

@@ -1,4 +1,4 @@
-"""Private recordings, reliable retries and strict point validation; isolated fictional accounts only."""
+"""Reviewed sharing, reliable retries and strict point validation; isolated fictional accounts only."""
 import concurrent.futures
 import datetime as dt
 import uuid
@@ -12,11 +12,11 @@ def request(client, method, path, body=None, expected=200):
     return result
 
 try:
-    request(owner, 'PUT', '/api/sharing', {'share_default': 'everyone'})
+    request(owner, 'PUT', '/api/sharing', {'default': 'everyone'})
     start = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=400)
     body = {'client_id': str(uuid.uuid4()), 'sport': 'run', 'name': 'Fictional recorded run', 'start': start.isoformat(), 'moving_s': 100, 'elapsed_s': 200,
             'points': [{'lat': 0, 'lon': 10, 't': 1, 'accuracy': 5, 'segment': 0}, {'lat': .0001, 'lon': 10, 't': 6, 'accuracy': 5, 'segment': 0},
-                       {'lat': 1, 'lon': 10, 't': 150, 'accuracy': 5, 'segment': 1}, {'lat': 1.0001, 'lon': 10, 't': 155, 'accuracy': 5, 'segment': 1}]}
+                       {'lat': 1, 'lon': 10, 't': 150, 'accuracy': 5, 'segment': 1}, {'lat': 1.0001, 'lon': 10, 't': 155, 'accuracy': 5, 'segment': 1}], 'expected_sharing_default': 'everyone'}
     first = request(owner, 'POST', '/api/activities/track', body)
     aid = first['id']
     assert request(owner, 'POST', '/api/activities/track', body) == {'id': aid, 'duplicate': True}
@@ -30,14 +30,34 @@ try:
     activity = request(owner, 'GET', f'/api/activities/{aid}')
     assert 22 < activity['distance_m'] < 23, activity
     assert activity['moving_s'] == 100 and activity['elapsed_s'] == 200
-    assert activity['visibility'] == 'me', 'recording overrides shared account default'
+    assert activity['visibility'] == 'everyone', 'recording follows the account sharing default'
+    assert request(viewer,'GET',f'/api/shared/{aid}')['id']==aid
+    private=request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4()),visibility='me'))
+    legacy={k:v for k,v in body.items() if k!='expected_sharing_default'}
+    old_app=request(owner,'POST','/api/activities/track',dict(legacy,client_id=str(uuid.uuid4())))
+    assert request(owner,'GET',f"/api/activities/{old_app['id']}")['visibility']=='me','older app builds without the picker keep their private promise'
+    assert request(owner,'GET',f"/api/activities/{private['id']}")['visibility']=='me'
+    request(viewer,'GET',f"/api/shared/{private['id']}",expected=404)
+    request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4()),visibility='invalid'),expected=422)
     assert 'longest continuous' in activity['description']
     assert len(activity['track_lines']) == 2, 'owner detail preserves both recorded sections without joining them'
     request(owner, 'PATCH', f'/api/activities/{aid}', {'distance_m': 30})
     assert 'track_lines' not in request(owner, 'GET', f'/api/activities/{aid}'), 'corrections cannot re-expose original route'
     request(owner, 'PATCH', f'/api/activities/{aid}', {'restore_summary': ['distance_m']})
     request(viewer, 'GET', f'/api/activities/{aid}', expected=404)
-    assert request(viewer, 'GET', '/api/people/zz_test_track_owner/profile')['overview']['activities'] == 0
+    assert request(viewer, 'GET', '/api/people/zz_test_track_owner/profile')['overview']['activities'] == 2
+    # A retried recording cannot change the audience after its original save.
+    request(owner,'POST','/api/activities/track',dict(body,visibility='me'))
+    assert request(owner,'GET',f'/api/activities/{aid}')['visibility']=='everyone'
+    request(owner,'PUT','/api/sharing',{'default':'friends'})
+    # A stale displayed default cannot silently republish a private/friends-only workout.
+    changed_default=request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4()),expected_sharing_default='everyone'),expected=409)
+    assert changed_default['detail']['code']=='sharing_changed' and changed_default['detail']['sharing_default']=='friends'
+    friends=request(owner,'POST','/api/activities/track',dict(body,client_id=str(uuid.uuid4()),expected_sharing_default='friends'))
+    # A lost acknowledgement remains idempotent even when the default later changes.
+    assert request(owner,'POST','/api/activities/track',dict(body,expected_sharing_default='me'))=={'id':aid,'duplicate':True}
+    assert request(owner,'GET',f"/api/activities/{friends['id']}")['visibility']=='friends'
+    request(viewer,'GET',f"/api/shared/{friends['id']}",expected=404)
     # Same recording id on another account must neither expose nor mutate the first account's record.
     second = request(viewer, 'POST', '/api/activities/track', body)
     assert second['id'] != aid
@@ -48,11 +68,11 @@ try:
     request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), moving_s=float('nan')), expected=422)
     for bad in [dict(body['points'][1], t=50), dict(body['points'][1], lat=20)]:
         request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), points=[body['points'][0], bad]), expected=422)
-    yoga = request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), sport='workout', sport_label='Yoga', points=[], name='Fictional yoga'))
+    yoga = request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), sport='workout', sport_label='Yoga', points=[], name='Fictional yoga', expected_sharing_default='friends'))
     detail = request(owner, 'GET', f"/api/activities/{yoga['id']}")
     assert detail['sport_label'] == 'Yoga' and detail['moving_s'] == 100
-    print('PASS tracking: segments, private default, retry/concurrency, account isolation, invalid GPS and yoga')
+    print('PASS tracking: segments, sharing default/review, retry/concurrency, account isolation, invalid GPS and yoga')
 finally:
     admin = login(*ALEX)
     for name in ('zz_test_track_owner', 'zz_test_track_viewer'):
-        admin.post(f'/api/admin/people/{name}/remove', {'password': ALEX[1]})
+        admin.post(f'/api/admin/people/{name}/remove', {'confirm':name})

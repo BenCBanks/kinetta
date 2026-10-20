@@ -1270,6 +1270,34 @@ MIGRATIONS = [
     END $$;
     UPDATE profile SET food_chat_daily_note='off';
     """,
+    # 64: new-account sharing defaults; existing choices and activities remain untouched.
+    # Kit visits are separate; only bounded, inspectable user statements carry across visits.
+    """ALTER TABLE profile ALTER COLUMN share_default SET DEFAULT 'everyone';
+    ALTER TABLE kit_conversations ADD COLUMN memory_enabled boolean NOT NULL DEFAULT true,
+      ADD COLUMN memory_version bigint NOT NULL DEFAULT 0;
+    CREATE TABLE kit_visits (
+      id uuid PRIMARY KEY, user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created timestamptz NOT NULL DEFAULT now(), ended timestamptz);
+    CREATE INDEX kit_visits_owner ON kit_visits(user_id,created);
+    ALTER TABLE kit_turns ADD COLUMN visit_id uuid REFERENCES kit_visits(id) ON DELETE CASCADE;
+    CREATE INDEX kit_turns_visit ON kit_turns(user_id,visit_id,id DESC);
+    CREATE TABLE kit_memories (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      text text NOT NULL CHECK(length(text) BETWEEN 1 AND 400),
+      health_included boolean NOT NULL DEFAULT false,
+      created timestamptz NOT NULL DEFAULT now(), updated timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(user_id,text));
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['kit_visits','kit_memories'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING(user_id=fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING(true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    """,
+
 ]
 
 

@@ -2247,3 +2247,18 @@ button.thread-food:active { opacity: .7; }
 .kit-facts dd {font-variant-numeric:tabular-nums;margin:0;overflow-wrap:anywhere;}
 .kit-action {display:flex;align-items:center;justify-content:space-between;min-height:44px;}
 .kit-action svg {width:16px;}
+
+/* Kit discovery and read-only page refresh (20 October 2026). */
+.kit-invitation {display:flex;align-items:center;gap:12px;margin:0 0 18px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--tx);text-decoration:none;min-height:72px}
+.kit-invitation>span:nth-child(2) {flex:1;min-width:0}
+.kit-invitation b {display:block;color:var(--accent);font-size:1rem}
+.kit-invitation small {display:block;color:var(--tx3);margin-top:2px;line-height:1.4}
+.kit-invitation-mark {display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;border-radius:50%;background:var(--accent2);color:var(--accent)}
+.kit-invitation svg {width:22px;height:22px;flex-shrink:0}
+.kit-invitation:active {background:var(--accent2)}
+.kit-memories p {white-space:pre-wrap;overflow-wrap:anywhere}
+.page-refresh-notice {position:fixed;z-index:120;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;translate:-50% 0;max-width:calc(100vw - 32px);padding:10px 18px;border:1px solid var(--color-outline);border-radius:24px;background:var(--card);color:var(--tx);box-shadow:0 4px 16px #0002;pointer-events:none;font-size:.875rem}
+.page-refresh-notice[hidden] {display:none}
+.page-refresh-button[aria-busy="true"] svg {animation:refresh-turn 1s linear infinite}
+@keyframes refresh-turn {to {transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce) {.page-refresh-button[aria-busy="true"] svg {animation:none}}

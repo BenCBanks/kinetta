@@ -1252,13 +1252,14 @@ route(/^\/me$/, 'me', async (el) => {
     ${me.coach ? `<h2 class="sec-head">Kit</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food estimates: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${kitChatOn() ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
-    <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
+    <div class="card list">${row('button', 'id="m-kit-memory"', 'sparkle', 'c-green', 'What Kit remembers', 'View or remove')}${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
       ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
     <button class="ghost wide" id="logout">${svg('logout')}Log out</button></details>`;
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
   $('#m-profile', el).onclick = () => go(profileHref(me));   // your public profile, editable in place (social.js)
 
+  $('#m-kit-memory',el).onclick=()=>KitChat.memorySettings();
   const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit', aiExplain());
   $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');

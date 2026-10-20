@@ -19,6 +19,8 @@ def fetch(c, path):
 
 a, b, c = person('zz_test_ph_a', 'Photo Tester'), person('zz_test_ph_b'), person('zz_test_ph_c')
 admin = login(*ALEX)
+# This fixture exercises private photos explicitly; signup now defaults to Everyone.
+ck(a.put('/api/sharing', {'default':'me'})[0] == 200, 'choose private activity default for this fixture')
 for x, y in ((a, 'zz_test_ph_b'), (b, 'zz_test_ph_a'), (a, 'zz_test_ph_c'), (c, 'zz_test_ph_a')):
     x.delete(f'/api/people/{y}/block'); x.delete(f'/api/friends/{y}')
 
