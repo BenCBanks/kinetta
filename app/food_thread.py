@@ -32,6 +32,7 @@ class MessageIn(BaseModel):
     day: dt.date | None = None
     meal: Literal['breakfast','lunch','dinner','snacks'] | None = None
     media: Literal['text','photo','barcode'] = 'text'
+    itemize: StrictBool = False
     barcode: str | None = Field(None,pattern=r'^\d{6,14}$')
     captured_at: AwareDatetime | None = None
     context: UUID | None = None
@@ -142,7 +143,9 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
             raise HTTPException(400, 'Message time is outside the supported range')
         if body.media=='barcode' and not body.barcode:raise HTTPException(422,'Scan or type a barcode')
         if body.media!='barcode' and body.barcode:raise HTTPException(422,'Use barcode input for a scanned product')
+        if body.itemize and body.media!='photo':raise HTTPException(422,'Ingredient estimates need a photo')
         metadata={'input':{'kind':body.media,**({'barcode':body.barcode} if body.barcode else {})}} if body.media!='text' else None
+        if body.itemize:metadata['input']['itemize']=True
         if body.draft_id:metadata={**(metadata or {}),'draft_id':str(body.draft_id)}
         if body.review_only:metadata={**(metadata or {}),'review_only':True}
         if body.context:metadata={**(metadata or {}),'context':str(body.context)}

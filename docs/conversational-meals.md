@@ -118,3 +118,11 @@ restored food to its original conversation card without creating a second card.
 A completed server save stays successful even if a phone cannot redraw its card.
 When an earlier correction target was removed, the conversation offers up to five
 recent foods to choose from, preserving the requested correction.
+
+## Describe a photo and request ingredient calories
+
+Photo review lets you describe the food before choosing **Estimate with Kit**. Mention size, fillings, sauces and how much you ate. The description starts with any food-chat draft you already typed. You can remove a view without losing the description; closing review sends nothing.
+
+Choose **Itemize ingredients** to request separate estimates for a mixed food such as bread, turkey, cheese and mayo in a sub. Kit lists components once; the app adds their calories. Assumptions about portions and hidden ingredients remain visible. These are estimates, not measured ingredient weights. Multiple views represent one portion, not extra servings. Food still needs the final review and confirmation before logging.
+
+An itemized-calorie follow-up in Add food refers to the selected photo card, not today's calorie total. The reply lists the current estimated rows and their sum with no further model call. Unknown calories remain unknown. A whole-food total cannot be divided into invented ingredients: **Add photo for ingredient breakdown** asks you to reattach the photo, which is not kept on the server. This replaces an unlogged card after successful analysis; failure preserves its previous estimate and a newer edit wins over a late answer. Reviewed/logged food is not replaced.

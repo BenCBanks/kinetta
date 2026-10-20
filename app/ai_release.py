@@ -26,7 +26,7 @@ def fingerprint():
 def understanding_fingerprint():
     """Food-chat understanding: its own module, the food-thread code it drives and the food model settings."""
     root=Path(__file__).parent
-    names=['food_thread_understand.py','food_photo.py','food_thread_choices.py','food_thread_compose.py','food_thread_log.py','ai_budget.py']
+    names=['food_thread_understand.py','food_photo.py','food_thread_choices.py','food_thread_compose.py','food_thread_log.py','food_thread_photo.py','ai_budget.py']
     config={'files':{n:hashlib.sha256((root/n).read_bytes()).hexdigest() for n in names},
             'food_model':os.environ.get('GEMINI_FOOD_MODEL','gemini-3.1-flash-lite'),
             'food_fallback':os.environ.get('GEMINI_FOOD_FALLBACK_MODEL','gemini-3.8-flash')}

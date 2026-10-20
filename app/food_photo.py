@@ -15,7 +15,7 @@ import urllib.error
 import urllib.request
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 from . import coach, ai_access, ai_budget
 from .auth import current_user
@@ -51,6 +51,7 @@ class PhotoIn(BaseModel):
     image: str | None = Field(None, max_length=6_000_000)    # base64 JPEG (data: URL prefix allowed)
     images: list[str] = Field(default_factory=list, max_length=6)
     note: str | None = Field(None, max_length=2000)        # the person's words; several lines = a short chat (Describe or snap)
+    itemize: StrictBool = False
 
 
 def image_batch(image, images):
@@ -142,6 +143,7 @@ def estimate(body,user,*,strict=False):
     if not key: raise HTTPException(503, 'Photo logging needs a Gemini key on the server')
     note = (body.note or '').strip()
     imgs = image_batch(body.image, body.images)
+    if body.itemize and not imgs: raise HTTPException(422, 'Add the photo to estimate its ingredients')
     if not imgs and not note: raise HTTPException(400, 'Add photos or a description')
     brake(user['id'])
 
@@ -151,6 +153,13 @@ def estimate(body,user,*,strict=False):
            (' The description is several messages in order: later ones correct or add to earlier ones (e.g. "make it two" '
             'means two of the item just discussed), so list the meal as it stands after the last message.' if '\n' in note else '')
     parts = [{'text': PROMPT.format(what=what)}]
+    if body.itemize:
+        parts.append({'text': 'The person requests an itemized calorie breakdown. For mixed foods such as a sub, '
+                      'list the ingredients (bread, filling, cheese, sauces) as separate items with their estimated '
+                      'portions and nutrition. Do not also include the whole sandwich or a total as an item: the '
+                      'app adds the items. Include each ingredient only once across all photos. Use the person’s '
+                      'description for hidden ingredients; do not claim to see them. In notes, clearly state '
+                      'assumptions about hidden ingredients and amounts. These are estimates, not measured facts.'})
     parts.extend({'inline_data': {'mime_type': 'image/jpeg', 'data': base64.b64encode(img).decode()}} for img in imgs)
     with ai_budget.scope(user['id'],feature='food photo' if imgs else 'food description'):
         out, data, model = ask(parts, SCHEMA, 'food photo')

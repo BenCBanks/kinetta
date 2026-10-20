@@ -60,9 +60,18 @@ def claim(uid,mid,body):
                 raise HTTPException(409,'This food already has nutrition. Check its amount instead.')
             if not coach.allowed(uid,'food',connection=c):raise HTTPException(403,coach.off())
             part.update(status='unknown',looked_up=False,skip_alias=True,prefer_estimate=True)
+        media=(message.get('result') or {}).get('input') or {'kind':'text'}
+        previous=None
+        if body.itemize and (body.image or body.images) and media['kind']=='photo':
+            if not (message.get('result') or {}).get('review_only') or result.get('kind') not in ('preview','needs') or any(p.get('logged') for p in result['parts']):
+                raise HTTPException(409,'This food is already in review or logged. Add a new photo for a separate estimate.')
+            # Retain the original card while the replacement is in flight. Failed
+            # analysis or a crash must not throw away its existing food estimate.
+            previous=copy.deepcopy(result)
+            result=copy.deepcopy(result)
+            result['parts']=[{'index':0,'text':message['body'],'status':'unknown','item':{},'logged':False}]
         unknown=_unknown(result)
         if not unknown:return {'done':C.write(c,uid,message,result)}
-        media=(message.get('result') or {}).get('input') or {'kind':'text'}
         if (body.image or body.images) and media['kind']!='photo':
             raise HTTPException(409,'Use a new photo message for these images; this card keeps the foods already logged')
         if media['kind']=='text' and not any(p.get('skip_alias') for p in unknown):
@@ -74,22 +83,23 @@ def claim(uid,mid,body):
         if media['kind']=='photo' and not raw_images:
             for p in unknown:p.update({'looked_up':True,'question':'Add the photo again, or describe the food.','needs_photo':True})
             return {'done':C.write(c,uid,message,result)}
-        digest=hashlib.sha256(json.dumps([[(p['index'],p['text'],p.get('lookup_revision')) for p in unknown],raw_images,body.allow_brand_estimate,body.part],sort_keys=True).encode()).hexdigest()
+        digest=hashlib.sha256(json.dumps([[(p['index'],p['text'],p.get('lookup_revision')) for p in unknown],raw_images,body.allow_brand_estimate,body.part,body.note,body.itemize],sort_keys=True).encode()).hexdigest()
         old=c.execute('SELECT * FROM food_chat_jobs WHERE user_id=%s AND message_id=%s FOR UPDATE',(uid,mid)).fetchone()
         now=dt.datetime.now(dt.timezone.utc)
         if old and old['state']=='running' and old['expires']>now:
             return {'done':{**food_thread.answer_with(c,uid,message),'processing':True}}
         if old and old['input_hash']==digest and old['state'] in ('done','failed') and not body.retry:
-            return {'done':C.write(c,uid,message,result)}
+            return {'done':C.write(c,uid,message,previous or result)}
         if old and old['state']=='cancelled':raise HTTPException(409,'This message was cancelled')
         lease=uuid4()
         c.execute('''INSERT INTO food_chat_jobs(user_id,message_id,lease,expires,state,input_hash)
                      VALUES (%s,%s,%s,now()+interval '180 seconds','running',%s)
                      ON CONFLICT(user_id,message_id) DO UPDATE SET lease=excluded.lease,expires=excluded.expires,
                      state='running',input_hash=excluded.input_hash''',(uid,mid,lease,digest))
-        result.pop('error',None);result['processing']=True
-        food_thread.finish_reply(c,uid,message,result)
-        return {'message':message,'result':copy.deepcopy(result),'media':media,'lease':lease}
+        shown=copy.deepcopy(previous or result);shown.pop('error',None);shown['processing']=True
+        if media['kind']=='photo' and body.note is not None:shown['photo_request_note']=body.note
+        food_thread.finish_reply(c,uid,message,shown)
+        return {'message':message,'result':copy.deepcopy(result),'media':media,'lease':lease,'photo_previous':previous}
 
 
 def _catalog(food,part):
@@ -147,11 +157,13 @@ def resolve_outside(uid,work,body):
     if estimate:
         text='\n'.join(p['text'] for p in estimate)
         if media['kind']=='photo':text=message['body'] if not message['body'].startswith('Photo of food') else ''
-        if body.note:text=(text+'\n'+body.note).strip()
+        if body.note:text=body.note.strip() if media['kind']=='photo' else (text+'\n'+body.note).strip()
         if len(text)>4000:return updates,HTTPException(422,'That food note is too long; your original message is kept')
         # PhotoIn's public legacy note limit remains 2000. The permanent thread
         # already accepted 4000 characters; no one has to rewrite a saved message.
-        estimate_body=ResolveIn(image=body.image,images=body.images,note=text or None)
+        from .food_thread_photo import requested
+        itemize=media['kind']=='photo' and (body.itemize or media.get('itemize') or requested(text))
+        estimate_body=ResolveIn(image=body.image,images=body.images,note=text or None,itemize=bool(itemize))
         try:
             with ai_budget.scope(uid,message['client_id']):
                 found=food_photo.estimate(estimate_body,user={'id':uid},strict=True)
@@ -161,7 +173,7 @@ def resolve_outside(uid,work,body):
         merged={'index':min(p['index'] for p in estimate),'text':'\n'.join(p['text'] for p in estimate),
                 'status':'quantity' if uncertain else 'ready','drafts':drafts,'entries':S.draft_entries(drafts),
                 'logged':False,'looked_up':True,'source':'ai','learn_phrase':'\n'.join(p['text'] for p in estimate) if media['kind']=='text' else None,
-                'estimated':True,'question':'Does this estimated amount look right? Choose an amount below.' if uncertain else None,
+                'estimated':True,'photo_description':text if media['kind']=='photo' else None,'photo_itemized':bool(itemize),'question':'Does this estimated amount look right? Choose an amount below.' if uncertain else None,
                 'scale_options':[{'label':'Smaller','factor':.5},{'label':'As estimated','factor':1},{'label':'Larger','factor':1.5}] if uncertain else []}
         updates.append({'indices':[p['index'] for p in estimate],'part':merged,'model':True})
     return updates,None
@@ -177,6 +189,16 @@ def complete(uid,mid,work,updates,error=None):
         if not job or job['lease']!=work['lease'] or job['state']!='running' or message['state']=='cancelled':
             return {'handled':True,'cancelled':True,'messages':[]}
         result=_stored(c,uid,message);result['processing']=False
+        replacing=False
+        if work.get('photo_previous'):
+            if any(result.get(k)!=work['photo_previous'].get(k) for k in ('parts','kind','day','meal')):
+                # A portion edit/review from another request wins over late work.
+                c.execute("UPDATE food_chat_jobs SET state='failed' WHERE user_id=%s AND message_id=%s",(uid,mid))
+                result['error']={'message':'Your food changed while the photo was checked. The newer food details were kept.','retryable':False}
+                return food_thread.finish_reply(c,uid,message,result)
+            elif not error and updates:
+                result['parts']=copy.deepcopy(work['result']['parts'])
+                replacing=True
         original={p['index']:p for p in work['result']['parts']}
         for update in updates:
             current={p['index']:p for p in result['parts']}
@@ -206,6 +228,7 @@ def complete(uid,mid,work,updates,error=None):
                     replacement.update({'status':'quantity','question':'Your saved food changed. Check this estimate and choose its portion.'})
             _replace_group(result,set(update['indices']),replacement)
         if error:
+            if replacing:result['parts']=copy.deepcopy(work['photo_previous']['parts'])
             detail=error.detail if isinstance(error,HTTPException) else 'The food could not be checked. Your text is kept; search or enter nutrition instead.'
             result['error']={'message':str(detail)[:500],'retryable':True}
             for part in _unknown(result):part.update({'looked_up':True,'question':'Which food and portion should I use?'})
