@@ -4,7 +4,7 @@ const FoodReview=(()=>{
   const sending=new Set();
   const changed=()=>dispatchEvent(new CustomEvent('food:review-state'));
   const number=input=>{const text=input.value.trim();return text===''?null:Number(text.replace(',','.'));};
-  async function open({messages,draftId,meal,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
+  async function open({done=()=>{},messages,draftId,meal,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
     const owner=readOwner(),id=newId();let prepared;
     try{prepared=await api('/api/food/thread/reviews',json('POST',{client_id:id,draft_id:draftId,messages}));}
     catch(e){toast(e.message);return;}
@@ -69,7 +69,7 @@ const FoodReview=(()=>{
           if(owner!==readOwner())return;
           if(!result.queued)await accept(result);
           App.cache.delete('/api/dishes');invalidate('/api/food');
-          if(!valid())return;close();
+          if(!valid())return;close();done(result);
           toast(result.queued?'Saved on this phone · waiting to send':recipe&&logging?'Recipe saved and added to your log':recipe?'Recipe saved for later':'Added to your log');
         }catch(error){
           if(!valid())return;

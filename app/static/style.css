@@ -1759,7 +1759,8 @@ html:has(.food-thread) nav.tabs { display: none; }
 #thread-status { margin: 4px 0 0; min-height: 1.2em; font-size: .8rem; color: var(--tx2); text-align: center; }
 #thread-status:empty { min-height: 0; }
 .food-thread button { min-height: 44px; min-width: 44px; font-size: 1rem; white-space: normal; }
-html.keyboard-open .thread-composer { bottom: env(safe-area-inset-bottom); }
+/* With the keyboard up the home-indicator inset is under the keyboard: no extra gap above it (owner, 20 Oct 2026). */
+html.keyboard-open #thread-status:empty { display: none; }
 html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 /* Calmer chat text (2026-10-18, owner: "too big and overwhelming"): smaller card text, chip-sized choices, quiet links. */
 .thread-card, .thread-user { font-size: .95rem; }
