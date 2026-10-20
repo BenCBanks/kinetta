@@ -32,6 +32,7 @@ node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
 node dev/tests/test_combined_week_ui.js
 node dev/tests/test_mileage_chart.js
+python3 dev/tests/test_activity_chart.py
 
 python3 dev/tests/test_training_food.py
 node dev/tests/test_training_food_ui.js
@@ -85,7 +86,7 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_progress test_track test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
+for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_progress test_chart_weeks test_track test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"
