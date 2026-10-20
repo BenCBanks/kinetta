@@ -416,13 +416,18 @@ function sheet(title, html, onMount) {
   // the keyboard (2026-10-13, Ben): iOS slides it over the page, so the sheet would sit under it. Lift the sheet by the
   // keyboard's height and keep it inside what is still visible, so a text box being typed in stays in view.
   const vv = window.visualViewport;
+  // In the iPhone app the WebView keeps its size (#194), so use the keyboard height the app announces (keyboard.js).
   const fit = () => {
-    const kb = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+    const native = window.KinettaKeyboard?.height || 0;
+    const kb = native || (vv ? Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) : 0);
     s.style.paddingBottom = kb > 80 ? kb + 'px' : '';
-    sh.style.maxHeight = kb > 80 ? `${Math.round(vv.height - 8)}px` : '';
+    sh.style.maxHeight = kb > 80 ? `${Math.round((native ? innerHeight - native : vv.height) - 8)}px` : '';
+    const el = document.activeElement;
+    if (kb > 80 && el && sh.contains(el)) requestAnimationFrame(() => el.scrollIntoView?.({block: 'nearest'}));
   };
-  const unfit = () => { if (vv) { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); } };
+  const unfit = () => { if (vv) { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); } removeEventListener('kinetta:keyboard', fit); };
   if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
+  addEventListener('kinetta:keyboard', fit); fit();
   document.addEventListener('keydown', onKey);
   document.body.append(s); document.body.classList.add('has-sheet');
   // phones: a text box waits for a tap (a focused box pops up the keyboard over the sheet); buttons still take focus

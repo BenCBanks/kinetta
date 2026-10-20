@@ -62,6 +62,7 @@ console.log('Keyboard navigation: native lifecycle, no accessory strip, cancelle
   assert.equal(t.styles['--chat-height'], '844px');
   t.event('keyboardWillShow', {keyboardHeight: 384});
   assert.equal(t.styles['--chat-height'], '460px', 'composer moves with the keyboard, not after it');
+  assert.equal(t.styles['--kb'], '384px', 'sheets and pages get the keyboard height (WebView no longer shrinks)');
   assert.equal(t.styles['--chat-top'], '0px');
   t.event('keyboardDidShow', {keyboardHeight: 384}); assert.equal(t.styles['--chat-height'], '460px');
   t.event('keyboardWillHide'); assert.equal(t.styles['--chat-height'], '844px', 'and back down with it');

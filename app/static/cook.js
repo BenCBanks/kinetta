@@ -191,29 +191,41 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
   const owner=readOwner();
   if(d.totals.kcal==null){sheet(d.name,'<p>Add calories before logging a portion. Missing ingredients are kept unknown.</p><button class="primary wide" id="recipe-add-nutrition">Add nutrition</button>',(b,close)=>{$('#recipe-add-nutrition',b).onclick=()=>{close();done(true);go('/food/cook/'+d.id);};});return;}
   const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one'||(d.mine===false&&!d.weight_g);     // by servings: the whole dish is one serving
+  // Some recipes are measured by servings, some by weight; when both are known the person can log either (owner, 20 Oct 2026).
+  const both = wt > 0 && (bySv || (d.serving_count || 0) > 1) && !d.recipe_source?.import_id;   // a default 1 'serving' would be the whole pot
+  let mode = bySv ? 'sv' : 'g';
   const vals = (k) => Object.fromEntries(FOOD_NUTRIENTS.map((x) => [x, t[x]==null?null:t[x]*k]));
   sheet(d.name, `${d.mine===false?`<p class="small muted">Shared by ${esc(d.owner?.name||'your friend')}. Your food log stays private.</p>`:''}<form class="form" id="dl">
     ${chooseMeal?`<label>Meal today<select name="meal" required><option value="">Choose a meal</option>${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></label>`:''}
-    ${bySv ? `<div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
-        <span><input class="num" id="dl-n" name="count" inputmode="decimal" value="1" aria-label="Servings to log"><small id="dl-u">serving</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div>`
-      : wt ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="The whole meal is ${Math.round(wt)}" aria-label="Your portion in grams"><span>g</span></span></label>`
-      : '<p class="callout warn">This meal is measured by weight but has no weight yet. Edit it and type its total weight, or switch it to servings.</p>'}
-    ${d.mine===false&&d.serving!=='one'&&!wt?'<p class="small muted">No total weight has been added. Use servings instead.</p>':''}${bySv&&!d.recipe_source?.import_id?`<p class="small muted">The recipe makes ${esc(d.serving_count)} servings. Enter the number you ate.</p>`:''}${d.recipe_source?.import_id?`<p class="small muted">The whole recipe makes ${esc(d.serving_count)} servings. Unknown nutrition is shown as a dash.</p>`:''}<div class="portion-out" aria-live="polite"></div>
+    ${both ? `<div class="seg dl-mode" role="group" aria-label="Log by"><button type="button" data-mode="sv" aria-pressed="${bySv}">Servings</button><button type="button" data-mode="g" aria-pressed="${!bySv}">Grams</button></div>` : ''}
+    ${bySv || both ? `<div id="dl-sv"${bySv ? '' : ' hidden'}><div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
+        <span><input class="num" id="dl-n" name="count" inputmode="decimal" value="1" aria-label="Servings to log"><small id="dl-u">serving</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div></div>` : ''}
+    ${wt ? `<div id="dl-g"${bySv ? ' hidden' : ''}><label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="The whole meal is ${Math.round(wt)}" aria-label="Your portion in grams"><span>g</span></span></label></div>`
+      : bySv ? '' : '<p class="callout warn">This meal is measured by weight but has no weight yet. Edit it and type its total weight, or switch it to servings.</p>'}
+    ${d.mine===false&&d.serving!=='one'&&!wt?'<p class="small muted">No total weight has been added. Use servings instead.</p>':''}${bySv&&!d.recipe_source?.import_id?`<p class="small muted" id="dl-sv-note">The recipe makes ${esc(d.serving_count)} serving${d.serving_count==1?'':'s'}. Enter the number you ate.</p>`:''}${d.recipe_source?.import_id?`<p class="small muted">The whole recipe makes ${esc(d.serving_count)} servings. Unknown nutrition is shown as a dash.</p>`:''}<div class="portion-out" aria-live="polite"></div>
     <div class="actions">${d.mine !== false ? `<button type="button" class="ghost" id="dl-edit">${svg('edit')}Edit</button><span class="spacer"></span>` : ''}
-      <button class="primary"${!bySv && !wt ? ' disabled' : ''}>${chooseMeal?'Log portion':'Add to '+esc(MEAL_NAMES[w.meal])}${w.day !== isoDay(new Date()) ? `, ${esc(dayLabel(w.day))}` : ''}</button></div></form>`, (b, close) => {
+      <button class="primary"${!bySv && !wt && !both ? ' disabled' : ''}>${chooseMeal?'Log portion':'Add to '+esc(MEAL_NAMES[w.meal])}${w.day !== isoDay(new Date()) ? `, ${esc(dayLabel(w.day))}` : ''}</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,owner);
     const f = $('#dl', b), out = $('.portion-out', f), num = x => {const v=x?.value?.trim()||'';const m=v.match(/^(\d*)([¼½¾])$/);return m?Number(m[1]||0)+({'¼':.25,'½':.5,'¾':.75}[m[2]]):Number(v.replace(',','.'));};
     const half=x=>{const whole=Math.floor(x),frac=Math.round((x-whole)*4);return frac?`${whole||''}${['','¼','½','¾'][frac]}`:String(whole);};
     const needsFraction=d.mine===false&&!wt&&!d.recipe_source?.import_id&&(d.serving_count||1)<=1;
     let n=needsFraction||chooseMeal?NaN:1;if(bySv&&(needsFraction||chooseMeal)){f.count.value='';f.count.placeholder=needsFraction?'e.g. 0.25':'How many?';if(needsFraction)f.count.setAttribute('aria-label','Fraction of the whole recipe');}
-    const factor = () => (bySv ? (Number.isFinite(n)&&n>0&&n<=20?n/(d.serving_count||1):null) : num(f.g) > 0 && wt ? num(f.g) / wt : null);
+    const factor = () => (mode === 'sv' ? (Number.isFinite(n)&&n>0&&n<=20?n/(d.serving_count||1):null) : num(f.g) > 0 && wt ? num(f.g) / wt : null);
     const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k))+extraFood(vals(k)) : '';$('button.primary',f).disabled=!k; };
-    if (bySv) $$('[data-st]', f).forEach((x) => x.onclick = () => {
+    $$('[data-mode]', f).forEach((x) => x.onclick = () => {
+      mode = x.dataset.mode; $$('[data-mode]', f).forEach((y) => y.setAttribute('aria-pressed', String(y === x)));
+      // Carry the amount across: 1 serving of a 4-serving, 1,200 g recipe is 300 g.
+      const k = mode === 'g' ? (Number.isFinite(n) && n > 0 ? n / (d.serving_count || 1) : null) : (num(f.g) > 0 ? num(f.g) / wt : null);
+      if (k && mode === 'g') f.g.value = Math.round(wt * k);
+      if (k && mode === 'sv') { n = Math.round(k * (d.serving_count || 1) * 4) / 4; f.count.value = half(n); $('#dl-u', f).textContent = n === 1 ? 'serving' : 'servings'; }
+      $('#dl-sv', f).hidden = mode !== 'sv'; $('#dl-g', f).hidden = mode !== 'g'; const note = $('#dl-sv-note', f); if (note) note.hidden = mode !== 'sv'; show();
+    });
+    if (f.count) $$('[data-st]', f).forEach((x) => x.onclick = () => {
       n = Math.max(0.25, Math.min(20, (Number.isFinite(n)?n:1) + 0.25 * +x.dataset.st));
       $('#dl-n', f).value = half(n); $('#dl-u', f).textContent = n === 1 ? 'serving' : 'servings'; show();
     });
-    else if (f.g) f.g.oninput = show;
-    if(bySv)f.count.oninput=()=>{n=num(f.count);$('#dl-u',f).textContent=n===1?'serving':'servings';show();};
+    if (f.g) f.g.oninput = show;
+    if(f.count)f.count.oninput=()=>{n=num(f.count);$('#dl-u',f).textContent=n===1?'serving':'servings';show();};
     show();
     const ed = $('#dl-edit', b); if (ed) ed.onclick = () => { close(); done(true); go(`/food/cook/${d.id}`); };
     const portionId=newId();
@@ -221,7 +233,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
       e.preventDefault(); const btn = $('button.primary', f);if(btn.disabled)return;
       if(chooseMeal){if(!f.meal.value){toast('Which meal would you like to log it to?');f.meal.focus();return;}w={...w,meal:f.meal.value};}
       const body = {meal: w.meal, day: w.day, client_id:portionId};
-      if (bySv) {if(!Number.isFinite(n)||n<=0||n>20){toast('Enter a serving count above zero and up to 20.');return;}body.count = n;}
+      if (mode === 'sv') {if(!Number.isFinite(n)||n<=0||n>20){toast('Enter a serving count above zero and up to 20.');return;}body.count = n;}
       else { const g = num(f.g); if (!(g > 0)) { toast('How many grams did you have?'); return; } body.grams = g; }
       const label=btn.textContent;btn.disabled = true;btn.textContent='Saving portion…';
       try {
@@ -231,8 +243,8 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
         const r = await sendOrQueue(`/api/dishes/${d.id}/portion${location.pathname==='/food/describe'?'?thread=true&captured_at='+encodeURIComponent(new Date().toISOString()):''}`, 'POST', body, d.name);
         if(!r.queued&&r.messages&&typeof FoodThread!=='undefined'){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
         if(readOwner()!==owner)return;
-        if(r.queued){const factor=bySv?n/(d.serving_count||1):body.grams/wt,values=Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,t[k]==null?null:t[k]*factor]));
-          patchDay(w.day,day=>{if(day.entries.some(e=>e.id==='q-'+portionId))return;day.entries.push({...w,...values,id:'q-'+portionId,client_id:portionId,name:d.name,amount:bySv?n:body.grams,unit:bySv?'serving':'g',source:'dish',pending:true,ref:{dish_id:d.id,unknown_nutrients:Object.keys(values).filter(k=>values[k]==null)}});for(const k of Object.keys(values)){day.totals[k]=(day.totals[k]||0)+(values[k]||0);if(values[k]==null&&day.unknown_nutrients)day.unknown_nutrients[k]=(day.unknown_nutrients[k]||0)+1;}});
+        if(r.queued){const factor=mode==='sv'?n/(d.serving_count||1):body.grams/wt,values=Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,t[k]==null?null:t[k]*factor]));
+          patchDay(w.day,day=>{if(day.entries.some(e=>e.id==='q-'+portionId))return;day.entries.push({...w,...values,id:'q-'+portionId,client_id:portionId,name:d.name,amount:mode==='sv'?n:body.grams,unit:mode==='sv'?'serving':'g',source:'dish',pending:true,ref:{dish_id:d.id,unknown_nutrients:Object.keys(values).filter(k=>values[k]==null)}});for(const k of Object.keys(values)){day.totals[k]=(day.totals[k]||0)+(values[k]||0);if(values[k]==null&&day.unknown_nutrients)day.unknown_nutrients[k]=(day.unknown_nutrients[k]||0)+1;}});
         }else invalidate('/api/food/');
         App.cache.delete('/api/dishes');close();done(false);if(location.pathname!=='/food/describe')render();Native.haptic('light');
         let undoing=false,undone=false;

@@ -22,7 +22,11 @@
     // the keyboard instead of jumping after it lands (owner, 19 Oct 2026).
     const root = document.documentElement.style;
     let keyboard = 0;
-    const fitNative = () => { root.setProperty('--chat-height', `${innerHeight - keyboard}px`); root.setProperty('--chat-top', '0px'); };
+    // Share the keyboard height: sheets and ordinary pages lift by it too, since the WebView no longer shrinks.
+    window.KinettaKeyboard = {height: 0};
+    const fitNative = () => { root.setProperty('--chat-height', `${innerHeight - keyboard}px`); root.setProperty('--chat-top', '0px');
+      root.setProperty('--kb', `${keyboard}px`); window.KinettaKeyboard.height = keyboard;
+      try { dispatchEvent(new CustomEvent('kinetta:keyboard', {detail: {height: keyboard}})); } catch (e) {} };
     viewport?.removeEventListener?.('resize', fitChat); viewport?.removeEventListener?.('scroll', fitChat); window.removeEventListener?.('resize', fitChat);
     addEventListener('resize', fitNative);
     // iOS may still pan the page toward a focused field under the keyboard; the chat is fixed, so undo that pan.
@@ -36,7 +40,7 @@
     fitNative();
     // No accessory strip: the focused field uses the full visible WebView.
     const keepVisible = () => { const el = document.activeElement; if (!el || el === document.body) return;
-      const r = el.getBoundingClientRect(); if (r.bottom > innerHeight - 8) el.scrollIntoView({block: 'nearest'}); };
+      const r = el.getBoundingClientRect(); if (r.bottom > innerHeight - keyboard - 8) el.scrollIntoView({block: 'nearest'}); };
     return;
   }
   const vv = window.visualViewport;
