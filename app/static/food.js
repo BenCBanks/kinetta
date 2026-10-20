@@ -276,7 +276,7 @@ function drawDay(el, D) {
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
-      ${D.has_history&&D.day===isoDay(new Date())&&m===guessMeal()?`<div class="empty-meal-ways"><button class="ghost" data-yesterday-meal="${m}">Same as yesterday</button><button class="ghost" data-usual-meal="${m}">Your usuals</button></div>`:''}</section>`;
+      </section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`;
