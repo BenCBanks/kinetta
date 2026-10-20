@@ -63,7 +63,7 @@ class KitTools(AccountTools):
         where = 'user_id=%s AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s'
         totals = c.execute('SELECT sport,count(*) AS workouts,sum(distance_m) AS distance_m,sum(moving_s) AS moving_s,sum(ascent_m) AS ascent_m FROM activities WHERE '+where+' GROUP BY sport ORDER BY sport',params).fetchall()
         rows = c.execute('''SELECT id,sport,name,start_time,distance_m,moving_s,ascent_m,avg_hr,effort,calories
-          FROM activities WHERE '''+where+' AND (%s::bigint IS NULL OR id<%s) ORDER BY id DESC LIMIT 51',(*params,r.before_id,r.before_id)).fetchall()
+          FROM activities WHERE '''+where+' AND (%s::bigint IS NULL OR (start_time,id)<(SELECT start_time,id FROM activities WHERE user_id=%s AND id=%s)) ORDER BY start_time DESC,id DESC LIMIT 51',(*params,r.before_id,self._uid,r.before_id)).fetchall()
         return {'activities':rows[:50],'totals_by_sport':totals,'next_before_id':rows[49]['id'] if len(rows)>50 else None,
                 'limitations':['Totals include every own workout in the date range; listed records are paginated. Missing measurements are unknown.']}
 

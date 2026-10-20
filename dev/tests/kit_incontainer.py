@@ -119,6 +119,13 @@ try:
  else:raise AssertionError('Health scope disclosed')
  with db.connect() as c:c.execute('UPDATE profile SET health_ai_ok=true WHERE user_id=%s',(uid,))
  assert tools.call('activities',dates)['activities']
+ # Workout ordering/cursors follow workout time, even when an older workout is uploaded last.
+ with db.connect() as c:
+  late=c.execute("INSERT INTO activities(user_id,sport,source,name,start_time,distance_m,moving_s) VALUES (%s,'walk','manual','Fictional old late upload',now()-interval '1 day',2000,1000) RETURNING id",(uid,)).fetchone()['id']
+ period={'start':(dt.date.today()-dt.timedelta(days=2)).isoformat(),'end':today}
+ ordered=tools.call('activities',period)['activities'];assert ordered[0]['id']==aid
+ assert tools.call('activities',{**period,'before_id':aid})['activities'][0]['id']==late
+ assert ot.call('activities',{**period,'before_id':aid})['activities']==[]
  # Current profile evidence is preloaded once, identical lookups are cached and the final round must answer.
  calls=[]
  def bounded_turn(messages,definitions):
