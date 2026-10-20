@@ -456,7 +456,7 @@ function drawDetail(el, a) {
   // with a map, the map runs to the top of the screen and the buttons float over it (2026-10-12, Ben)
   const topBar = `<div class="top${a.line || a.photos?.length ? ' over' : ''}">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
   el.innerHTML = `${a.line || a.photos?.length ? `<div class="map-head">${activityMedia(a, {mapId: 'd-map', detail: true, full: !!a.line})}${topBar}</div>` : topBar}
-    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${aiCan('coach') ? `<button class="icon-btn kit-help" id="d-kit" aria-label="Ask Kit about this activity">${svg('sparkle')}</button>` : ''}</div>
+    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${a.ai_note || aiCan('coach') ? `<button class="icon-btn kit-help" id="d-kit" aria-label="${aiCan('coach')?'Ask Kit about this activity':'Saved Kit review'}">${svg('sparkle')}</button>` : ''}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}
@@ -483,7 +483,7 @@ function drawDetail(el, a) {
   wireActivityMedia(el);
   if (a.lifts) fillLiftCard(el, a);
   const kb = $('#d-kit', el);
-  if (kb) kb.onclick = () => go(KitChat.href('activity',a.id));
+  if (kb) kb.onclick = () => aiCan('coach') ? go(KitChat.href('activity',a.id)) : activityKit(a);
   let marker = null, pts = null, mapObj = null;
   const mapBox = $('#d-map', el);
   if (a.line) lazy(mapBox, async () => {
