@@ -18,7 +18,10 @@ function foodChatViewport({list,composer,field,send,active}) {
   list.addEventListener('touchmove',e=>{if(touchY!==null&&e.touches.length===1){if(e.touches[0].clientY-touchY>6)following=false;touchY=e.touches[0].clientY;}},options);
   list.addEventListener('scroll',()=>{if(list.scrollHeight-list.clientHeight-list.scrollTop<40)following=true;},options);
   list.addEventListener('keydown',e=>{if(['PageUp','Home','ArrowUp'].includes(e.key))following=false;},{signal:events.signal});
-  for(const event of ['resize','keyboardDidShow','keyboardDidHide'])addEventListener(event,()=>pin(),options);
+  // Re-pin as the keyboard starts moving and once the chat's height animation ends, so the newest message is never
+  // left behind the strip or composer (owner screenshot, 20 Oct 2026).
+  for(const event of ['resize','keyboardWillShow','keyboardDidShow','keyboardWillHide','keyboardDidHide'])addEventListener(event,()=>pin(),options);
+  document.addEventListener?.('transitionend',e=>{if(e.target===list.closest?.('.shell'))pin();},options);
   window.visualViewport?.addEventListener('resize',()=>pin(),options);
   window.visualViewport?.addEventListener('scroll',()=>pin(),options);
   const observer=typeof ResizeObserver==='function'?new ResizeObserver(()=>pin()):null;
@@ -163,7 +166,7 @@ const FoodThread = (() => {
     const state=held(ctx);if(!state.ready||waitingJobs(ctx)||pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
     ctx.preparingReview=true;primary(ctx);
     try {
-      await FoodReview.open({messages:state.ids,draftId:ctx.draftId,meal:ctx.meal,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal,form});},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
+      await FoodReview.open({done:result=>{if(!result.queued)wipe(ctx);},messages:state.ids,draftId:ctx.draftId,meal:ctx.meal,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal,form});},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
     } finally {ctx.preparingReview=false;primary(ctx);}
   }
   async function stage(items,{dish=null}={}){
@@ -298,6 +301,14 @@ const FoodThread = (() => {
     catch(e){ctx.dailyDay=day;if(explicit)status(ctx,e.message);}finally{ctx.dailyBusy=false;}
   }
   function preferences(ctx){if(!ctx.preferences){status(ctx,'Wait for food chat settings to load, then try again.');return;}const p=ctx.preferences;sheet('Food chat settings',`<button type="button" class="ghost wide danger" id="thread-clear">Clear chat</button><p class="small muted">Clears the conversation on this and your other devices. Food you’ve logged stays in your log. The chat also starts fresh each day.</p><form class="form" id="thread-preferences"><p>Food waits for the final review before it is logged. Logged cards have Undo and Edit.</p><label>Feedback<select name="tone"><option value="supportive"${p.tone==='supportive'?' selected':''}>Supportive</option><option value="numbers"${p.tone==='numbers'?' selected':''}>Just the numbers</option></select></label><label>Evening food summary<select name="daily_note"><option value="off"${!p.daily_note||p.daily_note==='off'?' selected':''}>Off</option><option value="code"${p.daily_note==='code'?' selected':''}>Food log summary</option><option value="ai"${p.daily_note==='ai'?' selected':''}>Food log summary + optional AI advice</option></select></label><p>Off by default. A recap of your logged calories and protein, with a suggestion for tomorrow. It appears when you open Add food after 8 pm, or choose Daily summary from +. The food log summary does not use AI. Optional Kit advice needs a separate tap and your AI permission, at most once a day. No notifications are sent.</p><button class="primary wide">Save settings</button></form>`,(b,close)=>{$('#thread-clear',b).onclick=()=>clearChat(ctx,close);$('#thread-preferences',b).onsubmit=async e=>{e.preventDefault();if(!active(ctx))return;try{const value={tone:e.target.tone.value,daily_note:e.target.daily_note.value};const saved=await api('/api/food/thread/preferences',json('PUT',value));if(!active(ctx))return;ctx.preferences=saved;$('#thread-daily-note',ctx.el).hidden=value.daily_note==='off';close();daily(ctx);toast('Food chat settings saved');}catch(e){toast(e.message);}};});}
+  // Clear the conversation on the server and this phone. Logged food is never touched.
+  async function wipe(ctx){
+    if(!active(ctx))return;
+    try{await api('/api/food/thread/clear',json('POST',{confirm:true}));}catch(e){return;}   // a failed clear just leaves the chat as it was
+    await ThreadDB.erase(ctx.owner);store.del(cacheKey(ctx.owner));store.del(contextKey(ctx.owner));
+    ctx.messages=[];ctx.jobs=[];ctx.visibleClients=new Set();ctx.context=null;ctx.reviewForm=null;ctx.draftId=uuid();ctx.epoch++;
+    store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});if(active(ctx))draw(ctx);
+  }
   async function clearChat(ctx,close){
     if(!active(ctx))return;
     if(ctx.preparingReview||pendingReview()){status(ctx,'Wait for your food to finish saving, then clear the chat.');return;}
