@@ -26,6 +26,9 @@ def luminance(hex_color):
 def contrast(foreground, background):
     a,b=sorted([luminance(foreground),luminance(background)])
     return (b+0.05)/(a+0.05)
+def blend(foreground, background, amount):
+    # CSS color-mix(in srgb): verify the actual sport-mark and macro-track surfaces.
+    return '#' + ''.join(f'{round(int(foreground[i:i+2],16)*amount+int(background[i:i+2],16)*(1-amount)):02x}' for i in (1,3,5))
 checks=0
 for theme in ('light','dark'):
     p=tokens[theme]
@@ -38,4 +41,12 @@ for theme in ('light','dark'):
     for fg,bg,minimum in pairs:
         ratio=contrast(p[fg],p[bg]);checks+=1
         if ratio < minimum: sys.exit(f'{theme}: {fg}/{bg} contrast {ratio:.2f} below {minimum}')
+    for sport in ('run','ride','walk','hike','swim','row','ski','workout','other'):
+        for bg in ('surface','canvas'):
+            ink=blend(p[sport],p['text'],.85);surface=blend(p[sport],p[bg],.18)
+            ratio=contrast(ink,surface);checks+=1
+            if ratio<3:sys.exit(f'{theme}: {sport} mark contrast {ratio:.2f} below 3')
+    for macro in ('series-1','series-2','series-4'):
+        ratio=contrast(p[macro],blend(p[macro],p['surface'],.14));checks+=1
+        if ratio<3:sys.exit(f'{theme}: {macro} macro track contrast {ratio:.2f} below 3')
 print(f'Design tokens match; {checks} text, action, semantic, outline and chart pairs pass contrast checks')

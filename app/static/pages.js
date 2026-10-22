@@ -298,7 +298,7 @@ async function meOverview(el) {
   const overviewLoads = await Promise.allSettled([
     load('/api/activities?limit=3', (d) => {
       if (!el.isConnected) return;
-      $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}"><span class="latest-activity-icon">${svg(d[0].sport || 'activity')}</span><span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
+      $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}">${sportMark(d[0].sport)}<span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
       Promise.resolve(Native.on ? (Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()) : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
         activityHistory=!!d.length;healthConnected=connected;drawSetup();
