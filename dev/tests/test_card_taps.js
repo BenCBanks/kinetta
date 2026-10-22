@@ -17,6 +17,12 @@ const html = ctx.card({id: 7, sport: 'run', name: 'Easy run', start_time: '2026-
 const links = [...html.matchAll(/<a class="([^"]+)" href="([^"]+)"/g)].map((m) => [m[1], m[2]]);
 assert.deepEqual(links.filter(([, h]) => h.startsWith('/people/')).map(([c]) => c), ['post-av', 'post-name'], 'only the photo and the name link to the profile');
 assert.match(html, /<article class="card post" data-href="\/activity\/friends\/7"/, 'the whole card knows its activity');
+assert.match(html,/data-share-activity="\/activity\/friends\/7"/,'sharing uses the visibility-checked shared route');
+const own=ctx.card({id:8,sport:'run',name:'Private run',visibility:'me',comments:3});
+assert(!own.includes('data-share-activity'),'private activities do not offer a share button');
+assert(own.includes('Comments, 3'),'comment count has an accessible label');
+const shared=ctx.card({id:9,sport:'run',name:'Shared run',visibility:'friends'});
+assert(shared.includes('data-share-activity="/activity/friends/9"'),'your shared activity also uses the shared route');
 assert.doesNotMatch(html, /post-person/, 'no wide profile link across the header');
 
 const article = {dataset: {href: '/activity/friends/7'}, classList: {add() {}, remove() {}}};

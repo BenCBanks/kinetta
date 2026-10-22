@@ -25,5 +25,27 @@ vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const FEED_N'
  ctx.warm();await new Promise(setImmediate);assert.equal(calls,2,'warm-up skips a cached feed');
  ctx.App.cache.clear();saved.clear();const late=[];ctx.readOnce=()=>new Promise(r=>late.push(r));ctx.warm();owner='three';late.forEach(r=>r([]));await new Promise(setImmediate);
  assert.equal(ctx.App.cache.has('feed:home')||saved.has('feed:home'),false,'warm-up for a previous account is dropped');
+ // Extra pages survive detail visits; expired views revalidate their full visible depth.
+ owner='paged';epoch=0;ctx.App.cache.clear();saved.clear();const paths=[];
+ const rows=Array.from({length:120},(_,i)=>({id:i+1,start_time:new Date(Date.UTC(2026,0,15,12)-i*3600000).toISOString()}));
+ ctx.readOnce=async path=>{paths.push(path);const q=new URL('https://example.test'+path).searchParams,limit=+q.get('limit');assert(limit<=50,'both feed APIs support this page size');if(path.startsWith('/api/feed/'))return [];return rows.filter(r=>!q.get('before')||r.start_time<q.get('before')).slice(0,limit);};
+ await ctx.feed({});assert.equal(ctx.App.cache.get('feed:home').data.rows.length,15);
+ await more.onclick();assert.equal(ctx.App.cache.get('feed:home').data.rows.length,30,'Show more updates the session cache');assert.equal(saved.get('feed:home').rows.length,15,'only the small opening page is persisted');
+ const beforeReturn=paths.length;await ctx.feed({});assert.equal(paths.length,beforeReturn,'fresh return uses every loaded card with no GET');
+ await more.onclick();await more.onclick();assert.equal(ctx.App.cache.get('feed:home').data.rows.length,60);
+ ctx.App.cache.get('feed:home').at=0;await ctx.feed({});assert.equal(ctx.App.cache.get('feed:home').data.rows.length,60,'stale return revalidates deeper than a single API page');assert.equal(saved.get('feed:home').rows.length,15);
+ const normalReads=ctx.readOnce,was=ctx.App.cache.get('feed:home'),latePages=[];ctx.readOnce=()=>new Promise(r=>latePages.push(r));const loading=more.onclick();epoch++;latePages.forEach(r=>r([]));await loading;assert.equal(ctx.App.cache.get('feed:home'),was,'invalidated pagination cannot overwrite a newer view');
+ assert.equal(more.disabled,false,'invalidated pagination still releases its button');
+ ctx.readOnce=normalReads;await more.onclick();assert.equal(ctx.App.cache.get('feed:home').data.rows.length,75,'a new revision can keep browsing after a reaction/edit');
+ // Cached Show more responds even while a slow first-page revalidation is pending.
+ ctx.App.cache.get('feed:home').at=0;const delayed=[];ctx.readOnce=path=>new Promise(resolve=>delayed.push({path,resolve}));
+ const opening=ctx.feed({});assert.equal(typeof more.onclick,'function');const loadingMore=more.onclick();assert.equal(delayed.length,4);
+ delayed[2].resolve(rows.slice(75,90));delayed[3].resolve([]);await loadingMore;assert.equal(ctx.App.cache.get('feed:home').data.rows.length,90);
+ delayed[0].resolve(rows.slice(0,50));delayed[1].resolve([]);await opening;assert.equal(ctx.App.cache.get('feed:home').data.rows.length,90,'a late first-page refresh cannot remove newly loaded cards');
+ // A saved opening view has the same metadata as a live first page, so unchanged
+ // records do not rebuild cards/maps just because older friends exist beyond it.
+ owner='saved';epoch=0;ctx.App.cache.clear();saved.clear();
+ ctx.readOnce=async path=>path.startsWith('/api/feed/')?rows.slice(90,105).map(r=>({...r,owner:{login:'fictional-friend'}})):rows.slice(0,15);
+ await ctx.feed({});ctx.App.cache.clear();draws=0;await ctx.feed({});assert.equal(draws,1,'unchanged saved opening view renders once, without a metadata-only rebuild');
  console.log('Feed: first load2 requests, warm return0, unchanged refresh1 render, late account response ignored; saved copy shows at once; warm-up fills once and ignores account changes');
 })().catch(e=>{console.error(e);process.exitCode=1;});

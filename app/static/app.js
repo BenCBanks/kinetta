@@ -479,9 +479,19 @@ function quickWeighIn() {
     };
   });
 }
+// The browser and router must not restore two different scroll positions.
+if(typeof history!=='undefined'&&'scrollRestoration' in history)history.scrollRestoration='manual';
+function pagePosition(key) {
+  const owner=readOwner(),previous=App.page;
+  if(!previous||previous.owner!==owner)App.scroll={};
+  else App.scroll[previous.key]=scrollY;
+  App.page={key,owner};
+  return App.scroll[key]||0;
+}
 function render() {
   if (!App.me) return;
   App.pageReady = false;
+  const key=location.pathname+location.search,targetY=pagePosition(key);
   const path = location.pathname.replace(/\/+$/, '') || '/me';
   const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
   const m = path.match(page.re) || [], activeTab = typeof page.tab === 'function' ? page.tab(...m.slice(1)) : page.tab;
@@ -496,12 +506,10 @@ function render() {
   cleanViews();
   const el = $('#page');
   if (typeof Track !== 'undefined') Track.sync();
-  const key = location.pathname + location.search;
   // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab fades it in.
   if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t)) el.classList.add('enter'); App.lastPath = location.pathname; }
   if (Native.syncPush) Native.syncPush();
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
-  const targetY=App.scroll[key]||0;
   let touched=false;const interactions=new AbortController();
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
   const result=page.fn(el,...m.slice(1));

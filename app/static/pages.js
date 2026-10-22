@@ -25,12 +25,12 @@ function postCard(a, {who = false, compact = false} = {}) {
   // Only the photo and the name open the person's profile (2026-10-16, Ben: the whole row did, so taps meant for the
   // activity landed on the profile); every other part of the card opens the activity (wireCheers → wireCardTaps).
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
-  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>${sportMark(a.sport)}`
-    : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}</small></span>`;
-  const n = (k) => (a[k] ? `<span class="num">${a[k]}</span>` : '');
-  const vis = a.visibility || 'me';
+  const vis = a.visibility || 'me',audience=theirs?'':` · ${esc(VIS_SHORT[vis])}`;
+  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(when(a.start_time))} · ${esc(kind)}${audience}</small></span>${sportMark(a.sport)}`
+    : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}${audience}</small></span>`;
   // the comment button opens the comments in a sheet from below, right here (2026-10-12); you can cheer your own activity too
-  const foot = reactionButtons(a.id,a)+`<button type="button" class="pf" data-talk="${a.id}" aria-label="Comments">${svg('comment')}${n('comments')}</button>`+(theirs?'':`<span class="pf-vis">${svg(vis==='me'?'lock':vis==='friends'?'people':'globe')}${esc(VIS_SHORT[vis])}</span>`);
+  const foot = reactionButtons(a.id,a)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num">${a.comments||0}</span></button>`+
+    (vis==='me'&&!theirs?'':`<button type="button" class="pf activity-share" data-share-activity="/activity/friends/${a.id}" aria-label="Share activity link">${svg('share')}</button>`);
   const compactHead = `<a class="post-heading" href="${href}">${sportMark(a.sport)}<div class="ph-txt"><small>${esc(when(a.start_time))}</small><h3 class="post-title">${esc(a.name)}</h3></div></a>`;
   return `<article class="card post${compact ? ' compact' : ''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${compact ? compactHead : head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     ${compact ? '' : `<h3 class="post-title">${esc(a.name)}</h3>`}
@@ -53,11 +53,13 @@ function wireCheers(box) {
   $$('[data-talk]', box).forEach((b) => b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
-      b.innerHTML = svg('comment') + (fresh.comments.length ? `<span class="num">${fresh.comments.length}</span>` : '');
+      b.innerHTML = svg('comment') + `<span class="num">${fresh.comments.length}</span>`;
+      b.setAttribute('aria-label',`Comments, ${fresh.comments.length}`);
       const group=b.closest('.post-ft')?.querySelector('[data-reaction-group]');group?._sync?.(fresh);
     });
   });
   $$('[data-reaction-group]',box).forEach(group=>wireReactionGroup(group,group.dataset.aid));
+  $$('[data-share-activity]',box).forEach(button=>button.onclick=()=>shareActivity(button.dataset.shareActivity));
 }
 // A tap anywhere on a card that isn't one of its own buttons or links opens the activity, and the card dips slightly
 // under the finger so the tap feels answered at once (2026-10-16). Links, Cheers, comments and photos keep their jobs.

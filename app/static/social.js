@@ -11,9 +11,9 @@ const reactionIcon = kind => kind==='strong'?'workout':kind==='applause'?'sparkl
 function reactionButtons(aid,s,detail=false){
   const selected=s.my_reaction??(s.cheered?'cheer':null),counts=s.reactions||{cheer:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0};
   return `<div class="activity-reactions" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS.map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
-    <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span>${REACTIONS.find(([k])=>k===selected)?.[1]||'Cheers'}</span></button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('down')}</button></div>
+    <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span class="num">${Object.values(counts).reduce((n,count)=>n+(+count||0),0)}</span></button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('down')}</button></div>
     <button type="button" class="pf reaction-count" aria-label="See who reacted" hidden></button>
-    <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="${label}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1">${svg(reactionIcon(kind))}<span>${label}</span></button>`).join('')}</div></div>`;
+    <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="${label}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1"><i class="reaction-badge" data-kind="${kind}">${svg(reactionIcon(kind))}</i><span>${label}</span></button>`).join('')}</div></div>`;
 }
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
@@ -34,16 +34,16 @@ function wireReactionGroup(group,aid,changed){
     const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight),above=r.top-p.height-8;
     picker.style.left=Math.max(12,Math.min(r.left,innerWidth-p.width-12))+'px';
     picker.style.top=Math.max(top+8,Math.min(above>=top+8?above:r.bottom+8,bottom-p.height-8))+'px';
-    if(focus)(options.find(b=>b.dataset.react===state.my_reaction)||options[0]).focus();
+    if(focus)(options.find(b=>b.dataset.react===state.my_reaction)||options[0]).focus({preventScroll:true});
   };
   const draw=()=>{
     if(!active())return;
     const selected=state.my_reaction,label=REACTIONS.find(([k])=>k===selected)?.[1]||'Cheers';
-    main.innerHTML=svg(reactionIcon(selected))+`<span>${label}</span>`;main.setAttribute('aria-pressed',String(!!selected));
-    main.setAttribute('aria-label',selected?`${label}. Tap to remove; hold to change`:'Cheers. Tap to send; hold to choose');
-    main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
     const used=REACTIONS.filter(([k])=>state.reactions[k]>0),total=used.reduce((n,[k])=>n+state.reactions[k],0);
-    count.hidden=!total;count.innerHTML=`<span class="reaction-icons">${used.map(([k])=>svg(reactionIcon(k))).join('')}</span><span class="num">${total}</span>`;
+    main.innerHTML=svg(reactionIcon(selected))+`<span class="num">${total}</span>`;main.dataset.kind=selected||'cheer';main.setAttribute('aria-pressed',String(!!selected));
+    main.setAttribute('aria-label',`${selected?label+'. Tap to remove; hold to change':'Cheers. Tap to send; hold to choose'}. ${total} reaction${total===1?'':'s'}`);
+    main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
+    count.hidden=!total;count.innerHTML=`<span class="reaction-icons" aria-hidden="true">${used.map(([k])=>`<i class="reaction-badge" data-kind="${k}">${svg(reactionIcon(k))}</i>`).join('')}</span>`;
     count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}. See who reacted`);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
@@ -76,7 +76,7 @@ function wireReactionGroup(group,aid,changed){
     if(['ArrowRight','ArrowDown'].includes(e.key))next=(i+1)%options.length;
     if(['ArrowLeft','ArrowUp'].includes(e.key))next=(i+options.length-1)%options.length;
     if(e.key==='Home')next=0;if(e.key==='End')next=options.length-1;
-    if(next!==null){e.preventDefault();options[next].focus();}
+    if(next!==null){e.preventDefault();options[next].focus({preventScroll:true});}
     if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close(true);}
     if(e.key==='Tab')close(true);
   });
@@ -142,6 +142,16 @@ function cheerGesture(button, toggle, show) {
   viewResources.set(button, clear);
 }
 
+function shareActivity(href) {
+  const owner=readOwner(),url=`${appBase()}${href}`,active=()=>owner===readOwner();
+  const copy=()=>{if(!active())return;sheet('Share activity',`<p>Only people in this activity’s audience can open this link. They need to sign in to Kinetta.</p><label>Activity link<input readonly value="${esc(url)}"></label><button type="button" class="primary wide" data-copy-activity>Copy link</button><p class="small muted" data-copy-status role="status"></p>`,box=>{
+    const input=$('input',box);input.onclick=()=>input.select();
+    $('[data-copy-activity]',box).onclick=async()=>{if(!active())return;try{await navigator.clipboard.writeText(url);if(active()&&box.isConnected)$('[data-copy-status]',box).textContent='Link copied';}catch{if(active()&&box.isConnected){input.select();$('[data-copy-status]',box).textContent='Select and copy the link above.';}}};
+  });};
+  if(navigator.share)navigator.share({title:'Activity on Kinetta',url}).catch(error=>{if(error.name!=='AbortError')copy();});
+  else copy();
+}
+
 function activityCheers(aid) {
   const owner=readOwner();
   sheet('Reactions', '<div class="cheers-list" aria-live="polite">Loading…</div>', async (box) => {
@@ -181,20 +191,25 @@ const Social = {
 // Two lists merged by start time. Each page asks both for the next N before the oldest card shown, keeps the newest N,
 // and the rest comes again on the next page, so nothing is skipped or shown twice.
 const FEED_N = 15;
-async function feedPage(before) {
+async function feedPage(before,size=FEED_N) {
   const b = before ? '&before=' + encodeURIComponent(before) : '';
-  const [mine, theirs] = await Promise.all([readOnce(`/api/activities?limit=${FEED_N}${b}`), readOnce(`/api/feed/friends?limit=${FEED_N}${b}`)]);
+  const [mine, theirs] = await Promise.all([readOnce(`/api/activities?limit=${size}${b}`), readOnce(`/api/feed/friends?limit=${size}${b}`)]);
   const all = mine.concat(theirs).sort((x, y) => new Date(y.start_time) - new Date(x.start_time));
   // the next page asks for "older than the last card", so activities sharing the last card's start time all go on this page
-  let n = Math.min(FEED_N, all.length);
+  let n = Math.min(size, all.length);
   while (n && n < all.length && +new Date(all[n].start_time) === +new Date(all[n - 1].start_time)) n++;
-  return {rows: all.slice(0, n), more: all.length > n || mine.length === FEED_N || theirs.length === FEED_N, friends: theirs.length};
+  return {rows: all.slice(0, n), more: all.length > n || mine.length === size || theirs.length === size, friends: all.slice(0,n).filter(a=>a.owner).length};
+}
+// Persist only a small opening view; deeper browsing stays in this account's memory cache.
+function keepFeed(pg){
+  const rows=pg.rows.slice(0,FEED_N);
+  keep('feed:home',{rows,more:pg.more||pg.rows.length>rows.length,friends:rows.filter(a=>a.owner).length});
 }
 // The feed's first page, fetched quietly after the app opens (see warmTabs in app.js).
 function warmFeed() {
   if (App.cache.has('feed:home')) return;
   const account = readOwner(), epoch = readEpoch('feed:home');
-  feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keep('feed:home', pg); } }).catch(() => {});
+  feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg); } }).catch(() => {});
 }
 async function homeFeed(el) {
   el.innerHTML = `${actTop(false, true)}${whoseSeg('')}
@@ -215,17 +230,36 @@ async function homeFeed(el) {
   const account = readOwner(), epoch = readEpoch('feed:home');
   // A fresh cached feed already contains the current cards/maps. Avoid fetching and rebuilding it.
   const fresh = hit && Date.now() - hit.at < 15000;
-  try { if (!fresh) { const pg = await feedPage(); if (account !== readOwner() || epoch !== readEpoch('feed:home')) return; App.cache.set('feed:home', {data: pg, at: Date.now()}); keep('feed:home', pg); if (list.isConnected && (!hit || JSON.stringify(hit.data) !== JSON.stringify(pg))) draw(pg); } }
-  catch (x) { if (!hit) throw x; if(typeof PageRefresh!=='undefined')PageRefresh.failed(x); }
+  let pageRevision=0;
+  const active=()=>account===readOwner()&&list.isConnected;
+  const current=()=>active()&&epoch===readEpoch('feed:home')&&pageRevision===0;
   more.onclick = async () => {
+    if(more.disabled||!active()||!items.length)return;
+    const revision=readEpoch('feed:home');pageRevision++;
     more.disabled = true; more.textContent = 'Loading…';
     try {
       const pg = await feedPage(items[items.length - 1].start_time);
+      if(!active()||revision!==readEpoch('feed:home'))return;
       items = items.concat(pg.rows);
+      App.cache.set('feed:home',{data:{rows:items,more:pg.more,friends:items.filter(a=>a.owner).length},at:App.cache.get('feed:home')?.at||0});
       list.insertAdjacentHTML('beforeend', pg.rows.map((a) => postCard(a, {who: true})).join('')); more.hidden = !pg.more; feedMaps(list); wireCheers(list);
-    } catch (x) { toast(x.message); }
-    more.disabled = false; more.textContent = 'Show more';
+    } catch (x) { if(active()&&revision===readEpoch('feed:home'))toast(x.message); }
+    finally { more.disabled = false; more.textContent = 'Show more'; }
   };
+  try { if (!fresh) {
+    // Revalidate the depth already browsed, so a detail visit never drops loaded pages.
+    const count=Math.max(FEED_N,hit?.data.rows.length||0);
+    let pg=await feedPage(undefined,Math.min(50,count));
+    while(current()&&pg.more&&pg.rows.length<count){
+      const next=await feedPage(pg.rows.at(-1).start_time,Math.min(50,count-pg.rows.length));
+      pg={rows:pg.rows.concat(next.rows),more:next.more&&!!next.rows.length,friends:pg.friends+next.friends};
+    }
+    if(!current())return;
+    App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg);
+    if(!hit||JSON.stringify(hit.data)!==JSON.stringify(pg))draw(pg);
+  } }
+  catch (x) { if (!hit) throw x; if(typeof PageRefresh!=='undefined')PageRefresh.failed(x); }
+
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
@@ -282,7 +316,7 @@ function sharedCharts(box, a) {
 
 // The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
-const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf" data-ttalk aria-label="Comments">${svg('comment')}<span class="num">${s.comments.length||''}</span></button>`;
+const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num">${s.comments.length}</span></button>`;
 function wireTalk(box,aid,s,open){
   if(!box)return;const owner=readOwner();
   const pile=box.closest('.d-title')&&$('.cpile',box.closest('.d-title'));

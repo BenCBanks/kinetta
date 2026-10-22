@@ -74,3 +74,17 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  more={classList:{add(){throw Error('Totals should select its existing tab')}},setAttribute(){}};const el={};c.pHead(el,'totals','');assert(!el.innerHTML.includes('progress-view-title'));
  console.log('navigation deeper Progress views: stable More, named current view, active indicator, filters and chooser remain available PASS');
 }
+
+// The actual router position helper: Back/Forward and same-page refresh retain place per account.
+{
+ let owner='first';const c={App:{scroll:{}},scrollY:0,readOwner:()=>owner};vm.createContext(c);
+ vm.runInContext(app.slice(app.indexOf('function pagePosition'),app.indexOf('function render()')),c);
+ assert.equal(c.pagePosition('/activity'),0);c.scrollY=12000;assert.equal(c.pagePosition('/activity/7'),0);
+ c.scrollY=900;assert.equal(c.pagePosition('/activity'),12000,'Back restores the list');
+ assert.equal(c.App.scroll['/activity/7'],900,'Back remembers the outgoing detail for Forward');
+ c.scrollY=12500;assert.equal(c.pagePosition('/activity/7'),900,'Forward restores detail');
+ c.scrollY=950;assert.equal(c.pagePosition('/activity/7'),950,'in-place refresh keeps the current position');
+ owner='second';assert.equal(c.pagePosition('/activity'),0);assert.equal(Object.keys(c.App.scroll).length,0,'a new account never inherits scroll positions');
+ assert(app.includes("history.scrollRestoration='manual'"),'the router owns restoration instead of racing browser defaults');
+ console.log('Navigation positions: Back, Forward, in-place refresh and account isolation PASS');
+}
