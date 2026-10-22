@@ -1137,6 +1137,7 @@ and header controls remain available during loading.
 Sheets use a short entrance and160ms exit; closing releases keyboard/drag handlers and focus immediately, while
 only an inert, inaccessible visual shell remains for the exit. Start from the current position and opacity when
 interrupted during opening or a drag. Rapid replacement removes that shell and cannot restore old focus later.
+A new sheet dismisses an old plain notice that would cover it, while notices offering Undo remain available.
 Reduced motion removes the sheet immediately. Never translate the whole page: fixed and sticky composers must
 retain their existing viewport and keyboard behaviour. Browser geometry, delayed-network checks and animation
 samples are evidence for the tested flows; physical iPhone keyboard/scroll/frame pacing still needs a device.

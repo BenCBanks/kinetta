@@ -396,6 +396,8 @@ function toast(msg, undo) {
 function sheet(title, html, onMount) {
   $$('.scrim.is-closing').forEach(el => el.remove());
   cleanViews();
+  const notice = $('#toast');
+  if (notice && !$('button', notice)) notice.classList.remove('on'); // an old hint must not cover the new sheet; retain Undo
   const prev = document.activeElement;
   const s = document.createElement('div'); s.className = 'scrim';
   s.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
