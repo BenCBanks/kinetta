@@ -1565,7 +1565,9 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .seven-bars .mileage-column { height: 110px; max-width: 32px; }
 .seven-bars .mileage-day small { font-size: .625rem; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
 .seven-bars .mileage-day { padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx2); }
-.seven-bars .mileage-day.is-inspected { background: var(--accent2); box-shadow: inset 0 0 0 1px var(--accent); }
+.seven-bars .mileage-day.is-inspected { background: transparent; box-shadow: none; }
+.seven-bars .mileage-day.is-inspected small { color:var(--accent); font-weight:750; text-decoration:underline; text-underline-offset:3px; }
+.seven-bars .mileage-day.is-inspected .mileage-value { color:var(--accent); font-weight:750; }
 .seven-bars .current-day small { color: var(--accent); font-weight: 750; }
 .mileage-range { text-align: right; margin: 8px 0 0; }
 .mileage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -2321,8 +2323,12 @@ button.thread-food:active { opacity: .7; }
 .me-shortcuts a[href="/me/friends"] svg { color: var(--s5); }
 
 /* Sport distance: segments sum to the original day/week total, with a neutral zero baseline. */
-.mileage-stack { width:100%; height:calc(var(--h,0) * 100%); min-height:2px; display:flex; flex-direction:column-reverse; border-radius:4px 4px 0 0; overflow:hidden; }
-.seven-bars .mileage-column .mileage-segment { height:calc(var(--w,0) * 100%); min-height:0; border-radius:0; background:var(--sport-color,var(--other)); }
+.seven-bars .mileage-column { position:relative; margin-top:20px; }
+.mileage-value { position:absolute; left:50%; bottom:calc(var(--h,0) * 100% + 5px); transform:translateX(-50%); font-size:.625rem; line-height:1.3; white-space:nowrap; color:var(--tx2); }
+/* A minimum height would exaggerate a short day's total. Flex weights keep each sport proportional. */
+.mileage-stack { width:100%; height:calc(var(--h,0) * 100%); min-height:0; display:flex; flex-direction:column-reverse; border-radius:3px 3px 0 0; overflow:hidden; }
+.seven-bars .mileage-column .mileage-segment { flex:var(--w,0) 0 0px; height:auto; min-height:0; border-radius:0; background:var(--sport-color,var(--other)); }
+.mileage-segment + .mileage-segment { box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--card) 70%,transparent); }
 .seven-bars .mileage-column .mileage-empty { height:2px; min-height:2px; background:var(--line); }
 [data-sport="run"] { --sport-color:var(--run); } [data-sport="ride"] { --sport-color:var(--ride); }
 [data-sport="walk"] { --sport-color:var(--walk); } [data-sport="hike"] { --sport-color:var(--hike); }

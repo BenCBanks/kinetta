@@ -31,6 +31,11 @@ assert.match(stacked.box.html,/data-sport="run" data-w="0.3"/);assert.match(stac
 assert.match(stacked.box.html,/3-day activity streak/);assert.match(stacked.box.html,/2-week activity streak/);
 stacked.box.buttons[2].onclick();assert.match(stacked.readout.textContent,/Run 3.0 km, Ride 6.0 km, Walk 1.0 km/);
 assert.match(stacked.box.html,/sport-legend/);assert.match(stacked.box.html,/mileage-empty/);
+assert.match(stacked.box.html,/<span class="mileage-value">10.0<\/span>/,'visible total belongs to the complete stack');
+assert.equal((stacked.box.html.match(/class="mileage-value"/g)||[]).length,1,'empty and future days have no invented value');
+const shortDay=render({today:'2026-10-20',days:[{d:'2026-10-19',distance_m:12500,by_sport:{ride:12500}},{d:'2026-10-20',distance_m:10,by_sport:{run:7.5,walk:2.5}}]});
+assert.match(shortDay.box.html,/class="mileage-column" data-h="0.0008"/,'short days retain their true fraction of the common scale');
+assert.match(shortDay.box.html,/<span class="mileage-value"><0.1<\/span>/,'a positive distance below rounding is not labelled zero');
 const untrusted=render({today:'2026-10-20',days:[{d:'2026-10-20',distance_m:2000,by_sport:{run:5000}}]});
 assert(!untrusted.box.html.includes('data-sport="run"'),'a malformed partial breakdown never exaggerates the total');assert(untrusted.box.html.includes('data-sport="total"'));
 console.log('Stacked sport bars: exact proportions/readout/legend, zero baseline, honest old/invalid payload fallback and labelled streaks PASS');

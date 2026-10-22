@@ -37,12 +37,17 @@ AGENTS.md and CLAUDE.md link here; the shared DesignPrinciples agent guide conta
 Color must explain something. Running uses evergreen, cycling blue, walking sage, swimming teal, hiking earth,
 rowing violet and lifting olive. Protein is blue, carbs amber and fat clay. Full light/dark values are in
 the JSON. Maintain these meanings across maps, charts, icons and legends; do not introduce random colorful tiles.
-Owner colour refresh, 22 October 2026: keep the ivory/forest surfaces and existing layout, with more saturated
+Owner colour refresh, 22 October 2026: keep the ivory/forest surfaces and existing layout, with clearer
 sport and chart colours, a clearer evergreen action colour, and tinted selected segments. Use the same sport mark
 on Today’s latest activity, feed, profiles and detail. Nutrition labels always show matching blue protein, amber
 carbs and clay fat dots, even without a target/bar; retain the names and numbers so colour is never the only cue.
 Plain shortcut icons use blue for Fitness, amber for Records and violet for Friends; keep settings rows neutral.
 Preserve the thin full-width divider above feed social actions in both themes, including cards without media.
+Owner feedback later on 22 October rejects the vivid blue. Cycling, long runs, protein, Fitness and easy-zone blue
+now share a restrained steel shade (`#4A6B7A` light / `#92AFBD` dark). Distance stacks use the same scale for every
+sport and day, without a minimum positive height; short days must not be exaggerated. Show each nonzero total
+above its bar, retain the labelled breakdown on selection, and keep segment edges thin without adding gaps.
+Selection emphasizes the date and total, not a full-height tinted rectangle that could be mistaken for another bar.
 
 Errors, deletion and over-target warnings remain semantic; removing the ruby brand does not remove useful warnings.
 Initials avatars use brand-soft surfaces and brand text; notification counts use the readable action/on-action pair.
