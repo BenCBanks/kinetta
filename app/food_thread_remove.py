@@ -59,5 +59,3 @@ def remove_food(c,uid,message,body):
         result.update(kind='preview',pending_count=0,can_resolve=False,text='All foods removed. Nothing was logged.')
         return food_thread.finish_reply(c,uid,message,result)
     return C.write(c,uid,message,result)
-
-
