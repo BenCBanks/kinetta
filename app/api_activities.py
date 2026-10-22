@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from . import activities, analysis, coach, db, importer, plans, reactions
 from .api_lifts import FEED_SQL as LIFTS_SQL, plan_of as lift_plan, copy_into as copy_lift
 from .auth import current_user
-from .activity_chart import sunday, weekly_distances
+from .activity_chart import sunday, weekly_distances, distance_days
 
 router = APIRouter(prefix='/api')
 DATA = os.environ.get('FIT_DATA', '/data')
@@ -579,11 +579,12 @@ def stats(user=Depends(current_user)):
         today = dt.datetime.now(ZoneInfo(tz)).date()
         chart_start = sunday(today) - dt.timedelta(weeks=6)
         # this week day by day (Today's strip, 2026-10-10): distance + time per day, main sport by time
-        week_days = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sum(distance_m) AS distance_m, sum(moving_s) AS moving_s,
-                                     (array_agg(sport ORDER BY moving_s DESC NULLS LAST))[1] AS sport
+        groups = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sport, sum(distance_m) AS distance_m, sum(moving_s) AS moving_s
                                    FROM activities WHERE user_id = %s AND start_time AT TIME ZONE %s >= %s
                                    AND start_time AT TIME ZONE %s < %s
-                                   GROUP BY 1""", (tz, user['id'], tz, chart_start, tz, today + dt.timedelta(days=1))).fetchall()
+                                   GROUP BY 1,2""", (tz, user['id'], tz, chart_start, tz, today + dt.timedelta(days=1))).fetchall()
+        day_totals = distance_days(groups)
+        week_days = [{'d': day, **values} for day, values in day_totals.items()]
     streak, d = 0, today if days and days[0] == today else today - dt.timedelta(days=1)
     s = set(days)
     while d in s: streak += 1; d -= dt.timedelta(days=1)
@@ -595,8 +596,8 @@ def stats(user=Depends(current_user)):
     strip = [{'d': (mon + dt.timedelta(days=i)).isoformat(), 'distance_m': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('distance_m'),
               'moving_s': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('moving_s'), 'sport': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('sport'),
               'today': mon + dt.timedelta(days=i) == today} for i in range(7)]
-    recent = [{'d': (today - dt.timedelta(days=i)).isoformat(), 'distance_m': (wd_by.get(today - dt.timedelta(days=i)) or {}).get('distance_m', 0), 'today': i == 0} for i in reversed(range(14))]
-    return {'chart_today': today, 'chart_weeks': weekly_distances(today, {r['d']: r['distance_m'] for r in week_days}), 'recent_days': recent, 'weeks': weeks, 'years': years, 'day_streak': streak, 'week_streak': wstreak, 'total': total['n'], 'first': total['first'], 'week_days': strip}
+    recent = [{'d': (today - dt.timedelta(days=i)).isoformat(), 'distance_m': (wd_by.get(today - dt.timedelta(days=i)) or {}).get('distance_m', 0), 'today': i == 0, 'by_sport': (wd_by.get(today - dt.timedelta(days=i)) or {}).get('by_sport', {})} for i in reversed(range(14))]
+    return {'chart_today': today, 'chart_weeks': weekly_distances(today, {r['d']: r['distance_m'] for r in week_days}, {d: v['by_sport'] for d, v in day_totals.items()}), 'recent_days': recent, 'weeks': weeks, 'years': years, 'day_streak': streak, 'week_streak': wstreak, 'total': total['n'], 'first': total['first'], 'week_days': strip}
 
 
 @router.get('/calendar')

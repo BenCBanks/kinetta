@@ -32,11 +32,11 @@ def blend(foreground, background, amount):
 checks=0
 for theme in ('light','dark'):
     p=tokens[theme]
-    pairs=[(fg,bg,4.5) for fg in ('text','text-secondary','text-muted','brand','error','warning','success')
+    pairs=[(fg,bg,4.5) for fg in ('text','text-secondary','text-muted','brand','error','warning','success','nutrition','achievement')
            for bg in ('canvas','surface','soft','brand-soft')]
     pairs += [('on-action','action',4.5),('on-error','error',4.5)]
     pairs += [(fg,bg,3) for fg in ('outline','run','ride','walk','hike','swim','row','ski','workout','other',
-                                  'series-1','series-2','series-3','series-4','series-5')
+                                  'series-1','series-2','series-3','series-4','series-5','zone-1','zone-2','zone-3','zone-4','zone-5','workout-hard')
               for bg in ('canvas','surface','soft')]
     for fg,bg,minimum in pairs:
         ratio=contrast(p[fg],p[bg]);checks+=1
@@ -46,6 +46,13 @@ for theme in ('light','dark'):
             ink=blend(p[sport],p['text'],.85);surface=blend(p[sport],p[bg],.18)
             ratio=contrast(ink,surface);checks+=1
             if ratio<3:sys.exit(f'{theme}: {sport} mark contrast {ratio:.2f} below 3')
+    for ink in ('nutrition','achievement'):
+        for amount in (.1,.13,.16):
+            ratio=contrast(p[ink],blend(p[ink],p['surface'],amount));checks+=1
+            if ratio<4.5:sys.exit(f'{theme}: {ink} tint contrast {ratio:.2f} below 4.5')
+    for macro in ('series-1','series-2','series-4'):
+        ratio=contrast(blend(p[macro],p['text'],.75),p['surface']);checks+=1
+        if ratio<4.5:sys.exit(f'{theme}: {macro} label contrast {ratio:.2f} below 4.5')
     for macro in ('series-1','series-2','series-4'):
         ratio=contrast(p[macro],blend(p[macro],p['surface'],.14));checks+=1
         if ratio<3:sys.exit(f'{theme}: {macro} macro track contrast {ratio:.2f} below 3')

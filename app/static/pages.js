@@ -49,15 +49,16 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
 // Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment
 // button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
+  cleanViews();
   wireActivityMedia(box); wireCardTaps(box);
-  $$('[data-talk]', box).forEach((b) => b.onclick = () => {
+  $$('[data-talk]', box).forEach((b) => {SocialData.warm(b,b.dataset.talk);b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
-      b.innerHTML = svg('comment') + `<span class="num">${fresh.comments.length}</span>`;
+      $('.num',b).textContent = fresh.comments.length;
       b.setAttribute('aria-label',`Comments, ${fresh.comments.length}`);
       const group=b.closest('.post-ft')?.querySelector('[data-reaction-group]');group?._sync?.(fresh);
     });
-  });
+  };});
   $$('[data-reaction-group]',box).forEach(group=>wireReactionGroup(group,group.dataset.aid));
   $$('[data-share-activity]',box).forEach(button=>button.onclick=()=>shareActivity(button.dataset.shareActivity));
 }
@@ -100,23 +101,50 @@ function mileagePeriods(series) {
   const byDay = new Map(days.map(r => [r.d, r]));
   const week = Array.from({length:7}, (_, i) => {
     const date = new Date(start); date.setUTCDate(start.getUTCDate() + i); const d = date.toISOString().slice(0, 10);
-    return {d, distance_m: d > today ? 0 : byDay.get(d)?.distance_m || 0, today: d === today, future: d > today};
+    return {d, distance_m: d > today ? 0 : byDay.get(d)?.distance_m || 0, by_sport: d > today ? {} : byDay.get(d)?.by_sport, today: d === today, future: d > today};
   });
   return {days: week, weeks: Array.isArray(series.weeks) && series.weeks.length === 7 ? series.weeks : null};
 }
 
+const DISTANCE_SPORTS = ['run','ride','walk','hike','swim','row','ski','workout','other'];
+function mileageSegments(row) {
+  const total = +row.distance_m || 0;
+  if (!total) return [];
+  const parts = DISTANCE_SPORTS.map(sport => [sport, +(row.by_sport?.[sport] || 0)]).filter(([,value]) => value > 0);
+  // Old cached/server responses stay honest: a neutral total rather than a guessed sport.
+  return Math.abs(parts.reduce((n,[,v])=>n+v,0)-total) < .01 ? parts : [['total',total]];
+}
+const mileageSportName = sport => sport === 'total' ? 'Distance' : SPORT_NAMES[sport] || 'Other';
+function mileageScale(rows) {
+  const unit = U.du() === 'mi' ? 1609.344 : 1000;
+  const raw = Math.max(0, ...rows.map(row => +row.distance_m || 0)) / unit;
+  const largest = raw ? Math.max(.1,raw) : 0;
+  const step = largest ? 10 ** Math.floor(Math.log10(largest)) / 2 : .5;
+  const top = largest ? Math.ceil(largest / step) * step : 1;
+  return {max:top * unit, top:parseFloat(top.toFixed(3)), middle:parseFloat((top / 2).toFixed(3))};
+}
 function mileageChart(box, series, period = 'days') {
   const periods = mileagePeriods(series), weekly = period === 'weeks' && !!periods.weeks;
-  const rows = weekly ? periods.weeks : periods.days, max = Math.max(1, ...rows.map((r) => +r.distance_m || 0));
+  const rows = weekly ? periods.weeks : periods.days, scale = mileageScale(rows), max = scale.max;
   const total = rows.reduce((n, r) => n + (+r.distance_m || 0), 0);
   const dateLabel = (d) => fdate(d + 'T12:00', {month:'short',day:'numeric'});
   const range = `${dateLabel(rows[0].d)} – ${dateLabel(weekly ? rows.at(-1).end : rows.at(-1).d)}`;
-  const labels = rows.map((r) => `${weekly ? `${dateLabel(r.d)} – ${dateLabel(r.end)}${r.today ? ' (so far)' : ''}` : fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${r.future ? 'Not yet' : `${U.dist(r.distance_m || 0, 1)} ${U.du()}`}`);
+  const used = [...new Set(rows.flatMap(r=>mileageSegments(r).map(([sport])=>sport)))];
+  const labels = rows.map((r) => `${weekly ? `${dateLabel(r.d)} – ${dateLabel(r.end)}${r.today ? ' (so far)' : ''}` : fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${r.future ? 'Not yet' : `${U.dist(r.distance_m || 0, 1)} ${U.du()}`}${r.by_sport && r.distance_m ? ' · '+mileageSegments(r).map(([sport,value])=>`${mileageSportName(sport)} ${U.dist(value,1)} ${U.du()}`).join(', ') : ''}`);
   box.innerHTML = `<div class="mileage-heading"><h2>${weekly ? 'Last 7 weeks' : 'This week'}</h2><div class="mileage-toggle" role="group" aria-label="Distance chart period"><button type="button" data-mileage-period="days" aria-pressed="${!weekly}">Days</button><button type="button" data-mileage-period="weeks" aria-pressed="${weekly}"${periods.weeks ? '' : ' disabled title="Weekly distance needs a server update"'}>Weeks</button></div></div><p class="mileage-total num"><b>${U.dist(total, 1)}</b> ${U.du()}</p>
-    <div class="mileage-bars seven-bars" role="group" aria-label="${weekly ? 'Weekly distance, weeks start Sunday' : 'Daily distance, Sunday to Saturday'}">${rows.map((r, i) => {
+    <div class="mileage-plot"><svg class="mileage-axis" viewBox="0 0 32 128" aria-hidden="true" focusable="false"><text x="28" y="5" text-anchor="end">${U.du()}</text><text x="28" y="18" text-anchor="end" dominant-baseline="middle">${scale.top}</text><text x="28" y="73" text-anchor="end" dominant-baseline="middle">${scale.middle}</text><text x="28" y="128" text-anchor="end" dominant-baseline="middle">0</text></svg><div class="mileage-bars seven-bars" data-scale-max="${max}" role="group" aria-label="${weekly ? 'Weekly distance, weeks start Sunday' : 'Daily distance, Sunday to Saturday'}; scale 0 to ${scale.top} ${U.du()}"><svg class="mileage-grid" viewBox="0 0 1 128" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 18H1M0 73H1M0 128H1"/></svg>${rows.map((r, i) => {
       const date = new Date(r.d + 'T12:00');
-      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><span class="mileage-column" aria-hidden="true"><i data-h="${Math.max(.015, (+r.distance_m || 0) / max)}"></i></span><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
-    }).join('')}</div>
+      const total = +r.distance_m || 0, top = 128 - total / max * 110, value = U.dist(total, 1);
+      let bottom = 128;
+      const segments = mileageSegments(r).map(([sport, distance]) => {
+        const height = distance / max * 110; bottom -= height;
+        return `<rect class="mileage-segment" data-sport="${sport}" x="0" y="${bottom}" width="32" height="${height}"/>`;
+      }).join('');
+      // All bars use one coordinate scale; no nested percentage heights or minimums to distort a stack.
+      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><svg class="mileage-column" viewBox="0 0 32 128" preserveAspectRatio="none" aria-hidden="true" focusable="false">${total ? `<g class="mileage-stack">${segments}</g><text class="mileage-value" x="16" y="${top - 5}" text-anchor="middle">${esc(parseFloat(value) === 0 ? '<0.1' : value)}</text>` : '<rect class="mileage-empty" x="0" y="127" width="32" height="1"/>'}</svg><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
+    }).join('')}</div></div>
+    ${used.length ? `<div class="sport-legend" aria-label="Distance by sport">${used.map(sport=>`<span><i class="sport-swatch" data-sport="${sport}" aria-hidden="true"></i>${esc(mileageSportName(sport))}</span>`).join('')}</div>` : ''}
+    ${series.streaks ? `<div class="achievement-row">${series.streaks.days>1?`<span class="achievement">${svg('flame')}${series.streaks.days}-day activity streak</span>`:''}${series.streaks.weeks>1?`<span class="achievement">${svg('trophy')}${series.streaks.weeks}-week activity streak</span>`:''}</div>` : ''}
     <p class="small muted mileage-range" role="status" aria-live="polite" aria-atomic="true">${esc(range)}</p>
     ${total ? '' : `<p class="small muted">No distance recorded ${weekly ? 'in these weeks' : 'this week'}. Timed activities still appear below.</p>`}`;
   box.querySelectorAll('[data-mileage-period]').forEach(button => button.onclick = () => {
@@ -236,19 +264,33 @@ async function meOverview(el) {
   // A simple landing pad (owner decisions 2026-10-18): high-level stats, then one row of icon shortcuts to everything
   // else; the 14-day chart and latest activity lead. Food, the weekly check-in and the food & training week appear only
   // once something is logged today. Your day shows only when it has something in it.
+  // Show the chart as soon as it arrives. Reveal the conditional day and its actions together, so a late
+  // plan/food/check-in cannot insert itself above an already tappable shortcut. Cached first draws release this
+  // gate immediately; background revalidation and unrelated fitness/friends reads never hold it open.
+  const page = el.closest('#page'), waiting = new Set(['chart', 'latest', 'plan', 'food', 'checkin']);
+  page.dataset.homeLoading = '';
+  const ready = key => {
+    waiting.delete(key);
+    if (!waiting.size && el.isConnected) { delete page.dataset.homeLoading; $('#t-loading', el)?.remove(); }
+  };
+  const tracked = (key, promise) => promise.catch(error => {
+    if (key === 'chart' && el.isConnected) $('#t-week', el).innerHTML = '<p class="small muted">Weekly activity could not load.</p>';
+    throw error;
+  }).finally(() => ready(key));
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
-    <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
-    <div id="t-last"></div>
+    <section id="t-week" aria-label="Last 14 days"><div class="card mileage-loading" aria-hidden="true">${skel(1)}</div></section>
+    <div id="t-loading" role="status"><p class="small muted">Loading your day…</p>${skel(1)}</div>
+    <div id="t-content"><div id="t-last"></div>
     <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
     <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => { const waiting = href === '/me/friends' && App.me.friend_requests;
       return `<a href="${href}"${waiting ? ` aria-label="${label}, ${App.me.friend_requests} waiting"` : ''}>${svg(ico)}<span>${label}</span>${waiting ? `<b class="badge alert">${App.me.friend_requests}</b>` : ''}</a>`; }).join('')}</nav>
     <div id="t-combined-week"></div><div id="t-friends"></div>
-    <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
+    <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
   // Your day appears only when the plan or food card (or a pending check-in) has something to show.
   const agenda = () => { const box = $('.me-agenda', el); if (box) box.hidden = !['#t-plan', '#t-food', '#t-checkin'].some(id => $(id, el)?.innerHTML.trim()); };
-  planCard($('#t-plan', el)).then(agenda).catch(() => {});
+  tracked('plan', planCard($('#t-plan', el), {onReady: () => { agenda(); ready('plan'); }})).then(agenda).catch(() => {});
   let foodHistory=null,activityHistory=null,healthConnected=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null)return;
@@ -256,14 +298,14 @@ async function meOverview(el) {
     $('#t-setup', el).innerHTML = getStarted(healthConnected, activityHistory||foodHistory) +
       (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
   };
-  todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
-    agenda();
-    if(!loggedToday||!el.isConnected)return;
-    weeklyCheckinCard($('#t-checkin',el),{home:true}).then(agenda);
+  tracked('food', todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
+    agenda(); ready('food');
+    if(!loggedToday||!el.isConnected){ ready('checkin'); return; }
+    tracked('checkin', weeklyCheckinCard($('#t-checkin',el),{home:true,onReady:()=>{agenda();ready('checkin');}})).then(agenda);
     combinedWeek($('#t-combined-week',el));
-  }}).catch(() => {
+  }})).catch(() => {
     if (!el.isConnected) return;
-    foodHistory=false;drawSetup();
+    foodHistory=false;drawSetup();ready('checkin');
     // Only food users see a failure here; for anyone else the food card would have been empty anyway.
     if (!App.me.food_user && !App.me.kcal_target) return;
     $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="ghost wide" id="tf-retry">Try again</button></div>';agenda();
@@ -296,19 +338,21 @@ async function meOverview(el) {
       });
   }).catch(() => {});
   const overviewLoads = await Promise.allSettled([
-    load('/api/activities?limit=3', (d) => {
+    tracked('latest', load('/api/activities?limit=3', (d) => {
       if (!el.isConnected) return;
       $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}">${sportMark(d[0].sport)}<span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
+      ready('latest');
       Promise.resolve(Native.on ? (Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()) : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
         activityHistory=!!d.length;healthConnected=connected;drawSetup();
       });
-    }),
-    load('/api/stats', (s) => {
+    })),
+    tracked('chart', load('/api/stats', (s) => {
       if (!el.isConnected) return;
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
-      mileageChart($('#me-distance', el), {days:s.recent_days || [], today:s.chart_today, weeks:s.chart_weeks});
-    }),
+      mileageChart($('#me-distance', el), {days:s.recent_days || [], today:s.chart_today, weeks:s.chart_weeks,streaks:{days:s.day_streak,weeks:s.week_streak}});
+      ready('chart');
+    })),
     load('/api/fitness?days=60', (f) => {
       if (!el.isConnected) return;
       const last = f.days[f.days.length - 1];
@@ -341,8 +385,8 @@ function goalFmt(metric, v) {
 function goalRow(g) {
   const pct = Math.min(1, g.value / g.target);
   const what = `${g.metric === 'calories' ? 'Calories burned' : g.sport ? SPORT_NAMES[g.sport] : 'All'}${g.metric === 'calories' && g.sport ? ` (${SPORT_NAMES[g.sport].toLowerCase()})` : ''} · ${g.period === 'day' ? 'today' : 'this ' + g.period}`;
-  return `<div class="goal"><div class="top2"><b>${esc(what)}</b><span class="num">${esc(goalFmt(g.metric, g.value))} / ${esc(goalFmt(g.metric, g.target))}</span></div>
-    <div class="track"><div class="bar" data-w="${pct.toFixed(3)}"></div></div></div>`;
+  return `<div class="goal${pct >= 1 ? ' reached' : ''}"><div class="top2"><b>${esc(what)}</b><span class="num">${esc(goalFmt(g.metric, g.value))} / ${esc(goalFmt(g.metric, g.target))}</span></div>
+    <div class="track"><div class="bar" data-w="${pct.toFixed(3)}"></div></div>${pct>=1?`<span class="achievement">${svg('trophy')}Goal reached</span>`:''}</div>`;
 }
 // apply data-w widths through CSS custom properties (no inline style attributes allowed)
 new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProperty('--w', b.dataset.w); b.removeAttribute('data-w'); }
@@ -445,6 +489,7 @@ function sportStats(a) {
 route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>${skel(2)}`;
   wireBack(el, '/activity');
+  SocialData.prefetch(id);
   await load(`/api/activities/${id}`, (a) => {drawDetail(el,a);if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}}, {maxAge:60000});
 });
 
@@ -570,7 +615,7 @@ function effortsTable(a) {
 }
 function zonesHtml(z) {
   const tot = z.reduce((a, b) => a + b, 0) || 1;
-  return `<div class="zones">${z.map((s, i) => `<div class="zone"><span>Z${i + 1}</span><div><div class="bar z${i + 1}" data-w="${(s / tot).toFixed(3)}"></div><small class="muted">${ZN[i]}</small></div><span class="num r">${dur(s, true)}</span></div>`).join('')}</div>`;
+  return `<div class="zones">${z.map((s, i) => `<div class="zone" data-zone="${i+1}" role="img" aria-label="Zone ${i+1}, ${ZN[i]}, ${dur(s,true)}, ${Math.round(s/tot*100)} percent"><span class="zone-name"><i aria-hidden="true"></i>Z${i + 1}</span><div><div class="zone-track"><div class="bar z${i + 1}" data-w="${(s / tot).toFixed(3)}"></div></div><small class="muted">${ZN[i]}</small></div><span class="num r">${dur(s, true)}<small class="muted">${Math.round(s/tot*100)}%</small></span></div>`).join('')}</div>`;
 }
 function similarHtml(a) {
   const mine = a.moving_s && a.distance_m ? a.moving_s / a.distance_m * 1000 : null;

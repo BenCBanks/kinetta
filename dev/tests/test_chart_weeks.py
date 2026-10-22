@@ -29,7 +29,7 @@ try:
              (sunday-dt.timedelta(days=1), 2000, 'everyone'), (sunday, 3000, 'everyone'),
              (sunday, 5000, 'me'), (sunday, 4000, 'friends')]
     for day, distance, visibility in cases:
-        a = req(owner, 'POST', '/api/activities/manual', {'sport':'walk', 'start':f'{day}T00:00:00+00:00', 'duration_s':600, 'distance_m':distance})
+        a = req(owner, 'POST', '/api/activities/manual', {'sport':('ride' if visibility=='me' else 'run' if day==sunday and visibility=='everyone' else 'walk'), 'start':f'{day}T00:00:00+00:00', 'duration_s':600, 'distance_m':distance})
         req(owner, 'PUT', f"/api/activities/{a['id']}/sharing", {'visibility':visibility})
     boundary = sunday - dt.timedelta(days=1)
     a = req(owner, 'POST', '/api/activities/manual', {'sport':'walk', 'start':f'{boundary}T23:30:00+00:00', 'duration_s':600, 'distance_m':6000})
@@ -41,6 +41,8 @@ try:
     assert weeks[0]['d'] == str(first) and weeks[0]['distance_m'] == 1000
     assert weeks[-2]['distance_m'] == 8000 and weeks[-1]['distance_m'] == 3000
     assert weeks[-1]['end'] == str(today) and weeks[-1]['today']
+    assert weeks[-1]['by_sport'] == {'run': 3000}
+    assert all(abs(sum(r['by_sport'].values())-r['distance_m'])<.001 for r in weeks)
     assert profile(viewer, '?limit=1')['weeks'] == weeks, 'pagination never changes totals'
     stats = req(owner, 'GET', '/api/stats')
     assert len(stats['chart_weeks']) == 7 and len(stats['recent_days']) == 14
@@ -48,11 +50,14 @@ try:
     assert stats['chart_weeks'][0]['distance_m'] == 1000
     assert stats['chart_weeks'][-2]['distance_m'] == 8000
     assert stats['chart_weeks'][-1]['distance_m'] == 12000
+    assert stats['chart_weeks'][-1]['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
+    assert next(r for r in stats['recent_days'] if r['d']==str(sunday))['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
     assert all(r['distance_m'] == 0 for r in req(viewer, 'GET', '/api/stats')['chart_weeks']), 'stats never include another owner'
     req(viewer, 'POST', '/api/friends', {'login':'zz_test_chart_owner'})
     req(owner, 'POST', '/api/friends/zz_test_chart_view/accept')
     friend = profile(viewer)
     assert friend['weeks'][-1]['distance_m'] == 7000
+    assert friend['weeks'][-1]['by_sport'] == {'run':3000,'walk':4000}, 'private ride never leaks through sport breakdown'
     assert profile(owner, '?as_friend=true')['weeks'] == friend['weeks']
     req(viewer, 'PUT', '/api/profile', {'tz':'Asia/Tokyo'})
     local = profile(viewer)['weeks']

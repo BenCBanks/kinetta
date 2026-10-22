@@ -1,7 +1,7 @@
 // Exercise the production calendar model, chart and event handlers with fictional distances.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app/static/pages.js','utf8');
-const context={U:{dist:n=>(n/1000).toFixed(1),du:()=> 'km'},esc:String,fdate:(d,o)=>new Date(d).toLocaleDateString('en-US',o)};
+const context={SPORT_NAMES:{run:'Run',ride:'Ride',walk:'Walk',other:'Other'},svg:()=>'<svg></svg>',U:{dist:n=>(n/1000).toFixed(1),du:()=> 'km'},esc:String,fdate:(d,o)=>new Date(d).toLocaleDateString('en-US',o)};
 vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function mileagePeriods('),source.indexOf('// A shared private reader')),context);
 function render(series){
  const readout={},box={buttons:[],toggles:[],querySelectorAll(s){return s==='.mileage-day'?this.buttons:this.toggles;},querySelector(s){return s==='.mileage-range'?readout:this.toggles.find(b=>s.includes('"'+b.dataset.mileagePeriod+'"'));}};
@@ -24,3 +24,25 @@ context.U={dist:n=>(n/1609.344).toFixed(1),du:()=> 'mi'};const imperial=render(s
 const empty=render({today:'2026-10-20',days:[]});assert.equal(empty.box.buttons.length,7);assert(empty.box.html.includes('No distance recorded'));assert(empty.box.html.includes('disabled title="Weekly distance needs a server update"'));
 for(const [today,start,end] of [['2026-10-18','2026-10-18','2026-10-24'],['2026-10-24','2026-10-18','2026-10-24'],['2027-01-01','2026-12-27','2027-01-02'],['2026-11-01','2026-11-01','2026-11-07']]){const m=context.mileagePeriods({today,days:[]});assert.equal(m.days[0].d,start);assert.equal(m.days[6].d,end);assert.equal(m.days.filter(r=>r.today).length,1);}
 console.log('Seven-bar chart: Sunday/day/week/year/DST dates, future/zero/empty, km/mi, toggles/focus, hover/touch/pinning and keyboard PASS');
+
+context.U={dist:n=>(n/1000).toFixed(1),du:()=> 'km'};
+const stacked=render({today:'2026-10-20',days:[{d:'2026-10-20',distance_m:10000,by_sport:{run:3000,ride:6000,walk:1000}}],streaks:{days:3,weeks:2}});
+const rects=html=>[...html.matchAll(/<rect class="mileage-segment" data-sport="([^"]+)" x="0" y="([^"]+)" width="32" height="([^"]+)"/g)].map(([,sport,y,height])=>({sport,y:+y,height:+height}));
+const painted=rects(stacked.box.html),scale=context.mileageScale([{distance_m:10000}]);
+assert.equal(painted.length,3);for(const [i,weight] of [.3,.6,.1].entries())assert(Math.abs(painted[i].height-10000*weight/scale.max*110)<1e-9);
+assert.equal(painted[0].y+painted[0].height,128);for(let i=1;i<painted.length;i++)assert(Math.abs(painted[i].y+painted[i].height-painted[i-1].y)<1e-9);
+assert.match(stacked.box.html,/mileage-axis/);assert.match(stacked.box.html,/viewBox="0 0 32 128"/);assert.match(stacked.box.html,/scale 0 to 10 km/);
+assert.match(stacked.box.html,/3-day activity streak/);assert.match(stacked.box.html,/2-week activity streak/);
+stacked.box.buttons[2].onclick();assert.match(stacked.readout.textContent,/Run 3.0 km, Ride 6.0 km, Walk 1.0 km/);
+assert.match(stacked.box.html,/sport-legend/);assert.match(stacked.box.html,/mileage-empty/);
+assert.match(stacked.box.html,/<text class="mileage-value"[^>]*>10.0<\/text>/,'visible total belongs to the complete stack');
+assert.equal((stacked.box.html.match(/class="mileage-value"/g)||[]).length,1,'empty and future days have no invented value');
+const shortDay=render({today:'2026-10-20',days:[{d:'2026-10-19',distance_m:12500,by_sport:{ride:12500}},{d:'2026-10-20',distance_m:10,by_sport:{run:7.5,walk:2.5}}]});
+const tiny=rects(shortDay.box.html).slice(-2);assert(Math.abs(tiny[0].height-7.5/15000*110)<1e-9);assert(Math.abs(tiny[1].height-2.5/15000*110)<1e-9,'short days retain their true fraction of the common scale');
+assert.match(shortDay.box.html,/<text class="mileage-value"[^>]*><0.1<\/text>/,'a positive distance below rounding is not labelled zero');
+const untrusted=render({today:'2026-10-20',days:[{d:'2026-10-20',distance_m:2000,by_sport:{run:5000}}]});
+assert(!untrusted.box.html.includes('data-sport="run"'),'a malformed partial breakdown never exaggerates the total');assert(untrusted.box.html.includes('data-sport="total"'));
+console.log('Stacked sport bars: exact proportions/readout/legend, zero baseline, honest old/invalid payload fallback and labelled streaks PASS');
+
+context.U={dist:n=>(n/1609.344).toFixed(1),du:()=> 'mi'};const miles=context.mileageScale([{distance_m:12500}]);assert.equal(miles.top,8);assert.equal(miles.middle,4);assert.equal(miles.max,8*1609.344);
+console.log('SVG distance scale: shared mile/km axis, exact rect heights/contiguous baseline, short-day fractions and visible totals PASS');

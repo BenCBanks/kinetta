@@ -52,11 +52,11 @@ function checkinDetails(row,actions=false){
     ${actions?'<div class="checkin-actions"><button type="button" class="primary" data-checkin-accept>Accept</button><button type="button" class="ghost" data-checkin-later>Not now</button></div>':`<p class="small">${row.state==='accepted'?'Accepted · calorie target updated at that time.':row.state==='deferred'?'Not now · hidden on Me until next week.':'Previous suggestion · not applied.'}</p>`}
     <button type="button" class="linkbtn" data-checkin-help>How this works</button><p class="err" role="status" data-checkin-status></p></section>`;
 }
-async function weeklyCheckinCard(box,{home=false}={}){
+async function weeklyCheckinCard(box,{home=false,onReady}={}){
   if(!box?.isConnected)return;const owner=readOwner(),valid=()=>box.isConnected&&owner===readOwner();
   if(!home)box.innerHTML=skel(1);
   const draw=data=>{
-    if(!valid())return;const row=data.current,pending=row?.state==='pending';
+    if(!valid())return;try { const row=data.current,pending=row?.state==='pending';
     const page=box.closest('#page');if(home&&page){page.dataset.checkinPending=String(!!pending);syncCheckinPrimary(page);}
     if(home&&!pending){box.innerHTML='';return;}
     if(row)box.innerHTML=checkinDetails(row,pending);
@@ -70,6 +70,7 @@ async function weeklyCheckinCard(box,{home=false}={}){
         invalidate('/api/food');if(result.kcal_target!=null)refreshMe({...App.me,kcal_target:result.kcal_target});toast(result.already_decided?(result.current?.state==='accepted'?'Already accepted. Your current target is unchanged.':'Already set aside until next week.'):result.current?.state==='accepted'?'Calorie target saved.':'Check-in hidden until next week.');render();
       }catch(e){if(!valid())return;if(e.status===409){invalidate('/api/food/check-in');await weeklyCheckinCard(box,{home});toast(e.message);}else{status.textContent=e.message;$$('.checkin-actions button',box).forEach(b=>b.disabled=false);}}
     };}
+    } finally { onReady?.(); }
   };
   try{await load('/api/food/check-in',draw,{maxAge:30000});}catch(e){if(valid()){if(home){const page=box.closest('#page');if(page){page.dataset.checkinPending='false';syncCheckinPrimary(page);}}box.innerHTML=home?'':`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>Check-in could not load. Your food log is still available.</p><button class="ghost wide" type="button" data-checkin-retry>Retry</button></section>`;const retry=$('[data-checkin-retry]',box);if(retry)retry.onclick=()=>weeklyCheckinCard(box,{home});}}
 }
@@ -99,17 +100,21 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
     App.mealHours = D.meal_hours || App.mealHours;
     const loggedToday = D.entries.length > 0;
     if (App.me) App.me.food_user = !!D.food_user || loggedToday;
-    onFoodUser?.(loggedToday);
-    if (!loggedToday) { box.innerHTML = ''; return; }
-    const g = D.goal?.kcal, T = D.totals, pt = D.targets?.protein_target, left = g == null ? null : g - T.kcal;
-    const protein = D.unknown_nutrients?.protein_g ? (D.unknown_nutrients.protein_g >= D.entries.length ? '–' : r0(T.protein_g) + '+') : r0(T.protein_g) + (pt ? '/' + r0(pt) : '');
+    if (!loggedToday) { box.innerHTML = ''; onFoodUser?.(false); return; }
+    const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
+    const fraction = g > 0 ? Math.max(0,Math.min(1,T.kcal/g)) : 0;
+    const progress = g > 0 ? `${r0(homeCalories(T.kcal))} of ${r0(g)} kcal${left<0?`, ${r0(homeCalories(-left))} above goal`:''}` : '';
     box.innerHTML = `<div class="card tfood" aria-label="Today’s food"><h2>Food today<a class="more" href="/food">Open log ›</a></h2>
-      <a class="tap" href="/food"><div class="stats3">${stat('Eaten', r0(homeCalories(T.kcal)), 'kcal')}${g != null ? stat(left < 0 ? 'Over' : 'Left', r0(homeCalories(Math.abs(left))), 'kcal') : stat('Goal', 'not set')}${stat('Protein', protein, 'g')}</div>
-      ${g != null ? `<div class="gbar${left < 0 ? ' over' : ''}"><div class="gfill" data-w="${Math.min(1, T.kcal / g).toFixed(3)}"></div></div>` : ''}
+      <a class="tap tfood-details" href="/food"><div class="tfood-calories">${stat('Eaten', r0(homeCalories(T.kcal)), 'kcal')}${g != null ? stat(left < 0 ? 'Over' : 'Left', r0(homeCalories(Math.abs(left))), 'kcal') : stat('Goal', 'not set')}</div>
+      ${g > 0 ? `<div class="gbar${left < 0 ? ' over' : ''}" role="progressbar" aria-label="Calories eaten" aria-valuemin="0" aria-valuemax="${g}" aria-valuenow="${Math.min(g,Math.max(0,T.kcal))}" aria-valuetext="${esc(progress)}"><div class="gfill" data-w="${fraction.toFixed(3)}"></div></div>` : ''}
+      <div class="today-macros">${MACROS.map(([k,name])=>{const target=D.targets?.[k.replace('_g','_target')],unknown=D.unknown_nutrients?.[k]||0;
+        const value=unknown>=D.entries.length?'Unknown':r0(T[k]||0)+(unknown?'+':'');
+        return `<div class="today-macro m-${k}"><small>${name}</small><b class="num">${value}${value==='Unknown'?'':'<i> g</i>'}</b>${target?`<span class="small muted">of ${r0(target)} g</span>`:''}</div>`;}).join('')}</div>
       ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</a>
       <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
     syncCheckinPrimary(box.closest?.('#page'));
     $('#tf-add', box).onclick = () => describeSheet(D.day, null);
+    onFoodUser?.(true);
   }, {maxAge: 5000});
 }
 function yesterdayMeal(day, meal) {

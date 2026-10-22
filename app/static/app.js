@@ -57,9 +57,17 @@ async function api(path, opts = {}) {
 const json = (method, body) => ({method, body: JSON.stringify(body)});
 // Calls render(data) at once with cached data (if any), then again with fresh data when it arrives.
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
+function screenHit(path) {
+  let hit = App.cache.get(path);
+  // Today and Nutrition ask for the same day with different URLs. Match the returned date, never guess it.
+  if(!hit&&/^\/api\/food\/day\?d=\d{4}-\d{2}-\d{2}$/.test(path)){
+    const today=App.cache.get('/api/food/day');if(today?.data.day===path.slice(-10)){hit=today;App.cache.set(path,hit);}
+  }
+  return hit;
+}
 async function load(path, render, {maxAge = 15000} = {}) {
   const owner = readOwner(), epoch = readEpoch(path);
-  let hit = App.cache.get(path);
+  let hit = screenHit(path);
   // the phone's saved copy shows at once (fresh data replaces it a moment later), except yesterday's "today" food log
   if (!hit) { const k = kept(path); if (k && !(k.day && !path.includes('d=') && k.day !== isoDay(new Date()))) { hit = {data: k, at: 0}; App.cache.set(path, hit); } }
   if (hit) render(hit.data, true);
@@ -249,11 +257,19 @@ const invalidate = (prefix, {health=true,keepData=false}={}) => {
   if(prefix.startsWith('/api/food')&&typeof CustomEvent!=='undefined')document.dispatchEvent(new CustomEvent('food:changed'));
 };
 const prefetch = (path) => {
+  const activity=path.match(/^\/api\/activities\/(\d+)$/);if(activity&&typeof SocialData!=='undefined')SocialData.prefetch(activity[1]);
   const owner = readOwner(), epoch = readEpoch(path);
-  if (!App.cache.has(path)) readOnce(path).then((data) => {
+  if (!screenHit(path)) readOnce(path).then((data) => {
     if (owner === readOwner() && epoch === readEpoch(path)) { App.cache.set(path, {data, at: Date.now()}); keep(path, data); }
   }).catch(() => {});
 };
+function warmDestination(href){
+  if(!App.me||!navigator.onLine)return;
+  if(href==='/activity'){if(typeof warmFeed==='function')warmFeed();return;}
+  const paths=href==='/me'?['/api/stats','/api/activities?limit=3','/api/plans/current','/api/food/day']:
+    href==='/food'?['/api/food/day?d='+isoDay(new Date())]:href==='/plan'?['/api/plans/current']:[];
+  paths.forEach(prefetch);
+}
 // Once the app is open, fetch the other tabs' first screens quietly, so the first tap on Activity or Progress
 // doesn't wait for the server (2026-10-16: on a phone each request is a noticeable pause).
 function warmTabs() {
@@ -378,11 +394,35 @@ function toast(msg, undo) {
   t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
 }
 function sheet(title, html, onMount) {
+  $$('.scrim.is-closing').forEach(el => el.remove());
+  cleanViews();
+  const notice = $('#toast');
+  if (notice && !$('button', notice)) notice.classList.remove('on'); // an old hint must not cover the new sheet; retain Undo
   const prev = document.activeElement;
   const s = document.createElement('div'); s.className = 'scrim';
   s.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
     <header><h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button></header><div class="sbody">${html}</div></div>`;
-  const close = () => { s.remove(); document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); if (prev && prev.isConnected && prev.focus) prev.focus(); };
+  let closing = false;
+  const close = () => {
+    if (closing) return; closing = true;
+    document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit();
+    // Release focus and handlers at once. Keep only the inert visual shell for the short exit, including when
+    // closing halfway through entrance or a drag. A replacement sheet can take focus without a delayed restore.
+    s.inert = true; s.setAttribute('aria-hidden', 'true'); cleanViews(s);
+    const remove = () => { s.remove(); cleanViews(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); };
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || !s.isConnected) remove();
+    else {
+      const visual = getComputedStyle(sh);
+      sh.style.setProperty('--sheet-from', visual.transform);
+      sh.style.setProperty('--sheet-opacity', visual.opacity);
+      s.style.setProperty('--scrim-from', getComputedStyle(s).opacity);
+      s.classList.add('is-closing');
+      const done = e => { if (e.target === sh && e.animationName === 'sheet-out') { clearTimeout(timer); remove(); } };
+      s.addEventListener('animationend', done);
+      const timer = setTimeout(remove, 220); // background tabs and interrupted animations still clean up
+    }
+    if (prev && prev.isConnected && prev.focus) prev.focus({preventScroll: true});
+  };
   const onKey = (e) => {
     if ([...document.querySelectorAll('.scrim')].at(-1) !== s) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); }
@@ -400,9 +440,9 @@ function sheet(title, html, onMount) {
   // decides the finger is scrolling. Mouse: drag the grab bar / header.
   const sh = $('.sheet', s);   // the sheet itself is the scroll container
   let ty = null, dy = 0, dragging = false, fromTop = false;
-  const settle = (shut) => { sh.classList.add('settle'); if (shut) { sh.style.transform = 'translateY(100%)'; setTimeout(close, 160); } else { sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); } };
+  const settle = (shut) => { if (shut) { close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
   sh.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips')) { ty = null; return; }
+    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips, .social-sheet .comments')) { ty = null; return; }
     ty = e.touches[0].clientY; dy = 0; dragging = false;
     fromTop = !!e.target.closest('.grab, header') || sh.scrollTop <= 0;
   }, {passive: true});
@@ -505,6 +545,7 @@ function render() {
     `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
+  el.dataset.area = activeTab;
   if (typeof Track !== 'undefined') Track.sync();
   // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab fades it in.
   if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t)) el.classList.add('enter'); App.lastPath = location.pathname; }
@@ -514,12 +555,11 @@ function render() {
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
   const result=page.fn(el,...m.slice(1));
   if(typeof KitChat!=='undefined')KitChat.entry(el,path);
-  if(typeof PageRefresh!=='undefined')PageRefresh.mounted(el,path);
   requestAnimationFrame(()=>{if(el.isConnected&&key===location.pathname+location.search&&!touched)window.scrollTo(0,targetY);});
   return Promise.resolve(result).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(el.isConnected&&key===location.pathname+location.search&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if(typeof PageRefresh!=='undefined')PageRefresh.mounted(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {
@@ -542,8 +582,9 @@ document.addEventListener('click', (e) => {
   go(a.getAttribute('href'));
 });
 document.addEventListener('pointerdown', (e) => {
-  const a = e.target.closest('[data-prefetch]'); if (a) prefetch(a.dataset.prefetch);
+  const a = e.target.closest('a'); if(a?.dataset.prefetch)prefetch(a.dataset.prefetch);else if(a)warmDestination(a.getAttribute('href'));
 }, {passive: true});
+document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
 window.addEventListener('popstate', render);
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){App.hiddenAt=Date.now();return;}
@@ -583,8 +624,8 @@ function miniRoute(line, sport) {
 // ---------- maps (Leaflet, loaded only when a map is on screen) ----------
 let leafletP;
 const viewResources = new Map();
-function cleanViews() {
-  for (const [el, clean] of viewResources) if (!el.isConnected) { clean(); viewResources.delete(el); }
+function cleanViews(closing) {
+  for (const [el, clean] of viewResources) if (!el.isConnected || (closing?.contains(el) && !clean.keepVisual)) { clean(); viewResources.delete(el); }
 }
 function loadLeaflet() {   // (not "leaflet": leaflet.js overwrites window.leaflet)
   if (!leafletP) leafletP = new Promise((res, rej) => {
@@ -602,7 +643,7 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
     ? {zoomControl: false, attributionControl: true, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false,
        boxZoom: false, keyboard: false, tap: false, zoomSnap: 0.25}
     : {zoomControl: false, attributionControl: true, scrollWheelZoom: heat, tap: true});
-  viewResources.set(el, () => map.remove());
+  viewResources.set(el, Object.assign(() => map.remove(), {keepVisual:true})); // keep the map during a sheet's exit
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
     attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
   const color = getComputedStyle(document.documentElement).getPropertyValue(`--${heat ? 'run' : sport}`).trim() || '#E0582B';

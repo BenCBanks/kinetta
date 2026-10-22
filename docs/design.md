@@ -34,15 +34,22 @@ AGENTS.md and CLAUDE.md link here; the shared DesignPrinciples agent guide conta
 | On error fill | `#FFFFFF` | `#101C18` |
 | Warning | `#925C00` | `#E8B85A` |
 
-Color must explain something. Running uses evergreen, cycling blue, walking sage, swimming teal, hiking earth,
-rowing violet and lifting olive. Protein is blue, carbs amber and fat clay. Full light/dark values are in
+Color must explain something. Running uses evergreen, cycling plum, walking sage, swimming teal, hiking earth,
+rowing violet and lifting olive. Protein is plum, carbs amber and fat clay. Full light/dark values are in
 the JSON. Maintain these meanings across maps, charts, icons and legends; do not introduce random colorful tiles.
-Owner colour refresh, 22 October 2026: keep the ivory/forest surfaces and existing layout, with more saturated
+Owner colour refresh, 22 October 2026: keep the ivory/forest surfaces and existing layout, with clearer
 sport and chart colours, a clearer evergreen action colour, and tinted selected segments. Use the same sport mark
-on Today’s latest activity, feed, profiles and detail. Nutrition labels always show matching blue protein, amber
+on Today’s latest activity, feed, profiles and detail. Nutrition labels always show matching plum protein, amber
 carbs and clay fat dots, even without a target/bar; retain the names and numbers so colour is never the only cue.
-Plain shortcut icons use blue for Fitness, amber for Records and violet for Friends; keep settings rows neutral.
+Plain shortcut icons use plum for Fitness, amber for Records and violet for Friends; keep settings rows neutral.
 Preserve the thin full-width divider above feed social actions in both themes, including cards without media.
+Latest owner revision, 22 October: remove the rejected blue throughout the app rather than substitute another blue.
+Cycling, long runs, protein and Fitness use plum (`#7C5D7B` light / `#CBB0CC` dark); swimming uses green teal,
+skiing uses berry, and the easiest heart-rate zone is neutral. Existing green actions, amber/clay macros and gold wins remain.
+Distance bars use SVG rectangles on one labelled distance scale, with zero at the same baseline. Every sport height is
+its distance divided by that shared scale; no nested percentage layout or positive-height minimum. Show daily totals
+and the selected sport breakdown. Selection emphasizes the date and total without a full-height tinted rectangle.
+Use varied demo weeks, not a synthetic staircase of totals, when reviewing the chart's proportions.
 
 Errors, deletion and over-target warnings remain semantic; removing the ruby brand does not remove useful warnings.
 Initials avatars use brand-soft surfaces and brand text; notification counts use the readable action/on-action pair.
@@ -70,7 +77,7 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
 - **Today:** serif Kinetta wordmark, profile link, small local date, “Hi, [first name]” greeting, notifications and Add activity.
   An enrolled plan supplies a compact agenda. Nutrition appears under the existing current-day logged-food condition.
   With neither active, weekly distance/time/climb or activity count leads directly to a compact latest-activity link.
-  Omit the redundant This week heading. Use evergreen seven-day bars with day/date/value labels, without a comparison ring.
+  Omit the redundant This week heading. Use sport-stacked seven-day distance bars with day/date/value labels, a named sport legend and a neutral zero baseline, without a comparison ring.
   Eligible Kit weekly reviews open from a small button beside the greeting; goals and fitness follow the primary content. Keep the persistent discovery/setup actions specified below separate from conditional data panels.
 - **Five stable tabs:** Today, Activity, Progress, Nutrition, Me remain available on every screen. Feature-panel visibility
   must not hide a tab. Hide the entire bottom bar while the software keyboard is open, on every route and in sheets;
@@ -1022,7 +1029,7 @@ The evening food summary, setting and shortcut are retired. Nutrition insights c
 
 Me shows a compact Ask Kit invitation explaining “Your training & nutrition assistant” between the greeting and chart, for accounts with Kit available. Keep the approved activity-first hierarchy and all five tabs. Opening Kit costs no model request.
 
-Read-only tab homes offer pull down from the top to refresh, with a release threshold, visible progress and an accessible Refresh page button. Horizontal, map, input, selection and modal gestures keep their normal actions; chats/editors/recording are excluded. Retain cached content while fetching. Temporary server/network failures keep that content with an honest failure message. Returning to the app must not rebuild active chats/forms or move the page after the user starts scrolling. New read requests have a bounded wait and Retry.
+Read-only tab homes offer pull down from the top to refresh, with a release threshold, visible progress and no header refresh icon (owner revision, 22 October). Horizontal, map, input, selection and modal gestures keep their normal actions; chats/editors/recording are excluded. Retain cached content while fetching. Temporary server/network failures keep that content with an honest failure message. Returning to the app must not rebuild active chats/forms or move the page after the user starts scrolling. New read requests have a bounded wait and Retry.
 
 New accounts default to Everyone on Kinetta for new activities. Show that choice during signup and allow Only me or approved friends before account creation/import. Preserve existing accounts’ saved defaults and every existing activity’s audience. Phone recordings follow the default and offer an audience selector before Save; a retry cannot change an already-saved recording. Shared maps keep server-enforced trimming and blocks. Food, body data, private notes and Kit remain private. Sharing controls roll back visibly when saving fails.
 
@@ -1050,13 +1057,13 @@ shows names under its symbols. Moving focus into its fixed menu must not scroll 
 with date/sport metadata and remains visible. Sharing copies or sends the authenticated shared-activity URL;
 it never widens the audience. Private activities do not offer that feed action.
 
-Retain the ivory/evergreen foundation. Use existing blue, violet and amber tokens for reaction badges and
+Retain the ivory/evergreen foundation. Use existing plum, violet and amber tokens for reaction badges and
 selected feedback; sport marks use a stronger tint and outline in their existing sport color. Icons, names and
 counts communicate meaning alongside color. This is a focused feed refresh, not a claim of a full app palette audit.
 
 At the top of a read-only tab, a vertical pull may begin on the activity title/numbers link as well as background.
 About90px reaches Release to refresh. Keep map/photo/horizontal/control/selection/editor gestures excluded,
-keep the visible refresh button and cached-data/error behavior, and consume the synthetic click after a drag
+keep the cached-data/error behavior with pull-to-refresh as the page refresh control, and consume the synthetic click after a drag
 so refreshing cannot accidentally open an activity. Ordinary new taps and keyboard activation still work.
 
 
@@ -1075,3 +1082,62 @@ height when restoring a deep position; maps remain lazy. Existing deliberate tab
 keyboard gestures, recording and food drafts stay intact. Delayed data must never scroll a person back after they
 have started interacting. Browser timings on a local fixture are diagnostic evidence, not physical-iPhone or
 public-network performance measurements.
+
+
+## Colour meaning and smooth social panels (22 October 2026, owner revision)
+
+Preserve ivory/forest surfaces, quiet cards, green actions and links, the five stable tabs and the thin divider
+above activity social controls. Colour communicates a labelled value or state:
+
+- Today and shared profile distance charts split days and weeks into their actual sports. Segments sum to the
+  same distance total, retain viewer-local Sunday boundaries and privacy filtering, and appear in the legend
+  and tapped/keyboard readout. Empty/future days stay neutral; older payloads use a neutral total, never a guessed sport.
+- The conditional Food today card shows protein, carbs and fat in plum/amber/clay with grams, unknown values
+  and targets when known. Its labelled calorie progress bar fills against the real saved goal. No goal means no
+  invented fill. Nutrition headings and calorie progress use a warm clay accent; buttons and links stay green.
+- Personal records, activity streaks, completed plan workouts and reached activity goals use readable gold
+  with words, counts or check marks. Do not turn food intake targets into achievement streaks.
+- Heart-rate zones retain their existing thresholds and durations. Numbered zones and effort names use neutral,
+  green, amber, orange and red from Z1 to Z5, with time and percentage labels, in both themes.
+- Plan days show easy/recovery/run-walk in green, workouts/intervals in orange, long/medium-long runs in plum,
+  and explicit rest days in grey. Completed workouts keep their type cue and gain a gold Done/check marker.
+- Main tab pages refresh by pulling down, without a header refresh icon. Preserve gesture exclusions, the
+  release/progress/error messages and cached content. No hidden Health sync or other write is added.
+- Reaction and comment reads share one session-scoped in-flight request. Warm/cache reads may render immediately;
+  newer writes win over late reads, and account/permission changes clear private cached people. Social sheets mount
+  their composer immediately, keep it and unchanged comment rows mounted during updates, and preserve unsent text,
+  focus and selection. Failures keep drafts and offer Retry. Cached reads are an interaction aid, not a privacy bypass.
+
+
+### Loading follow-up (22 October 2026)
+
+Start an owner's activity details and social read together, including on intentional activity-link prefetch. Reuse
+the session's social read/cache when opening comments or returning to detail; retain the mounted composer, draft,
+focused field and unchanged rows. Owner sharing metadata must survive reaction/comment replies, and an incomplete
+summary cannot substitute for the authenticated sharing read. Reaction menus install global dismissal/scroll
+listeners only while open. Compare saved markup fingerprints rather than serialized DOM when preserving controls.
+
+Warm primary destinations on press/focus with existing read deduplication and ownership guards. Today may supply
+Nutrition's cached day only when the returned date exactly matches the explicitly requested date. Never guess the
+server's local date or reuse a different day's food. Keep cached content visible during a refresh; navigation,
+privacy checks and unsent drafts retain their existing behavior. Browser timings with artificial delays are
+diagnostic evidence, not a promise about a physical phone or public-network latency.
+
+
+### Stable first paint and sheet motion (22 October 2026)
+
+On a cold Me load, reserve room for the chart and show it as soon as its data arrives. Keep the conditional day,
+latest activity and the actions below them together until their first plan, food, check-in and activity results
+are known. Do not expose shortcuts and then push them down as these cards arrive. Cached first draws release
+this immediately, including during stale revalidation; unrelated friends, fitness and goal reads do not block it.
+Empty days still omit the agenda, failed reads release loading and preserve available retry feedback. Notify the
+parent about food visibility only after its card and logging action are mounted. The stable five-tab navigation
+and header controls remain available during loading.
+
+Sheets use a short entrance and160ms exit; closing releases keyboard/drag handlers and focus immediately, while
+only an inert, inaccessible visual shell remains for the exit. Start from the current position and opacity when
+interrupted during opening or a drag. Rapid replacement removes that shell and cannot restore old focus later.
+A new sheet dismisses an old plain notice that would cover it, while notices offering Undo remain available.
+Reduced motion removes the sheet immediately. Never translate the whole page: fixed and sticky composers must
+retain their existing viewport and keyboard behaviour. Browser geometry, delayed-network checks and animation
+samples are evidence for the tested flows; physical iPhone keyboard/scroll/frame pacing still needs a device.

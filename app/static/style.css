@@ -10,8 +10,8 @@
   --alert: var(--color-error); --warn: var(--color-warning); --good: var(--color-success);
   --run: var(--color-run); --ride: var(--color-ride); --walk: var(--color-walk); --hike: var(--color-hike); --swim: var(--color-swim); --row: var(--color-row); --ski: var(--color-ski); --workout: var(--color-workout); --other: var(--color-other);
   --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
-  --gold: #C9A227; --silver: #9AA3A8; --bronze: #B07440;
-  --tile1: #1F6FE0; --tile2: #0F8A5C; --tile3: #D9481A; --tile4: #115447;   /* solid tiles with white text (2026-10-13): dark enough for it */
+  --gold: var(--color-achievement); --silver: #9AA3A8; --bronze: #B07440;
+  --tile1: var(--color-action); --tile2: #0F8A5C; --tile3: #D9481A; --tile4: #115447;   /* solid tiles with white text (2026-10-13): dark enough for it */
   --r: var(--radius-card); --r2: var(--radius-control); --r3: var(--radius-media); --tab-h: 66px; --segon: #FDFCF8; --segbg: #ECEAE4;
   --shadow: 0 1px 2px rgba(17,21,20,.03), 0 6px 22px rgba(17,21,20,.05);
   --lift: 0 10px 30px rgba(17,21,20,.14), 0 1px 3px rgba(17,21,20,.08);
@@ -24,7 +24,7 @@
     --accent: var(--color-brand); --accent2: var(--color-brand-soft); --ontx: #101C18; --ink: #F3F5F4; --onink: #101C18; --btn: var(--color-action); --onbtn: var(--color-on-action); --prog: var(--color-success); --prog2: var(--color-brand-soft);
     --alert: var(--color-error); --warn: var(--color-warning); --good: var(--color-success);
     --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
-    --tile1: #2C6AD0; --tile2: #13845A; --tile3: #CC4719; --tile4: #276D57;
+    --tile1: var(--color-action); --tile2: #13845A; --tile3: #CC4719; --tile4: #276D57;
     --segon: #3A3F3D; --segbg: #1E2221; --shadow: 0 0 0 1px rgba(255,255,255,.045); --lift: 0 10px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); color-scheme: dark; }
 }
 
@@ -336,6 +336,10 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sheet header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .sheet header h2 { font-size: var(--text-app-section); font-weight: 800; letter-spacing: -.025em; }
 .sheet.settle { transition: transform .16s ease-out; }
+.scrim.is-closing { pointer-events:none; animation:fade-out .16s ease-in both; }
+.scrim.is-closing .sheet { animation:sheet-out .16s cubic-bezier(.4,0,1,1) both; }
+@keyframes fade-out { from { opacity:var(--scrim-from, 1); } to { opacity:0; } }
+@keyframes sheet-out { from { transform:var(--sheet-from, none); opacity:var(--sheet-opacity, 1); } to { transform:translateY(100%); opacity:0; } }
 .sheet input, .sheet select, .sheet textarea { background: var(--card); }
 .pick-list .row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; font-size: .95rem; }
 .pick-list .tick { color: var(--accent); } .pick-list .tick svg, .pick-list .row-link svg { width: 20px; height: 20px; }
@@ -520,9 +524,18 @@ tr.muted td { color: var(--tx3); }
 .bar.slow { background: var(--tx3); opacity: .45; }
 .zones { display: grid; gap: 10px; }
 .zone { display: grid; grid-template-columns: 56px minmax(0, 1fr) 64px; gap: 10px; align-items: center; font-size: 14px; }
-.zone .bar { height: 14px; border-radius: 7px; } .zone .z1 { background: #8DB6D3; } .zone .z2 { background: #4FB38F; } .zone .z3 { background: #E3B341; } .zone .z4 { background: #E57F3B; } .zone .z5 { background: #D64545; }
+.zone { --zone-color: var(--color-zone-1); }
+.zone[data-zone="2"] { --zone-color: var(--color-zone-2); }
+.zone[data-zone="3"] { --zone-color: var(--color-zone-3); }
+.zone[data-zone="4"] { --zone-color: var(--color-zone-4); }
+.zone[data-zone="5"] { --zone-color: var(--color-zone-5); }
+.zone .bar { height: 14px; border-radius: 7px; min-width: 0; background: var(--zone-color); }
+.zone-track { background: var(--card2); border-radius: 7px; }
+.zone-name { display: inline-flex; gap: 6px; align-items: center; }
+.zone-name i { width: 8px; height: 8px; border-radius: 50%; background: var(--zone-color); }
+.zone .num small { display: block; font-size: 11px; }
 .medal { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 800; color: #101C18; margin-right: 6px; }
-.medal.m1 { background: var(--gold); } .medal.m2 { background: var(--silver); } .medal.m3 { background: var(--bronze); }
+.medal.m1 { background: color-mix(in srgb,var(--gold) 16%,var(--card)); color: var(--gold); border: 1px solid var(--gold); } .medal.m2 { background: var(--silver); } .medal.m3 { background: var(--bronze); }
 
 /* ---------- Today ---------- */
 /* a link that reads as a small evergreen pill (card headings) */
@@ -671,7 +684,7 @@ a.ntile { color: inherit; text-decoration: none; }
 .tc-goal { background: var(--card); border: 0; box-shadow: var(--shadow); }
 .tc-goal small svg { width: 13px; height: 13px; } .tc-goal b { color: var(--tx); font-size: 24px; } .tcard .ringrow > div:first-child b { font-size: 24px; }
 /* option D (2026-10-13, Ben): the calorie ring on the left, a small ring per macro stacked on the right, Eaten and Goal under
-   both; colours as in the macro charts (protein blue, carbs yellow, fat orange) */
+   both; colours as in the macro charts (protein plum, carbs amber, fat clay) */
 .tcard .ringrow { grid-template-areas: "ring mr" "eaten goal"; align-items: center; }
 .tcard .ringrow .ring, .tcard .ringrow .ring svg { width: 150px; height: 150px; }
 .tcard .ringrow .ring b { font-size: 32px; }
@@ -1488,6 +1501,11 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 
 /* Me personal overview and foreground Track (October 2026). */
 .me-heading h1 { margin: 0; }
+/* Keep actions out of the loading layout until the conditional cards above them have their first result. */
+[data-home-loading] #t-content, [data-home-loading] > .me-tools, [data-home-loading] > .me-settings { display:none; }
+.mileage-loading { min-block-size:24rem; }
+.mileage-loading > .card { border:0; padding:0; margin:0; }
+#t-loading { min-block-size:16rem; }
 .me-agenda { margin: 16px 0; }
 /* Me shortcuts (2026-10-18): one tap to each main area, small round icons like the food chat's + menu. */
 .me-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr)); gap: 8px; margin: 16px 0; }
@@ -1535,12 +1553,16 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .mileage-total { margin: 12px 0; }
 .mileage-total b { font-size: var(--text-app-metric); font-weight: 600; }
 .mileage-total .small { display: block; margin-top: 4px; }
-.mileage-bars { display: flex; gap: 6px; }
-.mileage-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.mileage-plot { display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; }
+.mileage-bars { display:flex; gap:6px; position:relative; }
+.mileage-axis { width:32px; height:128px; margin-top:4px; overflow:visible; font-size:.625rem; fill:var(--tx3); }
+.mileage-grid { position:absolute; top:4px; left:0; width:100%; height:128px; pointer-events:none; overflow:visible; }
+.mileage-grid path { fill:none; stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; }
+.mileage-day { position:relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; }
 .mileage-day > .num { font-size: 11px; }
 .mileage-day small { font-size: 10px; text-align: center; line-height: 1.35; }
-.mileage-column { height: 76px; width: 100%; max-width: 32px; display: flex; align-items: flex-end; }
-.mileage-column i { display: block; width: 100%; height: calc(var(--h, .015) * 100%); min-height: 2px; border-radius: 4px 4px 0 0; background: var(--accent); }
+.mileage-column { height:128px; width:100%; max-width:32px; display:block; overflow:visible; }
+
 @media (min-width: 700px) { .track-clock { font-size: 68px; } .track-map { height: 320px; } }
 .track-question { font-family: var(--font-display); font-weight: 600; line-height: 1.2; }
 .track-session > h2 { font-family: var(--font-display); }
@@ -1552,11 +1574,13 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 #track-setup > p { margin: 0; }
 
 /* Track v2: map-first, all live controls in the Track destination; seven Sunday-aligned profile bars. */
-.seven-bars { gap: 4px; align-items: flex-end; }
-.seven-bars .mileage-column { height: 110px; max-width: 32px; }
+.seven-bars { gap:4px; align-items:stretch; }
+.seven-bars .mileage-column { height:128px; max-width:32px; }
 .seven-bars .mileage-day small { font-size: .625rem; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
 .seven-bars .mileage-day { padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx2); }
-.seven-bars .mileage-day.is-inspected { background: var(--accent2); box-shadow: inset 0 0 0 1px var(--accent); }
+.seven-bars .mileage-day.is-inspected { background: transparent; box-shadow: none; }
+.seven-bars .mileage-day.is-inspected small { color:var(--accent); font-weight:750; text-decoration:underline; text-underline-offset:3px; }
+.seven-bars .mileage-day.is-inspected .mileage-value { fill:var(--accent); font-weight:750; }
 .seven-bars .current-day small { color: var(--accent); font-weight: 750; }
 .mileage-range { text-align: right; margin: 8px 0 0; }
 .mileage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -2169,7 +2193,7 @@ p a:not(.primary):not(.ghost):not(.food-library-link a), .small a:not(.primary):
 
 .food-final-review { gap: 12px; }
 
-.badge.pr { color: var(--tx2); }
+.badge.pr { color: var(--color-achievement); background: color-mix(in srgb,var(--color-achievement) 13%,var(--card)); }
 body .leaflet-container .leaflet-control-attribution { background: var(--card); color: var(--tx2); font-size: 11px; }
 
 /* Calendar status remains distinguishable without its hue; the legend uses the same marks. */
@@ -2310,3 +2334,63 @@ button.thread-food:active { opacity: .7; }
 .me-shortcuts a[href="/progress?view=fitness"] svg { color: var(--s1); }
 .me-shortcuts a[href="/progress?view=records"] svg { color: var(--s4); }
 .me-shortcuts a[href="/me/friends"] svg { color: var(--s5); }
+
+/* Sport distance: segments sum to the original day/week total, with a neutral zero baseline. */
+.mileage-value { font-size:.625rem; fill:var(--tx2); }
+.mileage-segment { fill:var(--sport-color,var(--other)); }
+.mileage-empty { fill:var(--line); }
+[data-sport="run"] { --sport-color:var(--run); } [data-sport="ride"] { --sport-color:var(--ride); }
+[data-sport="walk"] { --sport-color:var(--walk); } [data-sport="hike"] { --sport-color:var(--hike); }
+[data-sport="swim"] { --sport-color:var(--swim); } [data-sport="row"] { --sport-color:var(--row); }
+[data-sport="ski"] { --sport-color:var(--ski); } [data-sport="workout"] { --sport-color:var(--workout); }
+.sport-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:12px; color:var(--tx2); }
+.sport-legend span { display:inline-flex; align-items:center; gap:6px; }
+.sport-swatch { display:inline-block; width:9px; height:9px; border-radius:2px; background:var(--sport-color,var(--other)); flex:none; }
+
+/* Food has a warm identity; its actions and links retain the shared green. */
+#page[data-area="food"] h1, .tfood h2 { color:var(--color-nutrition); }
+#fd-sum .eyebrow { color:var(--color-nutrition); }
+#fd-sum .nutrition-summary + .track > .bar { background:var(--color-nutrition); }
+#fd-sum .nutrition-summary + .track > .bar.over { background:var(--alert); }
+.tfood-calories { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.tfood .gbar .gfill { background:var(--color-nutrition); }
+.tfood .gbar.over .gfill { background:var(--alert); }
+.today-macros { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.today-macro { --macro:var(--s1); min-width:0; }
+.today-macro.m-carbs_g { --macro:var(--s4); } .today-macro.m-fat_g { --macro:var(--s2); }
+.today-macro>small { display:flex; align-items:center; gap:5px; color:color-mix(in srgb,var(--macro) 75%,var(--tx)); font-size:12px; font-weight:650; }
+.today-macro>small::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--macro); flex:none; }
+.today-macro>b { display:block; font-size:1.2rem; overflow-wrap:anywhere; }
+.today-macro>b i { font:400 12px var(--font); color:var(--tx2); }
+.today-macro>span { display:block; font-size:11px; }
+
+/* Gold celebrates an actual result; workout type remains visible alongside completion. */
+.achievement-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.achievement { display:inline-flex; align-items:center; gap:5px; color:var(--color-achievement); background:color-mix(in srgb,var(--color-achievement) 10%,var(--card)); border-radius:999px; padding:4px 9px; font-size:12px; font-weight:650; }
+.achievement svg { width:15px; height:15px; flex:none; }
+.goal.reached .track .bar { background:var(--color-achievement); }
+.goal .achievement { justify-self:start; }
+[data-workout-kind] { --workout-color:var(--run); }
+[data-workout-kind="hard"] { --workout-color:var(--color-workout-hard); }
+[data-workout-kind="long"] { --workout-color:var(--ride); }
+[data-workout-kind="rest"], [data-workout-kind="other"] { --workout-color:var(--tx3); }
+.pw[data-workout-kind] { border-inline-start:3px solid var(--workout-color); padding-inline-start:10px; }
+.pw[data-workout-kind] .pw-day { color:color-mix(in srgb,var(--workout-color) 80%,var(--tx)); }
+.pw.plan-rest { opacity:1; color:var(--tx2); }
+.pt-w[data-workout-kind] { border-inline-start:3px solid var(--workout-color); background:color-mix(in srgb,var(--workout-color) 11%,var(--card)); }
+.plan-today .pt-w[data-workout-kind] { background:color-mix(in srgb,var(--workout-color) 11%,var(--card)); }
+.pt-w .plan-completion { color:var(--color-achievement); display:flex; align-items:center; gap:5px; }
+.plan-legend { display:flex; flex-wrap:wrap; gap:6px 12px; margin:10px 0; font-size:12px; color:var(--tx2); }
+.plan-legend span { display:inline-flex; align-items:center; gap:5px; }
+.plan-legend span::before { content:''; width:8px; height:8px; border-radius:2px; background:var(--workout-color); }
+
+/* Social reads update inside one steady sheet; the composer is mounted before the request. */
+.social-sheet { display:flex; flex-direction:column; }
+.social-sheet .comments { height:clamp(100px,26dvh,220px); overflow-y:auto; overscroll-behavior:contain; }
+.social-sheet .social-reactions { height:44px; display:flex; align-items:center; flex:none; }
+.social-sheet .c-form { margin-top:auto; padding-top:12px; }
+.social-sheet .social-read-status:empty { display:none; }
+.social-people { min-height:180px; }
+.social-read-status { overflow-wrap:anywhere; }
+
+.activity-reactions[aria-busy="true"] .reaction-main, .activity-reactions[aria-busy="true"] .reaction-more { opacity:1; }
