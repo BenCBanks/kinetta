@@ -168,14 +168,16 @@ const FoodThread = (() => {
   function previewRows(root,r){
     if(!root.result?.review_only||r.cancelled||r.food_review||!r.parts)return null;
     const rows=[];
-    for(const p of r.parts){if(p.logged)continue;(p.entries||[]).forEach((e,j)=>{const d=p.entry_drafts?.[j];rows.push({e,part:p.index,draft:d,step:p.status==='ready'&&(d!=null?!!p.drafts?.[d]:!!p.item?.kind&&!p.templates)});});}
+    for(const p of r.parts){if(p.logged)continue;(p.entries||[]).forEach((e,j)=>{const d=p.entry_drafts?.[j];rows.push({e,part:p.index,draft:d,remove:p.remove_entries?.includes(j)?{part:p.index,entry:j,expected:p.remove_token}:null,step:p.status==='ready'&&(d!=null?!!p.drafts?.[d]:!!p.item?.kind&&!p.templates)});});}
     return rows;
   }
   function stepRow(row){
     // The amount sits between − and +, like a quantity control: "− 3 servings +".
-    const {e}=row;if(!row.step)return food(e,undefined,row.hideNotes);
+    const {e}=row;
+    const remove=row.remove?`<button type="button" class="linkbtn danger thread-remove" data-remove-food="${esc(JSON.stringify(row.remove))}" aria-label="Remove ${esc(e.name)}">Remove</button>`:'';
+    if(!row.step)return `<div class="thread-preview-food">${food(e,undefined,row.hideNotes)}${remove}</div>`;
     const data=`data-part="${row.part}"${row.draft!=null?` data-draft="${row.draft}"`:''}`,notes=row.hideNotes?null:e.ref?.origin_notes;
-    return `<div class="thread-food has-stepper"><span class="tf-main"><strong>${esc(e.name)}</strong><span class="thread-stepper"><button type="button" class="icon-btn" data-step="-1" ${data} aria-label="Less ${esc(e.name)}">−</button><span class="num">${esc(fmtAmount(e))}</span><button type="button" class="icon-btn" data-step="1" ${data} aria-label="More ${esc(e.name)}">+</button></span><small>${esc(source(e))}${notes?' · '+esc(notes):''}</small></span><span class="tf-kcal num">${e.kcal==null||e.ref?.unknown_nutrients?.includes('kcal')?'Unknown':homeCalories(e.kcal)+'<small> kcal</small>'}</span></div>`;
+    return `<div class="thread-food has-stepper"><span class="tf-main"><strong>${esc(e.name)}</strong><span class="thread-stepper"><button type="button" class="icon-btn" data-step="-1" ${data} aria-label="Less ${esc(e.name)}">−</button><span class="num">${esc(fmtAmount(e))}</span><button type="button" class="icon-btn" data-step="1" ${data} aria-label="More ${esc(e.name)}">+</button></span><small>${esc(source(e))}${notes?' · '+esc(notes):''}</small>${remove}</span><span class="tf-kcal num">${e.kcal==null||e.ref?.unknown_nutrients?.includes('kcal')?'Unknown':homeCalories(e.kcal)+'<small> kcal</small>'}</span></div>`;
   }
 
   const pendingReview=()=>(typeof FoodReview!=='undefined'&&FoodReview.busy())||Q.mine().some(op=>/^\/api\/food\/thread\/reviews\/\d+\/confirm$/.test(op.path));
@@ -292,6 +294,14 @@ const FoodThread = (() => {
     $$('[data-choice]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,'choose',JSON.parse(b.dataset.choice));}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
     $$('[data-entry]',node).forEach(b=>b.onclick=()=>{entrySheet(reply.entries[+b.dataset.entry],reply.entries[+b.dataset.entry].day);});
     const dest=$('[data-destination]',node);if(dest)dest.onclick=()=>destination(ctx,m,r);
+    $$('[data-remove-food]',node).forEach(b=>b.onclick=async()=>{
+      if(!active(ctx)||ctx.preparingReview||pendingReview())return;
+      // Keep this card and the review strip still while its removal is saving.
+      const controls=$$('button',node);controls.forEach(c=>c.disabled=true);ctx.preparingReview=true;primary(ctx);
+      try{await action(ctx,m.id,'remove-food',JSON.parse(b.dataset.removeFood));status(ctx,'Food removed.');}
+      catch(e){toast(e.message);}
+      finally{ctx.preparingReview=false;if(node.isConnected)controls.forEach(c=>c.disabled=false);primary(ctx);}
+    });
     $$('[data-step]',node).forEach(b=>b.onclick=async()=>{
       const p=r.parts?.find(x=>x.index===+b.dataset.part);if(!p)return;const up=+b.dataset.step>0;
       const old=b.dataset.draft!=null?p.drafts?.[+b.dataset.draft]?.portion:p.item?.portion;if(!old)return;

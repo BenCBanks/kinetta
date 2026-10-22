@@ -2187,6 +2187,9 @@ body .leaflet-container .leaflet-control-attribution { background: var(--card); 
   background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; }
 .thread-tools-sheet button svg { width: 26px; height: 26px; color: var(--accent); }
 .thread-food.has-stepper .tf-main { flex: 1 1 10rem; min-width: 0; }
+.food-thread .thread-card .thread-remove { min-height: 44px; justify-content: flex-start; padding: 8px 0; font-size: .85rem; text-align: left; }
+.thread-preview-food { border-bottom: 1px solid var(--line); }
+.thread-preview-food > .thread-food { border-bottom: 0; }
 .thread-stepper { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; }
 .thread-stepper .num { min-width: 0; overflow-wrap:normal; font-size: .9rem; color: var(--tx); }
 .food-thread .thread-stepper .icon-btn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border-radius: 50%;
