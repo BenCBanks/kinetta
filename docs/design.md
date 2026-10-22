@@ -34,20 +34,22 @@ AGENTS.md and CLAUDE.md link here; the shared DesignPrinciples agent guide conta
 | On error fill | `#FFFFFF` | `#101C18` |
 | Warning | `#925C00` | `#E8B85A` |
 
-Color must explain something. Running uses evergreen, cycling blue, walking sage, swimming teal, hiking earth,
-rowing violet and lifting olive. Protein is blue, carbs amber and fat clay. Full light/dark values are in
+Color must explain something. Running uses evergreen, cycling plum, walking sage, swimming teal, hiking earth,
+rowing violet and lifting olive. Protein is plum, carbs amber and fat clay. Full light/dark values are in
 the JSON. Maintain these meanings across maps, charts, icons and legends; do not introduce random colorful tiles.
 Owner colour refresh, 22 October 2026: keep the ivory/forest surfaces and existing layout, with clearer
 sport and chart colours, a clearer evergreen action colour, and tinted selected segments. Use the same sport mark
-on Today’s latest activity, feed, profiles and detail. Nutrition labels always show matching blue protein, amber
+on Today’s latest activity, feed, profiles and detail. Nutrition labels always show matching plum protein, amber
 carbs and clay fat dots, even without a target/bar; retain the names and numbers so colour is never the only cue.
-Plain shortcut icons use blue for Fitness, amber for Records and violet for Friends; keep settings rows neutral.
+Plain shortcut icons use plum for Fitness, amber for Records and violet for Friends; keep settings rows neutral.
 Preserve the thin full-width divider above feed social actions in both themes, including cards without media.
-Owner feedback later on 22 October rejects the vivid blue. Cycling, long runs, protein, Fitness and easy-zone blue
-now share a restrained steel shade (`#4A6B7A` light / `#92AFBD` dark). Distance stacks use the same scale for every
-sport and day, without a minimum positive height; short days must not be exaggerated. Show each nonzero total
-above its bar, retain the labelled breakdown on selection, and keep segment edges thin without adding gaps.
-Selection emphasizes the date and total, not a full-height tinted rectangle that could be mistaken for another bar.
+Latest owner revision, 22 October: remove the rejected blue throughout the app rather than substitute another blue.
+Cycling, long runs, protein and Fitness use plum (`#7C5D7B` light / `#CBB0CC` dark); swimming uses green teal,
+skiing uses berry, and the easiest heart-rate zone is neutral. Existing green actions, amber/clay macros and gold wins remain.
+Distance bars use SVG rectangles on one labelled distance scale, with zero at the same baseline. Every sport height is
+its distance divided by that shared scale; no nested percentage layout or positive-height minimum. Show daily totals
+and the selected sport breakdown. Selection emphasizes the date and total without a full-height tinted rectangle.
+Use varied demo weeks, not a synthetic staircase of totals, when reviewing the chart's proportions.
 
 Errors, deletion and over-target warnings remain semantic; removing the ruby brand does not remove useful warnings.
 Initials avatars use brand-soft surfaces and brand text; notification counts use the readable action/on-action pair.
@@ -1055,7 +1057,7 @@ shows names under its symbols. Moving focus into its fixed menu must not scroll 
 with date/sport metadata and remains visible. Sharing copies or sends the authenticated shared-activity URL;
 it never widens the audience. Private activities do not offer that feed action.
 
-Retain the ivory/evergreen foundation. Use existing blue, violet and amber tokens for reaction badges and
+Retain the ivory/evergreen foundation. Use existing plum, violet and amber tokens for reaction badges and
 selected feedback; sport marks use a stronger tint and outline in their existing sport color. Icons, names and
 counts communicate meaning alongside color. This is a focused feed refresh, not a claim of a full app palette audit.
 
@@ -1090,14 +1092,14 @@ above activity social controls. Colour communicates a labelled value or state:
 - Today and shared profile distance charts split days and weeks into their actual sports. Segments sum to the
   same distance total, retain viewer-local Sunday boundaries and privacy filtering, and appear in the legend
   and tapped/keyboard readout. Empty/future days stay neutral; older payloads use a neutral total, never a guessed sport.
-- The conditional Food today card shows protein, carbs and fat in blue/amber/clay with grams, unknown values
+- The conditional Food today card shows protein, carbs and fat in plum/amber/clay with grams, unknown values
   and targets when known. Its labelled calorie progress bar fills against the real saved goal. No goal means no
   invented fill. Nutrition headings and calorie progress use a warm clay accent; buttons and links stay green.
 - Personal records, activity streaks, completed plan workouts and reached activity goals use readable gold
   with words, counts or check marks. Do not turn food intake targets into achievement streaks.
-- Heart-rate zones retain their existing thresholds and durations. Numbered zones and effort names use blue,
+- Heart-rate zones retain their existing thresholds and durations. Numbered zones and effort names use neutral,
   green, amber, orange and red from Z1 to Z5, with time and percentage labels, in both themes.
-- Plan days show easy/recovery/run-walk in green, workouts/intervals in orange, long/medium-long runs in blue,
+- Plan days show easy/recovery/run-walk in green, workouts/intervals in orange, long/medium-long runs in plum,
   and explicit rest days in grey. Completed workouts keep their type cue and gain a gold Done/check marker.
 - Main tab pages refresh by pulling down, without a header refresh icon. Preserve gesture exclusions, the
   release/progress/error messages and cached content. No hidden Health sync or other write is added.
@@ -1105,3 +1107,18 @@ above activity social controls. Colour communicates a labelled value or state:
   newer writes win over late reads, and account/permission changes clear private cached people. Social sheets mount
   their composer immediately, keep it and unchanged comment rows mounted during updates, and preserve unsent text,
   focus and selection. Failures keep drafts and offer Retry. Cached reads are an interaction aid, not a privacy bypass.
+
+
+### Loading follow-up (22 October 2026)
+
+Start an owner's activity details and social read together, including on intentional activity-link prefetch. Reuse
+the session's social read/cache when opening comments or returning to detail; retain the mounted composer, draft,
+focused field and unchanged rows. Owner sharing metadata must survive reaction/comment replies, and an incomplete
+summary cannot substitute for the authenticated sharing read. Reaction menus install global dismissal/scroll
+listeners only while open. Compare saved markup fingerprints rather than serialized DOM when preserving controls.
+
+Warm primary destinations on press/focus with existing read deduplication and ownership guards. Today may supply
+Nutrition's cached day only when the returned date exactly matches the explicitly requested date. Never guess the
+server's local date or reuse a different day's food. Keep cached content visible during a refresh; navigation,
+privacy checks and unsent drafts retain their existing behavior. Browser timings with artificial delays are
+diagnostic evidence, not a promise about a physical phone or public-network latency.

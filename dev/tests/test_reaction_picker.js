@@ -30,9 +30,9 @@ const event=(extra={})=>({button:0,isPrimary:true,detail:1,clientX:10,clientY:10
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const fire=(el,key,e=event())=>(el.handlers.get(key)||[]).forEach(f=>f(e));
 (async()=>{
- const s=setup();s.more.onclick(event());assert(!s.picker.hidden);assert.equal(s.document.activeElement,s.options[0]);assert.equal(s.options[0].focusOptions.preventScroll,true,'opening the fixed picker cannot scroll the page and dismiss itself');assert.equal(s.pending.length,0);
+ const s=setup();assert.equal(s.window.handlers.has('scroll'),false,'closed reaction groups do not listen to every scroll');assert.equal((s.document.handlers.get('pointerdown')||[]).length,0);s.more.onclick(event());assert(s.window.handlers.has('scroll'));assert.equal(s.document.handlers.get('pointerdown').length,1);assert(!s.picker.hidden);assert.equal(s.document.activeElement,s.options[0]);assert.equal(s.options[0].focusOptions.preventScroll,true,'opening the fixed picker cannot scroll the page and dismiss itself');assert.equal(s.pending.length,0);
  fire(s.picker,'keydown',event({key:'ArrowRight'}));assert.equal(s.document.activeElement,s.options[1]);
- fire(s.picker,'keydown',event({key:'Escape'}));assert(s.picker.hidden);assert.equal(s.document.activeElement,s.main);
+ fire(s.picker,'keydown',event({key:'Escape'}));assert(s.picker.hidden);assert.equal(s.window.handlers.has('scroll'),false);assert.equal(s.document.handlers.get('pointerdown').length,0);assert.equal(s.document.activeElement,s.main);
  s.more.onclick(event());s.options[1].onclick(event());assert.equal(s.pending.length,1);assert.equal(s.pending[0].opts.body,'{"kind":"strong"}');assert(s.main.attrs['aria-label'].startsWith('Strong.'));assert(s.main.disabled);assert(s.main.innerHTML.includes('>1</span>'),'reaction total changes immediately');assert.equal(s.main.dataset.kind,'strong');assert(s.count.innerHTML.includes('data-kind="strong"'),'people summary shows the selected reaction type');
  s.main.onclick(event({detail:0}));assert.equal(s.pending.length,1,'a busy reaction cannot be submitted twice');
  s.pending.shift().resolve({my_reaction:'strong',reactions:{cheer:0,strong:1,applause:0}});await tick();assert(!s.main.disabled);assert.equal(s.changes.length,1);

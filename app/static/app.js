@@ -57,9 +57,17 @@ async function api(path, opts = {}) {
 const json = (method, body) => ({method, body: JSON.stringify(body)});
 // Calls render(data) at once with cached data (if any), then again with fresh data when it arrives.
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
+function screenHit(path) {
+  let hit = App.cache.get(path);
+  // Today and Nutrition ask for the same day with different URLs. Match the returned date, never guess it.
+  if(!hit&&/^\/api\/food\/day\?d=\d{4}-\d{2}-\d{2}$/.test(path)){
+    const today=App.cache.get('/api/food/day');if(today?.data.day===path.slice(-10)){hit=today;App.cache.set(path,hit);}
+  }
+  return hit;
+}
 async function load(path, render, {maxAge = 15000} = {}) {
   const owner = readOwner(), epoch = readEpoch(path);
-  let hit = App.cache.get(path);
+  let hit = screenHit(path);
   // the phone's saved copy shows at once (fresh data replaces it a moment later), except yesterday's "today" food log
   if (!hit) { const k = kept(path); if (k && !(k.day && !path.includes('d=') && k.day !== isoDay(new Date()))) { hit = {data: k, at: 0}; App.cache.set(path, hit); } }
   if (hit) render(hit.data, true);
@@ -249,11 +257,19 @@ const invalidate = (prefix, {health=true,keepData=false}={}) => {
   if(prefix.startsWith('/api/food')&&typeof CustomEvent!=='undefined')document.dispatchEvent(new CustomEvent('food:changed'));
 };
 const prefetch = (path) => {
+  const activity=path.match(/^\/api\/activities\/(\d+)$/);if(activity&&typeof SocialData!=='undefined')SocialData.prefetch(activity[1]);
   const owner = readOwner(), epoch = readEpoch(path);
-  if (!App.cache.has(path)) readOnce(path).then((data) => {
+  if (!screenHit(path)) readOnce(path).then((data) => {
     if (owner === readOwner() && epoch === readEpoch(path)) { App.cache.set(path, {data, at: Date.now()}); keep(path, data); }
   }).catch(() => {});
 };
+function warmDestination(href){
+  if(!App.me||!navigator.onLine)return;
+  if(href==='/activity'){if(typeof warmFeed==='function')warmFeed();return;}
+  const paths=href==='/me'?['/api/stats','/api/activities?limit=3','/api/plans/current','/api/food/day']:
+    href==='/food'?['/api/food/day?d='+isoDay(new Date())]:href==='/plan'?['/api/plans/current']:[];
+  paths.forEach(prefetch);
+}
 // Once the app is open, fetch the other tabs' first screens quietly, so the first tap on Activity or Progress
 // doesn't wait for the server (2026-10-16: on a phone each request is a noticeable pause).
 function warmTabs() {
@@ -542,8 +558,9 @@ document.addEventListener('click', (e) => {
   go(a.getAttribute('href'));
 });
 document.addEventListener('pointerdown', (e) => {
-  const a = e.target.closest('[data-prefetch]'); if (a) prefetch(a.dataset.prefetch);
+  const a = e.target.closest('a'); if(a?.dataset.prefetch)prefetch(a.dataset.prefetch);else if(a)warmDestination(a.getAttribute('href'));
 }, {passive: true});
+document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
 window.addEventListener('popstate', render);
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){App.hiddenAt=Date.now();return;}

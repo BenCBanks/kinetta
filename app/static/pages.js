@@ -53,7 +53,7 @@ function wireCheers(box) {
   $$('[data-talk]', box).forEach((b) => {SocialData.warm(b,b.dataset.talk);b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
-      b.innerHTML = svg('comment') + `<span class="num">${fresh.comments.length}</span>`;
+      $('.num',b).textContent = fresh.comments.length;
       b.setAttribute('aria-label',`Comments, ${fresh.comments.length}`);
       const group=b.closest('.post-ft')?.querySelector('[data-reaction-group]');group?._sync?.(fresh);
     });
@@ -114,20 +114,34 @@ function mileageSegments(row) {
   return Math.abs(parts.reduce((n,[,v])=>n+v,0)-total) < .01 ? parts : [['total',total]];
 }
 const mileageSportName = sport => sport === 'total' ? 'Distance' : SPORT_NAMES[sport] || 'Other';
+function mileageScale(rows) {
+  const unit = U.du() === 'mi' ? 1609.344 : 1000;
+  const raw = Math.max(0, ...rows.map(row => +row.distance_m || 0)) / unit;
+  const largest = raw ? Math.max(.1,raw) : 0;
+  const step = largest ? 10 ** Math.floor(Math.log10(largest)) / 2 : .5;
+  const top = largest ? Math.ceil(largest / step) * step : 1;
+  return {max:top * unit, top:parseFloat(top.toFixed(3)), middle:parseFloat((top / 2).toFixed(3))};
+}
 function mileageChart(box, series, period = 'days') {
   const periods = mileagePeriods(series), weekly = period === 'weeks' && !!periods.weeks;
-  const rows = weekly ? periods.weeks : periods.days, max = Math.max(1, ...rows.map((r) => +r.distance_m || 0));
+  const rows = weekly ? periods.weeks : periods.days, scale = mileageScale(rows), max = scale.max;
   const total = rows.reduce((n, r) => n + (+r.distance_m || 0), 0);
   const dateLabel = (d) => fdate(d + 'T12:00', {month:'short',day:'numeric'});
   const range = `${dateLabel(rows[0].d)} – ${dateLabel(weekly ? rows.at(-1).end : rows.at(-1).d)}`;
   const used = [...new Set(rows.flatMap(r=>mileageSegments(r).map(([sport])=>sport)))];
   const labels = rows.map((r) => `${weekly ? `${dateLabel(r.d)} – ${dateLabel(r.end)}${r.today ? ' (so far)' : ''}` : fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${r.future ? 'Not yet' : `${U.dist(r.distance_m || 0, 1)} ${U.du()}`}${r.by_sport && r.distance_m ? ' · '+mileageSegments(r).map(([sport,value])=>`${mileageSportName(sport)} ${U.dist(value,1)} ${U.du()}`).join(', ') : ''}`);
   box.innerHTML = `<div class="mileage-heading"><h2>${weekly ? 'Last 7 weeks' : 'This week'}</h2><div class="mileage-toggle" role="group" aria-label="Distance chart period"><button type="button" data-mileage-period="days" aria-pressed="${!weekly}">Days</button><button type="button" data-mileage-period="weeks" aria-pressed="${weekly}"${periods.weeks ? '' : ' disabled title="Weekly distance needs a server update"'}>Weeks</button></div></div><p class="mileage-total num"><b>${U.dist(total, 1)}</b> ${U.du()}</p>
-    <div class="mileage-bars seven-bars" role="group" aria-label="${weekly ? 'Weekly distance, weeks start Sunday' : 'Daily distance, Sunday to Saturday'}">${rows.map((r, i) => {
+    <div class="mileage-plot"><svg class="mileage-axis" viewBox="0 0 32 128" aria-hidden="true" focusable="false"><text x="28" y="5" text-anchor="end">${U.du()}</text><text x="28" y="18" text-anchor="end" dominant-baseline="middle">${scale.top}</text><text x="28" y="73" text-anchor="end" dominant-baseline="middle">${scale.middle}</text><text x="28" y="128" text-anchor="end" dominant-baseline="middle">0</text></svg><div class="mileage-bars seven-bars" data-scale-max="${max}" role="group" aria-label="${weekly ? 'Weekly distance, weeks start Sunday' : 'Daily distance, Sunday to Saturday'}; scale 0 to ${scale.top} ${U.du()}"><svg class="mileage-grid" viewBox="0 0 1 128" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 18H1M0 73H1M0 128H1"/></svg>${rows.map((r, i) => {
       const date = new Date(r.d + 'T12:00');
-      const value = U.dist(r.distance_m || 0, 1);
-      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><span class="mileage-column" data-h="${(+r.distance_m || 0)/max}" aria-hidden="true">${r.distance_m ? `<span class="mileage-value">${esc(parseFloat(value) === 0 ? '<0.1' : value)}</span><span class="mileage-stack">${mileageSegments(r).map(([sport,value])=>`<i class="mileage-segment" data-sport="${sport}" data-w="${value/r.distance_m}"></i>`).join('')}</span>` : '<i class="mileage-empty"></i>'}</span><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
-    }).join('')}</div>
+      const total = +r.distance_m || 0, top = 128 - total / max * 110, value = U.dist(total, 1);
+      let bottom = 128;
+      const segments = mileageSegments(r).map(([sport, distance]) => {
+        const height = distance / max * 110; bottom -= height;
+        return `<rect class="mileage-segment" data-sport="${sport}" x="0" y="${bottom}" width="32" height="${height}"/>`;
+      }).join('');
+      // All bars use one coordinate scale; no nested percentage heights or minimums to distort a stack.
+      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><svg class="mileage-column" viewBox="0 0 32 128" preserveAspectRatio="none" aria-hidden="true" focusable="false">${total ? `<g class="mileage-stack">${segments}</g><text class="mileage-value" x="16" y="${top - 5}" text-anchor="middle">${esc(parseFloat(value) === 0 ? '<0.1' : value)}</text>` : '<rect class="mileage-empty" x="0" y="127" width="32" height="1"/>'}</svg><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
+    }).join('')}</div></div>
     ${used.length ? `<div class="sport-legend" aria-label="Distance by sport">${used.map(sport=>`<span><i class="sport-swatch" data-sport="${sport}" aria-hidden="true"></i>${esc(mileageSportName(sport))}</span>`).join('')}</div>` : ''}
     ${series.streaks ? `<div class="achievement-row">${series.streaks.days>1?`<span class="achievement">${svg('flame')}${series.streaks.days}-day activity streak</span>`:''}${series.streaks.weeks>1?`<span class="achievement">${svg('trophy')}${series.streaks.weeks}-week activity streak</span>`:''}</div>` : ''}
     <p class="small muted mileage-range" role="status" aria-live="polite" aria-atomic="true">${esc(range)}</p>
@@ -458,6 +472,7 @@ function sportStats(a) {
 route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>${skel(2)}`;
   wireBack(el, '/activity');
+  SocialData.prefetch(id);
   await load(`/api/activities/${id}`, (a) => {drawDetail(el,a);if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}}, {maxAge:60000});
 });
 

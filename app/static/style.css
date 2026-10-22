@@ -11,7 +11,7 @@
   --run: var(--color-run); --ride: var(--color-ride); --walk: var(--color-walk); --hike: var(--color-hike); --swim: var(--color-swim); --row: var(--color-row); --ski: var(--color-ski); --workout: var(--color-workout); --other: var(--color-other);
   --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
   --gold: var(--color-achievement); --silver: #9AA3A8; --bronze: #B07440;
-  --tile1: #1F6FE0; --tile2: #0F8A5C; --tile3: #D9481A; --tile4: #115447;   /* solid tiles with white text (2026-10-13): dark enough for it */
+  --tile1: var(--color-action); --tile2: #0F8A5C; --tile3: #D9481A; --tile4: #115447;   /* solid tiles with white text (2026-10-13): dark enough for it */
   --r: var(--radius-card); --r2: var(--radius-control); --r3: var(--radius-media); --tab-h: 66px; --segon: #FDFCF8; --segbg: #ECEAE4;
   --shadow: 0 1px 2px rgba(17,21,20,.03), 0 6px 22px rgba(17,21,20,.05);
   --lift: 0 10px 30px rgba(17,21,20,.14), 0 1px 3px rgba(17,21,20,.08);
@@ -24,7 +24,7 @@
     --accent: var(--color-brand); --accent2: var(--color-brand-soft); --ontx: #101C18; --ink: #F3F5F4; --onink: #101C18; --btn: var(--color-action); --onbtn: var(--color-on-action); --prog: var(--color-success); --prog2: var(--color-brand-soft);
     --alert: var(--color-error); --warn: var(--color-warning); --good: var(--color-success);
     --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
-    --tile1: #2C6AD0; --tile2: #13845A; --tile3: #CC4719; --tile4: #276D57;
+    --tile1: var(--color-action); --tile2: #13845A; --tile3: #CC4719; --tile4: #276D57;
     --segon: #3A3F3D; --segbg: #1E2221; --shadow: 0 0 0 1px rgba(255,255,255,.045); --lift: 0 10px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); color-scheme: dark; }
 }
 
@@ -680,7 +680,7 @@ a.ntile { color: inherit; text-decoration: none; }
 .tc-goal { background: var(--card); border: 0; box-shadow: var(--shadow); }
 .tc-goal small svg { width: 13px; height: 13px; } .tc-goal b { color: var(--tx); font-size: 24px; } .tcard .ringrow > div:first-child b { font-size: 24px; }
 /* option D (2026-10-13, Ben): the calorie ring on the left, a small ring per macro stacked on the right, Eaten and Goal under
-   both; colours as in the macro charts (protein blue, carbs yellow, fat orange) */
+   both; colours as in the macro charts (protein plum, carbs amber, fat clay) */
 .tcard .ringrow { grid-template-areas: "ring mr" "eaten goal"; align-items: center; }
 .tcard .ringrow .ring, .tcard .ringrow .ring svg { width: 150px; height: 150px; }
 .tcard .ringrow .ring b { font-size: 32px; }
@@ -1544,12 +1544,16 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .mileage-total { margin: 12px 0; }
 .mileage-total b { font-size: var(--text-app-metric); font-weight: 600; }
 .mileage-total .small { display: block; margin-top: 4px; }
-.mileage-bars { display: flex; gap: 6px; }
-.mileage-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.mileage-plot { display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; }
+.mileage-bars { display:flex; gap:6px; position:relative; }
+.mileage-axis { width:32px; height:128px; margin-top:4px; overflow:visible; font-size:.625rem; fill:var(--tx3); }
+.mileage-grid { position:absolute; top:4px; left:0; width:100%; height:128px; pointer-events:none; overflow:visible; }
+.mileage-grid path { fill:none; stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; }
+.mileage-day { position:relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; }
 .mileage-day > .num { font-size: 11px; }
 .mileage-day small { font-size: 10px; text-align: center; line-height: 1.35; }
-.mileage-column { height: 76px; width: 100%; max-width: 32px; display: flex; align-items: flex-end; }
-.mileage-column i { display: block; width: 100%; height: calc(var(--h, .015) * 100%); min-height: 2px; border-radius: 4px 4px 0 0; background: var(--accent); }
+.mileage-column { height:128px; width:100%; max-width:32px; display:block; overflow:visible; }
+
 @media (min-width: 700px) { .track-clock { font-size: 68px; } .track-map { height: 320px; } }
 .track-question { font-family: var(--font-display); font-weight: 600; line-height: 1.2; }
 .track-session > h2 { font-family: var(--font-display); }
@@ -1561,13 +1565,13 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 #track-setup > p { margin: 0; }
 
 /* Track v2: map-first, all live controls in the Track destination; seven Sunday-aligned profile bars. */
-.seven-bars { gap: 4px; align-items: flex-end; }
-.seven-bars .mileage-column { height: 110px; max-width: 32px; }
+.seven-bars { gap:4px; align-items:stretch; }
+.seven-bars .mileage-column { height:128px; max-width:32px; }
 .seven-bars .mileage-day small { font-size: .625rem; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
 .seven-bars .mileage-day { padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx2); }
 .seven-bars .mileage-day.is-inspected { background: transparent; box-shadow: none; }
 .seven-bars .mileage-day.is-inspected small { color:var(--accent); font-weight:750; text-decoration:underline; text-underline-offset:3px; }
-.seven-bars .mileage-day.is-inspected .mileage-value { color:var(--accent); font-weight:750; }
+.seven-bars .mileage-day.is-inspected .mileage-value { fill:var(--accent); font-weight:750; }
 .seven-bars .current-day small { color: var(--accent); font-weight: 750; }
 .mileage-range { text-align: right; margin: 8px 0 0; }
 .mileage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -2323,13 +2327,9 @@ button.thread-food:active { opacity: .7; }
 .me-shortcuts a[href="/me/friends"] svg { color: var(--s5); }
 
 /* Sport distance: segments sum to the original day/week total, with a neutral zero baseline. */
-.seven-bars .mileage-column { position:relative; margin-top:20px; }
-.mileage-value { position:absolute; left:50%; bottom:calc(var(--h,0) * 100% + 5px); transform:translateX(-50%); font-size:.625rem; line-height:1.3; white-space:nowrap; color:var(--tx2); }
-/* A minimum height would exaggerate a short day's total. Flex weights keep each sport proportional. */
-.mileage-stack { width:100%; height:calc(var(--h,0) * 100%); min-height:0; display:flex; flex-direction:column-reverse; border-radius:3px 3px 0 0; overflow:hidden; }
-.seven-bars .mileage-column .mileage-segment { flex:var(--w,0) 0 0px; height:auto; min-height:0; border-radius:0; background:var(--sport-color,var(--other)); }
-.mileage-segment + .mileage-segment { box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--card) 70%,transparent); }
-.seven-bars .mileage-column .mileage-empty { height:2px; min-height:2px; background:var(--line); }
+.mileage-value { font-size:.625rem; fill:var(--tx2); }
+.mileage-segment { fill:var(--sport-color,var(--other)); }
+.mileage-empty { fill:var(--line); }
 [data-sport="run"] { --sport-color:var(--run); } [data-sport="ride"] { --sport-color:var(--ride); }
 [data-sport="walk"] { --sport-color:var(--walk); } [data-sport="hike"] { --sport-color:var(--hike); }
 [data-sport="swim"] { --sport-color:var(--swim); } [data-sport="row"] { --sport-color:var(--row); }

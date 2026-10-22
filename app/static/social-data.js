@@ -5,15 +5,16 @@ const SocialData=(()=>{
   const scope=()=>{const next=readOwner();if(next!==owner){owner=next;epoch++;cache.clear();pending.clear();versions.clear();drafts.clear();watchers.clear();}return next;};
   const key=id=>String(id);
   function remember(id,data){scope();if(!Array.isArray(data?.cheers)||!Array.isArray(data?.comments))return;
-    const k=key(id),changed=JSON.stringify(cache.get(k)?.data)!==JSON.stringify(data);versions.set(k,(versions.get(k)||0)+1);cache.delete(k);cache.set(k,{data,at:Date.now()});
+    const k=key(id);data={...cache.get(k)?.data,...data};
+    const changed=JSON.stringify(cache.get(k)?.data)!==JSON.stringify(data);versions.set(k,(versions.get(k)||0)+1);cache.delete(k);cache.set(k,{data,at:Date.now()});
     if(cache.size>40)cache.delete(cache.keys().next().value);
     if(changed)for(const fn of watchers.get(k)||[])if(fn(data)===false)watchers.get(k).delete(fn);
   }
   function peek(id){scope();const hit=cache.get(key(id));return hit&&Date.now()-hit.at<60000?hit.data:null;}
   function forget(id){scope();const k=key(id);cache.delete(k);versions.set(k,(versions.get(k)||0)+1);for(const fn of watchers.get(k)||[])if(fn(null)===false)watchers.get(k).delete(fn);}
   function invalidate(){scope();epoch++;cache.clear();pending.clear();versions.clear();}
-  function read(id){const account=scope(),k=key(id),hit=cache.get(k);
-    if(hit&&Date.now()-hit.at<1000)return Promise.resolve(hit.data);
+  function read(id,{ownerDetails=false}={}){const account=scope(),k=key(id),hit=cache.get(k);
+    if(hit&&Date.now()-hit.at<1000&&(!ownerDetails||(hit.data.visibility&&hit.data.details)))return Promise.resolve(hit.data);
     if(pending.has(k))return pending.get(k);
     const version=versions.get(k)||0,generation=epoch;
     const promise=api(`/api/activities/${id}/social`).then(data=>{

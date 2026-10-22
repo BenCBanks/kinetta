@@ -22,6 +22,7 @@ function wireReactionGroup(group,aid,changed){
   let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS.map(([k])=>[k,+group.getAttribute('data-count-'+k)||0]))};
   let hoverTimer=null,leaveTimer=null,heldOpen=false;
   const close=(focus=false)=>{
+    listen(false);
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);if(picker.hidden){if(focus===true&&active())main.focus({preventScroll:true});return;}picker.hidden=true;more.setAttribute('aria-expanded','false');heldOpen=false;
     group.appendChild(picker);if(closeReactionPicker===close)closeReactionPicker=null;
     if(focus&&active())main.focus({preventScroll:true});
@@ -30,6 +31,7 @@ function wireReactionGroup(group,aid,changed){
     if(busy||!active())return;
     if(closeReactionPicker&&closeReactionPicker!==close)closeReactionPicker();closeReactionPicker=close;
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);document.body.appendChild(picker);picker.hidden=false;more.setAttribute('aria-expanded','true');
+    listen(true);
     const r=main.getBoundingClientRect(),p=picker.getBoundingClientRect(),vv=window.visualViewport;
     const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight),above=r.top-p.height-8;
     picker.style.left=Math.max(12,Math.min(r.left,innerWidth-p.width-12))+'px';
@@ -86,8 +88,8 @@ function wireReactionGroup(group,aid,changed){
   const outside=e=>{if(!picker.hidden&&!group.contains(e.target)&&!picker.contains(e.target))close();};
   const escape=e=>{if(e.key==='Escape'&&!picker.hidden){e.preventDefault();close(true);}};
   const scroll=e=>{if(!picker.contains(e.target))close();};
-  document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape);
-  const resize=()=>close();window.addEventListener('scroll',scroll,true);window.addEventListener('resize',resize);
+  const resize=()=>close();
+  function listen(on){const method=on?'addEventListener':'removeEventListener';document[method]('pointerdown',outside,true);document[method]('keydown',escape);window[method]('scroll',scroll,true);window[method]('resize',resize);}
   const enter=e=>{if(e.pointerType==='mouse'&&matchMedia('(hover: hover)').matches){clearTimeout(leaveTimer);hoverTimer=setTimeout(()=>open(),250);}};
   const leave=e=>{if(e.pointerType==='mouse'){clearTimeout(hoverTimer);leaveTimer=setTimeout(()=>close(),200);}};
   const action=$('.reaction-action',group);action.addEventListener('pointerenter',enter);action.addEventListener('pointerleave',leave);
@@ -159,8 +161,10 @@ function activityCheers(aid) {
   const owner=readOwner(),cached=SocialData.peek(aid);
   sheet('Reactions', `<div class="cheers-list social-people" aria-busy="${!cached}">${cached?cheersPeople(cached.cheers):skel(2)}</div><p class="social-read-status small muted" role="status"></p>`,box=>{
     const list=$('.cheers-list',box),status=$('.social-read-status',box),current=()=>list.isConnected&&owner===readOwner();
-    SocialData.watch(aid,s=>{if(!current())return false;const html=s?cheersPeople(s.cheers):'';if(list.innerHTML!==html)list.innerHTML=html;});
-    const refresh=async()=>{try{const s=await SocialData.read(aid);if(!current()||!s)return;const html=cheersPeople(s.cheers);if(list.innerHTML!==html)list.innerHTML=html;list.setAttribute('aria-busy','false');status.textContent='';}
+    let shown=cached?cheersPeople(cached.cheers):null;
+    const draw=s=>{const html=s?cheersPeople(s.cheers):'';if(shown!==html){list.innerHTML=html;shown=html;}};
+    SocialData.watch(aid,s=>{if(!current())return false;draw(s);});
+    const refresh=async()=>{try{const s=await SocialData.read(aid);if(!current()||!s)return;draw(s);list.setAttribute('aria-busy','false');status.textContent='';}
       catch(error){if(!current())return;if([401,403,404].includes(error.status))list.replaceChildren();list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     refresh();
   });
@@ -326,8 +330,9 @@ function wireTalk(box,aid,s,open){
   if(!box)return;const owner=readOwner(),cached=SocialData.peek(aid);if(cached)s=cached;else SocialData.remember(aid,s);
   box.innerHTML=talkIcons(s,aid);cleanViews();
   const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
-  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;SocialData.remember(aid,s);group?._sync?.(s);$('.num',talk).textContent=s.comments.length;talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
+  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;group?._sync?.(s);$('.num',talk).textContent=s.comments.length;talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
   wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
+  SocialData.watch(aid,fresh=>{if(!box.isConnected||owner!==readOwner())return false;if(fresh)update(fresh);else box.replaceChildren();});
   talk.onclick=()=>commentsSheet(aid,s,update);
   if(open)commentsSheet(aid,s,update);
 }
@@ -354,7 +359,7 @@ function commentsSheet(aid, s, onChange) {
     const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box);
     const current=()=>box.isConnected&&account===readOwner();
     box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(current())SocialData.draft(aid,f.text.value);};
-    const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;SocialData.remember(aid,fresh);drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
+    const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
     if(cached)drawComments(box,aid,cached,onChange);
     SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();$('button',f).disabled=true;}});
     const refresh=async()=>{try{const fresh=await SocialData.read(aid);update(fresh);}
@@ -376,7 +381,7 @@ function drawComments(box,aid,s,onChange){
   if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
   const list=$('.comments',box),reactions=$('.social-reactions',box),names=s.cheers.map(c=>c.name);
   const who=names.length?`<button type="button" class="small cheer-who" data-cwho>${svg('cheer')}<span class="grow"><b>Reactions</b> · ${names.length}</span><span class="chev">${svg('chev')}</span></button>`:'<span class="small muted">No reactions yet.</span>';
-  if(reactions.innerHTML!==who){reactions.innerHTML=who;const button=$('[data-cwho]',reactions);if(button)button.onclick=()=>activityCheers(aid);}
+  if(reactions._who!==who){reactions.innerHTML=who;reactions._who=who;const button=$('[data-cwho]',reactions);if(button)button.onclick=()=>activityCheers(aid);}
   if(list.getAttribute('aria-busy')==='true')list.replaceChildren();list.setAttribute('aria-busy','false');
   const keep=new Set();let anchor=list.firstElementChild;
   for(const comment of s.comments){const id=String(comment.id);keep.add(id);let node=[...list.children].find(n=>n.dataset.commentId===id);const signature=JSON.stringify(comment);
@@ -469,11 +474,12 @@ function photoViewer(a, start, mine, onChange) {
 // ---------- your own activity: cheers + comments by the title; who sees it lives in the Edit sheet ----------
 async function ownSocial(el, a) {
   const box = $('#d-soc', el); if (!box) return;
-  let s;
-  try { s = await api(`/api/activities/${a.id}/social`); } catch (x) { return; }
-  if (!box.isConnected) return;
-  a._social = s;
-  wireTalk(box, a.id, s, new URLSearchParams(location.search).get('tab') === 'comments');
+  const owner=readOwner(),cached=SocialData.peek(a.id),current=()=>box.isConnected&&owner===readOwner();
+  if(cached){if(cached.visibility&&cached.details)a._social=cached;wireTalk(box,a.id,cached,new URLSearchParams(location.search).get('tab')==='comments');}
+  else box.innerHTML='<span class="small muted" role="status">Loading reactions…</span>';
+  try{const fresh=await SocialData.read(a.id,{ownerDetails:true});if(!fresh||!current())return;a._social=fresh;
+    if(!cached)wireTalk(box,a.id,fresh,new URLSearchParams(location.search).get('tab')==='comments');
+  }catch(error){if(current()&&!cached){box.innerHTML='<button type="button" class="linkbtn" data-social-retry>Retry reactions</button>';$('[data-social-retry]',box).onclick=()=>ownSocial(el,a);}}
 }
 function detailChecks(d) {
   return Object.entries(DETAIL_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${d[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('');
