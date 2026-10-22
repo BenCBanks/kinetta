@@ -50,3 +50,14 @@ for(const values of [[210],[200,100],[0]]){
 const unknown=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{estimated:true,entries:[{name:'Unknown food',kcal:null}]}]}});
 assert.match(unknown,/Incomplete/);assert(!unknown.includes('≈ 0 kcal'));
 console.log('all estimate cards: visible row breakdown and total even one/zero, unknown total stays incomplete PASS');
+
+// Explicit removal names each ingredient and disappears with the final food.
+Object.assign(c,{fmtAmount:()=>"0.25 serving",source:()=>"Kit’s estimate"});
+vm.runInContext(source.slice(source.indexOf('  function previewRows('),source.indexOf('  const pendingReview=')),c);
+const removable={index:0,status:'ready',entries:[{name:'Mayonnaise <test>',kcal:25}],drafts:[{portion:{count:.25}}],entry_drafts:[0],remove_entries:[0],remove_token:'a'.repeat(64)};
+const rows=c.previewRows(root,{parts:[removable]});
+const removedHtml=c.stepRow(rows[0]);assert.match(removedHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(removedHtml,/>Remove<\/button>/);
+assert.match(removedHtml,/data-step="-1"/);assert.match(removedHtml,/data-remove-food=/);
+ctx.messages=[user(1),reply(1,[])];c.primary(ctx);assert.equal(nodes['#thread-review'].hidden,true);
+assert.equal(c.previewRows({result:{review_only:false}},{parts:[removable]}),null,'logged/legacy rows cannot expose removal');
+console.log('estimate removal: named explicit action, portion controls retained, final-food review hidden PASS');

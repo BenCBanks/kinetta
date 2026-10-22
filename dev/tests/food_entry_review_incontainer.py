@@ -32,6 +32,51 @@ class Review(unittest.TestCase):
  def send(self,text,context=None,review=True):
   body={'client_id':str(uuid.uuid4()),'body':text,**({'review_only':True,'draft_id':self.draft} if review else {}),**({'context':context} if context else {})}
   m=self.post('/api/food/thread/messages',body,status=201)['message'];r=self.post(f"/api/food/thread/messages/{m['id']}/process");return m,r
+ def estimate(self):
+  # Fictional structured estimate; no model call or nutrition-accuracy claim.
+  from app import food_thread_compose as C,food_thread_sources as S
+  m,_=self.stage()
+  drafts=S.model_drafts({'items':[{'name':'Fictional turkey sub','amount':'1 sub','kcal':480,'protein_g':30,'carbs_g':45,'fat_g':20},
+                                {'name':'Fictional mayonnaise','amount':'1 tablespoon','kcal':100,'protein_g':0,'carbs_g':0,'fat_g':11}]})
+  for d in drafts:d['portion']={'count':0.25}
+  with db.connect() as c:
+   message=T.locked_message(c,self.ids[0],m['id'])
+   data=C.write(c,self.ids[0],message,{'composed':True,'day':str(message['local_day']),'meal':'lunch',
+    'parts':[{'index':0,'text':'Fictional sandwich','status':'ready','estimated':True,'drafts':drafts,'entries':S.draft_entries(drafts)}]})
+  return m,next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
+ def removal(self,m,part,entry=0,**kw):
+  return self.post(f"/api/food/thread/messages/{m['id']}/remove-food",{'part':part['index'],'entry':entry,'expected':part['remove_token']},**kw)
+ def test_remove_one_estimated_ingredient_survives_reload_and_explicit_review(self):
+  m,r=self.estimate();part=r['parts'][0];self.assertEqual(part['remove_entries'],[0,1]);self.assertEqual(sum(e['kcal'] for e in part['entries']),145)
+  old_review=self.prepare([m]);self.removal(m,part,1,client=self.b,status=404)
+  self.removal(m,part,1);self.assertEqual(self.rows('food_entries'),[])
+  restored=self.a.get('/api/food/thread/reviews/draft/'+self.draft).json();r=next(x['result'] for x in restored['messages'] if x.get('reply_to')==m['id'])
+  self.assertEqual([(e['name'],e['kcal']) for e in r['parts'][0]['entries']],[('Fictional turkey sub',120)])
+  self.removal(m,part,0,status=409) # old positions can never remove another food
+  self.post(f"/api/food/thread/reviews/{old_review['id']}/confirm",{'confirm':True,'meal':'lunch'},status=409)
+  self.assertEqual(self.rows('food_entries'),[])
+  review=self.prepare([m]);self.assertEqual(review['review']['totals']['kcal'],120);self.assertEqual(len(review['review']['foods']),1)
+  self.confirm(review,meal='lunch');self.assertEqual([(e['name'],e['kcal']) for e in self.rows('food_entries')],[('Fictional turkey sub',120)])
+  self.removal(m,r['parts'][0],status=409)
+ def test_remove_last_food_clears_review_and_stale_retries_do_not_shift(self):
+  m,r=self.estimate();part=r['parts'][0];data=self.removal(m,part,0)
+  self.removal(m,part,0,status=409)
+  part=next(x['result']['parts'][0] for x in data['messages'] if x.get('reply_to')==m['id'])
+  data=self.removal(m,part,0);r=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
+  self.assertEqual(r['parts'],[]);self.assertIn('All foods removed',r['text']);self.assertEqual(self.rows('food_entries'),[])
+  self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'messages':[m['id']]},status=409)
+ def test_portion_change_invalidates_removal_and_other_parts_are_kept(self):
+  m,r=self.estimate();part=r['parts'][0]
+  data=self.post(f"/api/food/thread/messages/{m['id']}/choose",{'part':0,'draft':1,'factor':2})
+  self.removal(m,part,1,status=409)
+  r=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id']);self.removal(m,r['parts'][0],1)
+  review=self.prepare([m]);self.assertEqual(review['review']['totals']['kcal'],120)
+  second,_=self.stage([{'day':str(dt.date.today()),'meal':'lunch','name':'Fictional rice','amount':1,'unit':'serving','kcal':200},
+                        {'day':str(dt.date.today()),'meal':'lunch','name':'Fictional beans','amount':1,'unit':'serving','kcal':100}])
+  restored=self.a.get('/api/food/thread/reviews/draft/'+self.draft).json();p=next(x['result']['parts'][0] for x in restored['messages'] if x.get('reply_to')==second['id'])
+  self.removal(second,p,0);review=self.prepare([m,second]);self.assertEqual(review['review']['totals']['kcal'],220)
+  self.assertEqual([e['name'] for e in review['review']['foods']],['Fictional turkey sub','Fictional beans'])
+
  def test_named_recipe_and_portion_are_atomic_retry_safe_and_undoable(self):
   m,body=self.stage();self.assertEqual(self.rows('food_entries'),[]);self.assertEqual(self.rows('dishes'),[])
   self.post('/api/food/thread/reviews/items',body);review=self.prepare([m]);self.assertEqual(review['review']['totals']['kcal'],400);self.assertIsNone(review['review']['totals']['protein_g'])

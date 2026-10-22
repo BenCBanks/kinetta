@@ -70,7 +70,8 @@ def message_entries(c, uid, messages):
                             ORDER BY e.id''', (uid, ids)).fetchall()
         for row in rows:
             grouped.setdefault(row.pop('message_id'), []).append(row)
-    return [{**m, 'entries': grouped.get(m['id'], [])} for m in messages]
+    from .food_thread_remove import annotate
+    return annotate([{**m, 'entries': grouped.get(m['id'], [])} for m in messages])
 
 
 def link_entries(c,uid,messages,ids):
@@ -320,6 +321,21 @@ def choose_message(mid: int, body: ChoiceIn, response: Response, user=Depends(cu
         if result is None:result=edits.choose(c,user['id'],message,body.part,body.pick,body.portion,body.select,body.omit)
         if result.get('changed'):response.status_code=409
         return result
+
+
+class RemoveFoodIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    part: int = Field(ge=0,lt=60)
+    entry: int = Field(ge=0,lt=60)
+    expected: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+@router.post('/messages/{mid}/remove-food')
+def remove_food(mid: int, body: RemoveFoodIn, user=Depends(current_user)):
+    from . import food_thread_remove
+    with db.connect() as c:
+        message=locked_message(c,user['id'],mid)
+        return food_thread_remove.remove_food(c,user['id'],message,body)
 
 
 class DestinationIn(BaseModel):
