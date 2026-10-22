@@ -342,7 +342,7 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 
 /* ---------- sport marks + stats ---------- */
 .sp { --c: var(--other); width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center; color: color-mix(in srgb, var(--c) 85%, var(--tx));
-  background: color-mix(in srgb, var(--c) 18%, var(--card)); }
+  background: color-mix(in srgb, var(--c) 18%, var(--card)); border: 1px solid color-mix(in srgb, var(--c) 45%, var(--card)); }
 .sp svg { width: 20px; height: 20px; }
 .sp.run { --c: var(--run); } .sp.ride { --c: var(--ride); } .sp.walk { --c: var(--walk); } .sp.hike { --c: var(--hike); } .sp.swim { --c: var(--swim); }
 .sp.row { --c: var(--row); padding: 0; border-top: 0; min-height: 0; justify-content: center; }  /* rowing: undo the list .row */
@@ -2056,7 +2056,6 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .post-ft:has(.activity-reactions) { flex-wrap:wrap; gap:0; padding:6px 8px; }
 .t-row:has(.activity-reactions) { flex-wrap:wrap; }
 .t-soc:has(.activity-reactions) { flex:1 0 100%; flex-wrap:wrap; margin:0; max-width:100%; gap:0; }
-.post .sp { color:color-mix(in srgb,var(--c) 80%,var(--tx)); background:color-mix(in srgb,var(--c) 22%,var(--card)); border:1px solid color-mix(in srgb,var(--c) 45%,var(--card)); }
 .post-profile .ph-txt small { white-space:normal; overflow:visible; }
 
 /* Keep the outer conversation still; only messages/ingredients scroll. The
