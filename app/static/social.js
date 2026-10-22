@@ -11,9 +11,9 @@ const reactionIcon = kind => kind==='strong'?'workout':kind==='applause'?'sparkl
 function reactionButtons(aid,s,detail=false){
   const selected=s.my_reaction??(s.cheered?'cheer':null),counts=s.reactions||{cheer:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0};
   return `<div class="activity-reactions" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS.map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
-    <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span>${REACTIONS.find(([k])=>k===selected)?.[1]||'Cheers'}</span></button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('down')}</button></div>
+    <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span class="num">${Object.values(counts).reduce((n,count)=>n+(+count||0),0)}</span></button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('down')}</button></div>
     <button type="button" class="pf reaction-count" aria-label="See who reacted" hidden></button>
-    <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="${label}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1">${svg(reactionIcon(kind))}<span>${label}</span></button>`).join('')}</div></div>`;
+    <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="${label}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1"><i class="reaction-badge" data-kind="${kind}">${svg(reactionIcon(kind))}</i><span>${label}</span></button>`).join('')}</div></div>`;
 }
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
@@ -34,16 +34,16 @@ function wireReactionGroup(group,aid,changed){
     const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight),above=r.top-p.height-8;
     picker.style.left=Math.max(12,Math.min(r.left,innerWidth-p.width-12))+'px';
     picker.style.top=Math.max(top+8,Math.min(above>=top+8?above:r.bottom+8,bottom-p.height-8))+'px';
-    if(focus)(options.find(b=>b.dataset.react===state.my_reaction)||options[0]).focus();
+    if(focus)(options.find(b=>b.dataset.react===state.my_reaction)||options[0]).focus({preventScroll:true});
   };
   const draw=()=>{
     if(!active())return;
     const selected=state.my_reaction,label=REACTIONS.find(([k])=>k===selected)?.[1]||'Cheers';
-    main.innerHTML=svg(reactionIcon(selected))+`<span>${label}</span>`;main.setAttribute('aria-pressed',String(!!selected));
-    main.setAttribute('aria-label',selected?`${label}. Tap to remove; hold to change`:'Cheers. Tap to send; hold to choose');
-    main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
     const used=REACTIONS.filter(([k])=>state.reactions[k]>0),total=used.reduce((n,[k])=>n+state.reactions[k],0);
-    count.hidden=!total;count.innerHTML=`<span class="reaction-icons">${used.map(([k])=>svg(reactionIcon(k))).join('')}</span><span class="num">${total}</span>`;
+    main.innerHTML=svg(reactionIcon(selected))+`<span class="num">${total}</span>`;main.dataset.kind=selected||'cheer';main.setAttribute('aria-pressed',String(!!selected));
+    main.setAttribute('aria-label',`${selected?label+'. Tap to remove; hold to change':'Cheers. Tap to send; hold to choose'}. ${total} reaction${total===1?'':'s'}`);
+    main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
+    count.hidden=!total;count.innerHTML=`<span class="reaction-icons" aria-hidden="true">${used.map(([k])=>`<i class="reaction-badge" data-kind="${k}">${svg(reactionIcon(k))}</i>`).join('')}</span>`;
     count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}. See who reacted`);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
@@ -76,7 +76,7 @@ function wireReactionGroup(group,aid,changed){
     if(['ArrowRight','ArrowDown'].includes(e.key))next=(i+1)%options.length;
     if(['ArrowLeft','ArrowUp'].includes(e.key))next=(i+options.length-1)%options.length;
     if(e.key==='Home')next=0;if(e.key==='End')next=options.length-1;
-    if(next!==null){e.preventDefault();options[next].focus();}
+    if(next!==null){e.preventDefault();options[next].focus({preventScroll:true});}
     if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close(true);}
     if(e.key==='Tab')close(true);
   });
@@ -140,6 +140,16 @@ function cheerGesture(button, toggle, show) {
     if (Date.now() >= suppressUntil) { suppressUntil = Date.now() + 1000; show(); }
   };
   viewResources.set(button, clear);
+}
+
+function shareActivity(href) {
+  const owner=readOwner(),url=`${appBase()}${href}`,active=()=>owner===readOwner();
+  const copy=()=>{if(!active())return;sheet('Share activity',`<p>Only people in this activity’s audience can open this link. They need to sign in to Kinetta.</p><label>Activity link<input readonly value="${esc(url)}"></label><button type="button" class="primary wide" data-copy-activity>Copy link</button><p class="small muted" data-copy-status role="status"></p>`,box=>{
+    const input=$('input',box);input.onclick=()=>input.select();
+    $('[data-copy-activity]',box).onclick=async()=>{if(!active())return;try{await navigator.clipboard.writeText(url);if(active()&&box.isConnected)$('[data-copy-status]',box).textContent='Link copied';}catch{if(active()&&box.isConnected){input.select();$('[data-copy-status]',box).textContent='Select and copy the link above.';}}};
+  });};
+  if(navigator.share)navigator.share({title:'Activity on Kinetta',url}).catch(error=>{if(error.name!=='AbortError')copy();});
+  else copy();
 }
 
 function activityCheers(aid) {
@@ -282,7 +292,7 @@ function sharedCharts(box, a) {
 
 // The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
-const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf" data-ttalk aria-label="Comments">${svg('comment')}<span class="num">${s.comments.length||''}</span></button>`;
+const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num">${s.comments.length}</span></button>`;
 function wireTalk(box,aid,s,open){
   if(!box)return;const owner=readOwner();
   const pile=box.closest('.d-title')&&$('.cpile',box.closest('.d-title'));

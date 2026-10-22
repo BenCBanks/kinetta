@@ -1029,3 +1029,23 @@ Itemized photo replies show ingredient names, estimated portions/calories, assum
 Every Add food estimate shows its current food/ingredient rows, portions, calories, assumptions and an application-calculated total without needing a follow-up request or checkbox. This includes typed descriptions. A single food still shows one row and a total; missing calories make the total incomplete. Saved-food nutrition stays authoritative. The reviewed ingredient prompt automatically splits mixed foods when the existing food comparison approves the exact fingerprint; without that review, the ordinary estimator remains available and its actual rows stay visible without inventing a finer split. Explicit ingredient generation remains blocked before provider work when unapproved.
 
 Selected photos appear in their sent chat bubble. Full images remain only in the account/server-bound on-device outbox while an upload is pending. Finished chat previews are small thumbnails held in WebView memory only, never server history, localStorage, service-worker caches or permanent food/recipe records. Clear chat, successful logging/review, cancellation, message deletion and account deletion remove the corresponding previews; a full app reload also drops completed previews. Failed logging keeps the photo for retry. Refresh reconciles clears/logging from another device. Late cleared or cancelled responses cannot restore the preview. Pending uploads retain their normal retry protection.
+
+
+## Activity social row and easier refresh (21 October 2026, owner reference)
+
+Activity cards use the owner's Facebook reference for a compact action row: reaction icon with total,
+comments with count, a share-link action for already shared activities, and overlapping colored reaction badges
+on the right. The badges open the people list. Keep the existing Cheers / Strong / Applause meanings, immediate
+optimistic feedback and rollback, hold/slide choices, visible choice control and keyboard support. The picker
+shows names under its symbols. Moving focus into its fixed menu must not scroll the page or dismiss the menu. Counts and accessible labels update together. Own-activity audience text sits
+with date/sport metadata and remains visible. Sharing copies or sends the authenticated shared-activity URL;
+it never widens the audience. Private activities do not offer that feed action.
+
+Retain the ivory/evergreen foundation. Use existing blue, violet and amber tokens for reaction badges and
+selected feedback; sport marks use a stronger tint and outline in their existing sport color. Icons, names and
+counts communicate meaning alongside color. This is a focused feed refresh, not a claim of a full app palette audit.
+
+At the top of a read-only tab, a vertical pull may begin on the activity title/numbers link as well as background.
+About90px reaches Release to refresh. Keep map/photo/horizontal/control/selection/editor gestures excluded,
+keep the visible refresh button and cached-data/error behavior, and consume the synthetic click after a drag
+so refreshing cannot accidentally open an activity. Ordinary new taps and keyboard activation still work.

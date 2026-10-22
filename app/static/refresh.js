@@ -3,7 +3,7 @@
 IC.refresh='<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M18 17a7 7 0 0 1-12 1l-2-3"/>';
 const PageRefresh=(()=>{
   const homes=new Set(['/me','/activity','/progress','/food']);
-  let busy=false,failure=null,start=null,indicator=null;
+  let busy=false,failure=null,start=null,indicator=null,suppressClickUntil=0;
   const pageKey=()=>location.pathname+location.search;
   const available=()=>!!App.me&&homes.has(location.pathname)&&!document.querySelector('.scrim,.ph-view,.map-full')&&!document.documentElement.classList.contains('keyboard-open')&&!document.activeElement?.matches('input,textarea,select,[contenteditable]')&&!document.querySelector('.me-settings[open]');
   function notice(text){
@@ -39,9 +39,12 @@ const PageRefresh=(()=>{
     if(path==='/me')heading.querySelector('.acts')?.prepend(button);
     else (heading.querySelector('.acts')||heading).append(button);
   }
-  const excluded=target=>!!target.closest('input,textarea,select,button,a,[contenteditable],.leaflet-container,.media-gallery,.activity-media,.chart,.scrim,.ph-view');
+  // The title and numbers are one large link. A vertical pull there should work
+  // just like a pull on the surrounding card; ordinary taps still open it.
+  const excluded=target=>!!target.closest('input,textarea,select,button,a:not(.post-link),[contenteditable],.leaflet-container,.media-gallery,.activity-media,.chart,.scrim,.ph-view');
   const reset=()=>{start=null;if(!busy)hide();};
   document.addEventListener('touchstart',event=>{
+    suppressClickUntil=0;
     if(busy||!available()||event.touches.length!==1||scrollY>1||excluded(event.target)||getSelection()?.toString())return reset();
     for(let node=event.target;node&&node!==document.body;node=node.parentElement){if(node.scrollTop>0)return reset();}
     const touch=event.touches[0];start={x:touch.clientX,y:touch.clientY,distance:0,key:pageKey()};
@@ -53,10 +56,14 @@ const PageRefresh=(()=>{
     if(dy<0||dx>Math.max(12,dy))return reset();
     if(dy<12)return;
     if(event.cancelable)event.preventDefault();
-    start.distance=Math.min(dy*.5,100);notice(start.distance>=64?'Release to refresh':'Pull to refresh');
-    indicator.style.transform='translateY('+Math.round(Math.min(start.distance,64))+'px)';
+    start.distance=Math.min(dy*.6,100);notice(start.distance>=54?'Release to refresh':'Pull to refresh');
+    indicator.style.transform='translateY('+Math.round(Math.min(start.distance,54))+'px)';
   },{passive:false});
-  document.addEventListener('touchend',()=>{const ready=start?.distance>=64;reset();if(ready)run();},{passive:true});
+  document.addEventListener('touchend',()=>{const pulled=start?.distance>0,ready=start?.distance>=54;reset();if(pulled)suppressClickUntil=Date.now()+700;if(ready)run();},{passive:true});
+  // Some WebViews synthesize a link click after a drag. Consume only that click,
+  // and clear the guard on the next intentional touch or keyboard activation.
+  document.addEventListener('click',event=>{if(event.detail!==0&&Date.now()<suppressClickUntil){suppressClickUntil=0;event.preventDefault();event.stopImmediatePropagation();}},true);
+  document.addEventListener('pointerdown',()=>{suppressClickUntil=0;},{passive:true});
   document.addEventListener('touchcancel',reset,{passive:true});
   return {available,run,mounted,failed};
 })();
