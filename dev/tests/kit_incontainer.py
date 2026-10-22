@@ -73,10 +73,11 @@ try:
  with patch('app.coach.provider',return_value='gemini'),patch('app.ai_release.enabled',return_value=False):req(a,'POST',root+'/messages',message('Question while unreleased'),503)
  with patch('app.ai_release.enabled',return_value=True),patch('app.coach.allowed',return_value=False):req(a,'POST',root+'/messages',message('Question without consent'),403)
  # Own-data tools use true restricted RLS and fixed schemas.
- today=dt.date.today().isoformat();dates={'start':today,'end':today}
+ # Keep local process time, the UTC profile and workout timestamps on one fixture day.
+ today='2026-01-15';dates={'start':today,'end':today}
  with db.connect() as c:
   c.execute("INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,ref) VALUES (%s,%s,'lunch','Fictional soup',1,'bowl',250,0,%s)",(uid,today,json.dumps({'unknown_nutrients':['protein_g']})))
-  aid=c.execute("INSERT INTO activities(user_id,sport,source,name,start_time,distance_m,moving_s) VALUES (%s,'walk','manual','Fictional walk',now(),1000,600) RETURNING id",(uid,)).fetchone()['id']
+  aid=c.execute("INSERT INTO activities(user_id,sport,source,name,start_time,distance_m,moving_s) VALUES (%s,'walk','manual','Fictional walk',%s,1000,600) RETURNING id",(uid,today+'T12:00:00+00:00')).fetchone()['id']
   c.execute("INSERT INTO goals(user_id,sport,period,metric,target) VALUES (%s,'walk','week','distance',5000)",(uid,))
   c.execute("INSERT INTO gear(user_id,name) VALUES (%s,'Fictional shoes')",(uid,))
  tools=kit_tools.KitTools(uid);ot=kit_tools.KitTools(other)
@@ -124,8 +125,8 @@ try:
  assert tools.call('activities',dates)['activities']
  # Workout ordering/cursors follow workout time, even when an older workout is uploaded last.
  with db.connect() as c:
-  late=c.execute("INSERT INTO activities(user_id,sport,source,name,start_time,distance_m,moving_s) VALUES (%s,'walk','manual','Fictional old late upload',now()-interval '1 day',2000,1000) RETURNING id",(uid,)).fetchone()['id']
- period={'start':(dt.date.today()-dt.timedelta(days=2)).isoformat(),'end':today}
+  late=c.execute("INSERT INTO activities(user_id,sport,source,name,start_time,distance_m,moving_s) VALUES (%s,'walk','manual','Fictional old late upload',%s::timestamptz-interval '1 day',2000,1000) RETURNING id",(uid,today+'T12:00:00+00:00')).fetchone()['id']
+ period={'start':(dt.date.fromisoformat(today)-dt.timedelta(days=2)).isoformat(),'end':today}
  ordered=tools.call('activities',period)['activities'];assert ordered[0]['id']==aid
  assert tools.call('activities',{**period,'before_id':aid})['activities'][0]['id']==late
  assert ot.call('activities',{**period,'before_id':aid})['activities']==[]
