@@ -27,7 +27,7 @@ const SocialData=(()=>{
   }
   function watch(id,fn){scope();const k=key(id),set=watchers.get(k)||new Set();watchers.set(k,set);
     for(const old of set)if(old(peek(id))===false)set.delete(old);set.add(fn);
-    return ()=>set.delete(fn);
+    return ()=>{set.delete(fn);if(!set.size&&watchers.get(k)===set)watchers.delete(k);};
   }
   const prefetch=id=>{read(id).catch(()=>{});};
   function warm(button,id){if(button.dataset.socialWarm)return;button.dataset.socialWarm='1';

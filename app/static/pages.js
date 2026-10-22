@@ -49,6 +49,7 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
 // Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment
 // button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
+  cleanViews();
   wireActivityMedia(box); wireCardTaps(box);
   $$('[data-talk]', box).forEach((b) => {SocialData.warm(b,b.dataset.talk);b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {

@@ -51,7 +51,7 @@ function wireReactionGroup(group,aid,changed){
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};draw();}};
-  SocialData.watch(aid,fresh=>{if(!active())return false;if(fresh)group._sync(fresh);});
+  const stopWatching=SocialData.watch(aid,fresh=>{if(!active())return false;if(fresh)group._sync(fresh);});
   const choose=async(next)=>{
     const focused=document.activeElement,restoreFocus=group.contains(focused)||picker.contains(focused),host=group.parentElement;
     close();if(busy||!active()||state.my_reaction===next)return;
@@ -94,7 +94,7 @@ function wireReactionGroup(group,aid,changed){
   const leave=e=>{if(e.pointerType==='mouse'){clearTimeout(hoverTimer);leaveTimer=setTimeout(()=>close(),200);}};
   const action=$('.reaction-action',group);action.addEventListener('pointerenter',enter);action.addEventListener('pointerleave',leave);
   picker.addEventListener('pointerenter',()=>clearTimeout(leaveTimer));picker.addEventListener('pointerleave',leave);
-  viewResources.set(group,()=>{close();picker.remove();document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape);window.removeEventListener('scroll',scroll,true);window.removeEventListener('resize',resize);});
+  viewResources.set(group,()=>{stopWatching?.();close();picker.remove();});
   draw();
 }
 
@@ -158,12 +158,13 @@ function shareActivity(href) {
 }
 
 function activityCheers(aid) {
+  cleanViews();
   const owner=readOwner(),cached=SocialData.peek(aid);
   sheet('Reactions', `<div class="cheers-list social-people" aria-busy="${!cached}">${cached?cheersPeople(cached.cheers):skel(2)}</div><p class="social-read-status small muted" role="status"></p>`,box=>{
     const list=$('.cheers-list',box),status=$('.social-read-status',box),current=()=>list.isConnected&&owner===readOwner();
     let shown=cached?cheersPeople(cached.cheers):null;
     const draw=s=>{const html=s?cheersPeople(s.cheers):'';if(shown!==html){list.innerHTML=html;shown=html;}};
-    SocialData.watch(aid,s=>{if(!current())return false;draw(s);});
+    viewResources.set(list,SocialData.watch(aid,s=>{if(!current())return false;draw(s);}));
     const refresh=async()=>{try{const s=await SocialData.read(aid);if(!current()||!s)return;draw(s);list.setAttribute('aria-busy','false');status.textContent='';}
       catch(error){if(!current())return;if([401,403,404].includes(error.status))list.replaceChildren();list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     refresh();
@@ -332,7 +333,7 @@ function wireTalk(box,aid,s,open){
   const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
   const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;group?._sync?.(s);$('.num',talk).textContent=s.comments.length;talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
   wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
-  SocialData.watch(aid,fresh=>{if(!box.isConnected||owner!==readOwner())return false;if(fresh)update(fresh);else box.replaceChildren();});
+  viewResources.set(talk,SocialData.watch(aid,fresh=>{if(!box.isConnected||owner!==readOwner())return false;if(fresh)update(fresh);else box.replaceChildren();}));
   talk.onclick=()=>commentsSheet(aid,s,update);
   if(open)commentsSheet(aid,s,update);
 }
@@ -352,6 +353,7 @@ function socialChanged(aid) {
 }
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
 function commentsSheet(aid, s, onChange) {
+  cleanViews();
   const account=readOwner();if(s&&!SocialData.peek(aid))SocialData.remember(aid,s);const cached=SocialData.peek(aid);
   sheet('Comments', `<div class="social social-sheet"><div class="social-reactions"><span class="small muted">Reactions</span></div><div class="comments" aria-label="Comments" aria-busy="${!cached}">${cached?'':skel(2)}</div>
     <p class="social-read-status small muted" role="status"></p>
@@ -361,7 +363,7 @@ function commentsSheet(aid, s, onChange) {
     box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(current())SocialData.draft(aid,f.text.value);};
     const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
     if(cached)drawComments(box,aid,cached,onChange);
-    SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();$('button',f).disabled=true;}});
+    viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();$('button',f).disabled=true;}}));
     const refresh=async()=>{try{const fresh=await SocialData.read(aid);update(fresh);}
       catch(error){if(!current())return;if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();$('button',f).disabled=true;}
         list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
