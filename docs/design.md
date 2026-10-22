@@ -72,7 +72,9 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
   labels, safe-area padding and a short active underline.
 - **Activities:** use Friends feed and My activities. Friends feed contains your activities and approved friends’ shared
   activities, newest first. My activities contains your own history with search and filters. Keep the short scope line,
-  privacy labels, comments, a compact reaction action and tappable reaction counts. The names match mutual friendships, not a new Follow model.
+  privacy labels, comments, a compact reaction action and tappable reaction counts. Preserve a thin, full-width horizontal
+  divider between each feed card’s activity content (including media controls) and its social actions. Use the theme
+  divider color in both light and dark mode, including cards without media. The names match mutual friendships, not a new Follow model.
 - **Activity media:** GPS map always comes first, followed by equally sized photos. Without GPS, photos lead. Retain
   swipe, arrows, keyboard navigation, positions, Map shortcut and full-screen zoom/pan. Never move server privacy trimming
   into the client. Today links to the latest activity without repeating its full card or media. Detailed media stays larger. Reserve a theme-colored top safe area so native status-bar text stays readable over bright maps/photos. Marketing photo examples may
