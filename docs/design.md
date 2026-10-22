@@ -25,18 +25,25 @@ AGENTS.md and CLAUDE.md link here; the shared DesignPrinciples agent guide conta
 | Secondary text | `#485A53` | `#C3C9C6` |
 | Muted text | `#59665F` | `#A8B8AF` |
 | Divider | `#DEE2D9` | `#34473D` |
-| Links/selection | Evergreen `#115447` | Sage `#8AD0B5` |
-| Primary action | Evergreen `#115447` | `#276D57` |
+| Links/selection | Evergreen `#08664F` | Sage `#74DBB5` |
+| Primary action | Evergreen `#0C7355` | `#23795D` |
 | On primary action | White `#FFFFFF` | White `#FFFFFF` |
-| Success/progress | `#27715B` | `#8AD0B5` |
+| Success/progress | `#14764F` | `#53D5A5` |
 | Error/destructive | `#C62828` | `#FF7B72` |
 | Control outline | `#7B8980` | `#82998C` |
 | On error fill | `#FFFFFF` | `#101C18` |
 | Warning | `#925C00` | `#E8B85A` |
 
-Color must explain something. Running uses evergreen, cycling slate blue, walking sage, swimming teal, hiking earth,
-rowing muted violet and lifting olive. Protein is slate blue, carbs amber and fat clay. Full light/dark values are in
+Color must explain something. Running uses evergreen, cycling blue, walking sage, swimming teal, hiking earth,
+rowing violet and lifting olive. Protein is blue, carbs amber and fat clay. Full light/dark values are in
 the JSON. Maintain these meanings across maps, charts, icons and legends; do not introduce random colorful tiles.
+Owner colour refresh, 22 October 2026: keep the ivory/forest surfaces and existing layout, with more saturated
+sport and chart colours, a clearer evergreen action colour, and tinted selected segments. Use the same sport mark
+on Today’s latest activity, feed, profiles and detail. Nutrition labels always show matching blue protein, amber
+carbs and clay fat dots, even without a target/bar; retain the names and numbers so colour is never the only cue.
+Plain shortcut icons use blue for Fitness, amber for Records and violet for Friends; keep settings rows neutral.
+Preserve the thin full-width divider above feed social actions in both themes, including cards without media.
+
 Errors, deletion and over-target warnings remain semantic; removing the ruby brand does not remove useful warnings.
 Initials avatars use brand-soft surfaces and brand text; notification counts use the readable action/on-action pair.
 Avoid decorative gradients, competing shadows and colored settings-icon boxes.

@@ -341,8 +341,8 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .pick-list .tick { color: var(--accent); } .pick-list .tick svg, .pick-list .row-link svg { width: 20px; height: 20px; }
 
 /* ---------- sport marks + stats ---------- */
-.sp { --c: var(--other); width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center; color: var(--c);
-  background: color-mix(in srgb, var(--c) 13%, transparent); }
+.sp { --c: var(--other); width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center; color: color-mix(in srgb, var(--c) 85%, var(--tx));
+  background: color-mix(in srgb, var(--c) 18%, var(--card)); }
 .sp svg { width: 20px; height: 20px; }
 .sp.run { --c: var(--run); } .sp.ride { --c: var(--ride); } .sp.walk { --c: var(--walk); } .sp.hike { --c: var(--hike); } .sp.swim { --c: var(--swim); }
 .sp.row { --c: var(--row); padding: 0; border-top: 0; min-height: 0; justify-content: center; }  /* rowing: undo the list .row */
@@ -1310,7 +1310,6 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 #t-last > .post { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding-bottom: 12px; }
 #t-last .post-profile, #t-last .post-link { padding-inline: 0; }
 #t-last .activity-media { margin-inline: 0; }
-#t-last .sp { background: var(--accent); color: var(--ontx); }
 .activity-view-note { font-size: 13px; color: var(--tx3); margin: -4px 2px 16px; }
 .profile-bio { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 2px 18px; max-width: 60ch; color: var(--tx2); }
 /* your own profile, editable in place (social.js wireProfileEditing) */
@@ -1428,8 +1427,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .latest-activity-link b { font-size: 15px; font-weight: 550; overflow-wrap: anywhere; }
 .latest-activity-link .grow { min-width: 0; }
 .latest-activity-link > svg { width: 18px; height: 18px; flex-shrink: 0; }
-.latest-activity-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: var(--card2); color: var(--accent); flex-shrink: 0; }
-.latest-activity-icon svg { width: 20px; height: 20px; }
+.latest-activity-link .sp { border-radius: 12px; }
 
 /* Issue 93: quieter daily balance, explicit library edits, full-page food entry. */
 .food-library-link { text-align: center; margin: 4px 0 16px; }
@@ -2301,3 +2299,15 @@ button.thread-food:active { opacity: .7; }
   .food-thread .thread-heading h1 { grid-column:1 / -1; grid-row:2; text-align:center; }
   .food-thread .thread-heading #thread-settings { grid-column:2; grid-row:1; }
 }
+
+/* Livelier semantic colours: keep surfaces quiet and put colour on useful cues. */
+.seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--accent2); }
+.macro.m-protein_g { --macro-color: var(--s1); }
+.macro.m-carbs_g { --macro-color: var(--s4); }
+.macro.m-fat_g { --macro-color: var(--s2); }
+.macro-bars .macro-line b { display: inline-flex; align-items: center; gap: 8px; }
+.macro-bars .macro-line b::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--macro-color); flex: none; }
+.macro-bars .track { height: 8px; background: color-mix(in srgb, var(--macro-color) 14%, var(--card)); }
+.me-shortcuts a[href="/progress?view=fitness"] svg { color: var(--s1); }
+.me-shortcuts a[href="/progress?view=records"] svg { color: var(--s4); }
+.me-shortcuts a[href="/me/friends"] svg { color: var(--s5); }
