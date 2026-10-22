@@ -16,7 +16,7 @@ function setup(){
  const nodes={'.reaction-main':main,'.reaction-more':more,'.reaction-count':count,'.reaction-picker':picker,'.reaction-action':action};
  const window={visualViewport:{offsetTop:0,height:844},handlers:new Map(),addEventListener(k,f){this.handlers.set(k,f);},removeEventListener(k){this.handlers.delete(k);}};
  const ctx={document,window,innerWidth:390,innerHeight:844,Date,Math,matchMedia:()=>({matches:true}),Native:{haptic(){}},viewResources:resources,
-  readOwner:()=>owner,$:s=>nodes[s],$$:()=>options,svg:k=>`<svg>${k}</svg>`,json:(method,body)=>({method,body:JSON.stringify(body)}),
+  SocialData:{remember(){},warm(){},watch(){},forget(){}},readOwner:()=>owner,$:(s,root)=>s==='.num'?(root._num||=node()):nodes[s],$$:()=>options,svg:k=>`<svg>${k}</svg>`,json:(method,body)=>({method,body:JSON.stringify(body)}),
   api:(url,opts)=>new Promise((resolve,reject)=>pending.push({url,opts,resolve,reject})),socialChanged:id=>changes.push(id),toast:s=>errors.push(s),
   setTimeout:f=>{timers.set(++timer,f);return timer;},clearTimeout:id=>timers.delete(id)};
  vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const REACTIONS='),source.indexOf('\nconst VIS ='))+source.slice(source.indexOf('function cheerGesture'),source.indexOf('\nfunction activityCheers')),ctx);
@@ -46,6 +46,7 @@ const fire=(el,key,e=event())=>(el.handlers.get(key)||[]).forEach(f=>f(e));
  h.setHit(h.options[2]);h.main.onpointerup(event());h.main.onclick(event());assert.equal(h.pending.length,1,'held slide/release sends once');assert.equal(h.pending[0].opts.body,'{"kind":"applause"}');
  h.setOwner('changed');h.pending.shift().resolve({my_reaction:'applause',reactions:{cheer:0,strong:0,applause:1}});await tick();assert.equal(h.changes.length,0,'late reply cannot refresh another account');
  for(const clean of h.resources.values())clean();
+ const detached=setup();detached.main.onclick(event({detail:0}));detached.group.isConnected=false;detached.pending.shift().resolve({my_reaction:'cheer',reactions:{cheer:1},cheers:[],comments:[]});await tick();assert.equal(detached.changes.length,1,'a same-account write invalidates stale reads after navigation too');
  const share=setup(),sent=[],sheets=[];share.ctx.appBase=()=> 'https://example.test';share.ctx.esc=String;
  share.ctx.navigator={share:data=>{sent.push(data);return Promise.resolve();}};share.ctx.sheet=(...args)=>sheets.push(args);
  share.ctx.shareActivity('/activity/friends/7');await tick();assert.equal(sent[0].url,'https://example.test/activity/friends/7');assert.equal(share.pending.length,0,'link sharing never writes activity data');

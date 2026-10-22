@@ -30,7 +30,15 @@
     "series-4": "#A57512",
     "series-5": "#8657B5",
     "outline": "#7B8980",
-    "on-error": "#FFFFFF"
+    "on-error": "#FFFFFF",
+    "nutrition": "#97512E",
+    "achievement": "#805900",
+    "zone-1": "#246CB5",
+    "zone-2": "#14764F",
+    "zone-3": "#A57512",
+    "zone-4": "#B15D25",
+    "zone-5": "#C62828",
+    "workout-hard": "#B15D25"
   },
   "dark": {
     "canvas": "#101C18",
@@ -62,7 +70,15 @@
     "series-4": "#EDC35F",
     "series-5": "#C49AF0",
     "outline": "#82998C",
-    "on-error": "#101C18"
+    "on-error": "#101C18",
+    "nutrition": "#F0B48A",
+    "achievement": "#EDC35F",
+    "zone-1": "#73B5FF",
+    "zone-2": "#53D5A5",
+    "zone-3": "#EDC35F",
+    "zone-4": "#F29A61",
+    "zone-5": "#FF7B72",
+    "workout-hard": "#F29A61"
   },
   "scale": {
     "space-1": "4px",

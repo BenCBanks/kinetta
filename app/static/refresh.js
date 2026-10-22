@@ -15,10 +15,11 @@ const PageRefresh=(()=>{
   async function run(){
     if(busy||!available())return;
     const owner=readOwner(),key=pageKey();busy=true;failure=null;start=null;
-    notice('Refreshing…');$$('[data-page-refresh]').forEach(b=>{b.disabled=true;b.setAttribute('aria-busy','true');});
+    notice('Refreshing…');
     App.scroll[key]=scrollY;
     invalidate('/api/',{health:false,keepData:true});
     if(typeof Social!=='undefined')Social.at=0;
+    if(typeof SocialData!=='undefined')SocialData.invalidate();
     try{await render();
       // Some home cards start their own reads after the route's first render.
       // Keep the refresh status until those reads (and their dependent reads) settle.
@@ -29,19 +30,11 @@ const PageRefresh=(()=>{
       }
       if(owner===readOwner()&&key===pageKey())toast(failure||App.offline?'Couldn’t refresh. Your saved view is kept.':'Up to date');}
     catch(e){if(owner===readOwner()&&key===pageKey())toast(e.message);}
-    finally{busy=false;failure=null;hide();$$('[data-page-refresh]').forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy');});}
-  }
-  function mounted(el,path){
-    if(!homes.has(path)||el.querySelector('[data-page-refresh]'))return;
-    const heading=el.querySelector('.top');if(!heading)return;
-    const button=document.createElement('button');button.type='button';button.className='icon-btn page-refresh-button';button.dataset.pageRefresh='1';button.setAttribute('aria-label','Refresh page');button.title='Refresh page';button.innerHTML=svg('refresh');button.disabled=busy;button.onclick=run;
-    // The Me invitation moved out of the header, leaving room for this action.
-    if(path==='/me')heading.querySelector('.acts')?.prepend(button);
-    else (heading.querySelector('.acts')||heading).append(button);
+    finally{busy=false;failure=null;hide();}
   }
   // The title and numbers are one large link. A vertical pull there should work
   // just like a pull on the surrounding card; ordinary taps still open it.
-  const excluded=target=>!!target.closest('input,textarea,select,button,a:not(.post-link),[contenteditable],.leaflet-container,.media-gallery,.activity-media,.chart,.scrim,.ph-view');
+  const excluded=target=>!!target.closest('input,textarea,select,button,a:not(.post-link):not(.tfood-details):not(.latest-activity-link),[contenteditable],.leaflet-container,.media-gallery,.activity-media,.chart,.scrim,.ph-view');
   const reset=()=>{start=null;if(!busy)hide();};
   document.addEventListener('touchstart',event=>{
     suppressClickUntil=0;
@@ -65,5 +58,5 @@ const PageRefresh=(()=>{
   document.addEventListener('click',event=>{if(event.detail!==0&&Date.now()<suppressClickUntil){suppressClickUntil=0;event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('pointerdown',()=>{suppressClickUntil=0;},{passive:true});
   document.addEventListener('touchcancel',reset,{passive:true});
-  return {available,run,mounted,failed};
+  return {available,run,failed};
 })();

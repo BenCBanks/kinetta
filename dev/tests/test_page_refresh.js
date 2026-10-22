@@ -7,6 +7,7 @@ vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/refresh.js','utf
 const target={closest:()=>false,parentElement:null,scrollTop:0};
 let touchTarget=target;const start=(x=30,y=50)=>handlers.touchstart({touches:[{clientX:x,clientY:y}],target:touchTarget});
 let prevented=0;const move=(x,y)=>handlers.touchmove({touches:[{clientX:x,clientY:y}],cancelable:true,preventDefault:()=>prevented++});
+assert(!fs.readFileSync('app/static/refresh.js','utf8').includes("document.createElement('button')"),'no header refresh control is injected');
 (async()=>{
  start();move(32,190);assert.equal(notices[0].textContent,'Release to refresh');handlers.touchend();assert.equal(rendered,1);assert.equal(invalidations[0][0],'/api/');assert.equal(invalidations[0][1].keepData,true);assert.equal(invalidations[0][1].health,false,'refresh never initiates Health writes');await c.refresh.run();assert.equal(rendered,1,'repeated pulls join the in-flight refresh');finish();await new Promise(setImmediate);assert.equal(toasts.at(-1),'Up to date');
  start();move(180,80);handlers.touchend();assert.equal(rendered,1,'horizontal media gestures are not a refresh');

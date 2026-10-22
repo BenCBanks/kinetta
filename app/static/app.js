@@ -402,7 +402,7 @@ function sheet(title, html, onMount) {
   let ty = null, dy = 0, dragging = false, fromTop = false;
   const settle = (shut) => { sh.classList.add('settle'); if (shut) { sh.style.transform = 'translateY(100%)'; setTimeout(close, 160); } else { sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); } };
   sh.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips')) { ty = null; return; }
+    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips, .social-sheet .comments')) { ty = null; return; }
     ty = e.touches[0].clientY; dy = 0; dragging = false;
     fromTop = !!e.target.closest('.grab, header') || sh.scrollTop <= 0;
   }, {passive: true});
@@ -505,6 +505,7 @@ function render() {
     `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
+  el.dataset.area = activeTab;
   if (typeof Track !== 'undefined') Track.sync();
   // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab fades it in.
   if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t)) el.classList.add('enter'); App.lastPath = location.pathname; }
@@ -514,12 +515,11 @@ function render() {
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
   const result=page.fn(el,...m.slice(1));
   if(typeof KitChat!=='undefined')KitChat.entry(el,path);
-  if(typeof PageRefresh!=='undefined')PageRefresh.mounted(el,path);
   requestAnimationFrame(()=>{if(el.isConnected&&key===location.pathname+location.search&&!touched)window.scrollTo(0,targetY);});
   return Promise.resolve(result).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(el.isConnected&&key===location.pathname+location.search&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if(typeof PageRefresh!=='undefined')PageRefresh.mounted(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {

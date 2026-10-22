@@ -10,7 +10,7 @@
   --alert: var(--color-error); --warn: var(--color-warning); --good: var(--color-success);
   --run: var(--color-run); --ride: var(--color-ride); --walk: var(--color-walk); --hike: var(--color-hike); --swim: var(--color-swim); --row: var(--color-row); --ski: var(--color-ski); --workout: var(--color-workout); --other: var(--color-other);
   --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
-  --gold: #C9A227; --silver: #9AA3A8; --bronze: #B07440;
+  --gold: var(--color-achievement); --silver: #9AA3A8; --bronze: #B07440;
   --tile1: #1F6FE0; --tile2: #0F8A5C; --tile3: #D9481A; --tile4: #115447;   /* solid tiles with white text (2026-10-13): dark enough for it */
   --r: var(--radius-card); --r2: var(--radius-control); --r3: var(--radius-media); --tab-h: 66px; --segon: #FDFCF8; --segbg: #ECEAE4;
   --shadow: 0 1px 2px rgba(17,21,20,.03), 0 6px 22px rgba(17,21,20,.05);
@@ -520,9 +520,18 @@ tr.muted td { color: var(--tx3); }
 .bar.slow { background: var(--tx3); opacity: .45; }
 .zones { display: grid; gap: 10px; }
 .zone { display: grid; grid-template-columns: 56px minmax(0, 1fr) 64px; gap: 10px; align-items: center; font-size: 14px; }
-.zone .bar { height: 14px; border-radius: 7px; } .zone .z1 { background: #8DB6D3; } .zone .z2 { background: #4FB38F; } .zone .z3 { background: #E3B341; } .zone .z4 { background: #E57F3B; } .zone .z5 { background: #D64545; }
+.zone { --zone-color: var(--color-zone-1); }
+.zone[data-zone="2"] { --zone-color: var(--color-zone-2); }
+.zone[data-zone="3"] { --zone-color: var(--color-zone-3); }
+.zone[data-zone="4"] { --zone-color: var(--color-zone-4); }
+.zone[data-zone="5"] { --zone-color: var(--color-zone-5); }
+.zone .bar { height: 14px; border-radius: 7px; min-width: 0; background: var(--zone-color); }
+.zone-track { background: var(--card2); border-radius: 7px; }
+.zone-name { display: inline-flex; gap: 6px; align-items: center; }
+.zone-name i { width: 8px; height: 8px; border-radius: 50%; background: var(--zone-color); }
+.zone .num small { display: block; font-size: 11px; }
 .medal { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 800; color: #101C18; margin-right: 6px; }
-.medal.m1 { background: var(--gold); } .medal.m2 { background: var(--silver); } .medal.m3 { background: var(--bronze); }
+.medal.m1 { background: color-mix(in srgb,var(--gold) 16%,var(--card)); color: var(--gold); border: 1px solid var(--gold); } .medal.m2 { background: var(--silver); } .medal.m3 { background: var(--bronze); }
 
 /* ---------- Today ---------- */
 /* a link that reads as a small evergreen pill (card headings) */
@@ -2169,7 +2178,7 @@ p a:not(.primary):not(.ghost):not(.food-library-link a), .small a:not(.primary):
 
 .food-final-review { gap: 12px; }
 
-.badge.pr { color: var(--tx2); }
+.badge.pr { color: var(--color-achievement); background: color-mix(in srgb,var(--color-achievement) 13%,var(--card)); }
 body .leaflet-container .leaflet-control-attribution { background: var(--card); color: var(--tx2); font-size: 11px; }
 
 /* Calendar status remains distinguishable without its hue; the legend uses the same marks. */
@@ -2310,3 +2319,63 @@ button.thread-food:active { opacity: .7; }
 .me-shortcuts a[href="/progress?view=fitness"] svg { color: var(--s1); }
 .me-shortcuts a[href="/progress?view=records"] svg { color: var(--s4); }
 .me-shortcuts a[href="/me/friends"] svg { color: var(--s5); }
+
+/* Sport distance: segments sum to the original day/week total, with a neutral zero baseline. */
+.mileage-stack { width:100%; height:calc(var(--h,0) * 100%); min-height:2px; display:flex; flex-direction:column-reverse; border-radius:4px 4px 0 0; overflow:hidden; }
+.seven-bars .mileage-column .mileage-segment { height:calc(var(--w,0) * 100%); min-height:0; border-radius:0; background:var(--sport-color,var(--other)); }
+.seven-bars .mileage-column .mileage-empty { height:2px; min-height:2px; background:var(--line); }
+[data-sport="run"] { --sport-color:var(--run); } [data-sport="ride"] { --sport-color:var(--ride); }
+[data-sport="walk"] { --sport-color:var(--walk); } [data-sport="hike"] { --sport-color:var(--hike); }
+[data-sport="swim"] { --sport-color:var(--swim); } [data-sport="row"] { --sport-color:var(--row); }
+[data-sport="ski"] { --sport-color:var(--ski); } [data-sport="workout"] { --sport-color:var(--workout); }
+.sport-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:12px; color:var(--tx2); }
+.sport-legend span { display:inline-flex; align-items:center; gap:6px; }
+.sport-swatch { display:inline-block; width:9px; height:9px; border-radius:2px; background:var(--sport-color,var(--other)); flex:none; }
+
+/* Food has a warm identity; its actions and links retain the shared green. */
+#page[data-area="food"] h1, .tfood h2 { color:var(--color-nutrition); }
+#fd-sum .eyebrow { color:var(--color-nutrition); }
+#fd-sum .nutrition-summary + .track > .bar { background:var(--color-nutrition); }
+#fd-sum .nutrition-summary + .track > .bar.over { background:var(--alert); }
+.tfood-calories { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.tfood .gbar .gfill { background:var(--color-nutrition); }
+.tfood .gbar.over .gfill { background:var(--alert); }
+.today-macros { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.today-macro { --macro:var(--s1); min-width:0; }
+.today-macro.m-carbs_g { --macro:var(--s4); } .today-macro.m-fat_g { --macro:var(--s2); }
+.today-macro>small { display:flex; align-items:center; gap:5px; color:color-mix(in srgb,var(--macro) 75%,var(--tx)); font-size:12px; font-weight:650; }
+.today-macro>small::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--macro); flex:none; }
+.today-macro>b { display:block; font-size:1.2rem; overflow-wrap:anywhere; }
+.today-macro>b i { font:400 12px var(--font); color:var(--tx2); }
+.today-macro>span { display:block; font-size:11px; }
+
+/* Gold celebrates an actual result; workout type remains visible alongside completion. */
+.achievement-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.achievement { display:inline-flex; align-items:center; gap:5px; color:var(--color-achievement); background:color-mix(in srgb,var(--color-achievement) 10%,var(--card)); border-radius:999px; padding:4px 9px; font-size:12px; font-weight:650; }
+.achievement svg { width:15px; height:15px; flex:none; }
+.goal.reached .track .bar { background:var(--color-achievement); }
+.goal .achievement { justify-self:start; }
+[data-workout-kind] { --workout-color:var(--run); }
+[data-workout-kind="hard"] { --workout-color:var(--color-workout-hard); }
+[data-workout-kind="long"] { --workout-color:var(--ride); }
+[data-workout-kind="rest"], [data-workout-kind="other"] { --workout-color:var(--tx3); }
+.pw[data-workout-kind] { border-inline-start:3px solid var(--workout-color); padding-inline-start:10px; }
+.pw[data-workout-kind] .pw-day { color:color-mix(in srgb,var(--workout-color) 80%,var(--tx)); }
+.pw.plan-rest { opacity:1; color:var(--tx2); }
+.pt-w[data-workout-kind] { border-inline-start:3px solid var(--workout-color); background:color-mix(in srgb,var(--workout-color) 11%,var(--card)); }
+.plan-today .pt-w[data-workout-kind] { background:color-mix(in srgb,var(--workout-color) 11%,var(--card)); }
+.pt-w .plan-completion { color:var(--color-achievement); display:flex; align-items:center; gap:5px; }
+.plan-legend { display:flex; flex-wrap:wrap; gap:6px 12px; margin:10px 0; font-size:12px; color:var(--tx2); }
+.plan-legend span { display:inline-flex; align-items:center; gap:5px; }
+.plan-legend span::before { content:''; width:8px; height:8px; border-radius:2px; background:var(--workout-color); }
+
+/* Social reads update inside one steady sheet; the composer is mounted before the request. */
+.social-sheet { display:flex; flex-direction:column; }
+.social-sheet .comments { height:clamp(100px,26dvh,220px); overflow-y:auto; overscroll-behavior:contain; }
+.social-sheet .social-reactions { height:44px; display:flex; align-items:center; flex:none; }
+.social-sheet .c-form { margin-top:auto; padding-top:12px; }
+.social-sheet .social-read-status:empty { display:none; }
+.social-people { min-height:180px; }
+.social-read-status { overflow-wrap:anywhere; }
+
+.activity-reactions[aria-busy="true"] .reaction-main, .activity-reactions[aria-busy="true"] .reaction-more { opacity:1; }

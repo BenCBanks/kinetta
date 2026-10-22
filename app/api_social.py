@@ -24,7 +24,7 @@ from . import db, notify, reactions
 from .api_account import _admin
 from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline
 from .auth import current_user
-from .activity_chart import sunday, weekly_distances
+from .activity_chart import sunday, weekly_distances, distance_days
 from .admin_auth import admin_user, audit
 
 router = APIRouter(prefix='/api')
@@ -244,13 +244,14 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         first_day = today - dt.timedelta(days=13)
         params.update(chart_zone=zone, chart_start=sunday(today) - dt.timedelta(weeks=6), chart_end=today + dt.timedelta(days=1))
         distances = c.execute(f"""SELECT (a.start_time AT TIME ZONE %(chart_zone)s)::date AS d,
-                    coalesce(sum(a.distance_m), 0) AS distance_m FROM activities a
+                    a.sport, coalesce(sum(a.distance_m), 0) AS distance_m FROM activities a
                     WHERE {visible} AND a.start_time AT TIME ZONE %(chart_zone)s >= %(chart_start)s
-                    AND a.start_time AT TIME ZONE %(chart_zone)s < %(chart_end)s GROUP BY 1""", params).fetchall()
-        by_day = {row['d']: float(row['distance_m']) for row in distances}
-        mileage = {'today': today, 'weeks': weekly_distances(today, by_day), 'days': [{'d': first_day + dt.timedelta(days=i),
+                    AND a.start_time AT TIME ZONE %(chart_zone)s < %(chart_end)s GROUP BY 1,2""", params).fetchall()
+        day_totals = distance_days(distances)
+        by_day = {d: row['distance_m'] for d, row in day_totals.items()}
+        mileage = {'today': today, 'weeks': weekly_distances(today, by_day, {d: row['by_sport'] for d, row in day_totals.items()}), 'days': [{'d': first_day + dt.timedelta(days=i),
                             'distance_m': by_day.get(first_day + dt.timedelta(days=i), 0),
-                            'today': i == 13} for i in range(14)]}
+                            'today': i == 13, 'by_sport': (day_totals.get(first_day + dt.timedelta(days=i)) or {}).get('by_sport', {})} for i in range(14)]}
         query = _select() + ' WHERE ' + visible
         if before:
             query += ' AND (a.start_time < %(before)s OR (a.start_time = %(before)s AND a.id < %(before_id)s))'

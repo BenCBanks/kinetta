@@ -70,7 +70,7 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
 - **Today:** serif Kinetta wordmark, profile link, small local date, “Hi, [first name]” greeting, notifications and Add activity.
   An enrolled plan supplies a compact agenda. Nutrition appears under the existing current-day logged-food condition.
   With neither active, weekly distance/time/climb or activity count leads directly to a compact latest-activity link.
-  Omit the redundant This week heading. Use evergreen seven-day bars with day/date/value labels, without a comparison ring.
+  Omit the redundant This week heading. Use sport-stacked seven-day distance bars with day/date/value labels, a named sport legend and a neutral zero baseline, without a comparison ring.
   Eligible Kit weekly reviews open from a small button beside the greeting; goals and fitness follow the primary content. Keep the persistent discovery/setup actions specified below separate from conditional data panels.
 - **Five stable tabs:** Today, Activity, Progress, Nutrition, Me remain available on every screen. Feature-panel visibility
   must not hide a tab. Hide the entire bottom bar while the software keyboard is open, on every route and in sheets;
@@ -1022,7 +1022,7 @@ The evening food summary, setting and shortcut are retired. Nutrition insights c
 
 Me shows a compact Ask Kit invitation explaining “Your training & nutrition assistant” between the greeting and chart, for accounts with Kit available. Keep the approved activity-first hierarchy and all five tabs. Opening Kit costs no model request.
 
-Read-only tab homes offer pull down from the top to refresh, with a release threshold, visible progress and an accessible Refresh page button. Horizontal, map, input, selection and modal gestures keep their normal actions; chats/editors/recording are excluded. Retain cached content while fetching. Temporary server/network failures keep that content with an honest failure message. Returning to the app must not rebuild active chats/forms or move the page after the user starts scrolling. New read requests have a bounded wait and Retry.
+Read-only tab homes offer pull down from the top to refresh, with a release threshold, visible progress and no header refresh icon (owner revision, 22 October). Horizontal, map, input, selection and modal gestures keep their normal actions; chats/editors/recording are excluded. Retain cached content while fetching. Temporary server/network failures keep that content with an honest failure message. Returning to the app must not rebuild active chats/forms or move the page after the user starts scrolling. New read requests have a bounded wait and Retry.
 
 New accounts default to Everyone on Kinetta for new activities. Show that choice during signup and allow Only me or approved friends before account creation/import. Preserve existing accounts’ saved defaults and every existing activity’s audience. Phone recordings follow the default and offer an audience selector before Save; a retry cannot change an already-saved recording. Shared maps keep server-enforced trimming and blocks. Food, body data, private notes and Kit remain private. Sharing controls roll back visibly when saving fails.
 
@@ -1056,7 +1056,7 @@ counts communicate meaning alongside color. This is a focused feed refresh, not 
 
 At the top of a read-only tab, a vertical pull may begin on the activity title/numbers link as well as background.
 About90px reaches Release to refresh. Keep map/photo/horizontal/control/selection/editor gestures excluded,
-keep the visible refresh button and cached-data/error behavior, and consume the synthetic click after a drag
+keep the cached-data/error behavior with pull-to-refresh as the page refresh control, and consume the synthetic click after a drag
 so refreshing cannot accidentally open an activity. Ordinary new taps and keyboard activation still work.
 
 
@@ -1075,3 +1075,28 @@ height when restoring a deep position; maps remain lazy. Existing deliberate tab
 keyboard gestures, recording and food drafts stay intact. Delayed data must never scroll a person back after they
 have started interacting. Browser timings on a local fixture are diagnostic evidence, not physical-iPhone or
 public-network performance measurements.
+
+
+## Colour meaning and smooth social panels (22 October 2026, owner revision)
+
+Preserve ivory/forest surfaces, quiet cards, green actions and links, the five stable tabs and the thin divider
+above activity social controls. Colour communicates a labelled value or state:
+
+- Today and shared profile distance charts split days and weeks into their actual sports. Segments sum to the
+  same distance total, retain viewer-local Sunday boundaries and privacy filtering, and appear in the legend
+  and tapped/keyboard readout. Empty/future days stay neutral; older payloads use a neutral total, never a guessed sport.
+- The conditional Food today card shows protein, carbs and fat in blue/amber/clay with grams, unknown values
+  and targets when known. Its labelled calorie progress bar fills against the real saved goal. No goal means no
+  invented fill. Nutrition headings and calorie progress use a warm clay accent; buttons and links stay green.
+- Personal records, activity streaks, completed plan workouts and reached activity goals use readable gold
+  with words, counts or check marks. Do not turn food intake targets into achievement streaks.
+- Heart-rate zones retain their existing thresholds and durations. Numbered zones and effort names use blue,
+  green, amber, orange and red from Z1 to Z5, with time and percentage labels, in both themes.
+- Plan days show easy/recovery/run-walk in green, workouts/intervals in orange, long/medium-long runs in blue,
+  and explicit rest days in grey. Completed workouts keep their type cue and gain a gold Done/check marker.
+- Main tab pages refresh by pulling down, without a header refresh icon. Preserve gesture exclusions, the
+  release/progress/error messages and cached content. No hidden Health sync or other write is added.
+- Reaction and comment reads share one session-scoped in-flight request. Warm/cache reads may render immediately;
+  newer writes win over late reads, and account/permission changes clear private cached people. Social sheets mount
+  their composer immediately, keep it and unchanged comment rows mounted during updates, and preserve unsent text,
+  focus and selection. Failures keep drafts and offer Retry. Cached reads are an interaction aid, not a privacy bypass.

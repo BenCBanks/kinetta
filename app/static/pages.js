@@ -50,14 +50,14 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
 // button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
   wireActivityMedia(box); wireCardTaps(box);
-  $$('[data-talk]', box).forEach((b) => b.onclick = () => {
+  $$('[data-talk]', box).forEach((b) => {SocialData.warm(b,b.dataset.talk);b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
       b.innerHTML = svg('comment') + `<span class="num">${fresh.comments.length}</span>`;
       b.setAttribute('aria-label',`Comments, ${fresh.comments.length}`);
       const group=b.closest('.post-ft')?.querySelector('[data-reaction-group]');group?._sync?.(fresh);
     });
-  });
+  };});
   $$('[data-reaction-group]',box).forEach(group=>wireReactionGroup(group,group.dataset.aid));
   $$('[data-share-activity]',box).forEach(button=>button.onclick=()=>shareActivity(button.dataset.shareActivity));
 }
@@ -100,23 +100,35 @@ function mileagePeriods(series) {
   const byDay = new Map(days.map(r => [r.d, r]));
   const week = Array.from({length:7}, (_, i) => {
     const date = new Date(start); date.setUTCDate(start.getUTCDate() + i); const d = date.toISOString().slice(0, 10);
-    return {d, distance_m: d > today ? 0 : byDay.get(d)?.distance_m || 0, today: d === today, future: d > today};
+    return {d, distance_m: d > today ? 0 : byDay.get(d)?.distance_m || 0, by_sport: d > today ? {} : byDay.get(d)?.by_sport, today: d === today, future: d > today};
   });
   return {days: week, weeks: Array.isArray(series.weeks) && series.weeks.length === 7 ? series.weeks : null};
 }
 
+const DISTANCE_SPORTS = ['run','ride','walk','hike','swim','row','ski','workout','other'];
+function mileageSegments(row) {
+  const total = +row.distance_m || 0;
+  if (!total) return [];
+  const parts = DISTANCE_SPORTS.map(sport => [sport, +(row.by_sport?.[sport] || 0)]).filter(([,value]) => value > 0);
+  // Old cached/server responses stay honest: a neutral total rather than a guessed sport.
+  return Math.abs(parts.reduce((n,[,v])=>n+v,0)-total) < .01 ? parts : [['total',total]];
+}
+const mileageSportName = sport => sport === 'total' ? 'Distance' : SPORT_NAMES[sport] || 'Other';
 function mileageChart(box, series, period = 'days') {
   const periods = mileagePeriods(series), weekly = period === 'weeks' && !!periods.weeks;
   const rows = weekly ? periods.weeks : periods.days, max = Math.max(1, ...rows.map((r) => +r.distance_m || 0));
   const total = rows.reduce((n, r) => n + (+r.distance_m || 0), 0);
   const dateLabel = (d) => fdate(d + 'T12:00', {month:'short',day:'numeric'});
   const range = `${dateLabel(rows[0].d)} – ${dateLabel(weekly ? rows.at(-1).end : rows.at(-1).d)}`;
-  const labels = rows.map((r) => `${weekly ? `${dateLabel(r.d)} – ${dateLabel(r.end)}${r.today ? ' (so far)' : ''}` : fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${r.future ? 'Not yet' : `${U.dist(r.distance_m || 0, 1)} ${U.du()}`}`);
+  const used = [...new Set(rows.flatMap(r=>mileageSegments(r).map(([sport])=>sport)))];
+  const labels = rows.map((r) => `${weekly ? `${dateLabel(r.d)} – ${dateLabel(r.end)}${r.today ? ' (so far)' : ''}` : fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${r.future ? 'Not yet' : `${U.dist(r.distance_m || 0, 1)} ${U.du()}`}${r.by_sport && r.distance_m ? ' · '+mileageSegments(r).map(([sport,value])=>`${mileageSportName(sport)} ${U.dist(value,1)} ${U.du()}`).join(', ') : ''}`);
   box.innerHTML = `<div class="mileage-heading"><h2>${weekly ? 'Last 7 weeks' : 'This week'}</h2><div class="mileage-toggle" role="group" aria-label="Distance chart period"><button type="button" data-mileage-period="days" aria-pressed="${!weekly}">Days</button><button type="button" data-mileage-period="weeks" aria-pressed="${weekly}"${periods.weeks ? '' : ' disabled title="Weekly distance needs a server update"'}>Weeks</button></div></div><p class="mileage-total num"><b>${U.dist(total, 1)}</b> ${U.du()}</p>
     <div class="mileage-bars seven-bars" role="group" aria-label="${weekly ? 'Weekly distance, weeks start Sunday' : 'Daily distance, Sunday to Saturday'}">${rows.map((r, i) => {
       const date = new Date(r.d + 'T12:00');
-      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><span class="mileage-column" aria-hidden="true"><i data-h="${Math.max(.015, (+r.distance_m || 0) / max)}"></i></span><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
+      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><span class="mileage-column" aria-hidden="true">${r.distance_m ? `<span class="mileage-stack" data-h="${(+r.distance_m || 0)/max}">${mileageSegments(r).map(([sport,value])=>`<i class="mileage-segment" data-sport="${sport}" data-w="${value/r.distance_m}"></i>`).join('')}</span>` : '<i class="mileage-empty"></i>'}</span><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
     }).join('')}</div>
+    ${used.length ? `<div class="sport-legend" aria-label="Distance by sport">${used.map(sport=>`<span><i class="sport-swatch" data-sport="${sport}" aria-hidden="true"></i>${esc(mileageSportName(sport))}</span>`).join('')}</div>` : ''}
+    ${series.streaks ? `<div class="achievement-row">${series.streaks.days>1?`<span class="achievement">${svg('flame')}${series.streaks.days}-day activity streak</span>`:''}${series.streaks.weeks>1?`<span class="achievement">${svg('trophy')}${series.streaks.weeks}-week activity streak</span>`:''}</div>` : ''}
     <p class="small muted mileage-range" role="status" aria-live="polite" aria-atomic="true">${esc(range)}</p>
     ${total ? '' : `<p class="small muted">No distance recorded ${weekly ? 'in these weeks' : 'this week'}. Timed activities still appear below.</p>`}`;
   box.querySelectorAll('[data-mileage-period]').forEach(button => button.onclick = () => {
@@ -307,7 +319,7 @@ async function meOverview(el) {
     load('/api/stats', (s) => {
       if (!el.isConnected) return;
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
-      mileageChart($('#me-distance', el), {days:s.recent_days || [], today:s.chart_today, weeks:s.chart_weeks});
+      mileageChart($('#me-distance', el), {days:s.recent_days || [], today:s.chart_today, weeks:s.chart_weeks,streaks:{days:s.day_streak,weeks:s.week_streak}});
     }),
     load('/api/fitness?days=60', (f) => {
       if (!el.isConnected) return;
@@ -341,8 +353,8 @@ function goalFmt(metric, v) {
 function goalRow(g) {
   const pct = Math.min(1, g.value / g.target);
   const what = `${g.metric === 'calories' ? 'Calories burned' : g.sport ? SPORT_NAMES[g.sport] : 'All'}${g.metric === 'calories' && g.sport ? ` (${SPORT_NAMES[g.sport].toLowerCase()})` : ''} · ${g.period === 'day' ? 'today' : 'this ' + g.period}`;
-  return `<div class="goal"><div class="top2"><b>${esc(what)}</b><span class="num">${esc(goalFmt(g.metric, g.value))} / ${esc(goalFmt(g.metric, g.target))}</span></div>
-    <div class="track"><div class="bar" data-w="${pct.toFixed(3)}"></div></div></div>`;
+  return `<div class="goal${pct >= 1 ? ' reached' : ''}"><div class="top2"><b>${esc(what)}</b><span class="num">${esc(goalFmt(g.metric, g.value))} / ${esc(goalFmt(g.metric, g.target))}</span></div>
+    <div class="track"><div class="bar" data-w="${pct.toFixed(3)}"></div></div>${pct>=1?`<span class="achievement">${svg('trophy')}Goal reached</span>`:''}</div>`;
 }
 // apply data-w widths through CSS custom properties (no inline style attributes allowed)
 new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProperty('--w', b.dataset.w); b.removeAttribute('data-w'); }
@@ -570,7 +582,7 @@ function effortsTable(a) {
 }
 function zonesHtml(z) {
   const tot = z.reduce((a, b) => a + b, 0) || 1;
-  return `<div class="zones">${z.map((s, i) => `<div class="zone"><span>Z${i + 1}</span><div><div class="bar z${i + 1}" data-w="${(s / tot).toFixed(3)}"></div><small class="muted">${ZN[i]}</small></div><span class="num r">${dur(s, true)}</span></div>`).join('')}</div>`;
+  return `<div class="zones">${z.map((s, i) => `<div class="zone" data-zone="${i+1}" role="img" aria-label="Zone ${i+1}, ${ZN[i]}, ${dur(s,true)}, ${Math.round(s/tot*100)} percent"><span class="zone-name"><i aria-hidden="true"></i>Z${i + 1}</span><div><div class="zone-track"><div class="bar z${i + 1}" data-w="${(s / tot).toFixed(3)}"></div></div><small class="muted">${ZN[i]}</small></div><span class="num r">${dur(s, true)}<small class="muted">${Math.round(s/tot*100)}%</small></span></div>`).join('')}</div>`;
 }
 function similarHtml(a) {
   const mine = a.moving_s && a.distance_m ? a.moving_s / a.distance_m * 1000 : null;

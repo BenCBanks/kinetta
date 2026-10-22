@@ -101,11 +101,15 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
     if (App.me) App.me.food_user = !!D.food_user || loggedToday;
     onFoodUser?.(loggedToday);
     if (!loggedToday) { box.innerHTML = ''; return; }
-    const g = D.goal?.kcal, T = D.totals, pt = D.targets?.protein_target, left = g == null ? null : g - T.kcal;
-    const protein = D.unknown_nutrients?.protein_g ? (D.unknown_nutrients.protein_g >= D.entries.length ? '–' : r0(T.protein_g) + '+') : r0(T.protein_g) + (pt ? '/' + r0(pt) : '');
+    const g = D.goal?.kcal, T = D.totals, left = g == null ? null : g - T.kcal;
+    const fraction = g > 0 ? Math.max(0,Math.min(1,T.kcal/g)) : 0;
+    const progress = g > 0 ? `${r0(homeCalories(T.kcal))} of ${r0(g)} kcal${left<0?`, ${r0(homeCalories(-left))} above goal`:''}` : '';
     box.innerHTML = `<div class="card tfood" aria-label="Today’s food"><h2>Food today<a class="more" href="/food">Open log ›</a></h2>
-      <a class="tap" href="/food"><div class="stats3">${stat('Eaten', r0(homeCalories(T.kcal)), 'kcal')}${g != null ? stat(left < 0 ? 'Over' : 'Left', r0(homeCalories(Math.abs(left))), 'kcal') : stat('Goal', 'not set')}${stat('Protein', protein, 'g')}</div>
-      ${g != null ? `<div class="gbar${left < 0 ? ' over' : ''}"><div class="gfill" data-w="${Math.min(1, T.kcal / g).toFixed(3)}"></div></div>` : ''}
+      <a class="tap tfood-details" href="/food"><div class="tfood-calories">${stat('Eaten', r0(homeCalories(T.kcal)), 'kcal')}${g != null ? stat(left < 0 ? 'Over' : 'Left', r0(homeCalories(Math.abs(left))), 'kcal') : stat('Goal', 'not set')}</div>
+      ${g > 0 ? `<div class="gbar${left < 0 ? ' over' : ''}" role="progressbar" aria-label="Calories eaten" aria-valuemin="0" aria-valuemax="${g}" aria-valuenow="${Math.min(g,Math.max(0,T.kcal))}" aria-valuetext="${esc(progress)}"><div class="gfill" data-w="${fraction.toFixed(3)}"></div></div>` : ''}
+      <div class="today-macros">${MACROS.map(([k,name])=>{const target=D.targets?.[k.replace('_g','_target')],unknown=D.unknown_nutrients?.[k]||0;
+        const value=unknown>=D.entries.length?'Unknown':r0(T[k]||0)+(unknown?'+':'');
+        return `<div class="today-macro m-${k}"><small>${name}</small><b class="num">${value}${value==='Unknown'?'':'<i> g</i>'}</b>${target?`<span class="small muted">of ${r0(target)} g</span>`:''}</div>`;}).join('')}</div>
       ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</a>
       <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
     syncCheckinPrimary(box.closest?.('#page'));

@@ -40,14 +40,16 @@ function wireReactionGroup(group,aid,changed){
     if(!active())return;
     const selected=state.my_reaction,label=REACTIONS.find(([k])=>k===selected)?.[1]||'Cheers';
     const used=REACTIONS.filter(([k])=>state.reactions[k]>0),total=used.reduce((n,[k])=>n+state.reactions[k],0);
-    main.innerHTML=svg(reactionIcon(selected))+`<span class="num">${total}</span>`;main.dataset.kind=selected||'cheer';main.setAttribute('aria-pressed',String(!!selected));
+    const icon=svg(reactionIcon(selected));if(main._icon!==icon){main.innerHTML=icon+`<span class="num">${total}</span>`;main._icon=icon;}else $('.num',main).textContent=total;
+    main.dataset.kind=selected||'cheer';main.setAttribute('aria-pressed',String(!!selected));
     main.setAttribute('aria-label',`${selected?label+'. Tap to remove; hold to change':'Cheers. Tap to send; hold to choose'}. ${total} reaction${total===1?'':'s'}`);
     main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    count.hidden=!total;count.innerHTML=`<span class="reaction-icons" aria-hidden="true">${used.map(([k])=>`<i class="reaction-badge" data-kind="${k}">${svg(reactionIcon(k))}</i>`).join('')}</span>`;
+    count.hidden=!total;const badges=`<span class="reaction-icons" aria-hidden="true">${used.map(([k])=>`<i class="reaction-badge" data-kind="${k}">${svg(reactionIcon(k))}</i>`).join('')}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
     count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}. See who reacted`);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};draw();}};
+  SocialData.watch(aid,fresh=>{if(!active())return false;if(fresh)group._sync(fresh);});
   const choose=async(next)=>{
     const focused=document.activeElement,restoreFocus=group.contains(focused)||picker.contains(focused),host=group.parentElement;
     close();if(busy||!active()||state.my_reaction===next)return;
@@ -55,10 +57,10 @@ function wireReactionGroup(group,aid,changed){
     if(state.my_reaction)counts[state.my_reaction]=Math.max(0,(counts[state.my_reaction]||0)-1);if(next)counts[next]=(counts[next]||0)+1;
     state={my_reaction:next,reactions:counts};draw();Native.haptic(next?'medium':'light');
     try{
-      let fresh=await api(`/api/activities/${aid}/reaction`,next?json('POST',{kind:next}):{method:'DELETE'});if(!active())return;
-      if(!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);if(!active())return;
-      state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};socialChanged(aid);changed?.(fresh);
-    }catch(x){if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?main:host?.querySelector('.reaction-main');if(button?.isConnected)button.focus({preventScroll:true});}}
+      let fresh=await api(`/api/activities/${aid}/reaction`,next?json('POST',{kind:next}):{method:'DELETE'});if(readOwner()!==owner)return;
+      if(!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);if(readOwner()!==owner)return;
+      SocialData.remember(aid,fresh);socialChanged(aid);if(active()){state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};changed?.(fresh);}
+    }catch(x){if(readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?main:host?.querySelector('.reaction-main');if(button?.isConnected)button.focus({preventScroll:true});}}
   };
   cheerGesture(main,()=>{if(!picker.hidden){close();return;}choose(state.my_reaction?null:'cheer');},()=>{open();heldOpen=true;});
   main.title='Tap to send or remove; hold to choose a reaction';
@@ -69,6 +71,7 @@ function wireReactionGroup(group,aid,changed){
   main.onpointercancel=e=>{cancel(e);close();};
   main.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();open(true);}});
   more.onclick=e=>{e.preventDefault();e.stopPropagation();picker.hidden?open(true):close(true);};
+  SocialData.warm(count,aid);
   count.onclick=e=>{e.preventDefault();e.stopPropagation();close();activityCheers(aid);};
   for(const b of options)b.onclick=e=>{e.preventDefault();e.stopPropagation();choose(b.dataset.react);if(active())main.focus({preventScroll:true});};
   picker.addEventListener('keydown',e=>{
@@ -153,11 +156,13 @@ function shareActivity(href) {
 }
 
 function activityCheers(aid) {
-  const owner=readOwner();
-  sheet('Reactions', '<div class="cheers-list" aria-live="polite">Loading…</div>', async (box) => {
-    const list = $('.cheers-list', box);
-    try { const s = await api(`/api/activities/${aid}/social`); if (list.isConnected&&owner===readOwner()) list.innerHTML = cheersPeople(s.cheers); }
-    catch (x) { if (list.isConnected) list.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p>`; }
+  const owner=readOwner(),cached=SocialData.peek(aid);
+  sheet('Reactions', `<div class="cheers-list social-people" aria-busy="${!cached}">${cached?cheersPeople(cached.cheers):skel(2)}</div><p class="social-read-status small muted" role="status"></p>`,box=>{
+    const list=$('.cheers-list',box),status=$('.social-read-status',box),current=()=>list.isConnected&&owner===readOwner();
+    SocialData.watch(aid,s=>{if(!current())return false;const html=s?cheersPeople(s.cheers):'';if(list.innerHTML!==html)list.innerHTML=html;});
+    const refresh=async()=>{try{const s=await SocialData.read(aid);if(!current()||!s)return;const html=cheersPeople(s.cheers);if(list.innerHTML!==html)list.innerHTML=html;list.setAttribute('aria-busy','false');status.textContent='';}
+      catch(error){if(!current())return;if([401,403,404].includes(error.status))list.replaceChildren();list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
+    refresh();
   });
 }
 
@@ -318,13 +323,13 @@ function sharedCharts(box, a) {
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
 const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num">${s.comments.length}</span></button>`;
 function wireTalk(box,aid,s,open){
-  if(!box)return;const owner=readOwner();
-  const pile=box.closest('.d-title')&&$('.cpile',box.closest('.d-title'));
-  const draw=()=>{if(!box.isConnected||owner!==readOwner())return;box.innerHTML=talkIcons(s,aid);cleanViews();
-    if(pile)pile.innerHTML=''; // The compact count already opens the people list.
-    wireReactionGroup($('[data-reaction-group]',box),aid,fresh=>{s=fresh;draw();});
-    $('[data-ttalk]',box).onclick=()=>commentsSheet(aid,s,fresh=>{s=fresh;draw();});
-  };draw();if(open)commentsSheet(aid,s,fresh=>{s=fresh;draw();});
+  if(!box)return;const owner=readOwner(),cached=SocialData.peek(aid);if(cached)s=cached;else SocialData.remember(aid,s);
+  box.innerHTML=talkIcons(s,aid);cleanViews();
+  const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
+  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;SocialData.remember(aid,s);group?._sync?.(s);$('.num',talk).textContent=s.comments.length;talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
+  wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
+  talk.onclick=()=>commentsSheet(aid,s,update);
+  if(open)commentsSheet(aid,s,update);
 }
 // Who sent cheers (2026-10-12, Ben): up to three faces and "Jordan Lee and 2 others" under the activity's numbers; a tap
 // lists everyone. The same list opens from the comments sheet.
@@ -342,49 +347,51 @@ function socialChanged(aid) {
 }
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
 function commentsSheet(aid, s, onChange) {
-  const account = readOwner();
-  sheet('Comments', '<div class="social" aria-live="polite"><p class="muted">Loading comments…</p></div>', (b) => {
-    const box = $('.social', b);
-    const current = () => box.isConnected && account === readOwner();
-    const fetchComments = async () => {
-      box.innerHTML = '<p class="muted">Loading comments…</p>';
-      try { const fresh = await api(`/api/activities/${aid}/social`); if (current()) drawComments(box, aid, fresh, onChange); }
-      catch (x) {
-        if (!current()) return;
-        box.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button type="button" class="ghost wide" data-retry>Retry</button>`;
-        $('[data-retry]', box).onclick = fetchComments;
-      }
+  const account=readOwner();if(s&&!SocialData.peek(aid))SocialData.remember(aid,s);const cached=SocialData.peek(aid);
+  sheet('Comments', `<div class="social social-sheet"><div class="social-reactions"><span class="small muted">Reactions</span></div><div class="comments" aria-label="Comments" aria-busy="${!cached}">${cached?'':skel(2)}</div>
+    <p class="social-read-status small muted" role="status"></p>
+    <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea><button class="primary wide">Post comment</button></form></div>`,b=>{
+    const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box);
+    const current=()=>box.isConnected&&account===readOwner();
+    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(current())SocialData.draft(aid,f.text.value);};
+    const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;SocialData.remember(aid,fresh);drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
+    if(cached)drawComments(box,aid,cached,onChange);
+    SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();$('button',f).disabled=true;}});
+    const refresh=async()=>{try{const fresh=await SocialData.read(aid);update(fresh);}
+      catch(error){if(!current())return;if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();$('button',f).disabled=true;}
+        list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
+    f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=$('button',f);if(!text||button.disabled)return;
+      let denied=false;button.disabled=true;button.textContent='Posting…';
+      try{const fresh=await api(`/api/activities/${aid}/comments`,json('POST',{text}));if(account!==readOwner())return;
+        SocialData.remember(aid,fresh);socialChanged(aid);
+        if(f.text.value===raw){f.text.value='';if(SocialData.draft(aid)===raw)SocialData.draft(aid,'');}
+        if(current())update(fresh,{posted:true});
+      }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current())status.textContent=error.message;}
+      finally{if(current()){button.disabled=denied;button.textContent='Post comment';}}
     };
-    if (s) drawComments(box, aid, s, onChange); else fetchComments();
+    refresh();
   });
 }
-function drawComments(box, aid, s, onChange) {
-  const account = readOwner();
-  const names = s.cheers.map((c) => c.name);
-  const who = names.length ? `<button type="button" class="small cheer-who" data-cwho>${svg('cheer')}<span class="grow"><b>Reactions</b> from ${esc(names.length > 3 ? names.slice(0, 3).join(', ') + ` and ${names.length - 3} more` : names.join(', '))}</span><span class="chev">${svg('chev')}</span></button>` : '';
-  box.innerHTML = `${who}<div class="comments">${s.comments.length ? s.comments.map((c) => `<div class="comment"><a href="${profileHref(c)}" data-close aria-label="View ${esc(c.name)}'s profile">${avatar(c)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(c)}" data-close><b>${esc(c.name)}</b></a><small class="muted">${esc(when(c.created))}</small></div><p>${esc(c.text)}</p><div class="c-acts">${c.can_delete ? `<button class="linkbtn danger" data-del="${c.id}" aria-label="Delete comment from ${esc(c.name)}">Delete</button>` : ''}${c.login !== App.me.login ? `<button class="linkbtn muted" data-rep="${c.id}" aria-label="Report comment from ${esc(c.name)}">Report</button>` : ''}</div></div></div>`).join('')
-      : '<p class="small muted c-none">No comments yet.</p>'}</div>
-    <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea>
-      <button class="primary wide">Post comment</button></form>`;
-  const cw = $('[data-cwho]', box); if (cw) cw.onclick = () => cheersSheet(s.cheers);
-  const after = (fresh) => { if (account !== readOwner()) return; socialChanged(aid); s = {...s, ...fresh}; drawComments(box, aid, s, onChange); if (onChange) onChange(s); };
-  $$('[data-del]', box).forEach((b) => b.onclick = async () => {
-    if (!confirm('Delete this comment?')) return;
-    b.disabled = true;
-    try { await api('/api/comments/' + b.dataset.del, {method: 'DELETE'}); after({comments: s.comments.filter((c) => String(c.id) !== b.dataset.del)}); }
-    catch (x) { toast(x.message); b.disabled = false; }
-  });
-  $$('[data-rep]', box).forEach((b) => b.onclick = () => {
-    const c = s.comments.find((x) => String(x.id) === b.dataset.rep);
-    reportSheet(c, {comment_id: c.id}, () => after({comments: s.comments.filter((x) => x.login !== c.login)}));
-  });
-  const f = $('.c-form', box);
-  f.onsubmit = async (e) => {
-    e.preventDefault(); const text = f.text.value.trim(); if (!text) return;
-    const btn = $('button', f); if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Posting…';
-    try { after(await api(`/api/activities/${aid}/comments`, json('POST', {text}))); }
-    catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Post comment'; }
-  };
+function drawComments(box,aid,s,onChange){
+  if(!box.isConnected||box._owner!==readOwner())return;box._social=s;
+  const list=$('.comments',box),reactions=$('.social-reactions',box),names=s.cheers.map(c=>c.name);
+  const who=names.length?`<button type="button" class="small cheer-who" data-cwho>${svg('cheer')}<span class="grow"><b>Reactions</b> · ${names.length}</span><span class="chev">${svg('chev')}</span></button>`:'<span class="small muted">No reactions yet.</span>';
+  if(reactions.innerHTML!==who){reactions.innerHTML=who;const button=$('[data-cwho]',reactions);if(button)button.onclick=()=>activityCheers(aid);}
+  if(list.getAttribute('aria-busy')==='true')list.replaceChildren();list.setAttribute('aria-busy','false');
+  const keep=new Set();let anchor=list.firstElementChild;
+  for(const comment of s.comments){const id=String(comment.id);keep.add(id);let node=[...list.children].find(n=>n.dataset.commentId===id);const signature=JSON.stringify(comment);
+    if(!node){node=document.createElement('div');node.className='comment';node.dataset.commentId=id;}
+    if(node===anchor)anchor=anchor.nextElementSibling;else list.insertBefore(node,anchor);
+    if(node._signature===signature)continue;node._signature=signature;
+    node.innerHTML=`<a href="${profileHref(comment)}" data-close aria-label="View ${esc(comment.name)}'s profile">${avatar(comment)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(comment)}" data-close><b>${esc(comment.name)}</b></a><small class="muted">${esc(when(comment.created))}</small></div><p>${esc(comment.text)}</p><div class="c-acts">${comment.can_delete?`<button class="linkbtn danger" data-del="${comment.id}" aria-label="Delete comment from ${esc(comment.name)}">Delete</button>`:''}${comment.login!==App.me.login?`<button class="linkbtn muted" data-rep="${comment.id}" aria-label="Report comment from ${esc(comment.name)}">Report</button>`:''}</div></div>`;
+    const after=fresh=>{if(box._owner!==readOwner())return;socialChanged(aid);SocialData.remember(aid,fresh);if(box.isConnected)drawComments(box,aid,fresh,onChange);onChange?.(fresh);};
+    const del=$('[data-del]',node);if(del)del.onclick=async()=>{if(box._owner!==readOwner()||!confirm('Delete this comment?'))return;del.disabled=true;
+      try{await api('/api/comments/'+comment.id,{method:'DELETE'});after({...SocialData.peek(aid)||box._social,comments:(SocialData.peek(aid)||box._social).comments.filter(c=>c.id!==comment.id)});}catch(error){if(box._owner===readOwner())toast(error.message);if(del.isConnected)del.disabled=false;}};
+    const report=$('[data-rep]',node);if(report)report.onclick=()=>{if(box._owner===readOwner())reportSheet(comment,{comment_id:comment.id},()=>after({...box._social,comments:box._social.comments.filter(c=>c.login!==comment.login)}));};
+  }
+  for(const node of [...list.children])if(!keep.has(node.dataset.commentId))node.remove();
+  if(!s.comments.length)list.innerHTML='<p class="small muted c-none">No comments yet.</p>';
+  const button=$('button',$('.c-form',box));if(button.textContent!=='Posting…')button.disabled=false;
 }
 
 // ---------- activity photos (2026-10-12, api_photos.py) ----------
