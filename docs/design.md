@@ -1122,3 +1122,21 @@ Nutrition's cached day only when the returned date exactly matches the explicitl
 server's local date or reuse a different day's food. Keep cached content visible during a refresh; navigation,
 privacy checks and unsent drafts retain their existing behavior. Browser timings with artificial delays are
 diagnostic evidence, not a promise about a physical phone or public-network latency.
+
+
+### Stable first paint and sheet motion (22 October 2026)
+
+On a cold Me load, reserve room for the chart and show it as soon as its data arrives. Keep the conditional day,
+latest activity and the actions below them together until their first plan, food, check-in and activity results
+are known. Do not expose shortcuts and then push them down as these cards arrive. Cached first draws release
+this immediately, including during stale revalidation; unrelated friends, fitness and goal reads do not block it.
+Empty days still omit the agenda, failed reads release loading and preserve available retry feedback. Notify the
+parent about food visibility only after its card and logging action are mounted. The stable five-tab navigation
+and header controls remain available during loading.
+
+Sheets use a short entrance and160ms exit; closing releases keyboard/drag handlers and focus immediately, while
+only an inert, inaccessible visual shell remains for the exit. Start from the current position and opacity when
+interrupted during opening or a drag. Rapid replacement removes that shell and cannot restore old focus later.
+Reduced motion removes the sheet immediately. Never translate the whole page: fixed and sticky composers must
+retain their existing viewport and keyboard behaviour. Browser geometry, delayed-network checks and animation
+samples are evidence for the tested flows; physical iPhone keyboard/scroll/frame pacing still needs a device.

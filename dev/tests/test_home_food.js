@@ -16,7 +16,7 @@ context.day={...context.day,food_user:true,goal:{kcal:2000},targets:{protein_tar
 box.innerHTML='old';context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(box.innerHTML,'');assert.equal(foodUser,false);assert.equal(context.App.me.food_user,true);
 // Something logged today: compact numbers and one Log food button.
 context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:0,protein_g:0,carbs_g:0,fat_g:0}};
-context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(foodUser,true);assert.match(box.innerHTML,/Food today/);assert.match(box.innerHTML,/Left 2000 kcal/);assert.match(box.innerHTML,/m-protein_g/);assert.match(box.innerHTML,/>Protein<\/small>/);assert.match(box.innerHTML,/>of 120 g<\/span>/);assert.match(box.innerHTML,/aria-valuenow="0"/);
+context.todayFoodCard(box,{onFoodUser:v=>{foodUser=v;assert.match(box.innerHTML,/Food today/,'day visibility is notified only after the card is mounted');assert.equal(typeof nodes.get('#tf-add').onclick,'function','logging is wired before notifying the parent');}});assert.equal(foodUser,true);assert.match(box.innerHTML,/Food today/);assert.match(box.innerHTML,/Left 2000 kcal/);assert.match(box.innerHTML,/m-protein_g/);assert.match(box.innerHTML,/>Protein<\/small>/);assert.match(box.innerHTML,/>of 120 g<\/span>/);assert.match(box.innerHTML,/aria-valuenow="0"/);
 assert.equal((box.innerHTML.match(/<button/g)||[]).length,1,'one logging button on Me');assert.doesNotMatch(box.innerHTML,/Describe|Snap|Scan|Usual|Same as yesterday|kcal burned/);
 nodes.get('#tf-add').onclick();assert.deepEqual(calls.pop(),['describe','2026-10-17',null]);
 context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:2431,protein_g:25,carbs_g:54,fat_g:13}};

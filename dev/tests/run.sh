@@ -50,6 +50,8 @@ node dev/tests/test_ui_state.js
 node dev/tests/test_social_profiles_ui.js
 node dev/tests/test_onboarding.js
 node dev/tests/test_home_food.js
+node dev/tests/test_home_loading.js
+node dev/tests/test_sheet_motion.js
 node dev/tests/test_navigation.js
 node dev/tests/test_ui_clarity.js
 python3 dev/tests/test_food_thread_facts.py

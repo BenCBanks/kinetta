@@ -264,19 +264,33 @@ async function meOverview(el) {
   // A simple landing pad (owner decisions 2026-10-18): high-level stats, then one row of icon shortcuts to everything
   // else; the 14-day chart and latest activity lead. Food, the weekly check-in and the food & training week appear only
   // once something is logged today. Your day shows only when it has something in it.
+  // Show the chart as soon as it arrives. Reveal the conditional day and its actions together, so a late
+  // plan/food/check-in cannot insert itself above an already tappable shortcut. Cached first draws release this
+  // gate immediately; background revalidation and unrelated fitness/friends reads never hold it open.
+  const page = el.closest('#page'), waiting = new Set(['chart', 'latest', 'plan', 'food', 'checkin']);
+  page.dataset.homeLoading = '';
+  const ready = key => {
+    waiting.delete(key);
+    if (!waiting.size && el.isConnected) { delete page.dataset.homeLoading; $('#t-loading', el)?.remove(); }
+  };
+  const tracked = (key, promise) => promise.catch(error => {
+    if (key === 'chart' && el.isConnected) $('#t-week', el).innerHTML = '<p class="small muted">Weekly activity could not load.</p>';
+    throw error;
+  }).finally(() => ready(key));
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
-    <section id="t-week" aria-label="Last 14 days">${skel(1)}</section>
-    <div id="t-last"></div>
+    <section id="t-week" aria-label="Last 14 days"><div class="card mileage-loading" aria-hidden="true">${skel(1)}</div></section>
+    <div id="t-loading" role="status"><p class="small muted">Loading your day…</p>${skel(1)}</div>
+    <div id="t-content"><div id="t-last"></div>
     <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
     <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => { const waiting = href === '/me/friends' && App.me.friend_requests;
       return `<a href="${href}"${waiting ? ` aria-label="${label}, ${App.me.friend_requests} waiting"` : ''}>${svg(ico)}<span>${label}</span>${waiting ? `<b class="badge alert">${App.me.friend_requests}</b>` : ''}</a>`; }).join('')}</nav>
     <div id="t-combined-week"></div><div id="t-friends"></div>
-    <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div>`;
+    <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
   // Your day appears only when the plan or food card (or a pending check-in) has something to show.
   const agenda = () => { const box = $('.me-agenda', el); if (box) box.hidden = !['#t-plan', '#t-food', '#t-checkin'].some(id => $(id, el)?.innerHTML.trim()); };
-  planCard($('#t-plan', el)).then(agenda).catch(() => {});
+  tracked('plan', planCard($('#t-plan', el), {onReady: () => { agenda(); ready('plan'); }})).then(agenda).catch(() => {});
   let foodHistory=null,activityHistory=null,healthConnected=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null)return;
@@ -284,14 +298,14 @@ async function meOverview(el) {
     $('#t-setup', el).innerHTML = getStarted(healthConnected, activityHistory||foodHistory) +
       (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
   };
-  todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
-    agenda();
-    if(!loggedToday||!el.isConnected)return;
-    weeklyCheckinCard($('#t-checkin',el),{home:true}).then(agenda);
+  tracked('food', todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
+    agenda(); ready('food');
+    if(!loggedToday||!el.isConnected){ ready('checkin'); return; }
+    tracked('checkin', weeklyCheckinCard($('#t-checkin',el),{home:true,onReady:()=>{agenda();ready('checkin');}})).then(agenda);
     combinedWeek($('#t-combined-week',el));
-  }}).catch(() => {
+  }})).catch(() => {
     if (!el.isConnected) return;
-    foodHistory=false;drawSetup();
+    foodHistory=false;drawSetup();ready('checkin');
     // Only food users see a failure here; for anyone else the food card would have been empty anyway.
     if (!App.me.food_user && !App.me.kcal_target) return;
     $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="ghost wide" id="tf-retry">Try again</button></div>';agenda();
@@ -324,19 +338,21 @@ async function meOverview(el) {
       });
   }).catch(() => {});
   const overviewLoads = await Promise.allSettled([
-    load('/api/activities?limit=3', (d) => {
+    tracked('latest', load('/api/activities?limit=3', (d) => {
       if (!el.isConnected) return;
       $('#t-last',el).innerHTML = d.length ? `<a class="latest-activity-link" href="/activity/${d[0].id}">${sportMark(d[0].sport)}<span class="grow"><small>Latest activity</small><b>${esc(d[0].name || SPORT_NAMES[d[0].sport] || 'Activity')}</b></span>${svg('chev')}</a>` : '';
+      ready('latest');
       Promise.resolve(Native.on ? (Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()) : false).catch(() => false).then((connected) => {
         if (!el.isConnected) return;
         activityHistory=!!d.length;healthConnected=connected;drawSetup();
       });
-    }),
-    load('/api/stats', (s) => {
+    })),
+    tracked('chart', load('/api/stats', (s) => {
       if (!el.isConnected) return;
       $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
       mileageChart($('#me-distance', el), {days:s.recent_days || [], today:s.chart_today, weeks:s.chart_weeks,streaks:{days:s.day_streak,weeks:s.week_streak}});
-    }),
+      ready('chart');
+    })),
     load('/api/fitness?days=60', (f) => {
       if (!el.isConnected) return;
       const last = f.days[f.days.length - 1];

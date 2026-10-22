@@ -394,11 +394,33 @@ function toast(msg, undo) {
   t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
 }
 function sheet(title, html, onMount) {
+  $$('.scrim.is-closing').forEach(el => el.remove());
+  cleanViews();
   const prev = document.activeElement;
   const s = document.createElement('div'); s.className = 'scrim';
   s.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
     <header><h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button></header><div class="sbody">${html}</div></div>`;
-  const close = () => { s.remove(); document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); if (prev && prev.isConnected && prev.focus) prev.focus(); };
+  let closing = false;
+  const close = () => {
+    if (closing) return; closing = true;
+    document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit();
+    // Release focus and handlers at once. Keep only the inert visual shell for the short exit, including when
+    // closing halfway through entrance or a drag. A replacement sheet can take focus without a delayed restore.
+    s.inert = true; s.setAttribute('aria-hidden', 'true'); cleanViews(s);
+    const remove = () => { s.remove(); cleanViews(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); };
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || !s.isConnected) remove();
+    else {
+      const visual = getComputedStyle(sh);
+      sh.style.setProperty('--sheet-from', visual.transform);
+      sh.style.setProperty('--sheet-opacity', visual.opacity);
+      s.style.setProperty('--scrim-from', getComputedStyle(s).opacity);
+      s.classList.add('is-closing');
+      const done = e => { if (e.target === sh && e.animationName === 'sheet-out') { clearTimeout(timer); remove(); } };
+      s.addEventListener('animationend', done);
+      const timer = setTimeout(remove, 220); // background tabs and interrupted animations still clean up
+    }
+    if (prev && prev.isConnected && prev.focus) prev.focus({preventScroll: true});
+  };
   const onKey = (e) => {
     if ([...document.querySelectorAll('.scrim')].at(-1) !== s) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); }
@@ -416,7 +438,7 @@ function sheet(title, html, onMount) {
   // decides the finger is scrolling. Mouse: drag the grab bar / header.
   const sh = $('.sheet', s);   // the sheet itself is the scroll container
   let ty = null, dy = 0, dragging = false, fromTop = false;
-  const settle = (shut) => { sh.classList.add('settle'); if (shut) { sh.style.transform = 'translateY(100%)'; setTimeout(close, 160); } else { sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); } };
+  const settle = (shut) => { if (shut) { close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
   sh.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips, .social-sheet .comments')) { ty = null; return; }
     ty = e.touches[0].clientY; dy = 0; dragging = false;
@@ -600,8 +622,8 @@ function miniRoute(line, sport) {
 // ---------- maps (Leaflet, loaded only when a map is on screen) ----------
 let leafletP;
 const viewResources = new Map();
-function cleanViews() {
-  for (const [el, clean] of viewResources) if (!el.isConnected) { clean(); viewResources.delete(el); }
+function cleanViews(closing) {
+  for (const [el, clean] of viewResources) if (!el.isConnected || (closing?.contains(el) && !clean.keepVisual)) { clean(); viewResources.delete(el); }
 }
 function loadLeaflet() {   // (not "leaflet": leaflet.js overwrites window.leaflet)
   if (!leafletP) leafletP = new Promise((res, rej) => {
@@ -619,7 +641,7 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
     ? {zoomControl: false, attributionControl: true, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false,
        boxZoom: false, keyboard: false, tap: false, zoomSnap: 0.25}
     : {zoomControl: false, attributionControl: true, scrollWheelZoom: heat, tap: true});
-  viewResources.set(el, () => map.remove());
+  viewResources.set(el, Object.assign(() => map.remove(), {keepVisual:true})); // keep the map during a sheet's exit
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
     attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
   const color = getComputedStyle(document.documentElement).getPropertyValue(`--${heat ? 'run' : sport}`).trim() || '#E0582B';

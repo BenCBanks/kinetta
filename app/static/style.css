@@ -336,6 +336,10 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sheet header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .sheet header h2 { font-size: var(--text-app-section); font-weight: 800; letter-spacing: -.025em; }
 .sheet.settle { transition: transform .16s ease-out; }
+.scrim.is-closing { pointer-events:none; animation:fade-out .16s ease-in both; }
+.scrim.is-closing .sheet { animation:sheet-out .16s cubic-bezier(.4,0,1,1) both; }
+@keyframes fade-out { from { opacity:var(--scrim-from, 1); } to { opacity:0; } }
+@keyframes sheet-out { from { transform:var(--sheet-from, none); opacity:var(--sheet-opacity, 1); } to { transform:translateY(100%); opacity:0; } }
 .sheet input, .sheet select, .sheet textarea { background: var(--card); }
 .pick-list .row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; font-size: .95rem; }
 .pick-list .tick { color: var(--accent); } .pick-list .tick svg, .pick-list .row-link svg { width: 20px; height: 20px; }
@@ -1497,6 +1501,11 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 
 /* Me personal overview and foreground Track (October 2026). */
 .me-heading h1 { margin: 0; }
+/* Keep actions out of the loading layout until the conditional cards above them have their first result. */
+[data-home-loading] #t-content, [data-home-loading] > .me-tools, [data-home-loading] > .me-settings { display:none; }
+.mileage-loading { min-block-size:24rem; }
+.mileage-loading > .card { border:0; padding:0; margin:0; }
+#t-loading { min-block-size:16rem; }
 .me-agenda { margin: 16px 0; }
 /* Me shortcuts (2026-10-18): one tap to each main area, small round icons like the food chat's + menu. */
 .me-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr)); gap: 8px; margin: 16px 0; }

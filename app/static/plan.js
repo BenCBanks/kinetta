@@ -79,10 +79,10 @@ function workoutSheet(w, U) {
 }
 
 // ---------- Today card ----------
-function planCard(box) {
+function planCard(box, {onReady} = {}) {
   return load('/api/plans/current', (d) => {
     if (!box.isConnected) return;
-    if (!d.plan) { box.innerHTML = ''; return; }
+    if (!d.plan) { box.innerHTML = ''; onReady?.(); return; }
     const p = d.plan, w = d.today_workout, n = d.next_workout, pr = d.progress || {};
     const started = d.today >= p.start_day;
     const head = d.days_to_race > 0 ? `${d.days_to_race} day${d.days_to_race === 1 ? '' : 's'} to go` : d.days_to_race === 0 ? 'Race day!' : 'Finished';
@@ -98,6 +98,7 @@ function planCard(box) {
         <b>${esc(show.title)}</b></button>` : '')}
       <p class="small muted plan-meta">${esc(head)}</p></div>`;
     wireWorkouts(box, d);
+    onReady?.();
   });
 }
 
