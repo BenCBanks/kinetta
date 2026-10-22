@@ -191,20 +191,25 @@ const Social = {
 // Two lists merged by start time. Each page asks both for the next N before the oldest card shown, keeps the newest N,
 // and the rest comes again on the next page, so nothing is skipped or shown twice.
 const FEED_N = 15;
-async function feedPage(before) {
+async function feedPage(before,size=FEED_N) {
   const b = before ? '&before=' + encodeURIComponent(before) : '';
-  const [mine, theirs] = await Promise.all([readOnce(`/api/activities?limit=${FEED_N}${b}`), readOnce(`/api/feed/friends?limit=${FEED_N}${b}`)]);
+  const [mine, theirs] = await Promise.all([readOnce(`/api/activities?limit=${size}${b}`), readOnce(`/api/feed/friends?limit=${size}${b}`)]);
   const all = mine.concat(theirs).sort((x, y) => new Date(y.start_time) - new Date(x.start_time));
   // the next page asks for "older than the last card", so activities sharing the last card's start time all go on this page
-  let n = Math.min(FEED_N, all.length);
+  let n = Math.min(size, all.length);
   while (n && n < all.length && +new Date(all[n].start_time) === +new Date(all[n - 1].start_time)) n++;
-  return {rows: all.slice(0, n), more: all.length > n || mine.length === FEED_N || theirs.length === FEED_N, friends: theirs.length};
+  return {rows: all.slice(0, n), more: all.length > n || mine.length === size || theirs.length === size, friends: all.slice(0,n).filter(a=>a.owner).length};
+}
+// Persist only a small opening view; deeper browsing stays in this account's memory cache.
+function keepFeed(pg){
+  const rows=pg.rows.slice(0,FEED_N);
+  keep('feed:home',{rows,more:pg.more||pg.rows.length>rows.length,friends:rows.filter(a=>a.owner).length});
 }
 // The feed's first page, fetched quietly after the app opens (see warmTabs in app.js).
 function warmFeed() {
   if (App.cache.has('feed:home')) return;
   const account = readOwner(), epoch = readEpoch('feed:home');
-  feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keep('feed:home', pg); } }).catch(() => {});
+  feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg); } }).catch(() => {});
 }
 async function homeFeed(el) {
   el.innerHTML = `${actTop(false, true)}${whoseSeg('')}
@@ -225,17 +230,36 @@ async function homeFeed(el) {
   const account = readOwner(), epoch = readEpoch('feed:home');
   // A fresh cached feed already contains the current cards/maps. Avoid fetching and rebuilding it.
   const fresh = hit && Date.now() - hit.at < 15000;
-  try { if (!fresh) { const pg = await feedPage(); if (account !== readOwner() || epoch !== readEpoch('feed:home')) return; App.cache.set('feed:home', {data: pg, at: Date.now()}); keep('feed:home', pg); if (list.isConnected && (!hit || JSON.stringify(hit.data) !== JSON.stringify(pg))) draw(pg); } }
-  catch (x) { if (!hit) throw x; if(typeof PageRefresh!=='undefined')PageRefresh.failed(x); }
+  let pageRevision=0;
+  const active=()=>account===readOwner()&&list.isConnected;
+  const current=()=>active()&&epoch===readEpoch('feed:home')&&pageRevision===0;
   more.onclick = async () => {
+    if(more.disabled||!active()||!items.length)return;
+    const revision=readEpoch('feed:home');pageRevision++;
     more.disabled = true; more.textContent = 'Loading…';
     try {
       const pg = await feedPage(items[items.length - 1].start_time);
+      if(!active()||revision!==readEpoch('feed:home'))return;
       items = items.concat(pg.rows);
+      App.cache.set('feed:home',{data:{rows:items,more:pg.more,friends:items.filter(a=>a.owner).length},at:App.cache.get('feed:home')?.at||0});
       list.insertAdjacentHTML('beforeend', pg.rows.map((a) => postCard(a, {who: true})).join('')); more.hidden = !pg.more; feedMaps(list); wireCheers(list);
-    } catch (x) { toast(x.message); }
-    more.disabled = false; more.textContent = 'Show more';
+    } catch (x) { if(active()&&revision===readEpoch('feed:home'))toast(x.message); }
+    finally { more.disabled = false; more.textContent = 'Show more'; }
   };
+  try { if (!fresh) {
+    // Revalidate the depth already browsed, so a detail visit never drops loaded pages.
+    const count=Math.max(FEED_N,hit?.data.rows.length||0);
+    let pg=await feedPage(undefined,Math.min(50,count));
+    while(current()&&pg.more&&pg.rows.length<count){
+      const next=await feedPage(pg.rows.at(-1).start_time,Math.min(50,count-pg.rows.length));
+      pg={rows:pg.rows.concat(next.rows),more:next.more&&!!next.rows.length,friends:pg.friends+next.friends};
+    }
+    if(!current())return;
+    App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg);
+    if(!hit||JSON.stringify(hit.data)!==JSON.stringify(pg))draw(pg);
+  } }
+  catch (x) { if (!hit) throw x; if(typeof PageRefresh!=='undefined')PageRefresh.failed(x); }
+
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------

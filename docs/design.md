@@ -1049,3 +1049,20 @@ At the top of a read-only tab, a vertical pull may begin on the activity title/n
 About90px reaches Release to refresh. Keep map/photo/horizontal/control/selection/editor gestures excluded,
 keep the visible refresh button and cached-data/error behavior, and consume the synthetic click after a drag
 so refreshing cannot accidentally open an activity. Ordinary new taps and keyboard activation still work.
+
+
+## Keep your place while browsing (21 October 2026, owner clarification)
+
+General loading and navigation are the reported friction. Cached tabs continue to show useful content immediately
+while reads refresh in the background. Friends feed keeps all pages loaded during this signed-in session, so opening
+an activity and returning does not reduce the list to its first15 cards. Revalidate the loaded depth after its cache
+expires using bounded feed pages and current server visibility; keep the small saved opening view on the phone.
+Show more remains usable while cached content refreshes. A late first-page response cannot remove newly loaded
+cards, and stale/account-changed pagination cannot replace the current list or leave its button permanently busy.
+
+The router owns Back/Forward scroll restoration and records the outgoing page before replacing its content.
+In-place refresh retains the current position; a new account starts fresh. List containers must have a measurable
+height when restoring a deep position; maps remain lazy. Existing deliberate tab-home/reset behavior, filters,
+keyboard gestures, recording and food drafts stay intact. Delayed data must never scroll a person back after they
+have started interacting. Browser timings on a local fixture are diagnostic evidence, not physical-iPhone or
+public-network performance measurements.

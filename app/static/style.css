@@ -386,7 +386,7 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .pf-vis { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding-right: 8px; color: var(--tx3); font-size: 13px; font-weight: 600; }
 .pf-vis svg { width: 15px; height: 15px; }
 .feed-more { display: flex; margin: 8px auto 0; min-width: 160px; }
-.feed-list { content-visibility: auto; }
+/* Lists need their real height for Back/Forward scroll restoration; maps still load lazily. */
 
 /* route previews: a drawing until the map loads */
 .fmap { height: 190px; overflow: hidden; background: var(--card2); position: relative; z-index: 0; pointer-events: none; }
