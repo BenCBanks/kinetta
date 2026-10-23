@@ -8,7 +8,7 @@ Runs, rides, walks *and lifting.*
 
 ## import-watch-files-or-your-strava-history-or-connect-a-2
 
-Bring in workouts from Apple Health or activity files, follow a running plan and track lifting sets. Compare your progress across weeks and repeat routes.
+Bring in workouts from Apple Watch, Garmin or any watch file, follow a running plan and track lifting sets. Compare your progress across weeks and repeat routes.
 
 ## start-with-the-workouts-you-already-have-3
 
@@ -32,7 +32,7 @@ Connected sources
 
 ## set-up-intervals-icu-or-health-auto-export-from-me-wat-8
 
-intervals.icu or Health Auto Export bring in new workouts automatically.
+Garmin Connect, intervals.icu or Health Auto Export bring in new workouts automatically.
 
 ## apple-health-on-iphone-9
 
@@ -41,6 +41,22 @@ Apple Health on iPhone
 ## testflight-access-is-being-prepared-in-the-iphone-app--10
 
 Workouts sync from Apple Health, including Apple Watch routes.
+
+## works-with-20
+
+Works with the watch you already wear.
+
+## works-with-list-21
+
+Apple Watch, Apple Health, Garmin Connect, intervals.icu, Health Auto Export, Strava exports, and FIT, GPX or TCX files from almost any watch or bike computer.
+
+## works-with-garmin-22
+
+**Garmin Connect** brings each new run or ride in with its map and heart rate shortly after your watch syncs. It's being tested now and opens to everyone in the beta soon; until then, Garmin workouts come in through Apple Health, intervals.icu or your watch files.
+
+## works-with-marks-23
+
+Apple Watch and Apple Health are trademarks of Apple Inc. Garmin and Garmin Connect are trademarks of Garmin Ltd. or its subsidiaries.
 
 ## maps-splits-heart-rate-and-records-11
 

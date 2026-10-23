@@ -349,3 +349,10 @@ html { scroll-padding-top: 130px; }
 .steps.compact { gap: 18px; } .steps.compact .step { padding: 18px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); gap: 6px; }
 .steps.compact .step h3 { font-size: 19px; } .steps.compact .step p { font-size: 15.5px; }
 @media (max-width: 560px) { .more-links { flex-direction: column; align-items: center; } .more-links span { display: none; } }
+
+/* Works with: the watches and apps Kinetta connects to (Training page, 2026-10-23) */
+.works { margin-top: 28px; padding: 22px 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); display: grid; gap: 10px; }
+.works h3 { font-size: 21px; }
+.works p { color: var(--ink2); font-size: 16px; }
+.works .works-list { color: var(--ink); font-weight: 600; }
+.works .marks { color: var(--ink3); font-size: 13px; }

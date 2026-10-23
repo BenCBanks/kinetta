@@ -50,6 +50,22 @@ Apple Health and location
 
 The iPhone app reads only the Apple Health data you allow, and never writes to it. You can change this any time in the Health app. Kinetta gets your location only from activities you record or import; it never tracks you in the background.
 
+## garmin-heading
+
+Garmin
+
+## garmin
+
+If you connect Garmin Connect, Kinetta receives the activities you allow in Garmin's sharing settings: type, time, distance, pace, heart rate, calories, elevation and the GPS route. They show up in your own activity list, maps, progress and plans, and count toward your daily calories. They follow your normal sharing choice, like any other activity. Kinetta never sells Garmin data, never uses it for ads and never gives it to anyone else for their own use.
+
+## garmin-ai
+
+**AI and Garmin data.** Kit, the optional AI coach, can read your Garmin activities only after you turn on "Let Kit read my Garmin activities" in Me → Connections. This is separate from the main AI switch and from Apple Health, and it's off until you choose it. When it's on, Kinetta sends only the activities a question needs to the AI provider shown in the app (Google Gemini or Anthropic Claude). Turn the switch off at any time and Kit stops reading them. Garmin data, and anything made from it, is never used to train, test or improve AI models.
+
+## garmin-control
+
+To stop, tap Disconnect in Me → Connections or remove Kinetta in Garmin Connect. Kinetta then tells Garmin to stop sending data and deletes its sign-in tokens. Activities already imported stay in your account until you delete them, and deleting your account removes them.
+
 ## sharing-heading
 
 What other people can see
@@ -76,7 +92,7 @@ Optional AI features
 
 ## ai
 
-AI is off unless you turn it on. When you use it, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Apple Health workouts need a separate yes before they're included. You can change these choices in Me.
+AI is off unless you turn it on. When you use it, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Apple Health and Garmin data each need a separate yes before they're included (see Garmin above). You can change these choices in Me.
 
 ## provider-retention
 
@@ -88,11 +104,11 @@ Other services we use
 
 ## providers
 
-**Cloudflare** carries traffic to the app. **OpenStreetMap** supplies map images to your device. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends replies to beta requests, which may include an invite link.
+Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends replies to beta requests, which may include an invite link.
 
 ## providers-connected
 
-Services you connect yourself, such as Garmin Connect, intervals.icu or Health Auto Export, follow their own policies. For Garmin, Kinetta stores the key you paste in and uses it only to read your own activities; it's never shown back in the app. Disconnecting deletes the key and stops new imports; anything already imported stays until you delete it.
+Services you connect yourself, such as Garmin Connect, intervals.icu or Health Auto Export, also follow their own policies. Kinetta keeps their keys or sign-in tokens on the server, uses them only to read your own data, and never shows them back in the app. Disconnecting deletes them and stops new imports; anything already imported stays until you delete it.
 
 ## admin
 
@@ -116,7 +132,7 @@ Your choices
 
 ## choices
 
-In Me you can change your details, sharing, AI and notification settings. Me → Your data lets you download everything, including original activity files, or delete your account. Deleting your account removes your data and files right away, except for the backups described above.
+In Me you can change your details, sharing, AI and notification settings. You can edit or delete any activity, food entry or weigh-in to correct it. Me → Your data lets you download everything, including original activity files, or delete your account. Deleting your account removes your data and files right away, except for the backups described above.
 
 ## security-heading
 
