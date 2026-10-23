@@ -2421,8 +2421,7 @@ button.thread-food:active { opacity: .7; }
 
 /* ---------- smoother loading (23 October 2026) ---------- */
 /* Launch: the Kinetta mark on the app background while it starts, instead of the word "Loading…". */
-.launch { min-height: 70dvh; display: grid; place-items: center; color: #08664F; }
-@media (prefers-color-scheme: dark) { .launch { color: #74DBB5; } }
+.launch { min-height: 70dvh; display: grid; place-items: center; color: var(--color-brand); }
 .launch svg { width: 64px; height: auto; animation: launch-breathe 1.6s ease-in-out infinite; }
 @keyframes launch-breathe { 0%, 100% { opacity: .55; transform: scale(.96); } 50% { opacity: 1; transform: scale(1); } }
 /* Placeholders shaped like what's coming. */
