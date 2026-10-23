@@ -1166,3 +1166,19 @@ the one place the page itself moves: those screens have no fixed composers. Keep
 **Notices (toasts)** are compact snackbars above the tab bar: deep-green with light text in light mode, a raised
 forest surface in dark mode, 15 px text, an optional quieter second line (for example "Saved on this phone · sends
 when you're back online") and Undo as a sage text button. A tap anywhere else on the notice puts it away.
+
+## Smoother first moments (owner request, 23 October 2026)
+
+Measured with a slowed network and processor, screens no longer jump once drawn and visited tabs open instantly;
+the roughness was in the first moments. Standards:
+
+- **Launch:** while the app starts, show the Kinetta mark (accent colour, gently breathing) on the app
+  background, matching the iPhone launch screen. Never the bare word "Loading…".
+- **Placeholders are shaped like what's coming**, with no visible "Loading…" words (screen readers still hear a
+  status). The activity page's placeholder is the lead map and the title card with three numbers.
+- **Maps** show the soft surface colour, not Leaflet's grey, until tiles arrive; tiles fade in.
+- **Profile pictures and activity photos** fade in once loaded; already-loaded ones appear at once.
+- **Moving between screens:** opening something inside a tab slides it in a little (about 28 px, 0.26 s), and Back
+  slides the other way. This uses the browser's view transitions, which animate snapshots, so the live page is
+  never transformed and pinned/sticky bars keep their place (the reason the old transform slide was removed on
+  18 October). Tab switches stay instant. Without support, with reduced motion or with a sheet open, it's a plain swap.

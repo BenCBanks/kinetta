@@ -495,9 +495,36 @@ const TABS = [['me', 'Me'], ['activity', 'Activity'], ['track', 'Track'], ['prog
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
+  const from = location.pathname;
   history[replace ? 'replaceState' : 'pushState'](null, '', path);
-  render();
+  slide(replace ? null : 'push', from);
 }
+// Opening something slides it in a little; Back slides the other way (owner, 23 October 2026). The browser animates
+// snapshots of the old and new screen, so the live page is never transformed and pinned bars keep their place.
+// Tab switches stay instant, like iPhone tab bars; without support or with reduced motion it's a plain swap.
+const TAB_HOMES = new Set(['/me', '/activity', '/track', '/progress', '/food']);
+function slide(kind, from) {
+  const to = location.pathname, tabSwitch = TAB_HOMES.has(to) && TAB_HOMES.has(from);
+  if (!kind || tabSwitch || !document.startViewTransition || document.querySelector('.scrim') || matchMedia('(prefers-reduced-motion: reduce)').matches) return render();
+  document.documentElement.dataset.nav = kind;
+  let done;
+  const t = document.startViewTransition(() => { done = render(); });
+  t.finished.finally(() => { delete document.documentElement.dataset.nav; });
+  return t.updateCallbackDone.then(() => done);
+}
+// Photos and profile pictures fade in once they've loaded instead of popping (already-loaded ones show at once).
+const FADE_IMG = '.av img, .media-photo img';
+function fadeImages(root) {
+  for (const img of root.querySelectorAll ? root.querySelectorAll(FADE_IMG) : []) {
+    if (img.complete) { img.classList.add('in'); continue; }
+    img.classList.add('fading');
+    const show = () => img.classList.add('in');
+    img.addEventListener('load', show, {once: true}); img.addEventListener('error', show, {once: true});
+  }
+}
+if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.getElementById)
+  new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) fadeImages(n); })
+    .observe(document.documentElement, {childList: true, subtree: true});
 // Today's weigh-in sheet (used by the weekly check-in).
 function quickWeighIn() {
   const owner = readOwner(), day = isoDay(new Date()), unit = imp() ? 'lb' : 'kg';
@@ -550,7 +577,7 @@ function render() {
   el.dataset.area = activeTab;
   if (typeof Track !== 'undefined') Track.sync();
   // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab fades it in.
-  if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t)) el.classList.add('enter'); App.lastPath = location.pathname; }
+  if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t) && !document.documentElement.dataset.nav) el.classList.add('enter'); App.lastPath = location.pathname; }
   if (Native.syncPush) Native.syncPush();
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   let touched=false;const interactions=new AbortController();
@@ -587,7 +614,7 @@ document.addEventListener('pointerdown', (e) => {
   const a = e.target.closest('a'); if(a?.dataset.prefetch)prefetch(a.dataset.prefetch);else if(a)warmDestination(a.getAttribute('href'));
 }, {passive: true});
 document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
-window.addEventListener('popstate', render);
+window.addEventListener('popstate', () => { slide('back', App.lastPath || ''); });
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){App.hiddenAt=Date.now();return;}
   if(!App.me)return;Q.flush().catch(e=>toast(e.message));

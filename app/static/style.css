@@ -2417,3 +2417,33 @@ button.thread-food:active { opacity: .7; }
 
 #pi-go svg { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
 .pi-note { text-align: center; margin: 10px 0 0; }
+
+/* ---------- smoother loading (23 October 2026) ---------- */
+/* Launch: the Kinetta mark on the app background while it starts, instead of the word "Loading…". */
+.launch { min-height: 70dvh; display: grid; place-items: center; color: var(--accent); }
+.launch svg { width: 64px; height: auto; animation: launch-breathe 1.6s ease-in-out infinite; }
+@keyframes launch-breathe { 0%, 100% { opacity: .55; transform: scale(.96); } 50% { opacity: 1; transform: scale(1); } }
+/* Placeholders shaped like what's coming. */
+.sk-row { display: flex; gap: 12px; align-items: center; margin: 4px 0 14px; }
+.sk-row .grow { flex: 1; display: grid; } .sk.dot { width: 40px; height: 40px; border-radius: 12px; flex: none; }
+.sk.line.short { width: 45%; }
+.map.lead.sk { box-shadow: none; }
+.d-ph .sk.big { width: 62%; height: 34px; margin: 8px 0 16px; }
+.d-ph-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; } .d-ph-stats .sk { height: 40px; border-radius: 10px; }
+/* Map tiles fade in over the soft surface rather than popping (beats Leaflet's own grey). */
+.map.leaflet-container, .leaflet-container.leaflet-container { background: var(--card2); }
+.leaflet-tile { transition: opacity .25s ease-out; }
+/* Pictures fade in once loaded. */
+img.fading { opacity: 0; transition: opacity .25s ease-out; } img.fading.in { opacity: 1; }
+/* Screen-to-screen slide: snapshots only; the tab bar stays still. */
+nav.tabs { view-transition-name: tabs; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .26s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+:root[data-nav="push"]::view-transition-old(root) { animation-name: vt-out-left; }
+:root[data-nav="push"]::view-transition-new(root) { animation-name: vt-in-right; }
+:root[data-nav="back"]::view-transition-old(root) { animation-name: vt-out-right; }
+:root[data-nav="back"]::view-transition-new(root) { animation-name: vt-in-left; }
+@keyframes vt-in-right { from { transform: translateX(28px); opacity: 0; } }
+@keyframes vt-out-left { to { transform: translateX(-18px); opacity: 0; } }
+@keyframes vt-in-left { from { transform: translateX(-28px); opacity: 0; } }
+@keyframes vt-out-right { to { transform: translateX(18px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .launch svg { animation: none; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
