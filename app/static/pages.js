@@ -1525,7 +1525,11 @@ route(/^\/track\/connections$/, 'track', async (el) => {
   try{C=await api('/api/connections');}catch(e){if(valid())$('#c-body',el).innerHTML=`<p class="err">${esc(e.message)}</p>`;return;}
   if(!valid())return;
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
-  $('#c-body', el).innerHTML = `<div class="card"><h2>intervals.icu</h2>
+  $('#c-body', el).innerHTML = `${C.garmin_available || C.garmin ? `<div class="card"><h2>Garmin Connect</h2>
+      <p class="small">Bring in your Garmin activities with maps. In Garmin Connect on the web, open Settings → Personal API Key, create a key and paste it here. New activities are checked every 30 minutes.</p>${st('garmin')}
+      <form class="form" id="c-garmin"><label>Personal API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.garmin ? 'saved (paste to change)' : ''}"></label>
+      <div class="actions">${C.garmin ? '<button type="button" class="ghost" id="c-garmin-sync">Sync now</button><button type="button" class="ghost danger" data-off="garmin">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost">${C.garmin ? 'Update' : 'Connect'}</button></div></form></div>` : ''}
+    <div class="card"><h2>intervals.icu</h2>
       <p class="small">Garmin owners: intervals.icu can bring in maps automatically. For an existing intervals.icu account, enter your athlete ID and API key (Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
       <form class="form" id="c-icu"><div class="two"><label>Athlete ID<input name="athlete_id" placeholder="i123456" autocapitalize="none" value="${esc(C.intervals ? C.intervals.athlete_id : '')}"></label>
       <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved (paste to change)' : ''}"></label></div>
@@ -1538,6 +1542,11 @@ route(/^\/track\/connections$/, 'track', async (el) => {
     try { await api('/api/connections/intervals', json('POST', {athlete_id: f.athlete_id.value.trim(), api_key: f.api_key.value.trim()})); toast('Connected. First sync running'); render(); } catch (x) { toast(x.message); }
   };
   const sy = $('#c-icu-sync', el); if (sy) sy.onclick = async () => { if(!valid())return;try { await api('/api/connections/intervals/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
+  const gf = $('#c-garmin', el); if (gf) gf.onsubmit = async (e) => {
+    e.preventDefault(); if(!valid())return;const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your Garmin key'); return; }
+    try { await api('/api/connections/garmin', json('POST', {api_key: f.api_key.value.trim()})); toast('Connected. First sync running'); render(); } catch (x) { toast(x.message); }
+  };
+  const gs = $('#c-garmin-sync', el); if (gs) gs.onclick = async () => { if(!valid())return;try { await api('/api/connections/garmin/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
   $('#c-apple', el).onclick = async () => {
     if(!valid())return;
     if (C.apple && !confirm('Make a new secret? The old one stops working.')) return;

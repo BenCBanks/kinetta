@@ -8,15 +8,20 @@ Apple Watch: the iPhone app "Health Auto Export" (Premium: REST API automation) 
 
 Garmin (and others) through intervals.icu: athlete id + API key (Settings > Developer). The server checks every 30 minutes for
   activities in the last 14 days and imports the original FIT files (duplicates are skipped as usual).
+
+Garmin Connect directly: a Personal API key (Garmin Connect > Settings > Personal API Key, your own data only). The key is
+  swapped for a day-long access token; the same 30-minute check downloads each new activity's original FIT file.
 """
 import base64
 import datetime as dt
+import io
 import json
 import secrets
 import threading
 import time
 import urllib.error
 import urllib.request
+import zipfile
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
@@ -34,7 +39,7 @@ def connections(user=Depends(current_user)):
     with db.connect() as c:
         rows = c.execute('SELECT kind, status, last_sync, last_count, created, settings->>\'athlete_id\' AS athlete_id FROM connections WHERE user_id = %s',
                          (user['id'],)).fetchall()
-    return {r['kind']: r for r in rows}
+    return {r['kind']: r for r in rows} | {'garmin_available': _garmin_allowed(user)}
 
 
 @router.post('/connections/apple')
@@ -272,13 +277,162 @@ def _sync_intervals(uid, days):
     coach.after_import(uid, new_ids)
 
 
+# ---------- Garmin Connect (Personal API key) ----------
+GARMIN = 'https://personal.connectapi.garmin.com'
+GARMIN_FIRST_DAYS = 30      # first sync looks back further; later syncs use the usual 14 days
+GARMIN_SEEN = 400           # Garmin activity ids already handled, so each sync doesn't re-download two weeks of files
+FIT_MAX = 50 * 1024 * 1024
+_garmin_tokens = {}         # user id -> (key hash, access token, expiry epoch); tokens last about a day and can't be refreshed
+
+
+class GarminIn(BaseModel):
+    api_key: str = Field(min_length=10, max_length=1000)
+
+
+def _garmin_allowed(user):
+    """Personal API keys are for your own data; until Garmin approves business access, only the admin can connect (Ben, 2026-10-23)."""
+    return bool(user.get('is_admin'))
+
+
+def _garmin_gate(user):
+    if not _garmin_allowed(user): raise HTTPException(403, 'Garmin Connect is not available on this account yet')
+
+
+class GarminKeyError(Exception):
+    """Garmin refused the key: it expired, was deleted, or was mistyped."""
+
+
+def _garmin_req(path, headers, method='GET', data=None):
+    req = urllib.request.Request(GARMIN + path, data=data, method=method,
+                                 headers={'User-Agent': 'Kinetta/1.0 (+https://kinetta.app)', 'Accept': '*/*', **headers})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return r.read()
+
+
+def _garmin_new_token(key):
+    """Swap the personal key for an access token: Garmin answers with the bare token (a JWT) as plain text."""
+    try:
+        token = _garmin_req('/personalapitoken-service/personal-api/personal-api-key/token',
+                            {'Authorization': 'ApiKey ' + key}, method='POST', data=b'').decode().strip()
+    except urllib.error.HTTPError as e:
+        if e.code in (400, 401, 403): raise GarminKeyError(e.code)
+        raise
+    if token.count('.') != 2: raise ValueError('Garmin sent no access token')
+    try:     # only the expiry is read; Garmin checks the signature
+        part = token.split('.')[1]
+        expires = float(json.loads(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))['exp'])
+    except (ValueError, KeyError, TypeError): expires = time.time() + 3600
+    return token, max(time.time() + 60, expires - 300)
+
+
+def _garmin(uid, key, path, raw=False):
+    """GET with a cached access token; one retry with a fresh token if Garmin says it has expired."""
+    kh = _h(key)
+    for attempt in (0, 1):
+        cached = _garmin_tokens.get(uid)
+        if attempt or not cached or cached[0] != kh or cached[2] < time.time():
+            token, expires = _garmin_new_token(key)
+            _garmin_tokens[uid] = cached = (kh, token, expires)
+        try:
+            data = _garmin_req(path, {'Authorization': 'Bearer ' + cached[1]})
+            return data if raw else json.loads(data)
+        except urllib.error.HTTPError as e:
+            if e.code != 401 or attempt: raise
+            _garmin_tokens.pop(uid, None)
+
+
+def _fit_from_download(data):
+    """Garmin's original-file download is a ZIP holding the FIT file."""
+    if data[:2] != b'PK': return data
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        for info in z.infolist():
+            if info.filename.lower().endswith('.fit') and info.file_size <= FIT_MAX:
+                return z.read(info)
+    raise parsers.ParseError('no FIT file in the Garmin download')
+
+
+@router.post('/connections/garmin')
+def garmin_connect(body: GarminIn, user=Depends(current_user)):
+    _garmin_gate(user)
+    key = body.api_key.strip()
+    try: _garmin_tokens[user['id']] = (_h(key), *_garmin_new_token(key))
+    except GarminKeyError: raise HTTPException(400, "Garmin didn't accept that key. Check it, or create a new one in Garmin Connect")
+    except Exception: raise HTTPException(502, "Couldn't reach Garmin")
+    with db.connect() as c:
+        c.execute("""INSERT INTO connections (user_id, kind, settings, status) VALUES (%s, 'garmin', %s, 'connected - first sync starting')
+                     ON CONFLICT (user_id, kind) DO UPDATE SET settings = excluded.settings, status = excluded.status""",
+                  (user['id'], json.dumps({'api_key': key, 'seen': []})))
+    threading.Thread(target=sync_garmin, args=(user['id'], GARMIN_FIRST_DAYS), daemon=True).start()
+    return {'ok': True}
+
+
+@router.post('/connections/garmin/sync')
+def garmin_sync_now(user=Depends(current_user)):
+    _garmin_gate(user)
+    now, tap = time.time(), (user['id'], 'garmin')
+    if now - _last_tap.get(tap, 0) < SYNC_EVERY or _user_lock(user['id']).locked():
+        return {'ok': True, 'already': True}
+    _last_tap[tap] = now
+    threading.Thread(target=sync_garmin, args=(user['id'],), daemon=True).start()
+    return {'ok': True}
+
+
+def sync_garmin(uid, days=14):
+    lock = _user_lock(uid)
+    if not lock.acquire(blocking=False): return
+    try:
+        _sync_garmin(uid, days)
+    finally:
+        lock.release()
+
+
+def _garmin_status(uid, status):
+    with db.connect() as c:
+        c.execute("UPDATE connections SET status = %s WHERE user_id = %s AND kind = 'garmin'", (status, uid))
+
+
+def _sync_garmin(uid, days):
+    with db.connect() as c:
+        con = c.execute("SELECT settings FROM connections WHERE user_id = %s AND kind = 'garmin'", (uid,)).fetchone()
+    if not con: return
+    s = con['settings']
+    seen = list(s.get('seen') or [])
+    today = dt.date.today()
+    try:
+        acts = _garmin(uid, s['api_key'], '/activitylist-service/activities/search/activities?limit=99'
+                       f'&startDate={(today - dt.timedelta(days=days)).isoformat()}&endDate={today.isoformat()}')
+    except GarminKeyError:
+        _garmin_status(uid, 'Garmin no longer accepts this key (it may have expired). Create a new key in Garmin Connect and paste it here.'); return
+    except Exception as e:
+        _garmin_status(uid, f'sync failed: {e}'); return
+    added, dup, failed, new_ids = 0, 0, 0, []
+    for a in acts or []:
+        gid = str(a.get('activityId') or '')
+        if not gid or gid in seen: continue
+        try:
+            raw = _fit_from_download(_garmin(uid, s['api_key'], f'/download-service/files/activity/{gid}', raw=True))
+            res, aid = activities.store(uid, parsers.read('activity.fit', raw), {'source_id': gid}, raw=raw, ext='.fit', source='garmin')
+            if res == 'added': added += 1; new_ids.append(aid)
+            else: dup += 1
+            seen.append(gid)
+        except parsers.ParseError as e:
+            seen.append(gid); failed += 1; print('garmin activity unreadable', gid, e, flush=True)   # no point fetching it again
+        except Exception as e:
+            failed += 1; print('garmin activity failed', gid, e, flush=True)
+    with db.connect() as c:
+        c.execute("""UPDATE connections SET status = %s, last_sync = now(), last_count = %s,
+                     settings = jsonb_set(settings, '{seen}', %s::jsonb) WHERE user_id = %s AND kind = 'garmin'""",
+                  (f'{added} new, {dup} already here' + (f', {failed} failed' if failed else ''), added, json.dumps(seen[-GARMIN_SEEN:]), uid))
+    coach.after_import(uid, new_ids)
+
+
 def scheduler():
-    """Every 30 minutes: sync everyone with an intervals.icu connection."""
+    """Every 30 minutes: sync everyone with an intervals.icu or Garmin connection."""
     while True:
         time.sleep(1800)
         try:
             with db.connect() as c:
-                ids = [r['user_id'] for r in c.execute("SELECT user_id FROM connections WHERE kind = 'intervals'").fetchall()]
-            for uid in ids: sync_intervals(uid)
+                rows = c.execute("SELECT user_id, kind FROM connections WHERE kind IN ('intervals', 'garmin')").fetchall()
+            for r in rows: (sync_intervals if r['kind'] == 'intervals' else sync_garmin)(r['user_id'])
         except Exception as e:
             print('scheduler', e, flush=True)

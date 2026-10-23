@@ -1298,6 +1298,10 @@ MIGRATIONS = [
     END $$;
     """,
 
+    # 65 (2026-10-23): Garmin Connect directly, with a person's own Garmin Personal API key (api_connections.py).
+    """ALTER TABLE connections DROP CONSTRAINT connections_kind_check;
+    ALTER TABLE connections ADD CONSTRAINT connections_kind_check CHECK (kind IN ('apple', 'intervals', 'garmin'));
+    """,
 ]
 
 
