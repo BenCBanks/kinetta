@@ -778,9 +778,51 @@ function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null,
 
 // ---------- progress charts (2026-10-09): one readout line above each chart, touch/hover to read ----------
 const niceStep = (max, n = 4) => { const raw = max / n, p = 10 ** Math.floor(Math.log10(raw || 1)), m = raw / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
+// Distance bars keep their true height, including tiny values, with only the top corners rounded.
+function distanceBarPath(x, bottom, width, height) {
+  const top = bottom - height, r = Math.min(4, width / 2, height / 2);
+  return `M${x} ${bottom}V${top + r}Q${x} ${top} ${x + r} ${top}H${x + width - r}Q${x + width} ${top} ${x + width} ${top + r}V${bottom}Z`;
+}
+// Mouse, touch and keyboard inspect the same value; dismissing restores today/the current period.
+function wireDistanceBars(buttons, current, show) {
+  let selected = null;
+  const paint = (index) => {
+    show(index);
+    buttons.forEach((button, i) => {
+      button.classList.toggle('is-inspected', i === index);
+      button.classList.toggle('is-highlighted', i === (index == null ? current : index));
+    });
+  };
+  buttons.forEach((button, index) => {
+    button.onpointerenter = e => { if (e.pointerType === 'mouse') paint(index); };
+    button.onpointerleave = e => { if (e.pointerType === 'mouse') paint(selected); };
+    button.onfocus = () => paint(index);
+    button.onblur = () => paint(selected);
+    button.onclick = () => {
+      selected = selected === index ? null : index;
+      buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(i === selected)));
+      paint(selected);
+    };
+    button.onkeydown = e => {
+      if (button.tagName !== 'BUTTON' && ['Enter',' '].includes(e.key)) {
+        e.preventDefault();
+        button.onclick(); // SVG buttons do not receive the browser's native keyboard click.
+      } else if (e.key === 'Escape') {
+        selected = null;
+        buttons.forEach(b => b.setAttribute('aria-pressed', 'false'));
+        paint(null);
+      } else if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
+        e.preventDefault();
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next].focus({preventScroll:true});
+      }
+    };
+  });
+  paint(null);
+}
 // Columns of stacked bars. cols: [{label, tick, segs: [{k, v}], partial}], keys: [{k, name, color}]
-function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'avg', height = 180}) {
-  const W = Math.max(300, box.clientWidth || 340), H = height, padL = 34, padR = 4, padT = 8, padB = 18, n = cols.length;
+function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'avg', height = 180, distance = false}) {
+  const W = Math.max(300, box.clientWidth || 340), H = height, padL = 34, padR = 4, padT = distance ? 18 : 8, padB = 18, n = cols.length;
   const tot = (c) => c.segs.reduce((s, x) => s + x.v, 0);
   const max = Math.max(1e-9, ...cols.map(tot), avg || 0), step = niceStep(max), top = Math.ceil(max / step) * step;
   const Y = (v) => padT + (1 - v / top) * (H - padT - padB), bw = (W - padL - padR) / n, gap = Math.min(4, bw * .25);
@@ -788,7 +830,12 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'a
   for (let v = 0; v <= top + 1e-9; v += step) g += `<line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="yl" x="${padL - 4}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${esc(yfmt(v))}</text>`;
   cols.forEach((c, i) => {
     let y = Y(0); const x = padL + i * bw + gap / 2, w = Math.max(1, bw - gap);
-    c.segs.forEach((sg, j) => {
+    if (distance) {
+      const total = tot(c), h = Y(0) - Y(total);
+      const parts = c.segs.filter(sg => sg.v).map(sg => `${keys.find(k => k.k === sg.k)?.name || sg.k} ${fmt(sg.v)}`).join(', ');
+      const label = `${c.label}${c.partial ? ' (so far)' : ''} · ${fmt(total)}${parts ? ' · ' + parts : ''}`;
+      g += `<g class="distance-column" role="button" tabindex="0" aria-pressed="false" aria-label="${esc(label)}"><rect class="distance-hit" x="${padL + i * bw}" y="${padT}" width="${bw}" height="${H - padT - padB}"/>${total ? `<path class="bar-seg distance-total" d="${distanceBarPath(x,Y(0),w,h)}"/>` : `<path class="distance-empty" d="M${x} ${Y(0)}h${w}"/>`}<text class="distance-value" x="${i === n - 1 ? x + w : i === 0 ? x : x + w / 2}" y="${Y(total) - 5}" text-anchor="${i === n - 1 ? 'end' : i === 0 ? 'start' : 'middle'}">${esc(fmt(total))}</text></g>`;
+    } else c.segs.forEach((sg, j) => {
       if (!sg.v) return;
       const h = Y(0) - Y(sg.v), last = j === c.segs.length - 1 || c.segs.slice(j + 1).every((z) => !z.v);
       const hh = Math.max(1, h - (last ? 0 : 1.5));   // 1.5px surface gap between stacked segments
@@ -801,10 +848,19 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'a
     if (c.tick) g += `<text class="yl" x="${(i >= n - 2 ? x + w : x + w / 2).toFixed(1)}" y="${H - 4}" text-anchor="${i >= n - 2 ? 'end' : 'middle'}">${esc(c.tick)}</text>`;
   });
   if (avg) g += `<line class="avgline" x1="${padL}" x2="${W - padR}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}"/>`;   // labelled in the legend below
-  g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
-  const legend = (keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');
-  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Bar chart">${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
+  if (!distance) g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
+  const legend = (!distance && keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');
+  box.innerHTML = `<div class="readout num"${distance ? ' role="status"' : ''}><span></span></div><div class="chartbox${distance ? ' distance-chart' : ''}"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="${distance ? 'group' : 'img'}" aria-label="${distance ? 'Distance by period' : 'Bar chart'}">${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
   const svgEl = $('svg', box), hl = $('.hl', box), ro = $('.readout', box);
+  if (distance) {
+    const buttons = [...box.querySelectorAll('.distance-column')], current = cols.findIndex(c => c.partial);
+    wireDistanceBars(buttons, current < 0 ? cols.length - 1 : current, index => {
+      if (index == null) { ro.innerHTML = '<span></span>'; return; }
+      const c = cols[index], parts = c.segs.filter(sg => sg.v).map(sg => `<span>${esc(keys.find(k => k.k === sg.k)?.name || sg.k)} <b>${esc(fmt(sg.v))}</b></span>`).join('');
+      ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span><b>${esc(fmt(tot(c)))}</b> total</span>${parts}`;
+    });
+    return;
+  }
   const show = (e) => {
     const r = svgEl.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W, i = Math.floor((px - padL) / bw);
     if (i < 0 || i >= n) return;
