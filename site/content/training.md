@@ -52,7 +52,7 @@ Apple Watch, Apple Health, Garmin Connect, Health Auto Export, Strava exports, a
 
 ## works-with-garmin-22
 
-**Garmin Connect** brings each new run or ride in with its map and heart rate shortly after your watch syncs. It's being tested now and opens to everyone in the beta soon; until then, Garmin workouts come in through Apple Health or your watch files.
+**Garmin Connect** brings each new run or ride in with its map and heart rate shortly after your watch syncs. For older history, import a Strava export or past workouts from Apple Health. Garmin Connect is being tested now and opens to everyone in the beta soon; until then, Garmin workouts come in through Apple Health or your watch files.
 
 ## works-with-marks-23
 

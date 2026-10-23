@@ -41,7 +41,7 @@ router = APIRouter(prefix='/api')
 AUTHORIZE = 'https://connect.garmin.com/oauth2Confirm'
 TOKEN = 'https://diauth.garmin.com/di-oauth2-service/oauth/token'
 API = 'https://apis.garmin.com/wellness-api/rest'
-FIRST_DAYS = 30             # backfill on connect
+FIRST_DAYS = 30             # best-effort backfill where Garmin access permits history
 STATE_TTL = 600             # seconds to finish signing in at Garmin
 PING_MAX = 2 * 1024 ** 2    # a ping is a short list of links
 DATA_MAX = 64 * 1024 ** 2   # one fetched batch of activity details with samples
@@ -150,9 +150,9 @@ def callback(state: str = '', code: str = '', error: str = ''):
             return page('Already connected elsewhere', 'This Garmin account is connected to a different Kinetta account. Disconnect it there first.', False)
         c.execute("""INSERT INTO connections (user_id, kind, settings, status) VALUES (%s, 'garmin_connect', %s, %s)
                      ON CONFLICT (user_id, kind) DO UPDATE SET settings = excluded.settings, status = excluded.status""",
-                  (uid, json.dumps({**tok, 'garmin_user_id': gid, 'permissions': perms}), _status_for(perms, 'connected - Garmin is sending your last 30 days')))
+                  (uid, json.dumps({**tok, 'garmin_user_id': gid, 'permissions': perms}), _status_for(perms, 'connected - new activities arrive after your watch syncs')))
     threading.Thread(target=backfill, args=(uid,), daemon=True).start()
-    return page('Garmin is connected', 'Your activities from the last 30 days are on their way. New ones arrive shortly after your watch syncs.', True)
+    return page('Garmin is connected', 'New activities arrive after your watch syncs. For older history, import a Strava export or past workouts from Apple Health.', True)
 
 
 def _permissions(access):
@@ -200,7 +200,7 @@ def _set_status(uid, status, count=None):
 
 
 def backfill(uid, days=FIRST_DAYS):
-    """Ask Garmin to resend recent activity details; they arrive later as ordinary pings. Garmin allows 30 days per request."""
+    """Best-effort request for recent activity details where supported; Starter access excludes history."""
     end = int(time.time())
     try:
         _get(uid, f'{API}/backfill/activityDetails?summaryStartTimeInSeconds={end - days * 86400}&summaryEndTimeInSeconds={end}')

@@ -71,10 +71,15 @@ try:
 
         page, used = sign_in(a)
         assert page.status_code == 200 and b'Garmin is connected' in page.body
+        assert b'New activities arrive after your watch syncs.' in page.body
+        assert b'Strava export' in page.body and b'Apple Health' in page.body
+        assert b'last 30 days' not in page.body
         assert G.callback(state=used, code='zz-code').status_code == 400, 'a sign-in link works once'
         assert G.callback(state='zz-made-up', code='zz-code').status_code == 400
         with db.connect() as c:
             s = G._settings(c, a)
+            status = c.execute("SELECT status FROM connections WHERE user_id = %s AND kind = 'garmin_connect'", (a,)).fetchone()['status']
+        assert status == 'connected - new activities arrive after your watch syncs'
         assert s['garmin_user_id'] == state['gid'] and s['access'] == state['access'] and s['refresh'] == 'zz-refresh'
         assert 'zz-refresh' not in json.dumps(AC.connections({'id': a, 'is_admin': True}), default=str), 'tokens never go back to the app'
         print('PASS sign-in with PKCE; the state link is single-use; tokens stay on the server')
@@ -83,6 +88,18 @@ try:
         assert page.status_code == 400 and b'different Kinetta account' in page.body
         with db.connect() as c: assert not G._settings(c, b)
         print('PASS one Garmin account connects to one Kinetta account')
+
+        # Starter denies history without breaking the connection or later new-activity pushes.
+        before_settings = dict(s)
+        for code in (403, 409):
+            with patch.object(G, '_get', side_effect=urllib.error.HTTPError(G.API + '/backfill/activityDetails', code, 'stand-in denial', {}, None)):
+                G.backfill(a)
+            with db.connect() as c:
+                assert G._settings(c, a) == before_settings
+                status = c.execute("SELECT status FROM connections WHERE user_id = %s AND kind = 'garmin_connect'", (a,)).fetchone()['status']
+                assert c.execute('SELECT count(*) AS n FROM activities WHERE user_id = %s', (a,)).fetchone()['n'] == 0
+            assert status == 'connected - Garmin couldn’t resend older activities (403)'
+        print('PASS history denial/already-requested response keeps connection and makes no activity/history promise')
 
         for bad in ('https://evil.example/wellness-api/rest/activityDetails?x', 'http://apis.garmin.com/wellness-api/rest/activityDetails',
                     'https://apis.garmin.com.evil.example/wellness-api/rest/x', 'https://zz@apis.garmin.com/wellness-api/rest/x',
@@ -160,6 +177,9 @@ try:
 
         page, _ = sign_in(b, native=True)
         assert page.status_code == 302 and page.headers['location'].startswith('kinetta://garmin-connect?ok=1&'), page.headers.get('location')
+        native_text = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(page.headers['location']).query))['text']
+        assert 'New activities arrive after your watch syncs.' in native_text
+        assert 'Strava export' in native_text and 'Apple Health' in native_text and 'last 30 days' not in native_text
         page, _ = sign_in(a, native=True)
         q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(page.headers['location']).query))
         assert q['ok'] == '0' and 'different Kinetta account' in q['text']
