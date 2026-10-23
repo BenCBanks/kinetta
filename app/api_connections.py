@@ -39,7 +39,8 @@ def connections(user=Depends(current_user)):
     with db.connect() as c:
         rows = c.execute('SELECT kind, status, last_sync, last_count, created, settings->>\'athlete_id\' AS athlete_id FROM connections WHERE user_id = %s',
                          (user['id'],)).fetchall()
-    return {r['kind']: r for r in rows} | {'garmin_available': _garmin_allowed(user)}
+    from . import garmin_connect
+    return {r['kind']: r for r in rows} | {'garmin_available': _garmin_allowed(user), 'garmin_connect_available': garmin_connect.allowed(user)}
 
 
 @router.post('/connections/apple')
@@ -54,6 +55,9 @@ def apple_connect(user=Depends(current_user)):
 
 @router.delete('/connections/{kind}')
 def disconnect(kind: str, user=Depends(current_user)):
+    if kind == 'garmin_connect':      # tell Garmin to stop sending data too
+        from . import garmin_connect
+        garmin_connect.forget(user['id']); return {'ok': True}
     with db.connect() as c:
         c.execute('DELETE FROM connections WHERE user_id = %s AND kind = %s', (user['id'], kind))
     return {'ok': True}

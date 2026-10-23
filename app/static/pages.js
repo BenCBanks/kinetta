@@ -1519,11 +1519,34 @@ route(/^\/track\/import$/, 'track', async (el) => {
   poll();
 });
 
+// Garmin Connect through Garmin's developer program: sign in at Garmin; new activities arrive after each watch sync.
+function garminCard(box,C,valid){
+  const g=C.garmin_connect;if(!box||!(C.garmin_connect_available||g))return;
+  box.innerHTML=`<div class="card"><h2>Garmin Connect</h2>
+    <p>${g?`<b>Connected.</b> ${esc(g.status||'')}${g.last_sync?' · '+esc(when(g.last_sync)):''}`:'Bring in your Garmin activities with maps and heart rate. New ones arrive shortly after your watch syncs.'}</p>
+    ${g?`<label class="check"><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}> Let Kit read my Garmin activities</label>
+    <p class="small muted">Off unless you say yes. Sends the activities Kit needs to ${esc(App.me.ai_provider||'the AI service')}. Garmin data is never used to train AI.</p>
+    <div class="actions"><button type="button" class="ghost" id="gc-sync">Sync now</button><button type="button" class="ghost danger" id="gc-off">Disconnect</button></div>`
+    :'<button type="button" class="primary wide" id="gc-on">Connect Garmin</button>'}</div>`;
+  const on=$('#gc-on',box);if(on)on.onclick=async()=>{
+    try{const r=await api('/api/connections/garmin-connect/start',json('POST',{}));if(!valid())return;
+      if(Native.on){window.open(r.url,'_blank');toast('Finish signing in at Garmin, then come back');}else location.href=r.url;}
+    catch(x){toast(x.message);}};
+  const sy=$('#gc-sync',box);if(sy)sy.onclick=async()=>{try{await api('/api/connections/garmin-connect/sync',json('POST',{}));toast('Asked Garmin to resend the last two days');}catch(x){toast(x.message);}};
+  const off=$('#gc-off',box);if(off)off.onclick=async()=>{
+    if(!confirm('Disconnect Garmin? New activities stop arriving. Activities already here stay until you delete them.'))return;
+    try{await api('/api/connections/garmin_connect',{method:'DELETE'});toast('Garmin disconnected');if(valid())render();}catch(x){toast(x.message);}};
+  const ai=$('#gc-ai',box);if(ai)ai.onchange=async(e)=>{const v=e.target.checked;
+    try{await api('/api/profile',json('PUT',{garmin_ai_ok:v}));App.me.garmin_ai_ok=v;toast(v?'Kit can read your Garmin activities':'Kit won’t read your Garmin activities');}
+    catch(x){e.target.checked=!v;toast(x.message);}};
+}
+
 route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{replace:true}));
 route(/^\/track\/connections$/, 'track', async (el) => {
   el.classList.add('connections-page');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
   el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Bring in workouts from Apple Health or files. A watch is optional.</p>
+    <div id="c-gc"></div>
     <div class="card" id="c-health"><h2>Apple Health</h2>${skel(1)}</div>
     <a class="card tap row-link" href="/track/import"><div class="grow"><h2>Upload files</h2><p>FIT, GPX, TCX or ZIP · your original watch files or activity history.</p></div><span class="chev">${svg('chev')}</span></a>
     <details class="card" id="c-advanced"><summary>Advanced</summary><p class="small muted">For power users.</p><div id="c-body">${skel(2)}</div></details>`;
@@ -1538,6 +1561,7 @@ route(/^\/track\/connections$/, 'track', async (el) => {
   let C;
   try{C=await api('/api/connections');}catch(e){if(valid())$('#c-body',el).innerHTML=`<p class="err">${esc(e.message)}</p>`;return;}
   if(!valid())return;
+  garminCard($('#c-gc',el),C,valid);
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
   $('#c-body', el).innerHTML = `${C.garmin_available || C.garmin ? `<div class="card"><h2>Garmin Connect</h2>
       <p class="small">Bring in your Garmin activities with maps. In Garmin Connect on the web, open Settings → Personal API Key, create a key and paste it here. New activities are checked every 30 minutes.</p>${st('garmin')}

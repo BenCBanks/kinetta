@@ -106,6 +106,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/coach_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/garmin_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/garmin_connect_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/native_push_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/ai_access_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_chat_incontainer.py

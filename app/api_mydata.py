@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
-from . import db, auth
+from . import db, auth, garmin_connect
 from .auth import current_user
 from .api_account import DATA, erase, erase_files
 
@@ -196,7 +196,9 @@ def delete_account(body: DeleteIn, request: Request, response: Response, user=De
         if me['is_admin'] and not c.execute('SELECT 1 FROM users WHERE is_admin AND id <> %s', (me['id'],)).fetchone() \
                 and c.execute('SELECT 1 FROM users WHERE id <> %s', (me['id'],)).fetchone():
             raise HTTPException(400, "You're the admin and other people use this Kinetta, so this account can't be deleted here")
+        garmin = garmin_connect._settings(c, me['id'])
         erase(c, me)
     erase_files(me['id'])
+    if garmin: garmin_connect.deregister(garmin)     # after the account is gone; Garmin stops sending its data
     response.delete_cookie(auth.COOKIE, path='/')
     return {'ok': True}

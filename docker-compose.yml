@@ -67,6 +67,11 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       FDC_API_KEY: ${FDC_API_KEY:-}
+      # Garmin Connect developer program keys (garmin_connect.py); without them the Garmin Connect card stays hidden
+      GARMIN_CLIENT_ID: ${GARMIN_CLIENT_ID:-}
+      GARMIN_CLIENT_SECRET: ${GARMIN_CLIENT_SECRET:-}
+      GARMIN_CONNECT_OPEN: ${GARMIN_CONNECT_OPEN:-}   # 1 = everyone may connect; otherwise only the admin
+      GARMIN_PUSH_SECRET: ${GARMIN_PUSH_SECRET:-}     # push mode: the secret end of the address set in Garmin's portal
       KINETTA_PUBLIC_URL: ${KINETTA_PUBLIC_URL:-}
       KINETTA_BETA_SIGNUP: ${KINETTA_BETA_SIGNUP:-}
       # who to believe about a visitor's address (login-guessing limits)
