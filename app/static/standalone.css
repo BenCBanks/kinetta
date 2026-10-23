@@ -1,0 +1,4 @@
+/* Small pages outside the app, such as the page Garmin sends people back to after signing in. */
+body { font: 17px/1.5 var(--font-ui, system-ui, sans-serif); background: var(--color-canvas); color: var(--color-text); margin: 0; padding: 48px 20px; text-align: center; }
+main { max-width: 420px; margin: auto; }
+a { color: var(--color-brand); font-weight: 600; }

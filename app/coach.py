@@ -65,17 +65,19 @@ def off():
     return ai_budget.FALLBACK if not ai_budget.enabled() else OFF
 
 
-HEALTH_NO = 'Review Apple Health data sharing with Kit under Me > Connections > Apple Health first.'
+HEALTH_NO = 'Review Apple Health and Garmin data sharing with Kit under Me > Connections first.'
 
 
 def health_ok(c,user_id):
-    """A new Health data category cannot inherit the older workout-only consent."""
+    """A new Health data category cannot inherit the older workout-only consent. Garmin activities need their own yes
+    (Garmin's terms: explicit consent before any AI processing)."""
     r=c.execute("""SELECT coalesce(p.health_ai_ok,false) AS ok,coalesce(p.health_weight_ai_ok,false) AS weight_ok,
+      coalesce(p.garmin_ai_ok,false) AS garmin_ok,EXISTS(SELECT 1 FROM activities WHERE user_id=%s AND source='garmin_connect') AS has_garmin,
       (EXISTS(SELECT 1 FROM activities WHERE user_id=%s AND (source='healthkit' OR healthkit_id IS NOT NULL))
        OR EXISTS(SELECT 1 FROM health_resting h WHERE h.user_id=%s AND p.resting_source='apple_health')) AS has,
       (coalesce(p.weight_health_derived,false) OR EXISTS(SELECT 1 FROM weights WHERE user_id=%s AND source='healthkit')) AS has_weight
-      FROM (SELECT %s::bigint AS id) me LEFT JOIN profile p ON p.user_id=me.id""",(user_id,user_id,user_id,user_id)).fetchone()
-    return (not r['has'] or r['ok']) and (not r['has_weight'] or (r['ok'] and r['weight_ok']))
+      FROM (SELECT %s::bigint AS id) me LEFT JOIN profile p ON p.user_id=me.id""",(user_id,user_id,user_id,user_id,user_id)).fetchone()
+    return (not r['has'] or r['ok']) and (not r['has_weight'] or (r['ok'] and r['weight_ok'])) and (not r['has_garmin'] or r['garmin_ok'])
 
 
 def _gemini(ctx, system=None):

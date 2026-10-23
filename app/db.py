@@ -1302,6 +1302,14 @@ MIGRATIONS = [
     """ALTER TABLE connections DROP CONSTRAINT connections_kind_check;
     ALTER TABLE connections ADD CONSTRAINT connections_kind_check CHECK (kind IN ('apple', 'intervals', 'garmin'));
     """,
+
+    # 66 (2026-10-23): Garmin Connect through Garmin's developer program (garmin_connect.py). One Kinetta account per Garmin
+    # account; garmin_ai_ok: the person said yes to the AI coach reading their Garmin activities (off until then).
+    """ALTER TABLE connections DROP CONSTRAINT connections_kind_check;
+    ALTER TABLE connections ADD CONSTRAINT connections_kind_check CHECK (kind IN ('apple', 'intervals', 'garmin', 'garmin_connect'));
+    CREATE UNIQUE INDEX connections_garmin_user ON connections ((settings->>'garmin_user_id')) WHERE kind = 'garmin_connect';
+    ALTER TABLE profile ADD COLUMN garmin_ai_ok boolean NOT NULL DEFAULT false;
+    """,
 ]
 
 

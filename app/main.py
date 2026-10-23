@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool
-from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts
+from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts, garmin_connect
 import threading
 from .auth import current_user
 from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread
@@ -29,6 +29,7 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
 app.include_router(api_activities.router)
 app.include_router(api_lifts.router)
 app.include_router(api_food.router)
+app.include_router(garmin_connect.router)     # before api_connections: its /connections/{kind} would catch these
 app.include_router(api_connections.router)
 app.include_router(api_account.router)
 app.include_router(food_photo.router)
@@ -155,7 +156,7 @@ def logout(request: Request, response: Response):
 def me(user=Depends(current_user)):
     from . import ai_access
     with db.connect() as c:
-        p = c.execute('SELECT share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent, training_day_targets, training_food_adult_confirmed FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, garmin_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent, training_day_targets, training_food_adult_confirmed FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
         from .admin_usage import opened
@@ -179,6 +180,7 @@ class ProfileIn(BaseModel):
     resting_source: str | None = Field(None, pattern="^(formula|apple_health)$")
     health_weight_ai_ok: StrictBool | None = None
     health_ai_ok: bool | None = None      # the AI coach may read workouts that came from Apple Health
+    garmin_ai_ok: StrictBool | None = None   # ... and activities from Garmin Connect (its own yes)
 
 
 @app.put('/api/profile')
@@ -187,6 +189,7 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
     if vals.get('resting_source', False) is None: del vals['resting_source']
     if vals.get('health_ai_ok', False) is None: del vals['health_ai_ok']    # yes or no only
     if vals.get('health_weight_ai_ok',False) is None:del vals['health_weight_ai_ok']
+    if vals.get('garmin_ai_ok',False) is None:del vals['garmin_ai_ok']
     if 'bio' in vals: vals['bio'] = (vals['bio'] or '').strip()
     if 'tz' in vals:
         vals['tz'] = db.valid_tz(vals['tz'])
