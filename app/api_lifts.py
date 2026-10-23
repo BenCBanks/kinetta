@@ -381,7 +381,7 @@ def coach_text(c, uid, aid):
 
 
 def merge_watch(c, uid, start, end, numbers):
-    """A strength workout from a watch (Apple Health, a file, intervals.icu) that overlaps a session logged here: the
+    """A strength workout from a watch (Apple Health, Garmin Connect, a file) that overlaps a session logged here: the
     watch's numbers go onto the logged session instead of making a second activity. Returns its id, or None."""
     hit = c.execute("""SELECT * FROM activities WHERE user_id = %s AND source = 'lift'
                        AND start_time < %s AND start_time + make_interval(secs => coalesce(elapsed_s, 0)) > %s

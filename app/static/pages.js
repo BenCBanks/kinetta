@@ -1563,28 +1563,9 @@ route(/^\/track\/connections$/, 'track', async (el) => {
   if(!valid())return;
   garminCard($('#c-gc',el),C,valid);
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
-  $('#c-body', el).innerHTML = `${C.garmin_available || C.garmin ? `<div class="card"><h2>Garmin Connect</h2>
-      <p class="small">Bring in your Garmin activities with maps. In Garmin Connect on the web, open Settings → Personal API Key, create a key and paste it here. New activities are checked every 30 minutes.</p>${st('garmin')}
-      <form class="form" id="c-garmin"><label>Personal API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.garmin ? 'saved (paste to change)' : ''}"></label>
-      <div class="actions">${C.garmin ? '<button type="button" class="ghost" id="c-garmin-sync">Sync now</button><button type="button" class="ghost danger" data-off="garmin">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost">${C.garmin ? 'Update' : 'Connect'}</button></div></form></div>` : ''}
-    <div class="card"><h2>intervals.icu</h2>
-      <p class="small">Garmin owners: intervals.icu can bring in maps automatically. For an existing intervals.icu account, enter your athlete ID and API key (Settings → Developer settings). New activities are checked every 30 minutes.</p>${st('intervals')}
-      <form class="form" id="c-icu"><div class="two"><label>Athlete ID<input name="athlete_id" placeholder="i123456" autocapitalize="none" value="${esc(C.intervals ? C.intervals.athlete_id : '')}"></label>
-      <label>API key<input name="api_key" type="password" autocomplete="off" placeholder="${C.intervals ? 'saved (paste to change)' : ''}"></label></div>
-      <div class="actions">${C.intervals ? '<button type="button" class="ghost" id="c-icu-sync">Sync now</button><button type="button" class="ghost danger" data-off="intervals">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost">${C.intervals ? 'Update' : 'Connect'}</button></div></form></div>
-    <div class="card"><h2>Health Auto Export</h2>
+  $('#c-body', el).innerHTML = `<div class="card"><h2>Health Auto Export</h2>
       <p class="small">In the iPhone app <b>Health Auto Export</b> (Premium), add an automation: <b>REST API</b>, format <b>JSON</b>, data <b>Workouts</b> (and optionally <b>Body Mass</b>), with the address and header below.</p>${st('apple')}
       <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost" id="c-apple">${C.apple ? 'Make a new secret' : 'Create my upload link'}</button></div></div>`;
-  $('#c-icu', el).onsubmit = async (e) => {
-    e.preventDefault(); if(!valid())return;const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your API key'); return; }
-    try { await api('/api/connections/intervals', json('POST', {athlete_id: f.athlete_id.value.trim(), api_key: f.api_key.value.trim()})); toast('Connected. First sync running'); render(); } catch (x) { toast(x.message); }
-  };
-  const sy = $('#c-icu-sync', el); if (sy) sy.onclick = async () => { if(!valid())return;try { await api('/api/connections/intervals/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
-  const gf = $('#c-garmin', el); if (gf) gf.onsubmit = async (e) => {
-    e.preventDefault(); if(!valid())return;const f = e.target; if (!f.api_key.value.trim()) { toast('Paste your Garmin key'); return; }
-    try { await api('/api/connections/garmin', json('POST', {api_key: f.api_key.value.trim()})); toast('Connected. First sync running'); render(); } catch (x) { toast(x.message); }
-  };
-  const gs = $('#c-garmin-sync', el); if (gs) gs.onclick = async () => { if(!valid())return;try { await api('/api/connections/garmin/sync', json('POST', {})); toast('Sync started'); } catch (x) { toast(x.message); } };
   $('#c-apple', el).onclick = async () => {
     if(!valid())return;
     if (C.apple && !confirm('Make a new secret? The old one stops working.')) return;

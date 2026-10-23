@@ -21,7 +21,7 @@ and nothing is sold, shared or used for ads.
 
 **Activities**
 - Upload FIT, GPX or TCX files, or your whole Strava export, with duplicates detected automatically
-- Automatic sync from Garmin (through the free [intervals.icu](https://intervals.icu)) and Apple Watch (through the iPhone app Health Auto Export)
+- Automatic sync from Garmin (Garmin Connect, through Garmin's developer program) and Apple Watch (Apple Health in the iPhone app, or Health Auto Export)
 - Maps, splits, pace, heart rate, elevation, heart-rate zones, effort score and VO2max estimate
 - Matched routes: the same loop recognised automatically, with your pace on it over time
 - Personal records, race predictions, a fitness/fatigue/form chart, goals, gear mileage and a heatmap

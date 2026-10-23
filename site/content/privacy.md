@@ -108,7 +108,7 @@ Kinetta runs on its own server in the United States, not a cloud hosting company
 
 ## providers-connected
 
-Services you connect yourself, such as Garmin Connect, intervals.icu or Health Auto Export, also follow their own policies. Kinetta keeps their keys or sign-in tokens on the server, uses them only to read your own data, and never shows them back in the app. Disconnecting deletes them and stops new imports; anything already imported stays until you delete it.
+Services you connect yourself, such as Garmin Connect or Health Auto Export, also follow their own policies. Kinetta keeps their keys or sign-in tokens on the server, uses them only to read your own data, and never shows them back in the app. Disconnecting deletes them and stops new imports; anything already imported stays until you delete it.
 
 ## admin
 

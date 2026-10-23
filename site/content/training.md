@@ -32,7 +32,7 @@ Connected sources
 
 ## set-up-intervals-icu-or-health-auto-export-from-me-wat-8
 
-Garmin Connect, intervals.icu or Health Auto Export bring in new workouts automatically.
+Garmin Connect or Health Auto Export bring in new workouts automatically.
 
 ## apple-health-on-iphone-9
 
@@ -48,11 +48,11 @@ Works with the watch you already wear.
 
 ## works-with-list-21
 
-Apple Watch, Apple Health, Garmin Connect, intervals.icu, Health Auto Export, Strava exports, and FIT, GPX or TCX files from almost any watch or bike computer.
+Apple Watch, Apple Health, Garmin Connect, Health Auto Export, Strava exports, and FIT, GPX or TCX files from almost any watch or bike computer.
 
 ## works-with-garmin-22
 
-**Garmin Connect** brings each new run or ride in with its map and heart rate shortly after your watch syncs. It's being tested now and opens to everyone in the beta soon; until then, Garmin workouts come in through Apple Health, intervals.icu or your watch files.
+**Garmin Connect** brings each new run or ride in with its map and heart rate shortly after your watch syncs. It's being tested now and opens to everyone in the beta soon; until then, Garmin workouts come in through Apple Health or your watch files.
 
 ## works-with-marks-23
 
