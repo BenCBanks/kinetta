@@ -1529,8 +1529,11 @@ function garminCard(box,C,valid){
     <div class="actions"><button type="button" class="ghost" id="gc-sync">Sync now</button><button type="button" class="ghost danger" id="gc-off">Disconnect</button></div>`
     :'<button type="button" class="primary wide" id="gc-on">Connect Garmin</button>'}</div>`;
   const on=$('#gc-on',box);if(on)on.onclick=async()=>{
-    try{const r=await api('/api/connections/garmin-connect/start',json('POST',{}));if(!valid())return;
-      if(Native.on){window.open(r.url,'_blank');toast('Finish signing in at Garmin, then come back');}else location.href=r.url;}
+    try{const r=await api('/api/connections/garmin-connect/start',json('POST',{native:Native.signInSheet}));if(!valid())return;
+      if(Native.signInSheet){
+        const res=await Native.webSignIn(r.url);if(!valid()||res.cancelled)return;
+        const q=new URL(res.url).searchParams;toast(q.get('ok')==='1'?q.get('title'):`${q.get('title')}. ${q.get('text')}`);render();
+      }else if(Native.on){window.open(r.url,'_blank');toast('Finish signing in at Garmin, then come back');}else location.href=r.url;}
     catch(x){toast(x.message);}};
   const sy=$('#gc-sync',box);if(sy)sy.onclick=async()=>{try{await api('/api/connections/garmin-connect/sync',json('POST',{}));toast('Asked Garmin to resend the last two days');}catch(x){toast(x.message);}};
   const off=$('#gc-off',box);if(off)off.onclick=async()=>{

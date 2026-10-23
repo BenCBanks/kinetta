@@ -45,8 +45,8 @@ def fake_http(url, data=None, headers=None, method=None, cap=G.DATA_MAX):
     raise urllib.error.HTTPError(url, 404, 'no', {}, None)
 
 
-def sign_in(uid):
-    url = G.start({'id': uid, 'is_admin': True})['url']
+def sign_in(uid, native=False):
+    url = G.start(G.StartIn(native=native), user={'id': uid, 'is_admin': True})['url']
     q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query))
     assert url.startswith(G.AUTHORIZE) and q['code_challenge_method'] == 'S256' and q['client_id'] == 'zz-client'
     state['challenge'] = q['code_challenge']
@@ -61,7 +61,7 @@ try:
             c.execute('INSERT INTO profile (user_id) VALUES (%s)', (ids[-1],))
     a, b = ids
     with patch.object(G, '_http', fake_http), patch.object(G.threading, 'Thread'), patch.object(coach, 'after_import'), patch('app.notify.threading.Thread'):
-        try: G.start({'id': a, 'is_admin': False}); assert False, 'member started Garmin sign-in'
+        try: G.start(user={'id': a, 'is_admin': False}); assert False, 'member started Garmin sign-in'
         except HTTPException as e: assert e.status_code == 403
         assert AC.connections({'id': a, 'is_admin': False})['garmin_connect_available'] is False
         assert AC.connections({'id': a, 'is_admin': True})['garmin_connect_available'] is True
@@ -158,10 +158,19 @@ try:
         assert state['deleted'] == [state['gid']]
         print('PASS Disconnect tells Garmin to stop sending data')
 
+        page, _ = sign_in(b, native=True)
+        assert page.status_code == 302 and page.headers['location'].startswith('kinetta://garmin-connect?ok=1&'), page.headers.get('location')
+        page, _ = sign_in(a, native=True)
+        q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(page.headers['location']).query))
+        assert q['ok'] == '0' and 'different Kinetta account' in q['text']
+        AC.disconnect('garmin_connect', {'id': b, 'is_admin': True})
+        print('PASS the iPhone sign-in sheet gets its answer at a kinetta:// address, success and failure')
+
         sign_in(a)
         with db.connect() as c: s = G._settings(c, a)
+        before = len(state['deleted'])
         G.deregister(s)
-        assert state['deleted'] == [state['gid']] * 2
+        assert len(state['deleted']) == before + 1
         print('PASS account deletion path deregisters with stored tokens')
 finally:
     with db.connect() as c:
