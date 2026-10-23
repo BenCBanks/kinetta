@@ -26,12 +26,18 @@ check(a.get('/api/food/thread/preferences')[1] == {'auto_log': True, 'tone': 'su
 check(a.put('/api/profile', {'tz': 'America/New_York'})[0] == 200, 'fictional capture timezone')
 before = a.get('/api/me')[1]
 key = str(uuid.uuid4())
-body = {'client_id': key, 'body': '  Fictional oats and yogurt  ', 'captured_at': '2026-10-16T02:30:00+00:00'}
+# The most recent 02:30 UTC at least an hour ago: still the previous evening in New York, and inside the server's
+# seven-day window for offline captures (a fixed date stopped working once it was more than seven days old).
+now = dt.datetime.now(dt.timezone.utc)
+captured = now.replace(hour=2, minute=30, second=0, microsecond=0)
+if captured > now - dt.timedelta(hours=1): captured -= dt.timedelta(days=1)
+capture_day = (captured - dt.timedelta(days=1)).date().isoformat()
+body = {'client_id': key, 'body': '  Fictional oats and yogurt  ', 'captured_at': captured.isoformat()}
 s, first = a.post('/api/food/thread/messages', body)
 check(s == 201 and first['created'], 'new message acknowledged once')
 m = first['message']; mid = m['id']
 check(m['body'] == body['body'].strip() and m['state'] == 'pending' and m['entries'] == [], 'pending text is durable, no food mutation')
-check(m['local_day'] == '2026-10-15' and dt.datetime.fromisoformat(m['captured_at']) == dt.datetime.fromisoformat(body['captured_at']), 'offline capture time survives arrival in another day')
+check(m['local_day'] == capture_day and dt.datetime.fromisoformat(m['captured_at']) == dt.datetime.fromisoformat(body['captured_at']), 'offline capture time survives arrival in another day')
 s, replay = a.post('/api/food/thread/messages', body)
 check(s == 200 and not replay['created'] and replay['message'] == m, 'lost acknowledgement replay is idempotent')
 check(a.post('/api/food/thread/messages', {**body, 'body': 'Different text'})[0] == 409, 'identity cannot replace a different message')
