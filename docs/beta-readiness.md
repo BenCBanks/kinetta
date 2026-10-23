@@ -32,11 +32,11 @@ Existing code already includes HealthKit foreground sync, 30-day history and an 
 
 ## Direct Garmin access
 
-Garmin's [official FAQ](https://developer.garmin.com/gc-developer-program/program-faq/) says the program is for business use. A working website and a small beta are useful evidence, but do not guarantee approval. We must not invent a business or imply a user count we do not have.
+Garmin's [current official program page](https://developerportal.garmin.com/developer-programs/connect-developer-api) lists Starter access as push-only, with historical data excluded. Enterprise options include history of one month or more; access and commercial terms depend on the integration. The older intake/evaluation guidance does not establish backfill permission for current keys.
 
-When ready, the owner should provide a genuine business/legal identity, business contact, product description, website and privacy/support links. We can prepare the technical request: user-authorized workout history and ongoing activity files; FIT, route and heart-rate handling; OAuth, revocation/deletion, deduplication and health-data consent. Request the Activity API, and describe planned AI and social use honestly so Garmin can confirm the permitted scope. Review the agreement before accepting it.
+Kinetta therefore describes new Garmin activities arriving after a watch sync. Older history can come from a Strava export or past workouts available in Apple Health; original watch files can also be uploaded. The best-effort backfill request is retained where supported, but it does not establish that history was delivered. See [the history evidence and limits](garmin-history.md).
 
-On October 13 the [live application page](https://www.garmin.com/en-US/forms/GarminConnectDeveloperAccess/) displayed an updates notice and no submission form in a JavaScript-enabled browser. A user-posted Garmin response on its [developer forum](https://forums.garmin.com/developer/connect-iq/f/discussion/434798/cannot-access-developer-program-application-form-under-construction/2027757) describes intake as paused; this is corroboration, not a direct response to Kinetta. Do not assume applications have resumed. Once the owner is ready, ask Garmin's program support about current intake or submit through the official form if it reopens. Track the response privately. [Garmin pursuit issue #63](https://github.com/BenCBanks/kinetta/issues/63).
+Public documentation does not establish a particular application's evaluation/production status or endpoint permission. Verify those privately in Garmin's portal before making a stronger history promise. API-key approval, a successful sign-in, and actual activity delivery are separate checks. Existing consent, revocation, deduplication and privacy rules remain required.
 
 ## Approval prospects
 
@@ -46,7 +46,7 @@ Neither provider publishes a reliable approval probability for Kinetta. These ar
 |---|---|---|
 | Apple Developer enrollment | Good prospect if identity and eligibility checks pass | Correct legal details, two-factor authentication, agreements and membership payment |
 | External TestFlight review | Reasonable prospect once the signed app is dependable; not ready to claim today | Reviewer access, real-device proof, accurate metadata, privacy and account deletion |
-| Direct Garmin access now | Cannot plan on approval while the application form is unavailable | Garmin confirms intake reopened and business eligibility |
-| Garmin after intake resumes | Uncertain; a legitimate fitness product fits the API's purpose | Honest business/use case, working product, privacy safeguards and acceptance of Garmin's terms |
+| Direct Garmin access now | Starter supports new activity pushes; real delivery still needs verification | Actual permitted watch sync, consent and correct portal delivery settings |
+| Garmin history | Excluded from Starter; Enterprise capabilities depend on access | Explicit endpoint entitlement and successful historical delivery |
 
 Apple applies its [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/), including useful functionality beyond a repackaged website, health-data handling and permission before third-party AI sharing. Kinetta's native HealthKit integration and workout/food tools strengthen its case, but are not an approval guarantee. Existing export/deletion and consent controls help; remaining bugs and inaccurate promises need fixing before review.
