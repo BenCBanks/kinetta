@@ -34,7 +34,7 @@ Homepage, light and dark.
 
 [Full light homepage](images/e-brighter-white/light-home-full.png) · [Full dark homepage](images/e-brighter-white/dark-home-full.png) · [Mobile light](images/e-brighter-white/light-home-phone.png) · [Mobile dark](images/e-brighter-white/dark-home-phone.png)
 
-E is more than a hue change: white replaces ivory, near-black values have more weight, the weekly summary gains a fine outline and restrained depth, the food summary gets a distinct neutral surface, and the selected tab is filled green. Dark mode uses neutral charcoal layers. The tradeoff is more panel emphasis and visual weight; review density and whether the shadows feel excessive. Chart data is neutral and needs careful checking for quick identification. Map tiles contain geographic colours outside the app palette; this is not a promise of a completely monochrome map.
+E is more than a hue change: white replaces ivory, near-black values have more weight, the weekly summary gains a fine outline and restrained depth, the food summary gets a distinct neutral surface, and the selected tab is filled green. Dark mode uses neutral charcoal layers. The preview also puts conditional Food before the conditional plan, without removing either; that ordering is a separate unapproved choice. The tradeoff is more panel emphasis and visual weight; review density and whether the shadows feel excessive. Chart data is neutral and needs careful checking for quick identification. Map tiles contain geographic colours outside the app palette; this is not a promise of a completely monochrome map.
 
 ### D · Green & charcoal — rejected
 
@@ -54,16 +54,21 @@ E is more than a hue change: white replaces ivory, near-black values have more w
 
 ![C app and homepage comparison](images/c-graphite/overview.png)
 
+## Two approval checkpoints
+
+1. Select or refine the app/site visual direction **before implementation**. Nothing is selected by this PR.
+2. Review and approve the homepage mockup **before publication**, separately from the visual-direction decision.
+
 ## Decisions to record
 
 A preference on one row does not approve the other rows. “None yet” remains a valid answer.
 
 | Decision | Choices for review | Current status |
 | --- | --- | --- |
-| Visual foundation | A–E, a combination, or none yet | No selection; latest feedback favours testing white with green |
+| Visual foundation | A–E, a combination, or none yet | No selection; latest owner preference favours testing white with green |
 | Light background | Pure white as in E, versus the earlier near-white treatments | Unapproved |
 | Depth | Fine borders only; restrained panel/button shadows as in E; another treatment | Unapproved |
-| Data encoding | Small distinct palette restricted to data; neutral shades plus patterns | Unapproved; no purple or neon in the next implementation |
+| Data encoding | Small distinct palette restricted to data; neutral shades plus patterns | Unapproved encoding; no purple or neon is the owner’s stated preference |
 | Tabs | Proposed Today · Activity · Record · Progress · Food; retain current arrangement; revise after task testing | Unapproved; screenshots change labels only, not routes or account architecture |
 | Homepage story | One homepage with Training, Food and Friends sections; retain Compare, Guide, Privacy | Mockup unapproved; publication requires its own checkpoint |
 | First run | Optional device connection, then one goals question; later setup must remain available | Flow proposal only; not built |
@@ -75,7 +80,7 @@ The original brief calls for a neutral white/near-white base without cream; near
 
 - [External research: findings, sources and limits](RESEARCH.md).
 - [Full app and launch review: proposed work, priorities and acceptance evidence](REVIEW-SCOPE.md).
-- [Claude review brief](CLAUDE-REVIEW-BRIEF.md). A brief is not a completed independent review.
+- [Completed Claude review and follow-up notes](CLAUDE-REVIEW.md), with the [original review brief](CLAUDE-REVIEW-BRIEF.md). Recommendations remain unapproved.
 - [Verification and remaining limits](VERIFICATION.md).
 - [Current app light/dark reference](images/current/).
 

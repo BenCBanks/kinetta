@@ -10,9 +10,11 @@ These records describe earlier preview verification; this packaging PR does not 
 
 ## Packaging checks
 
-The packaging pass checks that every relative gallery/document image link resolves, copied PNG files decode, the gallery opens locally, and the package contains only review documents and curated demo images. It also checks the branch diff against main: no app, site, mobile, workflow, token or existing design-guide changes. Claude's review status and findings are recorded separately once returned.
+The packaging pass checks that every relative gallery/document image link resolves, copied PNG files decode, the gallery opens locally, and the package contains only review documents and curated demo images. It also checks the branch diff against main: no app, site, mobile, workflow, token or existing design-guide changes. Claude's completed read-only review and follow-up notes are in CLAUDE-REVIEW.md.
 
 Packaging results: 85 curated PNGs passed structural/CRC checks; 168 local references resolved before the Claude report was added. The gallery loaded all 72 inline images with no horizontal overflow, missing image descriptions or page errors at 1440px, 390px and 330px. Direction links worked, and direct local-file opening worked. Additional PNGs are available through the linked image folders. The browser image decoder verified the inline captures; these results do not re-test the product.
+
+Final package checks after adding the Claude report: 174 local references resolved; every one of the 85 PNGs matched an original preview image byte for byte. The portable ZIP passed integrity checks. No mockup image was revised in response to the review.
 
 ## Remaining checks after a design is selected
 

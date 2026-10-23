@@ -14,7 +14,7 @@ Proposed order: “Your workouts and your food, in one app,” a real phone scre
 
 The screenshots show this proposed structure at desktop and phone widths in both themes. Garmin is labelled limited beta in the mockups; do not promise public availability or unverified history. Apple Watch, Garmin, files and Strava export describe different paths, not equivalent direct integrations. Avoid implying access to Strava's API.
 
-Owner review should cover whether the opening communicates the combined product immediately, the phone content is readable at its intended size, the sections are short enough, the actual integration wording is accurate, and the final beta destination works. Homepage approval is separate from visual-direction selection and must precede publication. No feature pages are folded by this PR.
+Owner review should cover whether the opening communicates the combined product immediately, the phone content is readable at its intended size, the sections are short enough, the actual integration wording is accurate, and the final implemented beta destination and signup journey work. Preview links were checked for the intended destination; that does not certify the future published journey. Homepage approval is separate from visual-direction selection and must precede publication. No feature pages are folded by this PR.
 
 ## 3. Friendlier app
 
@@ -41,6 +41,7 @@ Preserve existing conditional Today panels, five stable destinations, private pe
 | --- | --- | --- |
 | App Store screenshots | Website/proposal captures exist; they are not store exports | Selected implemented design, current approved store sizes, truthful captions, light/dark/device checks |
 | Privacy form | Public policy and native manifest do not complete App Store privacy answers | Trace actual collection, linking, sharing and AI/provider behaviour; owner validates App Store Connect responses |
+| Store compliance fields and account controls | Account deletion already exists in the project; a complete store acceptance packet is not verified here | Verify in-app deletion in the reviewer journey, age rating/export compliance answers, Health permission usage text and HealthKit-specific disclosures |
 | Review notes/demo access | No complete reviewer acceptance packet verified here | Working fictional reviewer account, login/setup instructions, reachable backend and feature notes, tested reviewer path |
 | Terms, support, FAQ | Dedicated pages still need a content decision | Accurate terms with appropriate legal review, usable support contact/help and short FAQ; avoid invented legal/privacy promises |
 | Off-site backups | Successful off-site recovery has not been established by this review | Protected encrypted off-site copy, retention, verified recent success, restore into an isolated environment and documented recovery steps |
@@ -50,6 +51,8 @@ Preserve existing conditional Today panels, five stable destinations, private pe
 | Garmin opening/review | Public docs cannot establish the account's exact scopes or review clearance | Verify program/tier and history rights, prepare provider review evidence; owner approves opening access after acceptance |
 | Security findings | Issue closure does not prove private review findings were accepted | Reconcile the actual findings individually with fixes and verification; retain private details outside public artifacts |
 | Food chat and AI (#122) | Existing implementation is substantial; closed issue and stale roadmap descriptions disagree | Reconcile shipped behaviour, reviewed model evidence, consent and beta/device acceptance; explicitly finish or defer remaining scope |
+
+Track each later launch item with separate implementation status, acceptance status, evidence date and named accepting role; none is automatically accepted by this checklist.
 
 The backup and alert rows are public acceptance criteria, not a disclosure of private configuration. No backup, alert, provider, security or model-evaluation changes are made here. [Issue #122](https://github.com/BenCBanks/kinetta/issues/122) and [issue #98](https://github.com/BenCBanks/kinetta/issues/98) were closed when inventoried; that administrative status alone is not a release check.
 
