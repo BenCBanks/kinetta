@@ -819,7 +819,7 @@ async function routePicture(a, trim) {
     if (u) { const vw = g.measureText(v).width; g.font = `600 26px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, top + 18 + size); }
   });
   // the brand, and the map credit OpenStreetMap asks for
-  drawMark(g, M + 26, H - 64, 46, '#74DBB5');   // unchanged logo colour
+  drawMark(g, M + 26, H - 64, 46, PIC.brand);
   g.font = `600 32px ${serif}`; g.fillStyle = PIC.text; g.fillText('Kinetta', M + 62, H - 53);
   if (tiles) { g.font = `500 19px ${ui}`; g.fillStyle = PIC.muted; g.textAlign = 'right'; g.fillText('Map © OpenStreetMap contributors', W - M, H - 55); }
   return new Promise((res) => c.toBlob(res, 'image/png'));

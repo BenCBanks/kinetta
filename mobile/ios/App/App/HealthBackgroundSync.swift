@@ -809,8 +809,8 @@ class KinettaBridgeViewController: CAPBridgeViewController {
     private func applyCanvasColor() {
         let canvas = UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 16/255, green: 28/255, blue: 24/255, alpha: 1)
-                : UIColor(red: 248/255, green: 247/255, blue: 241/255, alpha: 1)
+                ? UIColor(red: 14/255, green: 17/255, blue: 19/255, alpha: 1)
+                : UIColor(red: 243/255, green: 245/255, blue: 247/255, alpha: 1)
         }
         view.backgroundColor = canvas
         view.window?.backgroundColor = canvas

@@ -1013,7 +1013,7 @@ function aiSheet(after) {   // ask once; after() runs when they turn it on
 }
 
 // ---------- login, first-run setup, invite links + start ----------
-const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=2" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=2" alt="Kinetta" width="210" height="34"></picture>`;
+const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=4" alt="Kinetta" width="210" height="34"></picture>`;
 function showLogin(msg = '') {
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<p>Your runs, rides, walks and food, private to you.</p></div>
