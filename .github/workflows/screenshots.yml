@@ -44,6 +44,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Pin Python: the runner's default moved to 3.14, which the pinned Pillow has no wheel for (it then tried, and
+      # failed, to compile it from source, so the screenshots stopped updating on 22 October).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Take the screenshots
         run: |
           mkdir -p /tmp/shots-tool /tmp/png && cd /tmp/shots-tool && npm init -y >/dev/null && npm install playwright@1.48.2
