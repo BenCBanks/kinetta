@@ -778,10 +778,10 @@ async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon 
   g.restore();
   return {tiles: got.length, P: ([la, lo]) => { const [x, y] = mercator(la, lo); return [(x * n - cx) * k + mx, (y * n - cy) * k + my]; }};
 }
-// The picture is always the dark Evergreen theme so it looks the same wherever it is sent: forest background, sage
-// brand, the sport's own colour for the route. 1080 × 1350 fits Messages, Instagram posts and stories.
-const PIC = {bg: '#101C18', text: '#F3F5F4', soft: '#C3C9C6', muted: '#A8B8AF', line: '#34473D', brand: '#74DBB5',
-  sport: {run: '#53D5A5', ride: '#CBB0CC', walk: '#A7D76C', hike: '#E4AD6C', swim: '#8CD0B7', row: '#C49AF0', ski: '#D5A2BA', workout: '#CED67A'}};
+// The share picture uses the generated dark Sky Blue tokens in either app appearance.
+// 1080 × 1350 fits Messages, Instagram posts and stories; logo artwork stays unchanged.
+const PIC = {bg: col('--share-canvas'), text: col('--share-text'), soft: col('--share-text-secondary'), muted: col('--share-text-muted'), line: col('--share-divider'), brand: col('--share-brand'),
+  sport: Object.fromEntries(['run','ride','walk','hike','swim','row','ski','workout','other'].map(sport => [sport, col('--share-' + sport)]))};
 // The Kinetta mark (mark.svg): a track with a runner's dot in its gap, centred on (cx, cy), `w` wide.
 function drawMark(g, cx, cy, w, color) {
   const s = w / 72, ox = cx - 50 * s, oy = cy - 50 * s, at = (x, y) => [ox + x * s, oy + y * s];
@@ -800,23 +800,23 @@ async function routePicture(a, trim) {
   const pts = a.line ? trimRoute(decode(a.line), trim) : [], TOP = 820;
   let tiles = 0;
   if (pts.length > 1) {
-    // the map, muted to the forest palette so the route is what you see first
+    // the map, muted to the neutral palette so the route is what you see first
     g.filter = 'grayscale(1) brightness(.5) contrast(1.15)';
     const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: TOP, pad: 120, under: 40});
     g.filter = 'none'; tiles = n;
-    if (tiles) { g.fillStyle = 'rgba(16,28,24,.45)'; g.fillRect(0, 0, W, TOP); }
-    const fade = g.createLinearGradient(0, TOP - 240, 0, TOP); fade.addColorStop(0, 'rgba(16,28,24,0)'); fade.addColorStop(1, PIC.bg);
+    if (tiles) { g.fillStyle = 'rgba(14,17,19,.45)'; g.fillRect(0, 0, W, TOP); }
+    const fade = g.createLinearGradient(0, TOP - 240, 0, TOP); fade.addColorStop(0, 'rgba(14,17,19,0)'); fade.addColorStop(1, PIC.bg);
     g.fillStyle = fade; g.fillRect(0, TOP - 240, W, 240);
     g.lineJoin = g.lineCap = 'round';
     const path = () => { g.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
-    path(); g.strokeStyle = 'rgba(16,28,24,.9)'; g.lineWidth = 24; g.stroke();
+    path(); g.strokeStyle = 'rgba(14,17,19,.9)'; g.lineWidth = 24; g.stroke();
     path(); g.strokeStyle = hue; g.lineWidth = 12; g.stroke();
     if (!trim) for (const [p, fill] of [[pts[0], PIC.text], [pts[pts.length - 1], hue]]) {
       const [x, y] = P(p); g.beginPath(); g.arc(x, y, 14, 0, 7); g.fillStyle = fill; g.fill(); g.lineWidth = 6; g.strokeStyle = PIC.bg; g.stroke();
     }
   } else {
     // no GPS: the Kinetta mark takes the map's place, in the sport's colour
-    g.beginPath(); g.arc(W / 2, 400, 250, 0, Math.PI * 2); g.fillStyle = 'rgba(116,219,181,.06)'; g.fill();
+    g.beginPath(); g.arc(W / 2, 400, 250, 0, Math.PI * 2); g.fillStyle = col('--share-soft'); g.fill();
     drawMark(g, W / 2, 400, 360, hue);
   }
   // sport and day, then the name
@@ -827,7 +827,7 @@ async function routePicture(a, trim) {
   const kw = g.measureText(kind).width;
   g.fillStyle = PIC.muted; g.font = `500 26px ${ui}`;
   g.fillText(`  ·  ${fdate(a.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'})}`, M + kw, y);
-  g.font = `600 64px ${serif}`; g.fillStyle = PIC.text;
+  g.font = `700 64px ${ui}`; g.fillStyle = PIC.text;
   const words = (a.name || '').split(/\s+/), lines = [''];
   for (const w of words) { const t = (lines[lines.length - 1] + ' ' + w).trim(); if (g.measureText(t).width > W - 2 * M && lines[lines.length - 1]) { if (lines.length === 2) { lines[1] += '…'; break; } lines.push(w); } else lines[lines.length - 1] = t; }
   y += 78; lines.forEach((l) => { g.fillText(l, M, y); y += 72; });
@@ -849,7 +849,7 @@ async function routePicture(a, trim) {
     if (u) { const vw = g.measureText(v).width; g.font = `600 26px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, top + 18 + size); }
   });
   // the brand, and the map credit OpenStreetMap asks for
-  drawMark(g, M + 26, H - 64, 46, PIC.brand);
+  drawMark(g, M + 26, H - 64, 46, '#74DBB5');   // unchanged logo colour
   g.font = `600 32px ${serif}`; g.fillStyle = PIC.text; g.fillText('Kinetta', M + 62, H - 53);
   if (tiles) { g.font = `500 19px ${ui}`; g.fillStyle = PIC.muted; g.textAlign = 'right'; g.fillText('Map © OpenStreetMap contributors', W - M, H - 55); }
   return new Promise((res) => c.toBlob(res, 'image/png'));

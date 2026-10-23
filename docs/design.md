@@ -1,7 +1,9 @@
-# Kinetta design system: Evergreen Agenda
+# Kinetta design system: Sky Blue
 
-Approved direction, 14 October 2026. Read this before changing an app screen, marketing page, icon or screenshot.
-This editorial ivory/evergreen system supersedes the earlier ruby palette and oversized colorful components.
+**Ben’s choice, 23 October 2026: B · Sky Blue from Claude’s mockups. Green is the runner-up.**
+This supersedes Evergreen Agenda’s colours and serif headings, the unapproved colour draft #219 and the rejected
+options in reference-only #224. The change is colours and heading font only: keep the existing logo, tab names and
+order, layout, conditional panels, homepage structure and privacy rules. Do not merge those earlier proposals.
 
 ## One source of truth
 
@@ -12,53 +14,76 @@ Edit the JSON rather than creating another palette. Existing app/site CSS variab
 
 `app/static/style.css` owns app components; `site/assets/site.css` owns marketing components. Both load the generated
 theme before their component styles. Update static cache versions and the service-worker shell after shared changes.
-AGENTS.md and CLAUDE.md link here; the shared DesignPrinciples agent guide contains the same approved direction.
+AGENTS.md and CLAUDE.md link here. This newer owner decision supersedes older palette/orbit guidance in shared references.
+The generated `--share-*` colours use these same dark tokens so activity pictures keep a consistent dark appearance.
 
-## Standard colors and meaning
+## Sky Blue colours and meaning · 23 October 2026
 
-| Role | Light | Dark |
+These are the implemented values; three light-mode colours are slightly darker than the chosen swatch to keep
+all existing contrast checks passing without changing their hue. All other supplied palette values are unchanged.
+
+| Token / role | Light | Dark |
 | --- | --- | --- |
-| Canvas | Ivory `#F8F7F1` | Forest `#101C18` |
-| Surface | Near-white `#FDFCF8` | Forest surface `#172720` |
-| Soft surface | `#EFEEE6` | `#22362D` |
-| Main text | Deep green `#142923` | `#F3F5F4` |
-| Secondary text | `#485A53` | `#C3C9C6` |
-| Muted text | `#59665F` | `#A8B8AF` |
-| Divider | `#DEE2D9` | `#34473D` |
-| Links/selection | Evergreen `#08664F` | Sage `#74DBB5` |
-| Primary action | Evergreen `#0C7355` | `#23795D` |
-| On primary action | White `#FFFFFF` | White `#FFFFFF` |
-| Success/progress | `#14764F` | `#53D5A5` |
-| Error/destructive | `#C62828` | `#FF7B72` |
-| Control outline | `#7B8980` | `#82998C` |
-| On error fill | `#FFFFFF` | `#101C18` |
-| Warning | `#925C00` | `#E8B85A` |
+| `canvas` · Canvas | `#F3F5F7` | `#0E1113` |
+| `surface` · Surface | `#FFFFFF` | `#171B1F` |
+| `soft` · Soft surface | `#EDF0F3` | `#20262B` |
+| `text` · Text | `#15191D` | `#F1F3F5` |
+| `text-secondary` · Secondary text | `#4A535C` | `#B4BCC4` |
+| `text-muted` · Muted text | `#646D77` | `#929BA4` |
+| `divider` · Divider | `#E3E7EB` | `#2A3137` |
+| `brand` · Brand: links and selection | `#1F55D0` | `#82AAF6` |
+| `brand-soft` · Brand-soft: selection surface | `#E6EEFD` | `#18243A` |
+| `action` · Action: main buttons | `#2563EB` | `#2F64D8` |
+| `on-action` · On action | `#FFFFFF` | `#FFFFFF` |
+| `success` · Success | `#097C4D` | `#4CC98A` |
+| `run` · Run | `#12924F` | `#4CC98A` |
+| `ride` · Ride (teal) | `#0B8798` | `#4BC0CF` |
+| `walk` · Walk | `#6F8A12` | `#A9C24E` |
+| `hike` · Hike | `#B26A10` | `#E9A04E` |
+| `workout` · Workout / lifting | `#D9532A` | `#FF8A5C` |
+| `swim` · Swim | `#2A80BD` | `#5EB8E6` |
+| `row` · Row | `#2A80BD` | `#5EB8E6` |
+| `ski` · Ski | `#2F6FD6` | `#6EA6F2` |
+| `other` · Other | `#78828C` | `#9AA3AC` |
+| `series-1` · Series 1: protein | `#DD4B3B` | `#FF7D6E` |
+| `series-2` · Series 2: fat | `#0B8798` | `#4BC0CF` |
+| `series-3` · Series 3 | `#12924F` | `#4CC98A` |
+| `series-4` · Series 4: carbs | `#B9790E` | `#F2BC5A` |
+| `series-5` · Series 5 | `#2A80BD` | `#5EB8E6` |
+| `achievement` · Achievement: streaks and wins | `#8A5F10` | `#F2C14E` |
+| `nutrition` · Nutrition: same as text | `#15191D` | `#F1F3F5` |
+| `error` · Error / destructive | `#C62828` | `#FF7B72` |
+| `on-error` · On error | `#FFFFFF` | `#0E1113` |
+| `warning` · Warning | `#925C00` | `#E8B85A` |
+| `outline` · Control outline | `#7B8791` | `#82909C` |
 
-Color must explain something. Running uses evergreen, cycling plum, walking sage, swimming teal, hiking earth,
-rowing violet and lifting olive. Protein is plum, carbs amber and fat clay. Full light/dark values are in
-the JSON. Maintain these meanings across maps, charts, icons and legends; do not introduce random colorful tiles.
-Owner colour refresh, 22 October 2026: keep the ivory/forest surfaces and existing layout, with clearer
-sport and chart colours, a clearer evergreen action colour, and tinted selected segments. Use the same sport mark
-on Today’s latest activity, feed, profiles and detail. Nutrition labels always show matching plum protein, amber
-carbs and clay fat dots, even without a target/bar; retain the names and numbers so colour is never the only cue.
-Plain shortcut icons use plum for Fitness, amber for Records and violet for Friends; keep settings rows neutral.
-Preserve the thin full-width divider above feed social actions in both themes, including cards without media.
-Latest owner revision, 22 October: remove the rejected blue throughout the app rather than substitute another blue.
-Cycling, long runs, protein and Fitness use plum (`#7C5D7B` light / `#CBB0CC` dark); swimming uses green teal,
-skiing uses berry, and the easiest heart-rate zone is neutral. Existing green actions, amber/clay macros and gold wins remain.
-Distance bars use SVG rectangles on one labelled distance scale, with zero at the same baseline. Every sport height is
-its distance divided by that shared scale; no nested percentage layout or positive-height minimum. Show daily totals
-and the selected sport breakdown. Selection emphasizes the date and total without a full-height tinted rectangle.
-Use varied demo weeks, not a synthetic staircase of totals, when reviewing the chart's proportions.
+Contrast adjustments: muted text `#66707A` → `#646D77`; success `#0A8754` → `#097C4D`;
+achievement `#9A6A12` → `#8A5F10`. These retain the selected hue; the stricter tinted-surface checks still apply.
+Error and warning retain their semantic colours. Heart-rate zones and the hard-workout cue remain distinct and unchanged;
+they already pass on the new surfaces. Outline is neutral `#7B8791` / `#82909C`, with at least 3:1 contrast.
 
-Errors, deletion and over-target warnings remain semantic; removing the ruby brand does not remove useful warnings.
-Initials avatars use brand-soft surfaces and brand text; notification counts use the readable action/on-action pair.
-Avoid decorative gradients, competing shadows and colored settings-icon boxes.
+- Use a neutral base: light grey canvas, white surfaces, near-black text; neutral charcoal layers in dark mode. No cream.
+- Colour belongs to main buttons, selected navigation/controls, links and actual data: charts, legends, sport icons,
+  macro dots, streaks and results. Retain labelled error/warning states. Ordinary headings, eyebrow labels, settings
+  icons and decorative surfaces are neutral. No coloured words in headlines or decorative orbits/dots.
+- Headings use the UI sans font via `--font-display: var(--font-ui)`, about 700 weight and slightly negative tracking.
+  Existing logo/wordmark artwork, including its type and colours, stays unchanged. Do not redesign icons or branding assets.
+- Nutrition headings use the normal text colour. Eyebrows use muted text. The calorie progress bar uses action blue;
+  over-target warnings still use the error colour. Protein uses series-1 red, fat series-2 teal and carbs series-4 gold.
+- Sport and macro charts use solid fills, named legends, units and values. No stripe/dot patterns or greyscale sport
+  encoding. Maps may retain geographic basemap colours; route strokes use the corresponding sport token.
+- Preserve the seven-day distance chart’s common labelled scale, neutral zero baseline, proportional sport stacks,
+  daily totals and selected sport breakdown. Do not change calculations or replace the data with a synthetic staircase.
+- Keep toasts neutral: near-black `#15191D` in light mode and a raised charcoal `#20262B` in dark mode, light text
+  `#F1F3F5`, secondary `#B4BCC4` and blue Undo `#82AAF6`. Selected segments use `--segon` white / `#2A3137`;
+  their base uses `--segbg` `#EDF0F3` / `#1C2125`. Preserve existing shapes, dimensions and interactions.
+- Preserve the feed’s full-width divider and all existing activity/profile visibility, map trimming and consent rules.
+  Colour never replaces a name, number, selection state or accessible description.
 
 ## Typography and rhythm
 
-Source Serif 4 is the locally hosted display face for the wordmark, page titles and section headings. Its Latin subset
-and OFL license are bundled with the app/site. Native system sans is used for app controls, labels, body and numbers;
+UI sans is the display face for page titles and section headings, about 700 weight with slightly negative tracking.
+The existing Source Serif 4 logo artwork and bundled OFL font remain for the unchanged wordmark only. Native system sans is used for app controls, labels, body and numbers;
 the marketing site retains Figtree body text. Use tabular numerals and explicit units. Ordinary bold text must not
 inherit display sizes. App page titles are 30px, sections 20px, card titles 18px, summary figures 28px and secondary stats 20px at the default text size. Body copy stays 15–16px and small labels 11–13px. Use the `text-app-*` tokens (in rem) so this hierarchy grows with text enlargement; do not shrink the root font. Marketing display sizes remain separate.
 
@@ -114,24 +139,22 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
 
 ## Website and brand assets
 
-Apply the same typography, ivory/forest palette, evergreen actions and restrained surfaces across all seven website
+Apply the same UI sans headings, Sky Blue palette, blue actions and neutral surfaces across all seven website
 pages. Header/footer copies must stay consistent. Screenshots are actual implemented demo screens, never generated
 mockups presented as app evidence. Capture on an isolated clean demo install so test accounts do not appear publicly.
 
-Preserve the homepage oval track and its moving ball behind the iPhone screenshot: the track uses the subtle divider
-color and the ball uses the evergreen/sage brand token. Keep the phone in front, the oval within the viewport, and
-start the ball on a visible side with an 18-second lap. Pause for reduced-motion preferences and provide a small
-Play/Pause control beneath the phone, including explicit opt-in playback when reduced motion is enabled. This is an intentional brand detail requested by the owner.
+Remove the decorative homepage oval track, orbiting dot and their animation toggle. Keep the hero phone,
+existing copy, page sections, links and their order. Headline emphasis inherits normal heading colour and is not
+italic; eyebrow labels use muted text. This colour-system decision does not fold feature pages into the homepage.
 
-Refresh captures daily and on app changes, then publish Pages. The capture manifest identifies the actual source and
+Refresh captures daily and on app changes. Publication remains a separate owner-authorized step; this colour PR must not publish or deploy. The capture manifest identifies the actual source and
 UTC capture time; it must work when the converter runs outside the git checkout. An already-open homepage checks the
 manifest and refreshes light/dark images when it changes, retaining usable pictures offline. Near-midnight staging keeps
 the fictional workout on the displayed local day. PR screenshots are artifacts, not branch-changing bot commits.
 
-Keep the existing route/point mark. App/home-screen icons use evergreen ground, ivory route and sage point; wordmarks use
-Source Serif 4 outlines. Update vectors, web PNGs, documentation assets, social-preview image/URL, native 1024px opaque
-RGB icon and launch images together. Social-preview URLs are versioned to avoid old ruby thumbnails. The new iPhone icon
-arrives with the next installed build; public App Store artwork follows the released build through Apple’s normal process.
+Keep the existing route/point mark and all logo, icon, launch-artwork and social-preview assets unchanged in
+this colour/heading pass. Wordmark artwork keeps its original Source Serif 4 outlines. A future asset change needs
+separate scope; do not regenerate native icons or upload a new build as part of this PR.
 
 Source Serif 4 uses OFL 1.1; Phosphor regular supplies six navigation/sneaker silhouettes under MIT. Licenses and sources
 are recorded in THIRD_PARTY.md. Retain existing standard icons elsewhere; avoid extra libraries and app font-network calls.
@@ -202,7 +225,7 @@ targets. Native UIKit, WebView and scroll-view backgrounds match the app canvas 
 corners must never expose a default black backing. Browser screenshots cannot prove the actual keyboard animation.
 
 Website prose is authored in `site/content/*.md` and injected into the existing `site/templates/` layouts by
-`dev/design/build_content.py`. Preserve the layout, screenshot refresh/track animation and shared feature catalog.
+`dev/design/build_content.py`. Preserve the layout, screenshot refresh and shared feature catalog; the decorative hero track was removed by the Sky Blue decision.
 Beta forms and successful confirmations always provide a return link to the public website.
 
 Feed performance: reuse a fresh15-second cached first page and coalesce concurrent identical reads, avoiding duplicate
@@ -736,7 +759,7 @@ behaviour (outbox, choices, Undo, corrections, daily note, Kit) is unchanged.
 
 - **Chat mode:** no bottom tab bar while the chat is open. A small header has ‹ Nutrition (the way back), the title and a
   ⋯ for chat settings. A "Logging to …" line appears only when the chat was opened for a specific meal.
-- **Messages:** your messages are right-aligned evergreen bubbles; the per-message time is for screen readers only and day
+- **Messages:** your messages are right-aligned neutral bubbles; the per-message time is for screen readers only and day
   headings show the date. Replies are simple cards: each logged food is one row you tap to edit, with calories on the
   right; several foods get one total; Undo is a quiet link; ⋯ holds Correct in chat and Delete message text. A reply with
   nothing else to do keeps ⋯ beside its text. Waiting/offline status is a small line under the bubble.
@@ -879,7 +902,7 @@ requires reviewed real-provider evaluation under the AI architecture rules.
 
 ## Color roles and compact screen hierarchy (19 October 2026)
 
-Keep the approved ivory/evergreen identity. There is no category requirement that a fitness or food app use a
+Keep the approved Sky Blue identity. There is no category requirement that a fitness or food app use a
 particular hue; Kinetta's palette is a brand choice. Readability, consistent roles and meaningful states determine
 whether it works. Use brand for navigation/actions, neutral text for ordinary numbers, named sport/macro series for
 charts, and labelled warning/error states for actual problems. A calorie surplus/deficit is a signed, named quantity,
@@ -888,10 +911,10 @@ not a diagnosis or a moral judgement. Never make color the only way to understan
 Use 4.5:1 contrast for ordinary text, including placeholders, across the surface where it actually appears; large
 text may use the WCAG 3:1 exception. Required control boundaries, focus and meaningful chart marks need 3:1 against
 adjacent surfaces. The `outline` token is for fields; the quieter `divider` token remains decorative. `on-error`
-pairs with the error fill; do not put white on the bright dark-theme error color. Selected segments and chips have an evergreen boundary in addition to their fill. Small chart badges use neutral
-text plus a series mark. Calendar dates remain readable for adjacent months; solid, segmented, double-line and dotted food-status marks match their legend as well as their colors. Keep labels/direct values and existing
+pairs with the error fill; do not put white on the bright dark-theme error color. Selected segments and chips have a blue boundary in addition to their fill. Small chart badges use neutral
+text plus a series mark. Calendar dates remain readable for adjacent months; solid food-status marks match their named legend and accessible statuses as well as their colors. Keep labels/direct values and existing
 accessible descriptions alongside chart colors. Test real rendered combinations as well as canonical tokens.
-The shared generator checks 150 text/action/semantic/outline/chart pairs in light and dark modes.
+The shared generator checks 262 text/action/semantic/outline/chart pairs in light and dark modes.
 
 Light/dark appearances have their own colors; do not invert the entire screen. Map tile treatment is consistent
 across preview, live, feed and detail maps; overlays and route strokes retain their own colors. Attribution uses an
@@ -1007,7 +1030,7 @@ Activity has a visible Find people entry. Friends accepts names and @usernames, 
 
 ## Native notification invitation (20 October 2026)
 
-After a native iPhone home screen has loaded, a signed-in account with a ready push server and supported/off device notifications may see one short Stay in the loop sheet: “Get notified when your workouts sync and friends cheer you on.” Use the existing Evergreen Agenda sheet, full-width centered actions at least44px high, Turn on notifications and Not now. A denied Apple permission gets a plain explanation and Open iPhone Settings. Manual settings remain available.
+After a native iPhone home screen has loaded, a signed-in account with a ready push server and supported/off device notifications may see one short Stay in the loop sheet: “Get notified when your workouts sync and friends cheer you on.” Use the existing shared sheet, full-width centered actions at least44px high, Turn on notifications and Not now. A denied Apple permission gets a plain explanation and Open iPhone Settings. Manual settings remain available.
 
 The choice stays in device preferences per server/account, never in server analytics: Not now waits30days and there are at most two asks. An accepted invitation ends automatic asks; failures remain retryable in the sheet or manual settings. Recheck the current login before permission, registration and Settings actions. No invitation over another sheet, focused field/keyboard, workout recording or Health connection, or on a notification/deep-link/shortcut entry. Defer to a loaded, ordinary tab home; an external entry stays quiet until a later ordinary app entry. Browser evidence must visibly label the native bridge stand-in, with physical Apple prompts/device behavior pending.
 
@@ -1057,7 +1080,7 @@ shows names under its symbols. Moving focus into its fixed menu must not scroll 
 with date/sport metadata and remains visible. Sharing copies or sends the authenticated shared-activity URL;
 it never widens the audience. Private activities do not offer that feed action.
 
-Retain the ivory/evergreen foundation. Use existing plum, violet and amber tokens for reaction badges and
+Retain the neutral Sky Blue foundation. Use the shared data and achievement tokens for reaction badges and
 selected feedback; sport marks use a stronger tint and outline in their existing sport color. Icons, names and
 counts communicate meaning alongside color. This is a focused feed refresh, not a claim of a full app palette audit.
 
@@ -1086,20 +1109,20 @@ public-network performance measurements.
 
 ## Colour meaning and smooth social panels (22 October 2026, owner revision)
 
-Preserve ivory/forest surfaces, quiet cards, green actions and links, the five stable tabs and the thin divider
+Preserve Sky Blue neutral surfaces, quiet cards, blue actions and links, the five stable tabs and the thin divider
 above activity social controls. Colour communicates a labelled value or state:
 
 - Today and shared profile distance charts split days and weeks into their actual sports. Segments sum to the
   same distance total, retain viewer-local Sunday boundaries and privacy filtering, and appear in the legend
   and tapped/keyboard readout. Empty/future days stay neutral; older payloads use a neutral total, never a guessed sport.
-- The conditional Food today card shows protein, carbs and fat in plum/amber/clay with grams, unknown values
+- The conditional Food today card shows protein, carbs and fat in red/gold/teal with grams, unknown values
   and targets when known. Its labelled calorie progress bar fills against the real saved goal. No goal means no
-  invented fill. Nutrition headings and calorie progress use a warm clay accent; buttons and links stay green.
+  invented fill. Nutrition headings use normal text; calorie progress uses action blue, and buttons/links use their blue tokens.
 - Personal records, activity streaks, completed plan workouts and reached activity goals use readable gold
   with words, counts or check marks. Do not turn food intake targets into achievement streaks.
 - Heart-rate zones retain their existing thresholds and durations. Numbered zones and effort names use neutral,
   green, amber, orange and red from Z1 to Z5, with time and percentage labels, in both themes.
-- Plan days show easy/recovery/run-walk in green, workouts/intervals in orange, long/medium-long runs in plum,
+- Plan days show easy/recovery/run-walk in green, workouts/intervals in orange, long/medium-long runs in teal,
   and explicit rest days in grey. Completed workouts keep their type cue and gain a gold Done/check marker.
 - Main tab pages refresh by pulling down, without a header refresh icon. Preserve gesture exclusions, the
   release/progress/error messages and cached content. No hidden Health sync or other write is added.
@@ -1146,14 +1169,14 @@ samples are evidence for the tested flows; physical iPhone keyboard/scroll/frame
 
 **Share is a picture, not a link.** The share button on your own activities (feed card and activity page) opens
 one sheet with a ready-made 1080 × 1350 picture and a single Share button. The picture always uses the dark
-Evergreen palette so it looks the same wherever it is sent: muted map, the route in its sport colour, then sport
-and date, the name in the display serif, and Time, Pace (or Speed) and Distance as large numbers, with the
+Sky Blue palette so it looks the same wherever it is sent: muted map, the route in its sport colour, then sport
+and date, the name in UI sans, and Time, Pace (or Speed) and Distance as large numbers, with the
 Kinetta mark and wordmark at the foot. Without GPS the Kinetta mark takes the map's place, in the sport colour,
 with the same numbers. "Hide where it starts and ends" stays on by default and uses the person's trim distance.
 Friends' activities have no share button: nobody can turn someone else's route into a picture. Profile links are unchanged.
 
 **Notifications** group New and Earlier. Each row: 44 px avatar with a small badge coloured by meaning (cheers
-gold, friends violet, shared food amber, new workouts run green), the person's name in bold and the action in
+achievement gold, friends blue, shared food neutral, new workouts run green), the person's name in bold and the action in
 regular weight, a quoted comment on its own quieter line (two lines at most), a short time ("5 min ago") and a
 brand dot for new items. No tinted row backgrounds and no card inside a card.
 
@@ -1163,16 +1186,16 @@ released past the threshold, the page rests just below the spinner until the rea
 successful refresh shows nothing (screen readers hear "Up to date"); a failure keeps the existing notice. This is
 the one place the page itself moves: those screens have no fixed composers. Keep it off chats, editors and sheets.
 
-**Notices (toasts)** are compact snackbars above the tab bar: deep-green with light text in light mode, a raised
-forest surface in dark mode, 15 px text, an optional quieter second line (for example "Saved on this phone · sends
-when you're back online") and Undo as a sage text button. A tap anywhere else on the notice puts it away.
+**Notices (toasts)** are compact snackbars above the tab bar: near-black with light text in light mode, a raised
+charcoal surface in dark mode, 15 px text, an optional quieter second line (for example "Saved on this phone · sends
+when you're back online") and Undo as a blue text button. A tap anywhere else on the notice puts it away.
 
 ## Smoother first moments (owner request, 23 October 2026)
 
 Measured with a slowed network and processor, screens no longer jump once drawn and visited tabs open instantly;
 the roughness was in the first moments. Standards:
 
-- **Launch:** while the app starts, show the Kinetta mark (accent colour, gently breathing) on the app
+- **Launch:** while the app starts, show the unchanged Kinetta mark (original logo colour, gently breathing) on the app
   background, matching the iPhone launch screen. Never the bare word "Loading…".
 - **Placeholders are shaped like what's coming**, with no visible "Loading…" words (screen readers still hear a
   status). The activity page's placeholder is the lead map and the title card with three numbers.
