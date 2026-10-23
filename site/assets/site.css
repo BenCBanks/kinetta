@@ -347,3 +347,12 @@ html { scroll-padding-top: 130px; }
 .works p { color: var(--ink2); font-size: 16px; }
 .works .works-list { color: var(--ink); font-weight: 600; }
 .works .marks { color: var(--ink3); font-size: 13px; }
+
+/* The track: the logo's oval with the runner going round it, behind the hero phone. It is the brand, not decoration
+   (Ben, 23 October 2026); the runner uses the brand blue. The whole oval stays on screen at every width. */
+.track { position: absolute; left: 50%; top: 50%; width: min(135%, calc(100vw - 24px)); transform: translate(-50%, -50%); color: var(--line); pointer-events: none; overflow: visible; }
+.track .runner { fill: var(--brand); }
+.track-toggle { position: absolute; bottom: -52px; left: 50%; transform: translateX(-50%); z-index: 2; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--ink3); cursor: pointer; opacity: .7; }
+.track-toggle:hover, .track-toggle:focus-visible { opacity: 1; background: var(--paper); }
+.track-toggle svg { width: 16px; height: 16px; fill: currentColor; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.track-toggle[hidden] { display: none; }
