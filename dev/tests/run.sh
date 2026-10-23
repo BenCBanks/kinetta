@@ -28,6 +28,8 @@ node dev/tests/test_track.js
 node dev/tests/test_notification_rows.js
 node dev/tests/test_track_native.js
 node dev/tests/test_recording_sharing.js
+node dev/tests/test_activity_sharing.js
+node dev/tests/test_map_fullscreen.js
 node dev/tests/test_native_sync.js
 node dev/tests/test_push_invitation.js
 node dev/tests/test_kit_chat_ui.js

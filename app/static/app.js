@@ -94,7 +94,7 @@ async function load(path, render, {maxAge = 15000} = {}) {
 function refreshMe(me) {
   const previous = App.me, same = previous && previous.id === me.id;
   if (same && readSessions.has(previous)) readSessions.set(me, readSessions.get(previous));
-  if (!same) { App.cache.clear(); forgetKept(); }
+  if (!same) { App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {}); App.cache.clear(); forgetKept(); }
   App.me = me; keep('/api/me', me);
   if (!same) render();
 }
@@ -614,7 +614,7 @@ document.addEventListener('pointerdown', (e) => {
   const a = e.target.closest('a'); if(a?.dataset.prefetch)prefetch(a.dataset.prefetch);else if(a)warmDestination(a.getAttribute('href'));
 }, {passive: true});
 document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
-window.addEventListener('popstate', () => { slide('back', App.lastPath || ''); });
+window.addEventListener('popstate', () => { if (App.mediaMapBack?.()) return; slide('back', App.lastPath || ''); });
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){App.hiddenAt=Date.now();return;}
   if(!App.me)return;Q.flush().catch(e=>toast(e.message));
@@ -1015,6 +1015,7 @@ function aiSheet(after) {   // ask once; after() runs when they turn it on
 // ---------- login, first-run setup, invite links + start ----------
 const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=4" alt="Kinetta" width="210" height="34"></picture>`;
 function showLogin(msg = '') {
+  App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {});
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<p>Your runs, rides, walks and food, private to you.</p></div>
     ${Native.on ? `<label${(Native.base || Native.server) === Native.server ? ' hidden' : ''} id="l-server">Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
@@ -1023,6 +1024,7 @@ function showLogin(msg = '') {
     <p class="err" role="alert">${esc(msg)}</p>
     <button class="primary" type="submit">Log in</button>
     <p class="small muted">New here? Ask the person who runs this Kinetta for an invite link.</p></form></div>`;
+  cleanViews();
   const f = $('form', root);
   $('input[name=login]', f).focus();
   // the iPhone app: most people use the hosted server, so its address stays out of the way until asked for, and the

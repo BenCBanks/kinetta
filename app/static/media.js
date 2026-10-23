@@ -10,29 +10,75 @@ function activityMedia(a, {mapId = '', detail = false, full = false, openHref = 
     ${openHref ? `<a class="primary wide post-open" href="${esc(openHref)}">View activity ${svg('chev')}</a>` : ''}
     ${count > 1 ? `<div class="media-controls"><button type="button" class="icon-btn" data-media-step="-1" aria-label="Previous photo or map" disabled>${svg('back')}</button><span class="small muted num" data-media-position aria-live="polite">${a.line ? 'Map' : 'Photo 1'} · 1 of ${count}</span>${a.line && photos.length ? `<button class="linkbtn small" data-media-map>Map</button>` : ''}<button type="button" class="icon-btn" data-media-step="1" aria-label="Next photo or map">${svg('chev')}</button></div>` : ''}</div>`;
 }
-function wireMediaMapFull(box, mapObject, line, still) {
-  const btn = $('.map-full', box), spot = document.createComment('map');
-  const refit = () => { const m = mapObject(); if (m) { m.map.invalidateSize({pan: false}); m.map.fitBounds(m.L.latLngBounds(decode(line)), {padding: [24, 24], animate: false}); } };
+function wireMediaMapFull(box, mapObject, lines, still) {
+  const btn = $('.map-full', box); if (!btn) return;
+  const spot = document.createComment('map'), path = location.pathname + location.search;
+  const token = 'map-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  const routeLines = Array.isArray(lines) ? lines : [lines];
+  let previousState, background = [], waitingBack = false, press = null, tap = false;
+  const controls = 'button, a, input, select, .leaflet-control';
+  const refit = () => {
+    const m = mapObject(), points = routeLines.flatMap(line => typeof line === 'string' ? decode(line) : line);
+    if (m) { m.map.invalidateSize({pan: false}); if (points.length) m.map.fitBounds(m.L.latLngBounds(points), {padding: [24, 24], animate: false}); }
+  };
   const close = () => {
     if (!box.classList.contains('full')) return;
-    viewResources.delete(spot);
-    removeEventListener('keydown', key); removeEventListener('popstate', close);
+    waitingBack = false; viewResources.delete(spot);
+    removeEventListener('keydown', key, true); if (App.mediaMapBack === back) delete App.mediaMapBack;
     box.classList.remove('full'); document.body.classList.remove('map-open');
+    box.setAttribute('role', 'img'); box.setAttribute('aria-label', 'Route map'); box.removeAttribute('aria-modal');
+    for (const [node, wasInert] of background) node.inert = wasInert; background = [];
     const m = mapObject(); if (m && still) { m.map.dragging.disable(); m.map.touchZoom.disable(); }
-    if (spot.parentNode) spot.replaceWith(box); else { box.remove(); return; }
-    btn.innerHTML = svg('expand'); btn.setAttribute('aria-label', 'Full-screen map');
-    if (box.isConnected) { refit(); btn.focus(); }
+    // Navigation/account changes must release the overlay without moving back to an old page.
+    if (history.state?.kinettaMap === token) history.replaceState(previousState, '', location.href);
+    if (!spot.isConnected) { box.remove(); return; }
+    spot.replaceWith(box); btn.innerHTML = svg('expand'); btn.setAttribute('aria-label', 'Full-screen map');
+    refit(); btn.focus({preventScroll: true});
   };
-  const key = (e) => { if (e.key === 'Escape') close(); };
-  btn.onclick = (e) => {
-    e.stopPropagation(); if (box.classList.contains('full')) { close(); return; }
+  const requestClose = () => {
+    if (waitingBack) return;
+    if (history.state?.kinettaMap === token && location.pathname + location.search === path) {
+      waitingBack = true; history.back();
+    } else close();
+  };
+  const back = () => { close(); return true; };
+  const key = e => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); requestClose(); }
+    if (e.key === 'Tab') {
+      const buttons = [...box.querySelectorAll('button, a[href], [tabindex="0"]')].filter(n => !n.disabled && n.getClientRects().length);
+      if (!buttons.length) return;
+      const i = buttons.indexOf(document.activeElement), next = e.shiftKey ? (i <= 0 ? buttons.length - 1 : i - 1) : (i + 1) % buttons.length;
+      e.preventDefault(); buttons[next].focus();
+    }
+  };
+  const open = () => {
+    if (box.classList.contains('full') || !box.isConnected) return;
+    previousState = history.state; history.pushState({...previousState, kinettaMap: token}, '', location.href);
     box.replaceWith(spot); document.body.append(box); box.classList.add('full'); document.body.classList.add('map-open');
+    box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Activity route map'); box.setAttribute('aria-modal', 'true');
+    background = [...document.body.children].filter(n => n !== box).map(n => [n, n.inert]);
+    for (const [node] of background) node.inert = true;
     const m = mapObject(); if (m) { m.map.dragging.enable(); m.map.touchZoom.enable(); }
-    btn.innerHTML = svg('close'); btn.setAttribute('aria-label', 'Close full-screen map'); refit();
-    addEventListener('keydown', key); addEventListener('popstate', close, {once: true});
-    viewResources.set(spot, () => { close(); removeEventListener('keydown', key); removeEventListener('popstate', close); });
+    btn.innerHTML = svg('close'); btn.setAttribute('aria-label', 'Close full-screen map'); refit(); btn.focus({preventScroll: true});
+    addEventListener('keydown', key, true); App.mediaMapBack = back;
+    viewResources.set(spot, close);
   };
+  btn.onclick = e => { e.stopPropagation(); box.classList.contains('full') ? requestClose() : open(); };
+  // A deliberate tap opens the map. Dragging, a photo-rail swipe, a pinch and map controls keep their jobs.
+  box.addEventListener('pointerdown', e => {
+    tap = false; press = null;
+    if (!box.classList.contains('full') && e.isPrimary && e.button === 0 && !e.target.closest(controls))
+      press = {id: e.pointerId, x: e.clientX, y: e.clientY, at: Date.now(), track: box.closest('.media-track'), scroll: box.closest('.media-track')?.scrollLeft};
+  }, {passive: true});
+  box.addEventListener('pointermove', e => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) press = null; }, {passive: true});
+  box.addEventListener('pointercancel', () => { press = null; tap = false; }, {passive: true});
+  box.addEventListener('pointerup', e => {
+    tap = !!(press && press.id === e.pointerId && Date.now() - press.at < 600 && Math.hypot(e.clientX - press.x, e.clientY - press.y) <= 8 && (!press.track || press.track.scrollLeft === press.scroll));
+    press = null;
+  }, {passive: true});
+  box.addEventListener('click', e => { if (tap && !box.classList.contains('full') && !e.target.closest(controls)) { e.stopPropagation(); tap = false; open(); } });
 }
+
 function wireActivityMedia(root) {
   $$('.activity-media:not([data-media-on])', root).forEach((box) => {
     box.dataset.mediaOn = '1';

@@ -434,6 +434,7 @@ button.pf:active, a.pf:active { background: var(--card2); }
   backdrop-filter: blur(12px) saturate(1.4); box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
 .map-head .map-full { top: auto; bottom: 12px; left: 12px; right: auto; }
 .map-head .map.lead.full, .map.lead.full { height: auto; border-radius: 0; margin: 0; }     /* fixed + inset 0: without this the map kept its 380 px height */
+body.map-open { overflow: hidden; }
 body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Back closes it */
 .map-head .map.full .map-full { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); bottom: auto; left: auto; }
 .hero { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
