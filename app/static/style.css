@@ -147,10 +147,10 @@ details.fold-row[open] { padding-bottom: 12px; }
 .chip { flex: none; min-height: 34px; padding: 6px 14px; border-radius: 999px; border: 0; background: var(--card2); box-shadow: var(--shadow);
   font-weight: 500; font-size: 14px; color: var(--tx); display: inline-flex; align-items: center; justify-content: center; gap: 4px; transition: transform .1s; }
 .chip:active { transform: scale(.96); }
-.chip[aria-pressed="true"] { background: var(--card2); color: var(--tx); border-color: var(--color-outline); box-shadow: none; }
+.chip[aria-pressed="true"] { background: var(--accent2); color: var(--accent); border-color: var(--accent); box-shadow: none; }   /* the chosen filter must read as chosen */
 .chip small { font-weight: 500; opacity: .85; }
 .chips.wrap { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0 0 6px; }
-.card .chip, .sheet .chip { box-shadow: none; background: var(--card2); } .card .chip[aria-pressed="true"], .sheet .chip[aria-pressed="true"] { background: var(--card2); }
+.card .chip, .sheet .chip { box-shadow: none; background: var(--card2); } .card .chip[aria-pressed="true"], .sheet .chip[aria-pressed="true"] { background: var(--accent2); }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .filters .chips { margin: 0; padding: 0; }
 .sportpick { flex-wrap: wrap; margin-bottom: 4px; }
@@ -265,7 +265,7 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .badge.pr { background: var(--card2); color: var(--tx); }
 .badge.good { background: var(--card2); color: var(--tx); }
 .badge.on { background: var(--card2); color: var(--tx); }
-.badge.alert { background: var(--card2); color: var(--tx); }
+.badge.alert { background: var(--btn); color: var(--onbtn); }   /* something waiting for you: the one badge that stands out */
 .badge.today { background: var(--card2); color: var(--tx); }
 .badge.s1, .badge.s2, .badge.s3 { color: var(--tx); }
 .badge.s1::before, .badge.s2::before, .badge.s3::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--s1); }
@@ -1399,6 +1399,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .pf, .pill-sel, .day-nav .icon-btn, .day-nav button { min-height: 44px; }
 #t-plan .plan-today { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 0 0 16px; }
 .plan-today .pt-w { margin-top: 8px; padding: 10px 12px; background: var(--card2); }
+.plan-today .pt-w[data-workout-kind] { border-inline-start-color: var(--btn); }   /* Today: a blue edge (Ben, 2026-10-23); the plan page keeps easy/hard colours */
 .plan-today .ptrack { display: none; }
 .plan-today p { margin: 6px 0; }
 .plan-today .plan-meta { font-size: 12px; }
@@ -1567,7 +1568,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .track-banner svg { width: 20px; }
 .profile-mileage h2 { margin: 0; }
 .mileage-total { margin: 12px 0; }
-.mileage-total b { font-size: var(--text-app-metric); font-weight: 600; }
+.mileage-total b { font-size: var(--text-app-metric); font-weight: 600; color: var(--tx); }
 .mileage-total .small { display: block; margin-top: 4px; }
 .mileage-plot { display:grid; grid-template-columns:32px minmax(0,1fr); gap:6px; }
 .mileage-bars { display:flex; gap:6px; position:relative; }
