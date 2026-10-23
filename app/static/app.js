@@ -675,7 +675,7 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
   viewResources.set(el, Object.assign(() => map.remove(), {keepVisual:true})); // keep the map during a sheet's exit
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
     attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
-  const color = getComputedStyle(document.documentElement).getPropertyValue(`--${heat ? 'run' : sport}`).trim() || '#E0582B';
+  const color = col('--route');   // routes are blue whatever the sport (Ben, 2026-10-23); the dark map is inverted, so dark mode uses the lighter blue
   // set the view BEFORE drawing (Leaflet can't clip lines on a map without a view)
   const all = lines.map((ln) => (typeof ln === 'string' ? decode(ln) : ln)).filter((p) => p.length > 1);
   if (all.length) map.fitBounds(L.latLngBounds(all.flat()), {padding: still ? [12, 12] : [18, 18]}); else map.setView([39.5, -98.5], 3);

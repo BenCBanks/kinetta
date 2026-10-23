@@ -4,6 +4,7 @@
 :root {
   --bg: var(--color-canvas); --card: var(--color-surface); --card2: var(--color-soft); --tx: var(--color-text); --tx2: var(--color-text-secondary); --tx3: var(--color-text-muted); --line: var(--color-divider);
   --accent: var(--color-brand); --accent2: var(--color-brand-soft); --ontx: #FFFFFF;               /* blue: links, selection, the active tab */
+  --route: var(--color-action);                                                                     /* GPS routes on maps and thumbnails: blue, whatever the sport (Ben, 2026-10-23) */
   --ink: var(--color-text); --onink: var(--color-surface);                                      /* toasts */
   --btn: var(--color-action); --onbtn: var(--color-on-action);                                      /* main buttons and selected distance bars */
   --prog: var(--color-success); --prog2: var(--color-soft);                                     /* success and data progress */
@@ -21,7 +22,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: var(--color-canvas); --card: var(--color-surface); --card2: var(--color-soft); --tx: var(--color-text); --tx2: var(--color-text-secondary); --tx3: var(--color-text-muted); --line: var(--color-divider);
-    --accent: var(--color-brand); --accent2: var(--color-brand-soft); --ontx: var(--color-canvas); --ink: var(--color-text); --onink: var(--color-canvas); --btn: var(--color-action); --onbtn: var(--color-on-action); --prog: var(--color-success); --prog2: var(--color-soft);
+    --route: var(--color-brand); --accent: var(--color-brand); --accent2: var(--color-brand-soft); --ontx: var(--color-canvas); --ink: var(--color-text); --onink: var(--color-canvas); --btn: var(--color-action); --onbtn: var(--color-on-action); --prog: var(--color-success); --prog2: var(--color-soft);
     --alert: var(--color-error); --warn: var(--color-warning); --good: var(--color-success);
     --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
     --tile1: var(--color-text-secondary); --tile2: var(--color-text-secondary); --tile3: var(--color-text-secondary); --tile4: var(--color-text-secondary);
@@ -406,9 +407,7 @@ button.pf:active, a.pf:active { background: var(--card2); }
   background: color-mix(in srgb, var(--card) 70%, transparent); color: var(--tx3); }
 .leaflet-container .leaflet-control-attribution a { color: inherit; }
 .mini { width: 68px; height: 68px; border-radius: 10px; background: var(--card2); display: grid; place-items: center; }
-.mini svg { width: 60px; height: 60px; } .mini path { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke: var(--other); }
-.mini path.run { stroke: var(--run); } .mini path.ride { stroke: var(--ride); } .mini path.walk { stroke: var(--walk); } .mini path.hike { stroke: var(--hike); }
-.mini path.swim { stroke: var(--swim); } .mini path.row { stroke: var(--row); } .mini path.ski { stroke: var(--ski); }
+.mini svg { width: 60px; height: 60px; } .mini path { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke: var(--route); }
 .mini .ico svg { width: 34px; height: 34px; }
 
 /* ---------- activity detail ---------- */
@@ -459,10 +458,10 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 .e-share { border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 10px; } .e-share .ghead { margin: 6px 0 0; }
 .e-share .vis-note { margin: -2px 0 0; } .e-share .checks { margin-top: 8px; }
 /* share a picture: the preview fills the sheet width */
-.pic-wrap { border-radius: var(--r); overflow: hidden; background: #0E1113; aspect-ratio: 4 / 5; margin: 0 auto 14px; max-height: 56vh; }
+.pic-wrap { border-radius: var(--r); overflow: hidden; background: #FFFFFF; box-shadow: 0 0 0 1px var(--line); aspect-ratio: 4 / 5; margin: 0 auto 14px; max-height: 56vh; }
 .pic:not([src]) { visibility: hidden; }
 .pic { display: block; width: 100%; height: 100%; object-fit: contain; transition: opacity .2s; }
-.pic-wrap.busy .pic { opacity: .45; } .pic-wrap.busy { background: linear-gradient(110deg, #0E1113 40%, #20262B 50%, #0E1113 60%) 0 0 / 200% 100%; animation: sk 1.2s linear infinite; }
+.pic-wrap.busy .pic { opacity: .45; } .pic-wrap.busy { background: linear-gradient(110deg, #FFFFFF 40%, #EDF0F3 50%, #FFFFFF 60%) 0 0 / 200% 100%; animation: sk 1.2s linear infinite; }
 .comments .comment { padding: 12px 0; border-top: 1px solid var(--line); }
 .comments .comment:first-child { margin-top: 10px; }
 .comment .c-hd { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
@@ -914,7 +913,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
   background: var(--card); color: var(--accent); box-shadow: 0 0 0 1.5px var(--line); }
 .note-k svg { width: 12px; height: 12px; }
 /* Data badges use the shared achievement, friend, nutrition and sport tokens. */
-.note-k[data-kind="cheer"] { color: var(--color-achievement); }
+.note-k[data-kind="cheer"] { color: var(--react-cheer); }
 .note-k[data-kind^="friend"] { color: var(--color-row); }
 .note-k[data-kind="dish_shared"] { color: var(--color-nutrition); }
 .note-k[data-kind="activity_ready"] { color: var(--color-run); }
@@ -1445,9 +1444,9 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 
 .bar.over { background: var(--warn); }
 
-/* Keep native status-bar text on a readable theme surface, even over bright photos/maps. */
-.map-head .detail-media { padding-top: env(safe-area-inset-top); --media-height: 380px; background: var(--bg); }
-@media (min-width: 900px) { .map-head .detail-media { --media-height: 480px; } }
+/* The activity map/photos run to the very top, under the status bar (Ben, 2026-10-23); the map is light in light mode
+   and dark in dark mode, so the clock stays readable. */
+@media (min-width: 900px) { .map-head .detail-media { --media-height: calc(480px + env(safe-area-inset-top)); } }
 
 /* A personal greeting and one-tap Kit review keep Today concise. */
 #t-review { flex-shrink: 0; }
@@ -2079,14 +2078,18 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-share { order:3; justify-content:center; }
 .activity-reactions .reaction-count { order:4; margin-left:auto; min-width:44px; justify-content:center; }
 .reaction-icons { display:flex; align-items:center; padding-left:4px; }
-.reaction-badge { --reaction-color:var(--ride); display:grid; place-items:center; flex:none; width:26px; height:26px; border:2px solid var(--card); border-radius:50%; background:var(--reaction-color); color:var(--card); font-style:normal; }
-.reaction-badge[data-kind="strong"] { --reaction-color:var(--row); }
-.reaction-badge[data-kind="applause"] { --reaction-color:var(--warn); }
+/* Reactions: bright, happy and distinct, never brown (Ben, 2026-10-23): Cheers blue, Strong coral, Applause raspberry. */
+:root { --react-cheer:#2563EB; --react-strong:#E2562A; --react-applause:#D6336C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --react-cheer:#6EA6F2; --react-strong:#FF8A5C; --react-applause:#FF7FA6; } }
+:root[data-theme="dark"] { --react-cheer:#6EA6F2; --react-strong:#FF8A5C; --react-applause:#FF7FA6; }
+.reaction-badge { --reaction-color:var(--react-cheer); display:grid; place-items:center; flex:none; width:26px; height:26px; border:2px solid var(--card); border-radius:50%; background:var(--reaction-color); color:var(--card); font-style:normal; }
+.reaction-badge[data-kind="strong"] { --reaction-color:var(--react-strong); }
+.reaction-badge[data-kind="applause"] { --reaction-color:var(--react-applause); }
 .reaction-icons .reaction-badge { margin-left:-5px; }
 .reaction-badge svg { width:16px; height:16px; }
-.reaction-main[aria-pressed="true"][data-kind="cheer"] { color:color-mix(in srgb,var(--ride) 80%,var(--tx)); }
-.reaction-main[aria-pressed="true"][data-kind="strong"] { color:color-mix(in srgb,var(--row) 80%,var(--tx)); }
-.reaction-main[aria-pressed="true"][data-kind="applause"] { color:var(--warn); }
+.reaction-main[aria-pressed="true"][data-kind="cheer"] { color:var(--react-cheer); }
+.reaction-main[aria-pressed="true"][data-kind="strong"] { color:var(--react-strong); }
+.reaction-main[aria-pressed="true"][data-kind="applause"] { color:var(--react-applause); }
 /* Choices keep visible names as well as color, with comfortable touch targets. */
 .reaction-picker { position:fixed; z-index:1000; display:flex; flex-wrap:wrap; gap:4px; width:max-content; max-width:calc(100vw - 24px); padding:8px; border:1px solid var(--line); border-radius:24px; background:var(--card); color:var(--tx); box-shadow:var(--lift); }
 .reaction-picker button { display:grid; flex:1 0 auto; justify-items:center; gap:4px; min-width:64px; min-height:60px; padding:4px; border:0; border-radius:16px; background:none; color:var(--tx); }
