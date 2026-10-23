@@ -748,9 +748,9 @@ async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon 
   g.restore();
   return {tiles: got.length, P: ([la, lo]) => { const [x, y] = mercator(la, lo); return [(x * n - cx) * k + mx, (y * n - cy) * k + my]; }};
 }
-// The share picture uses the generated dark Sky Blue tokens in either app appearance.
+// The share picture uses the light Sky Blue tokens in either app appearance; routes are blue, like the map.
 // 1080 × 1350 fits Messages, Instagram posts and stories; logo artwork stays unchanged.
-const PIC = {bg: col('--share-canvas'), text: col('--share-text'), soft: col('--share-text-secondary'), muted: col('--share-text-muted'), line: col('--share-divider'), brand: col('--share-brand'),
+const PIC = {bg: col('--share-surface'), route: col('--share-action'), text: col('--share-text'), soft: col('--share-text-secondary'), muted: col('--share-text-muted'), line: col('--share-divider'), brand: col('--share-brand'),
   sport: Object.fromEntries(['run','ride','walk','hike','swim','row','ski','workout','other'].map(sport => [sport, col('--share-' + sport)]))};
 // The Kinetta mark (mark.svg): a track with a runner's dot in its gap, centred on (cx, cy), `w` wide.
 function drawMark(g, cx, cy, w, color) {
@@ -765,27 +765,27 @@ async function routePicture(a, trim) {
   const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
   try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
-  const hue = PIC.sport[a.sport] || PIC.brand, M = 84;
+  const hue = PIC.route, M = 84;
   g.fillStyle = PIC.bg; g.fillRect(0, 0, W, H);
   const pts = a.line ? trimRoute(decode(a.line), trim) : [], TOP = 820;
   let tiles = 0;
   if (pts.length > 1) {
-    // the map, muted to the neutral palette so the route is what you see first
-    g.filter = 'grayscale(1) brightness(.5) contrast(1.15)';
+    // a bright map, a little faded so the blue route is what you see first
+    g.filter = 'grayscale(.6) brightness(1.04) contrast(.92)';
     const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: TOP, pad: 120, under: 40});
     g.filter = 'none'; tiles = n;
-    if (tiles) { g.fillStyle = 'rgba(14,17,19,.45)'; g.fillRect(0, 0, W, TOP); }
-    const fade = g.createLinearGradient(0, TOP - 240, 0, TOP); fade.addColorStop(0, 'rgba(14,17,19,0)'); fade.addColorStop(1, PIC.bg);
+    if (tiles) { g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(0, 0, W, TOP); }
+    const fade = g.createLinearGradient(0, TOP - 240, 0, TOP); fade.addColorStop(0, 'rgba(255,255,255,0)'); fade.addColorStop(1, PIC.bg);
     g.fillStyle = fade; g.fillRect(0, TOP - 240, W, 240);
     g.lineJoin = g.lineCap = 'round';
     const path = () => { g.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
-    path(); g.strokeStyle = 'rgba(14,17,19,.9)'; g.lineWidth = 24; g.stroke();
+    path(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 24; g.stroke();
     path(); g.strokeStyle = hue; g.lineWidth = 12; g.stroke();
     if (!trim) for (const [p, fill] of [[pts[0], PIC.text], [pts[pts.length - 1], hue]]) {
       const [x, y] = P(p); g.beginPath(); g.arc(x, y, 14, 0, 7); g.fillStyle = fill; g.fill(); g.lineWidth = 6; g.strokeStyle = PIC.bg; g.stroke();
     }
   } else {
-    // no GPS: the Kinetta mark takes the map's place, in the sport's colour
+    // no GPS: the Kinetta mark takes the map's place, in blue
     g.beginPath(); g.arc(W / 2, 400, 250, 0, Math.PI * 2); g.fillStyle = col('--share-soft'); g.fill();
     drawMark(g, W / 2, 400, 360, hue);
   }

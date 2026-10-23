@@ -126,7 +126,7 @@ const Track = (() => {
           if (view && el.isConnected) { mapView = {...view, el}; if (view.map.getZoom()>17) view.map.setZoom(17); if (!ln.length && session.points.length) { const p=session.points.at(-1);view.map.setView([p.lat,p.lon],15); } }
         } else {
           const {map, L, group} = mapView; group.clearLayers();
-          for (const pts of ln) L.polyline(pts, {color: col('--' + session.sport), weight: 4}).addTo(group);
+          for (const pts of ln) L.polyline(pts, {color: col('--route'), weight: 4}).addTo(group);
           if(ln.length) map.fitBounds(L.latLngBounds(ln.flat()), {padding: [12, 12], maxZoom: 17, animate: false});
         }
       } catch (_) { message = 'Map unavailable. Your timer and GPS recording continue.'; update(); }
