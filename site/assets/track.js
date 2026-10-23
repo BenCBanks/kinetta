@@ -7,7 +7,7 @@
   function setPlaying(playing) {
     if (playing) track.unpauseAnimations();
     else track.pauseAnimations();
-    toggle.textContent = playing ? 'Pause animation' : 'Play animation';
+    toggle.innerHTML = playing ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>';
     toggle.setAttribute('aria-label', (playing ? 'Pause' : 'Play') + ' the track animation');
   }
   function preference() {

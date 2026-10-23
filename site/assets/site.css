@@ -313,7 +313,9 @@ html { scroll-padding-top: 130px; }
 .btn.solid { border-color: var(--brand-solid); }
 
 /* Decorative motion remains optional, without covering the phone or blocking its screenshot. */
-.track-toggle { position: absolute; bottom: -48px; left: 50%; transform: translateX(-50%); z-index: 2; min-height: 44px; padding: 8px 12px; border: 0; background: transparent; color: var(--ink3); font: 500 12px/1.2 var(--body); cursor: pointer; white-space: nowrap; }
+.track-toggle { position: absolute; bottom: -52px; left: 50%; transform: translateX(-50%); z-index: 2; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--ink3); cursor: pointer; opacity: .7; }
+.track-toggle:hover, .track-toggle:focus-visible { opacity: 1; background: var(--paper); }
+.track-toggle svg { width: 16px; height: 16px; fill: currentColor; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .track-toggle[hidden] { display: none; }
 
 /* The permanent feature guide shares the app's catalog and evergreen surfaces. */
@@ -332,3 +334,18 @@ html { scroll-padding-top: 130px; }
 .public-guide-card summary { cursor: pointer; padding-block: 14px; min-height: 44px; box-sizing: border-box; }
 .public-guide-card a { color: var(--brand); display: inline-block; padding-block: 12px; }
 @media(max-width:650px) { #feature-catalog { grid-template-columns: 1fr; } .feature-guide-public { padding-block: 40px; } }
+
+/* Homepage cards lead with a real screen (top of the screenshot), then one line (23 October 2026). */
+.point { padding: 14px 14px 22px; }
+.point h2, .point p, .point .go { margin-inline: 10px; }
+.pshot { display: block; height: 260px; overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); margin-bottom: 8px; }
+.pshot img { display: block; width: 100%; height: auto; margin-top: -15%; }   /* skip the phone's status bar */
+@media (max-width: 860px) { .point { padding: 12px 12px 20px; } .pshot { height: 220px; } }
+.final p.more-links { max-width: none; }
+.more-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 12px; margin: 18px 0 28px; font-size: 15px; }
+.more-links a { color: var(--brand); font-weight: 600; } .more-links span { color: var(--ink3); }
+.spot .pair.solo { grid-template-columns: minmax(0, 300px); }
+@media (max-width: 860px) { .spot .pair.solo { grid-auto-columns: min(300px, 80vw); justify-content: center; } }
+.steps.compact { gap: 18px; } .steps.compact .step { padding: 18px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); gap: 6px; }
+.steps.compact .step h3 { font-size: 19px; } .steps.compact .step p { font-size: 15.5px; }
+@media (max-width: 560px) { .more-links { flex-direction: column; align-items: center; } .more-links span { display: none; } }

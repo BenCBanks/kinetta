@@ -36,7 +36,7 @@ Build a recipe once. Log your portion.
 
 ## tap-cook-a-meal-and-type-the-ingredients-like-a-text-m-9
 
-Use **Add food** for the ingredients, then choose **Save as a recipe for later** in the final review. Name it and enter its whole serving yield or cooked weight separately from how much you eat. Save for later, log a portion today, or do both.
+Add the ingredients once and save it as a recipe. Next time, log your portion in a couple of taps.
 
 ## your-day-at-a-glance-with-honest-feedback-10
 
@@ -53,14 +53,6 @@ An optional AI review of your recent food log, with suggestions based on the day
 ## tweaks-for-any-meal-you-cook-13
 
 Optional AI suggestions for changing a recipe’s ingredients or portions. Review the changes before using them.
-
-## your-food-log-with-or-without-ai-14
-
-Your food log, with or without AI.
-
-## search-usda-and-open-food-facts-scan-barcodes-or-enter-15
-
-Find foods in USDA and Open Food Facts, scan a packaged product or manually add a named food with known nutrition. Your usuals and My Recipes make repeat logging easier. Edit or remove a logged food from its meal, with Undo if you remove it by mistake.
 
 ## story-heading-19
 
@@ -80,7 +72,7 @@ Say what's different. The numbers follow.
 
 ## story-note-23
 
-Photo estimates are optional AI you can check and edit. Example uses demo numbers.
+No AI needed: search USDA and Open Food Facts or add your own foods. Photo estimates are optional and always editable. Demo numbers shown.
 
 ## training-training-food-food-friends-friends-compare-co-16
 
