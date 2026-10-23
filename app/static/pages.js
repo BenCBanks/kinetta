@@ -281,7 +281,7 @@ async function meOverview(el) {
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <section id="t-week" aria-label="Last 14 days"><div class="card mileage-loading" aria-hidden="true">${skel(1)}</div></section>
-    <div id="t-loading" role="status"><p class="small muted">Loading your day…</p>${skel(1)}</div>
+    <div id="t-loading" role="status"><span class="vh">Loading your day</span><div class="sk-row" aria-hidden="true"><span class="sk dot"></span><span class="grow"><span class="sk line short"></span><span class="sk line"></span></span></div>${skel(1)}</div>
     <div id="t-content"><div id="t-last"></div>
     <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
     <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => { const waiting = href === '/me/friends' && App.me.friend_requests;
@@ -487,7 +487,9 @@ function sportStats(a) {
 }
 
 route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
-  el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>${skel(2)}`;
+  // Shaped like the page that's coming (map, then the title card and numbers) so nothing appears to rearrange.
+  el.innerHTML = `<div class="map-head"><div class="map lead sk" aria-hidden="true"></div><div class="top over">${backBtn('Activity')}</div></div>
+    <div class="card d-ph" aria-hidden="true"><div class="sk line short"></div><div class="sk big"></div><div class="d-ph-stats"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div>${skel(1)}`;
   wireBack(el, '/activity');
   SocialData.prefetch(id);
   await load(`/api/activities/${id}`, (a) => {drawDetail(el,a);if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}}, {maxAge:60000});
