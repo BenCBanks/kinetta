@@ -4,7 +4,7 @@ Readiness checkpoint: October 20, 2026. See the [current usability and wider-bet
 The current release outcome is recorded separately; physical-device acceptance and external tester readiness remain gates.
 [The current roadmap](../ROADMAP.md) and #122 supersede historical setup notes below.
 
-The first beta should use Apple Health or the existing intervals.icu connection. Direct Garmin approval is a separate path and must not delay it. A successful unsigned iPhone build does not prove that a TestFlight build was uploaded or approved.
+The first beta should use Apple Health. Garmin Connect (Garmin developer program, approved October 2026) is admin-only until it has been checked with real data. A successful unsigned iPhone build does not prove that a TestFlight build was uploaded or approved.
 
 ## Owner steps, in order
 

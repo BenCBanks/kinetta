@@ -40,7 +40,7 @@ router = APIRouter(prefix='/api')
 AUTHORIZE = 'https://connect.garmin.com/oauth2Confirm'
 TOKEN = 'https://diauth.garmin.com/di-oauth2-service/oauth/token'
 API = 'https://apis.garmin.com/wellness-api/rest'
-FIRST_DAYS = 30             # backfill on connect, like the Personal API key
+FIRST_DAYS = 30             # backfill on connect
 STATE_TTL = 600             # seconds to finish signing in at Garmin
 PING_MAX = 2 * 1024 ** 2    # a ping is a short list of links
 DATA_MAX = 64 * 1024 ** 2   # one fetched batch of activity details with samples

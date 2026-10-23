@@ -249,11 +249,6 @@ finally:
         for r in keep: c.execute('UPDATE activities SET ai_note = %s, ai_note_at = %s WHERE id = %s', (r['ai_note'], r['ai_note_at'], r['id']))
         c.execute('UPDATE profile SET ai_ok = false WHERE user_id = %s', (uid,))
 
-from app import api_connections as AC
-first, again = AC.intervals_sync_now(user={'id': jid}), AC.intervals_sync_now(user={'id': jid})
-ck(not first.get('already') and again.get('already'), 'Sync now: a second tap within 2 minutes starts nothing')
-ck(not AC.intervals_sync_now(user={'id': uid}).get('already'), "one person's sync doesn't hold up another's")
-
 # New-workout delivery: real rows and actual push serialization, replaced transport (no phone/network).
 import datetime as dt
 from unittest.mock import patch

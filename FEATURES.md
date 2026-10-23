@@ -31,7 +31,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Upload the whole Strava export .zip (names, descriptions, gear, private notes, commute flag kept; photos later)
 - [x] Very large exports: drop the zip in `data/inbox/<login>/` and run the importer on the server
 - [x] Duplicate detection (same start time ±2 min + similar distance), so Garmin and Strava copies never double-count
-- [x] Garmin automatic sync through intervals.icu (needs your intervals.icu API key)
+- [x] Garmin Connect: sign in with Garmin; new activities arrive by push after each watch sync (admin-only until opened)
 - [x] Apple Watch automatic sync through Health Auto Export (needs the app + a private upload link)
 
 ## Each activity
@@ -70,7 +70,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Records per exercise: heaviest set, estimated one-rep max (Epley, 1-12 reps), most reps, longest hold, biggest session; marked on the set
 - [x] Exercise page: records, a chart of the estimated 1RM per session, every session's sets, a note for next time ("seat on 4")
 - [x] Progress > Lifting: recent sessions and every exercise with its best; feed cards show sets, weight lifted and the exercises
-- [x] A watch strength workout (Apple Health, file, intervals.icu) that overlaps a logged session joins it (heart rate, calories) instead of doubling
+- [x] A watch strength workout (Apple Health, Garmin Connect, file) that overlaps a logged session joins it (heart rate, calories) instead of doubling
 - [x] Log a past session by hand, then add its sets; the AI coach note reads the sets and last time's; SQL view `v_lift_sets`
 
 ## Food
@@ -168,7 +168,7 @@ See [Recording activities](docs/activity-tracking.md).
 
 - **Evening food summaries retired (20 October 2026):** the setting, shortcut and automatic generation are removed. Nutrition insights start through the Nutrition Kit icon. Historical notes remain readable/exportable.
 
-Connections now leads with Apple Health status and Connect/Manage in the iPhone app, then Upload files. intervals.icu and Health Auto Export remain under Advanced for power users. A watch is optional. Garmin Health sharing can be delayed and excludes GPS tracks; on your own Health-sourced outdoor workout without a route, Add the map explains Garmin Connect website → activity → settings gear → Export Original, then uploads the original ZIP/FIT through the existing importer. Matching sport/time/distance enriches the existing activity and keeps user edits; other recordings remain separate. No provider connection is required.
+Connections now leads with Garmin Connect (when the server has Garmin keys) and Apple Health status and Connect/Manage in the iPhone app, then Upload files. Health Auto Export remains under Advanced for power users; intervals.icu and the Garmin Personal API key were removed on 23 October 2026. A watch is optional. Garmin Health sharing can be delayed and excludes GPS tracks; on your own Health-sourced outdoor workout without a route, Add the map explains Garmin Connect website → activity → settings gear → Export Original, then uploads the original ZIP/FIT through the existing importer. Matching sport/time/distance enriches the existing activity and keeps user edits; other recordings remain separate. No provider connection is required.
 
 Nutrition insights distinguish logged food, a rough burn/energy model and recorded scale trends. A discrepancy names water changes, missed or underestimated food and burn-estimate error, then points to the weekly check-in; agreement is described as broad consistency rather than proof. Weight text uses the account's units. No per-bodyweight advice is inferred from a fallback weight. Energy captions identify Apple Health resting + activity, imported daily burn or formula sources, and never equate being under the food goal with a measured deficit or modelled energy with actual fat loss. These wording changes do not alter targets, calorie arithmetic or Health's passive-only rule.
 

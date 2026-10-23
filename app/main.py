@@ -16,7 +16,6 @@ from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, ad
 @asynccontextmanager
 async def lifespan(app):
     db.migrate()     # nightly database copies: host timer fit-db-backup.timer (pg_dump), see README
-    threading.Thread(target=api_connections.scheduler, daemon=True).start()   # intervals.icu every 30 min
     threading.Thread(target=coach.weekly_scheduler, daemon=True).start()      # Sunday 6 PM weekly reviews (if an AI key is set)
     threading.Thread(target=meal_reminders.scheduler,daemon=True).start()
     recipe_stop=threading.Event()
