@@ -16,7 +16,7 @@ Runs, rides and lifting
 
 ## import-runs-and-rides-from-your-watch-files-or-connect-5
 
-Maps, pace and heart rate from your watch, training plans and lifting logs.
+Maps, pace and heart rate from Apple Watch, Garmin and other watches, plus training plans and lifting logs.
 
 ## quick-food-logging-6
 
