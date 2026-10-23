@@ -30,7 +30,7 @@ function postCard(a, {who = false, compact = false} = {}) {
     : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}${audience}</small></span>`;
   // the comment button opens the comments in a sheet from below, right here (2026-10-12); you can cheer your own activity too
   const foot = reactionButtons(a.id,a)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num">${a.comments||0}</span></button>`+
-    (vis==='me'&&!theirs?'':`<button type="button" class="pf activity-share" data-share-activity="/activity/friends/${a.id}" aria-label="Share activity link">${svg('share')}</button>`);
+    (theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`);
   const compactHead = `<a class="post-heading" href="${href}">${sportMark(a.sport)}<div class="ph-txt"><small>${esc(when(a.start_time))}</small><h3 class="post-title">${esc(a.name)}</h3></div></a>`;
   return `<article class="card post${compact ? ' compact' : ''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${compact ? compactHead : head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     ${compact ? '' : `<h3 class="post-title">${esc(a.name)}</h3>`}
@@ -60,7 +60,7 @@ function wireCheers(box) {
     });
   };});
   $$('[data-reaction-group]',box).forEach(group=>wireReactionGroup(group,group.dataset.aid));
-  $$('[data-share-activity]',box).forEach(button=>button.onclick=()=>shareActivity(button.dataset.shareActivity));
+  $$('[data-share-picture]',box).forEach(button=>button.onclick=()=>sharePicture(button.dataset.sharePicture));
 }
 // A tap anywhere on a card that isn't one of its own buttons or links opens the activity, and the card dips slightly
 // under the finger so the tap feels answered at once (2026-10-16). Links, Cheers, comments and photos keep their jobs.
@@ -691,51 +691,39 @@ function editActivity(a) {
 Object.assign(IC, {share: '<path d="M12 15V3M8 7l4-4 4 4"/><path d="M8 11H6v10h12V11h-2"/>', image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'});
 const appBase = () => (Native.on && Native.base ? Native.base : location.origin);
-function shareOut(a) {
-  const ch = `<span class="chev">${svg('chev')}</span>`;
-  sheet('Share', `<div class="pick-list">
-      <button type="button" class="row-link" id="so-link"><span class="ri c-blue">${svg('link')}</span><span class="grow">Send a link<small class="muted gs-sub" id="so-who">For friends on Kinetta</small></span>${ch}</button>
-      <button type="button" class="row-link" id="so-img"><span class="ri c-orange">${svg('image')}</span><span class="grow">Share a picture<small class="muted gs-sub">The route with distance, ${FOOT.includes(a.sport) ? 'pace' : 'speed'}, time and climb</small></span>${ch}</button></div>`, async (b, close) => {
-    let s = a._social;
-    if (!s) try { s = a._social = await api(`/api/activities/${a.id}/social`); } catch (x) { /* asked again on tap */ }
-    const who = $('#so-who', b);
-    if (s) who.textContent = s.visibility === 'me' ? 'Only you can see it now. Sending shares it with your friends' : s.visibility === 'friends' ? 'Opens for your friends on Kinetta' : 'Opens for anyone with a Kinetta account here';
-    $('#so-link', b).onclick = async () => {
-      try {
-        if (!s) s = a._social = await api(`/api/activities/${a.id}/social`);
-        if (s.visibility === 'me') {   // a link nobody can open is no use: share it with friends first, and say so
-          await api(`/api/activities/${a.id}/sharing`, json('PUT', {visibility: 'friends'}));
-          s.visibility = 'friends'; socialChanged(a.id); toast('Shared with your friends');
-        }
-        const url = `${appBase()}/activity/friends/${a.id}`;
-        close();
-        if (navigator.share) { navigator.share({title: a.name, url}).catch(() => {}); return; }
-        await navigator.clipboard.writeText(url); toast('Link copied');
-      } catch (x) { toast(x.message || 'Could not copy the link'); }
-    };
-    $('#so-img', b).onclick = () => { close(); pictureSheet(a, s); };
-  });
-}
-// The picture: 1080 × 1350 (fits Instagram, Messages and stories), always dark so it looks the same for everyone.
-// The start and end are cut off by the person's "hide the start and end" distance (400 m when that is off), so a
-// picture doesn't show where they live, unless they untick it.
-function pictureSheet(a, s) {
-  const trim = (s && s.trim_m) || 400, hasLine = !!(a.line && decode(a.line).length > 1);
-  sheet('Share a picture', `<div class="pic-wrap"><img class="pic" id="pi-img" alt="Picture of ${esc(a.name)}"></div>
-    ${hasLine ? `<label class="check"><input type="checkbox" id="pi-trim" checked> Hide where it starts and ends</label>` : ''}
-    <div class="btnrow one"><button class="primary" id="pi-go">Share picture</button></div>`, (b) => {
-    let blob = null;
-    const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b);
+// Share = a picture (2026-10-23, Ben: not a link). The route map with the time and pace, or the Kinetta mark when there
+// is no GPS. Opens straight away; the full activity and the person's start/end setting load inside the sheet.
+function shareOut(a) { sharePicture(a.id, a); }
+function sharePicture(id, known) {
+  const owner = readOwner();
+  sheet('Share', `<div class="pic-wrap busy"><img class="pic" id="pi-img" alt=""></div>
+    <label class="check" id="pi-trim-row" hidden><input type="checkbox" id="pi-trim" checked> Hide where it starts and ends</label>
+    <button class="primary wide" id="pi-go" disabled>${svg('share')} Share</button>
+    <p class="small muted pi-note"></p>`, async (b) => {
+    const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b), live = () => b.isConnected && owner === readOwner();
+    let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, blob = null, made = 0;
+    try {
+      [a, s] = await Promise.all([a || api(`/api/activities/${id}`), s || api(`/api/activities/${id}/social`).catch(() => null)]);
+      if (known) known._social = s;
+    } catch (x) { if (live()) { $('.pic-wrap', b).classList.remove('busy'); toast(x.message); } return; }
+    if (!live()) return;
+    img.alt = `Picture of ${a.name}`;
+    $('.pi-note', b).textContent = `A picture of ${a.line ? 'your route, ' : ''}${FOOT.includes(a.sport) ? 'time and pace' : 'time and speed'}. Nothing links back to your account.`;
+    const trim = (s && s.trim_m) || 400, hasLine = !!(a.line && decode(a.line).length > 1);
+    $('#pi-trim-row', b).hidden = !hasLine;
     const make = () => {      // the map tiles take a moment: the button waits for the picture
+      const run = ++made;
       go.disabled = true; $('.pic-wrap', b).classList.add('busy');
-      return routePicture(a, t && !t.checked ? 0 : trim).then((bl) => { blob = bl; if (img.src) URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(bl); })
-        .finally(() => { go.disabled = false; $('.pic-wrap', b).classList.remove('busy'); });
+      return routePicture(a, t && !t.checked ? 0 : trim).then((bl) => {
+        if (run !== made || !live()) return;
+        blob = bl; if (img.src) URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(bl);
+      }).finally(() => { if (run === made && live()) { go.disabled = false; $('.pic-wrap', b).classList.remove('busy'); } });
     };
-    make(); if (t) t.onchange = make;
+    make(); t.onchange = make;
     go.onclick = async () => {
       if (!blob) return;
       const file = new File([blob], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}.png`, {type: 'image/png'});
-      if (navigator.canShare && navigator.canShare({files: [file]})) { navigator.share({files: [file], title: a.name}).catch(() => {}); return; }
+      if (navigator.canShare && navigator.canShare({files: [file]})) { navigator.share({files: [file]}).catch(() => {}); return; }
       const l = document.createElement('a'); l.href = img.src; l.download = file.name; document.body.append(l); l.click(); l.remove();
       toast('Picture saved');
     };
@@ -788,56 +776,80 @@ async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon 
   g.restore();
   return {tiles: got.length, P: ([la, lo]) => { const [x, y] = mercator(la, lo); return [(x * n - cx) * k + mx, (y * n - cy) * k + my]; }};
 }
+// The picture is always the dark Evergreen theme so it looks the same wherever it is sent: forest background, sage
+// brand, the sport's own colour for the route. 1080 × 1350 fits Messages, Instagram posts and stories.
+const PIC = {bg: '#101C18', text: '#F3F5F4', soft: '#C3C9C6', muted: '#A8B8AF', line: '#34473D', brand: '#74DBB5',
+  sport: {run: '#53D5A5', ride: '#CBB0CC', walk: '#A7D76C', hike: '#E4AD6C', swim: '#8CD0B7', row: '#C49AF0', ski: '#D5A2BA', workout: '#CED67A'}};
+// The Kinetta mark (mark.svg): a track with a runner's dot in its gap, centred on (cx, cy), `w` wide.
+function drawMark(g, cx, cy, w, color) {
+  const s = w / 72, ox = cx - 50 * s, oy = cy - 50 * s, at = (x, y) => [ox + x * s, oy + y * s];
+  g.save();
+  g.beginPath(); g.rect(0, 0, g.canvas.width, g.canvas.height); g.arc(...at(76, 32.68), 12 * s, 0, Math.PI * 2); g.clip('evenodd');
+  g.beginPath(); g.roundRect(...at(14, 30), 72 * s, 40 * s, 20 * s); g.lineWidth = 7 * s; g.strokeStyle = color; g.stroke();
+  g.restore();
+  g.beginPath(); g.arc(...at(76, 32.68), 8.5 * s, 0, Math.PI * 2); g.fillStyle = color; g.fill();
+}
 async function routePicture(a, trim) {
   const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d'), font = getComputedStyle(document.body).fontFamily, accent = col('--accent') || '#E0582B', BG = '#121418';
-  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#1d1f24'); bg.addColorStop(1, '#0d0e11');
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  // the map and route across the top; it fades into the dark panel with the numbers
-  const pts = a.line ? trimRoute(decode(a.line), trim) : [];
-  const MAPH = 840;
+  const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
+  try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
+  const hue = PIC.sport[a.sport] || PIC.brand, M = 84;
+  g.fillStyle = PIC.bg; g.fillRect(0, 0, W, H);
+  const pts = a.line ? trimRoute(decode(a.line), trim) : [], TOP = 820;
   let tiles = 0;
   if (pts.length > 1) {
-    const {tiles: t, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: MAPH, pad: 110, under: 150});
-    tiles = t;
-    if (tiles) { g.fillStyle = 'rgba(12,14,18,.18)'; g.fillRect(0, 0, W, MAPH); }
-    const fade = g.createLinearGradient(0, MAPH - 260, 0, MAPH); fade.addColorStop(0, 'rgba(18,20,24,0)'); fade.addColorStop(1, BG);
-    g.fillStyle = fade; g.fillRect(0, MAPH - 260, W, 260);
-    g.fillStyle = BG; g.fillRect(0, MAPH, W, H - MAPH);
+    // the map, muted to the forest palette so the route is what you see first
+    g.filter = 'grayscale(1) brightness(.5) contrast(1.15)';
+    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: TOP, pad: 120, under: 40});
+    g.filter = 'none'; tiles = n;
+    if (tiles) { g.fillStyle = 'rgba(16,28,24,.45)'; g.fillRect(0, 0, W, TOP); }
+    const fade = g.createLinearGradient(0, TOP - 240, 0, TOP); fade.addColorStop(0, 'rgba(16,28,24,0)'); fade.addColorStop(1, PIC.bg);
+    g.fillStyle = fade; g.fillRect(0, TOP - 240, W, 240);
     g.lineJoin = g.lineCap = 'round';
     const path = () => { g.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
-    path(); g.strokeStyle = tiles ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.12)'; g.lineWidth = tiles ? 20 : 26; g.stroke();
-    path(); g.strokeStyle = accent; g.lineWidth = 11; g.stroke();
-    if (!trim) for (const [p, f] of [[pts[0], '#3fb950'], [pts[pts.length - 1], '#f85149']]) {
-      const [x, y] = P(p); g.beginPath(); g.arc(x, y, 15, 0, 7); g.fillStyle = f; g.fill(); g.lineWidth = 5; g.strokeStyle = '#fff'; g.stroke();
+    path(); g.strokeStyle = 'rgba(16,28,24,.9)'; g.lineWidth = 24; g.stroke();
+    path(); g.strokeStyle = hue; g.lineWidth = 12; g.stroke();
+    if (!trim) for (const [p, fill] of [[pts[0], PIC.text], [pts[pts.length - 1], hue]]) {
+      const [x, y] = P(p); g.beginPath(); g.arc(x, y, 14, 0, 7); g.fillStyle = fill; g.fill(); g.lineWidth = 6; g.strokeStyle = PIC.bg; g.stroke();
     }
+  } else {
+    // no GPS: the Kinetta mark takes the map's place, in the sport's colour
+    g.beginPath(); g.arc(W / 2, 400, 250, 0, Math.PI * 2); g.fillStyle = 'rgba(116,219,181,.06)'; g.fill();
+    drawMark(g, W / 2, 400, 360, hue);
   }
-  // the name, the day, then up to four numbers
-  g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
-  g.font = `800 56px ${font}`;
+  // sport and day, then the name
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+  const kind = (a.sport_label || SPORT_NAMES[a.sport] || 'Activity').toUpperCase();
+  let y = TOP + 34;
+  g.font = `700 26px ${ui}`; g.fillStyle = hue; g.fillText(kind, M, y);
+  const kw = g.measureText(kind).width;
+  g.fillStyle = PIC.muted; g.font = `500 26px ${ui}`;
+  g.fillText(`  ·  ${fdate(a.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'})}`, M + kw, y);
+  g.font = `600 64px ${serif}`; g.fillStyle = PIC.text;
   const words = (a.name || '').split(/\s+/), lines = [''];
-  for (const w of words) { const t = (lines[lines.length - 1] + ' ' + w).trim(); if (g.measureText(t).width > W - 180 && lines[lines.length - 1]) { if (lines.length === 2) { lines[1] += '…'; break; } lines.push(w); } else lines[lines.length - 1] = t; }
-  let y = 880; lines.forEach((l) => { g.fillText(l, 90, y); y += 64; });
-  const dateY = y - 10;
-  g.font = `500 30px ${font}`; g.fillStyle = 'rgba(255,255,255,.62)';
-  g.fillText(`${fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'})} · ${a.sport_label || SPORT_NAMES[a.sport]}`, 90, dateY);
+  for (const w of words) { const t = (lines[lines.length - 1] + ' ' + w).trim(); if (g.measureText(t).width > W - 2 * M && lines[lines.length - 1]) { if (lines.length === 2) { lines[1] += '…'; break; } lines.push(w); } else lines[lines.length - 1] = t; }
+  y += 78; lines.forEach((l) => { g.fillText(l, M, y); y += 72; });
+  // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
-  if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
-  if (a.distance_m && a.moving_s) cells.push([r.label, r.v, r.u]);
   cells.push(['Time', dur(a.moving_s || a.elapsed_s), '']);
-  if (a.ascent_m != null) cells.push(['Elevation gain', U.elev(a.ascent_m), U.eu()]);
-  else if (a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
-  else if (a.calories) cells.push(['Calories', String(Math.round(a.calories)), '']);
-  // two columns, up to two rows, so long times and climbs never run into each other
-  const cw = (W - 180) / 2, top = dateY + 78;
-  cells.slice(0, 4).forEach(([lab, v, u], i) => {
-    const x = 90 + (i % 2) * cw, y0 = top + Math.floor(i / 2) * 130;
-    g.font = `600 24px ${font}`; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(lab.toUpperCase(), x, y0);
-    g.font = `800 60px ${font}`; g.fillStyle = '#fff'; g.fillText(v, x, y0 + 66);
-    if (u) { const vw = g.measureText(v).width; g.font = `600 28px ${font}`; g.fillStyle = 'rgba(255,255,255,.62)'; g.fillText(u.trim(), x + vw + 10, y0 + 66); }
+  if (a.distance_m && a.moving_s) cells.push([r.label, r.v, r.u]);
+  if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
+  if (cells.length < 3 && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
+  if (cells.length < 3 && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
+  const top = Math.max(y + 14, TOP + 250), cw = (W - 2 * M) / cells.length;
+  g.strokeStyle = PIC.line; g.lineWidth = 2; g.beginPath(); g.moveTo(M, top - 50); g.lineTo(W - M, top - 50); g.stroke();
+  cells.forEach(([lab, v, u], i) => {
+    const x = M + i * cw;
+    g.font = `600 24px ${ui}`; g.fillStyle = PIC.muted; g.fillText(lab.toUpperCase(), x, top);
+    let size = cells.length === 3 ? 66 : 80; g.font = `800 ${size}px ${ui}`;
+    const room = cw - 24 - (u ? 60 : 0); while (size > 40 && g.measureText(v).width > room) { size -= 4; g.font = `800 ${size}px ${ui}`; }
+    g.fillStyle = PIC.text; g.fillText(v, x, top + 18 + size);
+    if (u) { const vw = g.measureText(v).width; g.font = `600 26px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, top + 18 + size); }
   });
-  if (tiles) { g.font = `500 20px ${font}`; g.fillStyle = 'rgba(255,255,255,.4)'; g.fillText('Map © OpenStreetMap contributors', 90, H - 40); }
-  g.font = `800 30px ${font}`; g.fillStyle = accent; g.textAlign = 'right'; g.fillText('Kinetta', W - 90, H - 40);
+  // the brand, and the map credit OpenStreetMap asks for
+  drawMark(g, M + 26, H - 64, 46, PIC.brand);
+  g.font = `600 32px ${serif}`; g.fillStyle = PIC.text; g.fillText('Kinetta', M + 62, H - 53);
+  if (tiles) { g.font = `500 19px ${ui}`; g.fillStyle = PIC.muted; g.textAlign = 'right'; g.fillText('Map © OpenStreetMap contributors', W - M, H - 55); }
   return new Promise((res) => c.toBlob(res, 'image/png'));
 }
 

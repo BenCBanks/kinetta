@@ -25,6 +25,7 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_track.js
+node dev/tests/test_notification_rows.js
 node dev/tests/test_track_native.js
 node dev/tests/test_recording_sharing.js
 node dev/tests/test_native_sync.js
