@@ -104,6 +104,26 @@ try:
         assert con['status'].startswith('0 new, 1 already here'), con
         print('PASS activity details become one activity with a map; repeats are duplicates')
 
+        pushed = [{**DETAILS[0], 'userId': state['gid'], 'activityId': 9002, 'summaryId': 'zz-2-detail',
+                   'summary': {**DETAILS[0]['summary'], 'startTimeInSeconds': start_s - 86400}}]
+        G.handle({'activityDetails': pushed})
+        with db.connect() as c: assert c.execute('SELECT count(*) AS n FROM activities WHERE user_id = %s', (a,)).fetchone()['n'] == 1, 'pushed data on the ping address is ignored'
+        G.handle({'activityDetails': [{**pushed[0], 'userId': 'zz-unknown'}]}, True)
+        G.handle({'activityDetails': pushed}, True)
+        with db.connect() as c: assert c.execute("SELECT count(*) AS n FROM activities WHERE user_id = %s AND source_id = '9002'", (a,)).fetchone()['n'] == 1
+        import asyncio
+        class Req:
+            async def stream(self): yield json.dumps({'activityDetails': pushed}).encode()
+        with patch.dict(os.environ, GARMIN_PUSH_SECRET='zz' * 20):
+            for bad in ('', 'zz', 'zz' * 19 + 'zy'):
+                try: asyncio.run(G.push(bad, Req())); assert False, 'push accepted without the secret'
+                except HTTPException as e: assert e.status_code == 404
+            assert asyncio.run(G.push('zz' * 20, Req())) == {'ok': True}
+        with patch.dict(os.environ, GARMIN_PUSH_SECRET='short'):
+            try: asyncio.run(G.push('short', Req())); assert False, 'a short secret is not accepted'
+            except HTTPException as e: assert e.status_code == 404
+        print('PASS push mode: data accepted only at the secret address, only for connected people')
+
         with db.connect() as c:
             assert not coach.health_ok(c, a), 'AI needs a separate yes for Garmin data'
             c.execute('UPDATE profile SET garmin_ai_ok = true WHERE user_id = %s', (a,))
@@ -128,7 +148,7 @@ try:
         G.handle({'deregistrations': [{'userId': state['gid']}]})
         with db.connect() as c:
             assert not G._settings(c, a)
-            assert c.execute('SELECT count(*) AS n FROM activities WHERE user_id = %s', (a,)).fetchone()['n'] == 1, 'imported activities stay'
+            assert c.execute('SELECT count(*) AS n FROM activities WHERE user_id = %s', (a,)).fetchone()['n'] == 2, 'imported activities stay'
         print('PASS deregistrations and permission changes are checked with Garmin first')
 
         state.update(revoked=False, perms=['ACTIVITY_EXPORT'])

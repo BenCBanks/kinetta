@@ -4,9 +4,12 @@ How it works:
   1. Me > Connections > Connect Garmin asks /api/connections/garmin-connect/start for Garmin's consent page and opens it.
   2. Garmin sends the person back to /api/connections/garmin/callback with a one-time code. The state in that link (not the
      login cookie) says whose account it is, so it also works when the iPhone app opens Garmin in Safari.
-  3. When a watch syncs, Garmin posts a "ping" to /api/garmin/notify: a list of {userId, callbackURL}. Pings carry no
-     data, so a forged one can do nothing: Kinetta fetches the data itself, from Garmin, with that person's own token.
-     Deregistration and permission notices are likewise checked with Garmin before anything changes.
+  3. When a watch syncs, Garmin tells Kinetta, in one of two modes set in the developer portal:
+     - ping, to /api/garmin/notify: a list of {userId, callbackURL} with no data, so a forged one can do nothing:
+       Kinetta fetches the data itself, from Garmin, with that person's own token;
+     - push, to /api/garmin/push/<GARMIN_PUSH_SECRET>: the data itself. Garmin doesn't sign it, so the secret in the
+       address is what keeps strangers from posting fake activities.
+     Deregistration and permission notices are checked with Garmin before anything changes, in either mode.
   4. Activity details (summary + GPS/heart-rate samples) become activities with source 'garmin_connect'.
 
 The keys come from the environment (GARMIN_CLIENT_ID / GARMIN_CLIENT_SECRET); without them the card stays hidden.
@@ -212,21 +215,43 @@ def _owner(gid):
     return r['user_id'] if r else None
 
 
-@router.post('/garmin/notify')
-async def notify(request: Request):
-    """Garmin's ping endpoint (set for every summary type in the Garmin developer portal). Answer fast; work in the background."""
-    raw = b''
+def push_secret():
+    return os.environ.get('GARMIN_PUSH_SECRET', '')
+
+
+async def _read(request, cap):
+    parts, size = [], 0
     async for chunk in request.stream():
-        raw += chunk
-        if len(raw) > PING_MAX: raise HTTPException(413, 'Too large')
-    try: body = json.loads(raw or b'{}')
+        size += len(chunk)
+        if size > cap: raise HTTPException(413, 'Too large')
+        parts.append(chunk)
+    try: body = json.loads(b''.join(parts) or b'{}')
     except ValueError: raise HTTPException(400, 'Body must be JSON')
     if not isinstance(body, dict): raise HTTPException(400, 'Body must be an object')
-    threading.Thread(target=handle, args=(body,), daemon=True).start()
+    return body
+
+
+@router.post('/garmin/notify')
+async def notify(request: Request):
+    """Ping mode: notices with links only, so it needs no secret. Answer fast; work in the background."""
+    body = await _read(request, PING_MAX)
+    threading.Thread(target=handle, args=(body, False), daemon=True).start()
     return {'ok': True}
 
 
-def handle(body):
+@router.post('/garmin/push/{secret}')
+async def push(secret: str, request: Request):
+    """Push mode: Garmin posts the data itself, unsigned, so the address carries a secret only Garmin's portal knows
+    (GARMIN_PUSH_SECRET). Without it nobody can add activities to someone's account."""
+    want = push_secret()
+    if len(want) < 32 or not secrets.compare_digest(secret.encode(), want.encode()): raise HTTPException(404, 'Not found')
+    body = await _read(request, DATA_MAX)
+    threading.Thread(target=handle, args=(body, True), daemon=True).start()
+    return {'ok': True}
+
+
+def handle(body, pushed=False):
+    details = {}     # user id -> pushed activity details
     for kind, items in body.items():
         for item in items if isinstance(items, list) else []:
             if not isinstance(item, dict): continue
@@ -236,8 +261,12 @@ def handle(body):
                 if kind == 'deregistrations': check_still_connected(uid)
                 elif kind == 'userPermissionsChange': refresh_permissions(uid)
                 elif kind == 'activityDetails' and _garmin_url(item.get('callbackURL')): fetch_details(uid, item['callbackURL'])
+                elif kind == 'activityDetails' and pushed and isinstance(item.get('summary'), dict): details.setdefault(uid, []).append(item)
             except Exception as e:
                 print('garmin notice failed', kind, type(e).__name__, flush=True)
+    for uid, items in details.items():
+        try: store_details(uid, items)
+        except Exception as e: print('garmin push failed', type(e).__name__, flush=True)
 
 
 def check_still_connected(uid):
@@ -258,10 +287,14 @@ def refresh_permissions(uid):
 
 
 def fetch_details(uid, url):
+    data = json.loads(_get(uid, url))
+    store_details(uid, data if isinstance(data, list) else [])
+
+
+def store_details(uid, items):
     with _lock(uid):
-        data = json.loads(_get(uid, url))
         added, dup, failed, new_ids = 0, 0, 0, []
-        for item in data if isinstance(data, list) else []:
+        for item in items:
             try:
                 parsed, meta = activity(item)
                 res, aid = activities.store(uid, parsed, meta, raw=json.dumps(item, sort_keys=True).encode(), ext='.garmin.json', source='garmin_connect')
