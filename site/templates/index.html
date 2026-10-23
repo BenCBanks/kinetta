@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="assets/theme.css?v=6">
-<link rel="stylesheet" href="assets/site.css?v=13">
+<link rel="stylesheet" href="assets/site.css?v=14">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -70,7 +70,7 @@
         <div class="phone">
           <picture><source srcset="assets/shots/dark-today.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-today.webp" alt="Today with a training plan, food summary, weekly activity totals and daily distance bars; fictional demo data" width="786" height="1704"></picture>
         </div>
-        <button class="track-toggle" type="button" hidden aria-label="Pause the track animation">Pause animation</button>
+        <button class="track-toggle" type="button" hidden aria-label="Pause the track animation"></button>
       </div>
     </div>
   </section>
@@ -78,29 +78,21 @@
 
   <section class="points" aria-label="What Kinetta does">
     <div class="wrap">
-      <a class="point" href="training"><span class="hico"><svg aria-hidden="true"><use href="#i-run"/></svg></span><h2>{{copy:runs-rides-and-lifting-4}}</h2>
+      <a class="point" href="training"><span class="pshot"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A run with its map, time and pace; fictional demo data" loading="lazy" width="786" height="1704"></picture></span><h2>{{copy:runs-rides-and-lifting-4}}</h2>
         <p>{{copy:import-runs-and-rides-from-your-watch-files-or-connect-5}}</p><span class="go">Training ›</span></a>
-      <a class="point" href="food"><span class="hico"><svg aria-hidden="true"><use href="#i-pot"/></svg></span><h2>{{copy:quick-food-logging-6}}</h2>
+      <a class="point" href="food"><span class="pshot"><picture><source srcset="assets/shots/dark-food.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-food.webp" alt="Today's calories remaining with protein, carbs and fat; fictional demo data" loading="lazy" width="786" height="1704"></picture></span><h2>{{copy:quick-food-logging-6}}</h2>
         <p>{{copy:say-what-you-ate-in-your-own-words-snap-a-photo-or-sca-7}}</p><span class="go">Food ›</span></a>
-      <a class="point" href="friends"><span class="hico"><svg aria-hidden="true"><use href="#i-people"/></svg></span><h2>{{copy:friends-kept-private-8}}</h2>
+      <a class="point" href="friends"><span class="pshot"><picture><source srcset="assets/shots/dark-feed.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed.webp" alt="The friends feed with cheers and comments; fictional demo data" loading="lazy" width="786" height="1704"></picture></span><h2>{{copy:friends-kept-private-8}}</h2>
         <p>{{copy:photos-cheers-and-comments-with-route-starts-and-ends--9}}</p><span class="go">Friends ›</span></a>
     </div>
   </section>
 
-  <section class="price" aria-labelledby="price-h">
-    <div class="wrap"><div>
-      <div><h2 id="price-h">{{copy:strava-and-myfitnesspal-premium-159-98-a-year-kinetta--10}}</h2>
-        <p>{{copy:matched-routes-training-plans-heatmaps-lifting-logs-ba-11}}</p></div>
-      <a class="btn line" href="compare">Compare</a>
-    </div></div>
-  </section>
-
-<section class="wrap guide-intro"><span class="eyebrow">Make it yours</span><h2>{{copy:a-lot-to-explore-an-easy-place-to-start-15}}</h2><p>{{copy:set-up-personal-estimates-log-food-without-ai-create-m-16}}</p><a class="btn outline" href="guide">Explore the feature guide</a></section>
   <section class="band final" aria-labelledby="final-h">
     <div class="wrap">
       <h2 id="final-h">{{copy:want-to-try-it-12}}</h2>
       <p>{{copy:it-s-a-small-beta-for-now-ask-for-an-invite-13}}</p>
       <div class="ctas"><a class="btn solid" href="https://login.kinetta.app/beta">Join the beta</a></div>
+      <p class="more-links"><a href="compare">Compare with Strava and MyFitnessPal</a><span aria-hidden="true">·</span><a href="guide">Explore the feature guide</a></p>
       <p class="name-note">{{copy:kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14}}</p>
     </div>
   </section>
@@ -119,6 +111,6 @@
 </footer>
 <script src="assets/zoom.js?v=3" defer></script>
 <script src="assets/daily-preview.js?v=1" defer></script>
-<script src="assets/track.js?v=2" defer></script>
+<script src="assets/track.js?v=3" defer></script>
 </body>
 </html>

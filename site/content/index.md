@@ -16,7 +16,7 @@ Runs, rides and lifting
 
 ## import-runs-and-rides-from-your-watch-files-or-connect-5
 
-Bring in watch workouts, compare repeat routes and follow a running plan. Log lifting sets with your previous weights and reps beside them.
+Maps, pace and heart rate from your watch, training plans and lifting logs.
 
 ## quick-food-logging-6
 
@@ -24,7 +24,7 @@ Quick food logging
 
 ## say-what-you-ate-in-your-own-words-snap-a-photo-or-sca-7
 
-Say what you ate in your own words, or search and scan. Save a recipe once and log your portion any day. Your workouts count toward your daily calories.
+Say what you ate in your own words, or search and scan. Workouts count toward your calories.
 
 ## friends-kept-private-8
 
@@ -32,15 +32,7 @@ Share with friends
 
 ## photos-cheers-and-comments-with-route-starts-and-ends--9
 
-Choose which workouts friends can see, then add photos, cheers and comments. Shared maps leave out the start and end of your route.
-
-## strava-and-myfitnesspal-premium-159-98-a-year-kinetta--10
-
-Training and nutrition, together.
-
-## matched-routes-training-plans-heatmaps-lifting-logs-ba-11
-
-See your next workout, review your food log and follow your progress in one place. Core tracking works without AI; estimates and reviews are optional.
+Cheers and comments from friends you approve. Shared maps hide where you start and end.
 
 ## want-to-try-it-12
 
@@ -53,14 +45,6 @@ Request an invite to the beta.
 ## kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14
 
 **kinetta** /kɪˈnɛtə/: from *kinetic*, the energy of moving, and *kin*, the people you move with.
-
-## a-lot-to-explore-an-easy-place-to-start-15
-
-Find the tools you need.
-
-## set-up-personal-estimates-log-food-without-ai-create-m-16
-
-Learn how to import workouts, build a recipe, set nutrition targets or compare your usual route. The feature guide shows where to start.
 
 ## training-training-food-food-friends-friends-compare-co-17
 
