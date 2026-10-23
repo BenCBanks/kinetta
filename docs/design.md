@@ -1141,3 +1141,28 @@ A new sheet dismisses an old plain notice that would cover it, while notices off
 Reduced motion removes the sheet immediately. Never translate the whole page: fixed and sticky composers must
 retain their existing viewport and keyboard behaviour. Browser geometry, delayed-network checks and animation
 samples are evidence for the tested flows; physical iPhone keyboard/scroll/frame pacing still needs a device.
+
+## Share pictures, notifications, refresh and notices (owner request, 23 October 2026)
+
+**Share is a picture, not a link.** The share button on your own activities (feed card and activity page) opens
+one sheet with a ready-made 1080 × 1350 picture and a single Share button. The picture always uses the dark
+Evergreen palette so it looks the same wherever it is sent: muted map, the route in its sport colour, then sport
+and date, the name in the display serif, and Time, Pace (or Speed) and Distance as large numbers, with the
+Kinetta mark and wordmark at the foot. Without GPS the Kinetta mark takes the map's place, in the sport colour,
+with the same numbers. "Hide where it starts and ends" stays on by default and uses the person's trim distance.
+Friends' activities have no share button: nobody can turn someone else's route into a picture. Profile links are unchanged.
+
+**Notifications** group New and Earlier. Each row: 44 px avatar with a small badge coloured by meaning (cheers
+gold, friends violet, shared food amber, new workouts run green), the person's name in bold and the action in
+regular weight, a quoted comment on its own quieter line (two lines at most), a short time ("5 min ago") and a
+brand dot for new items. No tinted row backgrounds and no card inside a card.
+
+**Pull to refresh** has no text labels. On the four read-only home screens (Me, Activity, Progress,
+Nutrition) the page follows the finger with resistance and a small round spinner turns in the gap above it;
+released past the threshold, the page rests just below the spinner until the reads settle, then slides back. A
+successful refresh shows nothing (screen readers hear "Up to date"); a failure keeps the existing notice. This is
+the one place the page itself moves: those screens have no fixed composers. Keep it off chats, editors and sheets.
+
+**Notices (toasts)** are compact snackbars above the tab bar: deep-green with light text in light mode, a raised
+forest surface in dark mode, 15 px text, an optional quieter second line (for example "Saved on this phone · sends
+when you're back online") and Undo as a sage text button. A tap anywhere else on the notice puts it away.

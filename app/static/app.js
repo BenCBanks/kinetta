@@ -387,9 +387,11 @@ let toastT;
 function softFocus(el) { if (el && !matchMedia('(pointer: coarse)').matches) el.focus(); }
 function toast(msg, undo) {
   let t = $('#toast');
-  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
-  if (Date.now() - (App.queuedAt || 0) < 2000 && !undo && !/saved on this phone|waiting to send/i.test(msg)) msg += ' - saved on this phone, it sends when you are back online';
-  t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t);
+    t.onclick = (e) => { if (!e.target.closest('button')) t.classList.remove('on'); };   // a tap puts it away
+  }
+  const queued = Date.now() - (App.queuedAt || 0) < 2000 && !undo && !/saved on this phone|waiting to send/i.test(msg);
+  t.innerHTML = `<span>${esc(msg)}${queued ? '<small>Saved on this phone · sends when you’re back online</small>' : ''}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
   if (undo) $('button', t).onclick = () => { t.classList.remove('on'); undo(); };
   t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
 }

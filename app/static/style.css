@@ -12,7 +12,7 @@
   --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
   --gold: var(--color-achievement); --silver: #9AA3A8; --bronze: #B07440;
   --tile1: var(--color-action); --tile2: #0F8A5C; --tile3: #D9481A; --tile4: #115447;   /* solid tiles with white text (2026-10-13): dark enough for it */
-  --r: var(--radius-card); --r2: var(--radius-control); --r3: var(--radius-media); --tab-h: 66px; --segon: #FDFCF8; --segbg: #ECEAE4;
+  --r: var(--radius-card); --r2: var(--radius-control); --r3: var(--radius-media); --tab-h: 66px; --segon: #FDFCF8; --segbg: #ECEAE4; --toast-bg: #142923; --toast-tx: #F3F5F4; --toast-tx2: #C3C9C6; --toast-act: #74DBB5;
   --shadow: 0 1px 2px rgba(17,21,20,.03), 0 6px 22px rgba(17,21,20,.05);
   --lift: 0 10px 30px rgba(17,21,20,.14), 0 1px 3px rgba(17,21,20,.08);
   --font: var(--font-ui);
@@ -25,7 +25,7 @@
     --alert: var(--color-error); --warn: var(--color-warning); --good: var(--color-success);
     --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
     --tile1: var(--color-action); --tile2: #13845A; --tile3: #CC4719; --tile4: #276D57;
-    --segon: #3A3F3D; --segbg: #1E2221; --shadow: 0 0 0 1px rgba(255,255,255,.045); --lift: 0 10px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); color-scheme: dark; }
+    --segon: #3A3F3D; --segbg: #1E2221; --toast-bg: #2B4338; --toast-tx: #F3F5F4; --toast-tx2: #C3C9C6; --toast-act: #74DBB5; --shadow: 0 0 0 1px rgba(255,255,255,.045); --lift: 0 10px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); color-scheme: dark; }
 }
 
 /* ---------- base ---------- */
@@ -306,13 +306,17 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sk.line { height: 14px; margin: 10px 0; } .sk.big { height: 30px; width: 50%; } .sk.block { height: 180px; border-radius: var(--r); margin-bottom: 12px; }
 /* little notices (2026-10-13, Ben: "poorly formatted, black isn't good"): the full width of the screen (a left: 50% box
    could only use half, so short messages wrapped), the card colour with an accent edge, and Undo as a real button */
-.toast { position: fixed; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 14px); width: fit-content; max-width: 520px; margin: 0 auto;
-  transform: translateY(14px); opacity: 0; z-index: 50; padding: 12px 12px 12px 16px; border-radius: 16px; background: var(--card); color: var(--tx);
-  border: 1px solid var(--line); border-left: 4px solid var(--good); font-weight: 600; font-size: 14.5px; line-height: 1.35;
-  display: flex; gap: 12px; align-items: center; box-shadow: var(--lift); transition: opacity .2s, transform .2s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
-.toast span { flex: 1; min-width: 0; padding: 2px 0; }
+.toast { position: fixed; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 12px); width: fit-content; max-width: 480px; margin: 0 auto;
+  transform: translateY(16px) scale(.98); opacity: 0; z-index: 50; padding: 10px 10px 10px 16px; min-height: 48px; border-radius: 14px;
+  background: var(--toast-bg); color: var(--toast-tx); font-size: 15px; font-weight: 550; line-height: 1.35;
+  display: flex; gap: 10px; align-items: center; box-shadow: 0 8px 24px rgba(10,20,16,.22);
+  transition: opacity .18s, transform .28s cubic-bezier(.2, .9, .25, 1.15); pointer-events: none; }
+.toast span { flex: 1; min-width: 0; padding: 4px 6px 4px 0; }
+.toast small { display: block; margin-top: 1px; color: var(--toast-tx2); font-size: 13px; font-weight: 500; }
 .toast.on { opacity: 1; transform: none; pointer-events: auto; }
-.toast button { flex: none; border: 0; border-radius: 999px; padding: 6px 14px; min-height: 34px; background: var(--accent2); color: var(--accent); font-weight: 750; font-size: 14px; }
+.toast button { flex: none; border: 0; background: none; color: var(--toast-act); font-weight: 750; font-size: 15px; padding: 8px 10px; min-height: 40px; border-radius: 10px; }
+.toast button:active { background: rgba(255,255,255,.1); }
+@media (prefers-reduced-motion: reduce) { .toast { transform: none; transition: opacity .15s; } }
 .netbar { position: fixed; left: 50%; transform: translateX(-50%); top: max(8px, env(safe-area-inset-top)); z-index: 60; max-width: calc(100% - 24px);
   padding: 6px 14px; border-radius: 999px; background: var(--ink); color: var(--onink); font-size: 12px; font-weight: 600; box-shadow: var(--lift); }
 
@@ -455,9 +459,10 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 .e-share { border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 10px; } .e-share .ghead { margin: 6px 0 0; }
 .e-share .vis-note { margin: -2px 0 0; } .e-share .checks { margin-top: 8px; }
 /* share a picture: the preview fills the sheet width */
-.pic-wrap { border-radius: var(--r); overflow: hidden; background: #111; aspect-ratio: 4 / 5; margin-bottom: 12px; }
+.pic-wrap { border-radius: var(--r); overflow: hidden; background: #101C18; aspect-ratio: 4 / 5; margin: 0 auto 14px; max-height: 56vh; }
+.pic:not([src]) { visibility: hidden; }
 .pic { display: block; width: 100%; height: 100%; object-fit: contain; transition: opacity .2s; }
-.pic-wrap.busy .pic { opacity: .45; } .pic-wrap.busy { background: linear-gradient(110deg, #111 40%, #1d1f24 50%, #111 60%) 0 0 / 200% 100%; animation: sk 1.2s linear infinite; }
+.pic-wrap.busy .pic { opacity: .45; } .pic-wrap.busy { background: linear-gradient(110deg, #101C18 40%, #1D2F27 50%, #101C18 60%) 0 0 / 200% 100%; animation: sk 1.2s linear infinite; }
 .comments .comment { padding: 12px 0; border-top: 1px solid var(--line); }
 .comments .comment:first-child { margin-top: 10px; }
 .comment .c-hd { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
@@ -892,17 +897,28 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .icon-btn.bell { position: relative; }
 .bell-dot { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff;
   font: 700 11px/18px var(--numf); text-align: center; box-shadow: 0 0 0 2px var(--bg); }
-.notes { padding: 4px 8px; }
-.note { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 14px; color: inherit; position: relative; }
-.note + .note::before { content: ''; position: absolute; top: 0; left: 64px; right: 8px; border-top: 1px solid var(--line); }
-.note.unread { background: color-mix(in srgb, var(--accent) 7%, transparent); }
-.note.unread .note-t { font-weight: 650; }
-.note:active { opacity: .6; }
-.note .grow { flex: 1; min-width: 0; display: grid; gap: 2px; } .note-t { line-height: 1.35; overflow-wrap: anywhere; } .note small { font-size: 12px; }
+.notes-group + .notes-group { margin-top: 22px; }
+.notes-h { margin: 0 4px 8px; font: 700 13px/1.2 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--tx3); }
+.notes { padding: 4px 0; }
+.note { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; color: inherit; position: relative; text-decoration: none; }
+.note + .note::before { content: ''; position: absolute; top: 0; left: 74px; right: 16px; border-top: 1px solid var(--line); }
+.note:active { background: var(--card2); }
+.note .grow { flex: 1; min-width: 0; display: grid; gap: 4px; padding-top: 1px; }
+.note-t { font-size: 15.5px; line-height: 1.4; font-weight: 450; overflow-wrap: anywhere; } .note-t b { font-weight: 700; }
+.note-q { color: var(--tx2); font-size: 14.5px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.note small { font-size: 13px; color: var(--tx3); }
+.note-dot { flex: none; width: 10px; height: 10px; margin-top: 7px; border-radius: 50%; background: var(--accent); }
 .note-av { position: relative; flex: none; }
+.note-av .av { width: 44px; height: 44px; font-size: 16px; }
 .note-k { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
   background: var(--card); color: var(--accent); box-shadow: 0 0 0 1.5px var(--line); }
 .note-k svg { width: 12px; height: 12px; }
+/* the badge says what happened in the colour the app already uses for it: wins gold, friends violet, food amber */
+.note-k[data-kind="cheer"] { color: var(--color-achievement); }
+.note-k[data-kind^="friend"] { color: var(--color-row); }
+.note-k[data-kind="dish_shared"] { color: var(--color-nutrition); }
+.note-k[data-kind="activity_ready"] { color: var(--color-run); }
+.note-k[data-kind="report"] { color: var(--alert); }
 .checks.one { grid-template-columns: 1fr; }
 
 /* ---------- AI coach on food (2026-10-11) ---------- */
@@ -2310,8 +2326,12 @@ button.thread-food:active { opacity: .7; }
 .kit-invitation svg {width:22px;height:22px;flex-shrink:0}
 .kit-invitation:active {background:var(--accent2)}
 .kit-memories p {white-space:pre-wrap;overflow-wrap:anywhere}
-.page-refresh-notice {position:fixed;z-index:120;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;translate:-50% 0;max-width:calc(100vw - 32px);padding:10px 18px;border:1px solid var(--color-outline);border-radius:24px;background:var(--card);color:var(--tx);box-shadow:0 4px 16px #0002;pointer-events:none;font-size:.875rem}
-.page-refresh-notice[hidden] {display:none}
+/* Pull to refresh: the page moves down and this spinner turns in the gap above it (refresh.js). */
+.ptr {position:fixed;z-index:120;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:var(--card);color:var(--accent);box-shadow:0 2px 10px #0002;border:1px solid var(--line);opacity:0;pointer-events:none;will-change:transform,opacity}
+.ptr.glide {transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .25s}
+.ptr svg {width:18px;height:18px}
+.ptr.spinning svg {animation:refresh-turn .9s linear infinite}
+@media (prefers-reduced-motion:reduce){.ptr.spinning svg{animation:none}.ptr.glide{transition:opacity .2s}}
 .page-refresh-button[aria-busy="true"] svg {animation:refresh-turn 1s linear infinite}
 @keyframes refresh-turn {to {transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce) {.page-refresh-button[aria-busy="true"] svg {animation:none}}
@@ -2394,3 +2414,6 @@ button.thread-food:active { opacity: .7; }
 .social-read-status { overflow-wrap:anywhere; }
 
 .activity-reactions[aria-busy="true"] .reaction-main, .activity-reactions[aria-busy="true"] .reaction-more { opacity:1; }
+
+#pi-go svg { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
+.pi-note { text-align: center; margin: 10px 0 0; }

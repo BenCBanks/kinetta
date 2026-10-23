@@ -147,16 +147,6 @@ function cheerGesture(button, toggle, show) {
   viewResources.set(button, clear);
 }
 
-function shareActivity(href) {
-  const owner=readOwner(),url=`${appBase()}${href}`,active=()=>owner===readOwner();
-  const copy=()=>{if(!active())return;sheet('Share activity',`<p>Only people in this activity’s audience can open this link. They need to sign in to Kinetta.</p><label>Activity link<input readonly value="${esc(url)}"></label><button type="button" class="primary wide" data-copy-activity>Copy link</button><p class="small muted" data-copy-status role="status"></p>`,box=>{
-    const input=$('input',box);input.onclick=()=>input.select();
-    $('[data-copy-activity]',box).onclick=async()=>{if(!active())return;try{await navigator.clipboard.writeText(url);if(active()&&box.isConnected)$('[data-copy-status]',box).textContent='Link copied';}catch{if(active()&&box.isConnected){input.select();$('[data-copy-status]',box).textContent='Select and copy the link above.';}}};
-  });};
-  if(navigator.share)navigator.share({title:'Activity on Kinetta',url}).catch(error=>{if(error.name!=='AbortError')copy();});
-  else copy();
-}
-
 function activityCheers(aid) {
   cleanViews();
   const owner=readOwner(),cached=SocialData.peek(aid);
@@ -844,14 +834,33 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 // (/me/notifications). /notifications lights no tab (it opens from several).
 const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts'};
 const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', report: 'lock'};
+// One notification (2026-10-23, Ben: the list felt scrunched): the person's name in bold, a quoted comment on its own
+// quieter line, a short time, and a dot for new ones instead of tinted rows.
+function noteRow(n) {
+  const name = n.who && n.who.name, text = String(n.text || '');
+  let lead = '', rest = text, quote = '';
+  if (name && rest.startsWith(name)) { lead = name; rest = rest.slice(name.length); }
+  const q = rest.match(/^([\s\S]*?):\s*"([\s\S]*)"$/); if (q) { rest = q[1]; quote = q[2]; }
+  return `<a class="note${n.read ? '' : ' unread'}" href="${esc(n.link)}">
+    <span class="note-av">${avatar(n.who)}<span class="note-k" data-kind="${esc(n.kind)}">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
+    <span class="grow"><span class="note-t">${lead ? `<b>${esc(lead)}</b>` : ''}${esc(rest)}</span>${quote ? `<span class="note-q">“${esc(quote)}”</span>` : ''}<small>${esc(noteAgo(n.created))}</small></span>
+    ${n.read ? '' : '<span class="note-dot" aria-label="New"></span>'}</a>`;
+}
+function noteAgo(iso) {
+  const min = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (min < 1) return 'Just now';
+  if (min < 60) return `${min} min ago`;
+  if (min < 12 * 60) return `${Math.round(min / 60)} hr ago`;
+  return when(iso);
+}
 route(/^\/notifications$/, null, async (el) => {
   el.innerHTML = `<div class="top">${backBtn()}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
   wireBack(el, '/today');
   await load('/api/notifications', (r) => {
     const list = $('#nt-list', el); if (!list) return;
-    list.innerHTML = r.items.length ? `<div class="card list notes">${r.items.map((n) => `<a class="note${n.read ? '' : ' unread'}" href="${esc(n.link)}">
-        <span class="note-av">${avatar(n.who)}<span class="note-k">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
-        <span class="grow"><span class="note-t">${esc(n.text)}</span><small class="muted">${esc(when(n.created))}</small></span></a>`).join('')}</div>`
+    const fresh = r.items.filter((n) => !n.read), seen = r.items.filter((n) => n.read);
+    const group = (title, items) => items.length ? `<section class="notes-group">${title ? `<h2 class="notes-h">${title}</h2>` : ''}<div class="card list notes">${items.map(noteRow).join('')}</div></section>` : '';
+    list.innerHTML = r.items.length ? group(fresh.length ? 'New' : '', fresh) + group(fresh.length && seen.length ? 'Earlier' : '', seen)
       : `<div class="card empty"><b>Nothing yet</b>New workouts, friend requests, ${esc(CHEER.many)}, comments and shared meals show up here.</div>`;
     if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
     if (r.unread) api('/api/notifications/read', json('POST', {})).then(() => { App.me.notifications = 0; Social.badge(); invalidate('/api/notifications'); }).catch(() => {});
