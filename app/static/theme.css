@@ -38,6 +38,7 @@
   --color-zone-4: #B15D25;
   --color-zone-5: #C62828;
   --color-workout-hard: #B15D25;
+  --color-distance-muted: #BFD3FA;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -100,6 +101,7 @@
   --share-zone-4: #F29A61;
   --share-zone-5: #FF7B72;
   --share-workout-hard: #F29A61;
+  --share-distance-muted: #2A3F6B;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
@@ -141,6 +143,7 @@
   --color-zone-4: #F29A61;
   --color-zone-5: #FF7B72;
   --color-workout-hard: #F29A61;
+  --color-distance-muted: #2A3F6B;
   color-scheme: dark;
 } }
 :root[data-theme="dark"] {
@@ -182,5 +185,6 @@
   --color-zone-4: #F29A61;
   --color-zone-5: #FF7B72;
   --color-workout-hard: #F29A61;
+  --color-distance-muted: #2A3F6B;
   color-scheme: dark;
 }

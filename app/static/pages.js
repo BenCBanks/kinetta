@@ -111,7 +111,7 @@ function mileageSegments(row) {
   const total = +row.distance_m || 0;
   if (!total) return [];
   const parts = DISTANCE_SPORTS.map(sport => [sport, +(row.by_sport?.[sport] || 0)]).filter(([,value]) => value > 0);
-  // Old cached/server responses stay honest: a neutral total rather than a guessed sport.
+  // Old cached/server responses retain their total without inventing a sport breakdown.
   return Math.abs(parts.reduce((n,[,v])=>n+v,0)-total) < .01 ? parts : [['total',total]];
 }
 const mileageSportName = sport => sport === 'total' ? 'Distance' : SPORT_NAMES[sport] || 'Other';
@@ -129,21 +129,15 @@ function mileageChart(box, series, period = 'days') {
   const total = rows.reduce((n, r) => n + (+r.distance_m || 0), 0);
   const dateLabel = (d) => fdate(d + 'T12:00', {month:'short',day:'numeric'});
   const range = `${dateLabel(rows[0].d)} – ${dateLabel(weekly ? rows.at(-1).end : rows.at(-1).d)}`;
-  const used = [...new Set(rows.flatMap(r=>mileageSegments(r).map(([sport])=>sport)))];
   const labels = rows.map((r) => `${weekly ? `${dateLabel(r.d)} – ${dateLabel(r.end)}${r.today ? ' (so far)' : ''}` : fdate(r.d + 'T12:00', {weekday:'short',month:'short',day:'numeric'})} · ${r.future ? 'Not yet' : `${U.dist(r.distance_m || 0, 1)} ${U.du()}`}${r.by_sport && r.distance_m ? ' · '+mileageSegments(r).map(([sport,value])=>`${mileageSportName(sport)} ${U.dist(value,1)} ${U.du()}`).join(', ') : ''}`);
   box.innerHTML = `<div class="mileage-heading"><h2>${weekly ? 'Last 7 weeks' : 'This week'}</h2><div class="mileage-toggle" role="group" aria-label="Distance chart period"><button type="button" data-mileage-period="days" aria-pressed="${!weekly}">Days</button><button type="button" data-mileage-period="weeks" aria-pressed="${weekly}"${periods.weeks ? '' : ' disabled title="Weekly distance needs a server update"'}>Weeks</button></div></div><p class="mileage-total num"><b>${U.dist(total, 1)}</b> ${U.du()}</p>
     <div class="mileage-plot"><svg class="mileage-axis" viewBox="0 0 32 128" aria-hidden="true" focusable="false"><text x="28" y="5" text-anchor="end">${U.du()}</text><text x="28" y="18" text-anchor="end" dominant-baseline="middle">${scale.top}</text><text x="28" y="73" text-anchor="end" dominant-baseline="middle">${scale.middle}</text><text x="28" y="128" text-anchor="end" dominant-baseline="middle">0</text></svg><div class="mileage-bars seven-bars" data-scale-max="${max}" role="group" aria-label="${weekly ? 'Weekly distance, weeks start Sunday' : 'Daily distance, Sunday to Saturday'}; scale 0 to ${scale.top} ${U.du()}"><svg class="mileage-grid" viewBox="0 0 1 128" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 18H1M0 73H1M0 128H1"/></svg>${rows.map((r, i) => {
       const date = new Date(r.d + 'T12:00');
       const total = +r.distance_m || 0, top = 128 - total / max * 110, value = U.dist(total, 1);
-      let bottom = 128;
-      const segments = mileageSegments(r).map(([sport, distance]) => {
-        const height = distance / max * 110; bottom -= height;
-        return `<rect class="mileage-segment" data-sport="${sport}" x="0" y="${bottom}" width="32" height="${height}"/>`;
-      }).join('');
-      // All bars use one coordinate scale; no nested percentage heights or minimums to distort a stack.
-      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><svg class="mileage-column" viewBox="0 0 32 128" preserveAspectRatio="none" aria-hidden="true" focusable="false">${total ? `<g class="mileage-stack">${segments}</g><text class="mileage-value" x="16" y="${top - 5}" text-anchor="middle">${esc(parseFloat(value) === 0 ? '<0.1' : value)}</text>` : '<rect class="mileage-empty" x="0" y="127" width="32" height="1"/>'}</svg><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
+      // One solid total, on the same labelled scale; sport detail stays in the accessible readout.
+      const label = r.future ? '–' : total > 0 && parseFloat(value) === 0 ? '<0.1' : value;
+      return `<button type="button" class="mileage-day${r.today ? ' current-day' : ''}${r.future ? ' future-day' : ''}" aria-label="${esc(labels[i])}" aria-pressed="false"><svg class="mileage-column" viewBox="0 0 32 128" preserveAspectRatio="none" aria-hidden="true" focusable="false">${total ? `<path class="mileage-bar" d="${distanceBarPath(0,128,32,total / max * 110)}"/>` : '<rect class="mileage-empty" x="0" y="127" width="32" height="1"/>'}<text class="mileage-value" x="16" y="${top - 5}" text-anchor="middle">${esc(label)}</text></svg><small aria-hidden="true">${esc(weekly ? date.toLocaleDateString([], {month:'numeric',day:'numeric'}) : date.toLocaleDateString([], {weekday:'short'}))}</small></button>`;
     }).join('')}</div></div>
-    ${used.length ? `<div class="sport-legend" aria-label="Distance by sport">${used.map(sport=>`<span><i class="sport-swatch" data-sport="${sport}" aria-hidden="true"></i>${esc(mileageSportName(sport))}</span>`).join('')}</div>` : ''}
     ${series.streaks ? `<div class="achievement-row">${series.streaks.days>1?`<span class="achievement">${svg('flame')}${series.streaks.days}-day activity streak</span>`:''}${series.streaks.weeks>1?`<span class="achievement">${svg('trophy')}${series.streaks.weeks}-week activity streak</span>`:''}</div>` : ''}
     <p class="small muted mileage-range" role="status" aria-live="polite" aria-atomic="true">${esc(range)}</p>
     ${total ? '' : `<p class="small muted">No distance recorded ${weekly ? 'in these weeks' : 'this week'}. Timed activities still appear below.</p>`}`;
@@ -154,33 +148,9 @@ function mileageChart(box, series, period = 'days') {
     box.querySelector(`[data-mileage-period="${focus}"]`).focus({preventScroll:true});
   });
   const buttons = [...box.querySelectorAll('.mileage-day')], readout = box.querySelector('.mileage-range');
-  let selected = null;
-  const show = (index) => {
+  const current = rows.findIndex(row => row.today);
+  wireDistanceBars(buttons, current < 0 ? rows.length - 1 : current, index => {
     readout.textContent = index == null ? range : labels[index];
-    buttons.forEach((button, i) => button.classList.toggle('is-inspected', i === index));
-  };
-  buttons.forEach((button, index) => {
-    // Touch uses click; simulated hover must not replace a pinned phone selection.
-    button.onpointerenter = (e) => { if (e.pointerType === 'mouse') show(index); };
-    button.onpointerleave = (e) => { if (e.pointerType === 'mouse') show(selected); };
-    button.onfocus = () => show(index);
-    button.onblur = () => show(selected);
-    button.onclick = () => {
-      selected = selected === index ? null : index;
-      buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(i === selected)));
-      show(selected);
-    };
-    button.onkeydown = (e) => {
-      if (e.key === 'Escape') {
-        selected = null;
-        buttons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
-        show(null);
-      } else if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
-        e.preventDefault();
-        const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
-        buttons[next].focus();
-      }
-    };
   });
 }
 
@@ -1135,7 +1105,7 @@ async function pMileage(body, q) {
       <details class="fold-row table-fold"><summary><span class="grow">Show as table</span><span class="chev">${svg('chev')}</span></summary><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
           <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div></details>`;
-    requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: 190}));
+    requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: 190, distance: sport === 'all'}));
   });
 }
 

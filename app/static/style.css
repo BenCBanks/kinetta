@@ -5,7 +5,7 @@
   --bg: var(--color-canvas); --card: var(--color-surface); --card2: var(--color-soft); --tx: var(--color-text); --tx2: var(--color-text-secondary); --tx3: var(--color-text-muted); --line: var(--color-divider);
   --accent: var(--color-brand); --accent2: var(--color-brand-soft); --ontx: #FFFFFF;               /* blue: links, selection, the active tab */
   --ink: var(--color-text); --onink: var(--color-surface);                                      /* toasts */
-  --btn: var(--color-action); --onbtn: var(--color-on-action);                                      /* main buttons and selected pills */
+  --btn: var(--color-action); --onbtn: var(--color-on-action);                                      /* main buttons and selected distance bars */
   --prog: var(--color-success); --prog2: var(--color-soft);                                     /* success and data progress */
   --alert: var(--color-error); --warn: var(--color-warning); --good: var(--color-success);
   --run: var(--color-run); --ride: var(--color-ride); --walk: var(--color-walk); --hike: var(--color-hike); --swim: var(--color-swim); --row: var(--color-row); --ski: var(--color-ski); --workout: var(--color-workout); --other: var(--color-other);
@@ -144,13 +144,13 @@ details.fold-row[open] { padding-bottom: 12px; }
 .pbar .range-btn:first-child svg:first-child, .pbar #p-sport svg:first-child { color: var(--accent); }
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 16px 12px; margin: 0 -16px; }
 .chips::-webkit-scrollbar { display: none; }
-.chip { flex: none; min-height: 34px; padding: 6px 14px; border-radius: 999px; border: 0; background: var(--card); box-shadow: var(--shadow);
-  font-weight: 600; font-size: 14px; color: var(--tx2); display: inline-flex; align-items: center; justify-content: center; gap: 4px; transition: transform .1s; }
+.chip { flex: none; min-height: 34px; padding: 6px 14px; border-radius: 999px; border: 0; background: var(--card2); box-shadow: var(--shadow);
+  font-weight: 500; font-size: 14px; color: var(--tx); display: inline-flex; align-items: center; justify-content: center; gap: 4px; transition: transform .1s; }
 .chip:active { transform: scale(.96); }
-.chip[aria-pressed="true"] { background: var(--accent2); color: var(--accent); border-color: var(--accent); box-shadow: none; }
+.chip[aria-pressed="true"] { background: var(--card2); color: var(--tx); border-color: var(--color-outline); box-shadow: none; }
 .chip small { font-weight: 500; opacity: .85; }
 .chips.wrap { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0 0 6px; }
-.card .chip, .sheet .chip { box-shadow: none; background: var(--card2); } .card .chip[aria-pressed="true"], .sheet .chip[aria-pressed="true"] { background: var(--accent2); }
+.card .chip, .sheet .chip { box-shadow: none; background: var(--card2); } .card .chip[aria-pressed="true"], .sheet .chip[aria-pressed="true"] { background: var(--card2); }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .filters .chips { margin: 0; padding: 0; }
 .sportpick { flex-wrap: wrap; margin-bottom: 4px; }
@@ -243,7 +243,7 @@ button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0
 .empty-cta a, .empty .btncol a { display: grid; place-items: center; min-height: 44px; text-decoration: none; }
 .empty b { display: block; color: var(--tx); font-size: 17px; margin-bottom: 6px; letter-spacing: -.01em; }
 .empty .primary { margin-top: 4px; }
-.soon { display: inline-block; margin-top: 10px; padding: 3px 10px; border-radius: 999px; background: var(--card2); color: var(--tx2); font-size: 13px; font-weight: 600; }
+.soon { display: inline-block; margin-top: 10px; padding: 3px 10px; border-radius: 999px; background: var(--card2); color: var(--tx); font-size: 13px; font-weight: 500; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .kv:first-of-type { border-top: 0; } .kv span { color: var(--tx2); } .kv b { text-align: right; font-weight: 600; }
 .ghead { font-size: 12px; color: var(--tx3); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; margin: 16px 0 6px; }
@@ -260,14 +260,14 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 
 /* badges */
 .badges { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--card2); color: var(--tx2); }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: var(--card2); color: var(--tx); }
 .badge svg { width: 13px; height: 13px; }
-.badge.pr { background: color-mix(in srgb, var(--gold) 20%, transparent); color: color-mix(in srgb, var(--gold) 55%, var(--tx)); }
-.badge.good { background: var(--prog2); color: var(--good); }
-.badge.on { background: var(--prog2); color: var(--prog); }
-.badge.alert { background: var(--btn); color: var(--onbtn); }
-.badge.today { background: var(--btn); color: var(--onbtn); }
-.badge.s1, .badge.s2, .badge.s3 { color: var(--tx2); }
+.badge.pr { background: var(--card2); color: var(--tx); }
+.badge.good { background: var(--card2); color: var(--tx); }
+.badge.on { background: var(--card2); color: var(--tx); }
+.badge.alert { background: var(--card2); color: var(--tx); }
+.badge.today { background: var(--card2); color: var(--tx); }
+.badge.s1, .badge.s2, .badge.s3 { color: var(--tx); }
 .badge.s1::before, .badge.s2::before, .badge.s3::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--s1); }
 .badge.s2::before { background: var(--s2); } .badge.s3::before { background: var(--s3); }
 
@@ -543,8 +543,8 @@ tr.muted td { color: var(--tx3); }
 .medal.m1 { background: color-mix(in srgb,var(--gold) 16%,var(--card)); color: var(--gold); border: 1px solid var(--gold); } .medal.m2 { background: var(--silver); } .medal.m3 { background: var(--bronze); }
 
 /* ---------- Today ---------- */
-/* a link that reads as a small evergreen pill (card headings) */
-.card > h2 a.pill-more { min-height: 32px; margin: 0; padding: 0 12px; border-radius: 999px; background: var(--accent2); font-size: 13.5px; font-weight: 700; }
+/* Heading links that read as metadata pills use the same quiet surface. */
+.card > h2 a.pill-more { min-height: 32px; margin: 0; padding: 0 12px; border-radius: 999px; background: var(--card2); color: var(--tx); font-size: 13.5px; font-weight: 500; }
 /* This week (2026-10-13): the numbers beside coloured icon chips, and a ring against a usual week */
 /* softer (2026-10-13, Ben picked option A): a pale tint of the colour behind a coloured icon */
 /* a bar chart of the week (2026-10-13, Ben): each day's miles as a rounded bar, the number on top, a flat stub on a day off */
@@ -582,7 +582,7 @@ tr.muted td { color: var(--tx3); }
 
 .rng { margin: 4px 0 12px; }
 .range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 12px; border: 0; border-radius: 999px;
-  background: var(--card); box-shadow: var(--shadow); color: var(--tx); font-weight: 600; font-size: 14px; white-space: nowrap; }
+  background: var(--card2); box-shadow: var(--shadow); color: var(--tx); font-weight: 500; font-size: 14px; white-space: nowrap; }
 .range-btn svg { width: 16px; height: 16px; flex: none; color: var(--tx3); } .range-btn span { overflow: hidden; text-overflow: ellipsis; }
 
 /* Calendar (2026-10-11): workouts + food, day by day */
@@ -780,9 +780,9 @@ a.ntile { color: inherit; text-decoration: none; }
 .ways.three .way { align-items: center; justify-content: center; min-height: 0; padding: 12px 6px; gap: 6px; } .ways.three .way svg { width: 24px; height: 24px; }
 .where { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; font-size: 15px; }
 @media (max-width: 370px) { .where > .muted { display: none; } }
-.pill-sel { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--card);
-  box-shadow: var(--shadow); font-weight: 650; color: var(--tx); }
-.pill-sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; min-height: 34px; padding: 0 18px 0 0; font-weight: 650; width: auto; box-shadow: none; }
+.pill-sel { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--card2);
+  box-shadow: var(--shadow); font-weight: 500; color: var(--tx); }
+.pill-sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; min-height: 34px; padding: 0 18px 0 0; font-weight: 500; width: auto; box-shadow: none; }
 .pill-sel > svg { width: 14px; height: 14px; color: var(--tx3); transform: rotate(90deg); position: absolute; right: 12px; pointer-events: none; }
 .pill-sel.daypick > svg { position: static; transform: none; color: var(--accent); }
 
@@ -1292,7 +1292,7 @@ button.lift-prev:active { background: var(--card2); }
 .seg { border-radius: 12px; }
 .seg button { border-radius: 9px; min-height: 44px; }
 .seg button[aria-pressed="true"], .seg button[aria-selected="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
-.chip { min-height: 44px; border: 1px solid var(--line); background: transparent; }
+.chip { min-height: 44px; border: 1px solid var(--line); background: var(--card2); }
 .ri { width: 28px; height: 28px; background: transparent; color: var(--tx2); }
 .ri svg { width: 18px; height: 18px; }
 .list .row-link + .row-link::before { left: 40px; }
@@ -1316,9 +1316,9 @@ html.keyboard-open nav.tabs { display: none; }
 .setup-body small { color: var(--tx3); }
 .guide-search { margin: 18px 0 12px; }
 .guide-categories { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.guide-categories button { min-height: 44px; border-radius: 999px; border: 1px solid var(--line); padding: 8px 16px; background: var(--card); color: var(--tx); }
+.guide-categories button { min-height: 44px; border-radius: 999px; border: 1px solid var(--line); padding: 8px 16px; background: var(--card2); color: var(--tx); font-weight: 500; }
 .guide-categories button:focus-visible { border-radius: 999px; }
-.guide-categories [aria-pressed="true"] { background: var(--accent2); color: var(--accent); border-color: var(--accent); }
+.guide-categories [aria-pressed="true"] { background: var(--card2); color: var(--tx); border-color: var(--color-outline); }
 .feature-guide-card h2 { margin: 8px 0; }
 .feature-guide-card p { color: var(--tx2); }
 .feature-guide-card summary { cursor: pointer; min-height: 44px; padding-block: 12px; }
@@ -1433,7 +1433,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 #t-last .sec-head a{ position: absolute; right: 0; top: -7px; min-height: 44px; }
 #t-last .sec-head { margin-top: 16px; margin-bottom: 12px; }
 
-.tab-n, .bell-dot, .badge.alert { background: var(--btn); color: var(--onbtn); }
+.tab-n, .bell-dot { background: var(--btn); color: var(--onbtn); }
 
 #t-last .post-open { position: relative; justify-content: center; padding-inline: 44px; }
 #t-last .post-open svg { position: absolute; right: 18px; margin: 0; }
@@ -1495,10 +1495,10 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 /* Contextual Kit: the visible mark stays small, the touch target stays comfortable. */
 /* Kit's button: the sparkle plus the word "Kit" in a pill, so it doesn't read as a stray star (2026-10-16, Ben) */
 .kit-help { flex: 0 0 auto; width: auto; min-width: 44px; min-height: 44px; padding: 0 14px 0 11px; gap: 5px; display: inline-flex; align-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 22px; background: var(--accent2); color: var(--accent);
-  font-weight: 700; font-size: 14px; }
+  border: 1px solid var(--line); border-radius: 999px; background: var(--card2); color: var(--tx);
+  font-weight: 500; font-size: 14px; }
 .kit-help::after { content: 'Kit'; }
-.kit-help svg { width: 18px; height: 18px; }
+.kit-help svg { width: 18px; height: 18px; color: var(--accent); }
 
 /* Food photos: describe before analysis; keep estimates readable at phone width. */
 .photo-description { display:block; margin:16px 0; font-weight:600; }
@@ -1593,11 +1593,11 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .seven-bars { gap:4px; align-items:stretch; }
 .seven-bars .mileage-column { height:128px; max-width:32px; }
 .seven-bars .mileage-day small { font-size: .625rem; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
-.seven-bars .mileage-day { padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx2); }
+.seven-bars .mileage-day { padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx3); }
 .seven-bars .mileage-day.is-inspected { background: transparent; box-shadow: none; }
-.seven-bars .mileage-day.is-inspected small { color:var(--accent); font-weight:750; text-decoration:underline; text-underline-offset:3px; }
-.seven-bars .mileage-day.is-inspected .mileage-value { fill:var(--accent); font-weight:750; }
-.seven-bars .current-day small { color: var(--accent); font-weight: 750; }
+.seven-bars .mileage-day.is-inspected small { color:var(--tx3); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
+.seven-bars .mileage-day.is-highlighted .mileage-value { fill:var(--tx); font-weight:600; visibility:visible; }
+.seven-bars .current-day small { color: var(--tx3); font-weight: 600; }
 .mileage-range { text-align: right; margin: 8px 0 0; }
 .mileage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .mileage-heading h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-app-card-title); font-weight: 700; letter-spacing: -.015em; }
@@ -2209,7 +2209,9 @@ p a:not(.primary):not(.ghost):not(.food-library-link a), .small a:not(.primary):
 
 .food-final-review { gap: 12px; }
 
-.badge.pr { color: var(--color-achievement); background: color-mix(in srgb,var(--color-achievement) 13%,var(--card)); }
+.badge.pr > svg:first-child { color: var(--color-achievement); }
+.badge.good > svg:first-child, .badge.on > svg:first-child { color: var(--good); }
+.badge.alert > svg:first-child { color: var(--alert); }
 body .leaflet-container .leaflet-control-attribution { background: var(--card); color: var(--tx2); font-size: 11px; }
 
 /* Calendar uses solid status marks and keeps named statuses and values accessible. */
@@ -2355,16 +2357,15 @@ button.thread-food:active { opacity: .7; }
 .me-shortcuts a[href="/progress?view=records"] svg { color: var(--tx2); }
 .me-shortcuts a[href="/me/friends"] svg { color: var(--tx2); }
 
-/* Sport distance: segments sum to the original day/week total, with a neutral zero baseline. */
-.mileage-value { font-size:.625rem; fill:var(--tx2); }
-.mileage-segment { fill:var(--sport-color,var(--other)); }
+/* Combined distance: quiet totals, with today/the inspected bar in action blue. */
+.mileage-value { font-size:.625rem; fill:var(--tx3); visibility:hidden; }
+.mileage-bar { fill:var(--color-distance-muted); }
+.mileage-day.is-highlighted .mileage-bar { fill:var(--btn); }
 .mileage-empty { fill:var(--line); }
 [data-sport="run"] { --sport-color:var(--run); } [data-sport="ride"] { --sport-color:var(--ride); }
 [data-sport="walk"] { --sport-color:var(--walk); } [data-sport="hike"] { --sport-color:var(--hike); }
 [data-sport="swim"] { --sport-color:var(--swim); } [data-sport="row"] { --sport-color:var(--row); }
 [data-sport="ski"] { --sport-color:var(--ski); } [data-sport="workout"] { --sport-color:var(--workout); }
-.sport-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:12px; color:var(--tx2); }
-.sport-legend span { display:inline-flex; align-items:center; gap:6px; }
 .sport-swatch { display:inline-block; width:9px; height:9px; border-radius:2px; background:var(--sport-color,var(--other)); flex:none; }
 
 /* Calories use the action colour; named macros retain their solid data colours. */
@@ -2384,8 +2385,9 @@ button.thread-food:active { opacity: .7; }
 
 /* Gold celebrates an actual result; workout type remains visible alongside completion. */
 .achievement-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-.achievement { display:inline-flex; align-items:center; gap:5px; color:var(--color-achievement); background:color-mix(in srgb,var(--color-achievement) 10%,var(--card)); border-radius:999px; padding:4px 9px; font-size:12px; font-weight:650; }
+.achievement { display:inline-flex; align-items:center; gap:5px; color:var(--tx); background:var(--card2); border-radius:999px; padding:4px 9px; font-size:12px; font-weight:500; }
 .achievement svg { width:15px; height:15px; flex:none; }
+.achievement > svg:first-child { color:var(--color-achievement); }
 .goal.reached .track .bar { background:var(--color-achievement); }
 .goal .achievement { justify-self:start; }
 [data-workout-kind] { --workout-color:var(--run); }
@@ -2446,3 +2448,13 @@ nav.tabs { view-transition-name: tabs; }
 @keyframes vt-in-left { from { transform: translateX(-28px); opacity: 0; } }
 @keyframes vt-out-right { to { transform: translateX(18px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .launch svg { animation: none; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
+
+/* Combined Progress distance uses the same treatment; sport-specific and food charts retain their data colours. */
+.distance-hit { fill:transparent; }
+.distance-chart .distance-total { fill:var(--color-distance-muted); }
+.distance-chart .is-highlighted .distance-total { fill:var(--btn); }
+.distance-empty { stroke:var(--line); stroke-width:1; }
+.distance-value { visibility:hidden; fill:var(--tx); font-size:10px; pointer-events:none; }
+.distance-column.is-highlighted .distance-value { visibility:visible; }
+.distance-column { cursor:pointer; }
+.distance-column:focus-visible .distance-hit { stroke:var(--color-outline); stroke-width:1; }

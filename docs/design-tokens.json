@@ -38,7 +38,8 @@
     "zone-3": "#A57512",
     "zone-4": "#B15D25",
     "zone-5": "#C62828",
-    "workout-hard": "#B15D25"
+    "workout-hard": "#B15D25",
+    "distance-muted": "#BFD3FA"
   },
   "dark": {
     "canvas": "#0E1113",
@@ -78,7 +79,8 @@
     "zone-3": "#EDC35F",
     "zone-4": "#F29A61",
     "zone-5": "#FF7B72",
-    "workout-hard": "#F29A61"
+    "workout-hard": "#F29A61",
+    "distance-muted": "#2A3F6B"
   },
   "scale": {
     "space-1": "4px",

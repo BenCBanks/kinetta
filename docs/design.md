@@ -34,6 +34,7 @@ all existing contrast checks passing without changing their hue. All other suppl
 | `brand` · Brand: links and selection | `#1F55D0` | `#82AAF6` |
 | `brand-soft` · Brand-soft: selection surface | `#E6EEFD` | `#18243A` |
 | `action` · Action: main buttons | `#2563EB` | `#2F64D8` |
+| `distance-muted` · Unselected total-distance bars | `#BFD3FA` | `#2A3F6B` |
 | `on-action` · On action | `#FFFFFF` | `#FFFFFF` |
 | `success` · Success | `#097C4D` | `#4CC98A` |
 | `run` · Run | `#12924F` | `#4CC98A` |
@@ -72,8 +73,16 @@ they already pass on the new surfaces. Outline is neutral `#7B8791` / `#82909C`,
   over-target warnings still use the error colour. Protein uses series-1 red, fat series-2 teal and carbs series-4 gold.
 - Sport and macro charts use solid fills, named legends, units and values. No stripe/dot patterns or greyscale sport
   encoding. Maps may retain geographic basemap colours; route strokes use the corresponding sport token.
-- Preserve the seven-day distance chart’s common labelled scale, neutral zero baseline, proportional sport stacks,
-  daily totals and selected sport breakdown. Do not change calculations or replace the data with a synthetic staircase.
+- Combined distance charts use one solid total per day/week/period, with rounded tops and a common labelled scale.
+  Today/current period (or the selected bar) uses action blue; other bars use `distance-muted`. Use divider gridlines,
+  muted axis labels and a value only above the highlighted bar. No sport stacks or sport legend. Tapping or focusing
+  a bar shows its named per-sport breakdown; dismissing selection restores the current period. Preserve dates,
+  calculations, privacy filtering and zero baselines. Tiny totals keep their true height; future days do not invent data.
+- **Pills and distance-chart addendum, Ben, 23 October 2026:** pills/chips, including streaks, wins and Matched route,
+  use `soft` backgrounds, normal `text`, 500 weight and fully rounded corners. Only the leading icon carries colour;
+  streak/win icons use achievement gold. No tinted pill backgrounds or coloured pill text. Selected chips retain a
+  visible neutral outline. Sport colours remain in activity lists, sport icons and sport-specific charts. These rules
+  supersede the earlier sport-stacked distance and coloured-pill guidance below.
 - Keep toasts neutral: near-black `#15191D` in light mode and a raised charcoal `#20262B` in dark mode, light text
   `#F1F3F5`, secondary `#B4BCC4` and blue Undo `#82AAF6`. Selected segments use `--segon` white / `#2A3137`;
   their base uses `--segbg` `#EDF0F3` / `#1C2125`. Preserve existing shapes, dimensions and interactions.
@@ -102,7 +111,7 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
 - **Today:** serif Kinetta wordmark, profile link, small local date, “Hi, [first name]” greeting, notifications and Add activity.
   An enrolled plan supplies a compact agenda. Nutrition appears under the existing current-day logged-food condition.
   With neither active, weekly distance/time/climb or activity count leads directly to a compact latest-activity link.
-  Omit the redundant This week heading. Use sport-stacked seven-day distance bars with day/date/value labels, a named sport legend and a neutral zero baseline, without a comparison ring.
+  Omit the redundant This week heading. Use solid seven-day total-distance bars, blue for today/selection and light tint for the others, with muted day/date axes, a highlighted value and a neutral zero baseline. Show the sport breakdown on tap rather than a legend, without a comparison ring.
   Eligible Kit weekly reviews open from a small button beside the greeting; goals and fitness follow the primary content. Keep the persistent discovery/setup actions specified below separate from conditional data panels.
 - **Five stable tabs:** Today, Activity, Progress, Nutrition, Me remain available on every screen. Feature-panel visibility
   must not hide a tab. Hide the entire bottom bar while the software keyboard is open, on every route and in sheets;
@@ -264,7 +273,7 @@ nutrition. Don't put a Remove button on every log row: it competes with the calo
 first and quieter Log again today / Remove links underneath; Move this food is secondary, and Save changes applies only to this entry. Recipe-backed logged portions
 scale their recorded nutrients by amount when they lack a normalized per-serving/per-100g reference.
 
-Kit's contextual entry point is the `kit-help` pill: the sparkle plus the word “Kit”, 44 px tall, tinted with the accent (2026-10-16: a bare sparkle read as decoration). Put it with the screen's controls; open saved notes and explicit generation controls in a sheet after a tap. Do not insert a large inline Ask Kit invitation or generate a review just because the sheet opened. Keep saved notes readable when new generation is unavailable.
+Kit's contextual entry point is the `kit-help` pill: the sparkle plus the word “Kit”, 44 px tall, with a neutral soft background and normal text (23 October 2026 pill addendum; the leading icon may carry colour). Put it with the screen's controls; open saved notes and explicit generation controls in a sheet after a tap. Do not insert a large inline Ask Kit invitation or generate a review just because the sheet opened. Keep saved notes readable when new generation is unavailable.
 
 Administration lives in the separate browser `/admin` portal, with the same theme tokens and fonts, explicit account roles and distinct password/MFA sign-in. Keep administrative controls out of the personal Me screen. Food photo batches use a local thumbnail review before submission; activity summary corrections remain separate from original sensor recordings.
 
@@ -1112,14 +1121,16 @@ public-network performance measurements.
 Preserve Sky Blue neutral surfaces, quiet cards, blue actions and links, the five stable tabs and the thin divider
 above activity social controls. Colour communicates a labelled value or state:
 
-- Today and shared profile distance charts split days and weeks into their actual sports. Segments sum to the
-  same distance total, retain viewer-local Sunday boundaries and privacy filtering, and appear in the legend
-  and tapped/keyboard readout. Empty/future days stay neutral; older payloads use a neutral total, never a guessed sport.
+- Today, shared profile and combined Progress distance charts follow the 23 October addendum above: a single
+  solid total, rounded tops, action blue for the current/selected period and a light tint for others. Keep viewer-local
+  Sunday boundaries and privacy filtering. The tapped/keyboard readout names the actual sports; no sport legend or
+  stack. Zero/future days retain a neutral baseline; older payloads never guess a sport.
 - The conditional Food today card shows protein, carbs and fat in red/gold/teal with grams, unknown values
   and targets when known. Its labelled calorie progress bar fills against the real saved goal. No goal means no
   invented fill. Nutrition headings use normal text; calorie progress uses action blue, and buttons/links use their blue tokens.
-- Personal records, activity streaks, completed plan workouts and reached activity goals use readable gold
-  with words, counts or check marks. Do not turn food intake targets into achievement streaks.
+- Personal-record and streak pills use neutral soft backgrounds, normal medium-weight text and a gold leading
+  icon, alongside their words/counts. Completed plan workouts and reached activity goals retain labelled gold icons.
+  Do not turn food intake targets into achievement streaks.
 - Heart-rate zones retain their existing thresholds and durations. Numbered zones and effort names use neutral,
   green, amber, orange and red from Z1 to Z5, with time and percentage labels, in both themes.
 - Plan days show easy/recovery/run-walk in green, workouts/intervals in orange, long/medium-long runs in teal,
