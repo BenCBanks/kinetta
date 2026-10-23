@@ -38,10 +38,14 @@ const Native = (() => {
   // it back here. Older app builds don't have it and fall back to Safari.
   N.signInSheet = on && !!P.KinettaWebSignIn;
   N.webSignIn = (url) => P.KinettaWebSignIn.open({url});
+  N.activityShareSupported = on && !!P.KinettaActivityShare;
+  N.shareActivityPicture = (image, destination) => P.KinettaActivityShare.share({image, destination});
+  N.stopActivityShare = () => P.KinettaActivityShare?.cancel?.() || Promise.resolve();
   N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   N.login = async (server, login, password) => {
     if (typeof Track !== 'undefined' && App.me) await Track.leave();
+    await N.stopActivityShare();
     N.pauseFoodEntry?.();
     await N.disconnectPush();
     const stopped=await N.disconnectHealth({preserve:true});
@@ -68,7 +72,7 @@ const Native = (() => {
   N.forget = async ({deleted=false}={}) => {
     const tasks=[];N.token=null;
     if(typeof Track!=='undefined'&&App.me)tasks.push(Promise.resolve().then(()=>Track.leave()));
-    if(on){tasks.push(N.stopFoodEntry({clear:true}));tasks.push(Promise.resolve().then(()=>N.disconnectPush({signedOut:true})));tasks.push(N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}));tasks.push(put('token',null));}
+    if(on){tasks.push(N.stopActivityShare());tasks.push(N.stopFoodEntry({clear:true}));tasks.push(Promise.resolve().then(()=>N.disconnectPush({signedOut:true})));tasks.push(N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}));tasks.push(put('token',null));}
     await Promise.allSettled(tasks.map(p=>N.healthCall(p,'Local sign-out cleanup is waiting.',1000)));
   };
 

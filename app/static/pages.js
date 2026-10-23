@@ -532,7 +532,7 @@ function drawDetail(el, a) {
     }
     catch (e) { console.error('map', e); if (mapBox.isConnected) mapBox.insertAdjacentHTML('beforeend', '<p class="empty">Map unavailable right now</p>'); }
   });
-  if (a.line) wireMediaMapFull(mapBox, () => mapObj, a.line, !!a.photos?.length);
+  if (a.line) wireMediaMapFull(mapBox, () => mapObj, a.track_lines?.length ? a.track_lines : [a.line], !!a.photos?.length);
   if (a.chart) {
     const c = a.chart, x = c.d && c.d[c.d.length - 1] > 100 ? c.d : c.t, byDist = x === c.d;
     const rows = [];
@@ -671,34 +671,59 @@ function sharePicture(id, known) {
   sheet('Share', `<div class="pic-wrap busy"><img class="pic" id="pi-img" alt=""></div>
     <label class="check" id="pi-trim-row" hidden><input type="checkbox" id="pi-trim" checked> Hide where it starts and ends</label>
     <button class="primary wide" id="pi-go" disabled>${svg('share')} Share</button>
-    <p class="small muted pi-note"></p>`, async (b) => {
-    const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b), live = () => b.isConnected && owner === readOwner();
-    let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, blob = null, made = 0;
+    <button class="ghost wide" id="pi-instagram" disabled>${svg('image')} Instagram</button>
+    <p class="small muted pi-note" role="status"></p>`, async (b, close) => {
+    const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b), instagram = $('#pi-instagram', b), live = () => b.isConnected && owner === readOwner();
+    let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, blob = null, made = 0, url = '', sending = false;
+    const closeSelf = () => close(); App.closeActivityShare = closeSelf;
+    viewResources.set(b, () => { if (App.closeActivityShare === closeSelf) delete App.closeActivityShare; made++; blob = null; if (url) URL.revokeObjectURL(url); url = ''; });
     try {
       [a, s] = await Promise.all([a || api(`/api/activities/${id}`), s || api(`/api/activities/${id}/social`).catch(() => null)]);
       if (known) known._social = s;
     } catch (x) { if (live()) { $('.pic-wrap', b).classList.remove('busy'); toast(x.message); } return; }
     if (!live()) return;
     img.alt = `Picture of ${a.name}`;
-    $('.pi-note', b).textContent = `A picture of ${a.line ? 'your route, ' : ''}${FOOT.includes(a.sport) ? 'time and pace' : 'time and speed'}. Nothing links back to your account.`;
+    const note = `A picture of your ${a.line ? 'route and ' : ''}workout numbers. Nothing links back to your account.`;
+    $('.pi-note', b).textContent = note;
     const trim = (s && s.trim_m) || 400, hasLine = !!(a.line && decode(a.line).length > 1);
     $('#pi-trim-row', b).hidden = !hasLine;
-    const make = () => {      // the map tiles take a moment: the button waits for the picture
-      const run = ++made;
-      go.disabled = true; $('.pic-wrap', b).classList.add('busy');
-      return routePicture(a, t && !t.checked ? 0 : trim).then((bl) => {
+    const buttons = () => { go.disabled = instagram.disabled = !blob || sending; t.disabled = sending; };
+    const make = async () => {
+      const run = ++made; blob = null; buttons(); $('.pic-wrap', b).classList.add('busy');
+      try {
+        const picture = await routePicture(a, t && !t.checked ? 0 : trim);
         if (run !== made || !live()) return;
-        blob = bl; if (img.src) URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(bl);
-      }).finally(() => { if (run === made && live()) { go.disabled = false; $('.pic-wrap', b).classList.remove('busy'); } });
+        if (!picture) throw new Error('Couldn’t prepare this picture. Close Share and try again.');
+        blob = picture; if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(blob); img.src = url;
+        $('.pi-note', b).textContent = note;
+      } catch (x) { if (run === made && live()) $('.pi-note', b).textContent = x.message; }
+      finally { if (run === made && live()) { buttons(); $('.pic-wrap', b).classList.remove('busy'); } }
     };
     make(); t.onchange = make;
-    go.onclick = async () => {
-      if (!blob) return;
-      const file = new File([blob], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}.png`, {type: 'image/png'});
-      if (navigator.canShare && navigator.canShare({files: [file]})) { navigator.share({files: [file]}).catch(() => {}); return; }
-      const l = document.createElement('a'); l.href = img.src; l.download = file.name; document.body.append(l); l.click(); l.remove();
-      toast('Picture saved');
+    const send = async destination => {
+      if (!blob || sending || !live()) return;
+      const picture = blob, run = made;
+      const file = new File([picture], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}.png`, {type: 'image/png'});
+      sending = true; buttons();
+      try {
+        if (Native.activityShareSupported) {
+          // Only the already-previewed image crosses the native bridge, never account credentials or raw GPS.
+          const data = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(new Error('Couldn’t open this picture')); r.readAsDataURL(picture); });
+          if (!live() || run !== made) return;
+          const result = await Native.shareActivityPicture(data, destination);
+          if (live() && result.handedOff && destination === 'instagram') toast('Finish your post in Instagram');
+        } else if (navigator.canShare && navigator.canShare({files: [file]})) {
+          // Called on the tap without awaiting network/image work, preserving browser share activation.
+          if (destination === 'instagram') toast('Choose Instagram, then finish your post there');
+          await navigator.share({files: [file]});
+        } else {
+          const link = document.createElement('a'); link.href = url; link.download = file.name; document.body.append(link); link.click(); link.remove();
+          toast(destination === 'instagram' ? 'Picture saved. Add it to your post in Instagram.' : 'Picture saved');
+        }
+      } catch (x) { if (live() && x.name !== 'AbortError') toast(x.message || 'Couldn’t share this picture'); }
+      finally { sending = false; if (live()) buttons(); }
     };
+    go.onclick = () => send('system'); instagram.onclick = () => send('instagram');
   });
 }
 // cut `m` metres off each end of the route; nothing left (a short loop) means no route is drawn

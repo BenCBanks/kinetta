@@ -228,3 +228,6 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 
 - [x] Every food estimate displays its current food/ingredient breakdown and total, including descriptions; reviewed ingredient generation is automatic rather than a checkbox and remains behind the food accuracy gate.
 - [x] Submitted food photos appear as temporary on-device chat previews; clear/log/cancel/delete removes them. Completed previews use memory only and disappear on a full reload; pending uploads remain retryable. No server photo history or permanent food-photo storage.
+
+
+Activity sharing: the picture preview offers Instagram composer handoff in the iPhone app, normal image sharing and a browser save fallback, retaining start/end trimming. Tapping an activity's route opens the full-screen map; Close, Escape or Back restores the detail view. Native Instagram handoff still needs physical-device acceptance; browser and stand-in checks do not prove a post was published.

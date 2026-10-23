@@ -1217,3 +1217,10 @@ the roughness was in the first moments. Standards:
   slides the other way. This uses the browser's view transitions, which animate snapshots, so the live page is
   never transformed and pinned/sticky bars keep their place (the reason the old transform slide was removed on
   18 October). Tab switches stay instant. Without support, with reduced motion or with a sheet open, it's a plain swap.
+
+
+## Activity picture sharing and full-screen maps
+
+The activity Share button opens its existing picture preview, including the checked start/end privacy control. Share offers normal image destinations; Instagram hands the same previewed picture to the installed Instagram composer in the iPhone app. The person finishes posting there. Web/older builds use the system image-share chooser or save the picture with an explicit next-step message. No Kinetta activity link or account token is exported, no social audience setting changes, and no automatic post is claimed. Image preparation, duplicate taps, trim changes, sheet closure and account changes are guarded so an earlier untrimmed image cannot be sent after a new privacy selection.
+
+On activity detail, a deliberate map tap opens the existing full-screen map. Pans, pinches, photo-rail swipes and Leaflet controls retain their gestures. The expand/close button remains keyboard accessible; Escape or Back closes the overlay before leaving the activity, restores focus and prior inert state, releases background scrolling and refits every route segment. Route/account navigation cleans up the overlay.
