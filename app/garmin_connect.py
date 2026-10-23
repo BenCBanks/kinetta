@@ -30,7 +30,8 @@ import urllib.parse
 import urllib.request
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel
 
 from . import activities, coach, db, parsers
 from .auth import current_user
@@ -97,8 +98,12 @@ def _token_request(fields):
 
 
 # ---------- signing in ----------
+class StartIn(BaseModel):
+    native: bool = False    # the iPhone app's sign-in sheet: send the answer back to the app, not to a web page
+
+
 @router.post('/connections/garmin-connect/start')
-def start(user=Depends(current_user)):
+def start(body: StartIn | None = None, user=Depends(current_user)):
     _gate(user)
     verifier = secrets.token_urlsafe(64)[:96]
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
@@ -106,7 +111,7 @@ def start(user=Depends(current_user)):
     now = time.time()
     with _pending_guard:
         for k in [k for k, v in _pending.items() if v[2] < now]: del _pending[k]
-        _pending[state] = (user['id'], verifier, now + STATE_TTL)
+        _pending[state] = (user['id'], verifier, now + STATE_TTL, bool(body and body.native))
     q = urllib.parse.urlencode({'client_id': keys()[0], 'response_type': 'code', 'code_challenge': challenge,
                                 'code_challenge_method': 'S256', 'redirect_uri': redirect_uri(), 'state': state})
     return {'url': f'{AUTHORIZE}?{q}'}
@@ -125,26 +130,29 @@ def callback(state: str = '', code: str = '', error: str = ''):
     with _pending_guard: pend = _pending.pop(state, None)
     if not pend or pend[2] < time.time():
         return _page('That link has expired', 'Start again from Me → Connections in Kinetta.', False)
-    uid, verifier, _ = pend
+    uid, verifier, _, native = pend
+    page = _page
+    if native:      # the app's sheet closes on a kinetta:// address and the app shows the result itself
+        page = lambda title, text, ok: RedirectResponse('kinetta://garmin-connect?' + urllib.parse.urlencode({'ok': int(ok), 'title': title, 'text': text}), 302)
     if error or not code:
-        return _page('Garmin wasn’t connected', 'Nothing was shared. You can try again from Me → Connections.', False)
+        return page('Garmin wasn’t connected', 'Nothing was shared. You can try again from Me → Connections.', False)
     try:
         tok = _token_request({'grant_type': 'authorization_code', 'code': code, 'code_verifier': verifier, 'redirect_uri': redirect_uri()})
         gid = str(json.loads(_http(API + '/user/id', headers={'Authorization': 'Bearer ' + tok['access']}))['userId'])
         perms = _permissions(tok['access'])
     except Exception as e:
         print('garmin connect failed', type(e).__name__, flush=True)
-        return _page('Couldn’t connect Garmin', 'Garmin didn’t finish signing in. Try again in a minute.', False)
+        return page('Couldn’t connect Garmin', 'Garmin didn’t finish signing in. Try again in a minute.', False)
     with db.connect() as c:
         other = c.execute("SELECT user_id FROM connections WHERE kind = 'garmin_connect' AND settings->>'garmin_user_id' = %s AND user_id <> %s",
                           (gid, uid)).fetchone()
         if other:
-            return _page('Already connected elsewhere', 'This Garmin account is connected to a different Kinetta account. Disconnect it there first.', False)
+            return page('Already connected elsewhere', 'This Garmin account is connected to a different Kinetta account. Disconnect it there first.', False)
         c.execute("""INSERT INTO connections (user_id, kind, settings, status) VALUES (%s, 'garmin_connect', %s, %s)
                      ON CONFLICT (user_id, kind) DO UPDATE SET settings = excluded.settings, status = excluded.status""",
                   (uid, json.dumps({**tok, 'garmin_user_id': gid, 'permissions': perms}), _status_for(perms, 'connected - Garmin is sending your last 30 days')))
     threading.Thread(target=backfill, args=(uid,), daemon=True).start()
-    return _page('Garmin is connected', 'Your activities from the last 30 days are on their way. New ones arrive shortly after your watch syncs.', True)
+    return page('Garmin is connected', 'Your activities from the last 30 days are on their way. New ones arrive shortly after your watch syncs.', True)
 
 
 def _permissions(access):

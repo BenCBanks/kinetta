@@ -786,6 +786,7 @@ class KinettaBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(KinettaPushPlugin())
         bridge?.registerPluginInstance(KinettaTrackPlugin())
         bridge?.registerPluginInstance(KinettaHapticsPlugin())
+        bridge?.registerPluginInstance(KinettaWebSignInPlugin())
         webView?.scrollView.keyboardDismissMode = .interactive
         // Swipe from the left edge to go back, like every iPhone app (owner: snappy and native, 20 Oct 2026).
         // The app's screens are history entries, so iOS shows its usual sliding preview of the previous screen.

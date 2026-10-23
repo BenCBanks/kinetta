@@ -34,6 +34,10 @@ const Native = (() => {
       else if (navigator.vibrate) navigator.vibrate(kind === 'success' ? [12, 40, 12] : 10);
     } catch (x) { /* never let a buzz break a tap */ }
   };
+  // Signing in to Garmin inside the app (NativeWebSignIn.swift): Apple's sheet closes on a kinetta:// address and hands
+  // it back here. Older app builds don't have it and fall back to Safari.
+  N.signInSheet = on && !!P.KinettaWebSignIn;
+  N.webSignIn = (url) => P.KinettaWebSignIn.open({url});
   N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   N.login = async (server, login, password) => {
