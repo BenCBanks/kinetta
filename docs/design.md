@@ -66,7 +66,7 @@ they already pass on the new surfaces. Outline is neutral `#7B8791` / `#82909C`,
 - Use a neutral base: light grey canvas, white surfaces, near-black text; neutral charcoal layers in dark mode. No cream.
 - Colour belongs to main buttons, selected navigation/controls, links and actual data: charts, legends, sport icons,
   macro dots, streaks and results. Retain labelled error/warning states. Ordinary headings, eyebrow labels, settings
-  icons and decorative surfaces are neutral. No coloured words in headlines or decorative orbits/dots.
+  icons and decorative surfaces are neutral. No coloured words in headlines. The homepage track (below) is brand, not decoration.
 - Headings use the UI sans font via `--font-display: var(--font-ui)`, about 700 weight and slightly negative tracking.
   Existing logo/wordmark artwork, including its type and colours, stays unchanged. Do not redesign icons or branding assets.
 - Nutrition headings use the normal text colour. Eyebrows use muted text. The calorie progress bar uses action blue;
@@ -152,8 +152,9 @@ Apply the same UI sans headings, Sky Blue palette, blue actions and neutral surf
 pages. Header/footer copies must stay consistent. Screenshots are actual implemented demo screens, never generated
 mockups presented as app evidence. Capture on an isolated clean demo install so test accounts do not appear publicly.
 
-Remove the decorative homepage oval track, orbiting dot and their animation toggle. Keep the hero phone,
-existing copy, page sections, links and their order. Headline emphasis inherits normal heading colour and is not
+Keep the homepage track: the logo's oval behind the hero phone with the runner going round it, plus its play/pause
+control (owner, 23 October 2026: "a critical piece to our brand"; briefly removed in #225 and restored). The oval uses
+the quiet divider colour and the runner the brand blue. Keep the hero phone, existing copy, page sections, links and their order. Headline emphasis inherits normal heading colour and is not
 italic; eyebrow labels use muted text. This colour-system decision does not fold feature pages into the homepage.
 
 Refresh captures daily and on app changes. Publication remains a separate owner-authorized step; this colour PR must not publish or deploy. The capture manifest identifies the actual source and
@@ -234,7 +235,7 @@ targets. Native UIKit, WebView and scroll-view backgrounds match the app canvas 
 corners must never expose a default black backing. Browser screenshots cannot prove the actual keyboard animation.
 
 Website prose is authored in `site/content/*.md` and injected into the existing `site/templates/` layouts by
-`dev/design/build_content.py`. Preserve the layout, screenshot refresh and shared feature catalog; the decorative hero track was removed by the Sky Blue decision.
+`dev/design/build_content.py`. Preserve the layout, screenshot refresh and shared feature catalog; the hero track is part of the brand and stays.
 Beta forms and successful confirmations always provide a return link to the public website.
 
 Feed performance: reuse a fresh15-second cached first page and coalesce concurrent identical reads, avoiding duplicate
