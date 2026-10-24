@@ -85,7 +85,7 @@ class AdminUsers(unittest.TestCase):
         self.assertEqual(c.get('/api/me').status_code, 401)
         self.assertEqual(self.a.post(f'/api/admin/people/{self.member}/reset-email', json={'confirm': 'zz_test_au_member'}).status_code, 200)
         m = self.mail.call_args.kwargs['json']
-        self.assertEqual(m['to'], ['zz_au_member@example.test']); self.assertIn('/reset-password/', m['text']); self.assertIn('person who runs Kinetta', m['text'])
+        self.assertEqual(m['to'], ['zz_au_member@example.test']); self.assertIn('/reset-password/', m['text']); self.assertIn("We're sending you a link", m['text'])
         self.assertEqual(self.a.post(f'/api/admin/people/{self.plain}/reset-email', json={'confirm': 'zz_test_au_plain'}).status_code, 409, 'needs a confirmed email')
         self.assertEqual(self.a.post(f'/api/admin/people/{self.admin}/reset-email', json={'confirm': 'zz_test_au_admin'}).status_code, 409, 'not for administrators')
         with db.connect() as c2:

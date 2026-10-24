@@ -93,6 +93,9 @@ def set_email(body: EmailIn, request: Request, background: BackgroundTasks, user
     return {'ok': True, 'pending': email}
 
 
+SIGNATURE = '\n\nThe Kinetta team'
+
+
 def iphone_app():
     """The iPhone app's TestFlight link, when this server publishes one (KINETTA_TESTFLIGHT_URL)."""
     url = os.environ.get('KINETTA_TESTFLIGHT_URL', '').strip()
@@ -104,13 +107,19 @@ def confirmation(background, c, uid, name, email, welcome=False):
     (welcome) also says Kinetta is in beta and how to get the iPhone app."""
     link = f"{_base()}/confirm-email/{_token(c, uid, 'verify_email', VERIFY_HOURS * 60, email)}"
     app = iphone_app() if welcome else None
-    beta = (f"\n\nKinetta is in beta. To record runs, rides and walks with GPS and bring in Apple Health, get the iPhone app:\n"
-            f"1. Install Apple's free TestFlight app from the App Store.\n2. Open this link on your iPhone: {app}\n"
+    # Written the way Ben talks (2026-10-24): short, plain, signed by the team, always "we". No stock phrases.
+    beta = (f"\n\nKinetta is in beta, and the iPhone app is the best way to use it. It records your runs, rides and walks "
+            f"with GPS and brings in your Apple Health workouts. To get it:\n"
+            f"1. Install TestFlight (Apple's free app for betas) from the App Store.\n2. Open this link on your iPhone: {app}\n"
             f"3. Open Kinetta and log in with {email}.") if app else ''
-    background.add_task(send, email, 'Confirm your email for Kinetta' if not welcome else 'Welcome to Kinetta: confirm your email',
-        f"Hi {name},\n\nOpen this link to confirm this is your email address for Kinetta:\n{link}\n\n"
-        f"It works once and expires in {VERIFY_HOURS} hours. You'll then be able to log in with this address and reset "
-        f"your password if you forget it.{beta}\n\nIf you didn't ask for this, ignore this email; nothing changes.")
+    if welcome:
+        subject, text = 'Welcome to Kinetta', (f"Hi {name},\n\nWelcome to Kinetta! Tap this link to confirm your email:\n{link}\n\n"
+            f"It works for {VERIFY_HOURS} hours. Once it's confirmed, you can log in with this email and reset your password if you ever need to."
+            f"{beta}\n\nIf you didn't sign up, you can ignore this email.")
+    else:
+        subject, text = 'Confirm your new email for Kinetta', (f"Hi {name},\n\nTap this link to confirm {email} as your email for Kinetta:\n{link}\n\n"
+            f"It works for {VERIFY_HOURS} hours. If you didn't ask for this, you can ignore this email.")
+    background.add_task(send, email, subject, text + SIGNATURE)
 
 
 def pending(c, uid):
@@ -139,7 +148,7 @@ def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
     if r['current'] and r['current'].lower() != r['email'].lower():
         background.add_task(send, r['current'], 'Your Kinetta email was changed',
             f"Hi {r['name']},\n\nThe email on your Kinetta account ({r['login']}) is now {r['email']}. "
-            "If you didn't do this, reply to this email straight away.")
+            "If that wasn't you, reply to this email and we'll help sort it out." + SIGNATURE)
     return {'ok': True, 'email': r['email']}
 
 
@@ -164,11 +173,11 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
 def send_reset(background, c, u, by_admin=False):
     """A single-use reset link to the account's confirmed email (u: id, name, login, email)."""
     token = _token(c, u['id'], 'reset_password', RESET_MINUTES)
-    who = 'The person who runs Kinetta sent you' if by_admin else 'Someone asked for'
+    who = "We're sending you a link to reset" if by_admin else 'Someone (hopefully you) asked to reset'
     background.add_task(send, u['email'], 'Reset your Kinetta password',
-        f"Hi {u['name']},\n\n{who} a link to reset the password for your Kinetta account ({u['login']}). "
-        f"To choose a new one, open this link:\n{_base()}/reset-password/{token}\n\n"
-        f"It works once and expires in {RESET_MINUTES} minutes. If you didn't ask, ignore this email; your password stays the same.")
+        f"Hi {u['name']},\n\n{who} the password for your Kinetta account ({u['login']}). "
+        f"Tap this link to choose a new one:\n{_base()}/reset-password/{token}\n\n"
+        f"It works once, for {RESET_MINUTES} minutes. If you didn't ask for this, ignore this email and your password stays as it is." + SIGNATURE)
 
 
 class ResetIn(BaseModel):
@@ -203,5 +212,5 @@ def reset(body: ResetIn, request: Request, background: BackgroundTasks):
 def password_changed(background, email, name, login):
     if email:
         background.add_task(send, email, 'Your Kinetta password was changed',
-            f"Hi {name},\n\nThe password for your Kinetta account ({login}) was just changed, and other phones and "
-            "browsers were signed out. If you didn't do this, reply to this email straight away.")
+            f"Hi {name},\n\nThe password for your Kinetta account ({login}) was just changed, and your other phones and "
+            "browsers were signed out. If that wasn't you, reply to this email right away." + SIGNATURE)

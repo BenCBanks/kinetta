@@ -53,7 +53,7 @@ def manage(uid: int, action: Literal['reset-email','signout','suspend','restore'
             if action == 'remove': api_account.erase(c, p)
             if action in ('suspend','restore') and p['email_verified_at']:
                 background.add_task(account_email.send, p['email'], 'Your Kinetta account was '+('suspended' if action=='suspend' else 'restored'),
-                    'Hi '+p['name']+',\n\nYour Kinetta account was '+('suspended while a report is reviewed. Your data is kept.' if action=='suspend' else 'restored. You can sign in again.')+'\n\nReply to this email if you need help.')
+                    'Hi '+p['name']+',\n\n'+('Your Kinetta account is suspended while we look into a report. Your data is kept, and nothing has been deleted.' if action=='suspend' else 'Good news: your Kinetta account is active again. You can log in as usual.')+'\n\nReply to this email if you have questions.'+account_email.SIGNATURE)
             result = complete(c, user, body, audit_action, uid, digest)
     if action == 'remove': api_account.erase_files(uid)  # Safe to repeat after a lost response; IDs are never reused.
     return result
