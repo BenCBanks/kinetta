@@ -61,7 +61,12 @@ try:
     assert profile(owner, '?as_friend=true')['weeks'] == friend['weeks']
     req(viewer, 'PUT', '/api/profile', {'tz':'Asia/Tokyo'})
     local = profile(viewer)['weeks']
-    assert local[-2]['distance_m'] == 2000 and local[-1]['distance_m'] == 13000, 'Sunday buckets follow viewer timezone'
+    # On a Saturday after 15:00 UTC it is already Sunday in Tokyo: the viewer's current week is a new, empty one and
+    # the earlier weeks move back by one (2026-10-24: this failed CI at 15:03 UTC on a Saturday).
+    tokyo = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).date()
+    shift = 1 if tokyo - dt.timedelta(days=(tokyo.weekday() + 1) % 7) > sunday else 0
+    assert local[-2-shift]['distance_m'] == 2000 and local[-1-shift]['distance_m'] == 13000, 'Sunday buckets follow viewer timezone'
+    assert not shift or local[-1]['distance_m'] == 0
     req(viewer, 'POST', '/api/people/zz_test_chart_owner/block')
     req(viewer, 'GET', '/api/people/zz_test_chart_owner/profile', code=404)
     req(Client(), 'GET', '/api/stats', code=401)
