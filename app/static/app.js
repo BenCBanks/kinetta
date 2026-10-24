@@ -1111,10 +1111,12 @@ function showLogin(msg = '') {
   if (Native.on) {
     const p = $('.login .small.muted', root), srv = $('#l-server', root);
     p.innerHTML = `New here? <a href="${Native.server}/beta" target="_blank" rel="noopener">Join the beta</a>`;
+    api('/api/signup').then((r) => { const a = $('a', p); if (r.open && a) { a.href = Native.server + '/signup'; a.textContent = 'Create an account'; } }).catch(() => {});
     const o = $('#l-other', p); if (o) o.onclick = (e) => { e.preventDefault(); srv.hidden = false; o.remove(); $('input', srv).focus(); };
   }
-  if (!Native.on) api('/api/beta').then((r) => {   // a server with the public waitlist on: point newcomers to it
+  if (!Native.on) Promise.all([api('/api/beta'), api('/api/signup').catch(() => ({}))]).then(([r, open]) => {   // point newcomers to signup or the waitlist
     const p = $('.login .small.muted', root);
+    if (open.open && p) { p.innerHTML = 'New here? <a href="/signup">Create an account</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(); }; return; }
     if (r.open && p) { p.innerHTML = 'New here? <a href="/beta">Join the beta</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/beta'); showBeta(); }; }
   }).catch(() => {});
   f.addEventListener('submit', async (e) => {
@@ -1134,16 +1136,19 @@ function phoneDefaults() {
   return {tz, units: ['US', 'LR', 'MM'].includes(region.toUpperCase()) ? 'imperial' : 'metric'};
 }
 // "Create your account" (brand-new server: the first person becomes the admin) or "Join" (from an invite link)
-function showNewAccount({title, intro, button, send}) {
+function showNewAccount({title, intro, button, send, signup = false}) {
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
+    ${signup ? '<label>Email<input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted">We\'ll send a link to confirm it. It\'s never shown to other people.</p>' : ''}
     <label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></label>
     <p class="small muted">What you'll type to log in: lowercase letters, numbers or _.</p>
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
     <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
     <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone on Kinetta</option><option value="friends">Approved friends</option><option value="me">Only me</option></select></label>
     <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
+    ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older and agree to the <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">privacy policy</a></span></label>
+    <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>` : ''}
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
@@ -1156,9 +1161,12 @@ function showNewAccount({title, intro, button, send}) {
     e.preventDefault();
     const b = $('button', f), err = $('.err', f);
     if (!f.name.value.trim() || !f.login.value.trim()) { err.textContent = 'Enter your name and a username.'; return; }
+    if (signup && !f.email.value.trim()) { err.textContent = 'Enter your email.'; f.email.focus(); return; }
     if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; f.password.focus(); return; }
+    if (signup && !f.age_ok.checked) { err.textContent = 'Kinetta is for people 16 or older.'; return; }
     b.disabled = true; err.textContent = '';
-    try { await send({name: f.name.value, login: f.login.value.trim().toLowerCase(), password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults()}); history.replaceState(null, '', '/me'); await start(); }
+    try { await send({name: f.name.value, login: f.login.value.trim().toLowerCase(), password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
+        ...(signup ? {email: f.email.value.trim(), age_ok: f.age_ok.checked, website: f.website.value} : {})}); history.replaceState(null, '', '/me'); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }
@@ -1174,13 +1182,28 @@ async function showJoin(token) {
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
+// "Create an account" (open signup, #232): email, username, password and a 16+ confirmation. When the server's account
+// cap is reached the waitlist takes over; the email link still has to be opened before others can see the person.
+async function showSignup() {
+  let s = {};
+  try { s = await api('/api/signup'); } catch (x) { /* treat as closed */ }
+  if (s.full) { history.replaceState(null, '', '/beta'); return showBeta(true); }
+  if (!s.open) { history.replaceState(null, '', '/'); return showLogin(); }
+  showNewAccount({title: 'Create your account', button: 'Create my account', signup: true,
+    intro: 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
+    send: async (body) => {
+      try { await api('/api/signup', json('POST', body)); }
+      catch (x) { if (x.status === 409 && x.code === 'full') { history.replaceState(null, '', '/beta'); showBeta(true); return new Promise(() => {}); } throw x; }
+    }});
+  const back = $('#s-login', root); if (back) back.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
+}
 // "Join the beta" (public waitlist, only when the server has KINETTA_BETA_SIGNUP=1): no account yet, an admin invites them
-async function showBeta() {
+async function showBeta(full = false) {
   let open = false;
   try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }
   if (!open) { history.replaceState(null, '', '/'); return showLogin(); }
   root.innerHTML = `<div class="login"><form novalidate>
-    <div>${BRAND}<h1>Join the beta</h1><p>Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers. Tell us a little about you and we'll send you an invite link.</p></div>
+    <div>${BRAND}<h1>${full ? 'Kinetta is full for now' : 'Join the beta'}</h1><p>${full ? 'We’ve reached our limit for new accounts. Leave your details and we’ll email you when there’s room.' : "Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers. Tell us a little about you and we'll send you an invite link."}</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
     <label>Email<input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label>
     <label>Your phone<select name="phone" required><option value="">Choose…</option><option value="iphone">iPhone</option><option value="android">Android</option><option value="other">Something else</option></select></label>
@@ -1272,6 +1295,7 @@ async function showWelcome() {
   const join = location.pathname.match(/^\/join\/([\w-]+)$/);
   if (join) return showJoin(join[1]);
   if (location.pathname === '/beta') return showBeta();
+  if (location.pathname === '/signup' && !setup.needed) return showSignup();
   if (!setup.needed) return showLogin();
   showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account',
     intro: "This is a brand-new Kinetta. Create your account first. You'll be its admin and can invite your people next.",
@@ -1285,7 +1309,7 @@ async function start() {
   if (location.pathname === '/forgot-password' && !kept('/api/me')) return showForgot();
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
-    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/me');
+    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta' || location.pathname === '/signup') history.replaceState(null, '', '/me');
     Native.resumeFoodEntry?.();render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)

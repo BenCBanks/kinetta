@@ -13,7 +13,9 @@ router=APIRouter(prefix='/api/admin')
 def overview(user=Depends(admin_user)):
     with db.connect() as c:
         counts=c.execute("SELECT (SELECT count(*) FROM users) AS accounts,(SELECT count(*) FROM users WHERE is_admin) AS administrators,(SELECT count(*) FROM beta_requests WHERE status='new') AS pending_requests,(SELECT count(*) FROM reports WHERE status='open') AS reports,(SELECT count(*) FROM imports WHERE status='failed' AND created>now()-interval '1 day') AS failed_imports,(SELECT count(*) FROM connections WHERE status LIKE 'sync failed:%%') AS connection_failures").fetchone()
-    return {**counts,'email':admin_mail.settings()}
+        from . import signup
+        signup_state=signup.state(c)       # mode and real accounts against the cap (#232)
+    return {**counts,'email':admin_mail.settings(),'signup':signup_state}
 
 
 @router.get('/people')

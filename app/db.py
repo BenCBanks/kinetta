@@ -1324,6 +1324,10 @@ MIGRATIONS = [
     ALTER TABLE auth_attempts ENABLE ROW LEVEL SECURITY;
     REVOKE ALL ON account_tokens, auth_attempts FROM PUBLIC, fit_readers, fit_all_readers;
     """,
+    # 68 (2026-10-24): accounts made through open signup (#232 D) stay out of other people's sight until their email is
+    # confirmed (api_social.unconfirmed). Invited and existing accounts are unaffected (false).
+    """ALTER TABLE users ADD COLUMN needs_email_confirm boolean NOT NULL DEFAULT false;
+    """,
 ]
 
 

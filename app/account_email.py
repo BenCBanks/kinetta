@@ -89,13 +89,24 @@ def set_email(body: EmailIn, request: Request, background: BackgroundTasks, user
         if limited(c, f"email:{user['id']}", 5, 60): raise HTTPException(429, 'Too many tries - wait an hour')
         stored = c.execute('SELECT pw_hash FROM users WHERE id = %s', (user['id'],)).fetchone()['pw_hash']
         if not auth.check_pw(stored, body.password): raise HTTPException(400, 'Your password is wrong')
-        token = _token(c, user['id'], 'verify_email', VERIFY_HOURS * 60, email)
-    link = f'{_base()}/confirm-email/{token}'
+        confirmation(background, c, user['id'], user['name'], email)
+    return {'ok': True, 'pending': email}
+
+
+def confirmation(background, c, uid, name, email):
+    """A fresh single-use link to confirm `email`, sent after the caller's transaction commits."""
+    link = f"{_base()}/confirm-email/{_token(c, uid, 'verify_email', VERIFY_HOURS * 60, email)}"
     background.add_task(send, email, 'Confirm your email for Kinetta',
-        f"Hi {user['name']},\n\nOpen this link to confirm this is your email address for Kinetta:\n{link}\n\n"
+        f"Hi {name},\n\nOpen this link to confirm this is your email address for Kinetta:\n{link}\n\n"
         f"It works once and expires in {VERIFY_HOURS} hours. You'll then be able to log in with this address and reset "
         "your password if you forget it.\n\nIf you didn't ask for this, ignore this email; nothing changes.")
-    return {'ok': True, 'pending': email}
+
+
+def pending(c, uid):
+    """The address waiting for its confirmation link to be opened, if any."""
+    r = c.execute("""SELECT email::text AS email FROM account_tokens WHERE user_id = %s AND kind = 'verify_email'
+                     AND used_at IS NULL AND expires > now() ORDER BY created DESC LIMIT 1""", (uid,)).fetchone()
+    return r and r['email']
 
 
 class TokenIn(BaseModel):
@@ -110,7 +121,7 @@ def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
         r = _open(c, body.token, 'verify_email')
         try:
             with c.transaction():
-                c.execute('UPDATE users SET email = %s, email_verified_at = now() WHERE id = %s', (r['email'], r['user_id']))
+                c.execute('UPDATE users SET email = %s, email_verified_at = now(), needs_email_confirm = false WHERE id = %s', (r['email'], r['user_id']))
         except errors.UniqueViolation:
             raise HTTPException(409, 'That email is already used by another Kinetta account.')
         c.execute('UPDATE account_tokens SET used_at = now() WHERE token_hash = %s', (r['token_hash'],))

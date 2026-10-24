@@ -49,7 +49,18 @@ def blocked(who):
                                          OR (b.user_id = {who} AND b.blocked = %(viewer)s))"""
 
 
-CAN_SEE = f"""(a.user_id = %(viewer)s OR (NOT {blocked('a.user_id')} AND (a.visibility = 'everyone' OR (a.visibility = 'friends' AND EXISTS (
+# New sign-ups stay out of sight until they confirm their email (#232, 2026-10-24): others don't see their activities,
+# profile or name in search, and they can't send friend requests, comments or reactions. Keeps spam accounts quiet.
+def unconfirmed(who):
+    return f"EXISTS (SELECT 1 FROM users nu WHERE nu.id = {who} AND nu.needs_email_confirm)"
+
+
+def confirmed(c, uid):
+    if c.execute('SELECT needs_email_confirm FROM users WHERE id = %s', (uid,)).fetchone()['needs_email_confirm']:
+        raise HTTPException(403, 'Confirm your email first: open the link we sent you. Settings → Email can send it again.')
+
+
+CAN_SEE = f"""(a.user_id = %(viewer)s OR (NOT {blocked('a.user_id')} AND NOT {unconfirmed('a.user_id')} AND (a.visibility = 'everyone' OR (a.visibility = 'friends' AND EXISTS (
     SELECT 1 FROM friendships f WHERE f.status = 'accepted'
       AND ((f.requester = a.user_id AND f.addressee = %(viewer)s) OR (f.addressee = a.user_id AND f.requester = %(viewer)s)))))))"""
 FRIEND_IDS = """SELECT CASE WHEN f.requester = %(viewer)s THEN f.addressee ELSE f.requester END FROM friendships f
@@ -190,7 +201,7 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
         rows = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent
             FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
             LEFT JOIN profile p ON p.user_id = u.id
-            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT {blocked}
+            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND NOT {blocked}
               AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
               AND (%(q)s = '' OR u.login ILIKE %(match)s OR u.name ILIKE %(match)s)
             ORDER BY (u.login = lower(%(q)s)) DESC, (lower(u.name) = lower(%(q)s)) DESC,
@@ -206,9 +217,10 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
     """An authenticated profile directory, never a bypass around activity visibility or blocking.
     as_friend (your own profile only): what a friend sees - your activities shared with friends or everyone."""
     with db.connect() as c:
-        person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created
+        person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created, needs_email_confirm
                               FROM users WHERE login = %s AND pw_hash IS NOT NULL""", (login.lower(),)).fetchone()
-        if not person or _blocked_pair(c, user['id'], person['id']): raise HTTPException(404, 'Not found')
+        if not person or _blocked_pair(c, user['id'], person['id']) or (person.pop('needs_email_confirm') and person['id'] != user['id']):
+            raise HTTPException(404, 'Not found')
         person['bio'] = (c.execute('SELECT bio FROM profile WHERE user_id = %s', (person['id'],)).fetchone() or {}).get('bio', '')
         relation = _pair(c, user['id'], person['id'])
         status = ('friends' if relation['status'] == 'accepted' else
@@ -268,9 +280,11 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
 def friend_request(body: FriendIn, user=Depends(current_user)):
     """Ask someone to be friends, by their exact username. If they already asked you, you're friends now."""
     with db.connect() as c:
+        confirmed(c, user['id'])
         t = _person(c, body.login)
         if t['id'] == user['id']: raise HTTPException(400, "That's your own username")
-        if _blocked_pair(c, user['id'], t['id']): raise HTTPException(404, 'No one on this Kinetta has that username')
+        if _blocked_pair(c, user['id'], t['id']) or c.execute(f"SELECT {unconfirmed('%s')} AS x", (t['id'],)).fetchone()['x']:
+            raise HTTPException(404, 'No one on this Kinetta has that username')
         f = _pair(c, user['id'], t['id'], lock=True)
         if f and f['status'] == 'accepted': raise HTTPException(409, f"You and {t['name']} are already friends")
         if f and f['requester'] == t['id']:
@@ -431,6 +445,7 @@ class ReactionIn(BaseModel):
 
 def _react(aid,kind,user):
     with db.connect() as c:
+        confirmed(c,user['id'])
         owner=can_see(c,user['id'],aid)
         changed=c.execute("""INSERT INTO cheers(activity_id,user_id,kind) VALUES(%s,%s,%s)
           ON CONFLICT(activity_id,user_id) DO UPDATE SET kind=excluded.kind
@@ -472,6 +487,7 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
     text = body.text.strip()
     if not text: raise HTTPException(400, 'Write something first')
     with db.connect() as c:
+        confirmed(c, user['id'])
         owner = can_see(c, user['id'], aid)
         cid = c.execute('INSERT INTO comments (activity_id, user_id, text) VALUES (%s, %s, %s) RETURNING id', (aid, user['id'], text)).fetchone()['id']
         notify.add(c, owner, 'comment', user['id'], activity_id=aid, comment_id=cid)

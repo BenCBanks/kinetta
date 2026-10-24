@@ -19,7 +19,9 @@ EMAIL_RE = re.compile(r'^[^@\s<>]+@[^@\s<>]+\.[a-z]{2,}$', re.I)
 MAX_WAITING = 500     # stop taking requests if this many are unanswered (keeps a flood from filling the disk)
 
 
-def enabled(): return os.environ.get('KINETTA_BETA_SIGNUP', '') == '1'
+def enabled():
+    from . import signup      # the waitlist also opens in waitlist mode, and when open signup is full (#232)
+    return os.environ.get('KINETTA_BETA_SIGNUP', '') == '1' or signup.waitlist_open()
 
 
 class BetaIn(BaseModel):

@@ -218,7 +218,8 @@ function getStarted(healthConnected = false, hasHistory = false) {
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
   const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
   const rows = [
-    App.me?.mail_ready && !App.me.email && !pendingEmail() ? step('/me/settings?email=add', 'mail', 'c-brand', 'Add your email', 'So you can reset your password if you forget it') : '',
+    App.me?.needs_email_confirm ? step('/me/settings?email=add', 'mail', 'c-brand', 'Confirm your email', `Open the link we sent${pendingEmail() ? ' to ' + esc(pendingEmail()) : ''}. Until then, other people can't see your activities or find you.`) : '',
+    App.me?.mail_ready && !App.me.email && !pendingEmail() && !App.me.needs_email_confirm ? step('/me/settings?email=add', 'mail', 'c-brand', 'Add your email', 'So you can reset your password if you forget it') : '',
     !hasHistory ? step('/track/connections', 'watch', 'c-brand', 'Connect your watch', 'Garmin Connect or Apple Health · optional, you can do this later') : '',
     Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
     !hasHistory ? step('/track', 'track', 'c-green', 'Record an activity', 'A run, ride, walk or lifting session with your phone.') : '',
@@ -1475,7 +1476,7 @@ function accountSheet(field) {
 // reset a forgotten password. Needs the current password, so someone at an unlocked phone can't redirect resets.
 // the address waiting for its link to be opened, until this account's details next come from the server with an email
 let pendingSent = null;
-const pendingEmail = () => pendingSent && pendingSent.id === App.me?.id && !App.me.email ? pendingSent.email : null;
+const pendingEmail = () => App.me && !App.me.email ? (pendingSent && pendingSent.id === App.me.id ? pendingSent.email : App.me.pending_email) || null : null;
 function emailSheet() {
   const me = App.me;
   if (!me.mail_ready) { sheet('Email', '<p>Email isn’t set up on this Kinetta yet. Ask the person who runs it.</p>'); return; }
