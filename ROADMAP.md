@@ -3,6 +3,28 @@
 Last reviewed: October 24, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
 Requirements live in GitHub issues. Use [the requirements guide](docs/requirements.md) to make an item ready to build.
 
+## Now — launch plan (October 24, 2026)
+
+The owner's goal: let anyone sign up with their email until the hosted service reaches **100 accounts**, then waitlist
+([#232 decision](https://github.com/BenCBanks/kinetta/issues/232#issuecomment-6384562975)). Already done: email sending
+is configured on the hosted server, the admin portal requires an authenticator code again, Garmin Connect is open to every
+account, the TestFlight install link is configured for invites, and Settings/logout are separate from Me (#238).
+Work in this order; each step is one or more reviewable PRs.
+
+| Step | Work | Issue | Gate before the next step |
+| --- | --- | --- | --- |
+| L1 | Email on accounts: add/confirm/change email, log in with username or email, **Forgot password** by email, sender shown as "Kinetta" | [#232](https://github.com/BenCBanks/kinetta/issues/232) A–C | A fictional account resets its password by email end to end |
+| L2 | **Sign up with email** (16+ confirmation, confirm address), operator signup mode and the 100-account cap, waitlist when full, Accounts N of 100 in admin | #232 D | Cap and race tests pass on a test copy |
+| L3 | Admin launch safety and core user management: database-backed login limits, MFA-off warning, operator checklist, account search, account page, send reset email, sign out everywhere, suspend/restore | [#233](https://github.com/BenCBanks/kinetta/issues/233) A–D | Admin can support a fictional account without database access |
+| L4 | First run and settings clean-up: Get started leads for new people (no empty charts), Settings only holds settings, one Notifications entry, simpler profile editing, Signed-in devices | #232 F, G, I and its #238 review comment | Fresh account walk-through at 390 px, light and dark |
+| L5 | iPhone app: create account, forgot password and the first-run steps natively; new TestFlight build | #232 E | Owner installs the build and signs up on a physical iPhone |
+| L6 | Activity accuracy before inviting strangers: GPS distance filtering, phone + watch duplicates, live pace/splits/audio, physical-iPhone acceptance | [#234](https://github.com/BenCBanks/kinetta/issues/234) P0 | Owner's outdoor test table passes |
+| L7 | Open the doors: switch the hosted server to open signup with the cap, publish the TestFlight link on kinetta.app (with a tester limit), moderation and data-request tools | #233 E–G | Owner decision |
+
+L1–L4 are server and web work and can proceed without a device. L5–L6 need a signed build and the owner outdoors with
+an iPhone. Keep the owner's regression-suite cases for accounts (ACC), onboarding (ONB) and admin (ADM)
+passing at every step.
+
 **Direction (updated October 18, 2026, [#164](https://github.com/BenCBanks/kinetta/issues/164)):** Kinetta's home and
 navigation are activity-first again: recording on your phone, Apple Health import, plans and friends lead, with the
 original Me · Activity · Track · Progress · Nutrition tabs. The nutrition work from
