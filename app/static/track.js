@@ -27,10 +27,28 @@ const TrackMath = {
     }
     if (!s.anchor || s.anchor.segment !== p.segment) s.anchor = null;   // a new section never adds distance across the gap
     const step = this.step(s.anchor, p);
-    if (step !== null) { s.distance += step; s.anchor = p; }
+    // moving again after a stop: a counted step, or the first fix of a new section (no GPS arrives while you stand still)
+    if (step !== null) { s.distance += step; if (step > 0 || last) this.moved(s, position.timestamp); s.anchor = p; }
+    // a split each full mile or km (#234 item 4): the active time when it was reached
+    if (s.splitMetres) { s.splits = s.splits || []; while (s.distance >= (s.splits.length + 1) * s.splitMetres) s.splits.push(this.seconds(s, position.timestamp)); }
     s.points.push(p); return true;
   },
-  seconds(s, now = Date.now()) { return s.activeMs / 1000 + (s.state === 'recording' ? Math.max(0, now - s.activeAt) / 1000 : 0); },
+  // Auto-pause (#234 item 4, same rule in TrackRecordingState.swift): 15 s without moving stops the clock until you move
+  // again, without a jump in the time shown. Only time beyond those 15 s is left out.
+  AUTO_MS: 15000,
+  idle(s, now) { return s.autoPause && s.state === 'recording' && s.lastMove != null ? Math.max(0, now - s.lastMove - this.AUTO_MS) : 0; },
+  autoPaused(s, now = Date.now()) { return this.idle(s, now) > 0; },
+  moved(s, at) { s.autoMs = (s.autoMs || 0) + this.idle(s, at); s.lastMove = at; },
+  // On a manual pause the idle stretch so far is kept out; Resume counts as movement.
+  settle(s, at) { s.autoMs = (s.autoMs || 0) + this.idle(s, at); s.lastMove = null; },
+  seconds(s, now = Date.now()) { return Math.max(0, s.activeMs + (s.state === 'recording' ? Math.max(0, now - s.activeAt) : 0) - (s.autoMs || 0) - this.idle(s, now)) / 1000; },
+  // Pace or speed over the last ~30 s of samples [{t, d}] the screen keeps; null when too little movement to say.
+  current(samples, now) {
+    const recent = samples.filter((x) => now - x.t <= 30000);
+    if (recent.length < 2) return null;
+    const a = recent[0], b = recent[recent.length - 1], metres = b.d - a.d, secs = (b.t - a.t) / 1000;
+    return metres >= 10 && secs >= 5 ? metres / secs : null;     // metres per second
+  },
 };
 const Track = (() => {
   let session = null, key = null, owner = null, watch = null, wake = null, message = '', saving = false, mapTimer = null, mapView = null, lastPersist = 0, nativeTask = null, controlling = false, display = 'map', nativeRevision = 0;
@@ -43,7 +61,7 @@ const Track = (() => {
   }
   async function pause(write = true) {
     if (session?.native) { await nativeControl('pause'); return; }
-    if (session?.state === 'recording') { session.activeMs += Math.max(0, Date.now() - session.activeAt); session.state = 'paused'; session.segment++; }
+    if (session?.state === 'recording') { TrackMath.settle(session, Date.now()); session.activeMs += Math.max(0, Date.now() - session.activeAt); session.state = 'paused'; session.segment++; }
     if (/^(GPS connected|Timer running|Waiting for)/.test(message)) message = 'Paused';
     stopGPS(); if (write && session) persist(); update();
   }
@@ -54,7 +72,7 @@ const Track = (() => {
       key = next; owner = App.me ? readOwner() : null; session = key ? store.get(key) : null; message = '';
       if (session) {
         // No time is invented between the last durable checkpoint and opening Kinetta again.
-        if (session.state === 'recording' && !session.native) { session.activeMs += Math.max(0, (session.checkpoint || session.activeAt) - session.activeAt); session.state = 'paused'; session.segment++; message = 'Recording paused when Kinetta closed. Resume when you are ready.'; persist(); }
+        if (session.state === 'recording' && !session.native) { TrackMath.settle(session, session.checkpoint || session.activeAt); session.activeMs += Math.max(0, (session.checkpoint || session.activeAt) - session.activeAt); session.state = 'paused'; session.segment++; message = 'Recording paused when Kinetta closed. Resume when you are ready.'; persist(); }
       }
     }
     updateTab();
@@ -95,7 +113,7 @@ const Track = (() => {
     if (!session || session.state === 'review' || saving) return;
     if (document.hidden) return;
     if (session.native) { await nativeControl('resume'); return; }
-    session.state = 'recording'; session.activeAt = Date.now(); message = session.gps ? 'Waiting for a clear GPS signal…' : 'Timer running';
+    session.state = 'recording'; session.activeAt = Date.now(); session.lastMove = session.activeAt; message = session.gps ? 'Waiting for a clear GPS signal…' : 'Timer running';
     if (!persist()) return;
     if (session.gps) {
       if (!navigator.geolocation || !window.isSecureContext) { message = 'GPS needs a secure connection and location support. You can use the timer instead.'; pause(); draw(); return; }
@@ -103,7 +121,8 @@ const Track = (() => {
       watch = navigator.geolocation.watchPosition((p) => {
         if (session !== activeSession || readOwner() !== activeOwner || session.state !== 'recording' || document.hidden) return;
         if (session.points.length >= 24000) { pause(); message = 'GPS point limit reached. Finish and save this session.'; draw(); return; }
-        if (TrackMath.accept(session, p, Date.now())) { message = `GPS connected · ±${Math.round(p.coords.accuracy)} m`; session.checkpoint = Date.now(); persist(false); update(); refreshMap(); }
+        const before = (session.splits || []).length;
+        if (TrackMath.accept(session, p, Date.now())) { if ((session.splits || []).length > before) announce(session); message = `GPS connected · ±${Math.round(p.coords.accuracy)} m`; session.checkpoint = Date.now(); persist(false); update(); refreshMap(); }
         else if (p.coords.accuracy > 100) { message = 'Weak GPS signal · waiting for better accuracy'; update(); }
       }, (e) => {
         if (session !== activeSession || readOwner() !== activeOwner || session.state !== 'recording') return;
@@ -115,14 +134,32 @@ const Track = (() => {
     try { if (navigator.wakeLock) { const lock = await navigator.wakeLock.request('screen'); if (session?.state === 'recording' && owner === readOwner()) wake = lock; else await lock.release(); } } catch (_) { /* foreground limitation remains visible */ }
     draw();
   }
+  let samples = [];
+  const speedSport = (x) => ['ride', 'ski'].includes(x.sport);
+  const unitName = (x) => x.splitMetres > 1500 ? 'Mile' : 'Km';
+  // metres per second as pace (/mi or /km) or, for rides and skiing, speed
+  const rateText = (x, v) => speedSport(x) ? (v * 3600 / (imp() ? 1609.344 : 1000)).toFixed(1) : dur((imp() ? 1609.344 : 1000) / v);
+  // the browser recorder speaks each split while its page is open; the iPhone app speaks it natively, even when locked
+  function announce(x) {
+    if (!x.voice || !window.speechSynthesis || x.native) return;
+    const n = x.splits.length, total = x.splits[n - 1], last = total - (n > 1 ? x.splits[n - 2] : 0);
+    const said = (sec) => { sec = Math.round(sec); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, r = sec % 60; return [h ? h + (h > 1 ? ' hours' : ' hour') : '', m ? m + (m > 1 ? ' minutes' : ' minute') : '', r ? r + (r > 1 ? ' seconds' : ' second') : ''].filter(Boolean).join(' ') || '0 seconds'; };
+    const unit = x.splitMetres > 1500 ? 'mile' : 'kilometre';
+    try { speechSynthesis.speak(new SpeechSynthesisUtterance(`${n} ${unit}${n > 1 ? 's' : ''}. Time ${said(total)}. ${speedSport(x) ? `Last ${unit} at ${Math.round(3600 / last)} ${unit}s per hour` : `Last ${unit} ${said(last)}`}.`)); } catch (_) { /* no voice on this browser */ }
+  }
   function clock(n) { n = Math.floor(n); return `${String(Math.floor(n / 3600)).padStart(2, '0')}:${String(Math.floor(n / 60) % 60).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`; }
   function update() {
     updateTab();
     if (!session || !App.me || accountKey() !== key) return;
     const time = $('#track-time'); if (time) time.textContent = clock(TrackMath.seconds(session));
     const d = $('#track-distance'); if (d) d.textContent = U.dist(session.distance, 2);
-    const pace = $('#track-pace'); if (pace) { const secs = TrackMath.seconds(session); pace.textContent = session.distance > 10 && secs > 0 ? (session.sport === 'ride' ? (session.distance / (imp() ? 1609.344 : 1000) / (secs / 3600)).toFixed(1) : dur(secs / (session.distance / (imp() ? 1609.344 : 1000)))) : '—'; }
-    const status = $('#track-status'); if (status) status.textContent = message || (session.state === 'recording' ? 'Recording' : 'Paused');
+    const now = Date.now(), secs = TrackMath.seconds(session, now), idle = TrackMath.autoPaused(session, now);
+    if (session.state === 'recording') { samples.push({t: now, d: session.distance}); while (samples.length && now - samples[0].t > 35000) samples.shift(); } else samples = [];
+    // the big number is your pace right now (last ~30 s); the average and the last split sit underneath (#234 item 4)
+    const pace = $('#track-pace'); if (pace) { const v = idle ? null : TrackMath.current(samples, now); pace.textContent = v ? rateText(session, v) : '—'; }
+    const splits = $('#track-splits'); if (splits) { const n = (session.splits || []).length, last = n ? session.splits[n - 1] - (n > 1 ? session.splits[n - 2] : 0) : 0;
+      splits.textContent = session.distance > 10 && secs > 0 ? `Average ${rateText(session, session.distance / secs)}${n ? ` · ${unitName(session)} ${n} in ${dur(last)}` : ''}` : ''; }
+    const status = $('#track-status'); if (status) status.textContent = idle ? 'Auto-paused · starts again when you move' : message || (session.state === 'recording' ? 'Recording' : 'Paused');
   }
   function lines() { const by = new Map(); for (const p of session.points) { if (!by.has(p.segment)) by.set(p.segment, []); by.get(p.segment).push([p.lat, p.lon]); } return [...by.values()].filter((a) => a.length > 1); }
   function refreshMap() {
@@ -155,7 +192,7 @@ const Track = (() => {
     const review = session.state === 'review', paused = session.state !== 'recording';
     el.innerHTML = `<section class="track-session track-live ${display === 'stats' ? 'stats-expanded' : ''}"><div class="track-live-top"><h2>${esc(session.label)}</h2>${session.gps && !review ? `<div class="seg" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</div>
       <p id="track-status" class="small muted" role="status"></p>
-      <div class="track-live-metrics">${session.gps ? `<div><small>Distance · ${U.du()}</small><b class="num" id="track-distance"></b></div>` : ''}<div><small>Active time</small><b class="num" id="track-time"></b></div>${session.gps ? `<div><small>${session.sport === 'ride' ? 'Avg. speed · ' + U.du() + '/h' : 'Avg. pace · /' + U.du()}</small><b class="num" id="track-pace"></b></div>` : ''}</div>
+      <div class="track-live-metrics">${session.gps ? `<div><small>Distance · ${U.du()}</small><b class="num" id="track-distance"></b></div>` : ''}<div><small>Active time</small><b class="num" id="track-time"></b></div>${session.gps ? `<div><small>${speedSport(session) ? 'Speed · ' + U.du() + '/h' : 'Pace · /' + U.du()}</small><b class="num" id="track-pace"></b></div>` : ''}</div>${session.gps ? '<p class="small muted track-splits" id="track-splits"></p>' : ''}
       ${session.gps && display === 'map' ? '<div class="track-map live-record-map" id="track-map"></div>' : ''}
       ${review ? `<form class="form" id="track-save-form"><label>Activity name<input name="activity_name" value="${esc(session.name || session.label)}" maxlength="200" required${saving?' disabled':''}></label><label>Who can see this activity<select name="visibility"${saving?' disabled':''}>${!session.visibility&&!App.me.share_default?'<option value="">Use my saved sharing setting</option>':''}${Object.entries({me:'Only me',friends:'Approved friends',everyone:'Everyone on Kinetta'}).map(([value,label])=>`<option value="${value}"${value===(session.visibility||App.me.share_default)?' selected':''}>${label}</option>`).join('')}</select></label><p class="small muted">Shared maps hide the start and end using your privacy settings.</p>${session.points.some((p) => p.segment !== session.points[0]?.segment) ? '<p class="small muted">Your activity map keeps every recorded section. Shared previews show the longest continuous section.</p>' : ''}<button class="primary wide" id="track-save"${saving ? ' disabled' : ''}>${saving ? 'Saving…' : 'Save activity'}</button><p class="small danger" id="track-save-error" role="alert"></p></form><button class="ghost wide" id="track-continue"${saving ? ' disabled' : ''}>Continue recording</button>` : `<div class="track-actions ${paused ? '' : 'recording-actions'}"><button class="${paused ? 'ghost' : 'primary'}" id="track-pause">${paused ? 'Resume' : 'Pause'}</button>${paused ? '<button class="primary" id="track-finish">Finish</button>' : ''}</div><p class="small muted">${session.native ? 'Recording continues with the screen locked or another app open.' : 'Browser recording pauses when you leave this page. Use the iPhone app for background GPS.'}</p>${paused && session.gps && !session.native ? '<button class="ghost wide" id="track-timer">Continue without GPS</button>' : ''}`}
       <button class="linkbtn danger track-discard" id="track-discard"${saving ? ' disabled' : ''}>Discard recording</button></section>`;
@@ -190,14 +227,21 @@ const Track = (() => {
     let selected = Math.min(choices.length-1, Math.max(0, +store.get(key + ':choice') || 0));
     const done = new URLSearchParams(location.search).get('done');
     el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup"><div class="track-quick" role="group" aria-label="Common activities">${TRACK_QUICK.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${TRACK_QUICK.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 ? '<optgroup label="Outdoor · GPS">' : i===OUTDOOR.length ? '</optgroup><optgroup label="Indoor · timer and sets">' : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
-      <p class="small muted" id="track-guidance"></p><p class="small danger" id="track-ready-error" role="alert"></p><button class="primary wide" id="track-start">Start</button>
+      <p class="small muted" id="track-guidance"></p><div class="track-options" id="track-options"></div><p class="small danger" id="track-ready-error" role="alert"></p><button class="primary wide" id="track-start">Start</button>
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><button type="button" class="ghost track-locate" id="track-locate">${svg('track')}Locate me</button></div>
       </form>
       <div id="track-open-lift"></div><section class="track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">More ways to add</h2><div class="card list">${Native.on ? `<a class="row-link" href="/track/health">${svg('heart')}<span class="grow">Apple Health</span>${svg('chev')}</a>` : ''}<a class="row-link" href="/track/connections">${svg('watch')}<span class="grow">Connections<small class="muted gs-sub">${Native.on ? 'Garmin and Apple Health' : 'Garmin, Apple Health and other apps'}</small></span>${svg('chev')}</a><button class="row-link" id="track-past">${svg('calendar')}<span class="grow">Log a past activity</span>${svg('chev')}</button>${Native.on ? '' : `<a class="row-link" href="/track/import">${svg('upload')}<span class="grow">Import activity history</span>${svg('chev')}</a>`}</div></section>`;
     let view=null,dot=null,located=false,here=null,loadingMap=false;
     const guide = () => { const c=choices[selected];$('#track-ready-map-wrap').hidden=!c.gps;ensureMap();$('#track-start').textContent=c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`;$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS continues while your screen is locked or you use another app.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'Track active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
-    const pick=(i)=>{selected=i;store.set(key+':choice',selected);$('#track-kind').value=String(i);const other=$('#track-other');other.open=false;$('summary',other).innerHTML=esc(TRACK_QUICK.includes(i)?'More activities':choices[i].label)+svg('down');$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();};
-    $('#track-kind').onchange=(e)=>pick(+e.target.value);
+    // Spoken splits and auto-pause (#234 item 4): on by default, auto-pause off for rides; remembered on this device
+    const opts=()=>{ const c=choices[selected],box=$('#track-options');if(!box)return;
+      if(!c.gps){box.innerHTML='';return;}
+      const o=recordOptions(c.sport);
+      box.innerHTML=`<label class="check"><input type="checkbox" id="track-voice"${o.voice?' checked':''}> Say my time every ${imp()?'mile':'km'}</label><label class="check"><input type="checkbox" id="track-auto"${o.autoPause?' checked':''}> Auto-pause when I stop</label>`;
+      $('#track-voice',box).onchange=(e)=>store.set(key+':voice',e.target.checked);
+      $('#track-auto',box).onchange=(e)=>store.set(key+':auto:'+c.sport,e.target.checked); };
+    const pick=(i)=>{selected=i;setTimeout(opts);store.set(key+':choice',selected);$('#track-kind').value=String(i);const other=$('#track-other');other.open=false;$('summary',other).innerHTML=esc(TRACK_QUICK.includes(i)?'More activities':choices[i].label)+svg('down');$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();};
+    $('#track-kind').onchange=(e)=>pick(+e.target.value);opts();
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});guide();
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
     // (permission is remembered); a browser locates by itself only after the person has already allowed it.
@@ -231,15 +275,20 @@ const Track = (() => {
     $('#track-setup').onsubmit=async(e)=>{e.preventDefault();if(controlling)return;const c=choices[selected];if(c.lift){startLiftSheet();return;}await begin(c.sport,c.label,c.sportLabel,c.gps);};
     $('#track-past').onclick=()=>addActivitySheet();liftNowCard($('#track-open-lift'));
   }
+  function recordOptions(sport) {
+    const voice=store.get(key+':voice'),auto=store.get(key+':auto:'+sport);
+    return {voice:voice==null?true:!!voice,autoPause:auto==null?['run','walk','hike'].includes(sport):!!auto,splitMetres:imp()?1609.344:1000};
+  }
   async function begin(sport,label,sportLabel,gps) {
     if(session || controlling)return;
+    const o=gps?recordOptions(sport):{voice:false,autoPause:false,splitMetres:imp()?1609.344:1000};
     if(TrackNative.supported){
       controlling=true;const revision=readOwner(),button=$('#track-start');button.disabled=true;button.textContent='Preparing…';
-      try { adoptNative(await TrackNative.call('start',{id:crypto.randomUUID(),sport,label,sportLabel:sportLabel||null,gps}));if(revision===readOwner()){draw();sync();} }
+      try { adoptNative(await TrackNative.call('start',{id:crypto.randomUUID(),sport,label,sportLabel:sportLabel||null,gps,...o}));if(revision===readOwner()){draw();sync();} }
       catch(e){if(revision===readOwner()){const error=$('#track-ready-error');if(error)error.textContent=e.message;}}
       finally{controlling=false;if(button.isConnected){button.disabled=false;button.textContent='Start';}}return;
     }
-    const now=Date.now();session={id:crypto.randomUUID(),sport,label,sportLabel,gps,start:now,activeAt:now,checkpoint:now,activeMs:0,state:'paused',points:[],segment:0,distance:0};
+    const now=Date.now();session={id:crypto.randomUUID(),sport,label,sportLabel,gps,start:now,activeAt:now,checkpoint:now,activeMs:0,state:'paused',points:[],segment:0,distance:0,...o,splits:[],autoMs:0,lastMove:null};
     if(!persist()){draw();return;}resume();
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden && session?.state === 'recording' && !session.native) { message = 'Paused while Kinetta was in the background. Resume when ready.'; pause(); draw(); } });

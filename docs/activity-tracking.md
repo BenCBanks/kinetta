@@ -49,6 +49,15 @@ one overlaps the other, whatever sport each calls it and however far apart they 
 into the first: your title, notes and sharing choice stay, and the watch's heart rate fills in. A short workout inside a
 much longer one (a run during a long hike) stays separate, and two phone recordings are never merged with each other.
 
+**While you record.** The big number is your pace (or, for rides and skiing, speed) over the last 30 seconds; your
+average and the time of your last mile or km sit underneath. Two choices on the Track screen, remembered on the device:
+- **Say my time every mile/km** (on by default; miles or km follow your units): "2 miles. Time 18 minutes 40 seconds.
+  Last mile 9 minutes 5 seconds." The iPhone app speaks even with the phone locked in a pocket, lowering your music
+  while it talks; a browser speaks only while its page is open.
+- **Auto-pause when I stop** (on for runs, walks and hikes; off for rides): after 15 seconds without moving the clock
+  stops and the screen says Auto-paused; it starts again as soon as you move. Only the time beyond those 15 seconds is
+  left out of your active time, so the clock never jumps backwards.
+
 ## Verification and release
 
 Foundation Swift state/journal tests and browser-native stand-ins exercise recovery, gaps, account changes and

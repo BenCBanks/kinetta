@@ -3,6 +3,7 @@ import CoreLocation
 import CryptoKit
 import UIKit
 import Capacitor
+import AVFoundation
 
 // Core Location owns the recorder, not a JavaScript timer. It continues with the screen locked or another app open.
 final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
@@ -52,6 +53,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         if let id=id,session?.id != id { throw fail("The recording changed. Reopen Track before continuing.") }
     }
     func begin(account: String, id: String, sport: String, label: String, kind: String?, gps: Bool,
+               voice: Bool = false, autoPause: Bool = false, splitMetres: Double = 1000,
                completion: @escaping (Error?) -> Void) {
         do {
             try check(account)
@@ -63,7 +65,11 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
                     try self.check(account)
                     guard self.session==nil else { throw self.fail("Another recording has already started.") }
                     let now=Self.now
-                    let next=TrackRecordingState(owner:account,id:id,sport:sport,label:label,sportLabel:kind,gps:gps,start:now,activeAt:now,checkpoint:now)
+                    var next=TrackRecordingState(owner:account,id:id,sport:sport,label:label,sportLabel:kind,gps:gps,start:now,activeAt:now,checkpoint:now)
+                    if gps {
+                        next.voice=voice;next.autoPause=autoPause;next.splits=[];next.autoMs=0;next.lastMove=now
+                        next.splitMetres=splitMetres==1609.344 ? 1609.344 : 1000
+                    }
                     try self.files?.save(next,resetPoints:true);self.session=next
                     self.startGPS();completion(nil)
                 } catch { completion(error) }
@@ -147,10 +153,11 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
                 if next.points.count>=24000 {
                     next.pause(at:Self.now);manager.stopUpdatingLocation();message="GPS limit reached. Finish and save this recording.";break
                 }
-                var candidate=next
+                var candidate=next;let before=next.splits?.count ?? 0
                 if let point=candidate.accept(lat:location.coordinate.latitude,lon:location.coordinate.longitude,accuracy:location.horizontalAccuracy,
                                                timestamp:location.timestamp.timeIntervalSince1970*1000,now:Self.now) {
                     try files?.append(point);next=candidate
+                    if next.voice==true,let splits=next.splits,splits.count>before { NativeTrackVoice.shared.announce(next) }
                     message="GPS ±\(Int(location.horizontalAccuracy)) m · background recording on"
                 } else if location.horizontalAccuracy>100 { message="Weak GPS signal · waiting for better accuracy" }
             }
@@ -166,6 +173,23 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         if (error as? CLError)?.code == .locationUnknown { message="GPS temporarily unavailable · retrying";return }
         if let account=owner,let id=session?.id { try? pause(account:account,id:id) }
         message="GPS stopped. Your draft is kept. Check location settings and resume."
+    }
+}
+
+// Spoken split times (#234 item 4), even with the phone locked in a pocket: music dips while it speaks, then comes back.
+final class NativeTrackVoice: NSObject, AVSpeechSynthesizerDelegate {
+    static let shared=NativeTrackVoice()
+    private let synth=AVSpeechSynthesizer()
+    override private init() { super.init();synth.delegate=self }
+    func announce(_ state: TrackRecordingState) {
+        guard let text=NativeTrackVoiceText.text(state) else { return }
+        let audio=AVAudioSession.sharedInstance()
+        try? audio.setCategory(.playback,mode:.voicePrompt,options:[.duckOthers,.interruptSpokenAudioAndMixWithOthers])
+        try? audio.setActive(true)
+        synth.speak(AVSpeechUtterance(string:text))
+    }
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        if !synthesizer.isSpeaking { try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation) }
     }
 }
 
@@ -248,7 +272,8 @@ class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func start(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             let r=NativeTrackRecorder.shared,owner=call.getString("owner") ?? ""
-            r.begin(account:owner,id:call.getString("id") ?? "",sport:call.getString("sport") ?? "",label:call.getString("label") ?? "",kind:call.getString("sportLabel"),gps:call.getBool("gps") ?? false) { error in
+            r.begin(account:owner,id:call.getString("id") ?? "",sport:call.getString("sport") ?? "",label:call.getString("label") ?? "",kind:call.getString("sportLabel"),gps:call.getBool("gps") ?? false,
+                    voice:call.getBool("voice") ?? false,autoPause:call.getBool("autoPause") ?? false,splitMetres:call.getDouble("splitMetres") ?? 1000) { error in
                 if let error=error { call.reject(error.localizedDescription);return }
                 do { call.resolve(try r.snapshot(account:owner,id:nil,since:0)) } catch { call.reject(error.localizedDescription) }
             }

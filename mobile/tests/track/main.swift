@@ -36,4 +36,16 @@ for (name,c) in fixture.cases {
     check(r.distance>=c.expect[0] && r.distance<=c.expect[1],"\(name): \(r.distance) m outside \(c.expect)")
     check(TrackRecordingState.distance(of:r.points).0==r.distance,"\(name): restored distance matches live")
 }
+// Auto-pause and splits (#234 item 4): the same scenario as dev/tests/test_track.js.
+var a=TrackRecordingState(owner:"fictional-account",id:UUID().uuidString,sport:"run",label:"Run",gps:true,start:0,activeAt:0,checkpoint:0)
+a.autoPause=true;a.lastMove=0;a.autoMs=0;a.splitMetres=1000;a.splits=[]
+for i in 0...100 { check(a.accept(lat:Double(i*6)/111320,lon:10,accuracy:5,timestamp:Double(i*2000),now:Double(i*2000)) != nil,"run fix") }
+check(!a.autoPaused(at:210000) && a.autoPaused(at:230000),"auto-pause after 15 s still")
+check(a.seconds(at:230000)==a.seconds(at:260000),"clock stays stopped while still")
+for i in 1...80 { check(a.accept(lat:Double(600+i*6)/111320,lon:10,accuracy:5,timestamp:Double(260000+i*2000),now:Double(260000+i*2000)) != nil,"moving again") }
+check(abs(a.seconds(at:420000)-(420-47))<0.01,"62 s stop leaves out 47 s: \(a.seconds(at:420000))")
+check(a.splits?.count==1 && a.splits![0]>345 && a.splits![0]<352,"split at 1 km: \(a.splits ?? [])")
+var b=a;b.lastMove=420000;b.pause(at:470000)
+check(abs(b.seconds(at:999999)-(470-47-35))<0.01,"manual pause during a stop keeps the idle stretch out: \(b.seconds(at:999999))")
+check(NativeTrackVoiceText.text(a)=="1 kilometre. Time 5 minutes 49 seconds. Last kilometre 5 minutes 49 seconds.","spoken split: \(NativeTrackVoiceText.text(a) ?? "")")
 print("PASS native tracking state: GPS quality, pause/gaps, durable journal, interrupted recovery and account isolation")
