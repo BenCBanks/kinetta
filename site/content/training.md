@@ -52,7 +52,7 @@ Apple Watch, Apple Health, Garmin Connect, Health Auto Export, Strava exports, a
 
 ## works-with-garmin-22
 
-**Garmin Connect** brings each new run or ride in with its map and heart rate shortly after your watch syncs. For older history, import a Strava export or past workouts from Apple Health.
+**Garmin Connect** brings in new workouts after watch sync when activity sharing is enabled. Maps and heart rate depend on what Garmin supplies. For older history, import a Strava export in your browser or past workouts from Apple Health.
 
 ## works-with-marks-23
 
@@ -125,3 +125,31 @@ Free for personal use under the [PolyForm Noncommercial License](https://github.
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-27
 
 © 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.
+
+## record-with-your-phone-heading
+
+Record with your phone.
+
+## recording-live-heading
+
+Your pace as you go
+
+## recording-live
+
+See pace over the last 30 seconds, with your average and last mile or km below. Rides and skiing show speed. “Say my time every mile/km” starts on; the iPhone app can speak with the phone locked.
+
+## recording-distance-heading
+
+Distance and pauses
+
+## recording-distance
+
+A filter ignores small GPS movements while still and leaves poor fixes out of your total. GPS remains approximate. Auto-pause stops the clock after 15 seconds still and resumes when you move. It starts on for runs, walks and hikes, off for rides.
+
+## recording-watch-heading
+
+Phone and watch, one workout
+
+## recording-watch
+
+Record on both: when at least 80% of the longer workout overlaps, the imported watch copy and phone recording become one activity, with available watch heart rate. A short run inside a long hike stays separate.
