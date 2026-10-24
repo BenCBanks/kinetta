@@ -19,7 +19,7 @@ router = APIRouter(prefix='/api')
 KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'report')   # report: admins only, in the app only
 PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',)}
 MAX_SUBS = 10           # devices per person
-AUTO_SOURCES = ('apple', 'healthkit', 'garmin')   # workouts that arrive without the person doing anything
+AUTO_SOURCES = ('apple', 'healthkit', 'garmin', 'garmin_connect')   # workouts that arrive without the person doing anything
 
 
 def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=None,reaction_kind=None):
