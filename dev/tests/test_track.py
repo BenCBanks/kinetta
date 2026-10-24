@@ -80,6 +80,29 @@ try:
             start=(dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=2000)).isoformat(), elapsed_s=last, moving_s=last, points=c['points']))
         metres = request(owner, 'GET', f"/api/activities/{saved['id']}")['distance_m']
         assert c['expect'][0] <= metres <= c['expect'][1], (name, metres, c['expect'])
+    # Every section counts (#234 item 6) and phone elevation is kept (#234 item 5): a fictional 10.6 km run with a 2-minute
+    # signal gap after 6 km, climbing 60 m over the first part. A 10K exists only across the gap, so it must not appear.
+    M = 111320.0
+    pts = [{'lat': 10 + i * 6.66 / M, 'lon': 20, 't': 1 + i * 2, 'accuracy': 5, 'segment': 0, 'alt': 100 + 60 * i / 900, 'valt': 4} for i in range(901)]
+    t0 = pts[-1]['t'] + 120
+    pts += [{'lat': 10 + (6000 + 30 + i * 6.66) / M, 'lon': 20, 't': t0 + i * 2, 'accuracy': 5, 'segment': 1, 'alt': 160, 'valt': 4} for i in range(701)]
+    last = pts[-1]['t'] + 1
+    two = request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), name='Fictional two-section run', visibility='me',
+        start=(dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=4000)).isoformat(), elapsed_s=last, moving_s=last - 120, points=pts))
+    run = request(owner, 'GET', f"/api/activities/{two['id']}")
+    assert 10500 < run['distance_m'] < 10800, run['distance_m']
+    km = run['splits_km'] if isinstance(run['splits_km'], list) else json.loads(run['splits_km'])
+    assert len(km) == 11 and abs(sum(s['distance_m'] for s in km) - run['distance_m']) < 60, [s['distance_m'] for s in km]
+    assert all(250 < s['pace_s_per_km'] < 350 for s in km[:-1]), [s['pace_s_per_km'] for s in km]   # ~300 s/km, gap time excluded
+    labels = [e['label'] for e in run['efforts']]
+    assert '5K' in labels and '10K' not in labels, ('a 10K would have to span the gap', labels)
+    assert 51 <= (run['ascent_m'] or 0) <= 69, run['ascent_m']
+    assert len(run['track_lines']) == 2, 'your own map shows both sections'
+    # A 200 km, 8-hour ride (#234 item 8): 40,000 fixes at the iPhone's 5 m spacing save in one request.
+    ride = [{'lat': 10 + (i * 5.0) / M, 'lon': 21, 't': 1 + i * 0.72, 'accuracy': 5, 'segment': 0} for i in range(40001)]
+    long = request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), sport='ride', name='Fictional century and more', visibility='me',
+        start=(dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=9)).isoformat(), elapsed_s=28802, moving_s=28802, points=ride))
+    assert 198000 < request(owner, 'GET', f"/api/activities/{long['id']}")['distance_m'] < 202000
     print('PASS tracking: segments, sharing default/review, retry/concurrency, account isolation, invalid GPS and yoga')
 finally:
     admin = login(*ALEX)

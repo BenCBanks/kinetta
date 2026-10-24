@@ -143,7 +143,7 @@ def detail(aid: int, user=Depends(current_user)):
         if a.get('source') == 'track' and not {'distance_m','moving_s','elapsed_s'}.intersection(a.get('summary_overrides') or {}):
             try:
                 with open(os.path.join(DATA, a['file_path']), 'rb') as recording:
-                    original = json.loads(recording.read(4 * 1024 * 1024))
+                    original = json.loads(recording.read(16 * 1024 * 1024))   # up to 72,000 points (#234 item 8)
                 sections = {}
                 for point in original.get('points', []):
                     sections.setdefault(point['segment'], []).append([point['lon'], point['lat']])
@@ -275,6 +275,8 @@ class TrackPoint(BaseModel):
     t: float = Field(ge=0, le=172800)
     accuracy: float = Field(ge=0, le=100)
     segment: int = Field(ge=0, le=10000)
+    alt: float | None = Field(None, ge=-500, le=9000)       # metres, from the iPhone (#234 item 5); older builds send none
+    valt: float | None = Field(None, ge=0, le=1000)         # its vertical accuracy
 
 
 class TrackIn(BaseModel):
@@ -286,9 +288,26 @@ class TrackIn(BaseModel):
     start: dt.datetime
     elapsed_s: float = Field(gt=0, le=172800)
     moving_s: float = Field(gt=0, le=172800)
-    points: list[TrackPoint] = Field(default_factory=list, max_length=24000)
+    points: list[TrackPoint] = Field(default_factory=list, max_length=72000)   # ~360 km at the iPhone's 5 m spacing (#234 item 8)
     visibility: str | None = Field(None, pattern='^(me|friends|everyone)$')
     expected_sharing_default: str | None = Field(None, pattern='^(me|friends|everyone)$')
+
+
+def _spread(points, run, counted):
+    """The running distance at every fix. Distance is only counted at some fixes (GPS wobble filter), so between two counted
+    fixes of one section it rises evenly with time; otherwise steady movement would look like stop-start and moving
+    time and split paces would be wrong. It never rises across a gap between sections."""
+    out, i, n = list(run), 0, len(points)
+    while i < n:
+        j = i
+        while j + 1 < n and points[j + 1].segment == points[i].segment: j += 1
+        marks = [k for k in range(i, j + 1) if counted[k]]
+        for a, b in zip(marks, marks[1:]):
+            span = points[b].t - points[a].t
+            for k in range(a + 1, b):
+                out[k] = run[a] + (run[b] - run[a]) * ((points[k].t - points[a].t) / span if span > 0 else 1)
+        i = j + 1
+    return out
 
 
 @router.post('/activities/track')
@@ -302,7 +321,7 @@ def save_track(body: TrackIn, user=Depends(current_user)):
     if (dt.datetime.now(dt.timezone.utc) - start).total_seconds() + 60 < body.elapsed_s:
         raise HTTPException(422, 'Recording duration exceeds the time since it started')
     points = body.points
-    distance, segments = 0.0, {}
+    distance, segments, run, counted = 0.0, {}, [], []
     previous = anchor = None
     for point in points:
         if point.t > body.elapsed_s + 1 or previous and (point.t <= previous.t or point.segment < previous.segment):
@@ -316,19 +335,27 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         step = analysis.track_step(anchor, point)   # GPS wobble and poor fixes add nothing (#234 item 2)
         if step is not None: distance += step; anchor = point
         segments.setdefault(point.segment, []).append(point)
+        run.append(distance); counted.append(step is not None)
         previous = point
-    # Existing route geometry is a single line. Save only the longest continuous segment to avoid drawing
-    # across a pause/outage; preserve every original segment in the downloadable recording file.
+    # Every section goes into the streams (#234 item 6), so splits, charts and best efforts cover the whole session. The
+    # running distance stands still across a gap and the gap is never "moving" (over 30 s), so nothing is counted across
+    # it; best efforts never span sections. The map line (feed and shared previews) stays the longest single section, so
+    # it never draws across a pause or outage; every section stays in the downloadable recording file.
     longest = max(segments.values(), key=lambda pts: sum(float(analysis.haversine(a.lat, a.lon, b.lat, b.lon)) for a, b in zip(pts, pts[1:])), default=[])
     streams = {k: [] for k in ('t',) + parsers.STREAMS}
-    if longest:
-        streams.update(t=[p.t for p in longest], lat=[p.lat for p in longest], lon=[p.lon for p in longest])
+    if points:
+        # phone altitude counts only when its vertical accuracy is known and reasonable (#234 item 5)
+        streams.update(t=[p.t for p in points], lat=[p.lat for p in points], lon=[p.lon for p in points], dist=_spread(points, run, counted),
+                       alt=[p.alt if p.alt is not None and p.valt is not None and 0 < p.valt <= 25 else None for p in points],
+                       section=[p.segment for p in points])
+        if all(a is None for a in streams['alt']): streams['alt'] = []
     parsed = {'sport': body.sport, 'start': start, 'sub_sport': None, 'device': 'Kinetta foreground recorder',
-              'laps': [], 'streams': streams, 'session': {}}
+              'laps': [], 'streams': streams, 'session': {},
+              'geometry': {'lat': [p.lat for p in longest], 'lon': [p.lon for p in longest]}}
     meta = {'sport': body.sport, 'sport_label': body.sport_label, 'name': body.name.strip() or 'Activity',
             'source_id': body.client_id, 'elapsed_s': body.elapsed_s, 'moving_s': body.moving_s, 'distance_m': distance}
     if len(segments) > 1:
-        meta['description'] = 'Recorded in segments. Your activity shows every section; shared previews show the longest continuous section. Totals cover the whole session.'
+        meta['description'] = 'Recorded in sections. Your activity shows every section; shared previews show the longest continuous section. Totals, splits and records cover the whole session.'
     # Keep the lock and insert on one connection: concurrent retries cannot exhaust the pool waiting
     # for a second connection. The activity and acknowledgement identity commit together.
     with db.connect() as c:

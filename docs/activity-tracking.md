@@ -17,8 +17,15 @@ activity entry, watch connections and Apple Health, plus activity files in the b
 The new native recorder uses Core Location independently of the web screen. Once a GPS activity is started with
 location permission, it is designed to keep receiving points while you switch apps or lock the screen. A visible
 system location indicator shows the background use. iOS asks for location permission once, the first time Track shows your position or you start a GPS activity, and remembers the answer (unless you pick "Allow Once"). The preview position stays on the phone.
-This needs an installed iPhone build containing the recorder. Browser/Home Screen recording remains foreground-only
-and pauses when its page is hidden; it cannot provide the native background guarantee.
+This needs an installed iPhone build containing the recorder. GPS recording is offered only in the iPhone app (owner decision,
+24 October 2026); a browser offers indoor timers, lifting, past entries and file imports. A GPS draft started in a browser
+before that change can still be finished and saved.
+
+**Long activities and gaps.** A recording can hold 72,000 GPS points (about 360 km at the iPhone's 5 m spacing). Every
+section of a recording is kept: splits, charts and best efforts cover the whole session, never counting distance or time
+across a gap, and a best effort never spans two sections. Feed and shared maps still show the longest single section.
+**Elevation.** The iPhone records altitude with each point when its vertical accuracy is within 25 m, so phone hikes and
+rides get climb, an elevation chart and grade-adjusted pace like imported ones.
 
 The native recorder keeps an account-specific atomic manifest and point journal, protected on disk and available
 after the device's first unlock. Points are appended durably; the UI requests incremental snapshots. Signing out

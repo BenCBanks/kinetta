@@ -77,6 +77,8 @@ def prepare(streams, sport):
     S = {'t': t, 'n': n}
     for k in ('lat', 'lon', 'alt', 'hr', 'cad', 'power', 'speed', 'temp', 'vo', 'gct', 'stride'):
         S[k] = _arr(streams[k]) if streams.get(k) else None
+    # a phone recording's sections (#234 item 6): best efforts never span the gap between two
+    S['section'] = np.asarray(streams['section']) if streams.get('section') and len(streams['section']) == n else None
     if n < 2:
         S.update(dist=np.zeros(n), moving=np.zeros(max(n - 1, 0), bool), dt=np.zeros(max(n - 1, 0)), alt_s=None, grade=None)
         return S
@@ -381,6 +383,9 @@ def best_efforts(S, sport):
     for meters, label in efforts_for(sport):
         if dist[-1] < meters: break
         ok = dist + meters <= dist[-1]
+        if S.get('section') is not None:      # the effort must end in the section it started in
+            end = np.minimum(np.searchsorted(dist, dist + meters, side='left'), S['n'] - 1)
+            ok &= S['section'] == S['section'][end]
         if not ok.any(): continue
         t_end = np.interp(dist[ok] + meters, dist, t)
         dur = t_end - t[ok]

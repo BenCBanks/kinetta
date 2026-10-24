@@ -162,7 +162,7 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connect
                        _floats(S['dist']) if S['n'] > 1 else None, _floats(st['hr']), _floats(st['cad']),
                        _floats(st['power']), _floats(st['speed']), _floats(st['temp']), _floats(st['vo']), _floats(st['gct']),
                        _floats(st['stride'])))
-        set_geometry(c, aid, st)
+        set_geometry(c, aid, parsed.get('geometry') or st)   # a phone recording's map line is its longest section
         for e in analysis.best_efforts(S, sport):
             c.execute("""INSERT INTO best_efforts (user_id, activity_id, sport, distance_m, label, elapsed_s, start_s, start_time)
                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
