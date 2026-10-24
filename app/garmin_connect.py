@@ -212,7 +212,8 @@ def backfill(uid, days=FIRST_DAYS):
     try:
         _get(uid, f'{API}/backfill/activityDetails?summaryStartTimeInSeconds={end - days * 86400}&summaryEndTimeInSeconds={end}')
     except urllib.error.HTTPError as e:
-        if e.code != 409: _set_status(uid, f'connected - Garmin couldn’t resend older activities ({e.code})')   # 409: already asked
+        # 409: already asked; 412: these keys don't include older history (new activities still arrive), so say nothing
+        if e.code not in (409, 412): _set_status(uid, f'connected - Garmin couldn’t resend older activities ({e.code})')
     except Exception as e:
         print('garmin backfill failed', type(e).__name__, flush=True)
 
