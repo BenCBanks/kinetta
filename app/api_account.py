@@ -10,7 +10,7 @@ import os
 import re
 import secrets
 import shutil
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from psycopg import errors, sql
 from . import db, auth
@@ -62,11 +62,12 @@ class PasswordIn(BaseModel):
 
 
 @router.post('/api/account/password')
-def set_password(body: PasswordIn, request: Request, user=Depends(current_user)):
+def set_password(body: PasswordIn, request: Request, background: BackgroundTasks, user=Depends(current_user)):
     ip = auth.client_ip(request)
     if auth.too_many(ip, user['login']): raise HTTPException(429, 'Too many tries - wait 15 minutes')
     with db.connect() as c:
-        stored = c.execute('SELECT pw_hash FROM users WHERE id = %s', (user['id'],)).fetchone()['pw_hash']
+        row = c.execute('SELECT pw_hash, email::text AS email FROM users WHERE id = %s', (user['id'],)).fetchone()
+        stored = row['pw_hash']
         if not auth.check_pw(stored, body.current):
             auth.failed(ip, user['login'])
             raise HTTPException(400, 'Current password is wrong')
@@ -77,6 +78,8 @@ def set_password(body: PasswordIn, request: Request, user=Depends(current_user))
         # sign out everywhere else; this phone keeps its login
         c.execute('DELETE FROM sessions WHERE user_id = %s AND token_hash <> %s',
                   (user['id'], auth._h(auth.session_token(request) or '')))
+    from .account_email import password_changed
+    password_changed(background, row['email'], user['name'], user['login'])
     return {'ok': True}
 
 

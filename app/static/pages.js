@@ -218,6 +218,7 @@ function getStarted(healthConnected = false, hasHistory = false) {
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
   const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
   const rows = [
+    App.me?.mail_ready && !App.me.email && !pendingEmail() ? step('/me/settings?email=add', 'mail', 'c-brand', 'Add your email', 'So you can reset your password if you forget it') : '',
     !hasHistory ? step('/track/connections', 'watch', 'c-brand', 'Connect your watch', 'Garmin Connect or Apple Health · optional, you can do this later') : '',
     Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
     !hasHistory ? step('/track', 'track', 'c-green', 'Record an activity', 'A run, ride, walk or lifting session with your phone.') : '',
@@ -1349,6 +1350,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     <h2 class="sec-head">Account</h2>
     <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
+      ${row('button', 'id="m-email"', 'mail', 'c-grey', 'Email', esc(me.email || (pendingEmail() ? 'Check your inbox' : 'Add')))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       </div>
     ${me.coach ? `<h2 class="sec-head">Kit</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food estimates: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${kitChatOn() ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
@@ -1367,6 +1369,8 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');
   $('#m-pw', el).onclick = () => passwordSheet();
+  $('#m-email', el).onclick = () => emailSheet();
+  if (new URLSearchParams(location.search).get('email') === 'add') { history.replaceState(null, '', '/me/settings'); emailSheet(); }
   $('#m-export', el).onclick = async (e) => {
     if (!Native.on) { toast('Preparing your download - this can take a minute'); return; }
     e.preventDefault();        // the app can't save downloads: a one-time link opens in Safari, which saves it to Files
@@ -1464,6 +1468,30 @@ function accountSheet(field) {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try { const r = await api('/api/account', json('PUT', {[field]: f.v.value})); me[field] = r[field]; close(); render(); toast(isName ? 'Name saved' : 'Username changed - use it next time you log in'); }
       catch (x) { toast(x.message); btn.disabled = false; }
+    };
+  });
+}
+// your email (2026-10-24, #232): used only after you open the confirmation link sent to it; lets you log in with it and
+// reset a forgotten password. Needs the current password, so someone at an unlocked phone can't redirect resets.
+// the address waiting for its link to be opened, until this account's details next come from the server with an email
+let pendingSent = null;
+const pendingEmail = () => pendingSent && pendingSent.id === App.me?.id && !App.me.email ? pendingSent.email : null;
+function emailSheet() {
+  const me = App.me;
+  if (!me.mail_ready) { sheet('Email', '<p>Email isn’t set up on this Kinetta yet. Ask the person who runs it.</p>'); return; }
+  sheet('Email', `<form class="form" id="em">
+    <input name="username" value="${esc(me.login)}" autocomplete="username" hidden>
+    <p class="small muted">${me.email ? `Now: <b>${esc(me.email)}</b>. ` : ''}We'll send a link to confirm it. You can then log in with it and reset your password if you forget it. It's never shown to other people.</p>
+    <label>Email<input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" required value="${esc(pendingEmail() || '')}"></label>
+    <label>Your password<input name="pw" type="password" autocomplete="current-password" required></label>
+    <div class="actions"><button class="primary">Send confirmation link</button></div></form>`, (b, close) => {
+    const f = $('#em', b); f.email.focus();
+    f.onsubmit = async (e) => {
+      e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
+      try {
+        const r = await api('/api/account/email', json('PUT', {email: f.email.value.trim(), password: f.pw.value}));
+        pendingSent = {id: me.id, email: r.pending}; close(); render(); toast(`Check ${r.pending} for a link to confirm it`);
+      } catch (x) { toast(x.message); btn.disabled = false; }
     };
   });
 }

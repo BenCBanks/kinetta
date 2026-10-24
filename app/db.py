@@ -1310,6 +1310,20 @@ MIGRATIONS = [
     CREATE UNIQUE INDEX connections_garmin_user ON connections ((settings->>'garmin_user_id')) WHERE kind = 'garmin_connect';
     ALTER TABLE profile ADD COLUMN garmin_ai_ok boolean NOT NULL DEFAULT false;
     """,
+    # 67 (2026-10-24): an email address on each account, so people can reset a forgotten password (#232). The address is
+    # used only after its owner opens the link sent to it. SQL readers keep their column grants (id, login, name, created),
+    # so no one's email reaches them. One-time link tokens and sign-in attempt counts are server-only: RLS, no grants.
+    """ALTER TABLE users ADD COLUMN email citext UNIQUE, ADD COLUMN email_verified_at timestamptz;
+    CREATE TABLE account_tokens (token_hash text PRIMARY KEY, user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK (kind IN ('verify_email', 'reset_password')), email citext,
+      created timestamptz NOT NULL DEFAULT now(), expires timestamptz NOT NULL, used_at timestamptz);
+    CREATE INDEX account_tokens_user ON account_tokens (user_id, kind);
+    CREATE TABLE auth_attempts (key text NOT NULL, created timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX auth_attempts_key ON auth_attempts (key, created);
+    ALTER TABLE account_tokens ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE auth_attempts ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON account_tokens, auth_attempts FROM PUBLIC, fit_readers, fit_all_readers;
+    """,
 ]
 
 

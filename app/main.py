@@ -31,6 +31,8 @@ app.include_router(api_food.router)
 app.include_router(garmin_connect.router)     # before api_connections: its /connections/{kind} would catch these
 app.include_router(api_connections.router)
 app.include_router(api_account.router)
+from . import account_email
+app.include_router(account_email.router)
 app.include_router(food_photo.router)
 app.include_router(nutrition_insights.router)
 app.include_router(history_import.router)
@@ -118,7 +120,7 @@ app.add_middleware(CORSMiddleware, allow_origins=list(APP_ORIGINS), allow_creden
 
 
 class Login(BaseModel):
-    login: str = Field(max_length=60)
+    login: str = Field(max_length=120)
     password: str = Field(max_length=200)
     app: bool = False       # the iPhone app: answer with the login token instead of setting a cookie
 
@@ -132,7 +134,10 @@ def login(body: Login, request: Request, response: Response):
     if auth.too_many(ip, body.login):
         raise HTTPException(429, 'Too many tries - wait 15 minutes')
     with db.connect() as c:
-        u = c.execute('SELECT id, name, pw_hash FROM users WHERE login = %s', (body.login.strip(),)).fetchone()
+        # a username, or the account's confirmed email (2026-10-24)
+        who = body.login.strip()
+        u = c.execute(('SELECT id, name, pw_hash FROM users WHERE email = %s AND email_verified_at IS NOT NULL' if '@' in who
+                       else 'SELECT id, name, pw_hash FROM users WHERE login = %s'), (who,)).fetchone()
         ok = auth.check_pw(u['pw_hash'] if u else None, body.password)   # always hash-checks (same timing)
         if not u or not ok:
             auth.failed(ip, body.login)
@@ -160,8 +165,9 @@ def me(user=Depends(current_user)):
         unread = notify.unread(c, user['id'])            # notifications not yet seen
         from .admin_usage import opened
         opened(c,user['id'])
-        food_user = api_food.food_user(c, user['id'])    # Progress shows its Food & weight half only for food users
-    return {**user, 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'food_photo_itemize': ai_release.food_photo_itemization_enabled(), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
+        food_user = api_food.food_user(c, user['id'])
+        acct = c.execute("SELECT email::text AS email, email_verified_at IS NOT NULL AS email_confirmed FROM users WHERE id = %s", (user['id'],)).fetchone()    # Progress shows its Food & weight half only for food users
+    return {**user, **acct, 'mail_ready': account_email.mail_ready(), 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'food_photo_itemize': ai_release.food_photo_itemization_enabled(), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):
