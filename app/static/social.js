@@ -293,7 +293,8 @@ function drawShared(el, a) {
     wireMediaMapFull(box, () => m, a.line, !!a.photos?.length);
     lazy(box, async () => {
       try {
-        m = await mapInto(box, [a.line], {sport: a.sport, ends: false, still: !!a.photos?.length && !box.classList.contains('full')});
+        // start/finish markers as on the feed card (Ben, 2026-10-24); a shared line is already trimmed by the server
+        m = await mapInto(box, [a.line], {sport: a.sport, still: !!a.photos?.length && !box.classList.contains('full')});
         if (m && a.photos?.length && !box.classList.contains('full')) { m.map.dragging.disable(); m.map.touchZoom.disable(); }
       } catch (e) { if (box.isConnected) box.insertAdjacentHTML('beforeend', '<p class="empty">Map unavailable right now</p>'); }
     });

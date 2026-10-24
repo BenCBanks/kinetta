@@ -679,49 +679,46 @@ const appBase = () => (Native.on && Native.base ? Native.base : location.origin)
 // Share = a picture (2026-10-23, Ben: not a link). The route map with the time and pace, or the Kinetta mark when there
 // is no GPS. Opens straight away; the full activity and the person's start/end setting load inside the sheet.
 function shareOut(a) { sharePicture(a.id, a); }
-// Two choices only (Ben, 2026-10-24): Story (9:16) and Post (4:5), each previewed and each opening the phone's own share
-// sheet, where Instagram Stories and Feed appear next to Messages and the rest. No separate Instagram button.
+// One picture for everything (Ben, 2026-10-24): a 4:5 image that works in Messages, Instagram posts and Stories alike,
+// so nobody has to choose a size. Share opens the phone's own share sheet.
 function sharePicture(id, known) {
-  const owner = readOwner(), FORMATS = [['story', 'Story'], ['post', 'Post']];
-  sheet('Share', `<div class="pic-pair">${FORMATS.map(([f, label]) => `<div class="pic-opt"><div class="pic-wrap busy" data-wrap="${f}"><img class="pic" id="pi-${f}" alt=""></div><button class="primary wide" id="pi-go-${f}" disabled>${svg('share')} ${label}</button></div>`).join('')}</div>
+  const owner = readOwner();
+  sheet('Share', `<div class="pic-wrap busy"><img class="pic" id="pi-img" alt=""></div>
     <label class="check" id="pi-trim-row" hidden><input type="checkbox" id="pi-trim" checked> Hide where it starts and ends</label>
+    <button class="primary wide" id="pi-go" disabled>${svg('share')} Share</button>
     <p class="small muted pi-note" role="status"></p>`, async (b, close) => {
-    const t = $('#pi-trim', b), live = () => b.isConnected && owner === readOwner();
-    const pics = {story: {blob: null, url: ''}, post: {blob: null, url: ''}};
-    let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, made = 0, sending = false;
-    const release = () => { for (const p of Object.values(pics)) { p.blob = null; if (p.url) URL.revokeObjectURL(p.url); p.url = ''; } };
+    const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b), live = () => b.isConnected && owner === readOwner();
+    let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, blob = null, made = 0, url = '', sending = false;
     const closeSelf = () => close(); App.closeActivityShare = closeSelf;
-    viewResources.set(b, () => { if (App.closeActivityShare === closeSelf) delete App.closeActivityShare; made++; release(); });
+    viewResources.set(b, () => { if (App.closeActivityShare === closeSelf) delete App.closeActivityShare; made++; blob = null; if (url) URL.revokeObjectURL(url); url = ''; });
     try {
       [a, s] = await Promise.all([a || api(`/api/activities/${id}`), s || api(`/api/activities/${id}/social`).catch(() => null)]);
       if (known) known._social = s;
-    } catch (x) { if (live()) { b.querySelectorAll('.pic-wrap').forEach(w => w.classList.remove('busy')); toast(x.message); } return; }
+    } catch (x) { if (live()) { $('.pic-wrap', b).classList.remove('busy'); toast(x.message); } return; }
     if (!live()) return;
-    for (const [f, label] of FORMATS) $('#pi-' + f, b).alt = `${label} picture of ${a.name}`;
+    img.alt = `Picture of ${a.name}`;
     const note = `A picture of your ${a.line ? 'route and ' : ''}workout numbers. Nothing links back to your account.`;
     $('.pi-note', b).textContent = note;
     const trim = (s && s.trim_m) || 400, hasLine = !!(a.line && decode(a.line).length > 1);
     $('#pi-trim-row', b).hidden = !hasLine;
-    const buttons = () => { for (const [f] of FORMATS) $('#pi-go-' + f, b).disabled = !pics[f].blob || sending; t.disabled = sending; };
-    // Both pictures redraw together; a slower, older drawing can never replace a newer one (the privacy choice may differ).
+    const buttons = () => { go.disabled = !blob || sending; t.disabled = sending; };
+    // a slower, older drawing can never replace a newer one (the privacy choice may differ)
     const make = async () => {
-      const run = ++made; for (const p of Object.values(pics)) p.blob = null; buttons();
-      await Promise.all(FORMATS.map(async ([f]) => {
-        const wrap = $(`[data-wrap="${f}"]`, b); wrap.classList.add('busy');
-        try {
-          const picture = await routePicture(a, t && !t.checked ? 0 : trim, f);
-          if (run !== made || !live()) return;
-          if (!picture) throw new Error('Couldn’t prepare this picture. Close Share and try again.');
-          const p = pics[f]; p.blob = picture; if (p.url) URL.revokeObjectURL(p.url); p.url = URL.createObjectURL(picture); $('#pi-' + f, b).src = p.url;
-        } catch (x) { if (run === made && live()) $('.pi-note', b).textContent = x.message; }
-        finally { if (run === made && live()) { buttons(); wrap.classList.remove('busy'); } }
-      }));
+      const run = ++made; blob = null; buttons(); $('.pic-wrap', b).classList.add('busy');
+      try {
+        const picture = await routePicture(a, t && !t.checked ? 0 : trim);
+        if (run !== made || !live()) return;
+        if (!picture) throw new Error('Couldn’t prepare this picture. Close Share and try again.');
+        blob = picture; if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(blob); img.src = url;
+        $('.pi-note', b).textContent = note;
+      } catch (x) { if (run === made && live()) $('.pi-note', b).textContent = x.message; }
+      finally { if (run === made && live()) { buttons(); $('.pic-wrap', b).classList.remove('busy'); } }
     };
     make(); t.onchange = make;
-    const send = async f => {
-      const picture = pics[f].blob, run = made;
-      if (!picture || sending || !live()) return;
-      const file = new File([picture], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}-${f}.png`, {type: 'image/png'});
+    go.onclick = async () => {
+      if (!blob || sending || !live()) return;
+      const picture = blob, run = made;
+      const file = new File([picture], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}.png`, {type: 'image/png'});
       sending = true; buttons();
       try {
         if (Native.activityShareSupported) {
@@ -732,13 +729,12 @@ function sharePicture(id, known) {
         } else if (navigator.canShare && navigator.canShare({files: [file]})) {
           await navigator.share({files: [file]});      // called on the tap, before any other waiting, so browsers allow it
         } else {
-          const link = document.createElement('a'); link.href = pics[f].url; link.download = file.name; document.body.append(link); link.click(); link.remove();
+          const link = document.createElement('a'); link.href = url; link.download = file.name; document.body.append(link); link.click(); link.remove();
           toast('Picture saved');
         }
       } catch (x) { if (live() && x.name !== 'AbortError') toast(x.message || 'Couldn’t share this picture'); }
       finally { sending = false; if (live()) buttons(); }
     };
-    for (const [f] of FORMATS) $('#pi-go-' + f, b).onclick = () => send(f);
   });
 }
 // cut `m` metres off each end of the route; nothing left (a short loop) means no route is drawn
@@ -801,14 +797,13 @@ function drawMark(g, cx, cy, w, color) {
   g.restore();
   g.beginPath(); g.arc(...at(76, 32.68), 8.5 * s, 0, Math.PI * 2); g.fillStyle = color; g.fill();
 }
-// The share picture (redesigned 2026-10-24, Ben: bigger map, much less white): the map fills the whole picture and the
-// numbers sit on one compact rounded card near the bottom. A Story keeps its card and route clear of the strips Instagram
-// covers with its own controls. Start and finish get the same markers as the app's maps unless they're hidden.
-async function routePicture(a, trim, format = 'post') {
-  const story = format === 'story', W = 1080, H = story ? 1920 : 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+// The share picture (Ben, 2026-10-24): one 4:5 picture for texting, Instagram or anything else. The map fills it and the
+// details sit on a frosted, see-through card near the bottom. Start and finish get the app's markers unless hidden.
+async function routePicture(a, trim) {
+  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
   try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
-  const hue = PIC.route, M = 48, PAD = 44, SAFE_TOP = story ? 240 : 40, SAFE_BOTTOM = story ? 270 : M;
+  const hue = PIC.route, M = 48, PAD = 44, SAFE_TOP = 40, SAFE_BOTTOM = M;
   // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
   cells.push(['Time', dur(a.moving_s || a.elapsed_s), '']);
@@ -816,9 +811,9 @@ async function routePicture(a, trim, format = 'post') {
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
   if (cells.length < 3 && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
   if (cells.length < 3 && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
-  // the title, on one line (two on a Story), shortened with … when it doesn't fit beside the brand
+  // the title on one line, shortened with … when it doesn't fit beside the brand
   g.font = `700 46px ${ui}`;
-  const room = W - 2 * M - 2 * PAD - 200, lines = [''], maxLines = story ? 2 : 1;
+  const room = W - 2 * M - 2 * PAD - 200, lines = [''], maxLines = 1;
   for (const w of (a.name || '').split(/\s+/)) {
     const t = (lines[lines.length - 1] + ' ' + w).trim();
     if (g.measureText(t).width <= room || !lines[lines.length - 1]) { lines[lines.length - 1] = t; continue; }
@@ -854,9 +849,13 @@ async function routePicture(a, trim, format = 'post') {
     g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.9)'; g.strokeText('© OpenStreetMap contributors', W - M - 8, CY - 14);
     g.fillStyle = PIC.muted; g.fillText('© OpenStreetMap contributors', W - M - 8, CY - 14);
   }
-  // the card
-  g.save(); g.shadowColor = 'rgba(15,23,42,.22)'; g.shadowBlur = 40; g.shadowOffsetY = 12;
-  g.beginPath(); g.roundRect(CX, CY, CW, CH, 40); g.fillStyle = PIC.bg; g.fill(); g.restore();
+  // the card: the map behind it, blurred, under a light tint, so it reads as frosted glass rather than a white box
+  const card = () => { g.beginPath(); g.roundRect(CX, CY, CW, CH, 40); };
+  g.save(); g.shadowColor = 'rgba(15,23,42,.18)'; g.shadowBlur = 36; g.shadowOffsetY = 10; card(); g.fillStyle = 'rgba(255,255,255,.01)'; g.fill(); g.restore();
+  const behind = document.createElement('canvas'); behind.width = W; behind.height = H; behind.getContext('2d').drawImage(c, 0, 0);
+  g.save(); card(); g.clip(); g.filter = 'blur(18px) saturate(1.2)'; g.drawImage(behind, 0, 0); g.filter = 'none';
+  g.fillStyle = tiles ? 'rgba(255,255,255,.58)' : 'rgba(255,255,255,.8)'; g.fillRect(CX, CY, CW, CH); g.restore();
+  card(); g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.75)'; g.stroke();
   g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   let y = CY + PAD + 40;
   g.font = `700 46px ${ui}`; g.fillStyle = PIC.text;
