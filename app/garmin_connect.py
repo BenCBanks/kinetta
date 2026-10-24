@@ -155,8 +155,15 @@ def callback(state: str = '', code: str = '', error: str = ''):
     return page('Garmin is connected', 'New activities arrive after your watch syncs. For older history, import a Strava export or past workouts from Apple Health.', True)
 
 
+def _perm_list(raw):
+    # Garmin answers {"permissions": ["ACTIVITY_EXPORT", ...]} (seen on a real account, 2026-10-24); reading that object
+    # as a list gave ['permissions'], so a Health-only connection looked connected with activities on.
+    d = json.loads(raw)
+    return list(d.get('permissions') or []) if isinstance(d, dict) else list(d)
+
+
 def _permissions(access):
-    try: return list(json.loads(_http(API + '/user/permissions', headers={'Authorization': 'Bearer ' + access})))
+    try: return _perm_list(_http(API + '/user/permissions', headers={'Authorization': 'Bearer ' + access}))
     except Exception: return []
 
 
@@ -288,7 +295,7 @@ def check_still_connected(uid):
 
 
 def refresh_permissions(uid):
-    perms = json.loads(_get(uid, API + '/user/permissions'))
+    perms = _perm_list(_get(uid, API + '/user/permissions'))
     with db.connect() as c:
         c.execute("""UPDATE connections SET settings = jsonb_set(settings, '{permissions}', %s::jsonb), status = %s
                      WHERE user_id = %s AND kind = 'garmin_connect'""", (json.dumps(perms), _status_for(perms, 'connected'), uid))
