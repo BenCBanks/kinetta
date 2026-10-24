@@ -34,7 +34,7 @@ response. The app requests a fresh device token on registration; it does not per
 
 ## On the iPhone
 
-Open **Me → Notification settings → Turn on iPhone notifications**, then allow Kinetta in Apple's permission prompt.
+Open **Settings → Notifications → Turn on iPhone notifications**, then allow Kinetta in Apple's permission prompt.
 Switch **New workouts** off if you do not want workout congratulations (they then don't appear under the bell
 either). Logging out and back in to the same account turns alerts back on by itself. Turn off on this iPhone revokes
 this device's registration and is remembered; iOS Settings → Notifications → Kinetta controls Apple's system permission. Permission is never requested
@@ -51,7 +51,7 @@ References: [Registering your app](https://developer.apple.com/documentation/use
 
 ## Optional meal-time reminders (#122 K)
 
-Me → Notification settings contains a separate off-by-default reminder switch. Configure the existing production APNs identity/entitlement and enable notifications on a registered iPhone first; missing server/device setup leaves opt-in unavailable but never prevents turning it off. Nothing prompts on launch.
+Settings → Notifications contains a separate off-by-default reminder switch. Configure the existing production APNs identity/entitlement and enable notifications on a registered iPhone first; missing server/device setup leaves opt-in unavailable but never prevents turning it off. Nothing prompts on launch.
 
 Times come from3 or more distinct daytime logging days per breakfast/lunch/dinner across the last28 completed profile-local days. One first same-day observation per meal/day prevents multiple food rows from over-weighting one meal. Past-day uploads and night-time logs do not manufacture a daytime time; suggestions round to15minutes. No default meal time is invented. Alerts are restricted to7am–9pm and a5-minute window; a meal already logged stays quiet. There is at most one attempt per meal/local day, with a final preference/account/device/live-session/meal/quiet-hour/claim-age check.
 

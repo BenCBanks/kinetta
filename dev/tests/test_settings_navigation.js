@@ -5,7 +5,7 @@ const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf(
 function fixture(pending=0,accept=true){
  let route,writes=[],forgot=0,login=0,erased=0,notices=[];const nodes=new Map(),el={innerHTML:''};
  const c={session:1,readOwner:()=>JSON.stringify([c.App.me?.id,c.session]),App:{me:{id:1,name:'Fictional Person',login:'zz_test_settings',units:'imperial'},cache:new Map()},
-  URLSearchParams,location:{search:''},pendingEmail:()=>null,emailSheet(){},route:(re,tab,fn)=>route=fn,svg:()=>'',esc:String,backBtn:()=>'<button data-back>Back</button>',wireBack(){},profileHref:()=>'/people/zz_test_settings',
+  URLSearchParams,SUPPORT_EMAIL:'help@example.test',location:{search:''},pendingEmail:()=>null,emailSheet(){},route:(re,tab,fn)=>route=fn,svg:()=>'',esc:String,backBtn:()=>'<button data-back>Back</button>',wireBack(){},profileHref:()=>'/people/zz_test_settings',
   $:sel=>{if(!nodes.has(sel))nodes.set(sel,{});return nodes.get(sel)},$$:()=>[],kitChatOn:()=>false,
   Q:{mine:()=>pending?[{who:'zz_test_settings'}]:[],all:()=>[{who:'zz_test_settings'},{who:'zz_test_other'}]},
   FoodThread:{pendingCount:async()=>0,eraseDevice:async()=>{erased++}},KitChat:{eraseDevice(){},memorySettings(){}},

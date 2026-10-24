@@ -58,6 +58,7 @@ class SignupIn(NewAccountIn):
     email: str = Field(max_length=120)
     age_ok: StrictBool = False        # "I'm 16 or older" (privacy policy)
     website: str | None = Field(None, max_length=200)     # hidden on the form: people leave it empty, bots fill it
+    app: bool = False       # the iPhone app (#232 E): answer with the login token instead of setting a cookie
 
 
 @router.post('/api/signup')
@@ -75,7 +76,8 @@ def signup(body: SignupIn, request: Request, response: Response, background: Bac
         uid = _create(c, body)
         c.execute('UPDATE users SET needs_email_confirm = true WHERE id = %s', (uid,))
         account_email.confirmation(background, c, uid, body.name.strip(), email)
-        session = auth.new_session(c, uid, request.headers.get('user-agent'))
+        session = auth.new_session(c, uid, request.headers.get('user-agent'), channel='app' if body.app else 'web')
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
+    if body.app: return {'ok': True, 'pending': email, 'login': login, 'token': session}
     auth.set_cookie(request, response, session)
     return {'ok': True, 'pending': email, 'login': login}

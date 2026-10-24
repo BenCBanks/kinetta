@@ -51,6 +51,7 @@ node dev/tests/test_card_taps.js
 node dev/tests/test_ui_state.js
 node dev/tests/test_social_profiles_ui.js
 node dev/tests/test_onboarding.js
+node dev/tests/test_welcome.js
 node dev/tests/test_home_food.js
 node dev/tests/test_home_loading.js
 node dev/tests/test_sheet_motion.js
@@ -117,6 +118,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_account_email.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_signup.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_request_log.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_devices.py
 docker compose -p "$P" exec -T app python - < dev/tests/admin_usage_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/reactions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_photo_batches_corrections.py

@@ -158,4 +158,14 @@ class Signup(unittest.TestCase):
         me = j.get('/api/me').json()
         self.assertFalse(me['needs_email_confirm'], 'invited people are not held back'); self.assertEqual(me['pending_email'], 'zz_test_su_joiner@example.test')
 
+    def test_iphone_app_signup_gets_a_token(self):
+        # the iPhone app (#232 E) signs up in the app: a login token in the answer, no cookie, an "iPhone app" session
+        self.env(KINETTA_SIGNUP='open')
+        app_client = client(); app_client.headers['Origin'] = 'capacitor://localhost'
+        r = app_client.post('/api/signup', json=form('zz_test_su_app', app=True)); self.assertEqual(r.status_code, 200, r.text)
+        token = r.json()['token']; self.assertNotIn('set-cookie', r.headers)
+        me = client().get('/api/me', headers={'Authorization': 'Bearer ' + token}).json()
+        self.assertEqual(me['login'], r.json()['login']); self.assertTrue(me['needs_email_confirm'])
+        self.assertNotIn('token', client().post('/api/signup', json=form('zz_test_su_web')).json(), 'the web never gets a token')
+
 if __name__ == '__main__': unittest.main()

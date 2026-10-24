@@ -523,11 +523,10 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
       r.status === 'friends' ? `<button type="button" class="ghost" data-person-manage>Friends ${svg('more')}</button>` :
       r.status === 'sent' ? '<button class="ghost" data-person-action="cancel">Request sent</button>' :
       r.status === 'incoming' ? '<button class="primary" data-person-action="accept">Approve request</button>' : '<button class="primary" data-person-action="add">Add friend</button>';
-    const pencil = `<span class="pf-pen" aria-hidden="true">${svg('edit')}</span>`;
     box.innerHTML = `${r.mine ? '<div class="pf-preview"><b>Your profile, as friends see it</b><span>Only shared workouts appear here. You choose what to show.</span></div>' : ''}
-      <div class="profile public-profile">${r.mine ? `<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p, 'lg')}<span class="av-cam">${svg('camera')}</span></button>` : avatar(p, 'lg')}<div>${r.mine ? `<button type="button" class="pf-edit" id="pf-name" aria-label="Edit your name"><h1>${esc(p.name)}</h1>${pencil}</button>` : `<h1>${esc(p.name)}</h1>`}<div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
-      ${r.mine ? `<button type="button" class="pf-edit pf-bio${p.bio ? '' : ' empty'}" id="pf-bio" aria-label="${p.bio ? 'Edit your bio' : 'Add a bio'}"><span class="profile-bio">${p.bio ? esc(p.bio) : 'Add a bio — a line about you for friends'}</span>${pencil}</button>` : p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${r.mine ? '<button type="button" class="primary" id="pf-edit-profile">Edit profile</button><button type="button" class="ghost" id="pf-share">Share profile</button>' : action + '<button class="ghost" data-person-report>Report or block</button>'}</div>
-      ${r.mine ? '<div class="profile-tools"><a href="/me/settings">Settings &amp; account</a><a href="/activity?view=mine">Manage workouts</a><a href="/me/sharing">Sharing &amp; privacy</a></div>' : ''}
+      <div class="profile public-profile">${r.mine ? `<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p, 'lg')}<span class="av-cam">${svg('camera')}</span></button>` : avatar(p, 'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
+      ${p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${r.mine ? '<button type="button" class="primary" id="pf-edit-profile">Edit profile</button><button type="button" class="ghost" id="pf-share">Share profile</button>' : action + '<button class="ghost" data-person-report>Report or block</button>'}</div>
+      ${r.mine ? '<div class="profile-tools"><a href="/me/settings">Settings</a></div>' : ''}
       ${profileProgress(r.recent, r.mine)}
       <section class="card profile-mileage" id="profile-mileage" aria-label="Shared distance chart"></section><div class="card"><h2>All-time shared progress</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
         <div class="sport-overview">${(r.sports || []).map((s) => `<div class="row"><b>${esc(SPORT_NAMES[s.sport] || s.sport)}</b><span class="num">${s.activities} activities · ${s.distance_m ? U.dist(s.distance_m) + ' ' + U.du() : dur(s.time_s, true)}</span></div>`).join('')}</div><p class="small muted">${r.mine ? 'Activities set to “Only me” are left out here, as they are for everyone else.' : 'Only activities this person shares with you are included.'}</p></div>
@@ -641,8 +640,6 @@ function wireProfileEditing(box, p, reload) {
     };
   });
   $('#pf-edit-profile', box).onclick = () => edit();
-  $('#pf-name', box).onclick = () => edit('name');
-  $('#pf-bio', box).onclick = () => edit('bio');
 }
 
 route(/^\/me\/friends$/, 'me', async (el) => {
@@ -776,8 +773,8 @@ function reportSheet(p, what = {}, onBlocked) {
 
 // ---------- Me > Sharing: the usual choices for new activities ----------
 route(/^\/me\/sharing$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Sharing</h1><div id="sh-body">${skel(2)}</div>`;
-  wireBack(el, '/me');
+  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Sharing &amp; privacy</h1><div id="sh-body">${skel(2)}</div>`;
+  wireBack(el, '/me/settings');
   const sharingOwner=readOwner(),s = await api('/api/sharing'), box = $('#sh-body', el);
   if(!el.isConnected)return;
   box.innerHTML = `<div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
@@ -867,8 +864,8 @@ route(/^\/notifications$/, null, async (el) => {
   }, {maxAge: 0});
 });
 route(/^\/me\/notifications$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notification settings</h1><div id="nt-push">${skel(1)}</div>`;
-  wireBack(el, '/me');
+  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Notifications</h1><div id="nt-push">${skel(1)}</div>`;
+  wireBack(el, '/me/settings');
   await load('/api/notifications', (r) => {
     const box = $('#nt-push', el); if (!box) return;
     pushCard(box, r);

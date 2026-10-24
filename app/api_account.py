@@ -317,3 +317,17 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
     auth.set_cookie(request, response, token)
     return {'ok': True, 'login': login}
+
+
+@router.get('/api/account/inviter')
+def inviter(user=Depends(current_user)):
+    """Whoever's invite link brought you here, for the welcome steps' "Become friends" (#232 F5). Nothing once you're
+    already friends, or when either of you has blocked the other or that account is hidden."""
+    from .api_social import unconfirmed
+    with db.connect() as c:
+        r = c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo FROM invites i JOIN users u ON u.id = i.created_by
+            WHERE i.used_by = %(me)s AND u.id <> %(me)s AND NOT {unconfirmed('u.id')}
+              AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.user_id = u.id AND b.blocked = %(me)s) OR (b.user_id = %(me)s AND b.blocked = u.id))
+              AND NOT EXISTS (SELECT 1 FROM friendships f WHERE f.status = 'accepted' AND %(me)s IN (f.requester, f.addressee) AND u.id IN (f.requester, f.addressee))
+            ORDER BY i.used_at DESC LIMIT 1""", {'me': user['id']}).fetchone()
+    return {'inviter': r}

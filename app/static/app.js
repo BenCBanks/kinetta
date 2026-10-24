@@ -1106,15 +1106,10 @@ function showLogin(msg = '') {
   const f = $('form', root);
   $('input[name=login]', f).focus();
   $('#l-forgot', f).onclick = (e) => { e.preventDefault(); showForgot(f.login.value.trim()); };
-  // the iPhone app: most people use the hosted server, so its address stays out of the way until asked for, and the
-  // waitlist opens in Safari (accounts are made on the server's web page)
-  if (Native.on) {
-    const p = $('.login .small.muted', root), srv = $('#l-server', root);
-    p.innerHTML = `New here? <a href="${Native.server}/beta" target="_blank" rel="noopener">Join the beta</a>`;
-    api('/api/signup').then((r) => { const a = $('a', p); if (r.open && a) { a.href = Native.server + '/signup'; a.textContent = 'Create an account'; } }).catch(() => {});
-    const o = $('#l-other', p); if (o) o.onclick = (e) => { e.preventDefault(); srv.hidden = false; o.remove(); $('input', srv).focus(); };
-  }
-  if (!Native.on) Promise.all([api('/api/beta'), api('/api/signup').catch(() => ({}))]).then(([r, open]) => {   // point newcomers to signup or the waitlist
+  // the iPhone app: most people use the hosted server, so its address stays out of the way until asked for. Creating an
+  // account, the waitlist and Forgot password happen right here in the app, as on the web (#232 E).
+  Native.preLogin?.();
+  Promise.all([api('/api/beta'), api('/api/signup').catch(() => ({}))]).then(([r, open]) => {   // point newcomers to signup or the waitlist
     const p = $('.login .small.muted', root);
     if (open.open && p) { p.innerHTML = 'New here? <a href="/signup">Create an account</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(); }; return; }
     if (r.open && p) { p.innerHTML = 'New here? <a href="/beta">Join the beta</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/beta'); showBeta(); }; }
@@ -1174,7 +1169,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     b.disabled = true; err.textContent = '';
     try { await send({name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
         ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim()}),
-        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {})}); history.replaceState(null, '', '/me'); await start(); }
+        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {})}); history.replaceState(null, '', '/welcome'); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }
@@ -1200,7 +1195,7 @@ async function showSignup() {
   showNewAccount({title: 'Create your account', button: 'Create my account', signup: true,
     intro: 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
     send: async (body) => {
-      try { await api('/api/signup', json('POST', body)); }
+      try { if (Native.on) await Native.signup(body); else await api('/api/signup', json('POST', body)); }
       catch (x) { if (x.status === 409 && x.code === 'full') { history.replaceState(null, '', '/beta'); showBeta(true); return new Promise(() => {}); } throw x; }
     }});
   const back = $('#s-login', root); if (back) back.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
@@ -1221,7 +1216,7 @@ async function showBeta(full = false) {
     <p class="small muted">We use your email only to send your invite. <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">Ask to join</button>
-    <p class="small muted">Already have an account? <a href="/" id="b-login">Log in</a></p><p class="small"><a href="https://kinetta.app/">Back to the Kinetta website</a></p></form></div>`;
+    <p class="small muted">Already have an account? <a href="/" id="b-login">Log in</a></p>${Native.on ? '' : '<p class="small"><a href="https://kinetta.app/">Back to the Kinetta website</a></p>'}</form></div>`;
   const f = $('form', root); f.name.focus();
   $('#b-login', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
   f.addEventListener('submit', async (e) => {
@@ -1233,7 +1228,8 @@ async function showBeta(full = false) {
     try {
       await api('/api/beta', json('POST', {name: f.name.value, email: f.email.value, phone: f.phone.value, watch: f.watch.value, note: f.note.value, website: f.website.value}));
       root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Thanks, ${esc(f.name.value.trim().split(/\s+/)[0])}!</h1>
-        <p>You're on the list. We'll email your invite link to ${esc(f.email.value.trim())} when there's a spot.</p><a class="primary wide" href="https://kinetta.app/">Back to the Kinetta website</a></div></div>`;
+        <p>You're on the list. We'll email your invite link to ${esc(f.email.value.trim())} when there's a spot.</p>${Native.on ? '<a class="primary wide" href="/" id="b-done">Back to log in</a>' : '<a class="primary wide" href="https://kinetta.app/">Back to the Kinetta website</a>'}</div></div>`;
+      const done = $('#b-done', root); if (done) done.onclick = (ev) => { ev.preventDefault(); backToLogin(); };
     } catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }
