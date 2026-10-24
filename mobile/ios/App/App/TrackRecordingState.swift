@@ -27,16 +27,35 @@ struct TrackRecordingState: Codable {
     var finishedAt: Double?
     var native = true
     var anchor: TrackFix?          // the last fix that counted toward distance (missing in older saved recordings: fine)
+    // Spoken splits and auto-pause (#234 item 4). Optional so recordings saved by older builds still open.
+    var voice: Bool?
+    var autoPause: Bool?
+    var splitMetres: Double?       // 1609.344 (mile) or 1000 (km), from the account's units
+    var splits: [Double]?          // active seconds when each full mile or km was reached
+    var autoMs: Double?            // time left out by auto-pause
+    var lastMove: Double?          // when you last moved (ms)
+    static let autoAfter: Double = 15000
 
     var maxSpeed: Double { ["run":12.0,"walk":4,"hike":4,"ride":30,"swim":4,"row":8,"ski":40][sport] ?? 30 }
-    func seconds(at now: Double) -> Double { (activeMs + (state == "recording" ? max(0, now - activeAt) : 0)) / 1000 }
+    // Same rule as track.js TrackMath: 15 s without moving stops the clock until you move again, without a jump in the time
+    // shown; only the time beyond those 15 s is left out.
+    func idle(at now: Double) -> Double {
+        guard autoPause == true, state == "recording", let lastMove else { return 0 }
+        return max(0, now - lastMove - Self.autoAfter)
+    }
+    func autoPaused(at now: Double) -> Bool { idle(at: now) > 0 }
+    func seconds(at now: Double) -> Double {
+        max(0, activeMs + (state == "recording" ? max(0, now - activeAt) : 0) - (autoMs ?? 0) - idle(at: now)) / 1000
+    }
+    mutating func moved(at time: Double) { autoMs = (autoMs ?? 0) + idle(at: time); lastMove = time }
     mutating func pause(at now: Double) {
         guard state == "recording" else { return }
+        autoMs = (autoMs ?? 0) + idle(at: now); lastMove = nil
         activeMs += max(0, now - activeAt); state = "paused"; segment += 1; checkpoint = now
     }
     mutating func resume(at now: Double) {
         guard state != "recording" else { return }
-        state = "recording"; activeAt = now; checkpoint = now; finishedAt = nil
+        state = "recording"; activeAt = now; checkpoint = now; finishedAt = nil; lastMove = now
     }
     // Relaunch after termination cannot invent GPS time or connect an unobserved trip.
     mutating func recover(at now: Double) {
@@ -81,8 +100,30 @@ struct TrackRecordingState: Codable {
             }
         }
         if anchor?.segment != point.segment { anchor = nil }     // a new section never adds distance across the gap
-        if let m = Self.step(from: anchor, to: point) { distance += m; anchor = point }
+        // moving again after a stop: a counted step, or the first fix of a new section (no GPS arrives while you stand still)
+        if let m = Self.step(from: anchor, to: point) { distance += m; if m > 0 || !points.isEmpty { moved(at: timestamp) }; anchor = point }
+        if let unit = splitMetres, unit > 0 {
+            var done = splits ?? []
+            while distance >= Double(done.count + 1) * unit { done.append(seconds(at: timestamp)) }
+            splits = done
+        }
         points.append(point); checkpoint = max(checkpoint,timestamp); return point
+    }
+}
+
+// What the iPhone says at each split (#234 item 4); NativeTrackVoice in NativeTrack.swift speaks it. Plain Foundation so the
+// recorder tests can check the wording.
+enum NativeTrackVoiceText {
+    static func said(_ seconds: Double) -> String {
+        let s=Int(seconds.rounded()),h=s/3600,m=s/60%60,r=s%60
+        let parts=[h>0 ? "\(h) hour\(h>1 ? "s":"")" : "",m>0 ? "\(m) minute\(m>1 ? "s":"")" : "",r>0 ? "\(r) second\(r>1 ? "s":"")" : ""].filter { !$0.isEmpty }
+        return parts.isEmpty ? "0 seconds" : parts.joined(separator:" ")
+    }
+    static func text(_ state: TrackRecordingState) -> String? {
+        guard let splits=state.splits,let total=splits.last,let unit=state.splitMetres else { return nil }
+        let n=splits.count,last=total-(n>1 ? splits[n-2] : 0),name=unit>1500 ? "mile" : "kilometre"
+        let lastText=["ride","ski"].contains(state.sport) ? "at \(Int((3600/max(last,1)).rounded())) \(name)s per hour" : said(last)
+        return "\(n) \(name)\(n>1 ? "s":""). Time \(said(total)). Last \(name) \(lastText)."
     }
 }
 
