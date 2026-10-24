@@ -1355,6 +1355,17 @@ MIGRATIONS = [
     REVOKE ALL ON owner_people, owner_app_sessions FROM PUBLIC;
     GRANT SELECT ON owner_people, owner_app_sessions TO fit_all_readers;
     """,
+    # 71 (2026-10-24, #232 I): the devices each person has signed in from (a rough name like "iPhone app" or "Mac · Safari",
+    # never an IP address), so a sign-in from a new one can send an email. On by default; off in Settings. The first device
+    # an account is seen on (including everyone's next sign-in after this change) is only remembered, never emailed about.
+    """ALTER TABLE profile ADD COLUMN signin_email boolean NOT NULL DEFAULT true;
+    CREATE TABLE known_devices (user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE, device text NOT NULL,
+      first_seen timestamptz NOT NULL DEFAULT now(), last_seen timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (user_id, device));
+    ALTER TABLE known_devices ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON known_devices FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON known_devices FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON known_devices TO fit_readers;
+    """,
 ]
 
 

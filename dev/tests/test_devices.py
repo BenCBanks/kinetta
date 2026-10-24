@@ -1,11 +1,17 @@
 """Signed-in devices (#232 I) and the welcome steps' inviter suggestion (#232 F5), with fictional zz_test accounts."""
-import unittest
+import base64, datetime as dt, os, unittest
+from unittest.mock import patch
+import httpx
 from fastapi.testclient import TestClient
 from app import db, auth
 from app.main import app
 
 PW = 'test account private password'
 IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+MAIL = {'KINETTA_RESEND_KEY': 'stand-in-not-a-key', 'KINETTA_MAIL_FROM': 'Kinetta <hello@example.test>',
+        'KINETTA_MAIL_REPLY_TO': 'support@example.test', 'KINETTA_PUBLIC_URL': 'https://example.test',
+        'KINETTA_MAIL_WEBHOOK_SECRET': 'whsec_' + base64.b64encode(b'fictional-webhook-key').decode()}
+WINDOWS = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
 MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
 
 
@@ -72,6 +78,29 @@ class Devices(unittest.TestCase):
             c.execute('DELETE FROM blocks WHERE user_id = %s', (self.host,))
             c.execute("INSERT INTO friendships (requester, addressee, status, accepted) VALUES (%s, %s, 'accepted', now())", (self.me, self.host))
         self.assertIsNone(me.get('/api/account/inviter').json()['inviter'], 'nothing once you are friends')
+
+    def test_new_device_email(self):
+        p = patch.dict(os.environ, MAIL); p.start(); self.addCleanup(p.stop)
+        sent = []
+        def receipt(*a, **k):
+            sent.append(k['json']); return httpx.Response(200, json={'id': 'fictional'}, request=httpx.Request('POST', 'https://api.resend.com/emails'))
+        q = patch('app.account_email.httpx.post', side_effect=receipt); q.start(); self.addCleanup(q.stop)
+        with db.connect() as c:
+            c.execute('DELETE FROM known_devices WHERE user_id = %s', (self.other,))
+            c.execute("UPDATE users SET email = 'zz_test_dv_other@example.test', email_verified_at = now() WHERE id = %s", (self.other,))
+        self.login('zz_test_dv_other'); self.assertEqual(sent, [], 'the first device is only remembered')
+        self.login('zz_test_dv_other'); self.assertEqual(sent, [], 'same device again')
+        self.login('zz_test_dv_other', agent=IPHONE)
+        self.assertEqual(len(sent), 1); self.assertEqual(sent[0]['to'], ['zz_test_dv_other@example.test'])
+        self.assertIn('iPhone · Safari', sent[0]['text']); self.assertNotIn(PW, sent[0]['text'])
+        c2 = self.login('zz_test_dv_other')
+        self.assertEqual(c2.put('/api/account/signin-email', json={'on': False}).json(), {'on': False})
+        self.login('zz_test_dv_other', agent=WINDOWS); self.assertEqual(len(sent), 1, 'switched off')
+        c2.put('/api/account/signin-email', json={'on': True})
+        with db.connect() as c: c.execute('UPDATE users SET email_verified_at = NULL WHERE id = %s', (self.other,))
+        self.login('zz_test_dv_other', agent='Mozilla/5.0 (Linux; Android 15) Chrome/130.0 Mobile Safari/537.36')
+        self.assertEqual(len(sent), 1, 'never to an unconfirmed email')
+        self.assertEqual(client().get('/api/account/signin-email').status_code, 401)
 
 
 if __name__ == '__main__': unittest.main()

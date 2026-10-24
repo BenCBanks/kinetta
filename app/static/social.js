@@ -518,6 +518,8 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   const path0 = '/api/people/' + encodeURIComponent(login) + '/profile' + (own ? '?as_friend=true' : '');
   const draw = (r) => {
     const p = r.person;
+    // nothing shared yet: no empty 0.0 mi charts or zero totals, just the next step (#232 G)
+    const empty = !r.overview?.activities;
     // Your own profile is shown the way friends see it, with your name, bio and photo editable in place (2026-10-16, Ben)
     const action = r.mine ? '' :
       r.status === 'friends' ? `<button type="button" class="ghost" data-person-manage>Friends ${svg('more')}</button>` :
@@ -527,12 +529,12 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
       <div class="profile public-profile">${r.mine ? `<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p, 'lg')}<span class="av-cam">${svg('camera')}</span></button>` : avatar(p, 'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
       ${p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${r.mine ? '<button type="button" class="primary" id="pf-edit-profile">Edit profile</button><button type="button" class="ghost" id="pf-share">Share profile</button>' : action + '<button class="ghost" data-person-report>Report or block</button>'}</div>
       ${r.mine ? '<div class="profile-tools"><a href="/me/settings">Settings</a></div>' : ''}
-      ${profileProgress(r.recent, r.mine)}
-      <section class="card profile-mileage" id="profile-mileage" aria-label="Shared distance chart"></section><div class="card"><h2>All-time shared progress</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
-        <div class="sport-overview">${(r.sports || []).map((s) => `<div class="row"><b>${esc(SPORT_NAMES[s.sport] || s.sport)}</b><span class="num">${s.activities} activities · ${s.distance_m ? U.dist(s.distance_m) + ' ' + U.du() : dur(s.time_s, true)}</span></div>`).join('')}</div><p class="small muted">${r.mine ? 'Activities set to “Only me” are left out here, as they are for everyone else.' : 'Only activities this person shares with you are included.'}</p></div>
+      ${empty ? '' : profileProgress(r.recent, r.mine)}
+      ${empty ? '' : `<section class="card profile-mileage" id="profile-mileage" aria-label="Shared distance chart"></section><div class="card"><h2>All-time shared progress</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
+        <div class="sport-overview">${(r.sports || []).map((s) => `<div class="row"><b>${esc(SPORT_NAMES[s.sport] || s.sport)}</b><span class="num">${s.activities} activities · ${s.distance_m ? U.dist(s.distance_m) + ' ' + U.du() : dur(s.time_s, true)}</span></div>`).join('')}</div><p class="small muted">${r.mine ? 'Activities set to “Only me” are left out here, as they are for everyone else.' : 'Only activities this person shares with you are included.'}</p></div>`}
       <h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length ? r.items.map((a) => postCard(a)).join('') : `<div class="card empty"><b>No shared activities yet</b>${r.mine ? 'Choose a workout and use Sharing to add it to your profile.<a class="ghost wide" href="/activity?view=mine">Choose a workout</a>' : 'This person has not shared any activities you can see.'}</div>`}</div>
       <button class="ghost wide" id="person-more"${r.next ? '' : ' hidden'}>Show more</button>`;
-    mileageChart($('#profile-mileage', box), r.mileage || {});
+    if (!empty) mileageChart($('#profile-mileage', box), r.mileage || {});
     feedMaps(box); wireCheers(box);
     if (r.mine) wireProfileEditing(box, p, reload);
     const act = $('[data-person-action]', box);
@@ -864,8 +866,21 @@ route(/^\/notifications$/, null, async (el) => {
   }, {maxAge: 0});
 });
 route(/^\/me\/notifications$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Notifications</h1><div id="nt-push">${skel(1)}</div>`;
+  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Notifications</h1><div id="nt-push">${skel(1)}</div><div id="nt-email"></div>`;
   wireBack(el, '/me/settings');
+  // Email when your account is signed in to from a new device (#232 I); only with a confirmed email.
+  if (App.me.email && App.me.email_confirmed) api('/api/account/signin-email').then((r) => {
+    const box = $('#nt-email', el); if (!box) return;
+    box.innerHTML = `<div class="card"><h2>Email</h2><label class="check"><input type="checkbox" id="nt-signin"${r.on ? ' checked' : ''}> New sign-in emails</label>
+      <p class="small muted">We email ${esc(App.me.email)} when your account is signed in to from a phone or browser it hasn’t used before.</p></div>`;
+    const box2 = $('#nt-signin', box);
+    box2.onchange = async () => {
+      box2.disabled = true;
+      try { await api('/api/account/signin-email', json('PUT', {on: box2.checked})); toast(box2.checked ? 'Sign-in emails on' : 'Sign-in emails off'); }
+      catch (x) { box2.checked = !box2.checked; toast(x.message); }
+      box2.disabled = false;
+    };
+  }).catch(() => {});
   await load('/api/notifications', (r) => {
     const box = $('#nt-push', el); if (!box) return;
     pushCard(box, r);

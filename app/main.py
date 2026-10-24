@@ -1,7 +1,7 @@
 """Kinetta web app: accounts, login, per-person settings, the phone-installable app and all API routers."""
 import os, time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Response, Depends, HTTPException
+from fastapi import FastAPI, Request, Response, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware import gzip as _gzip
 from fastapi.exceptions import RequestValidationError
@@ -137,7 +137,7 @@ from .admin_usage import audit_attempt
 
 @app.post('/api/login')
 @audit_attempt('web')
-def login(body: Login, request: Request, response: Response):
+def login(body: Login, request: Request, response: Response, background: BackgroundTasks):
     ip = auth.client_ip(request)
     if auth.too_many(ip, body.login):
         raise HTTPException(429, 'Too many tries - wait 15 minutes')
@@ -152,6 +152,7 @@ def login(body: Login, request: Request, response: Response):
             # said only after the right password, so it never reveals who has an account (#233)
             if u['suspended_at']: raise HTTPException(403, 'This account is suspended. Reply to any email from Kinetta, or ask the person who runs it.')
             token = auth.new_session(c, u['id'], request.headers.get('user-agent'),channel='app' if body.app else 'web')
+            api_devices.remember(c, background, u['id'], request.headers.get('user-agent'))   # new-device email (#232 I)
     except auth.Failed as e:
         auth.failed(ip, body.login); raise HTTPException(e.status, e.message)
     if body.app: return {'ok': True, 'token': token}

@@ -40,7 +40,7 @@ Want to *try it?*
 
 ## it-s-a-small-beta-for-now-ask-for-an-invite-13
 
-Request an invite to the beta.
+Make an account in a minute, in your browser or the [iPhone app on TestFlight](https://testflight.apple.com/join/YAX1JnwB).
 
 ## kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14
 
