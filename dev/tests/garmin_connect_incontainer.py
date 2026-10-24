@@ -38,7 +38,7 @@ def fake_http(url, data=None, headers=None, method=None, cap=G.DATA_MAX):
         return json.dumps({'access_token': state['access'], 'refresh_token': 'zz-refresh', 'expires_in': 86400, 'refresh_token_expires_in': 7776000}).encode()
     if state['revoked'] or headers.get('Authorization') != 'Bearer ' + state['access']: raise urllib.error.HTTPError(url, 401, 'no', {}, None)
     if url.endswith('/user/id'): return json.dumps({'userId': state['gid']}).encode()
-    if url.endswith('/user/permissions'): return json.dumps(state.get('perms', ['ACTIVITY_EXPORT', 'HEALTH_EXPORT'])).encode()
+    if url.endswith('/user/permissions'): return json.dumps({'permissions': state.get('perms', ['ACTIVITY_EXPORT', 'HEALTH_EXPORT'])}).encode()   # Garmin's real shape
     if url.endswith('/user/registration') and method == 'DELETE': state['deleted'].append(state['gid']); return b''
     if '/backfill/' in url: return b''
     if url.startswith(G.API + '/activityDetails'): state['fetched'].append(url); return json.dumps(DETAILS).encode()
