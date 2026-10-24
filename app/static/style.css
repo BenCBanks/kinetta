@@ -1365,9 +1365,6 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .profile-progress > :last-child { margin-bottom: 0; }
 #pf-editor textarea { min-height: 6rem; }
 #pf-bio-count { margin: -8px 0 0; text-align: right; }
-.people-search-entry { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 10px 14px; margin-bottom: 16px; border: 1px solid var(--color-outline); border-radius: 999px; color: var(--tx2); background: var(--card); }
-.people-search-entry span { flex: 1; }
-.people-search-entry svg { width: 18px; height: 18px; }
 .people-search input { padding-right: 48px; }
 .people-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .people-search > button { position: absolute; right: 4px; top: 0; }
@@ -1635,6 +1632,14 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .track-live-top h2 { font: 700 28px/1.2 var(--font-display); margin: 0; }
 .track-live > #track-status { text-align: left; min-height: 20px; }
 .gc-off { display:block; margin:20px 0 0; padding:8px 0; }
+.route-end { background: none; border: 0; }
+.route-end svg { display: block; width: 24px; height: 24px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.pic-pair { display: grid; grid-template-columns: 9fr 10fr; gap: 12px; align-items: end; margin-bottom: 12px; }
+.pic-opt { display: grid; gap: 8px; min-width: 0; }
+.pic-pair .pic-opt .pic-wrap { margin: 0; max-height: none; display: block; box-shadow: 0 0 0 1px var(--line); background: var(--card); }
+.pic-pair .pic-opt .pic-wrap[data-wrap="story"] { aspect-ratio: 9 / 16; }
+.pic-pair .pic-opt .pic-wrap[data-wrap="post"] { aspect-ratio: 4 / 5; }
+.pic-pair .pic-opt .pic { width: 100%; height: 100%; max-height: none; object-fit: cover; }
 .track-splits { margin: -12px 0 16px; text-align: left; min-height: 1.4em; }
 .track-options { display: grid; gap: 4px; margin: 4px 0 12px; }
 .track-live-metrics { display: flex; justify-content: space-between; gap: 8px; margin: 22px 0; text-align: left; }
@@ -1697,8 +1702,8 @@ nav.tabs :is(a,button)[aria-current="page"] svg { animation: tab-pick .28s cubic
 .me-hello small { color: var(--tx3); font-size: 13px; font-weight: 600; }
 .me-hello h1 { overflow-wrap: anywhere; }
 .me-heading .acts { align-items: center; gap: 4px; }
-.me-avatar { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; }
-.me-avatar .av { width: 36px; height: 36px; font-size: 14px; }
+.me-avatar { display: grid; place-items: center; width: 40px; height: 44px; border-radius: 50%; }
+.me-avatar .av { width: 30px; height: 30px; font-size: 12px; }
 .me-avatar:active { transform: scale(.92); }
 #t-week { margin-top: 8px; }
 .card.tap.me-form { display: grid; gap: 10px; padding: 14px 16px; color: var(--tx); }
@@ -2471,8 +2476,7 @@ nav.tabs { view-transition-name: tabs; }
 .distance-column:focus-visible .distance-hit { stroke:var(--color-outline); stroke-width:1; }
 
 /* Account navigation and persistent return controls (owner cleanup, October 2026). */
-.settings-entry {display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:44px;margin-bottom:8px;font-size:1rem;font-weight:600;color:var(--tx)}
-.settings-entry svg {width:20px;height:20px}
+
 .has-back > .top:has([data-back]) {position:sticky;top:0;z-index:1010;background:var(--bg);min-height:48px;padding:env(safe-area-inset-top,0px) 0 4px;box-shadow:0 -30px 0 30px var(--bg);border-bottom:1px solid var(--line)}
 .has-back > .top.over {left:auto;right:auto;margin:0;padding-inline:16px;pointer-events:auto}
 .has-back > .top.over .back, .has-back > .top.over .icon-btn {background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}

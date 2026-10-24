@@ -213,7 +213,6 @@ function warmFeed() {
 }
 async function homeFeed(el) {
   el.innerHTML = `${actTop(false, true)}${whoseSeg('')}
-    <a class="people-search-entry" href="/me/friends?find=1">${svg('search')}<span>Find people</span>${svg('chev')}</a>
     <div class="feed-list" id="ff-list">${skel(3)}</div><button class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   wireWhose(el);
   const list = $('#ff-list', el), more = $('#ff-more', el);
