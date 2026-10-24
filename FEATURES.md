@@ -109,7 +109,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
       (each kind can be switched off); the iPhone app gets them once it can use Apple's push service
 - [x] Sharing between people (new accounts default to Everyone on Kinetta, with welcome/per-activity/Settings choices; existing choices stay): friends found by name or username, a Feed of yours and your
       friends' activities (Mine for just yours), sharing per activity, hidden map ends, cheers and comments
-- [x] Admin: separate /admin portal for invitations, password-reset emails, signing out sessions, suspension/restoration and account management; member data deletion stays in Settings → Your data
+- [x] Admin: separate /admin portal for invitations, password-reset emails, signing out sessions, suspension/restoration and account management, including removing an account and its data; members can also delete their own account in Settings → Your data
 
 ## Me and native activity tracking (issue #108; physical-device acceptance open)
 

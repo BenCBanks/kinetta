@@ -12,7 +12,7 @@ can be signed and uploaded automatically.
 
 ## What the app does today
 
-- **Sign up or log in.** The app uses `https://login.kinetta.app`. Create an account and Forgot password work inside the app. The hosted service has open sign-up with a 100-account cap; when full, the app offers the waitlist. Other installations choose their own sign-up mode and cap. New members confirm their email before appearing to others or using social actions.
+- **Sign up or log in.** The app uses `https://login.kinetta.app`. Create an account and Forgot password work inside the app. The hosted service has open sign-up with a 100-account cap; when full, the app offers the waitlist. Other installations choose their own sign-up mode and cap. People who sign up themselves confirm their email before appearing to others or using social actions; people joining by an invite link are not held back.
   Developers can point a build at a test server; it must use `https://`.
 - **Welcome.** New accounts see four optional steps: profile, activity audience, bring in workouts and find friends. Skip/Not now do not save pending name, bio or audience edits, or undo actions already confirmed (such as a photo upload or friend request). Me leads with Get started and hides the empty chart until activity or food history exists.
 - **Account safety.** Settings → Signed-in devices lists device labels and sign-in dates, without IP addresses. Sign out one other login or all others; use Log out for this one. Settings → Notifications controls New sign-in emails, on by default for confirmed addresses when mail is available. The first device and known device types are silent.
@@ -128,7 +128,7 @@ inside the app (Me → Settings & account → Your data), and **download my data
 Still to do when you submit:
 - **A sign-in for Apple's reviewer** on login.kinetta.app, with some made-up workouts and food in it. Before making it,
   remember that "Everyone" on a shared server means every account there, reviewer included: activities testers share
-  with *Everyone* would be visible to it (new accounts default to *Everyone on Kinetta*, with a choice in welcome, Settings → Sharing, and before saving a recording; existing activities retain their audience).
+  with *Everyone* would be visible to it (new accounts default to *Everyone on Kinetta*, with a choice in welcome, Settings → Sharing & privacy, and before saving a recording; existing activities retain their audience).
 - **Screenshots** at 6.9-inch iPhone size (1320 x 2868). The app is iPhone-only, so no iPad screenshots are needed.
 - **Support URL**: https://kinetta.app works. **Marketing URL**: optional.
 - **Age rating** questionnaire: no objectionable content; friends can comment on each other's activities, so answer
