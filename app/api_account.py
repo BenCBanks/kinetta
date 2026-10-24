@@ -9,6 +9,7 @@ import datetime as dt
 import os
 import re
 import secrets
+import unicodedata
 import shutil
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
@@ -183,24 +184,40 @@ INVITE_DAYS = 7
 
 class NewAccountIn(BaseModel):
     name: str = Field(max_length=60)
-    login: str = Field(max_length=30)
+    login: str | None = Field(None, max_length=30)      # optional: made from the name, and changeable any time
     password: str = Field(min_length=8, max_length=200)
     tz: str | None = Field(None, max_length=64)            # the phone's time zone (Intl API)
     units: str | None = Field(None, pattern='^(imperial|metric)$')
     share_default: str = Field('everyone', pattern='^(me|friends|everyone)$')
 
 
+def suggest_login(c, name, taken=()):
+    """A free username from a name, like a gamertag: "Zoë Smith" -> zoe, then zoe2, zoe3 (2026-10-24, Ben: people log in
+    with their email and change their username whenever they like)."""
+    word = (unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode().lower().split() or [''])[0]
+    base = re.sub(r'^[^a-z]+', '', re.sub(r'[^a-z0-9_]', '', word))[:26]
+    if len(base) < 2: base = 'mover'
+    for n in range(1, 100000):
+        cand = base if n == 1 else f'{base}{n}'
+        if cand not in taken and not c.execute('SELECT 1 FROM users WHERE login = %s', (cand,)).fetchone(): return cand
+
+
 def _create(c, body, is_admin=False):
     """Insert a person + their settings; returns the new id."""
-    login, name = _clean_login(body.login), _clean_name(body.name)
+    name, chosen = _clean_name(body.name), body.login and body.login.strip()
+    login = _clean_login(chosen) if chosen else suggest_login(c, name)
     auth.check_new_password(body.password, login)
     tz = db.valid_tz(body.tz) or db.DEFAULT_TZ
-    try:
-        with c.transaction():
-            uid = c.execute('INSERT INTO users (login, name, pw_hash, is_admin) VALUES (%s, %s, %s, %s) RETURNING id',
-                            (login, name, auth.hash_pw(body.password), is_admin)).fetchone()['id']
-    except errors.UniqueViolation:
-        raise HTTPException(409, 'That username is taken')
+    tried = set()
+    while True:
+        try:
+            with c.transaction():
+                uid = c.execute('INSERT INTO users (login, name, pw_hash, is_admin) VALUES (%s, %s, %s, %s) RETURNING id',
+                                (login, name, auth.hash_pw(body.password), is_admin)).fetchone()['id']
+            break
+        except errors.UniqueViolation:
+            if chosen or len(tried) > 20: raise HTTPException(409, 'That username is taken')
+            tried.add(login); login = suggest_login(c, name, tried)     # someone took the same suggestion at that moment
     c.execute('INSERT INTO profile (user_id, tz, units, share_default) VALUES (%s, %s, %s, %s)', (uid, tz, body.units or 'imperial',body.share_default))
     return uid
 
@@ -266,18 +283,22 @@ def _open_invite(c, token, lock=False):
 
 @router.get('/api/join/{token}')
 def invite_info(token: str):
-    """No login needed: who sent the invite, so the join page can say so."""
+    """No login needed: who sent the invite, so the join page can say so, and whether it can ask for an email."""
+    from . import account_email
     with db.connect() as c:
         r = _open_invite(c, token)
-    return {'inviter': r['inviter'], 'note': r['note']}
+    return {'inviter': r['inviter'], 'note': r['note'], 'email': account_email.mail_ready()}
 
 
 class JoinIn(NewAccountIn):
     token: str = Field(max_length=100)
+    email: str | None = Field(None, max_length=120)      # invited people log in with their email too, once confirmed
 
 
 @router.post('/api/join')
-def join(body: JoinIn, request: Request, response: Response):
+def join(body: JoinIn, request: Request, response: Response, background: BackgroundTasks):
+    from . import account_email
+    email = account_email._clean_email(body.email) if body.email and body.email.strip() else None
     ip = auth.client_ip(request)
     if auth.too_many(ip, 'join'): raise HTTPException(429, 'Too many tries - wait 15 minutes')
     with db.connect() as c:
@@ -287,6 +308,8 @@ def join(body: JoinIn, request: Request, response: Response):
             auth.failed(ip, 'join'); raise
         uid = _create(c, body)
         c.execute('UPDATE invites SET used_by = %s, used_at = now() WHERE id = %s', (uid, inv['id']))
+        if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
+        login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
     auth.set_cookie(request, response, token)
-    return {'ok': True}
+    return {'ok': True, 'login': login}

@@ -1096,7 +1096,7 @@ function showLogin(msg = '') {
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<p>Your runs, rides, walks and food, private to you.</p></div>
     ${Native.on ? `<label${(Native.base || Native.server) === Native.server ? ' hidden' : ''} id="l-server">Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
-    <label>Username or email<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
+    <label>Email or username<input name="login" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
     <p class="err" role="alert">${esc(msg)}</p>
     <button class="primary" type="submit">Log in</button>
@@ -1123,7 +1123,7 @@ function showLogin(msg = '') {
     e.preventDefault();
     const b = $('button', f), err = $('.err', f);
     const login = f.login.value.trim(), password = f.password.value;
-    if (!login || !password) { err.textContent = 'Enter your username or email, and your password.'; return; }
+    if (!login || !password) { err.textContent = 'Enter your email (or username) and your password.'; return; }
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = '';
     try { if (Native.on) await Native.login(f.server.value, login, password); else await api('/api/login', json('POST', {login, password})); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; b.textContent = 'Log in'; f.password.select(); }
@@ -1136,37 +1136,45 @@ function phoneDefaults() {
   return {tz, units: ['US', 'LR', 'MM'].includes(region.toUpperCase()) ? 'imperial' : 'metric'};
 }
 // "Create your account" (brand-new server: the first person becomes the admin) or "Join" (from an invite link)
-function showNewAccount({title, intro, button, send, signup = false}) {
+// Email-first (2026-10-24, Ben): when the server can send email, people give their email (their login) and get a username
+// made from their name, which they can change any time like a gamertag. Without email set up (first run, or a server
+// with no mail service) they choose a username to log in with, as before.
+function showNewAccount({title, intro, button, send, signup = false, email = signup}) {
+  const pick = !email;
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
-    ${signup ? '<label>Email<input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted">We\'ll send a link to confirm it. It\'s never shown to other people.</p>' : ''}
-    <label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></label>
-    <p class="small muted">What you'll type to log in: lowercase letters, numbers or _.</p>
+    ${email ? `<label>Email<input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted">You'll log in with it. We'll send a link to confirm it; it's never shown to other people.</p>` : ''}
+    ${pick ? `<label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></label>
+    <p class="small muted">What you'll type to log in: lowercase letters, numbers or _.</p>` : ''}
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
     <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
     <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone on Kinetta</option><option value="friends">Approved friends</option><option value="me">Only me</option></select></label>
     <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
+    ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
     ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older and agree to the <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">privacy policy</a></span></label>
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>` : ''}
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
-  f.name.addEventListener('input', () => {   // suggest a username from the first name until they type their own
-    if (f.login.dataset.touched) return;
-    f.login.value = (f.name.value.trim().split(/\s+/)[0] || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9_]/g, '').slice(0, 30);
-  });
-  f.login.addEventListener('input', () => { f.login.dataset.touched = '1'; });
+  if (pick) {
+    f.name.addEventListener('input', () => {   // suggest a username from the first name until they type their own
+      if (f.login.dataset.touched) return;
+      f.login.value = (f.name.value.trim().split(/\s+/)[0] || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9_]/g, '').slice(0, 30);
+    });
+    f.login.addEventListener('input', () => { f.login.dataset.touched = '1'; });
+  }
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const b = $('button', f), err = $('.err', f);
-    if (!f.name.value.trim() || !f.login.value.trim()) { err.textContent = 'Enter your name and a username.'; return; }
-    if (signup && !f.email.value.trim()) { err.textContent = 'Enter your email.'; f.email.focus(); return; }
+    if (!f.name.value.trim() || (pick && !f.login.value.trim())) { err.textContent = pick ? 'Enter your name and a username.' : 'Enter your name.'; return; }
+    if (email && !f.email.value.trim()) { err.textContent = 'Enter your email.'; f.email.focus(); return; }
     if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; f.password.focus(); return; }
     if (signup && !f.age_ok.checked) { err.textContent = 'Kinetta is for people 16 or older.'; return; }
     b.disabled = true; err.textContent = '';
-    try { await send({name: f.name.value, login: f.login.value.trim().toLowerCase(), password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
-        ...(signup ? {email: f.email.value.trim(), age_ok: f.age_ok.checked, website: f.website.value} : {})}); history.replaceState(null, '', '/me'); await start(); }
+    try { await send({name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
+        ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim()}),
+        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {})}); history.replaceState(null, '', '/me'); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }
@@ -1178,7 +1186,7 @@ async function showJoin(token) {
     $('a', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
     return;
   }
-  showNewAccount({title: 'Join Kinetta', button: 'Create my account',
+  showNewAccount({title: 'Join Kinetta', button: 'Create my account', email: !!info.email,
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
