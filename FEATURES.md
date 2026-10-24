@@ -1,7 +1,6 @@
 # Kinetta — features
 
-Release checkpoint — October 17, 2026: the owner has authorized the reviewed #124–163 batch for merge,
-production deployment and a final-main TestFlight build. [ROADMAP.md](ROADMAP.md) records the current next steps.
+Release checkpoint — October 24, 2026: PRs #248–251 add welcome steps, account/device safety, in-app sign-up, filtered GPS distance, phone/watch matching, live pace, spoken splits and auto-pause. The hosted service has open sign-up with a 100-account cap and a waitlist when full; other installations configure their own mode. Physical-iPhone recording and locked-pocket speech acceptance remain pending. [ROADMAP.md](ROADMAP.md) records the current next steps.
 Some entries below describe the scope when an earlier foundation was introduced; later entries complete their
 integration. “Built” does not establish production/Apple processing, physical-device acceptance or public-launch
 readiness. Food chat, recipe links and the Health food UI are integrated; the native Share extension remains
@@ -27,11 +26,11 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
   `shoes.csv`, `media/`. Activities with no file = manual entries (use the CSV numbers).
 
 ## Getting data in
-- [x] Upload FIT / GPX / TCX (also .gz) from phone or PC
+- [x] Upload FIT / GPX / TCX (also .gz) in a browser; omitted in the iPhone app
 - [x] Upload the whole Strava export .zip (names, descriptions, gear, private notes, commute flag kept; photos later)
 - [x] Very large exports: drop the zip in `data/inbox/<login>/` and run the importer on the server
-- [x] Duplicate detection (same start time ±2 min + similar distance), so Garmin and Strava copies never double-count
-- [x] Garmin Connect: sign in with Garmin; new activities arrive by push after each watch sync (admin-only until opened)
+- [x] Duplicate detection: a phone recording and import merge at 80% overlap of the longer workout in either order, with available watch heart rate; short workouts inside much longer ones and two phone recordings stay separate. Other imports use time, sport, duration and distance checks.
+- [x] Garmin Connect: sign in with Garmin; new activities can arrive by push after watch sync when the server supports it and Garmin activity sharing is enabled. Maps and heart rate depend on the source.
 - [x] Apple Watch automatic sync through Health Auto Export (needs the app + a private upload link)
 
 ## Each activity
@@ -99,23 +98,30 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 
 ## Platform
 - [x] One-command Docker install; passwords generated on first start; first account becomes the admin
+- [x] Open sign-up with email confirmation, age 16+ check and an account cap; waitlist when full. Administrators can still invite members. Installations can choose invite-only or waitlist mode.
 - [x] Invite links (one use, 7 days); each new account starts in its phone's time zone and units
+- [x] Four optional welcome steps: profile, who sees activities, bring in workouts and find friends. Pending name/bio/audience changes save on Continue; Skip/Not now do not undo photo uploads or requests already confirmed.
+- [x] Email or username login, password reset by email, and Create an account / Forgot password inside the iPhone app.
+- [x] Settings → Signed-in devices: device labels/dates without IP addresses; sign out one other login or all others. Optional New sign-in emails for confirmed addresses, initially on; first and known device types are silent.
 - [x] Private accounts, read-only SQL login per person with row-level security + friendly views, one-command database backups
 - [x] Notifications (2026-10-11, `notify.py`): friend requests, accepted requests, cheers, comments and shared meals in
       Me > Notifications (a number on the Me tab, a dot on Today's bell), and in the native iPhone app through APNs when turned on; browser push is retired
       (each kind can be switched off); the iPhone app gets them once it can use Apple's push service
-- [x] Sharing between people (2026-10-11, off by default): friends found by name or username, a Feed of yours and your
+- [x] Sharing between people (new accounts default to Everyone on Kinetta, with welcome/per-activity/Settings choices; existing choices stay): friends found by name or username, a Feed of yours and your
       friends' activities (Mine for just yours), sharing per activity, hidden map ends, cheers and comments
-- [x] Admin: reset a person's password, remove a person + all their data (Me > Account > People)
+- [x] Admin: separate /admin portal for invitations, password-reset emails, signing out sessions, suspension/restoration and account management, including removing an account and its data; members can also delete their own account in Settings → Your data
 
 ## Me and native activity tracking (issue #108; physical-device acceptance open)
 
-- [x] Me replaces Today as home, with the fixed fourteen-day chart, personal identity, current-day panels, useful tools and grouped settings.
+- [x] Me replaces Today as home, with a fourteen-day chart, personal identity, current-day panels, useful tools and a separate Settings & account screen. Until activity or food history exists, Get started leads and the empty chart is hidden; profiles with nothing shared also omit empty charts.
 - [x] Personal/profile fixed14day distance charts use exactly the shared feed visibility rules.
-- [x] Track owns outdoor GPS, indoor timers, lifting, past entries/imports and source connections. Native iPhone GPS is independent of the WebView.
-- [x] Pause/resume, review/private save, retry without duplicates and account-scoped recoverable drafts.
+- [x] Track owns outdoor GPS, indoor timers, lifting, past entries and source connections, plus file imports in browsers only. Native iPhone GPS is independent of the WebView.
+- [x] Pause/resume, review and audience choice before save, retry without duplicates and account-scoped recoverable drafts.
 - [x] Native background location engine, protected point journal, account guards and WebView recovery.
-- [ ] Apple SDK build and physical-iPhone background/locked-screen GPS acceptance.
+- [x] Apple SDK builds; physical-iPhone background/locked-screen GPS acceptance remains pending.
+- [x] Shared web/native/server GPS distance filter; live pace over 30 seconds, average and last mile/km.
+- [x] Spoken mile/km splits initially on; native locked-screen audio configured, browser speech foreground-only. Physical locked-pocket acceptance pending.
+- [x] Auto-pause after 15 seconds still with no backwards clock jump; initially on for run/walk/hike, off for rides, voice remembered per device/account, auto-pause also per sport. Lock Screen Live Activity remains planned.
 - [x] Owner activity detail renders all recorded route sections; shared map previews retain the trimmed longest section.
 
 See [Recording activities](docs/activity-tracking.md).
@@ -234,7 +240,7 @@ Activity sharing: the picture preview offers Instagram composer handoff in the i
 ## App cleanup · October 24, 2026
 
 - Me remains the daily summary. Settings & account opens a dedicated screen from Me or your own profile, with Log out near the top and existing unsent-data checks.
-- Detail-page Back controls remain in a solid top bar while scrolling. Fitness charts expand into full-height analysis sheets with touch/hover readouts and date sliders; Progress bars use sky blue.
+- Detail-page Back controls remain in a solid top bar while scrolling. Fitness charts expand into full-height analysis sheets with touch/hover/keyboard readouts, pinch/scroll zoom and drag/sideways-scroll panning, with no date sliders; Progress bars use sky blue.
 - Activity pictures have two shapes, Story (1080×1920) and Post (1080×1350), for both regular sharing and Instagram. Maps occupy more of the image; trimming and destination handoff guards remain.
 - Notifications use a short title and full body. iOS owns final banner size. The Help catalog covers definitions and the updated flows.
 - Training-day nutrition guidance and automatic calorie adjustments are parked in `dev/deferred/training-food/`; see issue #236. The usual target and explicit day goals remain.
