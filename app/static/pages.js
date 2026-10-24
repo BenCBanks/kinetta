@@ -1000,18 +1000,18 @@ function fitnessChart(box, title, draw) {
   viewResources.set(box, () => closeFull?.());
   const plot = $('[data-fitness-plot]', box), open = () => {
     const owner = readOwner();
-    const selected = $('input[type=range]', plot)?.value;
-    sheet(title, '<div class="fitness-inspect"><p class="small muted">Touch or hover over the chart to see the numbers. Use the slider or arrow keys to choose a date.</p><div data-full-chart></div></div>', (body, close) => {
+    const selected = chartViews.get(plot)?.state();
+    sheet(title, '<div class="fitness-inspect"><p class="small muted">Pinch or scroll to zoom. Drag to move through dates. Tap or hover for exact values.</p><div data-full-chart></div></div>', (body, close) => {
       closeFull = close;
       body.closest('.sheet')?.querySelector('[data-close]')?.focus({preventScroll:true});
       const mount = $('[data-full-chart]', body);
       const redraw = () => {
         if (owner !== readOwner()) return close();
         if (!mount.isConnected) return;
-        const index = $('input[type=range]', mount)?.value ?? selected;
-        draw(mount, Math.max(220, Math.min(600, innerHeight * .52)));
-        const slider = $('input[type=range]', mount);
-        if (slider && index != null) { slider.value = index; slider.oninput(); }
+        const view = chartViews.get(mount)?.state() ?? selected;
+        const focused = mount.contains(document.activeElement);
+        draw(mount, Math.max(220, Math.min(600, innerHeight * .52)), {view,interactive:true});
+        if (focused) $('svg',mount)?.focus({preventScroll:true});
       };
       requestAnimationFrame(redraw);
       window.addEventListener('resize', redraw);
@@ -1048,9 +1048,9 @@ async function pFitness(body, q) {
       <div id="p-load"></div><p class="small muted">Fitness = 6-week average training load, fatigue = last week. Form = fitness − fatigue: positive means fresh, negative means recent load is higher than your longer-term load. It does not diagnose overtraining.</p>
       ${f.ramp_7d > 8 ? '<div class="callout warn">Fitness rose fast this week (ramp ' + f.ramp_7d + '). Build gradually to stay healthy.</div>' : ''}</div>`;
     requestAnimationFrame(() => {
-      fitnessChart($('#p-load', box), 'Fitness, fatigue & form', (mount, height) => loadChart(mount, f.days, {height}));
-      if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Running fitness', (mount, height) => trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
-        {fmt: (v) => v.toFixed(1), color: 'brand', height, keep: (p) => inRange(R, p.d.getFullYear())}));
+      fitnessChart($('#p-load', box), 'Fitness, fatigue & form', (mount, height, options) => loadChart(mount, f.days, {height,...options}));
+      if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Running fitness', (mount, height, options) => trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
+        {fmt: (v) => v.toFixed(1), color: 'brand', height, ...options, keep: (p) => inRange(R, p.d.getFullYear())}));
     });
   });
 }

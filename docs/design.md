@@ -1217,7 +1217,7 @@ Me is the daily summary, Activity is the feed/history, and your profile is your 
 
 Back controls on detail pages stay in a small solid theme-colored top bar, including activity pages with maps. Keep safe areas, prior filters/scroll restoration, keyboard dismissal and full-screen-map gestures.
 
-Progress bars use the approved light sky blue; selection remains distinguishable. Fitness charts open a full-height sheet with date selection and exact numeric readouts by touch, hover or keyboard. Retain date ranges, source units, labels and Escape/focus behavior. Training indicators are estimates, not diagnoses.
+Progress bars use the approved light sky blue; selection remains distinguishable. Fitness charts open a full-height sheet with exact numeric readouts by touch, hover or keyboard. Owner revision, 24 October: no date/month slider. Pinch or scroll to zoom, drag or scroll sideways to move through dates, and tap/hover to inspect. Show all dates resets the zoom; keyboard arrows choose dates, +/− zoom and 0 resets. Preserve the selected date and zoom across rotation. Small charts retain normal page scrolling. Retain date ranges, source units, labels and Escape/focus behavior. Training indicators are estimates, not diagnoses.
 
 Sharing offers Story (9:16, 1080×1920) and Post (4:5, 1080×1350) for ordinary sharing and Instagram. A larger map and compact footer replace the large white lower area. Export exactly the selected privacy-trimmed preview; preserve stale-result/account/duplicate/close guards and map attribution.
 

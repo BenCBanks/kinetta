@@ -2464,12 +2464,11 @@ nav.tabs { view-transition-name: tabs; }
 .chart-expand {display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;width:100%;margin-top:8px}
 .chart-expand svg {width:18px;height:18px}
 [data-fitness-plot] .chartbox[role=button] {cursor:zoom-in}
-.chart-date {display:flex;align-items:center;gap:12px;min-height:44px;font-size:.875rem;color:var(--tx2)}
-.chart-date input {width:100%;min-width:0;accent-color:var(--accent)}
+.chart-reset {display:block;min-height:44px;margin:4px auto}
 .scrim:has(.fitness-inspect) .sheet {width:100%;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
 .fitness-inspect {max-width:1400px;margin:auto}
 .fitness-inspect .readout {min-height:64px;flex-wrap:wrap;gap:8px 20px;font-size:1rem}
-.fitness-inspect .chartbox svg {touch-action:none}
+.fitness-inspect .chartbox > svg {touch-action:none;cursor:crosshair}
 .chartbox .ln.k-brand {stroke:var(--accent);fill:none}
 .pic-wrap:has(.pic) {aspect-ratio:auto;box-shadow:none;background:transparent;display:flex;justify-content:center}
 .pic-wrap .pic {width:auto;max-width:100%;max-height:50dvh;object-fit:contain}
