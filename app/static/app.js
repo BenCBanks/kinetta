@@ -908,7 +908,7 @@ function inspectChart(box, {n, W, padL, padR = 6, draw, show, view = null, inter
     if (pointers.size === 1) point(e);
   });
   graph.addEventListener('pointermove', e => {
-    if (!interactive || !pointers.has(e.pointerId)) { if (e.pointerType !== 'touch') point(e); return; }
+    if (!interactive || !pointers.has(e.pointerId)) { if (!interactive || e.pointerType !== 'touch') point(e); return; }
     pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
     const p = [...pointers.values()];
     if (p.length > 1 && gesture.distance) {

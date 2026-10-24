@@ -26,6 +26,6 @@ t.emit('wheel',{deltaY:-200});t.emit('wheel',{deltaY:-200});t.emit('wheel',{delt
 t.emit('keydown',{key:'End'});assert.equal(t.state().index,149);assert(t.ro.innerHTML.includes('159.0'));assert(t.ro.innerHTML.includes('169.0'));assert(t.ro.innerHTML.includes('-10.0'));
 const saved=t.state(),resized=fixture(700);c.loadChart(resized.box,days,{interactive:true,view:saved});assert.deepEqual(resized.state(),saved,'resize preserves zoom and selected day');assert(resized.graph.innerHTML.includes('clipPath'));assert(!resized.graph.innerHTML.includes('NaN'));
 t.emit('keydown',{key:'0'});assert.equal(t.state().from,0);assert.equal(t.state().to,149);
-t=fixture();c.loadChart(t.box,days);assert(!t.handlers.wheel,'inline graph leaves page scroll alone');t.emit('pointerdown',{clientX:30});assert.equal(t.state().index,0);assert.equal(t.captured.size,0);
+t=fixture();c.loadChart(t.box,days);assert(!t.handlers.wheel,'inline graph leaves page scroll alone');t.emit('pointerdown',{clientX:30});assert.equal(t.state().index,0);assert.equal(t.captured.size,0);t.emit('pointermove',{clientX:314});assert.equal(t.state().index,149,'small charts retain touch-move readouts without capturing page scroll');
 t=fixture();c.loadChart(t.box,[]);assert(t.box.innerHTML.includes('Needs activities'));c.trendLine(t.box,months.map(p=>({...p,y:null})),{fmt:String});assert(t.box.innerHTML.includes('Not enough data'));
 console.log('Fitness: no sliders; exact hover/touch/missing values; pinch/drag/wheel bounds; keyboard/reset; zoom/date restoration; inline scrolling and empty states PASS');
