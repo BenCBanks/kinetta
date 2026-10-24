@@ -63,10 +63,10 @@ def remember(c, background: BackgroundTasks, uid, agent):
                      LEFT JOIN profile p ON p.user_id = u.id WHERE u.id = %s AND u.email_verified_at IS NOT NULL""", (uid,)).fetchone()
     if u and u['email'] and u['signin_email'] is not False and account_email.mail_ready():
         background.add_task(account_email.send, u['email'], 'New sign-in to your Kinetta account',
-            f"Hi {u['name']},\n\nYour Kinetta account ({u['login']}) was just signed in to from a new device: {name}.\n\n"
-            "If this was you, there's nothing to do. If it wasn't, open Kinetta, go to Settings > Password to change it, "
-            "then Settings > Signed-in devices to sign out everything else, and reply to this email so we can help.\n\n"
-            "You can turn these emails off in Settings > Notifications.")
+            f"Hi {u['name']},\n\nSomeone just signed in to your Kinetta account ({u['login']}) from a new device: {name}.\n\n"
+            "If that was you, you're all set. If not, open Kinetta and change your password in Settings > Password, then "
+            "sign out the other devices in Settings > Signed-in devices. Reply to this email and we'll help.\n\n"
+            "(You can turn these emails off in Settings > Notifications.)" + account_email.SIGNATURE)
 
 
 class SigninEmailIn(BaseModel):

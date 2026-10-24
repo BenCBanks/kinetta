@@ -143,8 +143,8 @@ def suspend(uid:int,body:PersonAction,background:BackgroundTasks,user=Depends(ad
         for t in ('sessions','admin_sessions','admin_challenges'):c.execute(f'DELETE FROM {t} WHERE user_id=%s',(uid,))
         audit(c,user['id'],'account.suspend',uid)
     if p['email_confirmed']:background.add_task(account_email.send,p['email'],'Your Kinetta account is suspended',
-        f"Hi {p['name']},\n\nYour Kinetta account ({p['login']}) has been suspended, so you can't log in for now and other "
-        "people can't see your activities. Nothing has been deleted. To ask about it, reply to this email.")
+        f"Hi {p['name']},\n\nYour Kinetta account ({p['login']}) is suspended for now. You can't log in, and other people "
+        "can't see your activities. Nothing has been deleted. Reply to this email if you want to talk about it." + account_email.SIGNATURE)
     return {'ok':True}
 
 
@@ -156,7 +156,7 @@ def restore(uid:int,body:PersonAction,background:BackgroundTasks,user=Depends(ad
         c.execute('UPDATE users SET suspended_at=NULL,suspended_reason=NULL WHERE id=%s',(uid,))
         audit(c,user['id'],'account.restore',uid)
     if p['status']=='suspended' and p['email_confirmed']:background.add_task(account_email.send,p['email'],'Your Kinetta account is back',
-        f"Hi {p['name']},\n\nYour Kinetta account ({p['login']}) is active again. You can log in as usual.")
+        f"Hi {p['name']},\n\nGood news: your Kinetta account ({p['login']}) is active again. You can log in as usual." + account_email.SIGNATURE)
     return {'ok':True}
 
 
@@ -288,10 +288,10 @@ def response(rid:int,body:Draft,user=Depends(admin_user)):
                 c.execute('DELETE FROM invites WHERE id=%s AND used_at IS NULL',(b['invite_id'],))
             token=secrets.token_urlsafe(24)
             iid=c.execute("INSERT INTO invites (token_hash,created_by,note,expires) VALUES (%s,%s,%s,now()+interval '7 days') RETURNING id",(auth.token_hash(token),user['id'],b['name'][:60])).fetchone()['id']
-            text+='\n\nCreate your Kinetta member account (single-use link, valid 7 days):\n'+base+'/join/'+token+'\n\nYou can use Kinetta in your browser after creating your account.'
+            text+="\n\nHere's your link to create your Kinetta account. It works once, for 7 days:\n"+base+'/join/'+token
             tf=os.environ.get('KINETTA_TESTFLIGHT_URL','')
-            if tf.startswith('https://testflight.apple.com/join/'):text+='\nFor the iPhone beta, install TestFlight and Kinetta separately: '+tf+'\nSign in with the same Kinetta account.'
-            else:text+='\nAn account invitation does not grant Apple TestFlight access. Contact the beta organizer for iPhone installation access.'
+            if tf.startswith('https://testflight.apple.com/join/'):text+="\n\nThe iPhone app is the best way to use Kinetta. It's in beta through Apple's TestFlight: install TestFlight from the App Store, open "+tf+' on your iPhone, and log in with your new account.'
+            else:text+="\n\nKinetta works in your browser. If you'd like the iPhone beta, reply and we'll set you up."
             c.execute("UPDATE beta_requests SET status='invited',invite_id=%s WHERE id=%s",(iid,rid))
         elif body.kind in ('waitlist','decline'):
             # A waitlisted or declined applicant's earlier, unused invitation link stops working too.

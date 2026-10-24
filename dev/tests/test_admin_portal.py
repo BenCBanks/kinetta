@@ -90,7 +90,7 @@ class Portal(unittest.TestCase):
         b=self.beta();draft=self.draft(b)
         with self.mail_env():
             first=self.client.post(f"/api/admin/beta/{b['id']}/responses",json=draft);self.assertEqual(first.status_code,200,first.text)
-            self.assertIn('single-use',first.json()['body']);self.assertIn('does not grant Apple TestFlight',first.json()['body'])
+            self.assertIn('It works once, for 7 days',first.json()['body']);self.assertIn("reply and we'll set you up",first.json()['body'])
             self.assertEqual(self.client.post(f"/api/admin/beta/{b['id']}/responses",json=draft).json()['id'],draft['request_key'])
             self.assertEqual(self.client.post(f"/api/admin/beta/{b['id']}/responses",json={**draft,'message':'Welcome'}).status_code,409)
             path='/api/admin/responses/'+draft['request_key']+'/send'
