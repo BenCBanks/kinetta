@@ -13,7 +13,7 @@ MAIL = {'KINETTA_RESEND_KEY': 'stand-in-not-a-key', 'KINETTA_MAIL_FROM': 'Kinett
         'KINETTA_MAIL_WEBHOOK_SECRET': 'whsec_' + base64.b64encode(b'fictional-webhook-key').decode()}
 # Fields an account page may contain. Anything else (routes, food, weight, messages...) would be a privacy bug.
 PAGE = {'id', 'login', 'name', 'email', 'email_confirmed', 'is_admin', 'created', 'status', 'suspended_at', 'suspended_reason',
-        'mfa_enabled', 'last_active', 'active_days_30', 'devices', 'connections', 'imports', 'counts', 'reports', 'invited', 'audit'}
+        'password_change_expires', 'mfa_enabled', 'last_active', 'active_days_30', 'devices', 'connections', 'imports', 'counts', 'reports', 'invited', 'audit'}
 
 
 def receipt(*a, **k):

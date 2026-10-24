@@ -1,5 +1,5 @@
 """Passwords (argon2), login sessions (random token in an HttpOnly cookie, only its hash stored)."""
-import hashlib, os, secrets, time
+import hashlib, os, secrets, time, re
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from fastapi import Request, HTTPException
@@ -86,10 +86,11 @@ def check_new_password(pw, login=''):
     if login and login.lower() in low: raise HTTPException(400, "Don't put your username in your password")
 
 
-def new_session(c, user_id, agent, channel='web'):
+def new_session(c, user_id, agent, channel='web', app_version=None):
     c.execute(f"DELETE FROM sessions WHERE last_seen < now() - interval '{SESSION_DAYS} days'")   # tidy expired logins
     token = secrets.token_urlsafe(32)
-    c.execute('INSERT INTO sessions (token_hash, user_id, agent) VALUES (%s, %s, %s)', (_h(token), user_id, (agent or '')[:200]))
+    version=app_version if isinstance(app_version,str) and re.fullmatch(r'\d+(?:\.\d+){0,3}(?:[-+][0-9A-Za-z.]+)?(?: \(\d+\))?',app_version) and len(app_version)<=64 else None
+    c.execute('INSERT INTO sessions (token_hash, user_id, agent, app_version) VALUES (%s, %s, %s, %s)', (_h(token), user_id, (agent or '')[:200], version))
     from .admin_usage import record_login
     record_login(c,user_id,channel)
     return token
@@ -120,7 +121,7 @@ def current_user(request: Request):
     with db.connect() as c:
         row = c.execute(f"""SELECT u.id, u.login::text AS login, u.name, u.is_admin, u.photo_v, s.last_seen < now() - interval '1 hour' AS stale
             FROM sessions s JOIN users u ON u.id = s.user_id
-            WHERE s.token_hash = %s AND s.last_seen > now() - interval '{SESSION_DAYS} days' AND u.suspended_at IS NULL""", (_h(token),)).fetchone()
+            WHERE s.token_hash = %s AND s.last_seen > now() - interval '{SESSION_DAYS} days' AND u.suspended_at IS NULL AND u.password_change_expires IS NULL""", (_h(token),)).fetchone()
         if not row: raise HTTPException(401, 'Not logged in')
         expected = request.headers.get('x-kinetta-account')
         if expected is not None and expected != str(row['id']):

@@ -1,10 +1,10 @@
 name: Admin UI
 on:
   pull_request:
-    paths: ["app/static/admin.js", "app/static/admin.html", "dev/tests/test_admin_logins.js", ".github/workflows/admin-ui.yml"]
+    paths: ["app/static/admin.js", "app/static/admin.html", "app/static/admin-tools.js", "dev/tests/test_admin_logins.js", "dev/tests/test_admin_tools.js", "dev/tests/test_temporary_login.js", "app/static/native.js", ".github/workflows/admin-ui.yml"]
   push:
     branches: [main]
-    paths: ["app/static/admin.js", "app/static/admin.html", "dev/tests/test_admin_logins.js", ".github/workflows/admin-ui.yml"]
+    paths: ["app/static/admin.js", "app/static/admin.html", "app/static/admin-tools.js", "dev/tests/test_admin_logins.js", "dev/tests/test_admin_tools.js", "dev/tests/test_temporary_login.js", "app/static/native.js", ".github/workflows/admin-ui.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,3 +21,6 @@ jobs:
         run: |
           node --check app/static/admin.js
           node dev/tests/test_admin_logins.js
+          node dev/tests/test_admin_tools.js
+          node dev/tests/test_temporary_login.js
+          node --check app/static/admin-tools.js

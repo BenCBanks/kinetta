@@ -24,6 +24,9 @@ python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
 for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
 echo "== native sync recovery (stand-in HealthKit, no health data)"
+node dev/tests/test_admin_logins.js
+node dev/tests/test_admin_tools.js
+node dev/tests/test_temporary_login.js
 node dev/tests/test_track.js
 node dev/tests/test_notification_rows.js
 node dev/tests/test_track_native.js
@@ -117,6 +120,9 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_account_email.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_signup.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
+
+echo "== admin launch tools (fictional accounts, stand-in mail)"
+docker compose -p "$P" exec -T app python - < dev/tests/test_admin_launch.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_request_log.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_devices.py
 docker compose -p "$P" exec -T app python - < dev/tests/admin_usage_incontainer.py

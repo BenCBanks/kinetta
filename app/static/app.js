@@ -1135,9 +1135,18 @@ function showLogin(msg = '') {
     const login = f.login.value.trim(), password = f.password.value;
     if (!login || !password) { err.textContent = 'Enter your email (or username) and your password.'; return; }
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = '';
-    try { if (Native.on) await Native.login(f.server.value, login, password); else await api('/api/login', json('POST', {login, password})); await start(); }
+    try { const r=Native.on?await Native.login(f.server.value, login, password):await api('/api/login', json('POST', {login, password}));if(r.password_change_required){showTemporaryPassword(r.change_token);return;}await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; b.textContent = 'Log in'; f.password.select(); }
   });
+}
+// A fallback credential grants only this short-lived change step, never an app session.
+function showTemporaryPassword(token) {
+  root.innerHTML=`<div class="login"><form><div>${BRAND}<h1>Choose your own password</h1><p>Your temporary password cannot open Kinetta. Choose a different password to finish recovery. This step expires after ten minutes.</p></div><label>New password<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><label>Repeat new password<input name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><p class="err" role="alert"></p><button class="primary">Save new password</button><button type="button" class="linkbtn" id="temp-cancel">Back to sign in</button></form></div>`;
+  const f=$('form',root);$('#temp-cancel',f).onclick=()=>showLogin();f.elements.password.focus();
+  f.onsubmit=async e=>{e.preventDefault();const b=$('button',f),err=$('.err',f);if(b.disabled)return;if(f.elements.password.value!==f.elements.confirm.value){err.textContent='The passwords do not match.';return;}b.disabled=true;err.textContent='';
+    try {await api('/api/password/temporary',json('POST',{change_token:token,password:f.elements.password.value,password_confirm:f.elements.confirm.value}));if(f.isConnected)showLogin('Password changed. Sign in with your new password.');}
+    catch(x){if(f.isConnected){err.textContent=x.message;b.disabled=false;}}
+  };
 }
 // The phone's own time zone and usual units, so a new account starts out right (both can be changed under Me).
 function phoneDefaults() {

@@ -40,7 +40,7 @@ What we keep
 
 ## collect-other
 
-**Beta requests:** your name, email, device and message. **Technical records:** your login sessions and the device type they're on, the device types you've signed in from (so we can optionally email you about a new sign-in), sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems.
+**Beta requests:** your name, email, device and message. **Technical records:** your login sessions, the device type they're on and the app version/build when a new iPhone sign-in supplies it, the device types you've signed in from (so we can optionally email you about a new sign-in), sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems.
 
 ## health-heading
 
@@ -112,7 +112,7 @@ Services you connect yourself, such as Garmin Connect or Health Auto Export, als
 
 ## admin
 
-The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties.
+The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties. Ordinary account support shows status and counts, not your private workouts, routes, food, health records or conversations. An administrator reviewing a report can see its reported comment, current profile bio/photo, or the reported activity’s summary and attached photos. Review access and actions are recorded without copying that content into the audit log. If you make a data request, we keep its type, status, verification method and dates, linked to your account while it exists; correspondence and identity documents are not stored in this register.
 
 ## retention-heading
 
@@ -120,7 +120,7 @@ How long we keep it
 
 ## retention
 
-Your data is stored in the United States until you delete it or your account. Beta requests are removed when you delete your account. Server logs are trimmed automatically; request records and sign-in history are deleted after 90 days. AI usage totals (model, amount processed and cost, with no content) may be kept after deletion to track spending.
+Your data is stored in the United States until you delete it or your account. Beta requests are removed when you delete your account. Server logs are trimmed automatically; request records and sign-in history are deleted after 90 days. AI usage totals (model, amount processed and cost, with no content) may be kept after deletion to track spending. Account deletion clears the account link from data-request records. Closed data-request metadata is removed after 90 days when the register is checked; retry receipts for admin actions are removed after 90 days during later confirmed actions. Minimal admin audit records can remain after deletion without copying your account name, password or private content.
 
 ## backups
 

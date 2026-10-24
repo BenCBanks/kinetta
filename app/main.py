@@ -63,6 +63,12 @@ app.include_router(recipe_import.router)
 app.include_router(admin_auth.router)
 app.include_router(api_admin.router)
 app.include_router(admin_usage.router)
+from . import admin_readiness, admin_passwords, admin_review, admin_support, admin_manage
+app.include_router(admin_readiness.router)
+app.include_router(admin_passwords.router)
+app.include_router(admin_review.router)
+app.include_router(admin_support.router)
+app.include_router(admin_manage.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -97,6 +103,9 @@ async def guard(request: Request, call_next):
     if request.headers.get('cf-connecting-ip') and request.headers.get('x-forwarded-proto', 'https') == 'http':
         return Response(status_code=308, headers={'Location': str(request.url.replace(scheme='https'))})
     r = await call_next(request)
+    if r.status_code>=400 and request.url.path.startswith('/api/admin/'):
+        from starlette.concurrency import run_in_threadpool
+        await run_in_threadpool(admin_support.rejected, request, r.status_code)
     r.headers['X-Content-Type-Options'] = 'nosniff'
     r.headers['Referrer-Policy'] = 'same-origin'
     r.headers['X-Frame-Options'] = 'DENY'
@@ -124,7 +133,7 @@ app.add_middleware(_gzip.GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 # Only the iPhone app may read answers across sites, and never with cookies (it sends its token in a header).
 app.add_middleware(CORSMiddleware, allow_origins=list(APP_ORIGINS), allow_credentials=False, allow_methods=['*'],
-                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account'], max_age=3600)
+                   allow_headers=['Authorization', 'Content-Type', 'X-Kinetta-Account', 'X-Kinetta-Version'], max_age=3600)
 
 
 class Login(BaseModel):
@@ -145,13 +154,15 @@ def login(body: Login, request: Request, response: Response, background: Backgro
         with db.connect() as c:
             # a username, or the account's confirmed email (2026-10-24)
             who = body.login.strip()
-            u = c.execute(('SELECT id, name, pw_hash, suspended_at FROM users WHERE email = %s AND email_verified_at IS NOT NULL' if '@' in who
-                           else 'SELECT id, name, pw_hash, suspended_at FROM users WHERE login = %s'), (who,)).fetchone()
+            u = c.execute(('SELECT id, name, pw_hash, suspended_at, password_change_expires FROM users WHERE email = %s AND email_verified_at IS NOT NULL' if '@' in who
+                           else 'SELECT id, name, pw_hash, suspended_at, password_change_expires FROM users WHERE login = %s'), (who,)).fetchone()
             ok = auth.check_pw(u['pw_hash'] if u else None, body.password)   # always hash-checks (same timing)
             if not u or not ok: raise auth.Failed(401, 'Wrong name or password')
             # said only after the right password, so it never reveals who has an account (#233)
             if u['suspended_at']: raise HTTPException(403, 'This account is suspended. Reply to any email from Kinetta, or ask the person who runs it.')
-            token = auth.new_session(c, u['id'], request.headers.get('user-agent'),channel='app' if body.app else 'web')
+            if u['password_change_expires']:
+                return admin_passwords.challenge(c, u['id'], u['password_change_expires'])
+            token = auth.new_session(c, u['id'], request.headers.get('user-agent'),channel='app' if body.app else 'web', app_version=request.headers.get('x-kinetta-version') if body.app else None)
             api_devices.remember(c, background, u['id'], request.headers.get('user-agent'))   # new-device email (#232 I)
     except auth.Failed as e:
         auth.failed(ip, body.login); raise HTTPException(e.status, e.message)

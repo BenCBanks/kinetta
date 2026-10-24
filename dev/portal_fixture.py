@@ -40,4 +40,4 @@ def admin_headers(base):
 
 def is_admin_path(path):
     import re
-    return bool(re.match(r'^/api/admin/(people(?:$|/[^/?]+/(?:password|remove)$)|invites(?:/|$)|beta-requests(?:/|$)|reports(?:/|$))',path))
+    return bool(re.match(r'^/api/admin/(people(?:$|/[^/?]+/(?:password|remove)$)|invites(?:/|$)|beta-requests(?:/|$)|reports(?:/|$)|review(?:/|$))',path))

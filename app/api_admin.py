@@ -26,7 +26,8 @@ PAGE=50
 
 @router.get('/people')
 def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',status:Literal['','active','unconfirmed','suspended']='',
-           tests:bool=False,page:int=Query(1,ge=1,le=1000),user=Depends(admin_user)):
+           tests:bool=False,page:int=Query(1,ge=1,le=1000),issue:Literal['','connections','imports','reports']='',
+           sort:Literal['joined','active','name']='joined',joined_after:dt.date|None=None,active_since:dt.date|None=None,user=Depends(admin_user)):
     where,args=['TRUE'],{'limit':PAGE,'offset':(page-1)*PAGE}
     if q.strip():
         where.append('(u.name ILIKE %(m)s OR u.login ILIKE %(m)s OR u.email ILIKE %(m)s)')
@@ -34,6 +35,13 @@ def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',s
     if role:where.append('u.is_admin' if role=='admin' else 'NOT u.is_admin')
     if status:where.append(f'{STATUS} = %(status)s');args['status']=status
     if not tests:where.append("u.login NOT LIKE 'zz\\_test%%'")
+
+    if issue=='reports':where.append("EXISTS(SELECT 1 FROM reports r WHERE r.person=u.id AND r.status='open')")
+    if issue=='imports':where.append("EXISTS(SELECT 1 FROM imports i WHERE i.user_id=u.id AND i.status='failed' AND i.created>now()-interval '1 day')")
+    if issue=='connections':where.append("EXISTS(SELECT 1 FROM connections x WHERE x.user_id=u.id AND x.status LIKE 'sync failed:%%')")
+    if joined_after:where.append("u.created >= %(joined)s::date AT TIME ZONE 'UTC'");args['joined']=joined_after
+    if active_since:where.append("EXISTS(SELECT 1 FROM admin_account_days d WHERE d.user_id=u.id AND d.day>=%(active)s)");args['active']=active_since
+    order={'joined':'u.created DESC,u.id DESC','active':'last_active DESC NULLS LAST,u.id DESC','name':'lower(u.name),u.id'}[sort]
     w=' AND '.join(where)
     with db.connect() as c:
         total=c.execute(f'SELECT count(*) AS n FROM users u WHERE {w}',args).fetchone()['n']
@@ -41,7 +49,7 @@ def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',s
             u.is_admin,u.created,{STATUS} AS status,EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled,
             (SELECT max(day) FROM admin_account_days d WHERE d.user_id=u.id) AS last_active,
             (SELECT count(*) FROM reports r WHERE r.person=u.id AND r.status='open') AS open_reports
-            FROM users u WHERE {w} ORDER BY u.created DESC LIMIT %(limit)s OFFSET %(offset)s""",args).fetchall()
+            FROM users u WHERE {w} ORDER BY {order} LIMIT %(limit)s OFFSET %(offset)s""",args).fetchall()
     return {'total':total,'page':page,'pages':max(1,-(-total//PAGE)),'rows':rows}
 
 
@@ -56,7 +64,7 @@ def device(agent):
 
 def _person(c,uid):
     p=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
-        u.is_admin,u.created,{STATUS} AS status,u.suspended_at,u.suspended_reason,
+        u.is_admin,u.created,{STATUS} AS status,u.suspended_at,u.suspended_reason,u.password_change_expires,
         EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled FROM users u WHERE u.id=%s""",(uid,)).fetchone()
     if not p:raise HTTPException(404,'Account not found.')
     return p
@@ -68,15 +76,17 @@ def person(uid:int,user=Depends(admin_user)):
         p=_person(c,uid)
         p['last_active']=c.execute('SELECT max(day) AS d FROM admin_account_days WHERE user_id=%s',(uid,)).fetchone()['d']
         p['active_days_30']=c.execute("SELECT count(*) AS n FROM admin_account_days WHERE user_id=%s AND day>current_date-30",(uid,)).fetchone()['n']
-        p['devices']=[{'device':device(r['agent']),'signed_in':r['created'],'last_used':r['last_seen']} for r in
-                      c.execute('SELECT agent,created,last_seen FROM sessions WHERE user_id=%s ORDER BY last_seen DESC',(uid,)).fetchall()]
+        p['devices']=[{'device':device(r['agent']),'signed_in':r['created'],'last_used':r['last_seen'],'app_version':r['app_version']} for r in
+                      c.execute('SELECT agent,created,last_seen,app_version FROM sessions WHERE user_id=%s ORDER BY last_seen DESC',(uid,)).fetchall()]
         p['connections']=c.execute('SELECT kind,status,last_sync,last_count FROM connections WHERE user_id=%s ORDER BY kind',(uid,)).fetchall()
         p['imports']=c.execute('SELECT status,created,added,failed FROM imports WHERE user_id=%s ORDER BY created DESC LIMIT 5',(uid,)).fetchall()
         p['counts']=c.execute("""SELECT (SELECT count(*) FROM activities WHERE user_id=%(u)s) AS activities,
             (SELECT count(*) FROM food_entries WHERE user_id=%(u)s) AS food_entries,
             (SELECT count(*) FROM activity_photos WHERE user_id=%(u)s) AS photos,
             (SELECT coalesce(sum(requests),0) FROM ai_daily_usage WHERE user_id=%(u)s AND day>=date_trunc('month',current_date)) AS ai_requests_this_month,
-            (SELECT count(*) FROM reports WHERE reporter=%(u)s) AS reports_filed""",{'u':uid}).fetchone()
+            (SELECT count(*) FROM reports WHERE reporter=%(u)s) AS reports_filed,
+            (SELECT coalesce(sum(octet_length(img)+octet_length(thumb)),0) FROM activity_photos WHERE user_id=%(u)s) +
+            (SELECT coalesce(sum(octet_length(img)),0) FROM profile_photos WHERE user_id=%(u)s) AS photo_bytes""",{'u':uid}).fetchone()
         p['reports']=c.execute('SELECT id,what,reason,status,created FROM reports WHERE person=%s ORDER BY created DESC LIMIT 20',(uid,)).fetchall()
         p['invited']=c.execute('SELECT i.note,i.used_at,u.name AS by FROM invites i LEFT JOIN users u ON u.id=i.created_by WHERE i.used_by=%s',(uid,)).fetchone()
         p['audit']=c.execute("""SELECT a.action,a.created,u.login::text AS by FROM admin_audit a LEFT JOIN users u ON u.id=a.actor_id
@@ -159,6 +169,7 @@ class RoleIn(BaseModel):
 @router.post('/people/{uid}/role')
 def role(uid:int,body:RoleIn,user=Depends(admin_user)):
     with db.connect() as c:
+        c.execute("SELECT pg_advisory_xact_lock(hashtext('admin-authorization'))")
         c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
         if not c.execute('SELECT 1 FROM users WHERE id=%s AND is_admin',(user['id'],)).fetchone():raise HTTPException(403,'Administrator access was revoked.')
         t=c.execute('SELECT login::text AS login,is_admin FROM users WHERE id=%s FOR UPDATE',(uid,)).fetchone()
@@ -179,8 +190,7 @@ def add(body:api_account.PersonIn,user=Depends(admin_user)):
 
 @router.post('/people/{login}/password')
 def password(login:str,body:api_account.ResetIn,user=Depends(admin_user)):
-    r=api_account.reset_password(login,body,user)
-    return r
+    raise HTTPException(409, 'Reload administration and use the expiring fallback password flow.')
 
 
 @router.post('/people/{login}/remove')
@@ -217,8 +227,7 @@ def reports(user=Depends(admin_user)):return api_social.reports(user)
 
 @router.post('/reports/{rid}/done')
 def report_done(rid:int,remove:bool=False,user=Depends(admin_user)):
-    r=api_social.report_done(rid,remove,user)
-    return r
+    raise HTTPException(409, 'Review the reported item and choose a specific action in the current portal.')
 
 
 @router.get('/audit')
