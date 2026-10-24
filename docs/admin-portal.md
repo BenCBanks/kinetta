@@ -2,6 +2,8 @@
 
 Open `/admin` in a browser at your Kinetta server's HTTPS address. Administration has its own layout and sign-in; it is not a tab in the phone app. Me retains only personal account settings. The old `/me/people` route explains that administration moved. Old app-session admin API paths are retired; integrations must use `/api/admin/...` with a separate portal session.
 
+For the source-verified gaps, proposed priorities and acceptance evidence, see [Admin launch review](admin-launch.md). This is a work plan, not a live readiness status.
+
 ## Access and roles
 
 The first account remains the administrator. Invitations create Members. No existing account is promoted by this update. The Accounts & roles page lists every role explicitly. Administrators can change roles after typing the target username; the last administrator cannot be demoted. Demotion revokes portal sessions immediately. Administrators cannot reset/remove other administrators through member-management controls; first make an explicit role change where appropriate.
