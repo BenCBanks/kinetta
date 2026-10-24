@@ -1,6 +1,6 @@
 """Blocking and reporting (api_social: blocks, reports; App Store guideline 1.2). Made-up zz_test people only.
 Leaves no friendship, block or open report behind."""
-from kc import ALEX, login, person
+from kc import ALEX, login, person, review_decision
 a, b, c = person('zz_test_blk_a'), person('zz_test_blk_b'), person('zz_test_blk_c')
 admin = login(*ALEX)
 for x, y in ((a, 'zz_test_blk_b'), (b, 'zz_test_blk_a'), (a, 'zz_test_blk_c')):
@@ -35,9 +35,9 @@ s, rows = admin.get('/api/admin/reports'); mine = {x['id']: x for x in rows}
 ck(rep_c in mine and 'zz test comment' in mine[rep_c]['what'] and mine[rep_c]['login'] == 'zz_test_blk_b', f'admin sees the comment report {rows}')
 ck(any(x['kind'] == 'report' and x['who']['login'] == 'zz_test_blk_c' for x in admin.get('/api/notifications')[1]['items']), 'admin notified')
 ck(c.post(f'/api/admin/reports/{rep_c}/done?remove=true')[0] == 403, 'closing: admins only')
-ck(admin.post(f'/api/admin/reports/{rep_c}/done?remove=true')[0] == 200, 'admin removes the comment')
+ck(review_decision(admin, rep_c, 'remove_comment')[0] == 200, 'admin removes the comment')
 ck(all(x['id'] != cid for x in c.get(f'/api/shared/{e}')[1]['social']['comments']), 'comment gone')
-ck(admin.post(f'/api/admin/reports/{rep_a}/done?remove=true')[0] == 200, 'admin makes the activity private')
+ck(review_decision(admin, rep_a, 'hide_activity')[0] == 200, 'admin makes the activity private')
 ck(c.get(f'/api/shared/{e}')[0] == 404, 'activity now private')
 a.put(f'/api/activities/{e}/sharing', {'visibility': 'everyone'})
 ck(rep_c not in {x['id'] for x in admin.get('/api/admin/reports')[1]}, 'closed reports leave the list')
@@ -66,5 +66,5 @@ ck(b.get(f'/api/shared/{e}')[0] == 200 and a.get(f"/api/shared/{s2['id']}")[0] =
 # tidy up: activities, friendships and reports go with the accounts' own deletion elsewhere; here just the activities
 for x, i in ((a, e), (a, f), (b, s2['id'])): x.delete(f'/api/activities/{i}')
 for x in admin.get('/api/admin/reports')[1]:
-    if x['login'].startswith('zz_test_blk'): admin.post(f"/api/admin/reports/{x['id']}/done")
+    if x['login'].startswith('zz_test_blk'): review_decision(admin, x['id'], 'dismiss')
 print(f'block and report: {n} checks passed')

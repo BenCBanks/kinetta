@@ -2,7 +2,7 @@
 original file survives (camera details, location), the limits, and the admin taking down a reported profile photo.
 Made-up zz_test people only; their accounts are deleted at the end."""
 import urllib.error, urllib.request
-from kc import ALEX, BASE, PW, Client, login, person
+from kc import ALEX, BASE, PW, Client, login, person, review_decision
 
 # a 64x48 JPEG with made-up camera details ("ZZTestPhoneMaker"), a made-up GPS position and "rotate 90°" (EXIF)
 JPG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4QCyRXhpZgAATU0AKgAAAAgAAwEPAAIAAAARAAAAMgESAAMAAAABAAYAAIglAAQAAAABAAAARAAAAABaWlRlc3RQaG9uZU1ha2VyAAAABAABAAIAAAACTgAAAAACAAUAAAADAAAAegADAAIAAAACVwAAAAAEAAUAAAADAAAAkgAAAAAAAAAoAAAAAQAAABoAAAABAAAALgAAAAEAAABPAAAAAQAAADoAAAABAAAAOAAAAAH/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAwAEADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDmqKKK+YP1IKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9k='
@@ -80,7 +80,7 @@ s, r = a.delete(f'/api/activities/{aid}'); ck(s == 200, 'delete the activity: it
 s, r = c.post('/api/reports', {'login': 'zz_test_ph_a', 'reason': 'inappropriate'}); ck(s == 200, f'report person {s} {r}')
 rep = next(x for x in admin.get('/api/admin/reports')[1] if x['id'] == r['id'])
 ck(rep['photo'] == v, 'admin sees which photo')
-ck(admin.post(f"/api/admin/reports/{r['id']}/done?remove=true")[0] == 200, 'admin removes it')
+ck(review_decision(admin, r['id'], 'remove_photo')[0] == 200, 'admin removes it')
 ck(a.get('/api/me')[1].get('photo') is None and fetch(c, '/api/people/zz_test_ph_a/photo')[0] == 404, 'profile photo gone')
 ck(a.put('/api/me/photo', {'image': JPG})[0] == 200 and a.delete('/api/me/photo')[0] == 200 and a.get('/api/me')[1].get('photo') is None, 'remove your own')
 

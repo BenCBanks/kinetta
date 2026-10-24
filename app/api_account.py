@@ -165,6 +165,9 @@ def remove_person(login: str, body: RemoveIn, user=Depends(admin_user)):
 def erase(c, t):
     """Delete a person and every row of theirs (all personal tables cascade from users), plus their beta request."""
     c.execute("""DELETE FROM beta_requests WHERE invite_id IN (SELECT id FROM invites WHERE used_by = %s)""", (t['id'],))
+    # A verified deletion request completes in the same transaction as the deletion; the account link is then cleared.
+    for r in c.execute("UPDATE admin_data_requests SET status='completed',completed_at=now() WHERE user_id=%s AND kind='deletion' AND status='verified' RETURNING id", (t['id'],)).fetchall():
+        audit(c, None, 'request.completed', r['id'])
     c.execute('DELETE FROM users WHERE id = %s', (t['id'],))
     if t['sql_role']:
         try:

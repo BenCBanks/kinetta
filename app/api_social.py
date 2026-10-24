@@ -558,21 +558,24 @@ def report(body: ReportIn, user=Depends(current_user)):
     with db.connect() as c:
         t = _person(c, body.login)
         if t['id'] == user['id']: raise HTTPException(400, "You can't report yourself")
+        kind = 'person'
         what = f"{t['name']} (@{t['login']})"
         if body.comment_id:
+            kind = 'comment'
             cm = c.execute('SELECT activity_id, user_id, text FROM comments WHERE id = %s', (body.comment_id,)).fetchone()
             if not cm or cm['user_id'] != t['id']: raise HTTPException(404, 'Not found')
             can_see(c, user['id'], cm['activity_id'])
             body.activity_id, what = cm['activity_id'], f'Comment: "{cm["text"]}"'
         elif body.activity_id:
+            kind = 'activity'
             if can_see(c, user['id'], body.activity_id) != t['id']: raise HTTPException(404, 'Not found')
             a = c.execute('SELECT name, description FROM activities WHERE id = %s', (body.activity_id,)).fetchone()
             what = f"Activity: {a['name']}" + (f" - {a['description']}" if a['description'] else '')
         n = c.execute("SELECT count(*) AS n FROM reports WHERE reporter = %s AND status = 'open'", (user['id'],)).fetchone()['n']
         if n >= MAX_OPEN_REPORTS: raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
-        rid = c.execute("""INSERT INTO reports (reporter, person, activity_id, comment_id, what, reason, note)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                        (user['id'], t['id'], body.activity_id, body.comment_id, what[:1000], body.reason,
+        rid = c.execute("""INSERT INTO reports (reporter, person, activity_id, comment_id, kind, what, reason, note)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                        (user['id'], t['id'], body.activity_id, body.comment_id, kind, what[:1000], body.reason,
                          (body.note or '').strip() or None)).fetchone()['id']
         for a in c.execute('SELECT id FROM users WHERE is_admin AND id <> %s', (user['id'],)).fetchall():
             notify.add(c, a['id'], 'report', user['id'])

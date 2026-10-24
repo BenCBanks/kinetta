@@ -28,6 +28,7 @@ _last_export = {}
 # table -> SQL giving one jsonb per row for the person (%s = user id). Personal tables only; secrets left out.
 DROP = " - 'user_id'"
 TABLES = {
+    'support_requests': "SELECT jsonb_build_object('kind',kind,'status',status,'received',received,'verified_at',verified_at,'completed_at',completed_at) FROM admin_data_requests WHERE user_id=%s ORDER BY received",
     'known_devices': "SELECT to_jsonb(t)" + DROP + " FROM known_devices t WHERE user_id=%s ORDER BY first_seen",
     'kit_visits': "SELECT to_jsonb(t)" + DROP + " FROM kit_visits t WHERE user_id=%s ORDER BY created",
     'kit_memories': "SELECT to_jsonb(t)" + DROP + " FROM kit_memories t WHERE user_id=%s ORDER BY updated",

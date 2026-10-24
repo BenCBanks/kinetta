@@ -38,8 +38,8 @@ def attempt(request, name, limit):
         c.execute('INSERT INTO admin_attempts (key) VALUES (%s)',(digest,))
 
 
-def audit(c, uid, action, target=None):
-    c.execute('INSERT INTO admin_audit (actor_id, action, target) VALUES (%s,%s,%s)', (uid, action, str(target)[:120] if target is not None else None))
+def audit(c, uid, action, target=None, outcome='success'):
+    c.execute('INSERT INTO admin_audit (actor_id, action, target, outcome) VALUES (%s,%s,%s,%s)', (uid, action, str(target)[:120] if target is not None else None, outcome))
 
 
 def https(request):
@@ -76,7 +76,7 @@ def admin_user(request: Request):
     token = request.cookies.get(COOKIE,'')
     with db.connect() as c:
         u = c.execute('''SELECT u.id,u.login::text AS login,u.name,u.is_admin FROM admin_sessions s JOIN users u ON u.id=s.user_id
-                         WHERE s.token_hash=%s AND s.expires>now() AND u.is_admin''', (auth.token_hash(token),)).fetchone()
+                         WHERE s.token_hash=%s AND s.expires>now() AND u.is_admin AND u.suspended_at IS NULL AND u.password_change_expires IS NULL''', (auth.token_hash(token),)).fetchone()
     if u: request.state.user_id = u['id']
     if not u:
         try: auth.current_user(request)
@@ -84,6 +84,7 @@ def admin_user(request: Request):
         raise HTTPException(403, 'Separate admin sign-in required.')
     if request.method not in ('GET','HEAD') and not hmac.compare_digest(request.headers.get('x-admin-csrf',''),csrf(token)):
         raise HTTPException(403,'Refresh the admin portal before trying again.')
+    request.state.admin_actor = u['id']
     return {**u,'_portal':True}
 
 
@@ -113,8 +114,10 @@ def login(body: Credentials, request: Request, response: Response):
     key='admin:'+body.login.strip().lower(); ip=auth.client_ip(request)
     if auth.too_many(ip,key): raise HTTPException(429,'Too many attempts. Try again in 15 minutes.')
     with db.connect() as c:
-        u=c.execute('SELECT id,is_admin,pw_hash FROM users WHERE login=%s',(body.login.strip(),)).fetchone()
-        wrong=not auth.check_pw(u['pw_hash'] if u else None,body.password) or not u or not u['is_admin']
+        u=c.execute('SELECT id,is_admin,pw_hash,password_change_expires,suspended_at FROM users WHERE login=%s',(body.login.strip(),)).fetchone()
+        wrong=not auth.check_pw(u['pw_hash'] if u else None,body.password) or not u or not u['is_admin'] or bool(u['suspended_at'])
+    if not wrong and u['password_change_expires']:
+        raise HTTPException(403, 'Choose a new password in Kinetta before signing in to administration.')
     if wrong:      # counted after the connection is released (auth.Failed)
         auth.failed(ip,key); raise HTTPException(401,'Admin sign-in failed.')
     with db.connect() as c:
@@ -150,9 +153,9 @@ def verify(body: Verify, request: Request, response: Response):
     auth.failed(ip,bucket)
     recovery=None
     with db.connect() as c:
-        row=c.execute('''SELECT q.*,u.is_admin FROM admin_challenges q JOIN users u ON u.id=q.user_id
+        row=c.execute('''SELECT q.*,u.is_admin,u.suspended_at,u.password_change_expires FROM admin_challenges q JOIN users u ON u.id=q.user_id
                          WHERE q.token_hash=%s AND q.expires>now() FOR UPDATE OF q,u''',(auth.token_hash(request.cookies.get(PENDING,'')),)).fetchone()
-        if not row or not row['is_admin']: raise HTTPException(401,'Sign in again.')
+        if not row or not row['is_admin'] or row['suspended_at'] or row['password_change_expires']: raise HTTPException(401,'Sign in again.')
         m=c.execute('SELECT * FROM admin_mfa WHERE user_id=%s FOR UPDATE',(row['user_id'],)).fetchone()
         seed=unseal(row['seed'] if row['seed'] else m['secret']) if row['seed'] or m else None
         counter=int(time.time()//30)

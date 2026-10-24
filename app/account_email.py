@@ -180,7 +180,8 @@ def reset(body: ResetIn, request: Request, background: BackgroundTasks):
         if limited(c, 'reset-ip:' + auth.client_ip(request), 30, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         r = _open(c, body.token, 'reset_password')
         auth.check_new_password(body.password, r['login'])
-        c.execute('UPDATE users SET pw_hash = %s WHERE id = %s', (auth.hash_pw(body.password), r['user_id']))
+        c.execute('UPDATE users SET pw_hash = %s, password_change_expires = NULL WHERE id = %s', (auth.hash_pw(body.password), r['user_id']))
+        c.execute('DELETE FROM account_password_changes WHERE user_id=%s', (r['user_id'],))
         c.execute('UPDATE account_tokens SET used_at = now() WHERE token_hash = %s', (r['token_hash'],))
         # every phone, browser and admin portal session ends: whoever had the old password is out
         for t in ('sessions', 'admin_sessions', 'admin_challenges'): c.execute(f'DELETE FROM {t} WHERE user_id = %s', (r['user_id'],))

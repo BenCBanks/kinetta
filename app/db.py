@@ -1366,6 +1366,36 @@ MIGRATIONS = [
     CREATE POLICY all_rows ON known_devices FOR SELECT TO fit_all_readers USING (true);
     GRANT SELECT ON known_devices TO fit_readers;
     """,
+    # 72 (2026-10-24): operator evidence/receipts/request metadata and restricted temporary-password changes.
+    # These are admin/auth tables, with no ordinary or all-person SQL reader grants. No private content in receipts.
+    """ALTER TABLE users ADD COLUMN password_change_expires timestamptz;
+    ALTER TABLE sessions ADD COLUMN app_version text CHECK(length(app_version)<=64);
+    ALTER TABLE reports ADD COLUMN kind text NOT NULL DEFAULT 'person' CHECK(kind IN ('comment','activity','person'));
+    UPDATE reports SET kind=CASE WHEN comment_id IS NOT NULL OR what LIKE 'Comment: %' THEN 'comment'
+      WHEN activity_id IS NOT NULL OR what LIKE 'Activity: %' THEN 'activity' ELSE 'person' END;
+    ALTER TABLE admin_audit ADD COLUMN outcome text NOT NULL DEFAULT 'success' CHECK(outcome IN ('success','rejected','uncertain'));
+    CREATE TABLE admin_readiness(check_key text PRIMARY KEY,passed boolean NOT NULL,observed_at timestamptz NOT NULL,
+      recorded_at timestamptz NOT NULL DEFAULT now(),actor_id bigint REFERENCES users(id) ON DELETE SET NULL);
+    CREATE TABLE admin_action_receipts(request_key uuid PRIMARY KEY,actor_id bigint REFERENCES users(id) ON DELETE CASCADE,
+      action text NOT NULL,target text NOT NULL,fingerprint text NOT NULL,result jsonb NOT NULL,created timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX admin_receipts_created ON admin_action_receipts(created);
+    CREATE TABLE account_password_changes(token_hash text PRIMARY KEY,user_id bigint NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      expires timestamptz NOT NULL,created timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE admin_data_requests(id uuid PRIMARY KEY,user_id bigint REFERENCES users(id) ON DELETE SET NULL,
+      kind text NOT NULL CHECK(kind IN ('export','deletion','correction','other')),
+      status text NOT NULL DEFAULT 'received' CHECK(status IN ('received','verified','completed','declined')),
+      received timestamptz NOT NULL DEFAULT now(),verified_at timestamptz,completed_at timestamptz,
+      method text CHECK(method IN ('signed_in','confirmed_email','identity_checked')),
+      actor_id bigint REFERENCES users(id) ON DELETE SET NULL,completed_by bigint REFERENCES users(id) ON DELETE SET NULL);
+    CREATE INDEX admin_requests_state ON admin_data_requests(status,received);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['admin_readiness','admin_action_receipts','account_password_changes','admin_data_requests'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('REVOKE ALL ON %I FROM PUBLIC,fit_readers,fit_all_readers',t);
+      END LOOP;
+    END $$;
+    """,
+
 ]
 
 

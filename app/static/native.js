@@ -22,7 +22,7 @@ const Native = (() => {
   const progress = (text) => { N.healthProgress = text; if (N.onHealthProgress) N.onHealthProgress(text); N.onWorkoutStatus?.(); };
   // the server and login token live in the app's own settings (Capacitor Preferences), which iOS doesn't clear the way it
   // can clear a web view's storage when the phone runs low on space
-  N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); })().catch(() => {}) : Promise.resolve();
+  N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); try {const info=await P.App?.getInfo?.();if(info?.version)N.appVersion=info.version+(info.build?' ('+info.build+')':'');}catch(_){/* Older builds can omit version metadata. */} })().catch(() => {}) : Promise.resolve();
   // no ↑ ↓ ✓ bar above the keyboard (2026-10-13, Ben): every text box here has its own send / save button. Only the app can
   // hide it (@capacitor/keyboard); Safari and the Home Screen version always show it.
   if (on && P.Keyboard) P.Keyboard.setAccessoryBarVisible({isVisible: false}).catch(() => {});
@@ -41,7 +41,7 @@ const Native = (() => {
   N.activityShareSupported = on && !!P.KinettaActivityShare;
   N.shareActivityPicture = (image, destination) => P.KinettaActivityShare.share({image, destination});
   N.stopActivityShare = () => P.KinettaActivityShare?.cancel?.() || Promise.resolve();
-  N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
+  N.headers = () => ({...(N.token?{Authorization:'Bearer '+N.token}:{}),...(on&&N.appVersion?{'X-Kinetta-Version':N.appVersion}:{})});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
   // Logging in and creating an account (#232 E) both end the previous account's background work first, then keep the
   // new login token in the app's own settings.
@@ -54,6 +54,7 @@ const Native = (() => {
     if(stopped.some(r=>r.status==='rejected'))throw new Error('Health uploads are still stopping. Unlock your phone and try logging in again.');
     N.base = N.address(server); if (!N.base) throw new Error("Enter your Kinetta server's address.");
     const r = await api(path, json('POST', {...body, app: true}));
+    if(r.password_change_required){App.me=null;App.cache.clear();forgetKept();N.token=null;await put('token',null);await put('server',N.base);return r;}
     if (!r.token) throw new Error('Your account could not be created. Try again in a minute.');
     App.me = null; App.cache.clear(); forgetKept();
     N.token = r.token; N.healthPaused=false; await put('server', N.base); await put('token', N.token);

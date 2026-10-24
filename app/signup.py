@@ -76,7 +76,7 @@ def signup(body: SignupIn, request: Request, response: Response, background: Bac
         uid = _create(c, body)
         c.execute('UPDATE users SET needs_email_confirm = true WHERE id = %s', (uid,))
         account_email.confirmation(background, c, uid, body.name.strip(), email)
-        session = auth.new_session(c, uid, request.headers.get('user-agent'), channel='app' if body.app else 'web')
+        session = auth.new_session(c, uid, request.headers.get('user-agent'), channel='app' if body.app else 'web', app_version=request.headers.get('x-kinetta-version') if body.app else None)
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
     if body.app: return {'ok': True, 'pending': email, 'login': login, 'token': session}
     auth.set_cookie(request, response, session)

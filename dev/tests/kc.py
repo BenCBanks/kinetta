@@ -46,3 +46,13 @@ def person(name, full_name=None):
     s, r = login(*ALEX).post('/api/admin/people', {'login': name, 'name': full_name or name.split('_')[-1].title() + ' Test', 'password': PW})
     assert s in (200, 409), f'make {name}: {s} {r}'
     return login(name)
+
+
+def review_decision(admin, rid, action):
+    """Use the same scoped review/version/typed confirmation contract as the portal."""
+    import datetime as dt, uuid
+    status, snapshot = admin.get(f'/api/admin/review/{rid}')
+    assert status == 200, f'review {status} {snapshot}'
+    return admin.post(f'/api/admin/review/{rid}', {'request_key': str(uuid.uuid4()),
+        'requested_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'version': snapshot['version'],
+        'confirm': snapshot['person']['login'], 'action': action})
