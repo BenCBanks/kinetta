@@ -268,19 +268,14 @@ def day_burn(c,uid,day,*,ctx=None,info=None,exercise=None):
 
 
 def day_goals(c,uid,start,end,*,ctx=None,exercise=None):
-    """One goal policy for food/calendar/insights/Kit; batch plan data once per read."""
-    from . import training_food
-    ctx=ctx or context(c,uid)
-    state=training_food.prepare(c,uid,ctx)
-    exercise=exercise if exercise is not None else exercise_by_day(c,uid,ctx['tz'],start-dt.timedelta(days=28),end,ctx['kg'])
+    """Use the saved daily target unless this person explicitly set a goal for that day."""
+    normal=(c.execute('SELECT kcal_target FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}).get('kcal_target')
     custom={r['day']:r['kcal'] for r in c.execute('SELECT day,kcal FROM day_goals WHERE user_id=%s AND day BETWEEN %s AND %s',(uid,start,end))}
     out={};day=start
     while day<=end:
-        usual=sum(v['kcal'] for d,v in exercise.items() if day-dt.timedelta(days=28)<=d<day)/28
-        current=exercise.get(day) or {'kcal':0,'items':[]}
-        t=training_food.facts(c,uid,day,ctx,exercise=current,custom=custom.get(day),prepared=state,usual=usual)
-        out[day]={'kcal':round(t['kcal']) if t['kcal'] is not None else None,'extra':t['extra'],
-            'custom':round(t['custom']) if t['custom'] is not None else None,'default':round(t['normal']) if t['normal'] is not None else None,'training':t}
+        chosen=custom.get(day,normal)
+        out[day]={'kcal':round(chosen) if chosen is not None else None,'extra':0,
+                  'custom':round(custom[day]) if day in custom else None,'default':round(normal) if normal is not None else None}
         day+=dt.timedelta(days=1)
     return out
 

@@ -41,3 +41,12 @@ function setup(reduced=false){
 }
 {const t=setup();t.notice.undo=true;t.open();assert(t.notice.classList.contains('on'),'opening a sheet preserves the offered Undo');}
 console.log('Sheet motion: interrupted start, inert exit, immediate focus/handler release, animation cleanup, rapid replacement/resource bounds and instant reduced-motion close PASS');
+
+{
+ const t=setup(),{s}=t.open(),chart={closest:selectors=>selectors.includes('.fitness-inspect .chartbox')?{}:null};
+ s.sh.listeners.touchstart({touches:[{clientY:100}],target:chart});s.sh.listeners.touchmove({touches:[{clientY:240}],target:chart,preventDefault(){throw Error('chart drag was stolen')}});s.sh.listeners.touchend();
+ assert(!s.inert&&s.isConnected,'scrubbing an expanded chart cannot dismiss its sheet');
+ const header={closest:selectors=>selectors==='.grab, header'?{}:null};
+ s.sh.listeners.touchstart({touches:[{clientY:100}],target:header});s.sh.listeners.touchmove({touches:[{clientY:240}],target:header,preventDefault(){}});s.sh.listeners.touchend();assert(s.inert,'the header retains swipe-to-close');
+ console.log('Fitness sheet: chart gestures stay with inspection; header still swipes closed PASS');
+}

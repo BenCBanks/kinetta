@@ -3,7 +3,7 @@
 // below the spinner until fresh data arrives, then slides back. No text pill (Ben, 23 October: the old labels
 // jittered and weren't needed). Screen readers still hear the status, and a failed refresh still says so.
 'use strict';
-IC.refresh='<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M18 17a7 7 0 0 1-12 1l-2-3"/>';
+IC.refresh='<path d="M20 11a8 8 0 1 0-2.34 6.66"/><path d="M20 4v7h-7"/>';
 const PageRefresh=(()=>{
   const homes=new Set(['/me','/activity','/progress','/food']);
   const READY=56,HOLD=56,MAX=110;   // pull distance (px, after resistance) that refreshes, where the page rests, the furthest it goes
@@ -17,12 +17,14 @@ const PageRefresh=(()=>{
       spinner.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+IC.refresh+'</svg>';
       document.body.append(spinner);
     }
-    const view=document.getElementById?.('app'),glide=mode!=='drag';
+    const view=document.getElementById?.('page'),glide=mode!=='drag';
     clearTimeout(settleT);pulled=distance>0;
-    if(view){view.style.transition=glide?'transform .3s cubic-bezier(.2,.8,.2,1)':'none';view.style.transform=distance?`translate3d(0,${Math.round(distance)}px,0)`:'';}
+    if(view){view.style.transition=glide?'transform .3s cubic-bezier(.2,.8,.2,1)':'none';view.style.transform=distance?`translate3d(0,${distance.toFixed(2)}px,0)`:'';}
     spinner.className='ptr'+(glide?' glide':'')+(mode==='hold'?' spinning':'');
     spinner.style.opacity=String(Math.min(1,distance/READY));
-    spinner.style.transform=`translate3d(-50%,${Math.round(distance*.5-36)}px,0) rotate(${mode==='drag'?Math.round(distance*5):0}deg)`;
+    spinner.style.transform=`translate3d(-50%,${(distance*.5-36).toFixed(2)}px,0)`;
+    if(mode==='drag'){spinner.style.setProperty('--refresh-angle',`${distance*4}deg`);$('svg',spinner).style.transform=`rotate(${distance*4}deg)`;}
+    else if(mode==='hold')$('svg',spinner).style.transform='';
     // once the page is back in place, drop the transition so it can't affect anything else
     if(!distance&&view)settleT=setTimeout(()=>{if(!pulled)view.style.transition='';},320);
   }
@@ -39,7 +41,7 @@ const PageRefresh=(()=>{
     invalidate('/api/',{health:false,keepData:true});
     if(typeof Social!=='undefined')Social.at=0;
     if(typeof SocialData!=='undefined')SocialData.invalidate();
-    try{await render();
+    try{const work=render();pose(HOLD,'hold');await work;
       // Some home cards start their own reads after the route's first render.
       // Keep the spinner until those reads (and their dependent reads) settle.
       for(let pass=0;pass<5&&owner===readOwner()&&key===pageKey();pass++){

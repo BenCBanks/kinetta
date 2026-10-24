@@ -95,7 +95,7 @@ route(/^\/food\/setup$/, 'food', async (el) => {
         ${s.weight_assumed ? '<p>Without a weight, we used 75 kg (about 165 lb). Add your weight for a more personal estimate.</p>' : ''}
         <p>About ${r0(s.resting_kcal)} kcal resting × ${s.activity_factor} for everyday activity = about ${r0(s.daily_needs)} kcal/day, before workouts.</p>
         <p>${s.pace_percent ? `${s.pace_percent}% of body weight per week uses about 7,700 kcal per kg of change. This is only a starting estimate, not a promised rate.` : 'No weight-change adjustment.'} We round calories to 10 and never suggest less than ${r0(s.resting_floor)} kcal/day, estimated resting burn.</p>
-        <p>Protein: ${s.protein_g_per_kg} g per kg of body weight, rounded to 5 g. ${data.goal === 'fuel_training' ? 'This is your everyday starting point; training-day adjustments are separate.' : 'Your food target stays separate from calories burned.'}</p>
+        <p>Protein: ${s.protein_g_per_kg} g per kg of body weight, rounded to 5 g. ${data.goal === 'fuel_training' ? 'This is your everyday target. You can set a different target for an individual day.' : 'Your food target stays separate from calories burned.'}</p>
       </details><p class="small muted">Your other macro targets, daily overrides and Apple Health choices stay unchanged.</p>
       <p id="gs-error" class="goal-error" role="alert" tabindex="-1"></p>
       <div class="goal-actions"><button class="primary wide" type="submit">Save targets</button><button type="button" class="ghost wide" id="gs-back">Change details</button><button type="button" class="linkbtn wide" id="gs-skip">Not now</button></div></form></div>`;

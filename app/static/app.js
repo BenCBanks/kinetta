@@ -444,7 +444,7 @@ function sheet(title, html, onMount) {
   let ty = null, dy = 0, dragging = false, fromTop = false;
   const settle = (shut) => { if (shut) { close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
   sh.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips, .social-sheet .comments')) { ty = null; return; }
+    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips, .social-sheet .comments, .fitness-inspect .chartbox')) { ty = null; return; }
     ty = e.touches[0].clientY; dy = 0; dragging = false;
     fromTop = !!e.target.closest('.grab, header') || sh.scrollTop <= 0;
   }, {passive: true});
@@ -870,8 +870,88 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'a
   };
   svgEl.addEventListener('pointerdown', show); svgEl.addEventListener('pointermove', show);
 }
+// Shared date inspection for the Fitness charts. Only expanded charts capture pan/pinch gestures;
+// small charts retain ordinary page scrolling. State is independent of SVG size and survives rotation.
+const chartViews = new WeakMap();
+let chartViewId = 0;
+function inspectChart(box, {n, W, padL, padR = 6, draw, show, view = null, interactive = false}) {
+  const graph = $('svg', box), reset = $('.chart-reset', box), ro = $('.readout', box);
+  const title = graph.getAttribute('aria-label'), clip = 'chart-view-' + (++chartViewId), last = n - 1, minSpan = Math.min(last, n > 60 ? 7 : 1);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  let from = 0, to = last, index = last, gesture = null;
+  const pointers = new Map();
+  const range = () => ({from, to, clip, X: i => padL + (i - from) / (to - from) * (W - padL - padR)});
+  const position = x => { const r = graph.getBoundingClientRect(); return ((x - r.left) / r.width * W - padL) / (W - padL - padR); };
+  const fraction = x => clamp(position(x), 0, 1);
+  const select = i => {
+    index = clamp(Math.round(i), Math.ceil(from), Math.floor(to));
+    show(index, range());
+    graph.setAttribute('aria-label', title + '. ' + [...ro.children].map(el=>el.textContent).join('. '));
+  };
+  const paint = () => { draw(range()); select(index); if (reset) reset.hidden = to - from >= last - .001; };
+  const move = (start, span, selected = index) => {
+    span = clamp(span, minSpan, last); from = clamp(start, 0, last - span); to = from + span; index = selected; paint();
+  };
+  const zoom = (factor, at) => {
+    const span = to - from, next = clamp(span * factor, minSpan, last), anchor = from + at * span;
+    move(anchor - at * next, next, anchor);
+  };
+  const rebase = () => {
+    const p = [...pointers.values()], mid = p.length > 1 ? (p[0].x + p[1].x) / 2 : p[0]?.x;
+    gesture = p.length ? {x:mid, from, span:to-from, at:fraction(mid), distance:p.length > 1 ? Math.max(1, Math.hypot(p[1].x-p[0].x, p[1].y-p[0].y)) : 0} : null;
+  };
+  const point = e => select(from + fraction(e.clientX) * (to - from));
+  graph.addEventListener('pointerdown', e => {
+    if (e.button > 0) return;
+    if (!interactive) { point(e); return; }
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY}); graph.setPointerCapture(e.pointerId); rebase();
+    if (pointers.size === 1) point(e);
+  });
+  graph.addEventListener('pointermove', e => {
+    if (!interactive || !pointers.has(e.pointerId)) { if (!interactive || e.pointerType !== 'touch') point(e); return; }
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    const p = [...pointers.values()];
+    if (p.length > 1 && gesture.distance) {
+      const mid = (p[0].x+p[1].x)/2, at = fraction(mid), distance = Math.max(1, Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y));
+      const span = clamp(gesture.span * gesture.distance / distance, minSpan, last), anchor = gesture.from + gesture.at * gesture.span;
+      move(anchor - at * span, span, anchor);
+    } else if (gesture.span < last - .001) {
+      move(gesture.from + (gesture.at - position(e.clientX)) * gesture.span, gesture.span);
+    } else point(e);
+  });
+  const end = e => { pointers.delete(e.pointerId); if (graph.hasPointerCapture(e.pointerId)) graph.releasePointerCapture(e.pointerId); rebase(); };
+  if (interactive) {
+    graph.tabIndex = 0;
+    graph.setAttribute('aria-description', 'Pinch or scroll to zoom. Drag or scroll sideways to move through dates. Arrow keys choose a date; plus and minus zoom; zero shows all dates.');
+    graph.addEventListener('pointerup', end); graph.addEventListener('pointercancel', end); graph.addEventListener('lostpointercapture', e => {if(pointers.delete(e.pointerId))rebase();});
+    graph.addEventListener('wheel', e => {
+      e.preventDefault();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? graph.getBoundingClientRect().width : 1;
+      if (!e.ctrlKey && (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey)) {
+        move(from + (e.deltaX || e.deltaY) * unit / graph.getBoundingClientRect().width * (to-from), to-from);
+      } else zoom(Math.exp(clamp(e.deltaY * unit, -200, 200) * .006), fraction(e.clientX));
+    }, {passive:false});
+    graph.addEventListener('keydown', e => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      let chosen = index;
+      if (e.key === '+' || e.key === '=') zoom(.5, (index-from)/(to-from));
+      else if (e.key === '-') zoom(2, (index-from)/(to-from));
+      else if (e.key === '0') move(0, last);
+      else if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
+        chosen = clamp(e.key === 'Home' ? 0 : e.key === 'End' ? last : index + (e.key === 'ArrowRight' ? 1 : -1), 0, last);
+        const span = to-from;
+        if (chosen < from || chosen > to) move(chosen < from ? chosen : chosen-span, span, chosen); else select(chosen);
+      } else return;
+      e.preventDefault();
+    });
+    if (reset) reset.onclick = () => { move(0,last); graph.focus({preventScroll:true}); };
+  }
+  chartViews.set(box, {state:() => ({from,to,index})});
+  if (view && [view.from, view.to, view.index].every(Number.isFinite)) move(view.from,view.to-view.from,view.index); else paint();
+}
+
 // Monthly values (faint) + rolling average (solid) over time; one y-axis. pts: [{d: Date, y|null, label}]
-function trendLine(box, allPts, {fmt, yfmt = fmt, color = 's1', invert = false, roll = 6, height = 150, rollName = '6-month average', keep = null}) {
+function trendLine(box, allPts, {fmt, yfmt = fmt, color = 's1', invert = false, roll = 6, height = 150, rollName = '6-month average', keep = null, view = null, interactive = false}) {
   // the rolling average uses the full history, then `keep` (date-range filter) picks which months are drawn
   const allAvg = allPts.map((p, i) => { const w = allPts.slice(Math.max(0, i - roll + 1), i + 1).filter((q) => q.y != null); return p.y == null && !w.length ? null : w.length ? w.reduce((s, q) => s + q.y * (q.w || 1), 0) / w.reduce((s, q) => s + (q.w || 1), 0) : null; });
   const idx = allPts.map((p, i) => (!keep || keep(p) ? i : -1)).filter((i) => i >= 0);
@@ -881,32 +961,24 @@ function trendLine(box, allPts, {fmt, yfmt = fmt, color = 's1', invert = false, 
   if (ys.length < 2) { box.innerHTML = '<p class="muted small">Not enough data in this range.</p>'; return; }
   const sorted = [...ys].sort((a, b) => a - b), lo0 = sorted[Math.floor(sorted.length * .02)], hi0 = sorted[Math.ceil(sorted.length * .98) - 1];   // ignore the odd extreme month
   const padY = (hi0 - lo0 || 1) * .12, lo = lo0 - padY, hi = hi0 + padY;
-  const X = (i) => padL + (n === 1 ? 0 : i / (n - 1)) * (W - padL - padR);
   const Y = (v) => { const t = (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo); return padT + (invert ? t : 1 - t) * (H - padT - padB); };
-  const path = (vals) => { let d = '', pen = false; vals.forEach((v, i) => { if (v == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; pen = true; }); return d; };
-  let g = '';
-  for (const v of [lo0, (lo0 + hi0) / 2, hi0]) g += `<line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="yl" x="${padL - 4}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${esc(yfmt(v))}</text>`;
-  if (n <= 30) {   // short range: label months (Jan '25, Apr, Jul, Oct ...)
-    const stepM = n > 14 ? 6 : 3;   // label every 3 or 6 months so labels never collide
-    pts.forEach((p, i) => { if (i === 0 || (p.d.getMonth() % stepM === 0 && i > 2)) g += `<text class="yl" x="${X(i).toFixed(1)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${esc(p.d.toLocaleDateString([], {month: 'short'}) + (p.d.getMonth() === 0 || i === 0 ? " '" + String(p.d.getFullYear()).slice(2) : ''))}</text>`; });
-  } else {
-    const yrs = []; pts.forEach((p, i) => { if (p.d.getMonth() === 0 || i === 0) yrs.push(i); });
-    const every = Math.ceil(yrs.length / 6);
-    yrs.forEach((i, k) => { if (k % every === 0) g += `<text class="yl" x="${X(i).toFixed(1)}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : 'middle'}">${pts[i].d.getFullYear()}</text>`; });
-  }
-  g += `<path class="ln faint k-${color}" d="${path(pts.map((p) => p.y))}"/><path class="ln k-${color}" d="${path(avg)}"/>`;
-  g += `<line class="xh" y1="${padT}" y2="${H - padB}" visibility="hidden"/><circle class="xdot k-${color}" r="5" visibility="hidden"/>`;
-  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Monthly trend">${g}</svg></div>
-    <div class="legend small"><span><i class="sw ln-sw k-${color}"></i>${esc(rollName)}</span><span><i class="sw ln-sw faint k-${color}"></i>Each month</span></div>`;
-  const svgEl = $('svg', box), xh = $('.xh', box), dot = $('.xdot', box), ro = $('.readout', box);
-  const show = (e) => {
-    const r = svgEl.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
-    const i = Math.max(0, Math.min(n - 1, Math.round((px - padL) / (W - padL - padR) * (n - 1))));
-    xh.setAttribute('x1', X(i)); xh.setAttribute('x2', X(i)); xh.setAttribute('visibility', 'visible');
-    if (avg[i] != null) { dot.setAttribute('cx', X(i)); dot.setAttribute('cy', Y(avg[i])); dot.setAttribute('visibility', 'visible'); } else dot.setAttribute('visibility', 'hidden');
+  box.innerHTML = `<div class="readout num" aria-live="polite"></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Monthly trend"></svg></div>
+    <div class="legend small"><span><i class="sw ln-sw k-${color}"></i>${esc(rollName)}</span><span><i class="sw ln-sw faint k-${color}"></i>Each month</span></div>${interactive ? '<button type="button" class="linkbtn chart-reset" hidden>Show all dates</button>' : ''}`;
+  const graph = $('svg', box), ro = $('.readout', box);
+  const draw = ({from,to,clip,X}) => {
+    const path = vals => {let d='',pen=false;for(let i=Math.floor(from);i<=Math.ceil(to);i++){const v=vals[i];if(v==null){pen=false;continue;}d+=`${pen?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`;pen=true;}return d;};
+    let g='';
+    for (const v of [lo0,(lo0+hi0)/2,hi0]) g+=`<line class="gl" x1="${padL}" x2="${W-padR}" y1="${Y(v)}" y2="${Y(v)}"/><text class="yl" x="${padL-4}" y="${Y(v)+3}" text-anchor="end">${esc(yfmt(v))}</text>`;
+    for (const i of new Set([Math.ceil(from),Math.floor(to)])) g+=`<text class="yl" x="${X(i)}" y="${H-4}" text-anchor="${i===Math.ceil(from)?'start':'end'}">${esc(pts[i].d.toLocaleDateString([],{month:'short',year:'2-digit'}))}</text>`;
+    graph.innerHTML=g+`<defs><clipPath id="${clip}"><rect x="${padL}" y="0" width="${W-padL-padR}" height="${H-padB}"/></clipPath></defs><g clip-path="url(#${clip})"><path class="ln faint k-${color}" d="${path(pts.map(p=>p.y))}"/><path class="ln k-${color}" d="${path(avg)}"/><line class="xh" y1="${padT}" y2="${H-padB}"/><circle class="xdot k-${color}" r="5"/></g>`;
+  };
+  const show = (i,{X}) => {
+    const xh=$('.xh',box),dot=$('.xdot',box);
+    xh.setAttribute('x1',X(i));xh.setAttribute('x2',X(i));
+    if(avg[i]!=null){dot.setAttribute('cx',X(i));dot.setAttribute('cy',Y(avg[i]));dot.setAttribute('visibility','visible');}else dot.setAttribute('visibility','hidden');
     ro.innerHTML = `<span>${esc(pts[i].label)}</span><span>Month <b>${pts[i].y == null ? '–' : esc(fmt(pts[i].y))}</b></span><span>${esc(rollName.split(' ')[0])} avg <b>${avg[i] == null ? '–' : esc(fmt(avg[i]))}</b></span>`;
   };
-  svgEl.addEventListener('pointerdown', show); svgEl.addEventListener('pointermove', show);
+  inspectChart(box,{n,W,padL,padR,draw,show,view,interactive});
 }
 
 // running total per day (can go below zero): line + zero line + touch readout. pts: [{label, y, sub}]
@@ -973,22 +1045,27 @@ function energyChart(box, cols, {height = 190, weight = null} = {}) {   // weigh
 }
 
 // fitness / fatigue / form lines
-function loadChart(box, days) {
-  const W = Math.max(300, box.clientWidth || 340), H = 170, padL = 30, padB = 18;
+function loadChart(box, days, {height = 170, view = null, interactive = false} = {}) {
+  const W = Math.max(300, box.clientWidth || 340), H = height, padL = 30, padB = 18;
   if (days.length < 2) { box.innerHTML = '<p class="muted">Needs activities with heart rate.</p>'; return; }
   const n = days.length, vals = days.flatMap((d) => [d.fitness, d.fatigue, d.form]);
   const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
-  const X = (i) => padL + i / (n - 1) * (W - padL - 6), Y = (v) => 6 + (1 - (v - lo) / (hi - lo)) * (H - 6 - padB);
-  const path = (k) => days.map((d, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(d[k]).toFixed(1)}`).join('');
-  const m0 = new Date(days[0].d + 'T12:00'), m1 = new Date(days[n - 1].d + 'T12:00');   // local noon: no off-by-one day
-  box.innerHTML = `<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Fitness, fatigue and form">
-    <line class="gl" x1="${padL}" x2="${W - 6}" y1="${Y(0)}" y2="${Y(0)}"/>
-    <text class="yl" x="2" y="${Y(hi) + 8}">${Math.round(hi)}</text><text class="yl" x="2" y="${Y(0) + 3}">0</text>
-    <text class="yl" x="${padL}" y="${H - 3}">${esc(m0.toLocaleDateString([], {month: 'short'}) + " '" + String(m0.getFullYear()).slice(2))}</text>
-    <text class="yl" x="${W - 6}" y="${H - 3}" text-anchor="end">${esc(m1.toLocaleDateString([], {month: 'short', day: 'numeric'}) + (m1.getFullYear() !== new Date().getFullYear() ? " '" + String(m1.getFullYear()).slice(2) : ''))}</text>
-    <path class="ln s1" d="${path('fitness')}"/><path class="ln s2" d="${path('fatigue')}"/><path class="ln s3" d="${path('form')}"/></svg>
-    <div class="badges"><span class="badge">● Fitness</span><span class="badge">● Fatigue</span><span class="badge">● Form</span></div></div>`;
+  const Y = v => 6 + (1 - (v - lo) / (hi - lo)) * (H - 6 - padB);
+  box.innerHTML = `<div class="readout num" aria-live="polite"></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Fitness, fatigue and form"></svg>
+    <div class="badges"><span class="badge">Fitness</span><span class="badge">Fatigue</span><span class="badge">Form</span></div></div>${interactive ? '<button type="button" class="linkbtn chart-reset" hidden>Show all dates</button>' : ''}`;
   const b = $$('.badge', box); b[0].classList.add('s1'); b[1].classList.add('s2'); b[2].classList.add('s3');
+  const graph=$('svg',box);
+  const draw=({from,to,clip,X})=>{
+    const path=k=>{let d='';for(let i=Math.floor(from);i<=Math.ceil(to);i++)d+=`${i>Math.floor(from)?'L':'M'}${X(i).toFixed(1)},${Y(days[i][k]).toFixed(1)}`;return d;};
+    let g=`<line class="gl" x1="${padL}" x2="${W-6}" y1="${Y(0)}" y2="${Y(0)}"/><text class="yl" x="2" y="${Y(hi)+8}">${Math.round(hi)}</text><text class="yl" x="2" y="${Y(0)+3}">0</text>`;
+    for(const i of new Set([Math.ceil(from),Math.floor(to)]))g+=`<text class="yl" x="${X(i)}" y="${H-3}" text-anchor="${i===Math.ceil(from)?'start':'end'}">${esc(fdate(days[i].d+'T12:00',{month:'short',day:'numeric',year:'2-digit'}))}</text>`;
+    graph.innerHTML=g+`<defs><clipPath id="${clip}"><rect x="${padL}" y="0" width="${W-padL-6}" height="${H-padB}"/></clipPath></defs><g clip-path="url(#${clip})"><path class="ln s1" d="${path('fitness')}"/><path class="ln s2" d="${path('fatigue')}"/><path class="ln s3" d="${path('form')}"/><line class="xh" y1="6" y2="${H-padB}"/></g>`;
+  };
+  const show=(i,{X})=>{ const d=days[i],cursor=$('.xh',box);
+    cursor.setAttribute('x1',X(i));cursor.setAttribute('x2',X(i));cursor.setAttribute('visibility','visible');
+    $('.readout',box).innerHTML=`<span>${esc(fdate(d.d+'T12:00',{month:'short',day:'numeric',year:'numeric'}))}</span>${['fitness','fatigue','form'].map(k=>`<span>${k[0].toUpperCase()+k.slice(1)} <b>${Number(d[k]).toFixed(1)}</b></span>`).join('')}`;
+  };
+  inspectChart(box,{n,W,padL,draw,show,view,interactive});
 }
 
 // an AI request that failed: the reason stays next to the button (a toast is easy to miss while you wait)

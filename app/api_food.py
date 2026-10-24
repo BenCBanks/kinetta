@@ -253,13 +253,10 @@ def day_data(c, uid, d=None):
     unknown={k:sum(e.get(k) is None or (isinstance((e.get('ref') or {}).get('unknown_nutrients'),list) and k in e['ref']['unknown_nutrients']) for e in entries) for k in NUM}
     burned['deficit']=round(burned['day_burn']-totals['kcal']) if entries and burned['day_burn'] is not None else None
     burned['partly']=bool(entries) and day_<ctx['today'] and totals['kcal']<energy.full_day_min(c,uid,info['base'])
-    from . import training_food
     calculated=energy.day_goal(c,uid,day_,ctx=ctx,exercise=exercise)
-    training=calculated['training'];goal={k:v for k,v in calculated.items() if k!='training'}
+    goal=calculated
     burned['extra']=goal['extra'] # Legacy clients receive the same allowance, never a second formula.
     goal['deficit']=round(burned['day_burn']-goal['kcal']) if goal['kcal'] is not None and burned['day_burn'] is not None else None
-    from zoneinfo import ZoneInfo
-    training['note']=training_food.low_intake(training,totals['kcal'],burned['day_burn'],unknown['kcal']>0,dt.datetime.now(ZoneInfo(ctx['tz'])).hour) if day_==ctx['today'] else None
     last_meals = _last_meals(c, uid, day_)
     hours = c.execute("""SELECT extract(hour FROM created AT TIME ZONE %s)::int AS h, meal, count(*) AS n FROM food_entries
                            WHERE user_id = %s AND day > current_date - 60 AND day = (created AT TIME ZONE %s)::date
@@ -267,7 +264,7 @@ def day_data(c, uid, d=None):
     meal_hours = {}
     for r in hours:   # most common meal logged (same day) in each hour, needs 3+ entries to count
         if r['n'] >= 3 and r['n'] > meal_hours.get(r['h'], (None, 0))[1]: meal_hours[r['h']] = (r['meal'], r['n'])
-    return {'day': day_.isoformat(), 'entries': entries, 'totals': totals, 'training':training,
+    return {'day': day_.isoformat(), 'entries': entries, 'totals': totals,
             'unknown_nutrients':unknown, 'targets': t, 'burned': burned, 'goal': goal, 'weight_kg': w['kg'] if w else None,
             'extra_nutrients':N.day_values(entries,t),'last_meals': last_meals, 'meal_hours': {h: m for h, (m, _) in meal_hours.items()}}
 
@@ -788,31 +785,3 @@ def accept_checkin(cid:UUID,body:CheckinAcceptIn,user=Depends(current_user)):
 def defer_checkin(cid:UUID,user=Depends(current_user)):
     from . import nutrition_checkin
     return nutrition_checkin.act(user['id'],cid,'later')
-
-
-class TrainingFoodIn(BaseModel):
-    model_config={'extra':'forbid'}
-    enabled:StrictBool | None
-    adult_confirmed:StrictBool | None=None
-
-
-@router.get('/training-days')
-def training_days(user=Depends(current_user)):
-    from . import training_food
-    with db.connect() as c:
-        ctx=energy.context(c,user['id'])
-        return energy.day_goal(c,user['id'],ctx['today'],ctx=ctx)['training']
-
-
-@router.put('/training-days')
-def training_days_save(body:TrainingFoodIn,user=Depends(current_user)):
-    from . import training_food
-    with db.connect() as c:
-        p=c.execute('SELECT birth_year,tz,training_food_adult_confirmed FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
-        year=c.execute('SELECT extract(year FROM now() AT TIME ZONE %s)::int AS y',(p.get('tz') or db.DEFAULT_TZ,)).fetchone()['y']
-        if body.adult_confirmed and p.get('birth_year') and year-p['birth_year']<18:raise HTTPException(400,'Training food guidance is for adults 18 and older')
-        candidate={**p,**({'training_food_adult_confirmed':body.adult_confirmed} if body.adult_confirmed is not None else {})}
-        if body.enabled is True and not training_food.policy(candidate,year,True,True)['adult']:raise HTTPException(400,'Confirm you are 18 or older before enabling training-day targets')
-        c.execute('UPDATE profile SET training_day_targets=%s WHERE user_id=%s',(body.enabled,user['id']))
-        if body.adult_confirmed is not None:c.execute('UPDATE profile SET training_food_adult_confirmed=%s WHERE user_id=%s',(body.adult_confirmed,user['id']))
-    return {'ok':True}

@@ -9,6 +9,15 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 from app import apns, db, notify
 from app.auth import new_session, token_hash
+
+# Test title/body layout before the mocked APNs transport; no Apple/device call.
+base_notice={'name':'Fictional Friend','activity':'A deliberately long fictional workout name','activity_id':1,'units':'metric','moving_s':1800,'distance_m':5000,'dish':None,'dish_id':None,'comment':'A full comment that must stay in the notification body.'}
+for kind in ('friend_request','friend_accepted','cheer','comment','dish_shared','activity_ready'):
+    title,body=notify._push_words({**base_notice,'kind':kind})
+    assert len(title)<40 and body and '\n' not in title,(kind,title,body)
+assert '\n' in notify._push_words({**base_notice,'kind':'activity_ready'})[1]
+assert base_notice['comment'] in notify._push_words({**base_notice,'kind':'comment'})[1]
+print('Notification content: short headings and complete multiline body for all delivered types PASS')
 key = ec.generate_private_key(ec.SECP256R1())
 pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
 device = {'token': 'ab' * 32, 'environment': 'production'}

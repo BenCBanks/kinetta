@@ -6,7 +6,7 @@ const start=source.indexOf('function sharePicture('),end=source.indexOf('// cut 
 const tick=()=>new Promise(setImmediate);
 function fixture(native=true){
  const nodes={};for(const key of ['#pi-img','#pi-trim','#pi-go','#pi-instagram','#pi-trim-row','.pi-note','.pic-wrap'])nodes[key]={disabled:false,hidden:false,checked:true,src:'',classList:{add(){},remove(){}}};
- const body={isConnected:true},calls=[],urls=[],revoked=[],messages=[],pending=[];
+ const choices=[{dataset:{picFormat:'story'},setAttribute(){}},{dataset:{picFormat:'post'},setAttribute(){}}]; const body={isConnected:true,querySelectorAll:()=>choices},calls=[],urls=[],revoked=[],messages=[],pending=[];
  const ctx={App:{},console,File,Blob,Promise,Error,FOOT:['run'],svg:()=>'',readOwner:()=>ctx.owner,owner:'zz_test_owner_a',viewResources:new Map(),
    Native:{activityShareSupported:native,shareActivityPicture:async(image,destination)=>{calls.push({image,destination});return{handedOff:true}}},
    navigator:{},URL:{createObjectURL:()=>{const url='blob:fictional-'+urls.length;urls.push(url);return url},revokeObjectURL:url=>revoked.push(url)},
@@ -14,13 +14,13 @@ function fixture(native=true){
    document:{body:{append(){}},createElement:()=>({click(){calls.push('download')},remove(){}})},
    $:key=>nodes[key],sheet:(title,html,mount)=>{ctx.html=html;ctx.mounted=mount(body,()=>{body.isConnected=false})},
    api:async()=>({trim_m:400}),decode:()=>[[0,0],[1,1]],toast:text=>messages.push(text),
-   routePicture:(a,trim)=>{calls.push({trim});return new Promise((resolve,reject)=>pending.push({resolve,reject}))}};
+   routePicture:(a,trim,format)=>{calls.push({trim,format});return new Promise((resolve,reject)=>pending.push({resolve,reject}))}};
  vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
  ctx.sharePicture(1,{id:1,name:'Fictional run',sport:'run',line:'fictional',start_time:'2026-10-23T10:00:00Z'});
- return {ctx,nodes,body,calls,revoked,messages,pending};
+ return {ctx,nodes,body,calls,revoked,messages,pending,choices};
 }
 (async()=>{
- let f=fixture();await f.ctx.mounted;
+ let f=fixture();await f.ctx.mounted;assert.equal(f.calls[0].format,'story');
  assert(f.nodes['#pi-go'].disabled&&f.nodes['#pi-instagram'].disabled,'both exports wait for trimmed preview');
  f.pending.shift().resolve(new Blob(['fictional']));await tick();assert(!f.nodes['#pi-instagram'].disabled);
  await f.nodes['#pi-instagram'].onclick();assert.equal(f.calls.at(-1).destination,'instagram');assert.deepEqual(Object.keys(f.calls.at(-1)).sort(),['destination','image']);assert.equal(f.messages.at(-1),'Finish your post in Instagram');
@@ -29,6 +29,9 @@ function fixture(native=true){
  f.ctx.owner='zz_test_owner_b';f.ctx.read();await sending;assert.equal(f.calls.length,sent,'account switch blocks late image handoff');
  console.log('Activity share: native Instagram gets image/destination only; duplicate taps and late account changes blocked PASS');
 
+ f=fixture();await f.ctx.mounted;const initial=f.pending.shift();f.choices[1].onclick();assert.equal(f.calls.at(-1).format,'post');
+ f.pending.shift().resolve(new Blob(['post']));await tick();const postURL=f.nodes['#pi-img'].src;initial.resolve(new Blob(['story']));await tick();assert.equal(f.nodes['#pi-img'].src,postURL,'late Story preview cannot replace selected Post');
+ console.log('Story/Post format: selection regenerates the preview; stale shape cannot replace the chosen format PASS');
  f=fixture();await f.ctx.mounted;f.pending.shift().resolve(new Blob(['initial']));await tick();
  f.nodes['#pi-trim'].checked=false;const first=f.nodes['#pi-trim'].onchange();f.nodes['#pi-trim'].checked=true;const second=f.nodes['#pi-trim'].onchange();
  assert(f.nodes['#pi-go'].disabled&&f.nodes['#pi-instagram'].disabled);

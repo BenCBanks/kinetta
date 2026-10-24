@@ -85,7 +85,9 @@ function wireCardTaps(box) {
   });
 }
 const backBtn = (label = 'Back') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
+IC.settings = '<path d="m9 3-.6 2.3-2 .9-2.2-.6-1.5 2.6 1.6 1.7-.2 2.2-1.7 1.6 1.5 2.6 2.3-.6 1.8 1.3.5 2.3h3l.6-2.3 2-.9 2.2.6 1.5-2.6-1.6-1.7.2-2.2 1.7-1.6-1.5-2.6-2.3.6-1.8-1.3L12 3z"/><circle cx="10.5" cy="11" r="3"/>';
 function wireBack(el, fallback) {
+  el.classList.add('has-back');
   const b = $('[data-back]', el);
   if (b) b.onclick = () => (history.length > 1 && App.navCount > 0 ? history.back() : go(fallback, {replace: true}));
 }
@@ -216,6 +218,7 @@ function getStarted(healthConnected = false, hasHistory = false) {
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
   const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
   const rows = [
+    !hasHistory ? step('/track/connections', 'watch', 'c-brand', 'Connect your watch', 'Garmin Connect or Apple Health · optional, you can do this later') : '',
     Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
     !hasHistory ? step('/track', 'track', 'c-green', 'Record an activity', 'A run, ride, walk or lifting session with your phone.') : '',
     !hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
@@ -491,9 +494,9 @@ function drawDetail(el, a) {
       ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}`,
   };
   const has = (k) => k === 'overview' || pane[k].trim() !== '';
-  // with a map, the map runs to the top of the screen and the buttons float over it (2026-10-12, Ben)
-  const topBar = `<div class="top${a.line || a.photos?.length ? ' over' : ''}">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
-  el.innerHTML = `${a.line || a.photos?.length ? `<div class="map-head">${activityMedia(a, {mapId: 'd-map', detail: true, full: !!a.line})}${topBar}</div>` : topBar}
+  // The return bar stays above media and remains available while the activity scrolls.
+  const topBar = `<div class="top">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
+  el.innerHTML = `${topBar}${a.line || a.photos?.length ? `<div class="map-head">${activityMedia(a, {mapId: 'd-map', detail: true, full: !!a.line})}</div>` : ''}
     <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${a.ai_note || aiCan('coach') ? `<button class="icon-btn kit-help" id="d-kit" aria-label="${kitChatOn()?'Ask Kit about this activity':'Kit’s workout note'}">${svg('sparkle')}</button>` : ''}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
@@ -515,7 +518,7 @@ function drawDetail(el, a) {
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
   $('#d-send', el).onclick = () => shareOut(a);
-  const addMap=$('#d-add-map',el);if(addMap)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
+  const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   ownSocial(el, a);
   photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
@@ -668,12 +671,13 @@ const appBase = () => (Native.on && Native.base ? Native.base : location.origin)
 function shareOut(a) { sharePicture(a.id, a); }
 function sharePicture(id, known) {
   const owner = readOwner();
-  sheet('Share', `<div class="pic-wrap busy"><img class="pic" id="pi-img" alt=""></div>
+  sheet('Share', `<div class="seg wide" role="group" aria-label="Picture format"><button type="button" data-pic-format="story" aria-pressed="true">Story</button><button type="button" data-pic-format="post" aria-pressed="false">Post</button></div><div class="pic-wrap busy"><img class="pic" id="pi-img" alt=""></div>
     <label class="check" id="pi-trim-row" hidden><input type="checkbox" id="pi-trim" checked> Hide where it starts and ends</label>
     <button class="primary wide" id="pi-go" disabled>${svg('share')} Share</button>
     <button class="ghost wide" id="pi-instagram" disabled>${svg('image')} Instagram</button>
     <p class="small muted pi-note" role="status"></p>`, async (b, close) => {
     const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b), instagram = $('#pi-instagram', b), live = () => b.isConnected && owner === readOwner();
+    let format = 'story';
     let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, blob = null, made = 0, url = '', sending = false;
     const closeSelf = () => close(); App.closeActivityShare = closeSelf;
     viewResources.set(b, () => { if (App.closeActivityShare === closeSelf) delete App.closeActivityShare; made++; blob = null; if (url) URL.revokeObjectURL(url); url = ''; });
@@ -687,11 +691,11 @@ function sharePicture(id, known) {
     $('.pi-note', b).textContent = note;
     const trim = (s && s.trim_m) || 400, hasLine = !!(a.line && decode(a.line).length > 1);
     $('#pi-trim-row', b).hidden = !hasLine;
-    const buttons = () => { go.disabled = instagram.disabled = !blob || sending; t.disabled = sending; };
+    const buttons = () => { go.disabled = instagram.disabled = !blob || sending; t.disabled = sending; b.querySelectorAll('[data-pic-format]').forEach(button=>button.disabled=sending); };
     const make = async () => {
       const run = ++made; blob = null; buttons(); $('.pic-wrap', b).classList.add('busy');
       try {
-        const picture = await routePicture(a, t && !t.checked ? 0 : trim);
+        const picture = await routePicture(a, t && !t.checked ? 0 : trim, format);
         if (run !== made || !live()) return;
         if (!picture) throw new Error('Couldn’t prepare this picture. Close Share and try again.');
         blob = picture; if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(blob); img.src = url;
@@ -700,6 +704,12 @@ function sharePicture(id, known) {
       finally { if (run === made && live()) { buttons(); $('.pic-wrap', b).classList.remove('busy'); } }
     };
     make(); t.onchange = make;
+    b.querySelectorAll('[data-pic-format]').forEach(button => button.onclick = () => {
+      if(sending || button.dataset.picFormat === format)return;
+      format = button.dataset.picFormat;
+      b.querySelectorAll('[data-pic-format]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+      make();
+    });
     const send = async destination => {
       if (!blob || sending || !live()) return;
       const picture = blob, run = made;
@@ -774,7 +784,7 @@ async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon 
   return {tiles: got.length, P: ([la, lo]) => { const [x, y] = mercator(la, lo); return [(x * n - cx) * k + mx, (y * n - cy) * k + my]; }};
 }
 // The share picture uses the light Sky Blue tokens in either app appearance; routes are blue, like the map.
-// 1080 × 1350 fits Messages, Instagram posts and stories; logo artwork stays unchanged.
+// Story: 1080 × 1920. Post: 1080 × 1350. Destinations share the exact previewed image.
 const PIC = {bg: col('--share-surface'), route: col('--share-action'), text: col('--share-text'), soft: col('--share-text-secondary'), muted: col('--share-text-muted'), line: col('--share-divider'), brand: col('--share-brand'),
   sport: Object.fromEntries(['run','ride','walk','hike','swim','row','ski','workout','other'].map(sport => [sport, col('--share-' + sport)]))};
 // The Kinetta mark (mark.svg): a track with a runner's dot in its gap, centred on (cx, cy), `w` wide.
@@ -786,22 +796,22 @@ function drawMark(g, cx, cy, w, color) {
   g.restore();
   g.beginPath(); g.arc(...at(76, 32.68), 8.5 * s, 0, Math.PI * 2); g.fillStyle = color; g.fill();
 }
-async function routePicture(a, trim) {
-  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+async function routePicture(a, trim, format = 'post') {
+  const W = 1080, H = format === 'story' ? 1920 : 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
   try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
-  const hue = PIC.route, M = 84;
+  const hue = PIC.route, M = 64;
   g.fillStyle = PIC.bg; g.fillRect(0, 0, W, H);
-  const pts = a.line ? trimRoute(decode(a.line), trim) : [], TOP = 820;
+  const pts = a.line ? trimRoute(decode(a.line), trim) : [], TOP = H - 400;
   let tiles = 0;
   if (pts.length > 1) {
     // a bright map, a little faded so the blue route is what you see first
     g.filter = 'grayscale(.6) brightness(1.04) contrast(.92)';
-    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: TOP, pad: 120, under: 40});
+    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: TOP, pad: 88, under: 0});
     g.filter = 'none'; tiles = n;
     if (tiles) { g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(0, 0, W, TOP); }
-    const fade = g.createLinearGradient(0, TOP - 240, 0, TOP); fade.addColorStop(0, 'rgba(255,255,255,0)'); fade.addColorStop(1, PIC.bg);
-    g.fillStyle = fade; g.fillRect(0, TOP - 240, W, 240);
+    const fade = g.createLinearGradient(0, TOP - 96, 0, TOP); fade.addColorStop(0, 'rgba(255,255,255,0)'); fade.addColorStop(1, PIC.bg);
+    g.fillStyle = fade; g.fillRect(0, TOP - 96, W, 96);
     g.lineJoin = g.lineCap = 'round';
     const path = () => { g.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
     path(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 24; g.stroke();
@@ -811,8 +821,8 @@ async function routePicture(a, trim) {
     }
   } else {
     // no GPS: the Kinetta mark takes the map's place, in blue
-    g.beginPath(); g.arc(W / 2, 400, 250, 0, Math.PI * 2); g.fillStyle = col('--share-soft'); g.fill();
-    drawMark(g, W / 2, 400, 360, hue);
+    g.beginPath(); g.arc(W / 2, TOP / 2, 250, 0, Math.PI * 2); g.fillStyle = col('--share-soft'); g.fill();
+    drawMark(g, W / 2, TOP / 2, 360, hue);
   }
   // sport and day, then the name
   g.textBaseline = 'alphabetic'; g.textAlign = 'left';
@@ -822,10 +832,10 @@ async function routePicture(a, trim) {
   const kw = g.measureText(kind).width;
   g.fillStyle = PIC.muted; g.font = `500 26px ${ui}`;
   g.fillText(`  ·  ${fdate(a.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'})}`, M + kw, y);
-  g.font = `700 64px ${ui}`; g.fillStyle = PIC.text;
+  g.font = `700 56px ${ui}`; g.fillStyle = PIC.text;
   const words = (a.name || '').split(/\s+/), lines = [''];
   for (const w of words) { const t = (lines[lines.length - 1] + ' ' + w).trim(); if (g.measureText(t).width > W - 2 * M && lines[lines.length - 1]) { if (lines.length === 2) { lines[1] += '…'; break; } lines.push(w); } else lines[lines.length - 1] = t; }
-  y += 78; lines.forEach((l) => { g.fillText(l, M, y); y += 72; });
+  y += 66; lines.forEach((l) => { g.fillText(l, M, y); y += 60; });
   // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
   cells.push(['Time', dur(a.moving_s || a.elapsed_s), '']);
@@ -833,7 +843,7 @@ async function routePicture(a, trim) {
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
   if (cells.length < 3 && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
   if (cells.length < 3 && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
-  const top = Math.max(y + 14, TOP + 250), cw = (W - 2 * M) / cells.length;
+  const top = Math.max(y + 8, TOP + 212), cw = (W - 2 * M) / cells.length;
   g.strokeStyle = PIC.line; g.lineWidth = 2; g.beginPath(); g.moveTo(M, top - 50); g.lineTo(W - M, top - 50); g.stroke();
   cells.forEach(([lab, v, u], i) => {
     const x = M + i * cw;
@@ -844,9 +854,9 @@ async function routePicture(a, trim) {
     if (u) { const vw = g.measureText(v).width; g.font = `600 26px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, top + 18 + size); }
   });
   // the brand, and the map credit OpenStreetMap asks for
-  drawMark(g, M + 26, H - 64, 46, PIC.brand);
-  g.font = `600 32px ${serif}`; g.fillStyle = PIC.text; g.fillText('Kinetta', M + 62, H - 53);
-  if (tiles) { g.font = `500 19px ${ui}`; g.fillStyle = PIC.muted; g.textAlign = 'right'; g.fillText('Map © OpenStreetMap contributors', W - M, H - 55); }
+  drawMark(g, M + 26, H - 46, 46, PIC.brand);
+  g.font = `600 32px ${serif}`; g.fillStyle = PIC.text; g.fillText('Kinetta', M + 62, H - 35);
+  if (tiles) { g.font = `500 19px ${ui}`; g.fillStyle = PIC.muted; g.textAlign = 'right'; g.fillText('Map © OpenStreetMap contributors', W - M, H - 37); }
   return new Promise((res) => c.toBlob(res, 'image/png'));
 }
 
@@ -983,6 +993,37 @@ route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, v
   q.set('sport', forView(sport, view));
   await ({trends: pTrends, calendar: pCalendar, routes: pRoutes, heatmap: pHeatmap}[view])($('#p-body', el), q);
 });
+// Use the existing sheet lifecycle for focus, Escape, Back and account cleanup.
+function fitnessChart(box, title, draw) {
+  box.innerHTML = '<div data-fitness-plot></div><button type="button" class="linkbtn chart-expand">'+svg('expand')+' View full screen</button>';
+  let closeFull = null;
+  viewResources.set(box, () => closeFull?.());
+  const plot = $('[data-fitness-plot]', box), open = () => {
+    const owner = readOwner();
+    const selected = chartViews.get(plot)?.state();
+    sheet(title, '<div class="fitness-inspect"><p class="small muted">Pinch or scroll to zoom. Drag to move through dates. Tap or hover for exact values.</p><div data-full-chart></div></div>', (body, close) => {
+      closeFull = close;
+      body.closest('.sheet')?.querySelector('[data-close]')?.focus({preventScroll:true});
+      const mount = $('[data-full-chart]', body);
+      const redraw = () => {
+        if (owner !== readOwner()) return close();
+        if (!mount.isConnected) return;
+        const view = chartViews.get(mount)?.state() ?? selected;
+        const focused = mount.contains(document.activeElement);
+        draw(mount, Math.max(220, Math.min(600, innerHeight * .52)), {view,interactive:true});
+        if (focused) $('svg',mount)?.focus({preventScroll:true});
+      };
+      requestAnimationFrame(redraw);
+      window.addEventListener('resize', redraw);
+      viewResources.set(mount, () => {window.removeEventListener('resize', redraw);if(closeFull === close)closeFull = null;});
+    });
+  };
+  draw(plot, 170);
+  // The chart itself and the labelled button both open the larger analysis view.
+  const graph = $('.chartbox', plot);
+  if (graph) { graph.setAttribute('role','button'); graph.tabIndex=0; graph.setAttribute('aria-label','View '+title+' full screen'); graph.onclick=open; graph.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}}; }
+  $('.chart-expand',box).onclick=open;
+}
 async function pFitness(body, q) {
   const R = getRange(q), nowY = new Date().getFullYear();
   const days = R.from ? Math.min(3650, Math.ceil((Date.now() - new Date(R.from, 0, 1)) / 864e5) + 1) : 3650;
@@ -997,19 +1038,19 @@ async function pFitness(body, q) {
       // green means something (2026-10-13, Ben): the prediction beats your best ever at that distance
       const pr = p.best_s && p.seconds < p.best_s - 1;
       return `<div${pr ? ' class="pr"' : ''}><small class="muted">${esc(p.label)}</small><b class="num">${dur(p.seconds)}</b><small class="muted num">${U.pace(p.seconds / p.distance_m * 1000)}${U.pu()}</small>
-        <small class="pbest">${p.best_s ? `${pr ? 'Beats your best,' : 'Your best:'} ${esc(dur(p.best_s))}` : 'Not raced yet'}</small></div>`; }).join('')}</div>
-        <p class="small muted">From your best efforts of the last 90 days (fastest: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a>, ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}). Half and full marathon times allow for your weekly mileage: they get faster as it grows.</p></div>`
+        <small class="small muted">Based on ${esc(p.from.label)} · ${esc(fdate(p.from.start_time, {month: 'short', day: 'numeric'}))}</small><small class="pbest">${p.best_s ? `${pr ? 'Beats your best,' : 'Your best:'} ${esc(dur(p.best_s))}` : 'Not raced yet'}</small></div>`; }).join('')}</div>
+        <p class="small muted">From your best efforts of the last 90 days (fastest: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a>, ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}). Estimates, not a target pace. Each distance uses the fastest estimate from your recent efforts, adjusted for weekly mileage when projecting upward. Short efforts can still overestimate long-race ability; course, weather, pacing and endurance are not measured here.</p></div>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>';
     box.innerHTML = `<div class="card"><h2>Running fitness</h2>${f.vdot_months.length ? `<div class="bigstat">${stat('VDOT now', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
-        <p class="small muted">VDOT is Jack Daniels' race-fitness number: what your fastest stretch each month (a mile or longer) shows you can do. Higher is fitter; about 1 point ≈ 1.5% faster.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
+        <p class="small muted">VDOT is a running-performance score calculated from your fastest stretch each month (a mile or longer). Higher means faster recorded performance. It is not a measured VO₂max or a guarantee of race pace.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
       <div class="card"><h2>Fitness, fatigue & form</h2>
       <div class="bigstat">${stat('Fitness', Math.round(last.fitness))}${stat('Form', (last.form > 0 ? '+' : '') + Math.round(last.form))}</div>
-      <div id="p-load"></div><p class="small muted">Fitness = 6-week average training load, fatigue = last week. Form = fitness − fatigue: positive means fresh, very negative means overreaching.</p>
+      <div id="p-load"></div><p class="small muted">Fitness = 6-week average training load, fatigue = last week. Form = fitness − fatigue: positive means fresh, negative means recent load is higher than your longer-term load. It does not diagnose overtraining.</p>
       ${f.ramp_7d > 8 ? '<div class="callout warn">Fitness rose fast this week (ramp ' + f.ramp_7d + '). Build gradually to stay healthy.</div>' : ''}</div>`;
     requestAnimationFrame(() => {
-      loadChart($('#p-load', box), f.days);
-      if (f.vdot_months.length) trendLine($('#p-vdot', box), monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
-        {fmt: (v) => v.toFixed(1), color: 'run', keep: (p) => inRange(R, p.d.getFullYear())});
+      fitnessChart($('#p-load', box), 'Training load', (mount, height, options) => loadChart(mount, f.days, {height,...options}));
+      if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Running fitness', (mount, height, options) => trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
+        {fmt: (v) => v.toFixed(1), color: 'brand', height, ...options, keep: (p) => inRange(R, p.d.getFullYear())}));
     });
   });
 }
@@ -1281,13 +1322,18 @@ function profilePhotoSheet(done) {
 // Questions, problems and privacy requests (2026-10-16): the same address as the website and privacy policy.
 const SUPPORT_EMAIL = 'feedback@kinetta.app';
 route(/^\/me$/, 'me', async (el) => {
-  const me = App.me;
-  // Personal overview first; secondary account controls retain their existing sheets. Nutrition goal is a food-user tool (#164).
-  const ch = `<span class="chev">${svg('chev')}</span>`;
+  if (new URLSearchParams(location.search).get('setup') === 'body') return go('/me/settings?setup=body', {replace:true});
+  const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', `href="${profileHref(me)}"`, 'user', 'c-brand', 'Your profile<small class="muted">Edit, share &amp; see your progress</small>')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>
-    <details class="me-settings"><summary>Profile & settings<span>${svg('chev')}</span></summary>
+  el.innerHTML = `<a class="settings-entry" href="/me/settings">${svg('settings')} Settings &amp; account ${svg('chev')}</a><div id="me-overview"></div>
+    <div class="card list me-tools">${row('a', `href="${profileHref(me)}"`, 'user', 'c-brand', 'Your profile<small class="muted">Edit, share &amp; see your progress</small>')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
+  meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
+});
+route(/^\/me\/settings$/, 'me', async (el) => {
+  const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
+  const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
+  el.innerHTML = `<div class="top">${backBtn('Back')}</div><h1>Settings</h1><p class="muted">Your account, connections and private preferences.</p><button class="ghost wide" id="logout">${svg('logout')}Log out</button><section class="me-settings">
+
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
       ${row('a', 'href="/me/speed"', 'clock', 'c-brand', 'Speed check', 'Time this phone’s connection')}
@@ -1295,7 +1341,7 @@ route(/^\/me$/, 'me', async (el) => {
     <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
       ${row('button', 'id="m-targets"', 'food', 'c-green', 'Nutrition targets')}
       ${row('a', 'href="/food?view=weight"', 'scale', 'c-purple', 'Weight trend')}</div>
-    <h2 class="sec-head">Settings</h2>
+    <h2 class="sec-head">App preferences</h2>
     <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
       ${row('a', 'href="/me/notifications"', 'bell', 'c-grey', 'Notification settings')}
@@ -1311,8 +1357,8 @@ route(/^\/me$/, 'me', async (el) => {
     <div class="card list">${row('button', 'id="m-kit-memory"', 'sparkle', 'c-green', 'What Kit remembers', 'View or remove')}${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
       ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
-    <button class="ghost wide" id="logout">${svg('logout')}Log out</button></details>`;
-  meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
+    </section>`;
+  wireBack(el, '/me');
   $('#m-profile', el).onclick = () => go(profileHref(me));   // your public profile, editable in place (social.js)
 
   $('#m-kit-memory',el).onclick=()=>KitChat.memorySettings();
@@ -1340,20 +1386,36 @@ route(/^\/me$/, 'me', async (el) => {
   });
   $('#m-body', el).onclick = () => bodySheet();
   if (new URLSearchParams(location.search).get('setup') === 'body') {
-    history.replaceState(null, '', '/me'); $('.me-settings', el).open = true; bodySheet();
+    history.replaceState(null, '', '/me/settings'); bodySheet();
   }
-  $('#logout', el).onclick = async () => {
-    let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){toast('Could not check unsent food messages. Try logging out again.');return;}
-    let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){toast(e.message);return;}
-    const n = Q.mine().length + chat + shortcuts;
-    if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
-    if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
-    if(typeof KitChat!=='undefined')KitChat.eraseDevice();
-    if (typeof Track !== 'undefined') await Track.pause();
-    try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
-    await Native.forget();
-    store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
-    App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin();
+  const logout = $('#logout', el);
+  let leaving = false;
+  logout.onclick = async () => {
+    if (leaving) return;
+    leaving = true; logout.disabled = true;
+    const owner = readOwner(), account = App.me, valid = () => owner === readOwner();
+    try {
+      let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){if(valid())toast('Could not check unsent food messages. Try logging out again.');return;}
+      let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){if(valid())toast(e.message);return;}
+      if (!valid()) return;
+      const n = Q.mine().length + chat + shortcuts;
+      if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
+      if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){if(valid())toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
+      if (!valid()) return;
+      if(typeof KitChat!=='undefined')KitChat.eraseDevice();
+      if (typeof Track !== 'undefined') await Track.pause();
+      if (!valid()) return;
+      // A failed request can leave the browser cookie valid. Keep Settings visible so retry is honest.
+      try { await api('/api/logout', json('POST', {})); }
+      catch (e) { if(valid())toast('Could not log out. Check your connection and try again.'); return; }
+      if (!valid()) return;
+      const cleanup = Native.forget(), clearedOwner = readOwner();
+      await cleanup;
+      if (clearedOwner !== readOwner()) return;
+      store.set('fit.queue', Q.all().filter((o) => o.who !== account.login)); forgetKept();
+      App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin();
+    } catch (e) { if(valid())toast(e.message || 'Could not log out. Try again.'); }
+    finally { leaving = false; logout.disabled = false; }
   };
 });
 
@@ -1428,7 +1490,6 @@ function deleteSheet() {
         await cleanup(()=>Native.forget({deleted:true}));
         await cleanup(()=>typeof KitChat!=='undefined'?KitChat.eraseDevice():null);
         await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
-        await cleanup(()=>typeof TrainingFood!=='undefined'?TrainingFood.eraseDevice():null);
         await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
         await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
         await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));
@@ -1467,6 +1528,7 @@ route(/^\/track\/import$/, 'track', async (el) => {
   el.classList.add('activity-import');
   const owner=readOwner(),account=App.me?.id,valid=()=>el.isConnected&&owner===readOwner();
   const mapFor=new URLSearchParams(location.search).get('map_for'),mapId=/^[1-9]\d*$/.test(mapFor||'')?mapFor:null;
+  if (Native.on) return go('/track/connections', {replace:true});
   el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Upload activities</h1><p class="muted">FIT, GPX or TCX files (also .gz), or your whole Strava export .zip. Duplicates are skipped automatically.</p>
     ${mapId?`<p class="small">Choose the original ZIP or FIT for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
     <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
@@ -1516,9 +1578,10 @@ route(/^\/track\/import$/, 'track', async (el) => {
 
 // Garmin Connect through Garmin's developer program: sign in at Garmin; new activities arrive after each watch sync.
 function garminCard(box,C,valid){
-  const g=C.garmin_connect;if(!box||!(C.garmin_connect_available||g))return;
+  const g=C.garmin_connect;if(!box)return;
+  if(!(C.garmin_connect_available||g)){box.innerHTML='<div class="card"><h2>Garmin Connect</h2><p>Garmin Connect is not available for this account yet. You can use Apple Health or record activities in Kinetta.</p></div>';return;}
   box.innerHTML=`<div class="card"><h2>Garmin Connect</h2>
-    <p>${g?`<b>Connected.</b> ${esc(g.status||'')}${g.last_sync?' · '+esc(when(g.last_sync)):''}.`:'New Garmin activities arrive after your watch syncs, with maps and heart rate.'} For older history, import a Strava export or past workouts from Apple Health.</p>
+    <p>${g?`<b>Connected.</b> ${esc(g.status||'')}${g.last_sync?' · '+esc(when(g.last_sync)):''}.`:'New Garmin activities arrive after your watch syncs, with maps and heart rate.'} For older history, ${Native.on?'import past workouts from Apple Health':'use Apple Health or import a Strava export in your browser'}.</p>
     ${g?`<label class="check"><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}> Let Kit read my Garmin activities</label>
     <p class="small muted">Off unless you say yes. Sends the activities Kit needs to ${esc(App.me.ai_provider||'the AI service')}. Garmin data is never used to train AI.</p>
     <div class="actions"><button type="button" class="ghost" id="gc-sync">Sync now</button><button type="button" class="ghost danger" id="gc-off">Disconnect</button></div>`
@@ -1543,27 +1606,27 @@ route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{repla
 route(/^\/track\/connections$/, 'track', async (el) => {
   el.classList.add('connections-page');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Bring in workouts from Apple Health or files. A watch is optional.</p>
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Connect Garmin or Apple Health to bring in workouts automatically. A watch is optional.</p>
     <div id="c-gc"></div>
     <div class="card" id="c-health"><h2>Apple Health</h2>${skel(1)}</div>
-    <a class="card tap row-link" href="/track/import"><div class="grow"><h2>Upload files</h2><p>FIT, GPX, TCX or ZIP · your original watch files or activity history.</p></div><span class="chev">${svg('chev')}</span></a>
-    <details class="card" id="c-advanced"><summary>Advanced</summary><p class="small muted">For power users.</p><div id="c-body">${skel(2)}</div></details>`;
+    ${Native.on ? '' : '<a class="card tap row-link" href="/track/import"><div class="grow"><h2>Import activity history</h2><p>Original activity files or a Strava export, in your browser.</p></div><span class="chev">'+svg('chev')+'</span></a>'}
+    <details class="card" id="c-other"><summary>Other connections</summary><div id="c-body">${skel(2)}</div></details>`;
   wireBack(el, '/track');
   const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Apple Health</h2>
     <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · share nutrition, read weight or import workouts.':'Available in the Kinetta iPhone app.'}</p>
     ${st?.at?`<p class="small muted">Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.</p>`:''}${error?`<p class="err">${esc(error)}</p>`:''}
     <a class="${Native.on?'primary':'ghost'} wide" href="/track/health">${Native.on?isOn?'Manage Apple Health':'Connect Apple Health':'About Apple Health'}</a>
-    <details><summary>Using a Garmin?</summary><p class="small">Enable Apple Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send the GPS map to Health; you can add the original file later.</p></details>`;};
+    <details><summary>Using a Garmin?</summary><p class="small">Enable Apple Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send GPS routes to Health. Connect Garmin directly for maps on new workouts.</p></details>`;};
   if(Native.on)Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open Apple Health to review setup.'));
   else healthCard(false,null);
   let C;
-  try{C=await api('/api/connections');}catch(e){if(valid())$('#c-body',el).innerHTML=`<p class="err">${esc(e.message)}</p>`;return;}
+  try{C=await api('/api/connections');}catch(e){if(valid()){$('#c-gc',el).innerHTML=`<div class="card" role="alert"><p>Connections could not load. ${esc(e.message)}</p><button type="button" class="ghost" data-connections-retry>Retry</button></div>`;$('[data-connections-retry]',el).onclick=()=>render();}return;}
   if(!valid())return;
   garminCard($('#c-gc',el),C,valid);
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
   $('#c-body', el).innerHTML = `<div class="card"><h2>Health Auto Export</h2>
       <p class="small">In the iPhone app <b>Health Auto Export</b> (Premium), add an automation: <b>REST API</b>, format <b>JSON</b>, data <b>Workouts</b> (and optionally <b>Body Mass</b>), with the address and header below.</p>${st('apple')}
-      <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost" id="c-apple">${C.apple ? 'Make a new secret' : 'Create my upload link'}</button></div></div>`;
+      <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost" id="c-apple">${C.apple ? 'Make a new secret' : 'Create connection link'}</button></div></div>`;
   $('#c-apple', el).onclick = async () => {
     if(!valid())return;
     if (C.apple && !confirm('Make a new secret? The old one stops working.')) return;

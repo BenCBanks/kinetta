@@ -168,7 +168,7 @@ const NPROG = [['overview', 'Overview', 'Averages, insights and Kit', 'sparkle',
   ['needs', 'Calorie needs', 'What you burn, and your daily target', 'target', 'c-brand'],
   ['weeks', 'Week by week', 'Every week in one table', 'calendar', 'c-blue']];
 const NMORE = [['reminders', 'Meal reminders', 'Optional nudges at your usual meal times', 'bell', 'c-orange'],
-  ['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']];
+  ...(!Native.on ? [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']] : [])];
 const NRANGED = ['overview', 'energy', 'macros'];
 function nHead(el, view, filters) {
   const v = [...NLOG, ...NPROG].find((m) => m[0] === view), inProgress = location.pathname === '/progress';
@@ -190,7 +190,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
   body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <p class="food-library-link"><a href="/food/meals">${svg('pot')}My recipes &amp; foods${svg('chev')}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div><div id="fd-details"></div><div id="fd-training"></div>`;
+    <p class="food-library-link"><a href="/food/meals">${svg('pot')}My recipes &amp; foods${svg('chev')}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div><div id="fd-details"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -241,7 +241,7 @@ function drawDay(el, D) {
   const eaten = T.kcal, goal = G.kcal, left = goal != null ? goal - eaten : null, sofar = today ? ' so far' : '';
   const goalNote = goal == null ? 'No calorie goal yet. Tap Set goal to add one.'
     : G.custom != null ? `Goal set for this day${G.default ? ` (your usual is ${r0(G.default)})` : ''}.`
-    : G.extra ? `Your daily target ${r0(G.default)} + ${r0(G.extra)} for ${today ? "today's" : "this day's"} extra training.` : '';
+    : '';
   // signs (2026-10-13, Ben): what you eat counts up (+), what you burn counts down (−), so the deficit comes out negative
   const neg = (v) => (Math.round(v) ? '−' : '') + r0(Math.abs(v)), pos = (v) => (Math.round(v) ? '+' : '') + r0(v);
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
@@ -279,7 +279,6 @@ function drawDay(el, D) {
   // No usual target yet: Set goal opens the full goal setup rather than a one-day override.
   const gb = $('#fd-goal', el); if (gb) gb.onclick = () => (G.default == null && goal == null ? go('/food/setup') : goalSheet(D));
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
-  $('#fd-training',el).innerHTML=TrainingFood.card(D);TrainingFood.wire(el,D);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
@@ -1119,7 +1118,7 @@ function scanSheet(day, meal, onFound, onCode) {
 function goalSheet(D) {
   const G = D.goal || {}, label = dayLabel(D.day);
   sheet(`Calorie goal · ${label}`, `<form class="form" id="dg"><label>Goal for ${esc(/^(Today|Yesterday|Tomorrow)$/.test(label) ? label.toLowerCase() : label)} (kcal)<input name="k" inputmode="numeric" value="${esc(G.kcal != null ? r0(G.kcal).replace(/,/g, '') : '')}" placeholder="e.g. 2000" enterkeyhint="done"></label>
-    <p class="small muted">${G.default ? `Your usual daily target is ${r0(G.default)}${G.extra ? `; ${label === 'Today' ? "today's" : "this day's"} training adds ${r0(G.extra)}` : ''}. A goal set here applies to this day only.` : 'You have no usual daily target yet - set one under Daily targets.'}</p>
+    <p class="small muted">${G.default ? `Your usual daily target is ${r0(G.default)}. A goal set here applies to this day only.` : 'You have no usual daily target yet - set one under Daily targets.'}</p>
     <div class="actions">${G.custom != null && G.default ? `<button type="button" class="ghost" id="dg-reset">Use usual target</button>` : ''}<button class="primary">Save</button></div>
     <button type="button" class="linkbtn" id="dg-daily">Change your usual daily target</button></form>`, (b, close) => {
     const f = $('#dg', b); f.k.focus(); f.k.select();
@@ -1177,6 +1176,7 @@ route(/^\/food\/trends$/, 'food', async () => go('/food?view=overview', {replace
 
 // ---------- Add past days (2026-10-09): paste / CSV / one day -> preview -> save ----------
 route(/^\/food\/import$/, 'food', async (el) => {
+  if(Native.on)return go('/food',{replace:true});
   const lb = imp(), wu = lb ? 'lb' : 'kg', today = isoDay(new Date());
   const wshow = (kg) => (kg == null ? '–' : (lb ? kg * 2.20462 : kg).toFixed(1));
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>Add past days</h1>
@@ -1410,7 +1410,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   if (!box || !box.isConnected) return;
   const S = I.summary, T = I.targets, lb = imp(), wu = lb ? 'lb' : 'kg', wconv = (kg) => (lb ? kg * 2.20462 : kg);
   const past = I.rows.filter((r) => !r.today);
-  if (!I.rows.some((r) => r.eaten != null)) { box.innerHTML = '<div class="card empty"><b>Nothing logged in this range</b><p>Start with something you ate to build your food and weight picture.</p><a class="primary wide" href="/food">Log food</a><p class="small muted">Have older records? <a href="/food/import">Add past days</a>.</p></div>';syncCheckinPrimary(box.closest?.('#page')); return; }
+  if (!I.rows.some((r) => r.eaten != null)) { box.innerHTML = `<div class="card empty"><b>Nothing logged in this range</b><p>Start with something you ate to build your food and weight picture.</p><a class="primary wide" href="/food">Log food</a>${Native.on ? '' : '<p class="small muted">Have older records? <a href="/food/import">Add past days</a>.</p>'}</div>`;syncCheckinPrimary(box.closest?.('#page')); return; }
   const tile = (label, value, unit, sub, cls = '', href = '') => `<${href ? `a href="${href}"` : 'div'} class="ntile ${cls}"><small>${esc(label)}</small><b class="num">${value}<i>${esc(unit)}</i></b>${sub ? `<span>${sub}</span>` : ''}</${href ? 'a' : 'div'}>`;
   const sgn = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
   const weekly = days > 90;   // a year of daily bars is too thin: average by week
