@@ -1332,6 +1332,29 @@ MIGRATIONS = [
     # can't log in and is hidden from others like an unconfirmed signup; their data is kept until restored or removed.
     """ALTER TABLE users ADD COLUMN suspended_at timestamptz, ADD COLUMN suspended_reason text;
     """,
+    # 70 (2026-10-24): one row per API call for the server owner (request_log.py): no contents, values or IP addresses,
+    # kept 90 days. The owner's all-people SQL role (fit_all_readers) also reads sign-in history, active days and the admin
+    # history, and two views over accounts and sessions that leave out password and token hashes. Members' own SQL logins
+    # (fit_readers) still see none of these.
+    """CREATE TABLE api_requests (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, created timestamptz NOT NULL DEFAULT now(),
+      user_id bigint REFERENCES users(id) ON DELETE CASCADE, method text NOT NULL, route text NOT NULL, status smallint NOT NULL,
+      duration_ms integer NOT NULL, channel text NOT NULL, request_id uuid NOT NULL);
+    CREATE INDEX api_requests_user ON api_requests (user_id, created);
+    CREATE INDEX api_requests_created ON api_requests (created);
+    ALTER TABLE api_requests ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON api_requests FROM PUBLIC, fit_readers;
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['api_requests', 'admin_login_events', 'admin_account_days', 'admin_audit'] LOOP
+        EXECUTE format('GRANT SELECT ON %I TO fit_all_readers', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+      END LOOP;
+    END $$;
+    CREATE VIEW owner_people AS SELECT id AS user_id, login::text AS login, name, email::text AS email, email_verified_at, is_admin,
+      created, needs_email_confirm, suspended_at FROM users;
+    CREATE VIEW owner_app_sessions AS SELECT user_id, created, last_seen, agent FROM sessions;
+    REVOKE ALL ON owner_people, owner_app_sessions FROM PUBLIC;
+    GRANT SELECT ON owner_people, owner_app_sessions TO fit_all_readers;
+    """,
 ]
 
 

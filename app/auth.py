@@ -126,4 +126,5 @@ def current_user(request: Request):
         if expected is not None and expected != str(row['id']):
             raise HTTPException(409, {'code': 'account_changed', 'message': 'The account changed. Return to the account that saved this item to send it.'})
         if row['stale']: c.execute('UPDATE sessions SET last_seen = now() WHERE token_hash = %s', (_h(token),))
+        request.state.user_id = row['id']       # for the API request log (request_log.py)
         return {'id': row['id'], 'login': row['login'], 'name': row['name'], 'is_admin': row['is_admin'], 'photo': row['photo_v']}

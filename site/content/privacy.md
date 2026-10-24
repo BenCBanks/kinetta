@@ -40,7 +40,7 @@ What we keep
 
 ## collect-other
 
-**Beta requests:** your name, email, device and message. **Technical records:** IP address, device type, login sessions and errors, used to keep accounts safe and fix problems.
+**Beta requests:** your name, email, device and message. **Technical records:** your login sessions and the device type they're on, sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems.
 
 ## health-heading
 
@@ -120,7 +120,7 @@ How long we keep it
 
 ## retention
 
-Your data is stored in the United States until you delete it or your account. Beta requests are removed when you delete your account. Server logs are trimmed automatically. AI usage totals (model, amount processed and cost, with no content) may be kept after deletion to track spending.
+Your data is stored in the United States until you delete it or your account. Beta requests are removed when you delete your account. Server logs are trimmed automatically; request records and sign-in history are deleted after 90 days. AI usage totals (model, amount processed and cost, with no content) may be kept after deletion to track spending.
 
 ## backups
 
