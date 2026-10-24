@@ -26,6 +26,7 @@ struct TrackRecordingState: Codable {
     var points: [TrackFix] = []
     var finishedAt: Double?
     var native = true
+    var anchor: TrackFix?          // the last fix that counted toward distance (missing in older saved recordings: fine)
 
     var maxSpeed: Double { ["run":12.0,"walk":4,"hike":4,"ride":30,"swim":4,"row":8,"ski":40][sport] ?? 30 }
     func seconds(at now: Double) -> Double { (activeMs + (state == "recording" ? max(0, now - activeAt) : 0)) / 1000 }
@@ -49,6 +50,22 @@ struct TrackRecordingState: Codable {
         let x = pow(sin((b.lat-a.lat)*r/2),2) + cos(a.lat*r)*cos(b.lat*r)*pow(sin((b.lon-a.lon)*r/2),2)
         return 6371008.8 * 2 * atan2(sqrt(max(0,min(1,x))),sqrt(max(0,1-x)))
     }
+    // Same distance rule as the server (analysis.track_step) and the web recorder (#234 item 2): fixes worse than ±25 m
+    // draw the map but add nothing, and distance counts only once you've moved further than the GPS error.
+    static func step(from anchor: TrackFix?, to point: TrackFix) -> Double? {
+        guard point.accuracy <= 25 else { return nil }
+        guard let anchor else { return 0 }
+        let m = metres(anchor, point)
+        return m >= max(5, anchor.accuracy, point.accuracy) ? m : nil
+    }
+    static func distance(of points: [TrackFix]) -> (Double, TrackFix?) {
+        var total = 0.0, anchor: TrackFix? = nil
+        for point in points {
+            if anchor?.segment != point.segment { anchor = nil }
+            if let m = step(from: anchor, to: point) { total += m; anchor = point }
+        }
+        return (total, anchor)
+    }
     mutating func accept(lat: Double, lon: Double, accuracy: Double, timestamp: Double, now: Double) -> TrackFix? {
         guard state == "recording", gps, points.count < 24000,
               [lat,lon,accuracy,timestamp,now].allSatisfy({ $0.isFinite }), abs(lat)<=90, abs(lon)<=180,
@@ -61,9 +78,10 @@ struct TrackRecordingState: Codable {
                 let dt=point.t-last.t, metres=Self.metres(last,point)
                 if dt>30 { segment+=1;point.segment=segment }
                 else if metres/dt>maxSpeed { return nil }
-                else { distance+=metres }
             }
         }
+        if anchor?.segment != point.segment { anchor = nil }     // a new section never adds distance across the gap
+        if let m = Self.step(from: anchor, to: point) { distance += m; anchor = point }
         points.append(point); checkpoint = max(checkpoint,timestamp); return point
     }
 }
@@ -121,14 +139,7 @@ final class TrackRecordingFiles {
             }
         }
         // Journal commits can be newer than the manifest; rebuild distance and segment counters from durable fixes.
-        state.distance=0
-        for (a,b) in zip(state.points,state.points.dropFirst()) where a.segment==b.segment {
-            let dt=b.t-a.t
-            if dt>0 && dt<=30 {
-                let metres=TrackRecordingState.metres(a,b)
-                if metres/dt<=state.maxSpeed { state.distance+=metres }
-            }
-        }
+        (state.distance, state.anchor) = TrackRecordingState.distance(of: state.points)
         if let last=state.points.last { state.segment=max(state.segment,last.segment) }
         return state
     }

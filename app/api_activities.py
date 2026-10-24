@@ -303,7 +303,7 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         raise HTTPException(422, 'Recording duration exceeds the time since it started')
     points = body.points
     distance, segments = 0.0, {}
-    previous = None
+    previous = anchor = None
     for point in points:
         if point.t > body.elapsed_s + 1 or previous and (point.t <= previous.t or point.segment < previous.segment):
             raise HTTPException(422, 'Recording points must be in time and segment order')
@@ -312,7 +312,9 @@ def save_track(body: TrackIn, user=Depends(current_user)):
             metres = float(analysis.haversine(previous.lat, previous.lon, point.lat, point.lon))
             if delta > 30 or metres / delta > analysis.MAX_SPEED[body.sport]:
                 raise HTTPException(422, 'GPS gaps and jumps must start a new segment')
-            distance += metres
+        else: anchor = None                  # a new section never adds distance across the gap
+        step = analysis.track_step(anchor, point)   # GPS wobble and poor fixes add nothing (#234 item 2)
+        if step is not None: distance += step; anchor = point
         segments.setdefault(point.segment, []).append(point)
         previous = point
     # Existing route geometry is a single line. Save only the longest continuous segment to avoid drawing

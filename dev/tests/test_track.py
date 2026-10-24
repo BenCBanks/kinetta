@@ -71,6 +71,15 @@ try:
     yoga = request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), sport='workout', sport_label='Yoga', points=[], name='Fictional yoga', expected_sharing_default='friends'))
     detail = request(owner, 'GET', f"/api/activities/{yoga['id']}")
     assert detail['sport_label'] == 'Yoga' and detail['moving_s'] == 100
+    # The shared distance filter (#234 item 2): the server keeps the same distance the phone showed.
+    import json, os
+    fixture = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'gps_filter.json')))
+    for name, c in fixture['cases'].items():
+        last = c['points'][-1]['t'] + 1
+        saved = request(owner, 'POST', '/api/activities/track', dict(body, client_id=str(uuid.uuid4()), sport=c['sport'], name='Fictional ' + name, visibility='me',
+            start=(dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=2000)).isoformat(), elapsed_s=last, moving_s=last, points=c['points']))
+        metres = request(owner, 'GET', f"/api/activities/{saved['id']}")['distance_m']
+        assert c['expect'][0] <= metres <= c['expect'][1], (name, metres, c['expect'])
     print('PASS tracking: segments, sharing default/review, retry/concurrency, account isolation, invalid GPS and yoga')
 finally:
     admin = login(*ALEX)

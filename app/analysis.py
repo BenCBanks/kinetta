@@ -47,6 +47,24 @@ def haversine(lat1, lon1, lat2, lon2):
     return 2 * r * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
 
 
+# Phone recordings (#234 item 2): GPS wanders by its accuracy radius even when you stand still, and adding every wobble
+# made distances long. Only fixes accurate to about ±25 m count toward distance (worse ones still draw the map), and
+# distance is added only once you've moved further from the last counted fix than the GPS error. The web recorder
+# (track.js TrackMath) and the iPhone recorder (TrackRecordingState.swift) use the same rule, checked against
+# dev/tests/fixtures/gps_filter.json, so the live number matches what's saved.
+DISTANCE_ACCURACY = 25.0     # metres
+MIN_STEP = 5.0               # metres
+
+
+def track_step(anchor, point):
+    """Metres to add for this fix, or None to leave the anchor where it is. Fixes are dicts or objects with lat, lon, accuracy."""
+    get = (lambda p, k: p[k]) if isinstance(point, dict) else getattr
+    if get(point, 'accuracy') > DISTANCE_ACCURACY: return None
+    if anchor is None: return 0.0
+    metres = float(haversine(get(anchor, 'lat'), get(anchor, 'lon'), get(point, 'lat'), get(point, 'lon')))
+    return metres if metres >= max(MIN_STEP, get(anchor, 'accuracy'), get(point, 'accuracy')) else None
+
+
 def gap_factor(grade_pct):
     g = np.clip(grade_pct, -30, 30)
     return 1 + 0.026 * g + 0.0011 * g * g
