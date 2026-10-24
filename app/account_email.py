@@ -93,13 +93,24 @@ def set_email(body: EmailIn, request: Request, background: BackgroundTasks, user
     return {'ok': True, 'pending': email}
 
 
-def confirmation(background, c, uid, name, email):
-    """A fresh single-use link to confirm `email`, sent after the caller's transaction commits."""
+def iphone_app():
+    """The iPhone app's TestFlight link, when this server publishes one (KINETTA_TESTFLIGHT_URL)."""
+    url = os.environ.get('KINETTA_TESTFLIGHT_URL', '').strip()
+    return url if url.startswith('https://testflight.apple.com/') else None
+
+
+def confirmation(background, c, uid, name, email, welcome=False):
+    """A fresh single-use link to confirm `email`, sent after the caller's transaction commits. A new account's email
+    (welcome) also says Kinetta is in beta and how to get the iPhone app."""
     link = f"{_base()}/confirm-email/{_token(c, uid, 'verify_email', VERIFY_HOURS * 60, email)}"
-    background.add_task(send, email, 'Confirm your email for Kinetta',
+    app = iphone_app() if welcome else None
+    beta = (f"\n\nKinetta is in beta. To record runs, rides and walks with GPS and bring in Apple Health, get the iPhone app:\n"
+            f"1. Install Apple's free TestFlight app from the App Store.\n2. Open this link on your iPhone: {app}\n"
+            f"3. Open Kinetta and log in with {email}.") if app else ''
+    background.add_task(send, email, 'Confirm your email for Kinetta' if not welcome else 'Welcome to Kinetta: confirm your email',
         f"Hi {name},\n\nOpen this link to confirm this is your email address for Kinetta:\n{link}\n\n"
         f"It works once and expires in {VERIFY_HOURS} hours. You'll then be able to log in with this address and reset "
-        "your password if you forget it.\n\nIf you didn't ask for this, ignore this email; nothing changes.")
+        f"your password if you forget it.{beta}\n\nIf you didn't ask for this, ignore this email; nothing changes.")
 
 
 def pending(c, uid):

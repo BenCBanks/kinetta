@@ -1634,6 +1634,11 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .gc-off { display:block; margin:20px 0 0; padding:8px 0; }
 .route-end { background: none; border: 0; }
 .route-end svg { display: block; width: 24px; height: 24px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.field-err, .login .field-err { color: var(--alert); font-size: .9rem; margin: -4px 0 6px; }
+.login [aria-invalid="true"] { border-color: var(--alert); }
+.login .small.ok { color: var(--good); }
+.get-app-steps { padding-left: 1.3em; display: grid; gap: 14px; margin: 18px 0 22px; line-height: 1.45; }
+.get-app .primary.wide { display: flex; justify-content: center; align-items: center; min-height: 48px; text-decoration: none; }
 .track-splits { margin: -12px 0 16px; text-align: left; min-height: 1.4em; }
 .track-options { display: grid; gap: 4px; margin: 4px 0 12px; }
 .track-live-metrics { display: flex; justify-content: space-between; gap: 8px; margin: 22px 0; text-align: left; }

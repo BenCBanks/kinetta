@@ -47,7 +47,7 @@ class Signup(unittest.TestCase):
 
     def test_invite_only_by_default(self):
         self.env()
-        self.assertEqual(client().get('/api/signup').json(), {'open': False, 'full': False})
+        self.assertEqual({k: v for k, v in client().get('/api/signup').json().items() if k != 'iphone_app'}, {'open': False, 'full': False})
         self.assertEqual(client().post('/api/signup', json=form('zz_test_su_closed')).status_code, 404)
         self.env(KINETTA_SIGNUP='open', KINETTA_RESEND_KEY='')
         self.assertFalse(client().get('/api/signup').json()['open'], 'open signup needs email to confirm addresses')
@@ -89,7 +89,7 @@ class Signup(unittest.TestCase):
         self.assertTrue(client().get('/api/signup').json()['open'])
         self.assertFalse(client().get('/api/beta').json()['open'], 'no waitlist while there is room')
         self.assertEqual(client().post('/api/signup', json=form('zz_test_su_last')).status_code, 200)
-        self.assertEqual(client().get('/api/signup').json(), {'open': False, 'full': True})
+        self.assertEqual({k: v for k, v in client().get('/api/signup').json().items() if k != 'iphone_app'}, {'open': False, 'full': True})
         r = client().post('/api/signup', json=form('zz_test_su_late')); self.assertEqual(r.status_code, 409); self.assertEqual(r.json()['detail']['code'], 'full')
         self.assertTrue(client().get('/api/beta').json()['open'], 'the waitlist takes over when full')
         with db.connect() as c:      # an administrator's invite still works above the cap
@@ -167,5 +167,15 @@ class Signup(unittest.TestCase):
         me = client().get('/api/me', headers={'Authorization': 'Bearer ' + token}).json()
         self.assertEqual(me['login'], r.json()['login']); self.assertTrue(me['needs_email_confirm'])
         self.assertNotIn('token', client().post('/api/signup', json=form('zz_test_su_web')).json(), 'the web never gets a token')
+
+    def test_welcome_email_points_to_the_iphone_app(self):
+        # 2026-10-24: a new account learns Kinetta is in beta and how to get the iPhone app (TestFlight)
+        self.env(KINETTA_SIGNUP='open', KINETTA_TESTFLIGHT_URL='https://testflight.apple.com/join/zzFICTION')
+        self.assertEqual(client().get('/api/signup').json()['iphone_app'], 'https://testflight.apple.com/join/zzFICTION')
+        self.assertEqual(client().post('/api/signup', json=form('zz_test_su_beta')).status_code, 200)
+        mail = self.mail.call_args.kwargs['json']
+        self.assertIn('Welcome', mail['subject']); self.assertIn('beta', mail['text']); self.assertIn('https://testflight.apple.com/join/zzFICTION', mail['text'])
+        self.env(KINETTA_SIGNUP='open', KINETTA_TESTFLIGHT_URL='https://example.test/not-testflight')
+        self.assertIsNone(client().get('/api/signup').json()['iphone_app'], 'only an Apple TestFlight address is published')
 
 if __name__ == '__main__': unittest.main()

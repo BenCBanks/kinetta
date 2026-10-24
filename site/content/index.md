@@ -40,7 +40,11 @@ Want to *try it?*
 
 ## it-s-a-small-beta-for-now-ask-for-an-invite-13
 
-Make an account in your browser or the [iPhone app on TestFlight](https://testflight.apple.com/join/YAX1JnwB). Four short, skippable welcome steps help you set up your profile, choose who sees your activities, bring in workouts and find friends.
+Kinetta is in beta. Sign up here, then get the iPhone app: install Apple's free TestFlight app, open the [Kinetta TestFlight link](https://testflight.apple.com/join/YAX1JnwB) on your iPhone, and log in. The iPhone app records with GPS and brings in Apple Health; your browser works for food, history and friends.
+
+## beta-how-to
+
+In beta on iPhone through Apple's TestFlight: sign up, then [get the app](https://testflight.apple.com/join/YAX1JnwB).
 
 ## kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14
 

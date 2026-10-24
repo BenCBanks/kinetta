@@ -183,7 +183,9 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
             var types = self.detailTypes()
             types.insert(HKObjectType.workoutType())
             types.insert(HKSeriesType.workoutRoute())
-            let quantities: [HKQuantityTypeIdentifier] = [.heartRate, .distanceWalkingRunning, .distanceCycling, .distanceSwimming, .distanceDownhillSnowSports, .activeEnergyBurned]
+            // Weight and resting energy are on the same Apple screen as workouts (2026-10-24), so connecting is one step;
+            // Kinetta only uses them where the person turns them on.
+            let quantities: [HKQuantityTypeIdentifier] = [.heartRate, .distanceWalkingRunning, .distanceCycling, .distanceSwimming, .distanceDownhillSnowSports, .activeEnergyBurned, .bodyMass, .basalEnergyBurned]
             for id in quantities {
                 if let type = HKObjectType.quantityType(forIdentifier: id) { types.insert(type) }
             }

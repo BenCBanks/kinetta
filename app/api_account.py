@@ -315,7 +315,7 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
         inv = _open_invite(c, body.token, lock=True)
         uid = _create(c, body)
         c.execute('UPDATE invites SET used_by = %s, used_at = now() WHERE id = %s', (uid, inv['id']))
-        if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email)
+        if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email, welcome=True)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
     auth.set_cookie(request, response, token)
