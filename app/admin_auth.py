@@ -77,6 +77,7 @@ def admin_user(request: Request):
     with db.connect() as c:
         u = c.execute('''SELECT u.id,u.login::text AS login,u.name,u.is_admin FROM admin_sessions s JOIN users u ON u.id=s.user_id
                          WHERE s.token_hash=%s AND s.expires>now() AND u.is_admin''', (auth.token_hash(token),)).fetchone()
+    if u: request.state.user_id = u['id']
     if not u:
         try: auth.current_user(request)
         except HTTPException: raise HTTPException(401, 'Sign in to the admin portal.')

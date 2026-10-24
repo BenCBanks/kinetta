@@ -56,3 +56,33 @@ The raw tables are there too: `activities`, `activity_streams` (per-second array
 SELECT week, miles, hours FROM v_weekly WHERE sport = 'run' ORDER BY week DESC LIMIT 12;
 SELECT day, max(est_1rm_kg) FROM v_lift_sets WHERE exercise = 'Squat' AND NOT warmup GROUP BY day ORDER BY day;
 ```
+
+## For the server owner: how the service is used
+
+An all-people login (`--all-people`) can also read how the service is used, for every person. These tables and views
+are hidden from ordinary members' logins. `user_id` is the common key; join to `owner_people` for names.
+
+| Table or view | One row per | Kept |
+|---|---|---|
+| `owner_people` | account: `user_id`, login, name, email (and when it was confirmed), administrator, joined, unconfirmed signup, suspended | while the account exists |
+| `api_requests` | API call: `user_id` (empty when not signed in), time, method, endpoint pattern such as `/api/activities/{aid}`, status code, `duration_ms`, channel (`web`, `app` or `portal`), `request_id` (the `X-Request-Id` the app was sent) | 90 days |
+| `admin_login_events` | sign-in attempt: `user_id` (known accounts only), time, channel, outcome, stage | 90 days |
+| `admin_account_days` | day an account opened the app: `user_id`, day (UTC) | 365 days |
+| `owner_app_sessions` | signed-in phone or browser: `user_id`, signed in, last used, browser label | until it ends |
+| `admin_audit` | administrator action: `actor_id`, action, target (a user id as text), time | kept |
+
+Nothing here contains what people entered (food, routes, messages, health records): those stay in the personal tables
+above, under the same rules. IP addresses are never stored in these tables.
+
+```sql
+-- busiest endpoints this week, and how slow they are
+SELECT route, count(*) AS calls, round(avg(duration_ms)) AS avg_ms, count(*) FILTER (WHERE status >= 500) AS errors
+FROM api_requests WHERE created > now() - interval '7 days' GROUP BY route ORDER BY calls DESC LIMIT 20;
+
+-- each person's activity in the last 30 days
+SELECT p.login,
+  (SELECT count(*) FROM admin_account_days d WHERE d.user_id = p.user_id AND d.day > current_date - 30) AS active_days,
+  (SELECT count(*) FROM api_requests r WHERE r.user_id = p.user_id AND r.created > now() - interval '30 days') AS api_calls,
+  (SELECT max(created) FROM api_requests r WHERE r.user_id = p.user_id) AS last_call
+FROM owner_people p ORDER BY api_calls DESC;
+```

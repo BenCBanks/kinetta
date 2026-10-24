@@ -116,6 +116,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_account_email.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_signup.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_request_log.py
 docker compose -p "$P" exec -T app python - < dev/tests/admin_usage_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/reactions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_photo_batches_corrections.py

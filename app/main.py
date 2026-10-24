@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, StrictBool
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts, garmin_connect
 import threading
 from .auth import current_user
+from . import request_log
 from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread
 
 @asynccontextmanager
@@ -81,6 +82,7 @@ APP_ORIGINS = ('capacitor://localhost',)
 
 @app.middleware('http')
 async def guard(request: Request, call_next):
+    started, request_id = time.monotonic(), request_log.new_id()
     # Cross-site requests can't change anything: writes must come from this site (or the iPhone app) and be JSON.
     if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and request.url.path.startswith('/api/'):
         origin = request.headers.get('origin')
@@ -106,6 +108,10 @@ async def guard(request: Request, call_next):
     # the app's own files carry their version in the address (?v=), so a phone may keep each one for good (2026-10-13)
     if request.url.path.startswith('/static/') and request.query_params.get('v') and r.status_code == 200:
         r.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    # every API call is recorded (request_log.py): who, which endpoint, result and time; the id helps match a support question
+    if request.url.path.startswith('/api/'):
+        r.headers['X-Request-Id'] = request_id
+        request_log.record(request, r.status_code, (time.monotonic() - started) * 1000, request_id)
     return r
 
 
