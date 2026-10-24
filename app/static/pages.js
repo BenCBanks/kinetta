@@ -255,7 +255,7 @@ async function meOverview(el) {
   }).finally(() => ready(key));
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
-    <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
+    <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a><a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <div id="t-start"></div>
     <section id="t-week" aria-label="Last 14 days"><div class="card mileage-loading" aria-hidden="true">${skel(1)}</div></section>
     <div id="t-loading" role="status"><span class="vh">Loading your day</span><div class="sk-row" aria-hidden="true"><span class="sk dot"></span><span class="grow"><span class="sk line short"></span><span class="sk line"></span></span></div>${skel(1)}</div>
@@ -673,75 +673,72 @@ function editActivity(a) {
 // ---------- Share (2026-10-12): send a link to people on Kinetta, or a picture of the route and the key numbers ----------
 Object.assign(IC, {share: '<path d="M12 15V3M8 7l4-4 4 4"/><path d="M8 11H6v10h12V11h-2"/>', image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'});
+// a gear for Settings (2026-10-24): the small icon beside the bell on Me
+Object.assign(IC, {settings: '<path d="M18.85 9.79 L21.42 10.17 L21.42 13.83 L18.85 14.21 L18.41 15.28 L19.96 17.37 L17.37 19.96 L15.28 18.41 L14.21 18.85 L13.83 21.42 L10.17 21.42 L9.79 18.85 L8.72 18.41 L6.63 19.96 L4.04 17.37 L5.59 15.28 L5.15 14.21 L2.58 13.83 L2.58 10.17 L5.15 9.79 L5.59 8.72 L4.04 6.63 L6.63 4.04 L8.72 5.59 L9.79 5.15 L10.17 2.58 L13.83 2.58 L14.21 5.15 L15.28 5.59 L17.37 4.04 L19.96 6.63 L18.41 8.72Z"/><circle cx="12" cy="12" r="3"/>'});
 const appBase = () => (Native.on && Native.base ? Native.base : location.origin);
 // Share = a picture (2026-10-23, Ben: not a link). The route map with the time and pace, or the Kinetta mark when there
 // is no GPS. Opens straight away; the full activity and the person's start/end setting load inside the sheet.
 function shareOut(a) { sharePicture(a.id, a); }
+// Two choices only (Ben, 2026-10-24): Story (9:16) and Post (4:5), each previewed and each opening the phone's own share
+// sheet, where Instagram Stories and Feed appear next to Messages and the rest. No separate Instagram button.
 function sharePicture(id, known) {
-  const owner = readOwner();
-  sheet('Share', `<div class="seg wide" role="group" aria-label="Picture format"><button type="button" data-pic-format="story" aria-pressed="true">Story</button><button type="button" data-pic-format="post" aria-pressed="false">Post</button></div><div class="pic-wrap busy"><img class="pic" id="pi-img" alt=""></div>
+  const owner = readOwner(), FORMATS = [['story', 'Story'], ['post', 'Post']];
+  sheet('Share', `<div class="pic-pair">${FORMATS.map(([f, label]) => `<div class="pic-opt"><div class="pic-wrap busy" data-wrap="${f}"><img class="pic" id="pi-${f}" alt=""></div><button class="primary wide" id="pi-go-${f}" disabled>${svg('share')} ${label}</button></div>`).join('')}</div>
     <label class="check" id="pi-trim-row" hidden><input type="checkbox" id="pi-trim" checked> Hide where it starts and ends</label>
-    <button class="primary wide" id="pi-go" disabled>${svg('share')} Share</button>
-    <button class="ghost wide" id="pi-instagram" disabled>${svg('image')} Instagram</button>
     <p class="small muted pi-note" role="status"></p>`, async (b, close) => {
-    const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b), instagram = $('#pi-instagram', b), live = () => b.isConnected && owner === readOwner();
-    let format = 'story';
-    let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, blob = null, made = 0, url = '', sending = false;
+    const t = $('#pi-trim', b), live = () => b.isConnected && owner === readOwner();
+    const pics = {story: {blob: null, url: ''}, post: {blob: null, url: ''}};
+    let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, made = 0, sending = false;
+    const release = () => { for (const p of Object.values(pics)) { p.blob = null; if (p.url) URL.revokeObjectURL(p.url); p.url = ''; } };
     const closeSelf = () => close(); App.closeActivityShare = closeSelf;
-    viewResources.set(b, () => { if (App.closeActivityShare === closeSelf) delete App.closeActivityShare; made++; blob = null; if (url) URL.revokeObjectURL(url); url = ''; });
+    viewResources.set(b, () => { if (App.closeActivityShare === closeSelf) delete App.closeActivityShare; made++; release(); });
     try {
       [a, s] = await Promise.all([a || api(`/api/activities/${id}`), s || api(`/api/activities/${id}/social`).catch(() => null)]);
       if (known) known._social = s;
-    } catch (x) { if (live()) { $('.pic-wrap', b).classList.remove('busy'); toast(x.message); } return; }
+    } catch (x) { if (live()) { b.querySelectorAll('.pic-wrap').forEach(w => w.classList.remove('busy')); toast(x.message); } return; }
     if (!live()) return;
-    img.alt = `Picture of ${a.name}`;
+    for (const [f, label] of FORMATS) $('#pi-' + f, b).alt = `${label} picture of ${a.name}`;
     const note = `A picture of your ${a.line ? 'route and ' : ''}workout numbers. Nothing links back to your account.`;
     $('.pi-note', b).textContent = note;
     const trim = (s && s.trim_m) || 400, hasLine = !!(a.line && decode(a.line).length > 1);
     $('#pi-trim-row', b).hidden = !hasLine;
-    const buttons = () => { go.disabled = instagram.disabled = !blob || sending; t.disabled = sending; b.querySelectorAll('[data-pic-format]').forEach(button=>button.disabled=sending); };
+    const buttons = () => { for (const [f] of FORMATS) $('#pi-go-' + f, b).disabled = !pics[f].blob || sending; t.disabled = sending; };
+    // Both pictures redraw together; a slower, older drawing can never replace a newer one (the privacy choice may differ).
     const make = async () => {
-      const run = ++made; blob = null; buttons(); $('.pic-wrap', b).classList.add('busy');
-      try {
-        const picture = await routePicture(a, t && !t.checked ? 0 : trim, format);
-        if (run !== made || !live()) return;
-        if (!picture) throw new Error('Couldn’t prepare this picture. Close Share and try again.');
-        blob = picture; if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(blob); img.src = url;
-        $('.pi-note', b).textContent = note;
-      } catch (x) { if (run === made && live()) $('.pi-note', b).textContent = x.message; }
-      finally { if (run === made && live()) { buttons(); $('.pic-wrap', b).classList.remove('busy'); } }
+      const run = ++made; for (const p of Object.values(pics)) p.blob = null; buttons();
+      await Promise.all(FORMATS.map(async ([f]) => {
+        const wrap = $(`[data-wrap="${f}"]`, b); wrap.classList.add('busy');
+        try {
+          const picture = await routePicture(a, t && !t.checked ? 0 : trim, f);
+          if (run !== made || !live()) return;
+          if (!picture) throw new Error('Couldn’t prepare this picture. Close Share and try again.');
+          const p = pics[f]; p.blob = picture; if (p.url) URL.revokeObjectURL(p.url); p.url = URL.createObjectURL(picture); $('#pi-' + f, b).src = p.url;
+        } catch (x) { if (run === made && live()) $('.pi-note', b).textContent = x.message; }
+        finally { if (run === made && live()) { buttons(); wrap.classList.remove('busy'); } }
+      }));
     };
     make(); t.onchange = make;
-    b.querySelectorAll('[data-pic-format]').forEach(button => button.onclick = () => {
-      if(sending || button.dataset.picFormat === format)return;
-      format = button.dataset.picFormat;
-      b.querySelectorAll('[data-pic-format]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
-      make();
-    });
-    const send = async destination => {
-      if (!blob || sending || !live()) return;
-      const picture = blob, run = made;
-      const file = new File([picture], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}.png`, {type: 'image/png'});
+    const send = async f => {
+      const picture = pics[f].blob, run = made;
+      if (!picture || sending || !live()) return;
+      const file = new File([picture], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}-${f}.png`, {type: 'image/png'});
       sending = true; buttons();
       try {
         if (Native.activityShareSupported) {
           // Only the already-previewed image crosses the native bridge, never account credentials or raw GPS.
           const data = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(new Error('Couldn’t open this picture')); r.readAsDataURL(picture); });
           if (!live() || run !== made) return;
-          const result = await Native.shareActivityPicture(data, destination);
-          if (live() && result.handedOff && destination === 'instagram') toast('Finish your post in Instagram');
+          await Native.shareActivityPicture(data, 'system');
         } else if (navigator.canShare && navigator.canShare({files: [file]})) {
-          // Called on the tap without awaiting network/image work, preserving browser share activation.
-          if (destination === 'instagram') toast('Choose Instagram, then finish your post there');
-          await navigator.share({files: [file]});
+          await navigator.share({files: [file]});      // called on the tap, before any other waiting, so browsers allow it
         } else {
-          const link = document.createElement('a'); link.href = url; link.download = file.name; document.body.append(link); link.click(); link.remove();
-          toast(destination === 'instagram' ? 'Picture saved. Add it to your post in Instagram.' : 'Picture saved');
+          const link = document.createElement('a'); link.href = pics[f].url; link.download = file.name; document.body.append(link); link.click(); link.remove();
+          toast('Picture saved');
         }
       } catch (x) { if (live() && x.name !== 'AbortError') toast(x.message || 'Couldn’t share this picture'); }
       finally { sending = false; if (live()) buttons(); }
     };
-    go.onclick = () => send('system'); instagram.onclick = () => send('instagram');
+    for (const [f] of FORMATS) $('#pi-go-' + f, b).onclick = () => send(f);
   });
 }
 // cut `m` metres off each end of the route; nothing left (a short loop) means no route is drawn
@@ -771,13 +768,13 @@ function loadTile(url) {
     im.src = url;
   });
 }
-async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon -> canvas x/y
+async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon -> canvas x/y. box.top/under: kept clear of the route
   const m = pts.map(([la, lo]) => mercator(la, lo));
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const [x, y] of m) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-  const fit = Math.min((box.w - 2 * box.pad) / Math.max((x1 - x0) * TILE, 1e-9), (box.h - 2 * box.pad - box.under) / Math.max((y1 - y0) * TILE, 1e-9));
+  const fit = Math.min((box.w - 2 * box.pad) / Math.max((x1 - x0) * TILE, 1e-9), (box.h - 2 * box.pad - box.under - (box.top || 0)) / Math.max((y1 - y0) * TILE, 1e-9));
   const zf = Math.max(3, Math.min(18, Math.log2(fit))), z = Math.min(17, Math.floor(zf)), k = Math.min(2, 2 ** (zf - z)), n = TILE * 2 ** z;
-  const cx = (x0 + x1) / 2 * n, cy = (y0 + y1) / 2 * n, mx = box.x + box.w / 2, my = box.y + (box.h - box.under) / 2;
+  const cx = (x0 + x1) / 2 * n, cy = (y0 + y1) / 2 * n, mx = box.x + box.w / 2, my = box.y + (box.top || 0) + (box.h - box.under - (box.top || 0)) / 2;
   const tx0 = Math.floor((cx + (box.x - mx) / k) / TILE), tx1 = Math.floor((cx + (box.x + box.w - mx) / k) / TILE);
   const ty0 = Math.max(0, Math.floor((cy + (box.y - my) / k) / TILE)), ty1 = Math.min(2 ** z - 1, Math.floor((cy + (box.y + box.h - my) / k) / TILE));
   const jobs = [];
@@ -804,46 +801,14 @@ function drawMark(g, cx, cy, w, color) {
   g.restore();
   g.beginPath(); g.arc(...at(76, 32.68), 8.5 * s, 0, Math.PI * 2); g.fillStyle = color; g.fill();
 }
+// The share picture (redesigned 2026-10-24, Ben: bigger map, much less white): the map fills the whole picture and the
+// numbers sit on one compact rounded card near the bottom. A Story keeps its card and route clear of the strips Instagram
+// covers with its own controls. Start and finish get the same markers as the app's maps unless they're hidden.
 async function routePicture(a, trim, format = 'post') {
-  const W = 1080, H = format === 'story' ? 1920 : 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const story = format === 'story', W = 1080, H = story ? 1920 : 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
   try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
-  const hue = PIC.route, M = 64;
-  g.fillStyle = PIC.bg; g.fillRect(0, 0, W, H);
-  const pts = a.line ? trimRoute(decode(a.line), trim) : [], TOP = H - 400;
-  let tiles = 0;
-  if (pts.length > 1) {
-    // a bright map, a little faded so the blue route is what you see first
-    g.filter = 'grayscale(.6) brightness(1.04) contrast(.92)';
-    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: TOP, pad: 88, under: 0});
-    g.filter = 'none'; tiles = n;
-    if (tiles) { g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(0, 0, W, TOP); }
-    const fade = g.createLinearGradient(0, TOP - 96, 0, TOP); fade.addColorStop(0, 'rgba(255,255,255,0)'); fade.addColorStop(1, PIC.bg);
-    g.fillStyle = fade; g.fillRect(0, TOP - 96, W, 96);
-    g.lineJoin = g.lineCap = 'round';
-    const path = () => { g.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
-    path(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 24; g.stroke();
-    path(); g.strokeStyle = hue; g.lineWidth = 12; g.stroke();
-    if (!trim) for (const [p, fill] of [[pts[0], PIC.text], [pts[pts.length - 1], hue]]) {
-      const [x, y] = P(p); g.beginPath(); g.arc(x, y, 14, 0, 7); g.fillStyle = fill; g.fill(); g.lineWidth = 6; g.strokeStyle = PIC.bg; g.stroke();
-    }
-  } else {
-    // no GPS: the Kinetta mark takes the map's place, in blue
-    g.beginPath(); g.arc(W / 2, TOP / 2, 250, 0, Math.PI * 2); g.fillStyle = col('--share-soft'); g.fill();
-    drawMark(g, W / 2, TOP / 2, 360, hue);
-  }
-  // sport and day, then the name
-  g.textBaseline = 'alphabetic'; g.textAlign = 'left';
-  const kind = (a.sport_label || SPORT_NAMES[a.sport] || 'Activity').toUpperCase();
-  let y = TOP + 34;
-  g.font = `700 26px ${ui}`; g.fillStyle = hue; g.fillText(kind, M, y);
-  const kw = g.measureText(kind).width;
-  g.fillStyle = PIC.muted; g.font = `500 26px ${ui}`;
-  g.fillText(`  ·  ${fdate(a.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'})}`, M + kw, y);
-  g.font = `700 56px ${ui}`; g.fillStyle = PIC.text;
-  const words = (a.name || '').split(/\s+/), lines = [''];
-  for (const w of words) { const t = (lines[lines.length - 1] + ' ' + w).trim(); if (g.measureText(t).width > W - 2 * M && lines[lines.length - 1]) { if (lines.length === 2) { lines[1] += '…'; break; } lines.push(w); } else lines[lines.length - 1] = t; }
-  y += 66; lines.forEach((l) => { g.fillText(l, M, y); y += 60; });
+  const hue = PIC.route, M = 48, PAD = 44, SAFE_TOP = story ? 240 : 40, SAFE_BOTTOM = story ? 270 : M;
   // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
   cells.push(['Time', dur(a.moving_s || a.elapsed_s), '']);
@@ -851,20 +816,71 @@ async function routePicture(a, trim, format = 'post') {
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
   if (cells.length < 3 && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
   if (cells.length < 3 && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
-  const top = Math.max(y + 8, TOP + 212), cw = (W - 2 * M) / cells.length;
-  g.strokeStyle = PIC.line; g.lineWidth = 2; g.beginPath(); g.moveTo(M, top - 50); g.lineTo(W - M, top - 50); g.stroke();
+  // the title, on one line (two on a Story), shortened with … when it doesn't fit beside the brand
+  g.font = `700 46px ${ui}`;
+  const room = W - 2 * M - 2 * PAD - 200, lines = [''], maxLines = story ? 2 : 1;
+  for (const w of (a.name || '').split(/\s+/)) {
+    const t = (lines[lines.length - 1] + ' ' + w).trim();
+    if (g.measureText(t).width <= room || !lines[lines.length - 1]) { lines[lines.length - 1] = t; continue; }
+    if (lines.length === maxLines) { let l = lines[lines.length - 1]; while (l && g.measureText(l + '…').width > room) l = l.slice(0, -1); lines[lines.length - 1] = l.trimEnd() + '…'; break; }
+    lines.push(w);
+  }
+  const CH = PAD + lines.length * 54 + 34 + 30 + 26 + 72 + PAD - 8, CY = H - SAFE_BOTTOM - CH, CX = M, CW = W - 2 * M;
+  g.fillStyle = PIC.bg; g.fillRect(0, 0, W, H);
+  const pts = a.line ? trimRoute(decode(a.line), trim) : [];
+  let tiles = 0;
+  if (pts.length > 1) {
+    // the map fills the picture, a little muted so the blue route is what you see first
+    g.filter = 'grayscale(.45) brightness(1.03) contrast(.95)';
+    const {tiles: n, P} = await mapPlace(g, pts, {x: 0, y: 0, w: W, h: H, pad: 96, top: SAFE_TOP, under: H - CY - 24});
+    g.filter = 'none'; tiles = n;
+    if (tiles) { g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(0, 0, W, H); }
+    g.lineJoin = g.lineCap = 'round';
+    const path = () => { g.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
+    path(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 26; g.stroke();
+    path(); g.strokeStyle = hue; g.lineWidth = 13; g.stroke();
+    if (!trim) {
+      const loop = loopEnds(pts[0], pts[pts.length - 1]), [sx, sy] = P(pts[0]), [ex, ey] = P(pts[pts.length - 1]);
+      drawEnd(g, loop ? sx - 27 : sx, sy, 'start', 26); drawEnd(g, loop ? ex + 27 : ex, ey, 'end', 26);
+    }
+  } else {
+    // no GPS: the Kinetta mark takes the map's place, in blue
+    const cy = SAFE_TOP + (CY - SAFE_TOP) / 2;
+    g.beginPath(); g.arc(W / 2, cy, 250, 0, Math.PI * 2); g.fillStyle = col('--share-soft'); g.fill();
+    drawMark(g, W / 2, cy, 360, hue);
+  }
+  if (tiles) {   // the map credit OpenStreetMap asks for, just above the card
+    g.font = `600 20px ${ui}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
+    g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.9)'; g.strokeText('© OpenStreetMap contributors', W - M - 8, CY - 14);
+    g.fillStyle = PIC.muted; g.fillText('© OpenStreetMap contributors', W - M - 8, CY - 14);
+  }
+  // the card
+  g.save(); g.shadowColor = 'rgba(15,23,42,.22)'; g.shadowBlur = 40; g.shadowOffsetY = 12;
+  g.beginPath(); g.roundRect(CX, CY, CW, CH, 40); g.fillStyle = PIC.bg; g.fill(); g.restore();
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  let y = CY + PAD + 40;
+  g.font = `700 46px ${ui}`; g.fillStyle = PIC.text;
+  lines.forEach((l, i) => g.fillText(l, CX + PAD, y + i * 54));
+  // the brand, top right of the card
+  g.font = `600 30px ${serif}`; const bw = g.measureText('Kinetta').width;
+  g.fillStyle = PIC.text; g.fillText('Kinetta', CX + CW - PAD - bw, CY + PAD + 30);
+  drawMark(g, CX + CW - PAD - bw - 28, CY + PAD + 20, 38, PIC.brand);
+  y += (lines.length - 1) * 54 + 40;
+  const kind = (a.sport_label || SPORT_NAMES[a.sport] || 'Activity').toUpperCase();
+  g.font = `700 24px ${ui}`; g.fillStyle = hue; g.fillText(kind, CX + PAD, y);
+  const kw = g.measureText(kind).width;
+  g.font = `500 24px ${ui}`; g.fillStyle = PIC.muted;
+  g.fillText(`  ·  ${fdate(a.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'})}`, CX + PAD + kw, y);
+  y += 30; g.strokeStyle = PIC.line; g.lineWidth = 2; g.beginPath(); g.moveTo(CX + PAD, y); g.lineTo(CX + CW - PAD, y); g.stroke();
+  y += 50; const cw = (CW - 2 * PAD) / cells.length;
   cells.forEach(([lab, v, u], i) => {
-    const x = M + i * cw;
-    g.font = `600 24px ${ui}`; g.fillStyle = PIC.muted; g.fillText(lab.toUpperCase(), x, top);
-    let size = cells.length === 3 ? 66 : 80; g.font = `800 ${size}px ${ui}`;
-    const room = cw - 24 - (u ? 60 : 0); while (size > 40 && g.measureText(v).width > room) { size -= 4; g.font = `800 ${size}px ${ui}`; }
-    g.fillStyle = PIC.text; g.fillText(v, x, top + 18 + size);
-    if (u) { const vw = g.measureText(v).width; g.font = `600 26px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, top + 18 + size); }
+    const x = CX + PAD + i * cw;
+    g.font = `600 22px ${ui}`; g.fillStyle = PIC.muted; g.fillText(lab.toUpperCase(), x, y);
+    let size = cells.length === 3 ? 64 : 76; g.font = `800 ${size}px ${ui}`;
+    const fit = cw - 20 - (u ? 56 : 0); while (size > 40 && g.measureText(v).width > fit) { size -= 4; g.font = `800 ${size}px ${ui}`; }
+    g.fillStyle = PIC.text; g.fillText(v, x, y + 14 + size);
+    if (u) { const vw = g.measureText(v).width; g.font = `600 24px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, y + 14 + size); }
   });
-  // the brand, and the map credit OpenStreetMap asks for
-  drawMark(g, M + 26, H - 46, 46, PIC.brand);
-  g.font = `600 32px ${serif}`; g.fillStyle = PIC.text; g.fillText('Kinetta', M + 62, H - 35);
-  if (tiles) { g.font = `500 19px ${ui}`; g.fillStyle = PIC.muted; g.textAlign = 'right'; g.fillText('Map © OpenStreetMap contributors', W - M, H - 37); }
   return new Promise((res) => c.toBlob(res, 'image/png'));
 }
 
@@ -1333,7 +1349,7 @@ route(/^\/me$/, 'me', async (el) => {
   if (new URLSearchParams(location.search).get('setup') === 'body') return go('/me/settings?setup=body', {replace:true});
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<a class="settings-entry" href="/me/settings">${svg('settings')} Settings &amp; account ${svg('chev')}</a><div id="me-overview"></div>
+  el.innerHTML = `<div id="me-overview"></div>
     <div class="card list me-tools">${row('a', `href="${profileHref(me)}"`, 'user', 'c-brand', 'Your profile<small class="muted">Edit, share &amp; see your progress</small>')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });

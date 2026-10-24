@@ -235,12 +235,12 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 - [x] Submitted food photos appear as temporary on-device chat previews; clear/log/cancel/delete removes them. Completed previews use memory only and disappear on a full reload; pending uploads remain retryable. No server photo history or permanent food-photo storage.
 
 
-Activity sharing: the picture preview offers Instagram composer handoff in the iPhone app, normal image sharing and a browser save fallback, retaining start/end trimming. Tapping an activity's route opens the full-screen map; Close, Escape or Back restores the detail view. Native Instagram handoff still needs physical-device acceptance; browser and stand-in checks do not prove a post was published.
+Activity sharing: Story and Post pictures previewed side by side, each opening the phone's own share sheet (Instagram Stories and Feed appear there), with a browser save fallback and the start/end trimming choice. Tapping an activity's route opens the full-screen map; Close, Escape or Back restores the detail view. Native Instagram handoff still needs physical-device acceptance; browser and stand-in checks do not prove a post was published.
 
 ## App cleanup · October 24, 2026
 
 - Me remains the daily summary. Settings & account opens a dedicated screen from Me or your own profile, with Log out near the top and existing unsent-data checks.
 - Detail-page Back controls remain in a solid top bar while scrolling. Fitness charts expand into full-height analysis sheets with touch/hover/keyboard readouts, pinch/scroll zoom and drag/sideways-scroll panning, with no date sliders; Progress bars use sky blue.
-- Activity pictures have two shapes, Story (1080×1920) and Post (1080×1350), for both regular sharing and Instagram. Maps occupy more of the image; trimming and destination handoff guards remain.
+- Activity pictures have two shapes, Story (1080×1920) and Post (1080×1350). The map fills the picture and the numbers sit on one compact card (a Story keeps clear of Instagram's own controls); start and finish markers show when not hidden. Route maps in the app show the same start and finish markers.
 - Notifications use a short title and full body. iOS owns final banner size. The Help catalog covers definitions and the updated flows.
 - Training-day nutrition guidance and automatic calorie adjustments are parked in `dev/deferred/training-food/`; see issue #236. The usual target and explicit day goals remain.

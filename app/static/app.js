@@ -663,6 +663,22 @@ function loadLeaflet() {   // (not "leaflet": leaflet.js overwrites window.leafl
   });
   return leafletP;
 }
+// Start and finish markers on route maps (Ben, 2026-10-24): a green "go" arrow and a red flag, the same on every map and
+// on the share picture (drawEnd).
+const ROUTE_ENDS = {start: '#1E7A4F', end: '#B3261E'};
+const END_GLYPH = {start: '<path d="M9.5 7.5v9l7-4.5z" fill="#fff"/>', end: '<path d="M8.5 6.5v11" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M9.3 7h7l-2 2.6 2 2.6h-7z" fill="#fff"/>'};
+// A loop starts and finishes in one place: then the two markers sit side by side instead of one hiding the other.
+const loopEnds = (a, b) => Math.hypot((a[0] - b[0]) * 111320, (a[1] - b[1]) * 111320 * Math.cos(a[0] * Math.PI / 180)) < 30;
+const endIcon = (L, kind, loop = false) => L.divIcon({className: 'route-end ' + kind, iconSize: [24, 24], iconAnchor: loop ? (kind === 'start' ? [23, 12] : [1, 12]) : [12, 12],
+  html: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="${ROUTE_ENDS[kind]}" stroke="#fff" stroke-width="2.5"/>${END_GLYPH[kind]}</svg>`});
+function drawEnd(g, x, y, kind, r) {     // the same marker on a canvas, r = radius in pixels
+  g.save(); g.translate(x, y); g.scale(r / 10.5, r / 10.5); g.translate(-12, -12);
+  g.beginPath(); g.arc(12, 12, 10.5, 0, Math.PI * 2); g.fillStyle = ROUTE_ENDS[kind]; g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#fff'; g.stroke();
+  g.fillStyle = '#fff'; g.strokeStyle = '#fff'; g.lineCap = 'round';
+  if (kind === 'start') { g.beginPath(); g.moveTo(9.5, 7.5); g.lineTo(9.5, 16.5); g.lineTo(16.5, 12); g.closePath(); g.fill(); }
+  else { g.lineWidth = 1.8; g.beginPath(); g.moveTo(8.5, 6.5); g.lineTo(8.5, 17.5); g.stroke(); g.beginPath(); g.moveTo(9.3, 7); g.lineTo(16.3, 7); g.lineTo(14.3, 9.6); g.lineTo(16.3, 12.2); g.lineTo(9.3, 12.2); g.closePath(); g.fill(); }
+  g.restore();
+}
 async function mapInto(el, lines, {sport = 'run', heat = false, still = false, ends = true} = {}) {   // ends: start/finish dots
   const L = await loadLeaflet();
   cleanViews();
@@ -681,14 +697,13 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
   if (all.length) map.fitBounds(L.latLngBounds(all.flat()), {padding: still ? [12, 12] : [18, 18]}); else map.setView([39.5, -98.5], 3);
   const group = L.featureGroup().addTo(map);
   for (const pts of all) L.polyline(pts, heat ? {color, weight: 2, opacity: .35} : {color, weight: 4, opacity: .95}).addTo(group);
-  if (still) { map.attributionControl.setPrefix(false); return {map, L, group}; }
-  if (!heat && ends && lines[0]) {
-    const pts = typeof lines[0] === 'string' ? decode(lines[0]) : lines[0];
-    if (pts.length) {
-      L.circleMarker(pts[0], {radius: 6, color: '#fff', weight: 2, fillColor: '#1E7A4F', fillOpacity: 1}).addTo(map);
-      L.circleMarker(pts[pts.length - 1], {radius: 6, color: '#fff', weight: 2, fillColor: '#B3261E', fillOpacity: 1}).addTo(map);
-    }
+  if (!heat && ends && all.length) {      // the first section's start and the last section's finish
+    const first = all[0], last = all[all.length - 1];
+    const loop = loopEnds(first[0], last[last.length - 1]);
+    L.marker(first[0], {icon: endIcon(L, 'start', loop), interactive: false, keyboard: false, title: 'Start'}).addTo(map);
+    L.marker(last[last.length - 1], {icon: endIcon(L, 'end', loop), interactive: false, keyboard: false, title: 'Finish'}).addTo(map);
   }
+  if (still) { map.attributionControl.setPrefix(false); return {map, L, group}; }
   map.attributionControl.setPrefix(false);      // no "Leaflet" credit; phones pinch to zoom, so +/- only with a mouse (2026-10-12)
   if (!matchMedia('(pointer: coarse)').matches) L.control.zoom({position: 'bottomright'}).addTo(map);
   return {map, L, group};
