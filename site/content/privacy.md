@@ -28,7 +28,7 @@ What we keep
 
 ## collect
 
-**Your account:** username, display name, password (stored scrambled, never in plain text), and an optional photo and bio.
+**Your account:** email, username, display name, password (stored scrambled, never in plain text), and an optional photo and bio.
 
 ## collect-records
 
@@ -40,7 +40,7 @@ What we keep
 
 ## collect-other
 
-**Beta requests:** your name, email, device and message. **Technical records:** your login sessions and the device type they're on, the device types you've signed in from (so we can email you about a sign-in from a new one; you can turn that off), sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems.
+**Beta requests:** your name, email, device and message. **Technical records:** your login sessions and the device type they're on, the device types you've signed in from (so we can optionally email you about a new sign-in), sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems.
 
 ## health-heading
 
@@ -48,7 +48,7 @@ Apple Health and location
 
 ## health
 
-The iPhone app reads only the Apple Health data you allow. It writes to Apple Health only if you turn on Share nutrition, and then only your daily food totals (calories, protein, carbs, fat and fiber). You can change this any time in the Health app. Kinetta gets your location only from activities you record or import; it never tracks you in the background.
+The iPhone app reads only the Apple Health data you allow. It writes to Apple Health only if you turn on Share nutrition, and then only your daily food totals (calories, protein, carbs, fat and fiber). You can change this any time in the Health app. Kinetta uses location for the Track map preview and activities you record, including while the iPhone app is in the background or the phone is locked. The preview stays on your phone; only recordings you save are uploaded. Imported activities can also include routes.
 
 ## garmin-heading
 
@@ -72,7 +72,7 @@ What other people can see
 
 ## sharing
 
-New accounts share new activities with everyone on Kinetta. You can change this to approved friends or only you when you sign up, in Sharing, or each time you save a recording. You also choose which details, like heart rate, are shown.
+New accounts share new activities with everyone on Kinetta. You can change this to approved friends or only you when you sign up, in Settings → Sharing, or each time you save a recording. You also choose which details, like heart rate, are shown.
 
 ## sharing-maps
 
@@ -104,7 +104,7 @@ Other services we use
 
 ## providers
 
-Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends replies to beta requests, which may include an invite link.
+Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends confirmation and password-reset links, account safety notices, and replies to beta requests, which may include an invite link.
 
 ## providers-connected
 
@@ -140,7 +140,7 @@ Security
 
 ## security
 
-We use encrypted connections, scrambled passwords and per-account access controls. No service is perfectly secure; if a problem affects your data, we'll tell you as the law requires. Kinetta is a fitness and food tracker, not medical advice.
+We use encrypted connections, scrambled passwords and per-account access controls. Settings → Signed-in devices shows device labels and sign-in dates, without IP addresses. Sign out one other device or all the others there; use Log out for this one. New sign-in emails are on by default for confirmed email addresses when mail is available. The first device is remembered silently; a new device type can trigger an email. Change this in Settings → Notifications. No service is perfectly secure; if a problem affects your data, we'll tell you as the law requires. Kinetta is a fitness and food tracker, not medical advice.
 
 ## age-heading
 

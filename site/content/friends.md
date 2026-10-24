@@ -16,7 +16,7 @@ Your workouts and theirs, in one feed.
 
 ## your-runs-and-theirs-newest-first-4
 
-Runs, rides, walks and other shared activities, newest first. New accounts share new activities with everyone on Kinetta by default. Choose approved friends or Only me during signup or in Sharing. Existing accounts and activities keep their saved choices.
+Runs, rides, walks and other shared activities, newest first. New accounts share new activities with everyone on Kinetta by default. Choose approved friends or Only me in the welcome steps or Settings → Sharing. Existing accounts and activities keep their saved choices.
 
 ## photos-of-freedom-park-charlotte-james-willamor-and-ci-5
 

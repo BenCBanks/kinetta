@@ -40,7 +40,7 @@ Want to *try it?*
 
 ## it-s-a-small-beta-for-now-ask-for-an-invite-13
 
-Make an account in a minute, in your browser or the [iPhone app on TestFlight](https://testflight.apple.com/join/YAX1JnwB).
+Make an account in your browser or the [iPhone app on TestFlight](https://testflight.apple.com/join/YAX1JnwB). Four short, skippable welcome steps help you set up your profile, choose who sees your activities, bring in workouts and find friends.
 
 ## kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14
 
