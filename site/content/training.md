@@ -40,7 +40,7 @@ Apple Health on iPhone
 
 ## testflight-access-is-being-prepared-in-the-iphone-app--10
 
-In the Kinetta iPhone app, workouts sync from Apple Health, including Apple Watch routes. The app is in TestFlight beta for invited testers.
+In the Kinetta iPhone app, workouts sync from Apple Health, including Apple Watch routes. The app is in Apple's TestFlight beta: [get the iPhone app](https://testflight.apple.com/join/YAX1JnwB).
 
 ## works-with-20
 

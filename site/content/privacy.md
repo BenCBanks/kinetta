@@ -40,7 +40,7 @@ What we keep
 
 ## collect-other
 
-**Beta requests:** your name, email, device and message. **Technical records:** your login sessions and the device type they're on, sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems.
+**Beta requests:** your name, email, device and message. **Technical records:** your login sessions and the device type they're on, the device types you've signed in from (so we can email you about a sign-in from a new one; you can turn that off), sign-in attempts, and a record of each request the app makes (which part of the app, when, whether it worked and how long it took, but never what you entered or sent). Your IP address is used for at most a day, to limit password guessing. These records keep accounts safe, help us support you and fix problems.
 
 ## health-heading
 
