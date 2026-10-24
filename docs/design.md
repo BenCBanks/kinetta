@@ -755,7 +755,7 @@ behaviour (outbox, choices, Undo, corrections, daily note, Kit) is unchanged.
 
 - **Chat mode:** no bottom tab bar while the chat is open. A small header has ‹ Nutrition (the way back), the title and a
   ⋯ for chat settings. A "Logging to …" line appears only when the chat was opened for a specific meal.
-- **Messages:** your messages are right-aligned neutral bubbles; the per-message time is for screen readers only and day
+- **Messages:** your messages are right-aligned neutral bubbles, a grey clearly darker than the page in both themes (23 Oct 2026: the soft token nearly vanished on the light page); the per-message time is for screen readers only and day
   headings show the date. Replies are simple cards: each logged food is one row you tap to edit, with calories on the
   right; several foods get one total; Undo is a quiet link; ⋯ holds Correct in chat and Delete message text. A reply with
   nothing else to do keeps ⋯ beside its text. Waiting/offline status is a small line under the bubble.
@@ -997,6 +997,7 @@ didn't type. Assumed portions show as a muted line on the card until reviewed.
 
 - **+ opens a bottom sheet** of tools (Camera, Photo, Barcode, Search, Usuals, Recipes, Manual). No inline panel
   and no "Add <usual food>" suggestion above the composer (owner: poor design; the suggestions were not good).
+- **Remove** on an unlogged estimate row is a small link beside its source line ("Kit's estimate · Remove"), never its own row (owner, 23 Oct 2026).
 - **Typing bubble** while a message is sent and checked; no interim "isn't in your foods yet" text.
 - **Amounts change in the chat:** each unconfirmed food shows “− 3 servings +”; − / + change only that food.
   Corrections by message still work (“actually 3 eggs”).

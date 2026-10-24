@@ -1792,7 +1792,8 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .thread-intro { margin: 8px 0 0; color: var(--tx2); font-size: .85rem; text-align: center; }
 #thread-messages { overflow-anchor: none; position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 14px; padding: 12px 0 8px; }
 #thread-messages article { min-width: 0; overflow-wrap: anywhere; }
-.thread-user { margin: 0 0 8px auto; width: fit-content; max-width: 80%; padding: 10px 14px; border-radius: 20px 20px 6px 20px; background: var(--card2); color: var(--tx); }
+.thread-user { margin: 0 0 8px auto; width: fit-content; max-width: 80%; padding: 10px 14px; border-radius: 20px 20px 6px 20px; color: var(--tx);
+  background: color-mix(in srgb, var(--tx) 13%, var(--card)); }   /* --card2 nearly matched the light page (owner, 23 Oct 2026) */
 .thread-photos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
 .thread-photos img { display:block; width:min(240px, 100%); height:auto; max-height:220px; object-fit:contain; border-radius:10px; }
 .thread-breakdown-title { margin:4px 0 8px; font-weight:650; }
@@ -2221,7 +2222,10 @@ body .leaflet-container .leaflet-control-attribution { background: var(--card); 
   background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; }
 .thread-tools-sheet button svg { width: 26px; height: 26px; color: var(--accent); }
 .thread-food.has-stepper .tf-main { flex: 1 1 10rem; min-width: 0; }
-.food-thread .thread-card .thread-remove { min-height: 44px; justify-content: flex-start; padding: 8px 0; font-size: .85rem; text-align: left; }
+/* Remove is a quiet link beside the source line; the 44px touch area overlaps the row instead of adding one (owner, 23 Oct 2026). */
+.thread-food .tf-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.food-thread .thread-card .thread-remove { min-height: 44px; margin: -12px 0; padding: 0 2px; font-size: .8rem; font-weight: 600; text-align: left; }
+.food-thread .thread-preview-food > .thread-remove { display: block; margin: -8px 0 4px; }
 .thread-preview-food { border-bottom: 1px solid var(--line); }
 .thread-preview-food > .thread-food { border-bottom: 0; }
 .thread-stepper { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; }
