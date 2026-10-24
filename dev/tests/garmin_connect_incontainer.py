@@ -119,7 +119,10 @@ try:
         r = acts[0]
         assert r['sport'] == 'run' and round(r['distance_m']) == 5000 and r['source'] == 'garmin_connect' and r['source_id'] == '9001' and r['has_map'], r
         assert con['status'].startswith('0 new, 1 already here'), con
-        print('PASS activity details become one activity with a map; repeats are duplicates')
+        with db.connect() as c:
+            alerts = c.execute("SELECT count(*) AS n FROM notifications WHERE user_id = %s AND kind = 'activity_ready'", (a,)).fetchone()['n']
+        assert alerts == 1, ('a new Garmin Connect workout gets one "activity ready" alert; the repeat none', alerts)
+        print('PASS activity details become one activity with a map; repeats are duplicates; one new-workout alert')
 
         pushed = [{**DETAILS[0], 'userId': state['gid'], 'activityId': 9002, 'summaryId': 'zz-2-detail',
                    'summary': {**DETAILS[0]['summary'], 'startTimeInSeconds': start_s - 86400}}]
