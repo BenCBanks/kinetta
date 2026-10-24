@@ -23,7 +23,7 @@ def history(q: str = Query('', max_length=120), action: str = Query('', max_leng
         rows = c.execute('''SELECT a.id,a.action,a.target,a.created,a.outcome,u.login::text AS actor,u.name AS actor_name,
                   p.id AS account_id,p.login::text AS account_login,p.name AS account_name
             FROM admin_audit a LEFT JOIN users u ON u.id=a.actor_id
-            LEFT JOIN users p ON (a.action LIKE 'account.%%' OR a.action LIKE 'role.%%') AND a.target=p.id::text
+            LEFT JOIN users p ON (a.action LIKE 'account.%%' OR a.action LIKE 'role.%%' OR a.action='request.record') AND a.target=p.id::text
             WHERE a.created>=now()-%(days)s*interval '1 day' AND (%(before)s::bigint IS NULL OR a.id<%(before)s)
               AND (%(action)s='' OR a.action=%(action)s) AND (%(outcome)s='' OR a.outcome=%(outcome)s)
               AND (%(q)s='' OR concat_ws(' ',u.login,u.name,p.login,p.name,a.action,a.target) ILIKE %(term)s)
@@ -118,7 +118,11 @@ def rejected(request: Request, status):
     target = str(params.get('uid') or params.get('rid') or '')
     # An invalid arbitrary parameter must not become a way to put private text in the audit log.
     if target and not (target.isdigit() or (len(target) == 36 and all(c in '0123456789abcdef-' for c in target))): target = ''
+    action = FAILURES[route]
+    if route == '/api/admin/manage/{uid}/{action}':
+        from .admin_manage import ACTIONS
+        action = ACTIONS.get(params.get('action'), action)
     try:
-        with db.connect() as c: audit(c, actor, FAILURES[route], target or None, outcome='rejected' if status < 500 else 'uncertain')
+        with db.connect() as c: audit(c, actor, action, target or None, outcome='rejected' if status < 500 else 'uncertain')
     except Exception:
         pass  # An unavailable audit store must not turn the original error into a different, misleading result.

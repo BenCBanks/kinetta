@@ -32,5 +32,14 @@ function fixture(){
  let releases=[];s.c.api=()=>new Promise(ok=>releases.push(ok));let draws=[];s.c.drawPeople=d=>draws.push(d.marker);
  const old=s.c.loadPeople(1),fresh=s.c.loadPeople(1);releases[1]({total:1,marker:'new'});await fresh;releases[0]({total:9,marker:'old'});await old;assert.deepEqual(draws,['new']);
  s.c.api=async()=>{throw Error('Temporary failure')};await s.c.loadPeople(1);assert.match(s.node('#people-status').innerHTML,/Temporary failure.*Retry/);assert.equal(form.elements.namedItem('q').value,'Sam');
- console.log('PASS admin tools: retry identity, changed drafts, abandoned confirmations, stale support/review/search, inline retry');
+ // A late 401 or success from a previous session cannot clear or write receipts into a new session.
+ const base=fs.readFileSync('app/static/admin.js','utf8'),apiSource=base.slice(base.indexOf('async function api('),base.indexOf('function error('));
+ for(const status of [401,200]){
+  const r=fixture();let release,receipts=0;r.c.csrf='old-csrf';r.c.fetch=()=>new Promise(ok=>release=ok);r.c.writeReceipt=()=>receipts++;
+  vm.runInContext(apiSource,r.c);const pending=r.c.api('/manage/3/signout',{confirm:'zz_test_member'});
+  const next={id:2};r.c.who=next;r.c.csrf='new-csrf';release({ok:status===200,status,json:async()=>status===200?{ok:true}:{detail:'Sign in again'} });
+  if(status===401)await assert.rejects(pending,/Sign in/);else await pending;
+  assert.equal(r.c.who,next);assert.equal(r.c.csrf,'new-csrf');assert.equal(receipts,0);
+ }
+ console.log('PASS admin tools: retry identity, changed drafts, abandoned confirmations, stale support/review/search, inline retry, previous-session response isolation');
 })().catch(e=>{console.error(e);process.exitCode=1});

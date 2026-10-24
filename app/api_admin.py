@@ -87,10 +87,10 @@ def person(uid:int,user=Depends(admin_user)):
             (SELECT count(*) FROM reports WHERE reporter=%(u)s) AS reports_filed,
             (SELECT coalesce(sum(octet_length(img)+octet_length(thumb)),0) FROM activity_photos WHERE user_id=%(u)s) +
             (SELECT coalesce(sum(octet_length(img)),0) FROM profile_photos WHERE user_id=%(u)s) AS photo_bytes""",{'u':uid}).fetchone()
-        p['reports']=c.execute('SELECT id,what,reason,status,created FROM reports WHERE person=%s ORDER BY created DESC LIMIT 20',(uid,)).fetchall()
+        p['reports']=c.execute('SELECT id,kind,reason,status,created FROM reports WHERE person=%s ORDER BY created DESC LIMIT 20',(uid,)).fetchall()
         p['invited']=c.execute('SELECT i.note,i.used_at,u.name AS by FROM invites i LEFT JOIN users u ON u.id=i.created_by WHERE i.used_by=%s',(uid,)).fetchone()
         p['audit']=c.execute("""SELECT a.action,a.created,u.login::text AS by FROM admin_audit a LEFT JOIN users u ON u.id=a.actor_id
-            WHERE a.target=%s ORDER BY a.created DESC LIMIT 20""",(str(uid),)).fetchall()
+            WHERE a.target=%s AND (a.action LIKE 'account.%%' OR a.action LIKE 'role.%%' OR a.action='request.record') ORDER BY a.created DESC LIMIT 20""",(str(uid),)).fetchall()
     return p
 
 

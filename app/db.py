@@ -1370,6 +1370,9 @@ MIGRATIONS = [
     # These are admin/auth tables, with no ordinary or all-person SQL reader grants. No private content in receipts.
     """ALTER TABLE users ADD COLUMN password_change_expires timestamptz;
     ALTER TABLE sessions ADD COLUMN app_version text CHECK(length(app_version)<=64);
+    ALTER TABLE reports ADD COLUMN kind text NOT NULL DEFAULT 'person' CHECK(kind IN ('comment','activity','person'));
+    UPDATE reports SET kind=CASE WHEN comment_id IS NOT NULL OR what LIKE 'Comment: %' THEN 'comment'
+      WHEN activity_id IS NOT NULL OR what LIKE 'Activity: %' THEN 'activity' ELSE 'person' END;
     ALTER TABLE admin_audit ADD COLUMN outcome text NOT NULL DEFAULT 'success' CHECK(outcome IN ('success','rejected','uncertain'));
     CREATE TABLE admin_readiness(check_key text PRIMARY KEY,passed boolean NOT NULL,observed_at timestamptz NOT NULL,
       recorded_at timestamptz NOT NULL DEFAULT now(),actor_id bigint REFERENCES users(id) ON DELETE SET NULL);

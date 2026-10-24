@@ -70,8 +70,8 @@ class Launch(unittest.TestCase):
         with db.connect() as c:
             aid = c.execute("INSERT INTO activities(user_id,sport,source,name,start_time,visibility,private_note) VALUES (%s,'run','manual','Reported activity',now(),'me','NEVER SHOW THIS NOTE') RETURNING id", (self.ids['plain'],)).fetchone()['id']
             cid = c.execute('INSERT INTO comments(user_id,activity_id,text) VALUES (%s,%s,%s) RETURNING id', (self.ids['plain'],aid,'Fictional reported comment')).fetchone()['id']
-            rid = c.execute('INSERT INTO reports(reporter,person,activity_id,comment_id,what,reason,note) VALUES (%s,%s,%s,%s,%s,\'other\',\'Fictional complaint\') RETURNING id',
-                            (self.ids['other'], self.ids['plain'], aid if what=='activity' else None, cid if what=='comment' else None, what)).fetchone()['id']
+            rid = c.execute('INSERT INTO reports(reporter,person,activity_id,comment_id,kind,what,reason,note) VALUES (%s,%s,%s,%s,%s,%s,\'other\',\'Fictional complaint\') RETURNING id',
+                            (self.ids['other'], self.ids['plain'], aid if what=='activity' else None, cid if what=='comment' else None, what, 'Comment: Fictional complaint' if what=='comment' else 'Activity: Fictional activity' if what=='activity' else 'Fictional profile')).fetchone()['id']
         return rid,aid,cid
 
     def decision(self, rid, snapshot, act):
@@ -155,6 +155,19 @@ class Launch(unittest.TestCase):
             self.assertIsNone(c.execute('SELECT id FROM comments WHERE id=%s',(cid,)).fetchone())
             self.assertIsNotNone(c.execute('SELECT id FROM activities WHERE id=%s',(aid,)).fetchone())
             history=c.execute('SELECT action,target FROM admin_audit WHERE actor_id=%s',(self.ids['admin'],)).fetchall();self.assertNotIn('Newer reported comment',str(history))
+
+    def test_real_report_api_preserves_target_type_after_comment_deletion(self):
+        _,aid,cid=self.report()
+        with db.connect() as c:c.execute("UPDATE activities SET visibility='everyone' WHERE id=%s",(aid,))
+        member,_=self.login('other')
+        response=member.post('/api/reports',json={'login':'zz_test_launch_plain','comment_id':cid,'reason':'abuse'})
+        self.assertEqual(response.status_code,200,response.text);rid=response.json()['id']
+        snapshot=self.a.get(f'/api/admin/review/{rid}').json()
+        self.assertEqual(snapshot['report']['kind'],'comment');self.assertEqual(snapshot['item']['text'],'Fictional reported comment')
+        with db.connect() as c:c.execute('DELETE FROM comments WHERE id=%s',(cid,))
+        snapshot=self.a.get(f'/api/admin/review/{rid}').json()
+        self.assertEqual(snapshot['report']['kind'],'comment');self.assertIsNone(snapshot['item'])
+        self.assertEqual([a['value'] for a in snapshot['actions']],['dismiss'])
 
     def test_activity_review_never_exposes_route_or_private_note(self):
         rid,aid,cid=self.report('activity');snap=self.a.get(f'/api/admin/review/{rid}').json()
@@ -264,6 +277,25 @@ class Launch(unittest.TestCase):
         self.assertEqual(other.post(url,json=body).status_code,409)
         self.assertEqual(self.manage('other','role',administrator=False).status_code,200)
         self.assertEqual(other.get('/api/admin/readiness').status_code,401)
+
+    def test_support_filters_do_not_leak_reported_text_or_unrelated_audit(self):
+        rid,_,_=self.report()
+        with db.connect() as c:
+            c.execute("INSERT INTO connections(user_id,kind,status) VALUES(%s,'garmin_connect','sync failed: fictional')",(self.ids['plain'],))
+            c.execute("INSERT INTO imports(user_id,label,status) VALUES(%s,'Fictional import','failed')",(self.ids['email'],))
+            c.execute("INSERT INTO admin_account_days(user_id,day) VALUES(%s,(now() AT TIME ZONE 'UTC')::date)",(self.ids['other'],))
+            c.execute("UPDATE users SET created=now()-interval '10 days' WHERE id=%s",(self.ids['plain'],))
+            admin_auth.audit(c,self.ids['admin'],'report.dismiss',self.ids['plain'])
+        def find(**params):return self.a.get('/api/admin/people',params={'tests':'true','q':'zz_test_launch',**params}).json()['rows']
+        self.assertEqual([r['id'] for r in find(issue='connections')],[self.ids['plain']])
+        self.assertEqual([r['id'] for r in find(issue='imports')],[self.ids['email']])
+        self.assertEqual([r['id'] for r in find(issue='reports')],[self.ids['plain']])
+        today=dt.datetime.now(dt.timezone.utc).date().isoformat()
+        self.assertEqual([r['id'] for r in find(active_since=today)],[self.ids['other']])
+        self.assertNotIn(self.ids['plain'],[r['id'] for r in find(joined_after=today)])
+        support=self.a.get(f"/api/admin/people/{self.ids['plain']}").json()
+        self.assertNotIn('Fictional reported comment',str(support));self.assertEqual(support['reports'][0]['kind'],'comment')
+        self.assertNotIn('report.dismiss',[r['action'] for r in support['audit']])
 
     def test_request_metadata_export_is_only_for_its_owner(self):
         self.a.post('/api/admin/data-requests',json=action(user_id=self.ids['plain'],kind='export'))

@@ -19,8 +19,9 @@ class ManageIn(ActionIn):
 @router.post('/manage/{uid}/{action}')
 def manage(uid: int, action: Literal['reset-email','signout','suspend','restore','role','remove'], body: ManageIn,
            background: BackgroundTasks, user=Depends(admin_user)):
+    audit_action = ('role.administrator' if body.administrator else 'role.member') if action == 'role' and body.administrator is not None else ACTIONS[action]
     with db.connect() as c:
-        digest, old = replay(c, user, body, ACTIONS[action], uid)
+        digest, old = replay(c, user, body, audit_action, uid)
         if old: result = old
         else:
             if action == 'role': c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
@@ -53,6 +54,6 @@ def manage(uid: int, action: Literal['reset-email','signout','suspend','restore'
             if action in ('suspend','restore') and p['email_verified_at']:
                 background.add_task(account_email.send, p['email'], 'Your Kinetta account was '+('suspended' if action=='suspend' else 'restored'),
                     'Hi '+p['name']+',\n\nYour Kinetta account was '+('suspended while a report is reviewed. Your data is kept.' if action=='suspend' else 'restored. You can sign in again.')+'\n\nReply to this email if you need help.')
-            result = complete(c, user, body, ACTIONS[action], uid, digest)
+            result = complete(c, user, body, audit_action, uid, digest)
     if action == 'remove': api_account.erase_files(uid)  # Safe to repeat after a lost response; IDs are never reused.
     return result
