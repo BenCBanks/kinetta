@@ -1048,7 +1048,7 @@ async function pFitness(body, q) {
       <div id="p-load"></div><p class="small muted">Fitness = 6-week average training load, fatigue = last week. Form = fitness − fatigue: positive means fresh, negative means recent load is higher than your longer-term load. It does not diagnose overtraining.</p>
       ${f.ramp_7d > 8 ? '<div class="callout warn">Fitness rose fast this week (ramp ' + f.ramp_7d + '). Build gradually to stay healthy.</div>' : ''}</div>`;
     requestAnimationFrame(() => {
-      fitnessChart($('#p-load', box), 'Fitness, fatigue & form', (mount, height, options) => loadChart(mount, f.days, {height,...options}));
+      fitnessChart($('#p-load', box), 'Training load', (mount, height, options) => loadChart(mount, f.days, {height,...options}));
       if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Running fitness', (mount, height, options) => trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
         {fmt: (v) => v.toFixed(1), color: 'brand', height, ...options, keep: (p) => inRange(R, p.d.getFullYear())}));
     });
