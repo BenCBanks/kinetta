@@ -38,6 +38,7 @@ node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
 node dev/tests/test_combined_week_ui.js
 node dev/tests/test_mileage_chart.js
+node dev/tests/test_fitness_chart_controls.js
 python3 dev/tests/test_activity_chart.py
 
 node dev/tests/test_workout_sync_status.js

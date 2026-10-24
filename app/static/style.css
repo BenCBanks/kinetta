@@ -2469,6 +2469,7 @@ nav.tabs { view-transition-name: tabs; }
 .scrim:has(.fitness-inspect) .sheet {width:100%;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
 .fitness-inspect {max-width:1400px;margin:auto}
 .fitness-inspect .readout {min-height:64px;flex-wrap:wrap;gap:8px 20px;font-size:1rem}
+.fitness-inspect .chartbox svg {touch-action:none}
 .chartbox .ln.k-brand {stroke:var(--accent);fill:none}
 .pic-wrap:has(.pic) {aspect-ratio:auto;box-shadow:none;background:transparent;display:flex;justify-content:center}
 .pic-wrap .pic {width:auto;max-width:100%;max-height:50dvh;object-fit:contain}

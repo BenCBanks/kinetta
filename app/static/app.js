@@ -444,7 +444,7 @@ function sheet(title, html, onMount) {
   let ty = null, dy = 0, dragging = false, fromTop = false;
   const settle = (shut) => { if (shut) { close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
   sh.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips, .social-sheet .comments')) { ty = null; return; }
+    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips, .social-sheet .comments, .fitness-inspect .chartbox')) { ty = null; return; }
     ty = e.touches[0].clientY; dy = 0; dragging = false;
     fromTop = !!e.target.closest('.grab, header') || sh.scrollTop <= 0;
   }, {passive: true});
@@ -902,6 +902,8 @@ function trendLine(box, allPts, {fmt, yfmt = fmt, color = 's1', invert = false, 
   const show = (e) => {
     const r = svgEl.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
     const i = Math.max(0, Math.min(n - 1, Math.round((px - padL) / (W - padL - padR) * (n - 1))));
+    const slider = $('input[type=range]', box);
+    if (slider) { slider.value = i; slider.setAttribute('aria-valuetext', pts[i].label); }
     xh.setAttribute('x1', X(i)); xh.setAttribute('x2', X(i)); xh.setAttribute('visibility', 'visible');
     if (avg[i] != null) { dot.setAttribute('cx', X(i)); dot.setAttribute('cy', Y(avg[i])); dot.setAttribute('visibility', 'visible'); } else dot.setAttribute('visibility', 'hidden');
     ro.innerHTML = `<span>${esc(pts[i].label)}</span><span>Month <b>${pts[i].y == null ? '–' : esc(fmt(pts[i].y))}</b></span><span>${esc(rollName.split(' ')[0])} avg <b>${avg[i] == null ? '–' : esc(fmt(avg[i]))}</b></span>`;

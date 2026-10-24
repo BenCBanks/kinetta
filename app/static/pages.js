@@ -1000,10 +1000,19 @@ function fitnessChart(box, title, draw) {
   viewResources.set(box, () => closeFull?.());
   const plot = $('[data-fitness-plot]', box), open = () => {
     const owner = readOwner();
+    const selected = $('input[type=range]', plot)?.value;
     sheet(title, '<div class="fitness-inspect"><p class="small muted">Touch or hover over the chart to see the numbers. Use the slider or arrow keys to choose a date.</p><div data-full-chart></div></div>', (body, close) => {
       closeFull = close;
+      body.closest('.sheet')?.querySelector('[data-close]')?.focus({preventScroll:true});
       const mount = $('[data-full-chart]', body);
-      const redraw = () => { if (owner !== readOwner()) return close(); if (mount.isConnected) draw(mount, Math.max(220, Math.min(600, innerHeight * .52))); };
+      const redraw = () => {
+        if (owner !== readOwner()) return close();
+        if (!mount.isConnected) return;
+        const index = $('input[type=range]', mount)?.value ?? selected;
+        draw(mount, Math.max(220, Math.min(600, innerHeight * .52)));
+        const slider = $('input[type=range]', mount);
+        if (slider && index != null) { slider.value = index; slider.oninput(); }
+      };
       requestAnimationFrame(redraw);
       window.addEventListener('resize', redraw);
       viewResources.set(mount, () => {window.removeEventListener('resize', redraw);if(closeFull === close)closeFull = null;});
@@ -1379,18 +1388,34 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   if (new URLSearchParams(location.search).get('setup') === 'body') {
     history.replaceState(null, '', '/me/settings'); bodySheet();
   }
-  $('#logout', el).onclick = async () => {
-    let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){toast('Could not check unsent food messages. Try logging out again.');return;}
-    let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){toast(e.message);return;}
-    const n = Q.mine().length + chat + shortcuts;
-    if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
-    if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
-    if(typeof KitChat!=='undefined')KitChat.eraseDevice();
-    if (typeof Track !== 'undefined') await Track.pause();
-    try { await api('/api/logout', json('POST', {})); } catch (x) { /* signed out locally anyway */ }
-    await Native.forget();
-    store.set('fit.queue', Q.all().filter((o) => o.who !== App.me.login)); forgetKept();
-    App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin();
+  const logout = $('#logout', el);
+  let leaving = false;
+  logout.onclick = async () => {
+    if (leaving) return;
+    leaving = true; logout.disabled = true;
+    const owner = readOwner(), account = App.me, valid = () => owner === readOwner();
+    try {
+      let chat=0;try{if(typeof FoodThread!=='undefined')chat=await FoodThread.pendingCount();}catch(e){if(valid())toast('Could not check unsent food messages. Try logging out again.');return;}
+      let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){if(valid())toast(e.message);return;}
+      if (!valid()) return;
+      const n = Q.mine().length + chat + shortcuts;
+      if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
+      if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){if(valid())toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
+      if (!valid()) return;
+      if(typeof KitChat!=='undefined')KitChat.eraseDevice();
+      if (typeof Track !== 'undefined') await Track.pause();
+      if (!valid()) return;
+      // A failed request can leave the browser cookie valid. Keep Settings visible so retry is honest.
+      try { await api('/api/logout', json('POST', {})); }
+      catch (e) { if(valid())toast('Could not log out. Check your connection and try again.'); return; }
+      if (!valid()) return;
+      const cleanup = Native.forget(), clearedOwner = readOwner();
+      await cleanup;
+      if (clearedOwner !== readOwner()) return;
+      store.set('fit.queue', Q.all().filter((o) => o.who !== account.login)); forgetKept();
+      App.me = null; App.cache.clear(); netbar(); history.replaceState(null, '', '/'); showLogin();
+    } catch (e) { if(valid())toast(e.message || 'Could not log out. Try again.'); }
+    finally { leaving = false; logout.disabled = false; }
   };
 });
 
