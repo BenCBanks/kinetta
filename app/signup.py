@@ -76,5 +76,6 @@ def signup(body: SignupIn, request: Request, response: Response, background: Bac
         c.execute('UPDATE users SET needs_email_confirm = true WHERE id = %s', (uid,))
         account_email.confirmation(background, c, uid, body.name.strip(), email)
         session = auth.new_session(c, uid, request.headers.get('user-agent'))
+        login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
     auth.set_cookie(request, response, session)
-    return {'ok': True, 'pending': email}
+    return {'ok': True, 'pending': email, 'login': login}

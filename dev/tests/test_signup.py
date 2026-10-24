@@ -128,4 +128,34 @@ class Signup(unittest.TestCase):
         self.assertEqual((s['mode'], s['cap']), ('open', 100)); self.assertEqual(s['accounts'], self.real_accounts())
 
 
+    def test_username_made_from_name_and_changeable(self):
+        self.env(KINETTA_SIGNUP='open')
+        body = {k: v for k, v in form('zz_test_su_x').items() if k != 'login'}
+        with db.connect() as c: c.execute("DELETE FROM users WHERE login LIKE 'zzsutest%%'")
+        a, b = client(), client()
+        r1 = a.post('/api/signup', json={**body, 'name': 'Zzsutest Person', 'email': 'zz_test_su_n1@example.test'}).json()
+        r2 = b.post('/api/signup', json={**body, 'name': 'Zzsütest Other', 'email': 'zz_test_su_n2@example.test'}).json()
+        self.assertEqual((r1['login'], r2['login']), ('zzsutest', 'zzsutest2'), 'from the first name, accents dropped, then numbered')
+        # confirm, then the email is the login and the username can change freely
+        token = re.search(r'/confirm-email/([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
+        client().post('/api/account/email/confirm', json={'token': token})
+        self.assertEqual(a.put('/api/account', json={'login': 'zz_test_su_gamertag'}).json()['login'], 'zz_test_su_gamertag')
+        self.assertEqual(a.put('/api/account', json={'login': 'zz_test_su_gamertag2'}).status_code, 200, 'again, whenever they like')
+        self.assertEqual(b.put('/api/account', json={'login': 'zz_test_su_gamertag2'}).status_code, 409, 'but not to a taken one')
+        self.assertEqual(client().post('/api/login', json={'login': 'zz_test_su_n1@example.test', 'password': PW}).status_code, 200)
+        with db.connect() as c: c.execute("DELETE FROM users WHERE login LIKE 'zzsutest%%'")
+
+    def test_invite_join_with_email(self):
+        self.env()
+        import secrets
+        token = secrets.token_urlsafe(24)
+        with db.connect() as c: c.execute("INSERT INTO invites (token_hash, note, expires) VALUES (%s, 'zz', now() + interval '1 day')", (auth.token_hash(token),))
+        self.assertTrue(client().get('/api/join/' + token).json()['email'], 'the join page can ask for an email')
+        j = client()
+        r = j.post('/api/join', json={'name': 'Zz_test_su_joiner Invited', 'email': 'zz_test_su_joiner@example.test', 'password': PW, 'token': token})
+        self.assertEqual(r.status_code, 200, r.text); self.assertTrue(r.json()['login'].startswith('zz_test_su_joiner'))
+        self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_joiner@example.test'])
+        me = j.get('/api/me').json()
+        self.assertFalse(me['needs_email_confirm'], 'invited people are not held back'); self.assertEqual(me['pending_email'], 'zz_test_su_joiner@example.test')
+
 if __name__ == '__main__': unittest.main()
