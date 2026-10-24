@@ -43,7 +43,9 @@ const Native = (() => {
   N.stopActivityShare = () => P.KinettaActivityShare?.cancel?.() || Promise.resolve();
   N.headers = () => (N.token ? {Authorization: 'Bearer ' + N.token} : {});
   N.address = (v) => { v = (v || '').trim().replace(/\/+$/, ''); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
-  N.login = async (server, login, password) => {
+  // Logging in and creating an account (#232 E) both end the previous account's background work first, then keep the
+  // new login token in the app's own settings.
+  const signIn = async (server, path, body) => {
     if (typeof Track !== 'undefined' && App.me) await Track.leave();
     await N.stopActivityShare();
     N.pauseFoodEntry?.();
@@ -51,10 +53,16 @@ const Native = (() => {
     const stopped=await N.disconnectHealth({preserve:true});
     if(stopped.some(r=>r.status==='rejected'))throw new Error('Health uploads are still stopping. Unlock your phone and try logging in again.');
     N.base = N.address(server); if (!N.base) throw new Error("Enter your Kinetta server's address.");
-    const r = await api('/api/login', json('POST', {login, password, app: true}));
+    const r = await api(path, json('POST', {...body, app: true}));
+    if (!r.token) throw new Error('Your account could not be created. Try again in a minute.');
     App.me = null; App.cache.clear(); forgetKept();
     N.token = r.token; N.healthPaused=false; await put('server', N.base); await put('token', N.token);
+    return r;
   };
+  N.login = (server, login, password) => signIn(server, '/api/login', {login, password});
+  N.signup = (body) => signIn(N.base || N.server, '/api/signup', body);
+  // before anyone has logged in on this phone, sign-up, the waitlist and Forgot password talk to the hosted server
+  N.preLogin = () => { if (on && !N.base) N.base = N.server; };
   // photos (app.js pimg): fetched with the login token, kept in memory by address (an address never changes its picture)
   const pics = new Map();
   const fill = () => {

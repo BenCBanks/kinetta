@@ -53,7 +53,7 @@ const PushInvitation = (() => {
     const denied = !!status.denied;
     const close = sheet('Stay in the loop', `<div class="push-invitation">
       <p>Get notified when your workouts sync and friends cheer you on.</p>
-      <p class="small muted" id="pi-explanation">${denied ? 'Notifications are blocked in iPhone Settings. Open Kinetta’s settings, turn on Allow Notifications, then return to the app.' : 'Choose which notifications you receive in Me → Notification settings.'}</p>
+      <p class="small muted" id="pi-explanation">${denied ? 'Notifications are blocked in iPhone Settings. Open Kinetta’s settings, turn on Allow Notifications, then return to the app.' : 'Choose which notifications you receive in Settings → Notifications.'}</p>
       <button type="button" class="primary wide" id="pi-enable">${denied ? 'Open iPhone Settings' : 'Turn on notifications'}</button>
       <button type="button" class="ghost wide" id="pi-later">Not now</button><p class="err" role="alert" id="pi-error"></p></div>`, (body, dismiss) => {
       const node = body.closest('.scrim'), enable = $('#pi-enable', body), error = $('#pi-error', body);

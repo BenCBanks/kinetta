@@ -32,9 +32,10 @@ app.include_router(api_food.router)
 app.include_router(garmin_connect.router)     # before api_connections: its /connections/{kind} would catch these
 app.include_router(api_connections.router)
 app.include_router(api_account.router)
-from . import account_email, signup
+from . import account_email, signup, api_devices
 app.include_router(account_email.router)
 app.include_router(signup.router)
+app.include_router(api_devices.router)
 app.include_router(food_photo.router)
 app.include_router(nutrition_insights.router)
 app.include_router(history_import.router)

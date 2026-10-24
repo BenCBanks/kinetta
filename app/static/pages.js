@@ -220,6 +220,7 @@ function getStarted(healthConnected = false, hasHistory = false) {
   const rows = [
     App.me?.needs_email_confirm ? step('/me/settings?email=add', 'mail', 'c-brand', 'Confirm your email', `Open the link we sent${pendingEmail() ? ' to ' + esc(pendingEmail()) : ''}. Until then, other people can't see your activities or find you.`) : '',
     App.me?.mail_ready && !App.me.email && !pendingEmail() && !App.me.needs_email_confirm ? step('/me/settings?email=add', 'mail', 'c-brand', 'Add your email', 'So you can reset your password if you forget it') : '',
+    !hasHistory && !App.me?.photo && !App.me?.bio ? step('/welcome', 'user', 'c-green', 'Set up your profile', 'A photo and a line about you, who sees your activities, and friends') : '',
     !hasHistory ? step('/track/connections', 'watch', 'c-brand', 'Connect your watch', 'Garmin Connect or Apple Health · optional, you can do this later') : '',
     Native.on && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
     !hasHistory ? step('/track', 'track', 'c-green', 'Record an activity', 'A run, ride, walk or lifting session with your phone.') : '',
@@ -255,6 +256,7 @@ async function meOverview(el) {
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
+    <div id="t-start"></div>
     <section id="t-week" aria-label="Last 14 days"><div class="card mileage-loading" aria-hidden="true">${skel(1)}</div></section>
     <div id="t-loading" role="status"><span class="vh">Loading your day</span><div class="sk-row" aria-hidden="true"><span class="sk dot"></span><span class="grow"><span class="sk line short"></span><span class="sk line"></span></span></div>${skel(1)}</div>
     <div id="t-content"><div id="t-last"></div>
@@ -270,7 +272,11 @@ async function meOverview(el) {
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null)return;
     const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
-    $('#t-setup', el).innerHTML = getStarted(healthConnected, activityHistory||foodHistory) +
+    // Nothing recorded yet (#232 G): Get started leads and the empty 0.0 mi chart stays hidden until there's history.
+    const fresh = !(activityHistory || foodHistory);
+    $('#t-week', el).hidden = fresh;
+    $('#t-start', el).innerHTML = fresh ? getStarted(healthConnected, false) : '';
+    $('#t-setup', el).innerHTML = (fresh ? '' : getStarted(healthConnected, true)) +
       (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
   };
   tracked('food', todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
@@ -1335,38 +1341,37 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div class="top">${backBtn('Back')}</div><h1>Settings</h1><p class="muted">Your account, connections and private preferences.</p><button class="ghost wide" id="logout">${svg('logout')}Log out</button><section class="me-settings">
-
-    <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}${row('a', 'href="/notifications"', 'bell', 'c-orange', 'Notifications', me.notifications ? `<span class="badge alert">${me.notifications} new</span>` : '')}
-      ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing', 'Who sees your activities')}
-      ${row('a', 'href="/me/speed"', 'clock', 'c-brand', 'Speed check', 'Time this phone’s connection')}
-      </div>
-    <div class="card list">${row('a', 'href="/plan"', 'calendar', 'c-orange', 'Training plan')}
-      ${row('button', 'id="m-targets"', 'food', 'c-green', 'Nutrition targets')}
-      ${row('a', 'href="/food?view=weight"', 'scale', 'c-purple', 'Weight trend')}</div>
-    <h2 class="sec-head">App preferences</h2>
-    <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
-        <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
-      ${row('a', 'href="/me/notifications"', 'bell', 'c-grey', 'Notification settings')}
-      ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
     <h2 class="sec-head">Account</h2>
     <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
-      ${row('button', 'id="m-email"', 'mail', 'c-grey', 'Email', esc(me.email || (pendingEmail() ? 'Check your inbox' : 'Add')))}
+      ${row('button', 'id="m-email"', 'mail', 'c-grey', 'Email', esc(me.email ? (me.email_confirmed ? me.email : me.email + ' · not confirmed') : pendingEmail() ? 'Check your inbox' : 'Add'))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
-      </div>
+      ${row('a', 'href="/me/devices"', 'shield', 'c-grey', 'Signed-in devices')}</div>
+    <h2 class="sec-head">Profile &amp; sharing</h2>
+    <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile', 'Photo, name, bio')}
+      ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing &amp; privacy')}</div>
+    <h2 class="sec-head">Connections &amp; notifications</h2>
+    <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}
+      ${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications')}</div>
+    <h2 class="sec-head">Units &amp; body</h2>
+    <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
+        <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
+      ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
     ${me.coach ? `<h2 class="sec-head">Kit</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food estimates: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${kitChatOn() ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('button', 'id="m-kit-memory"', 'sparkle', 'c-green', 'What Kit remembers', 'View or remove')}${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
       ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
+    <h2 class="sec-head">Help</h2>
+    <div class="card list">${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help &amp; contact')}
+      ${row('a', 'href="/me/speed"', 'clock', 'c-grey', 'Speed check')}</div>
     </section>`;
   wireBack(el, '/me');
   $('#m-profile', el).onclick = () => go(profileHref(me));   // your public profile, editable in place (social.js)
 
   $('#m-kit-memory',el).onclick=()=>KitChat.memorySettings();
   const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit', aiExplain());
-  $('#m-targets', el).onclick = () => targetsSheet();
   $('#m-name', el).onclick = () => accountSheet('name');
   $('#m-login', el).onclick = () => accountSheet('login');
   $('#m-pw', el).onclick = () => passwordSheet();
@@ -1857,6 +1862,36 @@ function activityKit(activity) {
     }; draw();
   });
 }
+
+// ---------- Signed-in devices (#232 I) ----------
+// Where you're logged in: a rough device name and dates only (no IP addresses). After a lost phone, sign out the
+// others from here; this device signs out with Log out.
+route(/^\/me\/devices$/, 'me', async (el) => {
+  const owner = readOwner();
+  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Signed-in devices</h1><p class="muted">Where you’re logged in to Kinetta. Sign out anything you don’t recognise, then change your password.</p><div id="dv-list">${skel(2)}</div>`;
+  wireBack(el, '/me/settings');
+  const day = (t) => fdate(t, {month: 'short', day: 'numeric', year: 'numeric'});
+  const draw = async () => {
+    const rows = await api('/api/account/devices');
+    if (!el.isConnected || owner !== readOwner()) return;
+    const others = rows.filter((d) => !d.this);
+    $('#dv-list', el).innerHTML = `<div class="card list">${rows.map((d) => `<div class="row-link static device-row"><span class="ri c-grey">${svg('shield')}</span><span class="grow">${esc(d.device)}<small class="muted">${d.this ? 'This device · ' : ''}Last used ${esc(day(d.last_used))} · signed in ${esc(day(d.signed_in))}</small></span>${d.this ? '' : `<button class="linkbtn" data-dv="${esc(d.id)}" aria-label="Sign out ${esc(d.device)}">Sign out</button>`}</div>`).join('')}</div>
+      ${others.length ? `<button class="ghost wide" id="dv-all">Sign out all other devices</button>` : '<p class="small muted">Only this device is signed in.</p>'}`;
+    $$('[data-dv]', el).forEach((b) => b.onclick = async () => {
+      b.disabled = true;
+      try { await api('/api/account/devices/signout', json('POST', {id: b.dataset.dv})); toast('Signed out'); await draw(); }
+      catch (x) { toast(x.message); b.disabled = false; }
+    });
+    const all = $('#dv-all', el);
+    if (all) all.onclick = async () => {
+      if (!confirm(`Sign out ${others.length} other device${others.length > 1 ? 's' : ''}? They’ll need your password to log in again.`)) return;
+      all.disabled = true;
+      try { await api('/api/account/devices/signout-others', json('POST', {})); toast('Other devices signed out'); await draw(); }
+      catch (x) { toast(x.message); all.disabled = false; }
+    };
+  };
+  await draw();
+});
 
 // ---------- Speed check (2026-10-18) ----------
 // Times requests from this phone so the owner can see where waiting comes from: the connection itself, a first-time

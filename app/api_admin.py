@@ -48,7 +48,7 @@ def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',s
 def device(agent):
     """A rough device description from a browser's own label; IP addresses are never kept."""
     a=agent or ''
-    where='iPhone' if 'iPhone' in a or 'iPad' in a else 'Android' if 'Android' in a else 'Mac' if 'Macintosh' in a else 'Windows' if 'Windows' in a else 'Other'
+    where='iPhone' if 'iPhone' in a or 'iPad' in a else 'Android' if 'Android' in a else 'Mac' if 'Macintosh' in a else 'Windows' if 'Windows' in a else 'Linux' if 'Linux' in a else 'Other'
     if where=='iPhone' and 'Safari' not in a:return 'iPhone app'
     what='Edge' if 'Edg/' in a else 'Chrome' if 'Chrome' in a or 'CriOS' in a else 'Firefox' if 'Firefox' in a or 'FxiOS' in a else 'Safari' if 'Safari' in a else 'browser'
     return f'{where} · {what}'
