@@ -120,7 +120,7 @@ const Track = (() => {
       const activeSession = session, activeOwner = owner;
       watch = navigator.geolocation.watchPosition((p) => {
         if (session !== activeSession || readOwner() !== activeOwner || session.state !== 'recording' || document.hidden) return;
-        if (session.points.length >= 24000) { pause(); message = 'GPS point limit reached. Finish and save this session.'; draw(); return; }
+        if (session.points.length >= 72000) { pause(); message = 'GPS point limit reached. Finish and save this session.'; draw(); return; }
         const before = (session.splits || []).length;
         if (TrackMath.accept(session, p, Date.now())) { if ((session.splits || []).length > before) announce(session); message = `GPS connected · ±${Math.round(p.coords.accuracy)} m`; session.checkpoint = Date.now(); persist(false); update(); refreshMap(); }
         else if (p.coords.accuracy > 100) { message = 'Weak GPS signal · waiting for better accuracy'; update(); }
@@ -223,10 +223,14 @@ const Track = (() => {
   const TRACK_QUICK = [0, 2, 4, 5, OUTDOOR.length];   // Run, Ride, Walk, Hike, then Lifting (the first choice after OUTDOOR)
   function ready(el) {
     const indoor = HAND_KINDS.flatMap(([, rows]) => rows).filter(([, , kind]) => kind !== 'Strength Training');
-    const choices = [...OUTDOOR.map(([sport,label,kind]) => ({sport,label,sportLabel:kind,gps:true})), {label:'Lifting',lift:true}, ...indoor.map(([sport,label,kind]) => ({sport,label,sportLabel:kind,gps:false}))];
+    // GPS recording is in the iPhone app only (Ben, 2026-10-24); a browser times indoor workouts, lifting and past entries.
+    // A GPS draft already started in a browser can still be finished and saved (draw/resume above).
+    const outdoor = TrackNative.supported ? OUTDOOR : [];
+    const choices = [...outdoor.map(([sport,label,kind]) => ({sport,label,sportLabel:kind,gps:true})), {label:'Lifting',lift:true}, ...indoor.map(([sport,label,kind]) => ({sport,label,sportLabel:kind,gps:false}))];
+    const quick = outdoor.length ? TRACK_QUICK : [0, 1, 2, 3].filter(i => i < choices.length);
     let selected = Math.min(choices.length-1, Math.max(0, +store.get(key + ':choice') || 0));
     const done = new URLSearchParams(location.search).get('done');
-    el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup"><div class="track-quick" role="group" aria-label="Common activities">${TRACK_QUICK.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${TRACK_QUICK.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 ? '<optgroup label="Outdoor · GPS">' : i===OUTDOOR.length ? '</optgroup><optgroup label="Indoor · timer and sets">' : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
+    el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup">${outdoor.length ? '' : '<p class="small muted track-gps-note">Record runs, rides and walks with GPS in the Kinetta iPhone app. Here you can time indoor workouts, log lifting and add past activities.</p>'}<div class="track-quick" role="group" aria-label="Common activities">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${quick.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 && outdoor.length ? '<optgroup label="Outdoor · GPS">' : i===outdoor.length ? `${outdoor.length ? '</optgroup>' : ''}<optgroup label="Indoor · timer and sets">` : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
       <p class="small muted" id="track-guidance"></p><div class="track-options" id="track-options"></div><p class="small danger" id="track-ready-error" role="alert"></p><button class="primary wide" id="track-start">Start</button>
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><button type="button" class="ghost track-locate" id="track-locate">${svg('track')}Locate me</button></div>
       </form>
@@ -240,7 +244,7 @@ const Track = (() => {
       box.innerHTML=`<label class="check"><input type="checkbox" id="track-voice"${o.voice?' checked':''}> Say my time every ${imp()?'mile':'km'}</label><label class="check"><input type="checkbox" id="track-auto"${o.autoPause?' checked':''}> Auto-pause when I stop</label>`;
       $('#track-voice',box).onchange=(e)=>store.set(key+':voice',e.target.checked);
       $('#track-auto',box).onchange=(e)=>store.set(key+':auto:'+c.sport,e.target.checked); };
-    const pick=(i)=>{selected=i;setTimeout(opts);store.set(key+':choice',selected);$('#track-kind').value=String(i);const other=$('#track-other');other.open=false;$('summary',other).innerHTML=esc(TRACK_QUICK.includes(i)?'More activities':choices[i].label)+svg('down');$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();};
+    const pick=(i)=>{selected=i;setTimeout(opts);store.set(key+':choice',selected);$('#track-kind').value=String(i);const other=$('#track-other');other.open=false;$('summary',other).innerHTML=esc(quick.includes(i)?'More activities':choices[i].label)+svg('down');$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();};
     $('#track-kind').onchange=(e)=>pick(+e.target.value);opts();
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});guide();
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS

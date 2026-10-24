@@ -115,12 +115,13 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 
 - [x] Me replaces Today as home, with a fourteen-day chart, personal identity, current-day panels, useful tools and a separate Settings & account screen. Until activity or food history exists, Get started leads and the empty chart is hidden; profiles with nothing shared also omit empty charts.
 - [x] Personal/profile fixed14day distance charts use exactly the shared feed visibility rules.
-- [x] Track owns outdoor GPS, indoor timers, lifting, past entries and source connections, plus file imports in browsers only. Native iPhone GPS is independent of the WebView.
+- [x] Track owns outdoor GPS (iPhone app only), indoor timers, lifting, past entries and source connections, plus file imports in browsers only. Native iPhone GPS is independent of the WebView.
+- [x] Phone recordings keep every section for splits, charts and best efforts (never across a gap), record elevation, and hold up to 72,000 points (~360 km).
 - [x] Pause/resume, review and audience choice before save, retry without duplicates and account-scoped recoverable drafts.
 - [x] Native background location engine, protected point journal, account guards and WebView recovery.
 - [x] Apple SDK builds; physical-iPhone background/locked-screen GPS acceptance remains pending.
 - [x] Shared web/native/server GPS distance filter; live pace over 30 seconds, average and last mile/km.
-- [x] Spoken mile/km splits initially on; native locked-screen audio configured, browser speech foreground-only. Physical locked-pocket acceptance pending.
+- [x] Spoken mile/km splits initially on; native locked-screen audio configured. Physical locked-pocket acceptance pending.
 - [x] Auto-pause after 15 seconds still with no backwards clock jump; initially on for run/walk/hike, off for rides, voice remembered per device/account, auto-pause also per sport. Lock Screen Live Activity remains planned.
 - [x] Owner activity detail renders all recorded route sections; shared map previews retain the trimmed longest section.
 

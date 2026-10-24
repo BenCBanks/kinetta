@@ -6,6 +6,8 @@ struct TrackFix: Codable {
     var t: Double
     var accuracy: Double
     var segment: Int
+    var alt: Double? = nil         // metres above sea level (#234 item 5); missing in older journals
+    var valt: Double? = nil        // its vertical accuracy
 }
 
 // Native time and GPS survive a suspended WebView. Units are milliseconds here, metres for distance.
@@ -85,11 +87,14 @@ struct TrackRecordingState: Codable {
         }
         return (total, anchor)
     }
-    mutating func accept(lat: Double, lon: Double, accuracy: Double, timestamp: Double, now: Double) -> TrackFix? {
-        guard state == "recording", gps, points.count < 24000,
+    static let maxPoints = 72000   // ~360 km at the 5 m distance filter (#234 item 8)
+    mutating func accept(lat: Double, lon: Double, accuracy: Double, timestamp: Double, now: Double,
+                         alt: Double? = nil, valt: Double? = nil) -> TrackFix? {
+        guard state == "recording", gps, points.count < Self.maxPoints,
               [lat,lon,accuracy,timestamp,now].allSatisfy({ $0.isFinite }), abs(lat)<=90, abs(lon)<=180,
               accuracy>=0, accuracy<=100, timestamp>=activeAt, timestamp<=now+1000, now-timestamp<=300000 else { return nil }
         var point = TrackFix(lat:lat,lon:lon,t:(timestamp-start)/1000,accuracy:accuracy,segment:segment)
+        if let alt, let valt, alt.isFinite, valt.isFinite, valt > 0, valt <= 1000, alt >= -500, alt <= 9000 { point.alt = alt; point.valt = valt }
         guard point.t>=0, point.t<=172800 else { return nil }
         if let last = points.last {
             guard point.t>last.t else { return nil }
@@ -175,7 +180,7 @@ final class TrackRecordingFiles {
             }
             let rows=data.split(separator:10,omittingEmptySubsequences:false)
             for line in rows.dropLast() where !line.isEmpty {
-                guard let fix=try? JSONDecoder().decode(TrackFix.self,from:Data(line)),state.points.count<24000 else { break }
+                guard let fix=try? JSONDecoder().decode(TrackFix.self,from:Data(line)),state.points.count<TrackRecordingState.maxPoints else { break }
                 state.points.append(fix)
             }
         }

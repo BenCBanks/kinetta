@@ -150,12 +150,13 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         guard var next=session,next.state=="recording",next.gps else { return }
         do {
             for location in locations.sorted(by: { $0.timestamp<$1.timestamp }) {
-                if next.points.count>=24000 {
+                if next.points.count>=TrackRecordingState.maxPoints {
                     next.pause(at:Self.now);manager.stopUpdatingLocation();message="GPS limit reached. Finish and save this recording.";break
                 }
                 var candidate=next;let before=next.splits?.count ?? 0
                 if let point=candidate.accept(lat:location.coordinate.latitude,lon:location.coordinate.longitude,accuracy:location.horizontalAccuracy,
-                                               timestamp:location.timestamp.timeIntervalSince1970*1000,now:Self.now) {
+                                               timestamp:location.timestamp.timeIntervalSince1970*1000,now:Self.now,
+                                               alt:location.altitude,valt:location.verticalAccuracy) {
                     try files?.append(point);next=candidate
                     if next.voice==true,let splits=next.splits,splits.count>before { NativeTrackVoice.shared.announce(next) }
                     message="GPS ±\(Int(location.horizontalAccuracy)) m · background recording on"
