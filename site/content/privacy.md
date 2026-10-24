@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 23, 2026
+Last updated October 24, 2026
 
 ## intro
 
@@ -48,7 +48,7 @@ Apple Health and location
 
 ## health
 
-The iPhone app reads only the Apple Health data you allow, and never writes to it. You can change this any time in the Health app. Kinetta gets your location only from activities you record or import; it never tracks you in the background.
+The iPhone app reads only the Apple Health data you allow. It writes to Apple Health only if you turn on Share nutrition, and then only your daily food totals (calories, protein, carbs, fat and fiber). You can change this any time in the Health app. Kinetta gets your location only from activities you record or import; it never tracks you in the background.
 
 ## garmin-heading
 

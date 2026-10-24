@@ -168,7 +168,7 @@ See [Recording activities](docs/activity-tracking.md).
 
 - **Evening food summaries retired (20 October 2026):** the setting, shortcut and automatic generation are removed. Nutrition insights start through the Nutrition Kit icon. Historical notes remain readable/exportable.
 
-Connections now leads with Garmin Connect (when the server has Garmin keys) and Apple Health status and Connect/Manage in the iPhone app, then Upload files. Health Auto Export remains under Advanced for power users; intervals.icu and the Garmin Personal API key were removed on 23 October 2026. A watch is optional. Garmin Health sharing can be delayed and excludes GPS tracks; on your own Health-sourced outdoor workout without a route, Add the map explains Garmin Connect website → activity → settings gear → Export Original, then uploads the original ZIP/FIT through the existing importer. Matching sport/time/distance enriches the existing activity and keeps user edits; other recordings remain separate. No provider connection is required.
+Connections shows Garmin Connect and Apple Health as ordinary connection choices, with Connect/Manage status. The iPhone app omits file imports; browser activity-history import remains available. Health Auto Export is under Other connections. Garmin Health sharing may be delayed and excludes GPS; direct Garmin can supply routes on new activities. Browser-only original-file import can enrich a matching own Health activity while preserving edits.
 
 Nutrition insights distinguish logged food, a rough burn/energy model and recorded scale trends. A discrepancy names water changes, missed or underestimated food and burn-estimate error, then points to the weekly check-in; agreement is described as broad consistency rather than proof. Weight text uses the account's units. No per-bodyweight advice is inferred from a fallback weight. Energy captions identify Apple Health resting + activity, imported daily burn or formula sources, and never equate being under the food goal with a measured deficit or modelled energy with actual fat loss. These wording changes do not alter targets, calorie arithmetic or Health's passive-only rule.
 
@@ -212,7 +212,6 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 
 - **Food and training week (#122 R):** a private shared7-completed-day summary on Me and Progress; own today's workout links to the existing food-log energy calculation without double counting. My activities shows optional Health last-sync/pending/retry status, with bounded foreground catch-up and Garmin delay explanation. Physical GPS acceptance remains pending.
 
-- **Optional food on training days (#122 H):** adult plan/recent-workout guidance and explicit-save target controls. Fuel training/active-plan defaults, conservative nonnegative extra allowance, accepted-check-in average protected, explicit day goals preserved. Folded published athlete reference ranges and a dismissible late long-day note; no AI, medical claims or macro changes.
 
 - **Native food-share foundation (#122 T2):** owner-bound durable job storage, immutable retry IDs, image integrity and bounded cross-process writes; separate unlocked/device-only credential storage. Runtime, Share-sheet UI, provisioning and physical acceptance follow separately.
 
@@ -231,3 +230,11 @@ Recipes, imported published nutrition, logged portions, food chat, manually ente
 
 
 Activity sharing: the picture preview offers Instagram composer handoff in the iPhone app, normal image sharing and a browser save fallback, retaining start/end trimming. Tapping an activity's route opens the full-screen map; Close, Escape or Back restores the detail view. Native Instagram handoff still needs physical-device acceptance; browser and stand-in checks do not prove a post was published.
+
+## App cleanup · October 24, 2026
+
+- Me remains the daily summary. Settings & account opens a dedicated screen from Me or your own profile, with Log out near the top and existing unsent-data checks.
+- Detail-page Back controls remain in a solid top bar while scrolling. Fitness charts expand into full-height analysis sheets with touch/hover readouts and date sliders; Progress bars use sky blue.
+- Activity pictures have two shapes, Story (1080×1920) and Post (1080×1350), for both regular sharing and Instagram. Maps occupy more of the image; trimming and destination handoff guards remain.
+- Notifications use a short title and full body. iOS owns final banner size. The Help catalog covers definitions and the updated flows.
+- Training-day nutrition guidance and automatic calorie adjustments are parked in `dev/deferred/training-food/`; see issue #236. The usual target and explicit day goals remain.

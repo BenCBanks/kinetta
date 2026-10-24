@@ -2058,16 +2058,6 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .combined-week .stat b i { font-size: .7em; }
 
 /* Optional food guidance follows the user's text size. */
-.training-food-card, #training-settings { font-size: 1rem; }
-.training-food-card p { margin-block: 12px; }
-.training-food-card summary { font-size: 1em; line-height: 1.4; }
-.training-food-card details { border-top: 1px solid var(--line); padding-block: 12px; }
-.training-food-card .small, #training-settings .small { font-size: .9em; }
-#training-settings label, #training-settings button { font-size: 1em; }
-
-.training-food-card summary, #training-settings summary, #training-settings label.check { min-height: 44px; display: flex; align-items: center; gap: 12px; }
-.training-food-card .linkbtn, .training-food-card a.small, #training-settings .linkbtn { min-height: 44px; display: inline-flex; align-items: center; }
-
 /* Activity social row: actions/counts on the left, reaction people on the right. */
 .activity-reactions { display:contents; }
 .reaction-action { display:flex; align-items:center; order:1; min-width:0; }
@@ -2466,3 +2456,42 @@ nav.tabs { view-transition-name: tabs; }
 .distance-column.is-highlighted .distance-value { visibility:visible; }
 .distance-column { cursor:pointer; }
 .distance-column:focus-visible .distance-hit { stroke:var(--color-outline); stroke-width:1; }
+
+/* Account navigation and persistent return controls (owner cleanup, October 2026). */
+.settings-entry {display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:44px;margin-bottom:8px;font-size:1rem;font-weight:600;color:var(--tx)}
+.settings-entry svg {width:20px;height:20px}
+.has-back > .top:has([data-back]) {position:sticky;top:0;z-index:1010;background:var(--bg);min-height:48px;padding:env(safe-area-inset-top,0px) 0 4px;box-shadow:0 -30px 0 30px var(--bg);border-bottom:1px solid var(--line)}
+.has-back > .top.over {left:auto;right:auto;margin:0;padding-inline:16px;pointer-events:auto}
+.has-back > .top.over .back, .has-back > .top.over .icon-btn {background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
+.me-settings {margin-top:20px}
+/* Fitness charts keep full numeric readouts in a full-height, keyboard-accessible sheet. */
+.chart-expand {display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;width:100%;margin-top:8px}
+.chart-expand svg {width:18px;height:18px}
+[data-fitness-plot] .chartbox[role=button] {cursor:zoom-in}
+.chart-reset {display:block;min-height:44px;margin:4px auto}
+.scrim:has(.fitness-inspect) .sheet {width:100%;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
+.sheet:has(.fitness-inspect) header {margin-bottom:8px}
+.sheet:has(.fitness-inspect) header h2 {font-size:1.066667rem;line-height:1.2;font-weight:650;min-width:0}
+.sheet:has(.fitness-inspect) header .icon-btn {width:44px;height:44px;flex:none}
+.fitness-inspect {max-width:1400px;margin:auto}
+.fitness-inspect .readout {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));min-height:0;gap:6px 10px;padding:9px 12px;font-size:max(13px,.75rem);line-height:1.3}
+.fitness-inspect .readout:has(> span:nth-child(4)) {grid-template-columns:repeat(3,minmax(0,1fr))}
+.fitness-inspect .readout > span {min-width:0;overflow-wrap:anywhere}
+.fitness-inspect .readout > span:first-child {grid-column:1/-1;font-size:.866667rem}
+.fitness-inspect .readout > span:not(:first-child) {display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.fitness-inspect .readout b {font-size:1rem;line-height:1.25;white-space:nowrap;margin-top:auto}
+.fitness-inspect .chartbox > svg {touch-action:none;cursor:crosshair}
+.chartbox .ln.k-brand {stroke:var(--accent);fill:none}
+.pic-wrap:has(.pic) {aspect-ratio:auto;box-shadow:none;background:transparent;display:flex;justify-content:center}
+.pic-wrap .pic {width:auto;max-width:100%;max-height:50dvh;object-fit:contain}
+
+/* The refresh glyph turns around its own centre; the navigation stays still. */
+.ptr svg {transform-origin:center}
+.ptr.spinning svg {animation:refresh-smooth .8s linear infinite}
+@keyframes refresh-smooth {from {transform:rotate(var(--refresh-angle,0deg))} to {transform:rotate(calc(var(--refresh-angle,0deg) + 360deg))}}
+@media (prefers-reduced-motion:reduce) {.ptr.spinning svg {animation:none}}
+/* Progress uses the approved muted sky blue for both all-sport and filtered bars. */
+[data-area=progress] .chartbox .bar-seg:not(.distance-total) {fill:var(--color-distance-muted)}
+[data-area=progress] .chartbox .bar-r {fill:var(--color-distance-muted);opacity:1}
+
+.has-back > .top + .map-head {margin-top:0}

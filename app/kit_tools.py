@@ -47,7 +47,7 @@ class KitTools(AccountTools):
 
     def _profile(self, c, _):
         return c.execute('''SELECT tz,units,kcal_target,protein_target,carbs_target,fat_target,fiber_target,
-          sodium_target_mg,sugar_target_g,saturated_fat_target_g,nutrition_goal,training_day_targets,
+          sodium_target_mg,sugar_target_g,saturated_fat_target_g,nutrition_goal,
           (now() AT TIME ZONE tz)::date AS today FROM profile WHERE user_id=%s''',(self._uid,)).fetchone() or {}
 
     def _activity(self,c,r):
@@ -166,6 +166,7 @@ class KitTools(AccountTools):
             {'label':'Progress','path':'/progress','purpose':'Review trends and training history.'},
             {'label':'Strength','path':'/track','purpose':'Record exercises and sets.'},
             {'label':'Recipes','path':'/food/meals','purpose':'Manage private reusable recipes.'},
-            {'label':'Goals and profile','path':'/me','purpose':'Manage your goals, units and profile.'},
+            {'label':'Me and profile','path':'/me','purpose':'Review your day, goals and your own profile.'},
+            {'label':'Settings and account','path':'/me/settings','purpose':'Manage units, private preferences, account details and signing out.'},
             {'label':'Connections','path':'/me/connections','purpose':'Review Health connections and sharing consent.'}],
             'limitations':['Opening an editor does not change data. Confirmation is always a separate action.']}
