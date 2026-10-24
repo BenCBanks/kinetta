@@ -1,6 +1,6 @@
 # Kinetta roadmap
 
-Last reviewed: October 18, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
+Last reviewed: October 24, 2026. This is the ordered work queue; [FEATURES.md](FEATURES.md) is the inventory of built features.
 Requirements live in GitHub issues. Use [the requirements guide](docs/requirements.md) to make an item ready to build.
 
 **Direction (updated October 18, 2026, [#164](https://github.com/BenCBanks/kinetta/issues/164)):** Kinetta's home and
@@ -14,7 +14,7 @@ is part of workstream D. Workstream letters below (A–T) refer to #122.
 
 ## Owner checkpoint — October 17, 2026: review before more implementation
 
-New roadmap implementation is paused at the owner's request. The last complete feature implementation is
+New roadmap implementation is paused at the owner's request. Historical implementation checkpoint (H is now parked under #236): the last feature implementation at that checkpoint was
 [H: food on training days, PR #162](https://github.com/BenCBanks/kinetta/pull/162). The final technical checkpoint is
 [T2: native food-share storage, PR #163](https://github.com/BenCBanks/kinetta/pull/163): storage and account contracts
 only. It does **not** add the Share-sheet UI, runtime binding or App Group provisioning. Neither checkpoint means
@@ -73,7 +73,7 @@ Work in this order. Each workstream is one or more PRs that reference #122 and t
 14. **K.** Logging reminders (needs APNs, see #98). 15. **P.** Restaurant integration (provider choice needs the
 owner's sign-off first). 16. **T.** iPhone quick action, Share to Kinetta and Shortcuts.
 17. **R.** Activity for everyone without Garmin (includes #108's physical-iPhone recording acceptance).
-18. **H.** Food on training days.
+18. **H. Parked by owner, October 24:** removed from the active app; rebuild requirements and archived source are tracked in [#236](https://github.com/BenCBanks/kinetta/issues/236).
 
 ## Then — Milestone 4: public launch
 

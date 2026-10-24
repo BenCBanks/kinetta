@@ -113,7 +113,7 @@ with db.connect() as c:
     c.execute("INSERT INTO native_push_devices (user_id, token, environment, session_hash) VALUES (%s, %s, 'production', %s)", (jid, 'ab' * 32, token_hash(push_session)))
     nid = c.execute("INSERT INTO notifications (user_id, kind, actor_id, dish_id) VALUES (%s, 'dish_shared', %s, %s) RETURNING id", (jid, uid, tray)).fetchone()['id']
 ck(notify.push(nid, send=lambda device, data: sent.append((device, data))) == 1, 'native pushed once')
-ck(sent[0][0]['token'] == 'ab' * 32 and sent[0][1]['title'] == f'{cook_name} shared Chicken and veg traybake with you' and sent[0][1]['body'] == ''
+ck(sent[0][0]['token'] == 'ab' * 32 and sent[0][1]['title'] == 'Meal shared' and sent[0][1]['body'] == f'{cook_name} shared Chicken and veg traybake with you'
    and sent[0][1]['url'] == f'/food/cook/{tray}', 'native payload')
 notify.settings(notify.PrefsIn(dishes=False), user={'id': jid})
 ck(notify.push(nid, send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'turned off: not pushed')
@@ -270,7 +270,7 @@ with patch.object(notify.threading, 'Thread'):
         ck(len(rows) == 1, 'workout replay has one notification')
     sent = []
     ck(notify.push(rows[0]['id'], send=lambda info, data: sent.append(data)) == 1, 'new-workout push sent through existing delivery')
-    ck(sent[0]['title'] == 'Nice work! Test ready workout saved' and sent[0]['body'] == '5.00 km · 30 min' and sent[0]['url'] == f'/activity/{aid}', 'descriptive title, metric summary and deep link')
+    ck(sent[0]['title'] == 'Workout saved' and sent[0]['body'] == 'Test ready workout\n5.00 km · 30 min' and sent[0]['url'] == f'/activity/{aid}', 'descriptive title, metric summary and deep link')
     notify.settings(notify.PrefsIn(activities=False), user={'id': uid})
     ck(notify.push(rows[0]['id'], send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'disabled workout category sends nothing')
     with db.connect() as c:

@@ -907,6 +907,8 @@ function trendLine(box, allPts, {fmt, yfmt = fmt, color = 's1', invert = false, 
     ro.innerHTML = `<span>${esc(pts[i].label)}</span><span>Month <b>${pts[i].y == null ? '–' : esc(fmt(pts[i].y))}</b></span><span>${esc(rollName.split(' ')[0])} avg <b>${avg[i] == null ? '–' : esc(fmt(avg[i]))}</b></span>`;
   };
   svgEl.addEventListener('pointerdown', show); svgEl.addEventListener('pointermove', show);
+  box.insertAdjacentHTML('beforeend', `<label class="chart-date">Month<input type="range" min="0" max="${n-1}" value="${n-1}" step="1" aria-label="Chart month"></label>`);
+  const slider=$('input',box), select=()=>{const rect=svgEl.getBoundingClientRect();const i=+slider.value;slider.setAttribute('aria-valuetext',pts[i].label);show({clientX:rect.left+X(i)/W*rect.width});};slider.oninput=select;select();
 }
 
 // running total per day (can go below zero): line + zero line + touch readout. pts: [{label, y, sub}]
@@ -973,22 +975,30 @@ function energyChart(box, cols, {height = 190, weight = null} = {}) {   // weigh
 }
 
 // fitness / fatigue / form lines
-function loadChart(box, days) {
-  const W = Math.max(300, box.clientWidth || 340), H = 170, padL = 30, padB = 18;
+function loadChart(box, days, {height = 170} = {}) {
+  const W = Math.max(300, box.clientWidth || 340), H = height, padL = 30, padB = 18;
   if (days.length < 2) { box.innerHTML = '<p class="muted">Needs activities with heart rate.</p>'; return; }
   const n = days.length, vals = days.flatMap((d) => [d.fitness, d.fatigue, d.form]);
   const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
   const X = (i) => padL + i / (n - 1) * (W - padL - 6), Y = (v) => 6 + (1 - (v - lo) / (hi - lo)) * (H - 6 - padB);
   const path = (k) => days.map((d, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(d[k]).toFixed(1)}`).join('');
   const m0 = new Date(days[0].d + 'T12:00'), m1 = new Date(days[n - 1].d + 'T12:00');   // local noon: no off-by-one day
-  box.innerHTML = `<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Fitness, fatigue and form">
+  box.innerHTML = `<div class="readout num" aria-live="polite"></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Fitness, fatigue and form">
     <line class="gl" x1="${padL}" x2="${W - 6}" y1="${Y(0)}" y2="${Y(0)}"/>
     <text class="yl" x="2" y="${Y(hi) + 8}">${Math.round(hi)}</text><text class="yl" x="2" y="${Y(0) + 3}">0</text>
     <text class="yl" x="${padL}" y="${H - 3}">${esc(m0.toLocaleDateString([], {month: 'short'}) + " '" + String(m0.getFullYear()).slice(2))}</text>
     <text class="yl" x="${W - 6}" y="${H - 3}" text-anchor="end">${esc(m1.toLocaleDateString([], {month: 'short', day: 'numeric'}) + (m1.getFullYear() !== new Date().getFullYear() ? " '" + String(m1.getFullYear()).slice(2) : ''))}</text>
-    <path class="ln s1" d="${path('fitness')}"/><path class="ln s2" d="${path('fatigue')}"/><path class="ln s3" d="${path('form')}"/></svg>
+    <line class="xh" y1="6" y2="${H-padB}" visibility="hidden"/><path class="ln s1" d="${path('fitness')}"/><path class="ln s2" d="${path('fatigue')}"/><path class="ln s3" d="${path('form')}"/></svg>
     <div class="badges"><span class="badge">● Fitness</span><span class="badge">● Fatigue</span><span class="badge">● Form</span></div></div>`;
   const b = $$('.badge', box); b[0].classList.add('s1'); b[1].classList.add('s2'); b[2].classList.add('s3');
+  box.insertAdjacentHTML('beforeend', `<label class="chart-date">Date<input type="range" min="0" max="${n-1}" value="${n-1}" step="1" aria-label="Chart date"></label>`);
+  const slider=$('input',box), graph=$('svg',box), cursor=$('.xh',box);
+  const show=i=>{ const d=days[i]; slider.value=i; slider.setAttribute('aria-valuetext',d.d);
+    cursor.setAttribute('x1',X(i));cursor.setAttribute('x2',X(i));cursor.setAttribute('visibility','visible');
+    $('.readout',box).innerHTML=`<span>${esc(fdate(d.d+'T12:00',{month:'short',day:'numeric',year:'numeric'}))}</span>${['fitness','fatigue','form'].map(k=>`<span>${k[0].toUpperCase()+k.slice(1)} <b>${Number(d[k]).toFixed(1)}</b></span>`).join('')}`;
+  };
+  const point=e=>{const rect=graph.getBoundingClientRect();show(Math.max(0,Math.min(n-1,Math.round(((e.clientX-rect.left)/rect.width*W-padL)/(W-padL-6)*(n-1)))));};
+  graph.addEventListener('pointerdown',point);graph.addEventListener('pointermove',point);slider.oninput=()=>show(+slider.value);show(n-1);
 }
 
 // an AI request that failed: the reason stays next to the button (a toast is easy to miss while you wait)

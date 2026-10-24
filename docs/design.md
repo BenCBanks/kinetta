@@ -364,7 +364,7 @@ Nutrition owns the resting-source preference, distinct from the food goal and ac
 
 Issue #122 is the accepted direction: nutrition leads, activity remains a strong second, and a watch/connector is
 optional. This change implements A only; the home reorder, new navigation, food thread, adaptive check-in and
-training-day targets remain separate workstreams. The eight owner decisions in #122 govern their implementation.
+the remaining roadmap items have separate acceptance checks; training-day targets are now parked under #236. The eight owner decisions in #122 govern their implementation.
 
 Me retains an unfinished setup list with an optional native **Connect Apple Health** step until sync is enabled,
 including accounts with activity history. Never render a setup heading/card without rows. A returned Health
@@ -681,24 +681,11 @@ My activities shows optional Health sync status, latest successful native/foregr
 
 Empty combined weeks explain what food consistency and workout metrics will show, with a quiet Log food link. They never render zero distance/time as filler. Missing workout calories are labelled unavailable, and displayed energy is rounded to5kcal; new fold/Manage/retry controls keep44px minimum targets.
 
-### Optional food on training days (#122 H)
-
-Training-day target adjustment follows the final owner decision: on by default for Fuel training or an active plan, off otherwise, with a saved override and a Use goal & plan default action. Opening a page never writes a choice. Guidance appears only with a plan or workouts in the last28 days, and only for adults. A birth year proving19+ qualifies; unknown age or someone turning18 requires optional explicit18+ confirmation. A recorded younger birth year cannot be bypassed. This is a scoped feature guard, not a decision on the unresolved hosted-service audience/provider policy in #98. Ordinary food logging remains available.
-
-Default calorie targets for today and past days use the same allowance: the larger planned/recorded workout burn, minus a conservative usual-exercise allowance, clamped0–1500kcal and to the existing10000kcal input ceiling. It never reduces the normal target, changes protein/macros, drops an allowance solely because the date changed, or overrides an explicit day goal. An accepted weekly check-in stores its target/exercise-average pair; retain at least that allowance even if recent exercise falls. Explicit new manual calorie targets or a changed goal setup clear that provenance; a same-value macro form does not. Migration59 backfills matching accepted check-ins. Planned and recorded sessions are never added together. Burn and resting-source calculations stay separate.
-
-The food log presents a folded rest/active/long-day explanation and optional settings. Reference ranges are general athlete carbohydrate guidance from the [2016 ACSM/Academy/Dietitians of Canada position paper, Table1](https://www.dietitians.ca/DietitiansOfCanada/media/Documents/Resources/noap-position-paper.pdf), not personalized macro prescriptions. Label it general guidance for healthy adults, not medical advice; clinical conditions and minors are outside scope. Duration does not establish exercise intensity. No model or third-party data transfer is involved.
-
-A gentle note can appear after4pm following90+ recorded minutes when a positive, known-calorie food log is below60% of available estimated burn. Empty/unknown food, missing burn, shorter or merely planned workouts stay silent. This is a conservative UI check-in, not a clinical threshold or diagnosis; it names incomplete logs/estimates. Dismiss for today takes one tap, scoped to account/server/day.
-
-Copy reviewed against [Apple5.1.3](https://developer.apple.com/app-store/review/guidelines/#health-and-health-research): no advertising/data-mining use, no research/medical claims, no Health writes from these estimates. Health nutrition output remains the separately permitted record of food actually logged. Provider-age/region/project-tier and broader launch review remain #98 owner requirements; this change does not resolve them.
-
-Account deletion also removes only that server/account’s on-device training-note dismissal preferences. Other accounts and servers are preserved.
 
 ### Native food-share durability foundation (#122 T2)
 
 Food Share jobs use immutable owner-bound UUIDs and a protected, backup-excluded local queue under a process-shared lock. Credentials live only in a separate device-only, unlocked Keychain item. Explicit jobs survive overnight and interruption; late acknowledgements and account changes cannot cross owners. Images commit before their checked metadata. No app/extension runtime path, entitlement or Share UI is enabled in this foundation. See [food-sharing.md](food-sharing.md); UI/runtime and physical-device acceptance follow separately.
-General protein-per-bodyweight ranges and training-day guidance belong in the H guidance flow. Nutrition insights show the account’s recorded totals and chosen targets; they do not add a generic g/kg recommendation. This keeps estimate wording separate from optional guidance and avoids advice based on fallback weight.
+Nutrition insights show recorded totals and chosen targets without generic recommendations based on fallback weight.
 
 Weekly check-in GETs use a read-only transaction and return an unsaved preview. Only an explicit Accept or Not now materializes a private decision row. The preview ignores today’s weigh-in and excludes unknown-calorie days through the shared energy reader; replaying a saved decision is successful even after a new week starts.
 
@@ -722,7 +709,6 @@ Native food-entry review: session expiry/failed sign-in pause delivery without c
 
 Activity/food review: known protein that already reaches the target counts as reached even with an unknown side. Daily burn is shared without loading complete food/chat detail. The native sync disclosure updates text in place; progress reads no Preferences, manual imports refresh the list, and completion timestamps prevent immediate render-triggered resync. Past and other-owner activities do not fetch the current-day food link; the food card keeps one workout breakdown.
 
-Training-day review: food, calendar, insights and Kit share one day-goal policy, including historical allowances and coach-adjusted plan sessions. Batch reads build the plan once; daily burn remains independent, with its legacy extra field derived from the goal. Server-side enablement requires confirmed adulthood; re-saving an unchanged calorie target through setup preserves accepted check-in provenance. Low-intake notes reuse the shared unknown-calorie count.
 
 ## Activity-first home and original tabs (owner decision 18 October, #164)
 
@@ -1224,3 +1210,19 @@ the roughness was in the first moments. Standards:
 The activity Share button opens its existing picture preview, including the checked start/end privacy control. Share offers normal image destinations; Instagram hands the same previewed picture to the installed Instagram composer in the iPhone app. The person finishes posting there. Web/older builds use the system image-share chooser or save the picture with an explicit next-step message. No Kinetta activity link or account token is exported, no social audience setting changes, and no automatic post is claimed. Image preparation, duplicate taps, trim changes, sheet closure and account changes are guarded so an earlier untrimmed image cannot be sent after a new privacy selection.
 
 On activity detail, a deliberate map tap opens the existing full-screen map. Pans, pinches, photo-rail swipes and Leaflet controls retain their gestures. The expand/close button remains keyboard accessible; Escape or Back closes the overlay before leaving the activity, restores focus and prior inert state, releases background scrolling and refits every route segment. Route/account navigation cleans up the overlay.
+
+## Owner cleanup · October 24, 2026
+
+Me is the daily summary, Activity is the feed/history, and your profile is your identity to other members. Preserve the current Me · Activity · Track · Progress · Nutrition navigation. Settings & account is a dedicated route (`/me/settings`) reached visibly from Me and your own profile. Account, connections, units, private body/AI settings and data controls live there. Log out is visible near the top, retaining offline/draft/Health/device cleanup checks. Existing body-setup links redirect there.
+
+Back controls on detail pages stay in a small solid theme-colored top bar, including activity pages with maps. Keep safe areas, prior filters/scroll restoration, keyboard dismissal and full-screen-map gestures.
+
+Progress bars use the approved light sky blue; selection remains distinguishable. Fitness charts open a full-height sheet with date selection and exact numeric readouts by touch, hover or keyboard. Retain date ranges, source units, labels and Escape/focus behavior. Training indicators are estimates, not diagnoses.
+
+Sharing offers Story (9:16, 1080×1920) and Post (4:5, 1080×1350) for ordinary sharing and Instagram. A larger map and compact footer replace the large white lower area. Export exactly the selected privacy-trimmed preview; preserve stale-result/account/duplicate/close guards and map attribution.
+
+The iPhone app hides activity-file and food-CSV imports, including stale deep links and help entries. Browser history imports and photo/barcode logging remain supported. Connections treats Garmin normally; setup invites people to connect Garmin/Apple Health without requiring either. Provider availability and permissions still apply.
+
+Food on training days is retired from the active app, APIs and target calculation. Preserve old schema/history and the separate explicit per-day target. Archived implementation/rebuild requirements: [source archive](../dev/deferred/training-food/README.md), [issue #236](https://github.com/BenCBanks/kinetta/issues/236).
+
+Rationale: [Apple’s settings guidance](https://developer.apple.com/design/human-interface-guidelines/settings) places account-wide preferences in an identifiable settings area, and [tab-bar guidance](https://developer.apple.com/design/human-interface-guidelines/tab-bars) favors predictable top-level destinations. This cleanup separates Settings without changing the home tab. [Apple’s notification documentation](https://developer.apple.com/documentation/usernotificationsui/customizing-the-appearance-of-notifications) distinguishes short banners from expanded content: a short title plus real body is appropriate, but the app cannot guarantee exactly two visible lines. [Vickers & Vertosick (2016)](https://pubmed.ncbi.nlm.nih.gov/27570626/) found optimistic marathon projections from conventional short-race formulas; this supports clearer uncertainty and source efforts, not an unvalidated universal time penalty. The existing mileage-dependent calculation is retained.

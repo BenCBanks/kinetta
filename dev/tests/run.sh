@@ -40,8 +40,6 @@ node dev/tests/test_combined_week_ui.js
 node dev/tests/test_mileage_chart.js
 python3 dev/tests/test_activity_chart.py
 
-python3 dev/tests/test_training_food.py
-node dev/tests/test_training_food_ui.js
 node dev/tests/test_workout_sync_status.js
 node dev/tests/test_native_resting.js
 node dev/tests/test_social_gestures.js
@@ -56,6 +54,7 @@ node dev/tests/test_home_food.js
 node dev/tests/test_home_loading.js
 node dev/tests/test_sheet_motion.js
 node dev/tests/test_navigation.js
+node dev/tests/test_settings_navigation.js
 node dev/tests/test_ui_clarity.js
 python3 dev/tests/test_food_thread_facts.py
 python3 dev/tests/test_weekly_food_review.py
@@ -109,6 +108,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/garmin_connect_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/native_push_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/daily_goals_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/ai_access_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_chat_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
@@ -154,7 +154,6 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_numbers_incontainer
 docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_incontainer.py
 
 docker compose -p "$P" exec -T app python - < dev/tests/activity_food_incontainer.py
-docker compose -p "$P" exec -T app python - < dev/tests/training_food_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
 echo "== all passed"

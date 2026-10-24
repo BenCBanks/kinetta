@@ -210,6 +210,20 @@ def settings(body: PrefsIn, user=Depends(current_user)):
     return {'push': _prefs(p.get('notify'))}
 
 
+def _push_words(r):
+    """Keep long activity/person text in the multiline body, not iOS's short title."""
+    text,_=_words(r)
+    titles={'friend_request':'Friend request','friend_accepted':'Friend request accepted',
+            'cheer':'New reaction','comment':'New comment','dish_shared':'Meal shared',
+            'activity_ready':'Workout saved'}
+    if r['kind']=='activity_ready':
+        return 'Workout saved', f"{r['activity'] or 'Your workout'}\n{_activity_summary(r)}"
+    if r['kind']=='comment':
+        lead=f"{r['name']} commented on your {r['activity'] or 'activity'}"
+        return 'New comment', lead+(f"\n{r['comment'].strip()}" if r.get('comment') else '')
+    return titles.get(r['kind'],'Kinetta'),text
+
+
 def _push_later(nid):
     import time
     for _ in range(10):        # started before the change is committed: wait until the notification can be read
@@ -231,17 +245,15 @@ def push(nid, send=None):
         if not any(want[g] for g, kinds in PUSH_KINDS.items() if r['kind'] in kinds): return 0
         badge = unread(c, r['user_id'])
     text, link = _words(r)
-    title, _, said = text.partition(': "') if r['kind'] == 'comment' else (text, '', '')
-    body = ('"' + said) if said else ''
-    if r['kind'] == 'activity_ready':
-        title, body = f"Nice work! {r['activity'] or 'Your workout'} saved", _activity_summary(r)
+    title, body = _push_words(r)
     payload = {'title': title[:180], 'body': body[:600], 'url': link, 'badge': badge, 'tag': f"{r['kind']}-{nid}"}
     def prepare(c):
         fresh=c.execute(_LIST+' WHERE n.id=%s AND '+NOTICE_VISIBLE,(nid,)).fetchone()
         if not fresh:return None
         prefs=c.execute('SELECT notify FROM profile WHERE user_id=%s',(r['user_id'],)).fetchone() or {}
         if not any(_prefs(prefs.get('notify'))[g] for g,kinds in PUSH_KINDS.items() if fresh['kind'] in kinds):return None
-        return {**payload,'title':_words(fresh)[0][:180]} if fresh['kind']=='cheer' else payload
+        title,body=_push_words(fresh)
+        return {**payload,'title':title[:180],'body':body[:600]}
     return _deliver_native(r['user_id'],payload,prepare,send)
 
 
