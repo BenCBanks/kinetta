@@ -1,10 +1,10 @@
 """Operator-only portal APIs. No personal health records or provider credentials returned."""
 import datetime as dt, hashlib, json, os, secrets, uuid
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Literal
 from . import db, auth, api_account, api_social, admin_mail
-from .admin_auth import admin_user, audit, seal
+from .admin_auth import admin_user, audit, seal, mfa_required
 
 router=APIRouter(prefix='/api/admin')
 
@@ -15,13 +15,139 @@ def overview(user=Depends(admin_user)):
         counts=c.execute("SELECT (SELECT count(*) FROM users) AS accounts,(SELECT count(*) FROM users WHERE is_admin) AS administrators,(SELECT count(*) FROM beta_requests WHERE status='new') AS pending_requests,(SELECT count(*) FROM reports WHERE status='open') AS reports,(SELECT count(*) FROM imports WHERE status='failed' AND created>now()-interval '1 day') AS failed_imports,(SELECT count(*) FROM connections WHERE status LIKE 'sync failed:%%') AS connection_failures").fetchone()
         from . import signup
         signup_state=signup.state(c)       # mode and real accounts against the cap (#232)
-    return {**counts,'email':admin_mail.settings(),'signup':signup_state}
+    return {**counts,'email':admin_mail.settings(),'signup':signup_state,'mfa':mfa_required()}
+
+
+# ---------- finding and supporting people (#233, 2026-10-24) ----------
+# Support information only: never routes, workouts, food, weight, body details, messages or photos.
+STATUS="CASE WHEN u.suspended_at IS NOT NULL THEN 'suspended' WHEN u.needs_email_confirm THEN 'unconfirmed' ELSE 'active' END"
+PAGE=50
 
 
 @router.get('/people')
-def people(user=Depends(admin_user)):
+def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',status:Literal['','active','unconfirmed','suspended']='',
+           tests:bool=False,page:int=Query(1,ge=1,le=1000),user=Depends(admin_user)):
+    where,args=['TRUE'],{'limit':PAGE,'offset':(page-1)*PAGE}
+    if q.strip():
+        where.append('(u.name ILIKE %(m)s OR u.login ILIKE %(m)s OR u.email ILIKE %(m)s)')
+        args['m']='%'+q.strip().replace('\\','\\\\').replace('%','\\%').replace('_','\\_')+'%'
+    if role:where.append('u.is_admin' if role=='admin' else 'NOT u.is_admin')
+    if status:where.append(f'{STATUS} = %(status)s');args['status']=status
+    if not tests:where.append("u.login NOT LIKE 'zz\\_test%%'")
+    w=' AND '.join(where)
     with db.connect() as c:
-        return c.execute("SELECT u.id,u.login::text AS login,u.name,u.created,u.is_admin,EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled FROM users u ORDER BY u.created DESC LIMIT 1000").fetchall()
+        total=c.execute(f'SELECT count(*) AS n FROM users u WHERE {w}',args).fetchone()['n']
+        rows=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
+            u.is_admin,u.created,{STATUS} AS status,EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled,
+            (SELECT max(day) FROM admin_account_days d WHERE d.user_id=u.id) AS last_active,
+            (SELECT count(*) FROM reports r WHERE r.person=u.id AND r.status='open') AS open_reports
+            FROM users u WHERE {w} ORDER BY u.created DESC LIMIT %(limit)s OFFSET %(offset)s""",args).fetchall()
+    return {'total':total,'page':page,'pages':max(1,-(-total//PAGE)),'rows':rows}
+
+
+def device(agent):
+    """A rough device description from a browser's own label; IP addresses are never kept."""
+    a=agent or ''
+    where='iPhone' if 'iPhone' in a or 'iPad' in a else 'Android' if 'Android' in a else 'Mac' if 'Macintosh' in a else 'Windows' if 'Windows' in a else 'Other'
+    if where=='iPhone' and 'Safari' not in a:return 'iPhone app'
+    what='Edge' if 'Edg/' in a else 'Chrome' if 'Chrome' in a or 'CriOS' in a else 'Firefox' if 'Firefox' in a or 'FxiOS' in a else 'Safari' if 'Safari' in a else 'browser'
+    return f'{where} · {what}'
+
+
+def _person(c,uid):
+    p=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
+        u.is_admin,u.created,{STATUS} AS status,u.suspended_at,u.suspended_reason,
+        EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled FROM users u WHERE u.id=%s""",(uid,)).fetchone()
+    if not p:raise HTTPException(404,'Account not found.')
+    return p
+
+
+@router.get('/people/{uid}')
+def person(uid:int,user=Depends(admin_user)):
+    with db.connect() as c:
+        p=_person(c,uid)
+        p['last_active']=c.execute('SELECT max(day) AS d FROM admin_account_days WHERE user_id=%s',(uid,)).fetchone()['d']
+        p['active_days_30']=c.execute("SELECT count(*) AS n FROM admin_account_days WHERE user_id=%s AND day>current_date-30",(uid,)).fetchone()['n']
+        p['devices']=[{'device':device(r['agent']),'signed_in':r['created'],'last_used':r['last_seen']} for r in
+                      c.execute('SELECT agent,created,last_seen FROM sessions WHERE user_id=%s ORDER BY last_seen DESC',(uid,)).fetchall()]
+        p['connections']=c.execute('SELECT kind,status,last_sync,last_count FROM connections WHERE user_id=%s ORDER BY kind',(uid,)).fetchall()
+        p['imports']=c.execute('SELECT status,created,added,failed FROM imports WHERE user_id=%s ORDER BY created DESC LIMIT 5',(uid,)).fetchall()
+        p['counts']=c.execute("""SELECT (SELECT count(*) FROM activities WHERE user_id=%(u)s) AS activities,
+            (SELECT count(*) FROM food_entries WHERE user_id=%(u)s) AS food_entries,
+            (SELECT count(*) FROM activity_photos WHERE user_id=%(u)s) AS photos,
+            (SELECT coalesce(sum(requests),0) FROM ai_daily_usage WHERE user_id=%(u)s AND day>=date_trunc('month',current_date)) AS ai_requests_this_month,
+            (SELECT count(*) FROM reports WHERE reporter=%(u)s) AS reports_filed""",{'u':uid}).fetchone()
+        p['reports']=c.execute('SELECT id,what,reason,status,created FROM reports WHERE person=%s ORDER BY created DESC LIMIT 20',(uid,)).fetchall()
+        p['invited']=c.execute('SELECT i.note,i.used_at,u.name AS by FROM invites i LEFT JOIN users u ON u.id=i.created_by WHERE i.used_by=%s',(uid,)).fetchone()
+        p['audit']=c.execute("""SELECT a.action,a.created,u.login::text AS by FROM admin_audit a LEFT JOIN users u ON u.id=a.actor_id
+            WHERE a.target=%s ORDER BY a.created DESC LIMIT 20""",(str(uid),)).fetchall()
+    return p
+
+
+class PersonAction(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    confirm:str=Field(max_length=30)
+    reason:str|None=Field(None,max_length=300)
+
+
+def _target(c,uid,body,user,members_only=True):
+    p=_person(c,uid)
+    if body.confirm!=p['login']:raise HTTPException(400,'Type the account username exactly.')
+    if members_only and (p['is_admin'] or p['id']==user['id']):raise HTTPException(409,'Change the administrator role first.')
+    return p
+
+
+@router.post('/people/{uid}/signout')
+def sign_out_everywhere(uid:int,body:PersonAction,user=Depends(admin_user)):
+    """After a lost phone or a suspected break-in: every web, iPhone app and portal session of that account ends."""
+    with db.connect() as c:
+        p=_target(c,uid,body,user,members_only=False)
+        for t in ('sessions','admin_sessions','admin_challenges'):c.execute(f'DELETE FROM {t} WHERE user_id=%s',(uid,))
+        audit(c,user['id'],'account.sign_out_everywhere',uid)
+    return {'ok':True}
+
+
+@router.post('/people/{uid}/reset-email')
+def reset_email(uid:int,body:PersonAction,background:BackgroundTasks,user=Depends(admin_user)):
+    """Emails the person their own reset link, so no administrator ever chooses or knows their password."""
+    from . import account_email
+    with db.connect() as c:
+        p=_target(c,uid,body,user)
+        if not p['email_confirmed']:raise HTTPException(409,'This account has no confirmed email. Use Reset password instead.')
+        if not account_email.mail_ready():raise HTTPException(503,'Email isn’t set up on this server.')
+        account_email.send_reset(background,c,p,by_admin=True)
+        audit(c,user['id'],'account.reset_email',uid)
+    return {'ok':True}
+
+
+@router.post('/people/{uid}/suspend')
+def suspend(uid:int,body:PersonAction,background:BackgroundTasks,user=Depends(admin_user)):
+    """Stops sign-in and hides the account from everyone else while a report is looked into; nothing is deleted."""
+    from . import account_email
+    reason=(body.reason or '').strip()
+    if not reason:raise HTTPException(400,'Write a short private reason.')
+    with db.connect() as c:
+        p=_target(c,uid,body,user)
+        if p['status']=='suspended':return {'ok':True}
+        c.execute('UPDATE users SET suspended_at=now(),suspended_reason=%s WHERE id=%s',(reason,uid))
+        for t in ('sessions','admin_sessions','admin_challenges'):c.execute(f'DELETE FROM {t} WHERE user_id=%s',(uid,))
+        audit(c,user['id'],'account.suspend',uid)
+    if p['email_confirmed']:background.add_task(account_email.send,p['email'],'Your Kinetta account is suspended',
+        f"Hi {p['name']},\n\nYour Kinetta account ({p['login']}) has been suspended, so you can't log in for now and other "
+        "people can't see your activities. Nothing has been deleted. To ask about it, reply to this email.")
+    return {'ok':True}
+
+
+@router.post('/people/{uid}/restore')
+def restore(uid:int,body:PersonAction,background:BackgroundTasks,user=Depends(admin_user)):
+    from . import account_email
+    with db.connect() as c:
+        p=_target(c,uid,body,user)
+        c.execute('UPDATE users SET suspended_at=NULL,suspended_reason=NULL WHERE id=%s',(uid,))
+        audit(c,user['id'],'account.restore',uid)
+    if p['status']=='suspended' and p['email_confirmed']:background.add_task(account_email.send,p['email'],'Your Kinetta account is back',
+        f"Hi {p['name']},\n\nYour Kinetta account ({p['login']}) is active again. You can log in as usual.")
+    return {'ok':True}
 
 
 class RoleIn(BaseModel):

@@ -8,7 +8,7 @@ from . import db
 ph = PasswordHasher()
 COOKIE = 'fit_session'
 SESSION_DAYS = 180          # phones stay logged in; logging out ends it
-_fails = {}                 # (ip, login) -> [times]  simple brute-force brake
+# failed sign-in attempts are counted in the database (auth_attempts), so the limits survive restarts (2026-10-24)
 
 def hash_pw(pw): return ph.hash(pw)
 
@@ -44,22 +44,31 @@ def client_ip(request):
     return (cf or (request.client.host if request.client else '')).strip()[:64]
 
 
-def _recent(key, now):
-    _fails[key] = [t for t in _fails.get(key, []) if now - t < WINDOW]
-    return len(_fails[key])
+class Failed(Exception):
+    """A wrong password or code: raised inside a transaction and counted with failed() only after that connection is
+    released, so a burst of wrong passwords can't tie up the small connection pool waiting for a second connection."""
+    def __init__(self, status, message): super().__init__(message); self.status, self.message = status, message
+
+
+def _keys(ip, login):
+    login = (login or '').lower()
+    return ('fail:pair:' + ip + ':' + login, 'fail:ip:' + ip, 'fail:login:' + login)
 
 
 def too_many(ip, login):
-    now = time.time(); login = login.lower()
-    if len(_fails) > 5000:      # forget old entries so this never grows without limit
-        for key in [x for x, ts in _fails.items() if not ts or now - ts[-1] > WINDOW]: _fails.pop(key, None)
-    return (_recent((ip, login), now) >= PER_PAIR or _recent(('ip', ip), now) >= PER_IP
-            or _recent(('login', login), now) >= PER_LOGIN)
+    pair, by_ip, by_login = _keys(ip, login)
+    with db.connect() as c:
+        r = c.execute("""SELECT count(*) FILTER (WHERE key = %s) AS pair, count(*) FILTER (WHERE key = %s) AS ip,
+                                count(*) FILTER (WHERE key = %s) AS login
+                         FROM auth_attempts WHERE key IN (%s, %s, %s) AND created > now() - %s * interval '1 second'""",
+                      (pair, by_ip, by_login, pair, by_ip, by_login, WINDOW)).fetchone()
+    return r['pair'] >= PER_PAIR or r['ip'] >= PER_IP or r['login'] >= PER_LOGIN
 
 
 def failed(ip, login):
-    now = time.time(); login = login.lower()
-    for key in ((ip, login), ('ip', ip), ('login', login)): _fails.setdefault(key, []).append(now)
+    with db.connect() as c:
+        c.execute("DELETE FROM auth_attempts WHERE created < now() - interval '1 day'")
+        for key in _keys(ip, login): c.execute('INSERT INTO auth_attempts (key) VALUES (%s)', (key,))
 
 
 # New passwords: at least 10 characters, not one of the passwords every attacker tries first, not the username.
@@ -111,7 +120,7 @@ def current_user(request: Request):
     with db.connect() as c:
         row = c.execute(f"""SELECT u.id, u.login::text AS login, u.name, u.is_admin, u.photo_v, s.last_seen < now() - interval '1 hour' AS stale
             FROM sessions s JOIN users u ON u.id = s.user_id
-            WHERE s.token_hash = %s AND s.last_seen > now() - interval '{SESSION_DAYS} days'""", (_h(token),)).fetchone()
+            WHERE s.token_hash = %s AND s.last_seen > now() - interval '{SESSION_DAYS} days' AND u.suspended_at IS NULL""", (_h(token),)).fetchone()
         if not row: raise HTTPException(401, 'Not logged in')
         expected = request.headers.get('x-kinetta-account')
         if expected is not None and expected != str(row['id']):

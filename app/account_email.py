@@ -143,16 +143,21 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
     with db.connect() as c:
         if limited(c, 'forgot-ip:' + auth.client_ip(request), 10, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         col = 'email' if '@' in who else 'login'
-        u = c.execute(f'SELECT id, name, login::text AS login, email FROM users WHERE {col} = %s AND email_verified_at IS NOT NULL',
+        u = c.execute(f'SELECT id, name, login::text AS login, email FROM users WHERE {col} = %s AND email_verified_at IS NOT NULL AND suspended_at IS NULL',
                       (who,)).fetchone()
         # at most 3 links an hour per account, without telling the asker whether that's why nothing arrived
-        if u and not limited(c, f"forgot:{u['id']}", 3, 60) and mail_ready():
-            token = _token(c, u['id'], 'reset_password', RESET_MINUTES)
-            background.add_task(send, u['email'], 'Reset your Kinetta password',
-                f"Hi {u['name']},\n\nSomeone asked to reset the password for your Kinetta account ({u['login']}). "
-                f"To choose a new one, open this link:\n{_base()}/reset-password/{token}\n\n"
-                f"It works once and expires in {RESET_MINUTES} minutes. If you didn't ask, ignore this email; your password stays the same.")
+        if u and not limited(c, f"forgot:{u['id']}", 3, 60) and mail_ready(): send_reset(background, c, u)
     return {'ok': True, 'message': SENT}
+
+
+def send_reset(background, c, u, by_admin=False):
+    """A single-use reset link to the account's confirmed email (u: id, name, login, email)."""
+    token = _token(c, u['id'], 'reset_password', RESET_MINUTES)
+    who = 'The person who runs Kinetta sent you' if by_admin else 'Someone asked for'
+    background.add_task(send, u['email'], 'Reset your Kinetta password',
+        f"Hi {u['name']},\n\n{who} a link to reset the password for your Kinetta account ({u['login']}). "
+        f"To choose a new one, open this link:\n{_base()}/reset-password/{token}\n\n"
+        f"It works once and expires in {RESET_MINUTES} minutes. If you didn't ask, ignore this email; your password stays the same.")
 
 
 class ResetIn(BaseModel):

@@ -1328,6 +1328,10 @@ MIGRATIONS = [
     # confirmed (api_social.unconfirmed). Invited and existing accounts are unaffected (false).
     """ALTER TABLE users ADD COLUMN needs_email_confirm boolean NOT NULL DEFAULT false;
     """,
+    # 69 (2026-10-24): an administrator can suspend an account while looking into a report (#233). A suspended person
+    # can't log in and is hidden from others like an unconfirmed signup; their data is kept until restored or removed.
+    """ALTER TABLE users ADD COLUMN suspended_at timestamptz, ADD COLUMN suspended_reason text;
+    """,
 ]
 
 

@@ -113,8 +113,10 @@ def login(body: Credentials, request: Request, response: Response):
     if auth.too_many(ip,key): raise HTTPException(429,'Too many attempts. Try again in 15 minutes.')
     with db.connect() as c:
         u=c.execute('SELECT id,is_admin,pw_hash FROM users WHERE login=%s',(body.login.strip(),)).fetchone()
-        if not auth.check_pw(u['pw_hash'] if u else None,body.password) or not u or not u['is_admin']:
-            auth.failed(ip,key); raise HTTPException(401,'Admin sign-in failed.')
+        wrong=not auth.check_pw(u['pw_hash'] if u else None,body.password) or not u or not u['is_admin']
+    if wrong:      # counted after the connection is released (auth.Failed)
+        auth.failed(ip,key); raise HTTPException(401,'Admin sign-in failed.')
+    with db.connect() as c:
         if not mfa_required():
             # Owner's choice for this server (KINETTA_ADMIN_MFA=off): the admin password alone opens a portal session.
             c.execute('DELETE FROM admin_attempts WHERE key = ANY(%s)',([attempt_key(request,'password')],))

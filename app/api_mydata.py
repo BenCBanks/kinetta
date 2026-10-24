@@ -187,17 +187,19 @@ class DeleteIn(BaseModel):
 def delete_account(body: DeleteIn, request: Request, response: Response, user=Depends(current_user)):
     ip = auth.client_ip(request)
     if auth.too_many(ip, user['login']): raise HTTPException(429, 'Too many tries - wait 15 minutes')
-    with db.connect() as c:
-        c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
-        me = c.execute('SELECT id, login::text AS login, is_admin, sql_role, pw_hash FROM users WHERE id = %s', (user['id'],)).fetchone()
-        if not auth.check_pw(me['pw_hash'], body.password):
-            auth.failed(ip, user['login'])
-            raise HTTPException(400, 'Password is wrong')
-        if me['is_admin'] and not c.execute('SELECT 1 FROM users WHERE is_admin AND id <> %s', (me['id'],)).fetchone() \
-                and c.execute('SELECT 1 FROM users WHERE id <> %s', (me['id'],)).fetchone():
-            raise HTTPException(400, "You're the admin and other people use this Kinetta, so this account can't be deleted here")
-        garmin = garmin_connect._settings(c, me['id'])
-        erase(c, me)
+    try:
+        with db.connect() as c:
+            c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
+            me = c.execute('SELECT id, login::text AS login, is_admin, sql_role, pw_hash FROM users WHERE id = %s', (user['id'],)).fetchone()
+            if not auth.check_pw(me['pw_hash'], body.password):
+                raise auth.Failed(400, 'Password is wrong')
+            if me['is_admin'] and not c.execute('SELECT 1 FROM users WHERE is_admin AND id <> %s', (me['id'],)).fetchone() \
+                    and c.execute('SELECT 1 FROM users WHERE id <> %s', (me['id'],)).fetchone():
+                raise HTTPException(400, "You're the admin and other people use this Kinetta, so this account can't be deleted here")
+            garmin = garmin_connect._settings(c, me['id'])
+            erase(c, me)
+    except auth.Failed as e:
+        auth.failed(ip, user['login']); raise HTTPException(e.status, e.message)
     erase_files(me['id'])
     if garmin: garmin_connect.deregister(garmin)     # after the account is gone; Garmin stops sending its data
     response.delete_cookie(auth.COOKIE, path='/')
