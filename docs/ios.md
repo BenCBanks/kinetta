@@ -1,8 +1,7 @@
 # The Kinetta iPhone app
 
 The iPhone app is the same Kinetta you use in Safari, inside a real app, so it can read **Apple Health**. Garmin, Apple
-Watch, Coros, Wahoo, Strava and most other apps write their workouts to Apple Health, so once you connect it, your
-workouts show up in Kinetta without uploading files.
+Watch and other apps can make workouts available through Apple Health. Once you connect, Kinetta imports the data those sources actually write and you allow it to read. The iPhone app omits file imports; use a browser for original files or a Strava export.
 
 For the owner steps, remaining engineering work and approval prospects, start with [External beta readiness](beta-readiness.md).
 
@@ -13,12 +12,14 @@ can be signed and uploaded automatically.
 
 ## What the app does today
 
-- **Log in.** The app signs in to `https://login.kinetta.app`. (Developers can point a build at a test server; it
-  must be on `https://`, because iPhones don't let apps talk to plain `http://` addresses.)
-- **Me > Apple Health.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
+- **Sign up or log in.** The app uses `https://login.kinetta.app`. Create an account and Forgot password work inside the app. The hosted service has open sign-up with a 100-account cap; when full, the app offers the waitlist. Other installations choose their own sign-up mode and cap. New members confirm their email before appearing to others or using social actions.
+  Developers can point a build at a test server; it must use `https://`.
+- **Welcome.** New accounts see four optional steps: profile, activity audience, bring in workouts and find friends. Skip/Not now do not save pending name, bio or audience edits, or undo actions already confirmed (such as a photo upload or friend request). Me leads with Get started and hides the empty chart until activity or food history exists.
+- **Account safety.** Settings → Signed-in devices lists device labels and sign-in dates, without IP addresses. Sign out one other login or all others; use Log out for this one. Settings → Notifications controls New sign-in emails, on by default for confirmed addresses when mail is available. The first device and known device types are silent.
+- **Settings → Connections → Apple Health.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
   permission sheet. Optional weight reading and nutrition writing have separate controls, described below.
 - **Sync.** The first sync brings in the last 30 days ("Also bring in the past year" goes further back). After that,
-  the app sends new workouts whenever it's opened or brought back to the front. The native background component also watches HealthKit changes, saves pending workout IDs and retries unacknowledged uploads independently of the web view. iOS decides when it can run; delivery can be delayed while locked or after force-quitting. This implementation still requires a Mac build and signed physical-device acceptance before release. Failed ranges stay queued for the next sync, including a failed past-year import. The Apple Health screen shows the latest attempt and any error. Connecting is specific to your account and server; logging out stops sync and clears that connection. Each workout is sent with Apple
+  the app sends new workouts whenever it's opened or brought back to the front. The native background component also watches HealthKit changes, saves pending workout IDs and retries unacknowledged uploads independently of the web view. iOS decides when it can run; delivery can be delayed while locked or after force-quitting. The native component has passed Mac builds and a TestFlight upload; physical-device background delivery acceptance remains pending. Failed ranges stay queued for the next sync, including a failed past-year import. The Apple Health screen shows the latest attempt and any error. Connecting is specific to your account and server; logging out stops sync and clears that connection. Each workout is sent with Apple
   Health's own id for it, so a workout sent twice is stored once. A workout that's already in Kinetta from somewhere
   else (a Garmin file, a Strava export) isn't added again either.
 - **Kit AI consent.** Kit reads Apple Health workouts only after you tick "Let Kit read my Apple
@@ -29,13 +30,13 @@ can be signed and uploaded automatically.
 
 1. **The app and Apple Health permission** (done in this first piece): the shell around `app/static`, the permission
    screen, syncing when the app is open, the server endpoint, and a build on GitHub's Mac computers for every change.
-2. **TestFlight** (ready, waiting for the Apple setup below): the `testflight` job in `.github/workflows/ios.yml` signs
+2. **TestFlight** (workflow implemented; new installations need the Apple setup below): the `testflight` job in `.github/workflows/ios.yml` signs
    the app with Apple's own cloud signing and uploads it. Build numbers count up by themselves. Already in place for
    Apple's checks: a privacy manifest (`mobile/ios/App/App/PrivacyInfo.xcprivacy`), the "no special encryption"
    answer, the Apple Health permission texts, the 1024-pixel icon, delete-my-account in the app and the privacy policy
    at https://kinetta.app/privacy.
 3. **Background sync**: native observer, anchored reads and a durable per-account queue have merged and passed Mac builds and a TestFlight upload. Complete the physical-device checklist below before declaring background delivery reliable.
-4. **More from Apple Health**: weight, resting heart rate and sleep.
+4. **More from Apple Health**: optional weight and Resting Energy reads are implemented with separate permissions; physical-device acceptance remains pending. Resting heart rate and sleep remain planned.
 5. **App Store**: screenshots and a demo account for Apple's reviewers (see "Before outside testers" below).
 6. **Android** (Health Connect) after that. The Health plugin already supports it.
 
@@ -81,7 +82,7 @@ Do these in order. Nothing here costs money except the membership.
      your App Store Connect team (**Users and Access > +**, role "Customer Support"). New builds reach them at once.
    - **Beta testers (external testing, with a public link):** **TestFlight > External Testing > +**, group `Beta`,
      then add a build. The first build of each version goes through Apple's short beta review (usually a day). Then
-     turn on **Public Link** and send that link with each tester's Kinetta invite: they tap it, install TestFlight,
+     turn on **Public Link** and share that link separately from Kinetta account access: they tap it, install TestFlight,
      and install Kinetta. Up to 10,000 people, no Apple team accounts needed.
    - Beta review asks for **Test Information**: a sentence on what to test, your contact details, and a **sign-in for
      the reviewer** (see below).
@@ -122,16 +123,22 @@ if offered. See [Apple's external testing guide](https://developer.apple.com/hel
 ## Before outside testers or the App Store
 
 Already done: the **privacy policy URL** (https://kinetta.app/privacy, which covers Apple Health), **delete my account**
-inside the app (Me > Your data), and **download my data**.
+inside the app (Me → Settings & account → Your data), and **download my data**.
 
 Still to do when you submit:
 - **A sign-in for Apple's reviewer** on login.kinetta.app, with some made-up workouts and food in it. Before making it,
   remember that "Everyone" on a shared server means every account there, reviewer included: activities testers share
-  with *Everyone* would be visible to it (activities are *Only me* unless a person changes that).
+  with *Everyone* would be visible to it (new accounts default to *Everyone on Kinetta*, with a choice in welcome, Settings → Sharing, and before saving a recording; existing activities retain their audience).
 - **Screenshots** at 6.9-inch iPhone size (1320 x 2868). The app is iPhone-only, so no iPad screenshots are needed.
 - **Support URL**: https://kinetta.app works. **Marketing URL**: optional.
 - **Age rating** questionnaire: no objectionable content; friends can comment on each other's activities, so answer
   yes to "user-generated content" if asked.
+
+## Recording with this iPhone
+
+Track records outdoor GPS independently of the web screen, including while locked or using another app. Review the audience before Save; recordings use that choice, not an unconditional private default. The main number is pace over the last 30 seconds (speed for rides and skiing), with average and last mile/km underneath. Small GPS movements within the accuracy threshold do not add distance; GPS remains approximate.
+
+Say my time every mile/km starts on, following account units. Native speech is configured for locked-screen cues and dips music while speaking; real locked-pocket behavior still needs acceptance. Auto-pause starts on for runs, walks and hikes and off for rides. After 15 seconds without counted movement, active time holds without jumping backwards, then resumes when you move. Voice is remembered per account on this device; auto-pause also remembers the sport. No Lock Screen Live Activity is implemented. See [recording details](activity-tracking.md) and the [physical-iPhone acceptance checklist](activity-acceptance.md).
 
 ## For developers
 
@@ -168,7 +175,7 @@ The signing workflow checks that its API key can read the `com.kinetta.app` app 
 
 Kinetta rereads the recent overlap when opened and queues native detail refreshes without advancing the new-workout anchor. A known Health UUID can enrich its existing activity with a later route, heart rate or recorded metrics. Empty retries preserve fuller recordings. Compatible imports from another source can gain missing details while keeping their title, sharing, gear and existing summary values. Legacy installed apps still receive `added`/`duplicate` acknowledgements; the API separately reports `details_updated` and an `updated` count.
 
-A compatible original workout file arriving after a Health summary can also fill in its route and signals on the same activity. Duplicate matching checks sport and duration as well as time/distance; enrichment applies a tighter distance check. Dense but incomplete recordings do not replace recordings covering the full workout.
+A compatible original workout file arriving after a Health summary can also fill in its route and signals on the same activity. For a phone recording paired with an import, matching uses at least 80% overlap of the longer workout, in either order, without requiring the same sport label. A short run inside a long hike stays separate. Other imports use sport, duration and time/distance checks; file enrichment applies a tighter distance check. Dense but incomplete recordings do not replace recordings covering the full workout.
 
 Additional read permission is requested only through Connect or Change what Kinetta can read. Native statistics include steps, elevation, running power/speed/stride/vertical oscillation/ground contact time (supported on iOS 16+) and cycling power/speed/cadence (iOS 17+), when the recording provides them. Aggregate values do not invent time-series charts. Stored running stride/vertical oscillation use millimetres, ground contact uses milliseconds, speed uses metres per second and power uses watts.
 
