@@ -37,6 +37,18 @@ original recording is included in your data export. Shared feed/profile map prev
 single-section geometry (longest continuous section); they never receive the raw private recording file. Corrected
 motion summaries continue hiding original map/record data until restored.
 
+**Distance and GPS wobble.** GPS positions wander by a few metres even when you stand still. Only fixes accurate to
+about ±25 m count toward distance (less accurate ones still draw the map), and distance is added only once you've moved
+further from the last counted point than the GPS's own error (at least 5 m). Standing at a crossing therefore adds
+nothing. The web recorder, the iPhone recorder and the server use the same rule, checked against the shared fictional
+fixes in `dev/tests/fixtures/gps_filter.json`, so the number you watch while recording is the number that's saved.
+
+**Phone and watch at the same time.** If you record on the phone while your watch also records (through Apple Health,
+Garmin Connect or a file), Kinetta keeps one activity. The two count as the same workout when at least 80% of the longer
+one overlaps the other, whatever sport each calls it and however far apart they started. Whichever arrives second merges
+into the first: your title, notes and sharing choice stay, and the watch's heart rate fills in. A short workout inside a
+much longer one (a run during a long hike) stays separate, and two phone recordings are never merged with each other.
+
 ## Verification and release
 
 Foundation Swift state/journal tests and browser-native stand-ins exercise recovery, gaps, account changes and

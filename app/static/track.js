@@ -6,6 +6,14 @@ const TrackMath = {
     const x = Math.sin(dlat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dlon / 2) ** 2;
     return 6371008.8 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(Math.max(0, 1 - x)));
   },
+  // Same distance rule as the server (analysis.track_step) and the iPhone recorder (#234 item 2): fixes worse than ±25 m
+  // draw the map but add nothing, and distance counts only once you've moved further than the GPS error.
+  step(anchor, p) {
+    if (p.accuracy > 25) return null;
+    if (!anchor) return 0;
+    const m = this.metres(anchor, p);
+    return m >= Math.max(5, anchor.accuracy, p.accuracy) ? m : null;
+  },
   accept(s, position, now) {
     const c = position.coords, t = (position.timestamp - s.start) / 1000;
     if (![c.latitude, c.longitude, c.accuracy, t].every(Number.isFinite) || c.accuracy > 100 || c.accuracy < 0 || Math.abs(c.latitude) > 90 || Math.abs(c.longitude) > 180 || t < 0 || position.timestamp < s.activeAt || position.timestamp > now + 1000 || now - position.timestamp > 15000) return false;
@@ -16,8 +24,10 @@ const TrackMath = {
       const dt = t - last.t, m = this.metres(last, p), max = {run: 12, walk: 4, hike: 4, ride: 30, swim: 4, row: 8, ski: 40}[s.sport] || 30;
       if (dt > 30) { s.segment++; p.segment = s.segment; }
       else if (m / dt > max) return false;
-      else s.distance += m;
     }
+    if (!s.anchor || s.anchor.segment !== p.segment) s.anchor = null;   // a new section never adds distance across the gap
+    const step = this.step(s.anchor, p);
+    if (step !== null) { s.distance += step; s.anchor = p; }
     s.points.push(p); return true;
   },
   seconds(s, now = Date.now()) { return s.activeMs / 1000 + (s.state === 'recording' ? Math.max(0, now - s.activeAt) / 1000 : 0); },

@@ -20,3 +20,11 @@ assert(m.accept(s, p(20, 61), 1061000)); assert.equal(s.distance, d, 'no distanc
 assert.equal(m.seconds(s, 1065000), 10);
 s.state = 'paused'; assert.equal(m.seconds(s, 9999000), 5, 'paused timer cannot count wall time');
 console.log('PASS recorder GPS quality, continuity, timestamps and timer');
+// The shared distance filter (#234 item 2): the same fictional fixes the server and iPhone tests use.
+for (const [name, c] of Object.entries(JSON.parse(fs.readFileSync('dev/tests/fixtures/gps_filter.json', 'utf8')).cases)) {
+  const r = {start: 0, activeAt: 0, activeMs: 0, state: 'recording', sport: c.sport, segment: 0, points: [], distance: 0};
+  for (const f of c.points) assert(m.accept(r, {coords: {latitude: f.lat, longitude: f.lon, accuracy: f.accuracy}, timestamp: f.t * 1000}, f.t * 1000), name + ' fix accepted');
+  assert(r.distance >= c.expect[0] && r.distance <= c.expect[1], `${name}: ${r.distance.toFixed(1)} m outside ${c.expect}`);
+  assert.equal(r.points.length, c.points.length, name + ': every fix still draws the map');
+}
+console.log('PASS recorder distance filter: 1 km run, 3-minute stand-still, walk with a stop, ride with poor signal');

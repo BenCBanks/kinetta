@@ -27,4 +27,13 @@ check(try files.load(owner:"fictional-account")!.points.count==5,"resume repairs
 do { _ = try files.load(owner:"other-account");fatalError("cross-account read") } catch {}
 try files.clear();check(try files.load(owner:"fictional-account")==nil,"clear")
 try FileManager.default.removeItem(at:folder)
+// The shared distance filter (#234 item 2): the same fictional fixes the server and web tests use.
+struct Fixture: Decodable { struct Case: Decodable { let sport: String; let expect: [Double]; let points: [TrackFix] }; let cases: [String: Case] }
+let fixture=try JSONDecoder().decode(Fixture.self,from:Data(contentsOf:URL(fileURLWithPath:"../dev/tests/fixtures/gps_filter.json")))
+for (name,c) in fixture.cases {
+    var r=TrackRecordingState(owner:"fictional-account",id:UUID().uuidString,sport:c.sport,label:name,gps:true,start:0,activeAt:0,checkpoint:0)
+    for f in c.points { check(r.accept(lat:f.lat,lon:f.lon,accuracy:f.accuracy,timestamp:f.t*1000,now:f.t*1000) != nil,"\(name) fix accepted") }
+    check(r.distance>=c.expect[0] && r.distance<=c.expect[1],"\(name): \(r.distance) m outside \(c.expect)")
+    check(TrackRecordingState.distance(of:r.points).0==r.distance,"\(name): restored distance matches live")
+}
 print("PASS native tracking state: GPS quality, pause/gaps, durable journal, interrupted recovery and account isolation")

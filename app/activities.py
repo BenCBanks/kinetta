@@ -49,13 +49,32 @@ def profile_of(c, user_id):
     return p
 
 
-def find_duplicate(c, user_id, start, distance_m, sport=None, elapsed_s=None):
-    rows = c.execute("""SELECT id, start_time, distance_m, elapsed_s, sport, auto_name, source, summary_original, summary_overrides FROM activities WHERE user_id = %s
-                        AND start_time BETWEEN %s AND %s""",
-                     (user_id, start - dt.timedelta(minutes=2), start + dt.timedelta(minutes=2))).fetchall()
+def overlap(a_start, a_len, b_start, b_len):
+    """The share of the longer workout that both cover (0 to 1): a short run inside a long hike is not the same workout."""
+    if not a_len or not b_len: return 0.0
+    a_end, b_end = a_start + dt.timedelta(seconds=float(a_len)), b_start + dt.timedelta(seconds=float(b_len))
+    shared = (min(a_end, b_end) - max(a_start, b_start)).total_seconds()
+    return max(0.0, shared) / max(float(a_len), float(b_len))
+
+
+PHONE_OVERLAP = 0.8
+
+
+def find_duplicate(c, user_id, start, distance_m, sport=None, elapsed_s=None, source=None):
+    # Phone recording + the same workout from a watch (#234 item 3): one activity when 80% of the longer one overlaps the
+    # other, whatever the sport label or start gap. Two phone recordings are never merged with each other.
+    window = (start - dt.timedelta(minutes=2), start + dt.timedelta(minutes=2))
+    rows = c.execute("""SELECT id, start_time, distance_m, elapsed_s, sport, auto_name, source, summary_original, summary_overrides FROM activities WHERE user_id = %(u)s
+                        AND (start_time BETWEEN %(a)s AND %(b)s OR (%(len)s::float8 IS NOT NULL AND elapsed_s IS NOT NULL
+                             AND start_time < %(s)s + %(len)s::float8 * interval '1 second' AND start_time + elapsed_s * interval '1 second' > %(s)s))
+                        ORDER BY abs(extract(epoch FROM start_time - %(s)s))""",
+                     {'u': user_id, 'a': window[0], 'b': window[1], 's': start, 'len': elapsed_s}).fetchall()
     from . import activity_corrections as corrections
     for r in rows:
         r=corrections.original(r)
+        if (source == 'track') != (r['source'] == 'track') and overlap(start, elapsed_s, r['start_time'], r['elapsed_s']) >= PHONE_OVERLAP:
+            return r
+        if source == 'track' or not (window[0] <= r['start_time'] <= window[1]): continue
         if sport and sport != r['sport']: continue
         if elapsed_s and r['elapsed_s'] and abs(elapsed_s - r['elapsed_s']) > max(120, r['elapsed_s'] * .1): continue
         if r['distance_m'] is None and elapsed_s and r['elapsed_s'] and abs((r['start_time']-start).total_seconds())<=30:return r
@@ -102,9 +121,10 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connect
                            zones=json.dumps(summ['zones']) if summ.get('zones') else None)
             merged = api_lifts.merge_watch(c, user_id, start, start + dt.timedelta(seconds=float(secs)), numbers)
             if merged: return 'updated', merged
-        dup = None if source in ('lift', 'track') else find_duplicate(c, user_id, start, summ.get('distance_m'), sport, summ.get('elapsed_s'))   # a session started here is always new
+        # a phone recording is new unless a watch already recorded the same workout (#234 item 3)
+        dup = None if source == 'lift' else find_duplicate(c, user_id, start, summ.get('distance_m'), sport, summ.get('elapsed_s'), source)
         if dup:
-            richer = enrich_file(c, user_id, dup['id'], parsed, summ, sha, path) if raw is not None else False
+            richer = enrich_file(c, user_id, dup['id'], parsed, summ, sha, path) if raw is not None or dup['source'] == 'track' else False
             if meta.get('name') and dup['auto_name']:   # e.g. Garmin copy first, then Strava export brings the real title
                 c.execute("""UPDATE activities SET name = %s, auto_name = false, description = coalesce(description, %s),
                              private_note = coalesce(private_note, %s), strava_id = coalesce(strava_id, %s), updated = now()
@@ -193,11 +213,13 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
     """A full recording arriving after a Health summary supplies its missing route and signals."""
     from .parsers import STREAMS
     a = c.execute('SELECT * FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, uid)).fetchone()
-    if not a or not (a['source'] == 'healthkit' or a.get('healthkit_id')): return False
+    # also a phone recording that a watch recorded too (#234 item 3): the watch adds heart rate, the richer route wins
+    phone = a and a['source'] == 'track'
+    if not a or not (phone or a['source'] == 'healthkit' or a.get('healthkit_id')): return False
     from . import activity_corrections as corrections
     raw_a=a;a=corrections.original(a)
     x, y = a.get('distance_m') or 0, incoming_summary.get('distance_m') or 0
-    if x and y and min(x, y) / max(x, y) < .93: return False
+    if not phone and x and y and min(x, y) / max(x, y) < .93: return False
     old = c.execute('SELECT * FROM activity_streams WHERE activity_id = %s AND user_id = %s', (aid, uid)).fetchone() or {}
     old = {k: old.get(k) or [] for k in ('t',) + STREAMS}
     incoming = dict(parsed['streams'])
