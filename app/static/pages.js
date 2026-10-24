@@ -1611,14 +1611,21 @@ route(/^\/track\/import$/, 'track', async (el) => {
 });
 
 // Garmin Connect through Garmin's developer program: sign in at Garmin; new activities arrive after each watch sync.
+// No Sync now (2026-10-24): Garmin sends each new activity by itself, and these keys can't ask for older ones again.
+function garminNote(g){
+  const s=(g.status||'').replace(/^connected( - )?/,'');
+  const last=g.last_sync?` Last activity arrived ${esc(when(g.last_sync))}.`:'';
+  return s.includes('activity sharing is off')?'Activity sharing is off: turn on Activities for Kinetta in Garmin Connect, then reconnect here.'
+    :`New activities arrive by themselves after your watch syncs with Garmin Connect, usually within a few minutes.${last}`;
+}
 function garminCard(box,C,valid){
   const g=C.garmin_connect;if(!box)return;
   if(!(C.garmin_connect_available||g)){box.innerHTML='<div class="card"><h2>Garmin Connect</h2><p>Garmin Connect is not available for this account yet. You can use Apple Health or record activities in Kinetta.</p></div>';return;}
   box.innerHTML=`<div class="card"><h2>Garmin Connect</h2>
-    <p>${g?`<b>Connected.</b> ${esc(g.status||'')}${g.last_sync?' · '+esc(when(g.last_sync)):''}.`:'New Garmin activities arrive after your watch syncs, with maps and heart rate.'} For older history, ${Native.on?'import past workouts from Apple Health':'use Apple Health or import a Strava export in your browser'}.</p>
+    <p>${g?`<b>Connected.</b> ${garminNote(g)}`:'New Garmin activities arrive after your watch syncs, with maps and heart rate.'} For older history, ${Native.on?'import past workouts from Apple Health':'use Apple Health or import a Strava export in your browser'}.</p>
     ${g?`<label class="check"><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}> Let Kit read my Garmin activities</label>
     <p class="small muted">Off unless you say yes. Sends the activities Kit needs to ${esc(App.me.ai_provider||'the AI service')}. Garmin data is never used to train AI.</p>
-    <div class="actions"><button type="button" class="ghost" id="gc-sync">Sync now</button><button type="button" class="ghost danger" id="gc-off">Disconnect</button></div>`
+    <button type="button" class="linkbtn danger gc-off" id="gc-off">Disconnect Garmin</button>`
     :'<button type="button" class="primary wide" id="gc-on">Connect Garmin</button>'}</div>`;
   const on=$('#gc-on',box);if(on)on.onclick=async()=>{
     try{const r=await api('/api/connections/garmin-connect/start',json('POST',{native:Native.signInSheet}));if(!valid())return;
@@ -1627,7 +1634,6 @@ function garminCard(box,C,valid){
         const q=new URL(res.url).searchParams;toast(q.get('ok')==='1'?q.get('title'):`${q.get('title')}. ${q.get('text')}`);render();
       }else if(Native.on){window.open(r.url,'_blank');toast('Finish signing in at Garmin, then come back');}else location.href=r.url;}
     catch(x){toast(x.message);}};
-  const sy=$('#gc-sync',box);if(sy)sy.onclick=async()=>{try{await api('/api/connections/garmin-connect/sync',json('POST',{}));toast('Asked Garmin to resend recent activities, if your Garmin access supports it');}catch(x){toast(x.message);}};
   const off=$('#gc-off',box);if(off)off.onclick=async()=>{
     if(!confirm('Disconnect Garmin? New activities stop arriving. Activities already here stay until you delete them.'))return;
     try{await api('/api/connections/garmin_connect',{method:'DELETE'});toast('Garmin disconnected');if(valid())render();}catch(x){toast(x.message);}};
