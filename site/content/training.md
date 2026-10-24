@@ -32,7 +32,7 @@ Connected sources
 
 ## set-up-intervals-icu-or-health-auto-export-from-me-wat-8
 
-Garmin Connect or Health Auto Export bring in new workouts automatically.
+Health Auto Export brings in new workouts automatically. Garmin Connect is coming soon.
 
 ## apple-health-on-iphone-9
 
@@ -40,7 +40,7 @@ Apple Health on iPhone
 
 ## testflight-access-is-being-prepared-in-the-iphone-app--10
 
-Workouts sync from Apple Health, including Apple Watch routes.
+In the Kinetta iPhone app, workouts sync from Apple Health, including Apple Watch routes. The app is in TestFlight beta for invited testers.
 
 ## works-with-20
 
