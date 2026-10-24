@@ -102,9 +102,14 @@ async def guard(request: Request, call_next):
     # Through Cloudflare, plain http is answered with a redirect to https, so passwords never travel unencrypted.
     if request.headers.get('cf-connecting-ip') and request.headers.get('x-forwarded-proto', 'https') == 'http':
         return Response(status_code=308, headers={'Location': str(request.url.replace(scheme='https'))})
-    r = await call_next(request)
+    from starlette.concurrency import run_in_threadpool
+    try:
+        r = await call_next(request)
+    except Exception:
+        if request.url.path.startswith('/api/admin/'):
+            await run_in_threadpool(admin_support.rejected, request, 500)
+        raise
     if r.status_code>=400 and request.url.path.startswith('/api/admin/'):
-        from starlette.concurrency import run_in_threadpool
         await run_in_threadpool(admin_support.rejected, request, r.status_code)
     r.headers['X-Content-Type-Options'] = 'nosniff'
     r.headers['Referrer-Policy'] = 'same-origin'

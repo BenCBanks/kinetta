@@ -307,6 +307,17 @@ class Launch(unittest.TestCase):
         self.assertEqual(len(rows),1);self.assertEqual(rows[0]['kind'],'export')
         self.assertNotIn('actor_id',rows[0]);self.assertNotIn('user_id',rows[0])
 
+    def test_unhandled_action_failure_rolls_back_and_records_only_uncertain_metadata(self):
+        with db.connect() as c:c.execute("DELETE FROM admin_readiness WHERE check_key='capacity'")
+        c=TestClient(app,raise_server_exceptions=False);c.headers['Origin']='http://testserver'
+        c.cookies.set(admin_auth.COOKIE,self.token,path='/api');c.headers['X-Admin-CSRF']=admin_auth.csrf(self.token)
+        with patch('app.admin_readiness.complete',side_effect=RuntimeError('PRIVATE FAILURE CONTENT')):
+            r=c.post('/api/admin/readiness/capacity',json=action(passed=True,confirmed=True,observed_at=dt.datetime.now(dt.timezone.utc).isoformat()))
+        self.assertEqual(r.status_code,500)
+        with db.connect() as c:self.assertIsNone(c.execute("SELECT 1 FROM admin_readiness WHERE check_key='capacity'").fetchone())
+        rows=self.a.get('/api/admin/audit-history?outcome=uncertain&action=readiness.record').json()['items']
+        self.assertTrue(rows);self.assertNotIn('PRIVATE FAILURE CONTENT',str(rows))
+
     def test_same_retry_id_is_serialized(self):
         b=action(passed=True,confirmed=True,observed_at=dt.datetime.now(dt.timezone.utc).isoformat())
         def send(_):
