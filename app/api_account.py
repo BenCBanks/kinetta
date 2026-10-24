@@ -66,19 +66,21 @@ class PasswordIn(BaseModel):
 def set_password(body: PasswordIn, request: Request, background: BackgroundTasks, user=Depends(current_user)):
     ip = auth.client_ip(request)
     if auth.too_many(ip, user['login']): raise HTTPException(429, 'Too many tries - wait 15 minutes')
-    with db.connect() as c:
-        row = c.execute('SELECT pw_hash, email::text AS email FROM users WHERE id = %s', (user['id'],)).fetchone()
-        stored = row['pw_hash']
-        if not auth.check_pw(stored, body.current):
-            auth.failed(ip, user['login'])
-            raise HTTPException(400, 'Current password is wrong')
-        auth.check_new_password(body.new, user['login'])
-        c.execute('UPDATE users SET pw_hash = %s WHERE id = %s', (auth.hash_pw(body.new), user['id']))
-        c.execute('DELETE FROM admin_sessions WHERE user_id=%s',(user['id'],))
-        c.execute('DELETE FROM admin_challenges WHERE user_id=%s',(user['id'],))
-        # sign out everywhere else; this phone keeps its login
-        c.execute('DELETE FROM sessions WHERE user_id = %s AND token_hash <> %s',
-                  (user['id'], auth._h(auth.session_token(request) or '')))
+    try:
+        with db.connect() as c:
+            row = c.execute('SELECT pw_hash, email::text AS email FROM users WHERE id = %s', (user['id'],)).fetchone()
+            stored = row['pw_hash']
+            if not auth.check_pw(stored, body.current):
+                raise auth.Failed(400, 'Current password is wrong')
+            auth.check_new_password(body.new, user['login'])
+            c.execute('UPDATE users SET pw_hash = %s WHERE id = %s', (auth.hash_pw(body.new), user['id']))
+            c.execute('DELETE FROM admin_sessions WHERE user_id=%s',(user['id'],))
+            c.execute('DELETE FROM admin_challenges WHERE user_id=%s',(user['id'],))
+            # sign out everywhere else; this phone keeps its login
+            c.execute('DELETE FROM sessions WHERE user_id = %s AND token_hash <> %s',
+                      (user['id'], auth._h(auth.session_token(request) or '')))
+    except auth.Failed as e:
+        auth.failed(ip, user['login']); raise HTTPException(e.status, e.message)
     from .account_email import password_changed
     password_changed(background, row['email'], user['name'], user['login'])
     return {'ok': True}
@@ -301,11 +303,13 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
     email = account_email._clean_email(body.email) if body.email and body.email.strip() else None
     ip = auth.client_ip(request)
     if auth.too_many(ip, 'join'): raise HTTPException(429, 'Too many tries - wait 15 minutes')
+    try:
+        with db.connect() as c:
+            inv = _open_invite(c, body.token, lock=True)      # 404 for a bad link: counted below, after this connection
+    except HTTPException:
+        auth.failed(ip, 'join'); raise
     with db.connect() as c:
-        try:
-            inv = _open_invite(c, body.token, lock=True)
-        except HTTPException:
-            auth.failed(ip, 'join'); raise
+        inv = _open_invite(c, body.token, lock=True)
         uid = _create(c, body)
         c.execute('UPDATE invites SET used_by = %s, used_at = now() WHERE id = %s', (uid, inv['id']))
         if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email)

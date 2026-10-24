@@ -134,16 +134,19 @@ def login(body: Login, request: Request, response: Response):
     ip = auth.client_ip(request)
     if auth.too_many(ip, body.login):
         raise HTTPException(429, 'Too many tries - wait 15 minutes')
-    with db.connect() as c:
-        # a username, or the account's confirmed email (2026-10-24)
-        who = body.login.strip()
-        u = c.execute(('SELECT id, name, pw_hash FROM users WHERE email = %s AND email_verified_at IS NOT NULL' if '@' in who
-                       else 'SELECT id, name, pw_hash FROM users WHERE login = %s'), (who,)).fetchone()
-        ok = auth.check_pw(u['pw_hash'] if u else None, body.password)   # always hash-checks (same timing)
-        if not u or not ok:
-            auth.failed(ip, body.login)
-            raise HTTPException(401, 'Wrong name or password')
-        token = auth.new_session(c, u['id'], request.headers.get('user-agent'),channel='app' if body.app else 'web')
+    try:
+        with db.connect() as c:
+            # a username, or the account's confirmed email (2026-10-24)
+            who = body.login.strip()
+            u = c.execute(('SELECT id, name, pw_hash, suspended_at FROM users WHERE email = %s AND email_verified_at IS NOT NULL' if '@' in who
+                           else 'SELECT id, name, pw_hash, suspended_at FROM users WHERE login = %s'), (who,)).fetchone()
+            ok = auth.check_pw(u['pw_hash'] if u else None, body.password)   # always hash-checks (same timing)
+            if not u or not ok: raise auth.Failed(401, 'Wrong name or password')
+            # said only after the right password, so it never reveals who has an account (#233)
+            if u['suspended_at']: raise HTTPException(403, 'This account is suspended. Reply to any email from Kinetta, or ask the person who runs it.')
+            token = auth.new_session(c, u['id'], request.headers.get('user-agent'),channel='app' if body.app else 'web')
+    except auth.Failed as e:
+        auth.failed(ip, body.login); raise HTTPException(e.status, e.message)
     if body.app: return {'ok': True, 'token': token}
     auth.set_cookie(request, response, token)
     return {'ok': True}

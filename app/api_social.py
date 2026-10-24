@@ -51,8 +51,9 @@ def blocked(who):
 
 # New sign-ups stay out of sight until they confirm their email (#232, 2026-10-24): others don't see their activities,
 # profile or name in search, and they can't send friend requests, comments or reactions. Keeps spam accounts quiet.
+# Accounts an administrator suspends (#233) are hidden the same way, including their past cheers and comments.
 def unconfirmed(who):
-    return f"EXISTS (SELECT 1 FROM users nu WHERE nu.id = {who} AND nu.needs_email_confirm)"
+    return f"EXISTS (SELECT 1 FROM users nu WHERE nu.id = {who} AND (nu.needs_email_confirm OR nu.suspended_at IS NOT NULL))"
 
 
 def confirmed(c, uid):
@@ -201,7 +202,7 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
         rows = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent
             FROM users u LEFT JOIN friendships f ON (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s)
             LEFT JOIN profile p ON p.user_id = u.id
-            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND NOT {blocked}
+            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND u.suspended_at IS NULL AND NOT {blocked}
               AND (coalesce(p.findable, true) OR f.status IS NOT NULL OR u.login = lower(%(q)s))
               AND (%(q)s = '' OR u.login ILIKE %(match)s OR u.name ILIKE %(match)s)
             ORDER BY (u.login = lower(%(q)s)) DESC, (lower(u.name) = lower(%(q)s)) DESC,
@@ -217,7 +218,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
     """An authenticated profile directory, never a bypass around activity visibility or blocking.
     as_friend (your own profile only): what a friend sees - your activities shared with friends or everyone."""
     with db.connect() as c:
-        person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created, needs_email_confirm
+        person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created, (needs_email_confirm OR suspended_at IS NOT NULL) AS needs_email_confirm
                               FROM users WHERE login = %s AND pw_hash IS NOT NULL""", (login.lower(),)).fetchone()
         if not person or _blocked_pair(c, user['id'], person['id']) or (person.pop('needs_email_confirm') and person['id'] != user['id']):
             raise HTTPException(404, 'Not found')
@@ -404,10 +405,10 @@ def friends_feed(before: dt.datetime | None = None, limit: int = 25, user=Depend
 
 def _social(c, aid, viewer, owner):
     cheers = c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo, ch.kind FROM cheers ch JOIN users u ON u.id = ch.user_id
-                           WHERE ch.activity_id = %(aid)s AND NOT {blocked('u.id')} ORDER BY ch.created""", {'aid': aid, 'viewer': viewer}).fetchall()
+                           WHERE ch.activity_id = %(aid)s AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')} ORDER BY ch.created""", {'aid': aid, 'viewer': viewer}).fetchall()
     comments = c.execute(f"""SELECT cm.id, cm.text, cm.created, u.login::text AS login, u.name, u.photo_v AS photo,
                               (cm.user_id = %(viewer)s OR %(owner)s) AS can_delete
-                            FROM comments cm JOIN users u ON u.id = cm.user_id WHERE cm.activity_id = %(aid)s AND NOT {blocked('u.id')}
+                            FROM comments cm JOIN users u ON u.id = cm.user_id WHERE cm.activity_id = %(aid)s AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')}
                             ORDER BY cm.created, cm.id""", {'viewer': viewer, 'owner': owner == viewer, 'aid': aid}).fetchall()
     mine=c.execute('SELECT kind FROM cheers WHERE activity_id=%s AND user_id=%s',(aid,viewer)).fetchone()
     return {'mine':owner==viewer,'cheers':cheers,'cheered':bool(mine),'my_reaction':mine['kind'] if mine else None,'reactions':reactions.summary(cheers),'comments':comments}

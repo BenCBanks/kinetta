@@ -17,3 +17,4 @@ input,select,textarea{border-color:var(--color-outline);font-size:max(16px,1rem)
 
 @media(max-width:700px){#portal h1{font-size:1.5rem}}
 #setup-qr svg{display:block;width:220px;max-width:100%;height:auto;margin:12px 0;border-radius:8px}
+.people-find{display:flex;flex-wrap:wrap;gap:12px;align-items:end;max-width:none}.people-find label{margin:8px 0;flex:1 1 180px}.people-find .inline{display:flex;gap:8px;align-items:center;flex:0 0 auto;min-height:44px}.people-find .inline input{width:auto;min-height:0}#dialog-body ul{padding-left:20px;margin:6px 0}#dialog-body h3{margin:18px 0 4px;font-size:18px}
