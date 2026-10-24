@@ -72,7 +72,7 @@ What other people can see
 
 ## sharing
 
-New accounts share new activities with everyone on Kinetta. You can change this to approved friends or only you when you sign up, in Settings → Sharing, or each time you save a recording. You also choose which details, like heart rate, are shown.
+New accounts share new activities with everyone on Kinetta. You can change this to approved friends or only you when you sign up, in Settings → Sharing & privacy, or each time you save a recording. You also choose which details, like heart rate, are shown.
 
 ## sharing-maps
 
