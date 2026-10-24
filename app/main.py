@@ -31,8 +31,9 @@ app.include_router(api_food.router)
 app.include_router(garmin_connect.router)     # before api_connections: its /connections/{kind} would catch these
 app.include_router(api_connections.router)
 app.include_router(api_account.router)
-from . import account_email
+from . import account_email, signup
 app.include_router(account_email.router)
+app.include_router(signup.router)
 app.include_router(food_photo.router)
 app.include_router(nutrition_insights.router)
 app.include_router(history_import.router)
@@ -166,7 +167,8 @@ def me(user=Depends(current_user)):
         from .admin_usage import opened
         opened(c,user['id'])
         food_user = api_food.food_user(c, user['id'])
-        acct = c.execute("SELECT email::text AS email, email_verified_at IS NOT NULL AS email_confirmed FROM users WHERE id = %s", (user['id'],)).fetchone()    # Progress shows its Food & weight half only for food users
+        acct = c.execute("SELECT email::text AS email, email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm FROM users WHERE id = %s", (user['id'],)).fetchone()
+        acct['pending_email'] = account_email.pending(c, user['id'])    # Progress shows its Food & weight half only for food users
     return {**user, **acct, 'mail_ready': account_email.mail_ready(), 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'food_photo_itemize': ai_release.food_photo_itemization_enabled(), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
