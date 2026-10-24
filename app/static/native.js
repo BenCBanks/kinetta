@@ -253,6 +253,14 @@ const Native = (() => {
     // Permission completion is independent of background delivery and a potentially large first import.
     N.enableBackground().catch(() => {});
   })().finally(() => { N.connecting = null; }));
+  // One Connect for Apple Health (Ben, 2026-10-24: three permission rounds were clunky). Apple's single screen now lists
+  // workouts, heart rate, routes, weight and resting energy together (HealthBackgroundSync.swift), so the weight step
+  // that follows asks Apple nothing new. Weight reading is switched on with workouts; resting energy is only permitted
+  // here and used once someone picks Apple Health resting calories in Nutrition. Writing food to Health stays separate.
+  N.connectAppleHealth = async () => {
+    await N.connectHealth();
+    if (foodHealth && !(await N.foodHealthOn('weight'))) { try { await N.connectFoodHealth('weight'); } catch (e) { /* workouts are connected; weight can be retried on the Health page */ } }
+  };
   N.pauseHealth = ({clearFoodState=false}={}) => {
     N.healthPaused=true;generation++;restingGeneration++;N.lastAuto=0;N.lastResting=0;
     // Each native stop starts even when another plugin rejects or never calls back.
@@ -525,11 +533,11 @@ route(/^\/track\/health$/, 'track', async (el) => {
   if(!valid())return;
   const ai = !!App.me.health_ai_ok && (!(App.me.health_weight_read||App.me.weight_health_derived)||!!App.me.health_weight_ai_ok);
   box.innerHTML = `<div id="h-food">${skel(1)}</div><div class="card">
-      <h2>Workouts from Health</h2><p class="small">Optional. Import workouts with their recorded heart rate and routes. Your food and weight choices are separate.</p><details class="health-details"><summary>What’s read & how sync works</summary>
+      <h2>Workouts & weight from Health</h2><p class="small">Optional. One Apple screen: import workouts with their heart rate and routes, and your weight. Switch off anything you don’t want to share there. Writing food to Health is a separate choice.</p><details class="health-details"><summary>What’s read & how sync works</summary>
       <p class="small muted">Choose only the Health categories you want to share. Apple keeps your read-permission choices private; enabling sync does not mean every category was allowed.</p>
       <p id="h-progress" class="health-progress" role="status">${esc(Native.healthProgress || '')}</p>
       <p>Kinetta reads from Apple Health:</p>
-      <ul class="reads"><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Resting Energy</b>, only if you choose Apple Health resting calories in Nutrition</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
+      <ul class="reads"><li><b>Weight</b>, for your weight trend</li><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Resting Energy</b>, only if you choose Apple Health resting calories in Nutrition</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
       <p class="small muted">Kinetta can only import what the recording app saves to Health. Garmin Connect does not send GPS tracks to Apple Health; connect Garmin directly for maps on new workouts. Sync now also checks for details that arrived later.</p>
       <p class="small muted">${bg?.enabled ? 'iOS can sync new workouts in the background. Delivery timing depends on iOS; locked phones and force-quitting can delay it. Open Kinetta to catch up.' : 'Sync runs when you open Kinetta or return to it.'} Keep your phone unlocked until the first import finishes.</p>
       <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Workout import only reads Health. Optional weight reading and nutrition writing have separate controls below.</p>
@@ -543,7 +551,7 @@ route(/^\/track\/health$/, 'track', async (el) => {
 
         <p class="small muted">In the Health app, tap your profile → Apps (or Apps and Services) → Kinetta to change individual switches. Settings may also list Health under Privacy & Security. Return here and tap Sync now.</p>
         <button class="ghost wide danger" id="h-off">Disconnect all Health sync</button>`
-      : '<button class="ghost wide" id="h-on">Import workouts from Health</button>'}</div>
+      : '<button class="ghost wide" id="h-on">Connect Apple Health</button>'}</div>
     <div class="card"><h2>Kit, your AI coach</h2>
       <p class="small">Kit writes notes about your training using an AI service. It can read your Apple Health workouts, selected resting calories and imported weight only if you say yes. This sends those records to ${esc(App.me.ai_provider || 'the AI service configured on your server')}. Food-only answers do not read them. You can turn this off any time.</p>
       <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health data</label></div><a class="primary wide" href="/track/connections">Done</a>`;
@@ -556,7 +564,7 @@ route(/^\/track\/health$/, 'track', async (el) => {
   };
   const done = (s) => { toast(s ? (s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} added` : s.updated ? `${s.updated} workout${s.updated > 1 ? 's' : ''} updated` : 'Up to date') : 'Nothing to sync'); render(); };
   const on = $('#h-on', box); if (on) on.onclick = () => busy(on, 'Opening Health…', async () => {
-    await Native.connectHealth();
+    await Native.connectAppleHealth();
     if (!box.isConnected) return;
     toast('Health sync enabled. Importing your recent workouts…');
     render(); Native.autoSync();

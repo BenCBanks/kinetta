@@ -57,13 +57,27 @@ route(/^\/welcome$/, 'me', async (el) => {
   }
   function workouts() {
     const card = (href, ico, title, sub) => `<a class="row-link" href="${href}"><span class="ri c-brand">${svg(ico)}</span><span class="grow">${title}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></a>`;
-    frame(3, 'Bring in your workouts', 'Pick one now, or come back to it from Get started on Me.',
-      `<div class="card list">${card('/track', 'track', 'Record with this phone', 'Runs, rides, walks and lifting. Your phone asks for location when you start.')}
-      ${Native.on ? card('/track/health', 'heart', 'Apple Health', 'Workouts from your iPhone, Apple Watch and apps that write to Health.') : ''}
+    // In the iPhone app, Apple Health leads: one tap, one Apple screen, then the recent workouts import (2026-10-24)
+    const health = Native.on;
+    frame(3, 'Bring in your workouts', health ? 'Connect Apple Health to bring in workouts from your iPhone, Apple Watch and apps like Garmin and Strava, plus your weight.' : 'Pick one now, or come back to it from Get started on Me.',
+      `${health ? '<button class="primary wide" id="wc-health">' + svg('heart') + ' Connect Apple Health</button><p class="small muted">Apple shows one screen where you choose what to share. You can change it any time in the Health app.</p><p class="err" role="alert" id="wc-health-err"></p>' : ''}
+      <div class="card list">${card('/track', 'track', 'Record with this phone', 'Runs, rides, walks and lifting. Your phone asks for location when you start.')}
       ${card('/track/connections', 'watch', 'Garmin Connect', 'New workouts arrive by themselves after you connect.')}
-      ${Native.on ? '' : card('/track/import', 'upload', 'Upload files or a Strava export', 'GPX, FIT and TCX files, or the zip file Strava gives you.')}</div>`, 'I’ll do this later');
+      ${Native.on ? '' : card('/track/import', 'upload', 'Upload files or a Strava export', 'GPX, FIT and TCX files, or the zip file Strava gives you.')}</div>`, health ? 'Skip for now' : 'I’ll do this later');
     $('#wc-skip', el).remove();
     $('#wc-next', el).onclick = friends;
+    const h = health ? $('#wc-health', el) : null;
+    if (h) {
+      Native.healthOn().then((done) => { if (done && h.isConnected) { h.textContent = 'Apple Health connected'; h.disabled = true; $('#wc-next', el).textContent = 'Continue'; } }).catch(() => {});
+      h.onclick = async () => {
+        h.disabled = true; h.textContent = 'Opening Apple Health…'; $('#wc-health-err', el).textContent = '';
+        try {
+          await Native.connectAppleHealth();
+          if (!here()) return;
+          Native.autoSync(); toast('Apple Health connected. Bringing in your recent workouts…'); friends();
+        } catch (x) { if (here()) { $('#wc-health-err', el).textContent = x.message; h.disabled = false; h.innerHTML = svg('heart') + ' Connect Apple Health'; } }
+      };
+    }
   }
   async function friends() {
     frame(4, 'Find your friends', 'See each other’s runs and rides, and send cheers.', `<div id="wc-inv"></div>

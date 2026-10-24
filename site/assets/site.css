@@ -356,3 +356,7 @@ html { scroll-padding-top: 130px; }
 .track-toggle:hover, .track-toggle:focus-visible { opacity: 1; background: var(--paper); }
 .track-toggle svg { width: 16px; height: 16px; fill: currentColor; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .track-toggle[hidden] { display: none; }
+
+/* Beta (2026-10-24): a small label beside the logo, and how to get the iPhone app under the hero buttons */
+.beta-tag { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; color: var(--brand); border: 1px solid currentColor; }
+.beta-note { margin-top: 14px; font-size: .95rem; opacity: .85; }

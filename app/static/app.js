@@ -1135,7 +1135,7 @@ function showLogin(msg = '') {
     const login = f.login.value.trim(), password = f.password.value;
     if (!login || !password) { err.textContent = 'Enter your email (or username) and your password.'; return; }
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = '';
-    try { const r=Native.on?await Native.login(f.server.value, login, password):await api('/api/login', json('POST', {login, password}));if(r.password_change_required){showTemporaryPassword(r.change_token);return;}await start(); }
+    try { const r=Native.on?await Native.login(f.server.value, login, password):await api('/api/login', json('POST', {login, password}));if(r.password_change_required){showTemporaryPassword(r.change_token);return;}store.del('kinetta.getApp');await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; b.textContent = 'Log in'; f.password.select(); }
   });
 }
@@ -1183,19 +1183,58 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     });
     f.login.addEventListener('input', () => { f.login.dataset.touched = '1'; });
   }
+  // Errors appear under the field they're about and scroll into view (Ben, 2026-10-24: a short password failed silently,
+  // because the one message line sat below the fold behind the keyboard). A live hint counts password characters.
+  const hint = f.password.closest('label').nextElementSibling;
+  f.password.addEventListener('input', () => { const n = f.password.value.length; hint.textContent = n >= 10 ? 'Long enough.' : `At least 10 characters · ${n} so far. A short sentence you'll remember works well.`; hint.classList.toggle('ok', n >= 10); });
+  const fieldErr = (name, text) => {
+    $$('.field-err', f).forEach((x) => x.remove()); $$('[aria-invalid]', f).forEach((x) => x.removeAttribute('aria-invalid'));
+    const input = name && f.elements[name], err = $('.err', f);
+    err.textContent = input ? '' : text;
+    const at = input ? input.closest('label') : err;
+    if (input) { at.insertAdjacentHTML('afterend', `<p class="field-err" role="alert">${esc(text)}</p>`); input.setAttribute('aria-invalid', 'true'); input.focus({preventScroll: true}); }
+    at.scrollIntoView({block: 'center', behavior: 'smooth'});
+  };
+  // fixing a field clears its message
+  f.addEventListener('input', (e) => { const l = e.target.closest('label'); if (l?.nextElementSibling?.classList.contains('field-err')) { l.nextElementSibling.remove(); e.target.removeAttribute('aria-invalid'); } });
+  // which field a server answer is about
+  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && pick ? 'login' : /\bname\b/i.test(m) ? 'name' : /16 or older/i.test(m) && signup ? 'age_ok' : null;
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const b = $('button', f), err = $('.err', f);
-    if (!f.name.value.trim() || (pick && !f.login.value.trim())) { err.textContent = pick ? 'Enter your name and a username.' : 'Enter your name.'; return; }
-    if (email && !f.email.value.trim()) { err.textContent = 'Enter your email.'; f.email.focus(); return; }
-    if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; f.password.focus(); return; }
-    if (signup && !f.age_ok.checked) { err.textContent = 'Kinetta is for people 16 or older.'; return; }
-    b.disabled = true; err.textContent = '';
+    const b = $('button[type=submit]', f) || $('button', f);
+    if (!f.name.value.trim()) return fieldErr('name', 'Enter your name.');
+    if (pick && !f.login.value.trim()) return fieldErr('login', 'Choose a username.');
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.value.trim())) return fieldErr('email', 'Enter your email address, like name@example.com.');
+    if (f.password.value.length < 10) return fieldErr('password', `Use at least 10 characters for your password (you have ${f.password.value.length}).`);
+    if (signup && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 16 or older. Tick the box to continue.');
+    b.disabled = true; fieldErr(null, '');
     try { await send({name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
         ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim()}),
-        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {})}); history.replaceState(null, '', '/welcome'); await start(); }
-    catch (x) { err.textContent = x.message; b.disabled = false; }
+        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {})});
+      // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
+      if (getAppFirst()) { store.set('kinetta.getApp', '1'); history.replaceState(null, '', '/'); return showGetApp(); }
+      history.replaceState(null, '', '/welcome'); await start(); }
+    catch (x) { fieldErr(fieldOf(x.message || ''), x.message); b.disabled = false; }
   });
+}
+// An iPhone (or iPad) browser, outside the app: new accounts are sent to the iPhone app instead.
+const getAppFirst = () => !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
+// "Get the Kinetta iPhone app" (2026-10-24): shown after signing up on an iPhone browser, and whenever this browser opens
+// Kinetta again until the person logs in here on purpose. Three steps: TestFlight, the invite link, log in.
+async function showGetApp() {
+  let me = App.me || kept('/api/me'), link = me?.iphone_app;
+  if (!me) { try { me = await api('/api/me'); } catch (x) { store.del('kinetta.getApp'); return showLogin(); } }
+  if (!link) { try { link = (await api('/api/signup')).iphone_app; } catch (x) { /* shown without the link */ } }
+  const first = (me?.name || '').trim().split(/\s+/)[0], who = me?.email || me?.pending_email || (me?.login ? 'your username, ' + me.login + ',' : 'your email');
+  root.innerHTML = `<div class="login get-app"><div class="form">${BRAND}<h1>You’re in${first ? ', ' + esc(first) : ''}!</h1>
+    <p>Kinetta is in beta on iPhone. The app records runs, rides and walks with GPS and brings in your Apple Health workouts.</p>
+    <ol class="get-app-steps"><li><b>Install TestFlight</b>, Apple’s free app for beta apps.<br><a href="https://apps.apple.com/app/testflight/id899247664" target="_blank" rel="noopener">Get TestFlight from the App Store</a></li>
+      <li><b>Get Kinetta</b> through TestFlight.${link ? '' : '<br><small class="muted">Ask the person who runs this Kinetta for the TestFlight link.</small>'}</li>
+      <li><b>Open Kinetta and log in</b> with ${esc(who)} and your password.</li></ol>
+    ${link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the Kinetta iPhone app</a>` : ''}
+    ${me?.needs_email_confirm ? `<p class="small muted">We also sent a link to ${esc(who)}. Open it to confirm your email.</p>` : ''}
+    <p class="small muted">Not on an iPhone? <a href="/" id="ga-out">Log out</a> and log in from a computer or another phone’s browser.</p></div></div>`;
+  $('#ga-out', root).onclick = async (e) => { e.preventDefault(); try { await api('/api/logout', json('POST', {})); } catch (x) { /* the login screen still shows */ } store.del('kinetta.getApp'); forgetKept(); App.me = null; history.replaceState(null, '', '/'); showLogin(); };
 }
 async function showJoin(token) {
   let info;
@@ -1337,7 +1376,12 @@ async function start() {
   if (location.pathname === '/forgot-password' && !kept('/api/me')) return showForgot();
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
+    if (store.get('kinetta.getApp') && getAppFirst()) return showGetApp();
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta' || location.pathname === '/signup') history.replaceState(null, '', '/me');
+    // The first time a new account opens the iPhone app, the welcome steps lead, with Apple Health (2026-10-24)
+    const seen = 'kinetta.welcomed:' + readOwner();
+    if (Native.on && !store.get(seen) && App.me?.created && Date.now() - new Date(App.me.created) < 14 * 864e5 && location.pathname === '/me') history.replaceState(null, '', '/welcome');
+    if (Native.on) store.set(seen, 1);
     Native.resumeFoodEntry?.();render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
