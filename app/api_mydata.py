@@ -110,7 +110,7 @@ Left out on purpose: your password (only a scrambled form is stored), login sess
 def _write_export(uid, path):
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z, db.connect() as c:
         z.writestr('README.txt', README.format(when=time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())))
-        u = c.execute('SELECT login::text AS login, name, created FROM users WHERE id = %s', (uid,)).fetchone()
+        u = c.execute('SELECT login::text AS login, name, email::text AS email, email_verified_at, created FROM users WHERE id = %s', (uid,)).fetchone()
         z.writestr('data/account.json', json.dumps(u, default=str, indent=1))
         for name, q in TABLES.items():
             with z.open(f'data/{name}.jsonl', 'w') as f, c.cursor(name=f'x_{name}') as cur:   # server-side: streams big tables

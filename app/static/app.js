@@ -1096,14 +1096,16 @@ function showLogin(msg = '') {
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<p>Your runs, rides, walks and food, private to you.</p></div>
     ${Native.on ? `<label${(Native.base || Native.server) === Native.server ? ' hidden' : ''} id="l-server">Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
-    <label>Username<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
+    <label>Username or email<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
     <p class="err" role="alert">${esc(msg)}</p>
     <button class="primary" type="submit">Log in</button>
+    <p class="small"><a href="/forgot-password" id="l-forgot">Forgot password?</a></p>
     <p class="small muted">New here? Ask the person who runs this Kinetta for an invite link.</p></form></div>`;
   cleanViews();
   const f = $('form', root);
   $('input[name=login]', f).focus();
+  $('#l-forgot', f).onclick = (e) => { e.preventDefault(); showForgot(f.login.value.trim()); };
   // the iPhone app: most people use the hosted server, so its address stays out of the way until asked for, and the
   // waitlist opens in Safari (accounts are made on the server's web page)
   if (Native.on) {
@@ -1119,7 +1121,7 @@ function showLogin(msg = '') {
     e.preventDefault();
     const b = $('button', f), err = $('.err', f);
     const login = f.login.value.trim(), password = f.password.value;
-    if (!login || !password) { err.textContent = 'Enter your username and password.'; return; }
+    if (!login || !password) { err.textContent = 'Enter your username or email, and your password.'; return; }
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = '';
     try { if (Native.on) await Native.login(f.server.value, login, password); else await api('/api/login', json('POST', {login, password})); await start(); }
     catch (x) { err.textContent = x.message; b.disabled = false; b.textContent = 'Log in'; f.password.select(); }
@@ -1204,6 +1206,65 @@ async function showBeta() {
     } catch (x) { err.textContent = x.message; b.disabled = false; }
   });
 }
+// Forgot password, reset from the emailed link, and confirming an email address (2026-10-24, #232). The server answers
+// "Forgot password" the same way whether or not an account matches, so this screen never says which it was.
+function backToLogin(msg = '') { history.replaceState(null, '', '/'); showLogin(msg); }
+function showForgot(prefill = '') {
+  root.innerHTML = `<div class="login"><form novalidate>
+    <div>${BRAND}<h1>Forgot your password?</h1><p>Enter your username or email. If your account has a confirmed email, we'll send a link to choose a new password.</p></div>
+    <label>Username or email<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="send" required value="${esc(prefill)}"></label>
+    <p class="err" role="alert"></p>
+    <button class="primary" type="submit">Send the link</button>
+    <p class="small"><a href="/" id="f-back">Back to log in</a></p></form></div>`;
+  const f = $('form', root); f.login.focus();
+  $('#f-back', root).onclick = (e) => { e.preventDefault(); backToLogin(); };
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const b = $('button', f), err = $('.err', f), login = f.login.value.trim();
+    if (!login) { err.textContent = 'Enter your username or email.'; return; }
+    b.disabled = true; err.textContent = '';
+    try {
+      const r = await api('/api/password/forgot', json('POST', {login}));
+      root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Check your email</h1><p>${esc(r.message)}</p>
+        <p class="small muted">The link works for an hour. No email? Your account may not have a confirmed email yet: ask the person who runs this Kinetta to reset your password.</p>
+        <a class="primary wide" href="/" id="f-done">Back to log in</a></div></div>`;
+      $('#f-done', root).onclick = (ev) => { ev.preventDefault(); backToLogin(); };
+    } catch (x) { err.textContent = x.message; b.disabled = false; }
+  });
+}
+async function showReset(token) {
+  let info;
+  try { info = await api('/api/password/reset/' + encodeURIComponent(token)); }
+  catch (x) {
+    root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This link doesn't work</h1><p>${esc(x.message)}</p><a class="primary wide" href="/forgot-password" id="r-again">Send a new link</a></div></div>`;
+    $('#r-again', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showForgot(); };
+    return;
+  }
+  root.innerHTML = `<div class="login"><form novalidate>
+    <div>${BRAND}<h1>Choose a new password</h1><p>For your account <b>${esc(info.login)}</b>. You'll be signed out on your other phones and browsers.</p></div>
+    <input name="login" autocomplete="username" value="${esc(info.login)}" hidden>
+    <label>New password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
+    <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
+    <p class="err" role="alert"></p>
+    <button class="primary" type="submit">Save new password</button></form></div>`;
+  const f = $('form', root); f.password.focus();
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const b = $('button', f), err = $('.err', f);
+    if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; return; }
+    b.disabled = true; err.textContent = '';
+    try { await api('/api/password/reset', json('POST', {token, password: f.password.value})); forgetKept(); backToLogin('Password changed. Log in with your new password.'); }
+    catch (x) { err.textContent = x.message; b.disabled = false; }
+  });
+}
+async function showConfirmEmail(token) {
+  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Confirming your email…</h1></div></div>`;
+  let title, text;
+  try { const r = await api('/api/account/email/confirm', json('POST', {token})); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
+  catch (x) { title = "This link doesn't work"; text = x.message; }
+  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p><a class="primary wide" href="/me" id="c-go">Open Kinetta</a></div></div>`;
+  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/me'); root.innerHTML = '<p class="boot">Loading…</p>'; start(); };
+}
 async function showWelcome() {
   if (Native.on) return showLogin();   // new accounts, invites and the waitlist are on the server's web page
   let setup = {needed: false};
@@ -1218,6 +1279,10 @@ async function showWelcome() {
 }
 async function start() {
   await Native.ready;
+  // emailed links work whether or not this browser is logged in
+  const link = location.pathname.match(/^\/(reset-password|confirm-email)\/([\w-]+)$/);
+  if (link) return link[1] === 'reset-password' ? showReset(link[2]) : showConfirmEmail(link[2]);
+  if (location.pathname === '/forgot-password' && !kept('/api/me')) return showForgot();
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta') history.replaceState(null, '', '/me');

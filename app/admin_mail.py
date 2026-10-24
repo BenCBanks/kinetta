@@ -1,16 +1,23 @@
 """Explicit beta responses through Resend. No delivery without configured sender/reply-to."""
 import base64, datetime as dt, hashlib, hmac, json, os, time
 import httpx
+from email.utils import parseaddr
 from fastapi import HTTPException
 from . import db
 from .admin_auth import unseal
 from .api_beta import EMAIL_RE
 
 
+def address(sender):
+    """The email address inside a sender setting: "Kinetta <hello@example.com>" shows a name in inboxes (2026-10-24)."""
+    name, addr = parseaddr(sender)
+    return addr if addr and (not name or sender.strip().endswith('>')) else sender
+
+
 def settings():
     sender=os.environ.get('KINETTA_MAIL_FROM','').strip();reply=os.environ.get('KINETTA_MAIL_REPLY_TO','').strip()
     key=db.secret('KINETTA_RESEND_KEY');webhook=db.secret('KINETTA_MAIL_WEBHOOK_SECRET')
-    ready=bool(key and EMAIL_RE.fullmatch(sender) and EMAIL_RE.fullmatch(reply) and webhook)
+    ready=bool(key and EMAIL_RE.fullmatch(address(sender)) and EMAIL_RE.fullmatch(reply) and webhook)
     return {'ready':ready,'sender':sender or None,'reply_to':reply or None,'webhook':bool(webhook),
             'message': 'Email setup required: verified sender, monitored reply-to, provider key and signed webhook.' if not ready else 'Replies go to the monitored reply-to mailbox. Provider acceptance does not prove inbox delivery.'}
 
