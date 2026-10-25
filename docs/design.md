@@ -1235,3 +1235,10 @@ Rationale: [Apple’s settings guidance](https://developer.apple.com/design/huma
 Administration remains a separate browser portal, with personal Settings in the phone app. Overview leads with numeric counts and queue links; Launch checks separates configuration from dated human evidence, never an overall green launch badge. Recovery, role and destructive actions name the account and require its exact username. Errors stay in the dialog with drafts retained; confirmed results remain visible after closing it. Sticky section and dialog controls keep navigation accessible while scrolling. Use the approved sans headings, 16px inputs and 44px targets in both themes.
 
 Ordinary support shows account status, connection/import state and client-reported device versions before folded counts/history. Reported-item review is a separate narrow moderation exception: only the submitted target, no routes, measurements, meals or conversations. Type-specific removal and material-version checks prevent a stale review from changing newer content. The data-request register contains only workflow metadata and never offers a private-data download to administrators. See [the operator guide](admin-portal.md).
+
+
+### App cleanup (25 October 2026)
+
+Settings → Edit profile opens the same profile editor as your own profile, with name/bio drafts retained after a failed save. Food entry uses the permanent conversation and final review; the retired fallback chat, nutrition rings and unused reaction pile are removed. Keep the current compact nutrition bars, training-plan completion ring, photo review, reactions and keyboard behavior.
+
+Final food review and recipe-portion previews label missing macros as unknown. Storage placeholders never count as known zero nutrients; a zero supplied by the person or source still displays as zero. A mixed-food total stays unknown if any included food lacks that nutrient.

@@ -54,8 +54,6 @@ function startLiftSheet() {
     $('#sl-past', b).onclick = () => { close(); addActivitySheet(null, 'workout'); };
   });
 }
-// what the + buttons open (pages.js): lifting, or any other activity typed in by hand
-function addActivityMenu() { go('/track'); }
 
 // ---------- the logger ----------
 // The whole session lives here and goes to the server after each change (a moment later, as one PUT, so a resend never

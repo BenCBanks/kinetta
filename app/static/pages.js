@@ -1384,7 +1384,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       ${row('a', 'href="/me/speed"', 'clock', 'c-grey', 'Speed check')}</div>
     </section>`;
   wireBack(el, '/me');
-  $('#m-profile', el).onclick = () => go(profileHref(me));   // your public profile, editable in place (social.js)
+  $('#m-profile', el).onclick = () => editProfile(me, () => render());
 
   $('#m-kit-memory',el).onclick=()=>KitChat.memorySettings();
   const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit', aiExplain());

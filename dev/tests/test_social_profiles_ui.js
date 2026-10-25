@@ -4,7 +4,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('app/static/social.js','utf8');
 const tick=()=>new Promise(setImmediate);
 (async()=>{
- const c={esc:String,stat:(k,v,u='')=>`[${k}:${v}${u}]`,U:{dist:n=>(n/1000).toFixed(1),du:()=> 'km'},dur:n=>n+' seconds',fdate:d=>d};vm.createContext(c);
+ let editorOwner='first';const c={readOwner:()=>editorOwner,esc:String,stat:(k,v,u='')=>`[${k}:${v}${u}]`,U:{dist:n=>(n/1000).toFixed(1),du:()=> 'km'},dur:n=>n+' seconds',fdate:d=>d};vm.createContext(c);
  vm.runInContext(source.slice(source.indexOf('function profileProgress('),source.indexOf('function shareProfile(')),c);
  const recent={start:'2026-09-21',end:'2026-10-20',current:{activities:3,distance_m:5000,time_s:3600,active_days:2},previous:{activities:1}};
  let html=c.profileProgress(recent,true);assert(html.includes('[Distance:5.0km]'));assert(html.includes('2 active days'));assert(html.includes('1 workout in the previous 30 days'));assert(html.includes('shared with friends or everyone'));
@@ -37,6 +37,14 @@ const tick=()=>new Promise(setImmediate);
  c.api=async(path,body)=>{assert.equal(path,'/api/account');assert.deepEqual(JSON.parse(JSON.stringify(body)),{name:'New name',bio:'Draft bio'});if(++attempts===1)throw new Error('Try again');return {name:'New name'};};
  vm.runInContext(source.slice(source.indexOf('function wireProfileEditing('),source.indexOf("route(/^\\/me\\/friends$/")),c);
  c.wireProfileEditing(outer,{name:'Old name',bio:''},()=>reloaded++);outer['#pf-edit-profile'].onclick();await f.onsubmit({preventDefault(){}});assert.equal(closed,false);assert.equal(error.textContent,'Try again');assert.equal(f.elements.bio.value,'Draft bio');assert.equal(save.disabled,false);await f.onsubmit({preventDefault(){}});assert(closed);assert.equal(c.App.me.name,'New name');assert.equal(c.App.me.bio,'Draft bio');assert.equal(reloaded,1);
+ // The shared Settings/profile editor never submits an old draft to a new account,
+ // or applies an old account's delayed response to the person now signed in.
+ save.disabled=false;closed=false;c.editProfile({name:'Old name',bio:''},()=>reloaded++);editorOwner='second';
+ const beforeStale=attempts;await f.onsubmit({preventDefault(){}});assert.equal(attempts,beforeStale);assert(closed);
+ editorOwner='first';save.disabled=false;closed=false;c.editProfile({name:'Old name',bio:''},()=>reloaded++);
+ let finish;c.api=()=>new Promise(resolve=>finish=resolve);const saving=f.onsubmit({preventDefault(){}});
+ editorOwner='second';c.App.me={name:'Other account',bio:'Other bio'};finish({name:'Old response'});await saving;
+ assert.equal(c.App.me.name,'Other account');assert.equal(c.App.me.bio,'Other bio');assert.equal(reloaded,1);assert(closed);
  // Friend-management failure preserves controls; success clears cached visibility and runs the refresh.
  const buttons={'[data-remove]':{},'[data-block]':{}},err={},invalidated=[];let membershipClosed=false,changed=null,allow=true,failMembership=true;
  c.sheet=(title,html,mount)=>mount({},()=>membershipClosed=true);c.$=sel=>buttons[sel]||err;c.$$=()=>Object.values(buttons);c.confirm=()=>allow;c.invalidate=path=>invalidated.push(path);c.json=(method,body)=>({method,body});

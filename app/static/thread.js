@@ -425,7 +425,6 @@ const FoodThread = (() => {
     $$('[data-tool]',el).forEach(b=>b.onclick=()=>{const tool=b.dataset.tool;
       if(tool==='snap'||tool==='library'){if(!aiCan('food')){status(ctx,'Food photos need Kit access and your consent. You can type, search or enter numbers instead.');return;}if(tool==='snap')file.setAttribute('capture','environment');else file.removeAttribute('capture');file.click();}
       if(tool==='scan')scanSheet(isoDay(new Date()),ctx.meal||guessMeal(),null,code=>send(ctx,{body:'Scanned product '+code,media:'barcode',barcode:code}));
-      if(tool==='paste'&&false){field.focus();status(ctx,'Paste text with your keyboard, or choose a photo from Photo library.');if(navigator.clipboard?.readText)navigator.clipboard.readText().then(text=>{if(active(ctx)&&text){field.value=(field.value+text).slice(0,4000);field.oninput();}}).catch(()=>{});}
     });
     draw(ctx);const tool=new URLSearchParams(location.search).get('tool');
     if(tool&&['snap','scan','library'].includes(tool)){const url=new URL(location.href);url.searchParams.delete('tool');history.replaceState(history.state,'',url.pathname+url.search+url.hash);$('[data-tool="'+tool+'"]',el).click();}else field.focus({preventScroll:true});

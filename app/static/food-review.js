@@ -34,10 +34,10 @@ const FoodReview=(()=>{
       guardFoodSheet(body,close,owner);const f=$('#food-final-review',body),save=f.elements.save_recipe,log=f.elements.log_today;
       const valid=()=>active()&&owner===readOwner()&&body.isConnected;
       const shown=()=>review.foods.map((e,i)=>edited(e,kcal[i]));
-      const totals=()=>{const foods=shown();return Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,foods.some(e=>e[k]==null)?null:foods.reduce((n,e)=>n+e[k],0)]));};
+      const totals=()=>{const foods=shown();return Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,foods.some(e=>!nutrientKnown(e,k))?null:foods.reduce((n,e)=>n+e[k],0)]));};
       const foods=()=>{
         $('#review-foods',body).innerHTML=shown().map((e,i)=>`<div class="review-food-row"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))} · ${esc(FoodThread.source(e))}${kcal[i]!=null?' · Edited':''}</small></div><button type="button" class="kcal-edit num" data-kcal="${i}" aria-label="Change calories for ${esc(e.name)}">${e.kcal==null?'Add':homeCalories(e.kcal)}<small> kcal</small></button></div>`).join('');
-        const T=totals(),g=k=>T[k]==null?null:`${Math.round(T[k])} g ${k.split('_')[0]}`;
+        const T=totals(),g=k=>T[k]==null?`${k.split('_')[0]} unknown`:`${Math.round(T[k])} g ${k.split('_')[0]}`;
         $('#review-totals',body).innerHTML=`<div><span>Total</span><b class="num">≈ ${homeCalories(T.kcal||0)} kcal</b></div><small class="muted">${esc([g('protein_g'),g('carbs_g'),g('fat_g')].filter(Boolean).join(' · '))}</small>`;
         // Tap a calorie number to change it in place: a small number box, Enter or tapping away saves, Esc cancels.
         $$('[data-kcal]',body).forEach(b=>b.onclick=()=>{

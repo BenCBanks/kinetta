@@ -15,7 +15,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  const food=fs.readFileSync('app/static/food.js','utf8'),calls=[],nodes=new Map();
  const c={svg:()=>'',go:p=>calls.push(['go',p]),guessMeal:()=> 'lunch',describeSheet:(...a)=>calls.push(['describe',...a]),newDish:()=>calls.push(['dish']),$:s=>nodes.get(s)};
  for(const id of ['#ff-goal','#ff-log','#ff-dish'])nodes.set(id,{onclick:null});
- vm.createContext(c);vm.runInContext(food.slice(food.indexOf('function firstFood('),food.indexOf('function ring(')),c);
+ vm.createContext(c);vm.runInContext(food.slice(food.indexOf('function firstFood('),food.indexOf('function drawDay(')),c);
  const box={innerHTML:''};c.firstFood(box,'2026-10-18');
  assert.match(box.innerHTML,/Start your food log/);assert.match(box.innerHTML,/Log something you ate/);assert.match(box.innerHTML,/optional/);
  nodes.get('#ff-log').onclick();assert.deepEqual(calls.pop(),['describe','2026-10-18',null]);

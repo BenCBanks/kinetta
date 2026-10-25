@@ -452,6 +452,7 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 .t-row { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; } .t-row h1 { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .t-soc { flex: none; display: flex; gap: 2px; margin: -4px -8px 0 0; }
 .t-soc .pf { padding: 0 8px; min-width: 40px; justify-content: center; }
+.social .cheer-who .chev svg { width: 16px; height: 16px; color: var(--tx3); }
 .social .cheer-who { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
 .social .cheer-who svg { flex: none; width: 18px; height: 18px; color: var(--accent); } .social .cheer-who svg .cone { fill: currentColor; }
 .social .comments .comment:first-child { margin-top: 6px; } .social .c-none { margin: 6px 0 0; }
@@ -652,8 +653,6 @@ a.ntile { color: inherit; text-decoration: none; }
 .quick .primary { min-height: 42px; font-size: 15px; border-radius: 999px; } .quick .primary svg { width: 18px; height: 18px; }
 .ring { position: relative; width: 96px; height: 96px; } .ring svg { width: 96px; height: 96px; }
 .ring .rb { fill: none; stroke: var(--card2); stroke-width: 10; } .ring .rf { fill: none; stroke: var(--prog); stroke-width: 10; stroke-linecap: round; }
-.ring .rk { fill: #fff; }
-.ring.over .rf { stroke: var(--warn); }
 .ring > div { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; }   /* "LEFT" under the number, centred */
 .ring b { font: 800 20px/1.05 var(--numf); letter-spacing: -.02em; } .ring small { color: var(--tx3); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 
@@ -674,39 +673,7 @@ a.ntile { color: inherit; text-decoration: none; }
 .tcard small { display: inline-flex; align-items: center; gap: 4px; }
 .tcard b { font: 800 28px/1.05 var(--numf); letter-spacing: -.03em; }
 .tcard .over b, .tcard .over small { color: var(--alert); }
-/* the circle centred across the top of the card, Eaten and Goal side by side under it (2026-10-13, Ben) */
-.tcard .ringrow { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "ring ring" "eaten goal"; gap: 14px 10px; }
-.tcard .ringrow > div:first-child { grid-area: eaten; } .tcard .ringrow > div:nth-child(2) { grid-area: ring; align-items: center; }
-.tcard .ringrow > div:first-child, .tc-goal { align-items: center; justify-content: center; text-align: center; padding: 8px 12px; min-height: 64px; border-radius: var(--r2); }
-.tcard .ringrow > div:first-child { background: color-mix(in srgb, var(--card) 70%, transparent); border: 0; }
-.tcard .ringrow .ring, .tcard .ringrow .ring svg { width: 160px; height: 160px; }
-/* brighter (2026-10-13): a soft green card, a thick ring, and what's left drawn as ribs so it reads as "still to eat" */
 .tcard.balance { background: color-mix(in srgb, var(--prog) 9%, var(--card)); }
-.tcard .ringrow .ring .rb { stroke: color-mix(in srgb, var(--prog) 26%, var(--card)); stroke-width: 12; stroke-dasharray: 2.2 2.2; }
-.tcard .ringrow .ring .rf { stroke-width: 12; }
-.tcard .ringrow .ring small { color: color-mix(in srgb, var(--prog) 60%, var(--tx)); }
-.tcard .ringrow .ring b { font-size: 34px; }
-.tc-goal { background: var(--card); border: 0; box-shadow: var(--shadow); }
-.tc-goal small svg { width: 13px; height: 13px; } .tc-goal b { color: var(--tx); font-size: 24px; } .tcard .ringrow > div:first-child b { font-size: 24px; }
-/* option D (2026-10-13, Ben): the calorie ring on the left, a small ring per macro stacked on the right, Eaten and Goal under
-   both; colours as in the macro charts (protein plum, carbs amber, fat clay) */
-.tcard .ringrow { grid-template-areas: "ring mr" "eaten goal"; align-items: center; }
-.tcard .ringrow .ring, .tcard .ringrow .ring svg { width: 150px; height: 150px; }
-.tcard .ringrow .ring b { font-size: 32px; }
-.tcard .ringrow .tc-mrings { grid-area: mr; flex-direction: column; display: grid; gap: 10px; align-content: center; }
-.mring { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.mring.m-protein_g { --c: var(--s1); } .mring.m-carbs_g { --c: var(--s4); } .mring.m-fat_g { --c: var(--s2); }
-.mr-c { position: relative; width: 54px; height: 54px; flex: none; } .mr-c svg { width: 54px; height: 54px; display: block; }
-.mr-c .rb { fill: none; stroke: color-mix(in srgb, var(--c) 20%, var(--card)); stroke-width: 6.5; }
-.mr-c .rf { fill: none; stroke: var(--c); stroke-width: 6.5; stroke-linecap: round; }
-.mr-c .rf2 { fill: none; stroke: color-mix(in srgb, var(--c) 55%, #000); stroke-width: 6.5; stroke-linecap: round; }
-.mr-c > div { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; }
-.tcard .mr-c b { font: 800 14px/1 var(--numf); letter-spacing: -.02em; }
-.tcard .mr-c small { color: var(--tx3); font-size: 7.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; margin-top: 1px; }
-.mr-t { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.2; }
-.tcard .mr-t small { color: var(--tx3); font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
-.mr-t span { font-size: 14px; font-weight: 700; white-space: nowrap; } .mr-t i { font-style: normal; font-size: 12px; color: var(--tx3); }
-.tcard .mring.over .mr-c b, .tcard .mring.over .mr-c small { color: var(--warn); }
 .tc-settg { display: block; margin: 8px auto 0; min-height: 36px; }
 .gbar { height: 10px; border-radius: 999px; background: var(--card2); overflow: hidden; margin: 14px 0 8px; }
 .gbar .gfill { height: 100%; width: calc(var(--w, 0) * 100%); background: var(--prog); border-radius: 999px; }
@@ -806,15 +773,6 @@ a.ntile { color: inherit; text-decoration: none; }
 
 #ph-prev { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; } #ph-prev[hidden] { display: none; }
 #ph-items .actions { align-items: center; justify-content: space-between; }
-#ph-items .pitem { padding: 12px 14px; margin-bottom: 8px; }
-.pitem .check { gap: 8px; } .pname { min-height: 40px; }
-.pitem .prow { display: flex; align-items: center; gap: 10px; }
-.pitem .prow input[type=checkbox] { width: 22px; height: 22px; min-height: 0; flex: none; }
-.pitem .prow .pname { flex: 1; min-width: 0; min-height: 40px; font-weight: 600; }
-.pitem .pnums { display: grid; grid-template-columns: 1.3fr repeat(4, 1fr); gap: 6px; margin-top: 8px; }
-.pitem .pnums label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.pitem .pnums small { font-size: 11px; color: var(--tx3); font-weight: 600; }
-.pitem .pnums input { min-height: 40px; padding: 4px 6px; text-align: right; font-size: 16px; width: 100%; border-radius: 10px; }
 /* day-by-day history grid */
 .gridbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 8px 0; }
 .gridbar label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--tx2); }
@@ -1124,12 +1082,6 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
   display: grid; place-content: center; justify-items: center; gap: 4px; font-size: 13px; font-weight: 600; }
 .ph-add svg { width: 22px; height: 22px; color: var(--accent); }
 .ph-strip.empty .ph-add { width: 100%; height: 48px; grid-auto-flow: column; gap: 8px; }
-.cheer-pile { display: flex; align-items: center; gap: 10px; width: calc(100% + 32px); margin: 14px -16px -16px; padding: 10px 16px; border: 0;
-  border-top: 1px solid var(--line); background: none; color: var(--tx); font-size: 14px; text-align: left; }
-.cheer-pile .faces { display: flex; flex: none; } .cheer-pile .faces .av { width: 28px; height: 28px; font-size: 11px; box-shadow: 0 0 0 2px var(--card); }
-.cheer-pile .faces .av + .av { margin-left: -8px; }
-.cheer-pile .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cheer-pile .chev svg, .social .cheer-who .chev svg { width: 16px; height: 16px; color: var(--tx3); }
 .social .cheer-who { width: 100%; border: 0; background: none; padding: 6px 0; color: var(--tx); text-align: left; }
 .social .cheer-who .grow { flex: 1; min-width: 0; }
 .comments .comment { display: flex; gap: 10px; }
@@ -1159,35 +1111,8 @@ body.ph-open { overflow: hidden; }
 .tcard .tc-bal .brow small { display: block; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; }
 /* Described food: conversation rows shared by full-page logging and previews. */
 .ways.three .way b { text-align: center; line-height: 1.15; }
-.ql-chat { min-height: 60px; }
-.ql-choices .fe b { display: block; overflow: visible; -webkit-line-clamp: unset; overflow-wrap: anywhere; }
-.ql-choices .fe small { white-space: normal; }
-/* the foods found in what you said (2026-10-15): one row each, tap to adjust, x to remove */
-.ql-list { padding: 0 14px; margin-bottom: 10px; }
-.ql-row { display: flex; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--line); }
-.ql-row:first-child { border-top: 0; }
-.ql-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 0; min-height: 56px; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
-.ql-main .grow { min-width: 0; flex: 1; } .ql-main b { display: block; font-weight: 600; overflow-wrap: anywhere; }
-.ql-main small { display: block; font-size: 12px; overflow-wrap: anywhere; }
-.ql-main .r { flex: none; text-align: right; } .ql-main .r b { font-family: var(--numf); }
-.ql-x { flex: none; width: 44px; height: 44px; margin-right: -10px; }
-.ql-row .ql-adjust, .ql-row .ql-hint, .ql-row .pnums { flex-basis: 100%; }
-.ql-row .ql-hint { margin: 0 0 10px; }
-.ql-row .pnums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding-bottom: 10px; }
-.ql-row .pnums label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ql-row .pnums small { font-size: 11px; color: var(--tx3); font-weight: 600; }
-.ql-row .pnums input { min-height: 40px; padding: 4px 6px; text-align: right; font-size: 16px; width: 100%; border-radius: 10px; }
-.ql-ask { display: block; padding: 10px 0; } .ql-ask p { margin: 0 0 8px; } .ql-ask .btncol { margin-top: 4px; }
 .ql-img { display: block; max-width: 180px; max-height: 180px; border-radius: 12px; margin: -3px -7px; }
-.cmsg.me:has(.ql-img) { padding: 6px; background: transparent; }
 .cmsg.ai i { font-style: normal; color: var(--tx2); }
-/* not sticky (2026-10-13: it slid over the first message on iPhone); the sheet lifts above the keyboard instead */
-.sheet .ql-composer { position: static; margin: 22px 0 4px; }
-.ql-chat { gap: 12px; }
-/* the total on the left, Add on the right, so the button never sits on the total (2026-10-13) */
-#ql-items .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 2px 4px; }
-#ql-items .actions .primary { flex: none; margin: 0; padding: 0 22px; min-height: 46px; }
-@media (max-width: 380px) { #ql-items .actions { flex-direction: column; align-items: stretch; } #ql-items .actions .primary { width: 100%; } }
 
 /* ---------- Lifting (2026-10-13, lift.js) ---------- */
 .lift-clock { display: flex; gap: 22px; padding: 10px 16px; font-size: 13px; font-weight: 650; color: var(--tx3); text-transform: uppercase; letter-spacing: .05em; }
@@ -1462,9 +1387,6 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .food-library-link a svg { width: 18px; height: 18px; flex: none; }
 .food-library-link a svg:last-child { width: 14px; height: 14px; }
 .tcard .tc-bal:not([open]) > summary .day-balance-detail { display: none; }
-.food-describe .ql-composer { position: sticky; margin-top: 22px; }
-.food-describe .ql-chat { margin-top: 16px; }
-.food-describe .ql-choices .fe b, .food-describe [data-product] b { white-space: normal; overflow-wrap: anywhere; }
 .meal-library-row > .ghost { flex: none; min-height: 44px; }
 
 
@@ -1486,7 +1408,6 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .entry-more .linkbtn { display: flex; align-items: center; gap: 4px; min-height: 44px; }
 .entry-more svg { width: 16px; height: 16px; }
 .mm-name { margin: 0; }
-.ql-rest { margin: 6px 0 0; }
 .entry-move { margin: 8px 0; }
 .entry-move summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--tx2); }
 
@@ -1773,8 +1694,6 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .progress-focus nav { position: absolute; right: 0; top: 100%; z-index: 40; width: min(240px, calc(100vw - 44px)); padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--lift); }
 .progress-focus nav a { display: flex; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 8px; color: var(--tx); }
 .progress-focus nav a[aria-current] { color: var(--accent); background: var(--accent2); font-weight: 700; }
-.ql-capture-shortcuts { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
-.ql-capture-shortcuts button { min-height:44px; }
 .food-calendar { display:grid; grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr)); gap:8px; }
 .food-calendar a { display:grid; text-align:center; min-height:72px; padding:8px 4px; border-radius:12px; color:var(--tx2); background:var(--card2); }
 .food-calendar a.logged { color:var(--accent); background:var(--accent2); }
