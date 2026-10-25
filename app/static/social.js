@@ -278,7 +278,7 @@ function drawShared(el, a) {
       <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span></a>${sportMark(a.sport)}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="s-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}<div class="cpile"></div></div>
+      <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}</div>
     ${activityMedia(a, {mapId: 's-map', detail: true, full: true})}
     ${a.ends_hidden ? '<p class="small muted map-note">The start and end of the route are hidden.</p>' : ''}
     ${a.chart ? '<div class="card"><h2>Charts</h2><div id="s-charts"></div></div>' : ''}
@@ -327,17 +327,8 @@ function wireTalk(box,aid,s,open){
   talk.onclick=()=>commentsSheet(aid,s,update);
   if(open)commentsSheet(aid,s,update);
 }
-// Who sent cheers (2026-10-12, Ben): up to three faces and "Jordan Lee and 2 others" under the activity's numbers; a tap
-// lists everyone. The same list opens from the comments sheet.
 const cheerName = (c) => (c.login === App.me.login ? 'You' : c.name);
-function cheerPile(cheers) {
-  if (!cheers.length) return '';
-  const first = cheerName(cheers[0]), more = cheers.length - 1;
-  return `<button type="button" class="cheer-pile" data-cpile><span class="faces">${cheers.slice(0, 3).map((c) => avatar(c)).join('')}</span>
-    <span class="grow"><b>Reactions</b> from ${esc(first)}${more ? ` and ${more} other${more > 1 ? 's' : ''}` : ''}</span><span class="chev">${svg('chev')}</span></button>`;
-}
 const cheersPeople = (cheers) => `<div class="card list">${cheers.length ? cheers.map((c) => `<div class="person" data-close>${personLink(c, cheerName(c))}<small>${esc(REACTIONS.find(([kind])=>kind===(c.kind||'cheer'))?.[1]||'Cheers')}</small></div>`).join('') : '<p class="small muted">No reactions yet.</p>'}</div>`;
-function cheersSheet(cheers) { sheet(`Reactions · ${cheers.length}`, cheersPeople(cheers)); }
 function socialChanged(aid) {
   invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); invalidateFeed();
 }
@@ -614,10 +605,14 @@ function shareProfile(p) {
 
 // One editor saves identity fields together; errors leave both drafts in place.
 function wireProfileEditing(box, p, reload) {
-  const photo = () => profilePhotoSheet(() => { invalidate('/api/me'); keep('/api/me', App.me); reload(); });
-  $('#pf-photo', box).onclick = photo;
+  $('#pf-photo', box).onclick = () => profilePhotoSheet(() => { invalidate('/api/me'); keep('/api/me', App.me); reload(); });
   $('#pf-share', box).onclick = () => shareProfile(p);
-  const edit = (focus) => sheet('Edit profile', `<form class="form" id="pf-editor">
+  $('#pf-edit-profile', box).onclick = () => editProfile(p, reload);
+}
+function editProfile(p, reload) {
+  const owner = readOwner();
+  const photo = () => { if (owner === readOwner()) profilePhotoSheet(() => { if (owner !== readOwner()) return; invalidate('/api/me'); keep('/api/me', App.me); reload(); }); };
+  return sheet('Edit profile', `<form class="form" id="pf-editor">
     <p class="small muted">Your name, photo and bio are visible to people who find your profile. Workouts follow your sharing choices.</p>
     <button type="button" class="ghost wide" id="pf-editor-photo">${svg('camera')}Change profile photo</button>
     <label>Name<input name="name" value="${esc(p.name)}" maxlength="60" required autocomplete="name" enterkeyhint="next"></label>
@@ -628,20 +623,19 @@ function wireProfileEditing(box, p, reload) {
     $('#pf-editor-photo', b).onclick = photo;
     form.elements.bio.oninput = () => { $('#pf-bio-count', b).textContent = `${form.elements.bio.value.length}/280`; };
     $('[data-cancel]', form).onclick = close;
-    if (focus) form.elements[focus].focus();
     form.onsubmit = async (e) => {
-      e.preventDefault(); if (save.disabled) return;
+      e.preventDefault(); if (owner !== readOwner()) { close(); return; } if (save.disabled) return;
       const name = form.elements.name.value.trim(), bio = form.elements.bio.value.trim();
       save.disabled = true; save.textContent = 'Saving…'; $('.err', form).textContent = '';
       try {
         const account = await api('/api/account', json('PUT', {name, bio}));
+        if (owner !== readOwner()) { close(); return; }
         App.me.name = account.name; App.me.bio = bio;
         invalidate('/api/me'); invalidate('/api/people/'); invalidateFeed(); keep('/api/me', App.me);
         close(); toast('Profile saved'); reload();
-      } catch (x) { $('.err', form).textContent = x.message; save.disabled = false; save.textContent = 'Save profile'; }
+      } catch (x) { if (owner !== readOwner()) { close(); return; } $('.err', form).textContent = x.message; save.disabled = false; save.textContent = 'Save profile'; }
     };
   });
-  $('#pf-edit-profile', box).onclick = () => edit();
 }
 
 route(/^\/me\/friends$/, 'me', async (el) => {

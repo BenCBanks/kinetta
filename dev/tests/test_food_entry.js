@@ -1,5 +1,15 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');const source=fs.readFileSync('app/static/thread.js','utf8');
+// Every food-description entry opens the same permanent conversation and keeps
+// its destination parameters; logging still uses that conversation's review flow.
+{
+ const food=fs.readFileSync('app/static/food.js','utf8'),calls=[];let handler;
+ const c={URLSearchParams,location:{search:'?d=2026-10-18&meal=dinner'},route:(re,tab,fn)=>{assert(re.test('/food/describe'));assert.equal(tab,'food');handler=fn;},FoodThread:{page:(...args)=>calls.push(args)}};
+ vm.createContext(c);vm.runInContext(food.slice(food.indexOf('route(/^\\/food\\/describe$/'),food.indexOf('// ---------- barcode ----------')),c);
+ const el={};handler(el);assert.equal(calls[0][0],el);assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])),{day:'2026-10-18',meal:'dinner'});
+ c.location.search='';handler(el);assert.deepEqual(JSON.parse(JSON.stringify(calls[1][1])),{day:null,meal:null});
+ console.log('Food description route: permanent conversation with explicit/default destination parameters PASS');
+}
 let owner='a',full=false;const saved=new Map(),field={value:'Existing draft',focus(){}},ctx={owner:'a',nativeEntries:[],el:{}};
 const c={current:ctx,Date,active:x=>x.owner===owner,$:()=>field,draftKey:o=>'draft:'+o,nativeKey:o=>'native:'+o,primary(){},localStorage:{setItem:(k,v)=>{if(full)throw Error('Fictional storage full');saved.set(k,v);},removeItem:k=>saved.delete(k)},status:()=>{}};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function saveDraft'),source.indexOf('  async function pendingCount')),c);
 const id='aaaaaaaa-1111-4111-8111-111111111111';assert(c.receiveNative({id,source:'quick-action'}));assert.equal(field.value,'Existing draft');assert.equal(saved.size,0);
