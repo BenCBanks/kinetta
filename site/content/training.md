@@ -8,7 +8,7 @@ Runs, rides, walks *and lifting.*
 
 ## import-watch-files-or-your-strava-history-or-connect-a-2
 
-Bring in workouts from Apple Watch, Garmin or any watch file, follow a running plan and track lifting sets. Compare your progress across weeks and repeat routes.
+Bring in workouts from Apple Watch, Garmin or any watch file, follow a running plan and track lifting sets. Then see how it's really going, week to week and route to route.
 
 ## start-with-the-workouts-you-already-have-3
 
@@ -96,11 +96,11 @@ Kinetta groups repeated GPS routes so you can compare pace and heart rate across
 
 ## your-optional-ai-coach-a-note-on-every-workout-a-revie-20
 
-Kit provides optional AI notes on recent workouts and weekly training reviews. It uses the history you allow it to read.
+Kit writes a short review of your week every Sunday, and you can ask it questions any time. It's optional and only reads the history you allow.
 
 ## predicted-5k-to-marathon-times-next-to-your-best-green-21
 
-Estimated 5K-to-marathon times alongside your recorded bests. Predictions depend on your available training data.
+Estimated 5K to marathon times next to your best efforts, from a running fitness score that updates as you train.
 
 ## every-street-you-ve-covered-by-sport-22
 
@@ -153,3 +153,35 @@ Phone and watch, one workout
 ## recording-watch
 
 Record on both: when at least 80% of the longer workout overlaps, the imported watch copy and phone recording become one activity, with available watch heart rate. A short run inside a long hike stays separate.
+
+## insights-heading
+
+Know how your training is *really* going.
+
+## insights-intro
+
+Recording a workout is the easy part. Kinetta helps you understand the trend behind it, using only your own records.
+
+## insights-load-heading
+
+Fitter, or just tired?
+
+## insights-load
+
+Fitness and freshness turn every workout into a running picture of your training load. You'll see when you're building, when you're due an easy day, and when a week jumped too fast.
+
+## insights-route-heading
+
+Faster on your favorite loop?
+
+## insights-route
+
+Run a route again and Kinetta lines it up against every earlier effort: your pace, your heart rate, and whether you're getting more pace for each heartbeat.
+
+## insights-kit-heading
+
+Ask Kit
+
+## insights-kit
+
+Ask about your training or your food in plain words, like “How have my runs gone this month?” Kit answers from your own records and shows the numbers it used. It won't make numbers up, and any plan change waits for your OK.
