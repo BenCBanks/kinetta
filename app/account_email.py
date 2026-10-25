@@ -145,6 +145,13 @@ def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
         except errors.UniqueViolation:
             raise HTTPException(409, 'That email is already used by another Kinetta account.')
         c.execute('UPDATE account_tokens SET used_at = now() WHERE token_hash = %s', (r['token_hash'],))
+        link = (c.execute('SELECT friend_link FROM profile WHERE user_id = %s', (r['user_id'],)).fetchone() or {}).get('friend_link')
+        if link:     # signed up through a friend's invite link: friends now (an expired link just doesn't apply)
+            from .api_social import join_by_link
+            try:
+                with c.transaction(): join_by_link(c, r['user_id'], link)
+            except HTTPException: pass
+            c.execute('UPDATE profile SET friend_link = NULL WHERE user_id = %s', (r['user_id'],))
     if r['current'] and r['current'].lower() != r['email'].lower():
         background.add_task(send, r['current'], 'Your Kinetta email was changed',
             f"Hi {r['name']},\n\nThe email on your Kinetta account ({r['login']}) is now {r['email']}. "

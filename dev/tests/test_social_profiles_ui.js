@@ -15,14 +15,15 @@ const tick=()=>new Promise(setImmediate);
  assert.equal(c.tab('ALEX'),'me');assert.equal(c.tab('jordan'),'activity');
  // The actual Friends page: local matches first, stale requests ignored, errors retryable, clear restores lists.
  const input={value:''}, form={elements:{q:input}}, found={isConnected:true,innerHTML:'',setAttribute(k,v){this[k]=v;}},lists={innerHTML:''},clear={},status={};
- const nodes={'#fr-find':form,'#fr-found':found,'#fr-lists':lists,'#fr-clear':clear,'#fr-status':status,'#fr-browse':{},'[data-retry]':{}};
+ const suggest={isConnected:true,innerHTML:''};
+ const nodes={'#fr-find':form,'#fr-found':found,'#fr-lists':lists,'#fr-clear':clear,'#fr-status':status,'#fr-browse':{},'[data-retry]':{},'#fr-suggest':suggest,'#fr-invite':{}};
  const pending=[],timers=new Map();let timerId=0,handler;
- Object.assign(c,{$:s=>nodes[s]||{},$$:()=>[],location:{search:'',href:'https://example.test/me/friends'},URL,URLSearchParams,history:{state:null,replaceState(){}},profileHref:p=>'/people/'+p.login,avatar:()=>'',backBtn:()=>'',svg:()=>'',skel:()=>'',personLink:p=>`<a>${p.name} @${p.login}</a>`,wireBack(){},Social:{set(){}},viewResources:new Map(),setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),route:(re,tab,fn)=>{handler=fn;},api:path=>new Promise((resolve,reject)=>pending.push({path,resolve,reject})),load:async(path,draw)=>draw({friends:[{name:'Jordan Fixture',login:'jordan'}],incoming:[],outgoing:[]})});
+ Object.assign(c,{$:s=>nodes[s]||{},$$:()=>[],location:{search:'',href:'https://example.test/me/friends'},URL,URLSearchParams,history:{state:null,replaceState(){}},profileHref:p=>'/people/'+p.login,avatar:()=>'',backBtn:()=>'',svg:()=>'',skel:()=>'',personLink:p=>`<a>${p.name} @${p.login}</a>`,wireBack(){},Social:{set(){}},inviteFriends(){},suggestedPeople:async()=>[],peopleRow(){},viewResources:new Map(),setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),route:(re,tab,fn)=>{handler=fn;},api:path=>new Promise((resolve,reject)=>pending.push({path,resolve,reject})),load:async(path,draw)=>draw({friends:[{name:'Jordan Fixture',login:'jordan'}],incoming:[],outgoing:[]})});
  vm.runInContext(source.slice(source.indexOf("route(/^\\/me\\/friends$/"),source.indexOf('// ---------- report or block someone')),c);
  await handler({});assert(!found.innerHTML);assert(lists.innerHTML.includes('Jordan Fixture'));assert(lists.innerHTML.includes('data-manage='));assert(!lists.innerHTML.includes('data-rm='));
  function type(text){input.value=text;input.oninput();}
  function flush(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}
- type('Jordan');assert(found.innerHTML.includes('Jordan Fixture'));assert.equal(pending.length,0,'known friend appears before network');assert(lists.hidden);flush();assert.equal(pending.length,1);
+ type('Jordan');assert(found.innerHTML.includes('Jordan Fixture'));assert.equal(pending.length,0,'known friend appears before network');assert(lists.hidden);assert(suggest.hidden,'suggestions hide while searching');flush();assert.equal(pending.length,1);
  type('Sam');assert(!found.innerHTML.includes('Jordan Fixture'),'old result actions removed while searching');flush();assert.equal(pending.length,2);
  pending[1].resolve([{name:'Sam Fixture',login:'sam',status:null}]);await tick();assert(found.innerHTML.includes('Sam Fixture'));assert.equal(status.textContent,'1 person found');
  pending[0].resolve([{name:'Old Jordan',login:'jordan',status:null}]);await tick();assert(!found.innerHTML.includes('Old Jordan'),'late response cannot replace new results');

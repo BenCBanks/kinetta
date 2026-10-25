@@ -1294,6 +1294,21 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .people-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .people-search > button { position: absolute; right: 4px; top: 0; }
 .people-search-help { margin: 4px 0 12px; }
+/* People you may know + invite (2026-10-25): a sideways row of people with why, on the Friends feed and Friends page */
+.pym .pym-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pym .pym-head h2 { margin: 0; font-size: 17px; }
+.pym-track { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; margin: 10px -4px 0; padding: 2px 4px 4px; }
+.pym-track::-webkit-scrollbar { display: none; }
+.pym-tile { position: relative; flex: 0 0 140px; scroll-snap-align: start; display: grid; justify-items: center; align-content: start; gap: 10px;
+  padding: 16px 10px 12px; border: 1px solid var(--line); border-radius: var(--r3); background: var(--card); text-align: center; }
+.pym-who { display: grid; justify-items: center; gap: 3px; color: inherit; min-width: 0; width: 100%; text-decoration: none; }
+.pym-who b { font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pym-who small { font-size: 12px; }
+.pym-tile .primary.sm, .pym-tile .badge { width: 100%; justify-content: center; }
+.pym-x { position: absolute; top: 2px; right: 2px; width: 32px; height: 32px; min-height: 32px; color: var(--muted); }
+.pym-x svg { width: 16px; height: 16px; }
+#fr-invite { margin: 0 0 14px; }
+.add-friend b { font-size: 18px; }
 .people-search-help .linkbtn { padding: 6px 0; min-height: 44px; font-size: inherit; }
 #fr-status:empty { display: none; }
 #fr-lists .person b, #fr-found .person b { white-space: normal; overflow-wrap: anywhere; }

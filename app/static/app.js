@@ -1250,15 +1250,17 @@ async function showJoin(token) {
 }
 // "Create an account" (open signup, #232): email, username, password and a 16+ confirmation. When the server's account
 // cap is reached the waitlist takes over; the email link still has to be opened before others can see the person.
-async function showSignup() {
-  let s = {};
+async function showSignup(friendLink = store.get('kinetta.friendLink')) {
+  let s = {}, inviter = null;
   try { s = await api('/api/signup'); } catch (x) { /* treat as closed */ }
+  if (friendLink) { try { inviter = (await api('/api/friend-links/' + encodeURIComponent(friendLink))).name; } catch (x) { store.del('kinetta.friendLink'); friendLink = null; } }
   if (s.full) { history.replaceState(null, '', '/beta'); return showBeta(true); }
   if (!s.open) { history.replaceState(null, '', '/'); return showLogin(); }
   showNewAccount({title: 'Create your account', button: 'Create my account', signup: true,
-    intro: 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
+    intro: (inviter ? `${esc(inviter)} invited you. You’ll be friends once you confirm your email. ` : '') + 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
     send: async (body) => {
-      try { if (Native.on) await Native.signup(body); else await api('/api/signup', json('POST', body)); }
+      if (friendLink) body = {...body, friend_link: friendLink};
+      try { if (Native.on) await Native.signup(body); else await api('/api/signup', json('POST', body)); if (friendLink) store.del('kinetta.friendLink'); }
       catch (x) { if (x.status === 409 && x.code === 'full') { history.replaceState(null, '', '/beta'); showBeta(true); return new Promise(() => {}); } throw x; }
     }});
   const back = $('#s-login', root); if (back) back.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
@@ -1362,6 +1364,9 @@ async function showWelcome() {
   const join = location.pathname.match(/^\/join\/([\w-]+)$/);
   if (join) return showJoin(join[1]);
   if (location.pathname === '/beta') return showBeta();
+  // A friend's invite link (2026-10-25): remember it, then sign up (or log in) and the two of you become friends.
+  const add = location.pathname.match(/^\/add\/([\w-]+)$/);
+  if (add && !setup.needed) { store.set('kinetta.friendLink', add[1]); history.replaceState(null, '', '/signup'); return showSignup(add[1]); }
   if (location.pathname === '/signup' && !setup.needed) return showSignup();
   if (!setup.needed) return showLogin();
   showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account',
@@ -1378,6 +1383,9 @@ async function start() {
   const enter = () => {
     if (store.get('kinetta.getApp') && getAppFirst()) return showGetApp();
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta' || location.pathname === '/signup') history.replaceState(null, '', '/me');
+    // logged in after opening a friend's invite link: show who it's from and let them say yes
+    const friendLink = store.get('kinetta.friendLink');
+    if (friendLink) { store.del('kinetta.friendLink'); if (location.pathname === '/me') history.replaceState(null, '', '/add/' + friendLink); }
     // The first time a new account opens the iPhone app, the welcome steps lead, with Apple Health (2026-10-24)
     const seen = 'kinetta.welcomed:' + readOwner();
     if (Native.on && !store.get(seen) && App.me?.created && Date.now() - new Date(App.me.created) < 14 * 864e5 && location.pathname === '/me') history.replaceState(null, '', '/welcome');

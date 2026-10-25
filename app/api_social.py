@@ -13,6 +13,8 @@ Keeping people's data safe:
 """
 import datetime as dt
 import json
+import os
+import secrets
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -338,6 +340,106 @@ def friend_remove(login: str, user=Depends(current_user)):
                        AND ((d.user_id = %(me)s AND s.user_id = %(them)s) OR (d.user_id = %(them)s AND s.user_id = %(me)s))""",
                   {'me': user['id'], 'them': t['id']})
     return {'ok': True}
+
+
+# ---------- people you may know, and an invite link to text a friend (2026-10-25) ----------
+LINK_DAYS = 30
+SUGGEST_MAX = 12
+
+
+@router.get('/people/suggested')
+def people_suggested(user=Depends(current_user)):
+    """A few people to add, with why: someone who invited you (or you them), friends of your friends, then people new
+    on Kinetta. Only people who let others find them, never blocked, unconfirmed or suspended accounts, never anyone you
+    already have a friendship or request with. A mutual-friend count, never who those friends are."""
+    with db.connect() as c:
+        rows = c.execute("""WITH mine AS (SELECT CASE WHEN requester = %(me)s THEN addressee ELSE requester END AS id
+                                          FROM friendships WHERE %(me)s IN (requester, addressee) AND status = 'accepted'),
+            theirs AS (SELECT CASE WHEN f.requester = m.id THEN f.addressee ELSE f.requester END AS id, count(*) AS n
+                       FROM friendships f JOIN mine m ON m.id IN (f.requester, f.addressee) WHERE f.status = 'accepted' GROUP BY 1),
+            invited AS (SELECT CASE WHEN created_by = %(me)s THEN used_by ELSE created_by END AS id,
+                               bool_or(used_by = %(me)s) AS invited_you FROM invites
+                        WHERE used_by IS NOT NULL AND %(me)s IN (created_by, used_by) GROUP BY 1)
+            SELECT u.login::text AS login, u.name, u.photo_v AS photo, coalesce(t.n, 0) AS mutual, i.invited_you,
+                   u.created > now() - interval '60 days' AS new
+            FROM users u LEFT JOIN profile p ON p.user_id = u.id LEFT JOIN theirs t ON t.id = u.id LEFT JOIN invited i ON i.id = u.id
+            WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND u.suspended_at IS NULL
+              AND coalesce(p.findable, true) AND NOT {blocked}
+              AND NOT EXISTS (SELECT 1 FROM friendships f WHERE (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s))
+              AND (i.id IS NOT NULL OR t.n > 0 OR u.created > now() - interval '60 days')
+            ORDER BY i.id IS NOT NULL DESC, coalesce(t.n, 0) DESC, u.created DESC LIMIT %(n)s""".replace('{blocked}', blocked('u.id')),
+                         {'me': user['id'], 'viewer': user['id'], 'n': SUGGEST_MAX}).fetchall()
+    why = lambda r: ('Invited you' if r['invited_you'] else 'You invited them') if r['invited_you'] is not None else \
+        (f"{r['mutual']} mutual friend{'s' if r['mutual'] != 1 else ''}" if r['mutual'] else 'New on Kinetta')
+    return [{'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'why': why(r)} for r in rows]
+
+
+def _link_url(code):
+    return (os.environ.get('KINETTA_PUBLIC_URL', '').rstrip('/') or '') + '/add/' + code
+
+
+def _new_link(c, uid):
+    code = secrets.token_urlsafe(9)
+    c.execute("""INSERT INTO friend_links (user_id, code, expires) VALUES (%s, %s, now() + %s)
+                 ON CONFLICT (user_id) DO UPDATE SET code = excluded.code, created = now(), expires = excluded.expires""",
+              (uid, code, dt.timedelta(days=LINK_DAYS)))
+    return c.execute('SELECT code, expires FROM friend_links WHERE user_id = %s', (uid,)).fetchone()
+
+
+@router.get('/friends/link')
+def friend_link(user=Depends(current_user)):
+    """Your invite link: anyone who opens it while signed in becomes your friend at once, so share it only with people
+    you'd add yourself. It lasts 30 days; a fresh one is made after that, or whenever you ask."""
+    with db.connect() as c:
+        confirmed(c, user['id'])
+        row = c.execute('SELECT code, expires FROM friend_links WHERE user_id = %s AND expires > now() + interval \'1 day\'', (user['id'],)).fetchone()
+        row = row or _new_link(c, user['id'])
+    return {'url': _link_url(row['code']), 'expires': row['expires']}
+
+
+@router.post('/friends/link/new')
+def friend_link_new(user=Depends(current_user)):
+    """A new link; the old one stops working (if it went somewhere you didn't mean it to)."""
+    with db.connect() as c:
+        confirmed(c, user['id'])
+        row = _new_link(c, user['id'])
+    return {'url': _link_url(row['code']), 'expires': row['expires']}
+
+
+def _link_owner(c, code, viewer=None):
+    """Whose live link this is, or 404. Blocked pairs, suspended or unconfirmed owners and expired links all look missing."""
+    o = c.execute("""SELECT u.id, u.login::text AS login, u.name, u.photo_v AS photo FROM friend_links l JOIN users u ON u.id = l.user_id
+                     WHERE l.code = %s AND l.expires > now() AND NOT u.needs_email_confirm AND u.suspended_at IS NULL""",
+                  ((code or '')[:40],)).fetchone()
+    if not o or (viewer and viewer != o['id'] and _blocked_pair(c, viewer, o['id'])): raise HTTPException(404, 'This invite link has expired or was replaced. Ask for a new one.')
+    return o
+
+
+@router.get('/friend-links/{code}')
+def friend_link_preview(code: str):
+    """For the page the link opens, signed in or not: only the name of the person who sent it."""
+    with db.connect() as c:
+        return {'name': _link_owner(c, code)['name']}
+
+
+def join_by_link(c, uid, code):
+    """Become friends with a link's owner. Returns their name and whether anything changed."""
+    o = _link_owner(c, code, uid)
+    if o['id'] == uid: raise HTTPException(400, "That's your own invite link. Send it to a friend.")
+    f = _pair(c, uid, o['id'], lock=True)
+    if f and f['status'] == 'accepted': return {'status': 'friends', 'name': o['name'], 'login': o['login'], 'new': False}
+    if f: c.execute("UPDATE friendships SET status = 'accepted', accepted = now() WHERE requester = %s AND addressee = %s", (f['requester'], f['addressee']))
+    else: c.execute("INSERT INTO friendships (requester, addressee, status, accepted) VALUES (%s, %s, 'accepted', now())", (o['id'], uid))
+    notify.drop(c, uid, 'friend_request', o['id']); notify.drop(c, o['id'], 'friend_request', uid)
+    notify.add(c, o['id'], 'friend_accepted', uid)
+    return {'status': 'friends', 'name': o['name'], 'login': o['login'], 'new': True}
+
+
+@router.post('/friend-links/{code}')
+def friend_link_use(code: str, user=Depends(current_user)):
+    with db.connect() as c:
+        confirmed(c, user['id'])
+        return join_by_link(c, user['id'], code)
 
 
 # ---------- sharing settings ----------

@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const source=fs.readFileSync('app/static/social.js','utf8');
 let calls=0,draws=0,owner='one',resolve,epoch=0;const saved=new Map();   // stand-in for the phone's saved copies
 const list={isConnected:true,_html:'',set innerHTML(v){this._html=v;draws++;},get innerHTML(){return this._html;},insertAdjacentHTML(){}},more={};
-const ctx={App:{cache:new Map()},kept:(k)=>saved.get(k)||null,keep:(k,v)=>saved.set(k,v),readOwner:()=>owner,readEpoch:()=>epoch,readOnce:async()=>{calls++;return [];},$:(s)=>s==='#ff-list'?list:more,svg:()=>'',actTop:()=>'',whoseSeg:()=>'',wireWhose(){},skel:()=>'',postCard:()=>'',startCta:()=>'',feedMaps(){},wireCheers(){},route(){},console,Date,URLSearchParams};
+const ctx={App:{cache:new Map()},kept:(k)=>saved.get(k)||null,keep:(k,v)=>saved.set(k,v),readOwner:()=>owner,readEpoch:()=>epoch,readOnce:async()=>{calls++;return [];},$:(s)=>s==='#ff-list'?list:more,svg:()=>'',actTop:()=>'',whoseSeg:()=>'',wireWhose(){},skel:()=>'',postCard:()=>'',startCta:()=>'',feedMaps(){},wireCheers(){},feedPeople(){},inviteFriends(){},route(){},console,Date,URLSearchParams};
 vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const FEED_N'),source.indexOf('// ---------- someone else'))+'\nglobalThis.feed=homeFeed;globalThis.warm=warmFeed;',ctx);
 (async()=>{
  await ctx.feed({});assert.equal(calls,2);assert.equal(draws,1);
