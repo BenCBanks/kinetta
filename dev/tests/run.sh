@@ -17,6 +17,7 @@ python3 dev/design/build_tokens.py --check
 python3 dev/tests/test_design_manifest.py
 python3 dev/design/build_content.py
 python3 dev/tests/test_website_content.py
+python3 dev/tests/ai_fingerprints.py
 node dev/design/build_guide.js --check
 
 echo "== syntax"

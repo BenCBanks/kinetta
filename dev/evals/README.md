@@ -63,3 +63,18 @@ Add food and app-wide Kit currently have different conversation paths. The food 
 This change addresses explicit photo breakdown requests with the selected card's actual rows, unknown-aware totals and assumptions. It does not establish general conversational ability. Before broadening the assistant, evaluate a common context/intent path for explain, clarify, edit and log: paraphrased ingredient questions, “why that much?”, references to bread/sauces, uncertainty, portion corrections, new foods, successive follow-ups and retries. Quantities still come from validated records/estimators, writes require confirmation, and missing visual context needs an honest request to reattach. Real response usefulness must be reviewed alongside accuracy and isolation.
 
 Automatic itemization must cover both photos and text-only mixed-food descriptions in the same reviewed production/candidate food comparison. Include explicit and assumed ingredients, absent/unknown amounts, single foods, hidden sauces, partial portions and aggregate/component double-counting. UI/stand-in tests establish routing, numbers and retention contracts only; they cannot approve ingredient or nutrition accuracy. The existing fingerprint gate remains closed until the matching owner-reviewed comparison passes.
+
+## Fingerprints: what turns a reviewed feature off (25 October 2026)
+
+A reviewed report approves a fingerprint of what the model reads, not of whole source files: the string literals in
+each feature's files (prompts, answer schemas, tool names and descriptions), without docstrings, SQL or HTTP error
+text, plus the model settings (`app/ai_release.py`). Bug fixes, refactors and comments no longer switch a feature off.
+`dev/tests/ai_fingerprints.py` fails a PR whose model-facing text isn't listed in `app/ai_fingerprints.json`:
+a real prompt/schema/model change needs a new reviewed evaluation (new group); a string that only code uses goes into
+the current group, explained in the PR. Reports carry `ai_text` and `models` so a listed equivalent keeps them valid.
+Paid runs are needed only when what the model reads, or the model, changes.
+
+`brand_cases.py`/`brand_eval.py` compare two food-estimate prompts on named brands, informal amounts and everyday
+controls. First run (25 Oct, gemini-3.1-flash-lite, $0.03): the production prompt already put 27/27 branded items
+within 15%; an added "words may be a brand" instruction did not help (26/27), so it was not adopted. Neither food
+model knows newer niche brands (Garage Beer); estimates then fall back to a generic item and say so.

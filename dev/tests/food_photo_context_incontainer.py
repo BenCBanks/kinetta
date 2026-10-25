@@ -76,7 +76,7 @@ class PhotoContext(unittest.TestCase):
      self.assertFalse(check(bad),str(bad))
     report.write_text('{');self.assertFalse(itemization_gate());check(valid)
     with patch.dict(os.environ,{'GEMINI_FOOD_MODEL':'changed-food-model'}):self.assertFalse(itemization_gate())
-    with patch('app.ai_release.fingerprint',return_value='changed-source'):self.assertFalse(itemization_gate())
+    with patch('app.ai_release.gate_fingerprint',return_value='changed-source'),patch('app.ai_release.ai_text',return_value='changed-text'):self.assertFalse(itemization_gate())
  def test_unreviewed_prompt_is_blocked_but_descriptions_and_saved_answers_work(self):
   self.gate_mock.return_value=False
   self.assertFalse(self.a.get('/api/me').json()['food_photo_itemize'])

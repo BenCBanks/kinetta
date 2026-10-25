@@ -96,7 +96,7 @@ def enabled():
         from . import ai_release
         data = json.loads(Path(report).read_text())
         u = data.get('food_chat_understanding', {})
-        return (data.get('reviewed') is True and u.get('candidate_fingerprint') == ai_release.understanding_fingerprint()
+        return (data.get('reviewed') is True and ai_release.reviewed_for('understanding', u)
                 and u.get('case_count', 0) >= 200 and u.get('intent_accuracy', 0) >= .95 and u.get('invented_amounts') == 0
                 and u.get('reply_number_violations') == 0 and u.get('better_than_rules') is True
                 and u.get('qualitative_review_passed') is True)

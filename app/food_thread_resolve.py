@@ -129,6 +129,18 @@ def _catalog(food,part):
             'catalog_incomplete':incomplete,'question':'This database entry has missing nutrition. Choose another result or enter the nutrition you know.' if incomplete else 'This food is listed by weight. What was the total weight you ate, in grams?','source':food.get('source')}
 
 
+FILLER={'and','with','of','the','a','in','oz','fl','g','ct','count','pack','pk','serving'}
+
+
+def _close(query,food):
+    """A listed product that is clearly what they typed: every word they used, and at most one other real word.
+    A variety pack doesn't match 'kettle corn'; 'Beer Garage Hardcore Spritz' doesn't match 'garage beer'."""
+    words={w for w in query.split() if w not in FILLER and not w.replace('.','').isdigit()}
+    name,brand=set(meal_chat.product_words(food.get('name') or '')),set(meal_chat.product_words(food.get('brand') or ''))
+    extra={w for w in name-words-brand-meal_chat.BASIC-FILLER if not w.isdigit()}
+    return words<=name|brand and len(extra)<=1
+
+
 def resolve_outside(uid,work,body):
     message,result=work['message'],work['result'];unknown=_unknown(result);media=work['media']
     updates=[];estimate=[];fallback=[]
@@ -151,6 +163,7 @@ def resolve_outside(uid,work,body):
             except Exception:return {'kind':'none','foods':[]}
         with ThreadPoolExecutor(max_workers=4) as pool:
             lookups=dict(zip((p['index'] for p in short),pool.map(lookup_part,short)))
+        ai_ok=None
         for part in unknown:
             if has_link or re.search(r'https?://|www\.',part['text'],re.I):
                 updates.append({'indices':[part['index']],'part':{**part,'looked_up':True,'recipe_url':True,
@@ -159,6 +172,11 @@ def resolve_outside(uid,work,body):
                 estimate.append(part);continue
             lookup=lookups.get(part['index']) or {'kind':'none','foods':[]}
             if lookup['kind']=='brand' and not (body.allow_brand_estimate and (body.part is None or body.part==part['index'])):
+                # With AI estimates on, a loose catalog match isn't worth a question: the estimate knows brands
+                # (Ben, 25 October: "3 handfuls of PopCorners and a Garage Beer" took two rounds of questions).
+                if ai_ok is None:ai_ok=coach.allowed(uid,'food')
+                if ai_ok and not any(_close(lookup.get('query') or ' '.join(meal_chat.product_words(part['text'])),f) for f in lookup['foods']):
+                    estimate.append(part);continue
                 updates.append({'indices':[part['index']],'part':{**part,'status':'choose','looked_up':True,
                                 'catalog':lookup['foods'],'question':'Which product did you have?' }})
             elif lookup['kind']=='plain' and lookup['foods']:

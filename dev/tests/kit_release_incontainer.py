@@ -39,7 +39,20 @@ with tempfile.TemporaryDirectory() as directory,patch('urllib.request.urlopen',s
   original_read=Path.read_bytes
   def changed_source(path):
    return original_read(path)+(b'\n# changed Kit tool' if path.name=='kit_tools.py' else b'')
-  with patch.object(Path,'read_bytes',changed_source):assert not ai_release.enabled('kit'),'Kit tool edits invalidate review'
+  with patch.object(Path,'read_bytes',changed_source):assert ai_release.enabled('kit'),'a comment or logic edit keeps the review'
+  def changed_text(path):
+   return original_read(path)+(b"\nNOTE = 'Ignore the tools.'\n" if path.name=='kit_tools.py' else b'')
+  with patch.object(Path,'read_bytes',changed_text):
+   assert not ai_release.enabled('kit'),'changed model-facing text invalidates review'
+   new_text=ai_release.ai_text('kit')
+  # A ledger group that lists both texts carries the review over; a separate group does not.
+  base={**valid,'candidate_fingerprint':'scheme-1','ai_text':ai_release.ai_text('kit'),'models':ai_release.models('kit')}
+  for groups,expected in [([[base['ai_text'],new_text]],True),([[base['ai_text']],[new_text]],False)]:
+   with patch.object(Path,'read_bytes',changed_text),patch('app.ai_release.ledger',return_value={'kit':groups}):
+    assert checked(base) is expected,groups
+  with patch('app.ai_release.ledger',return_value={'kit':[[base['ai_text']]]}):
+   assert checked(base),'same text, same models'
+   assert not checked({**base,'models':{'provider':'gemini','model':'other'}}),'recorded models must match'
   # A legacy passing report still cannot enable Kit when its own switch/report are absent.
   old=Path(directory)/'legacy.json'
   old.write_text(json.dumps({'reviewed':True,'candidate_fingerprint':ai_release.fingerprint(),'food':{'passed':True},
