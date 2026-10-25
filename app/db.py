@@ -1396,6 +1396,17 @@ MIGRATIONS = [
     END $$;
     """,
 
+    # 73 (2026-10-25): an invite link of your own to text a friend (Ben: finding friends was too hard). Opening it while
+    # signed in makes you friends at once; a new account signed up through it becomes friends once its email is confirmed.
+    # One live link per person; making a new one retires the old. friend_link holds a signup's link until that confirmation.
+    """CREATE TABLE friend_links (user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, code text NOT NULL UNIQUE,
+      created timestamptz NOT NULL DEFAULT now(), expires timestamptz NOT NULL);
+    ALTER TABLE friend_links ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON friend_links FOR SELECT TO fit_readers USING (user_id = fit_me());
+    CREATE POLICY all_rows ON friend_links FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON friend_links TO fit_readers;
+    ALTER TABLE profile ADD COLUMN friend_link text;
+    """,
 ]
 
 

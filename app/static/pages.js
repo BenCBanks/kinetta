@@ -384,7 +384,7 @@ const wireWhose = (el) => $$('[data-whose]', el).forEach((b) => b.onclick = () =
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
 const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
-    ${friends ? `<a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a>` : ''}
+    ${friends ? `<a class="icon-btn" href="/me/friends" aria-label="Find friends">${svg('people')}</a>` : ''}
     ${bellBtn()}</div></div>`;
 route(/^\/activity$/, 'activity', async (el) => {
   const q = new URLSearchParams(location.search), sport = q.get('sport') || '', term = q.get('q') || '';

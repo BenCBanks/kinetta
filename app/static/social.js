@@ -212,15 +212,17 @@ function warmFeed() {
   feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg); } }).catch(() => {});
 }
 async function homeFeed(el) {
-  el.innerHTML = `${actTop(false, true)}${whoseSeg('')}
+  el.innerHTML = `${actTop(false, true)}${whoseSeg('')}<div id="ff-people"></div>
     <div class="feed-list" id="ff-list">${skel(3)}</div><button class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   wireWhose(el);
   const list = $('#ff-list', el), more = $('#ff-more', el);
+  feedPeople($('#ff-people', el));
   let items = [];
   const draw = (pg) => {
     items = pg.rows;
     list.innerHTML = items.length ? items.map((a) => postCard(a, {who: true})).join('') : `<div class="card empty"><b>Nothing here yet</b>
-      Your activities and the ones your friends share show up here.${startCta()}<div class="btncol"><a class="ghost" href="/me/friends">Find your friends</a></div></div>`;
+      Your activities and the ones your friends share show up here.${startCta()}<div class="btncol"><a class="ghost" href="/me/friends">Find your friends</a><button type="button" class="ghost" data-invite-empty>Invite friends</button></div></div>`;
+    const inv = list.querySelector?.('[data-invite-empty]'); if (inv) inv.onclick = inviteFriends;
     more.hidden = !pg.more; feedMaps(list); wireCheers(list);
   };
   let hit = App.cache.get('feed:home');
@@ -603,6 +605,90 @@ function shareProfile(p) {
   else copySheet();
 }
 
+// ---------- finding friends (Ben, 25 October 2026: "a tad easier to quickly find your friends") ----------
+// Your own invite link: whoever opens it while signed in becomes your friend at once; a new account through it, once its
+// email is confirmed. The share sheet says so, so it goes only to people you'd add yourself.
+async function inviteFriends() {
+  let link;
+  try { link = await api('/api/friends/link'); } catch (x) { toast(x.message); return; }
+  const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
+  const text = `Join me on Kinetta so we can follow each other's workouts.`;
+  const copySheet = () => sheet('Invite friends', `<p>Anyone who opens this link becomes your friend on Kinetta, so send it only to people you’d add yourself. It works for 30 days.</p>
+    <label class="form">Your invite link<input readonly value="${esc(url)}" aria-label="Invite link"></label><button type="button" class="primary wide" id="iv-copy">Copy link</button>
+    <p class="small muted" id="iv-status" role="status"></p><button type="button" class="linkbtn muted" id="iv-new">Make a new link (the old one stops working)</button>`, (b, close) => {
+    const input = $('input', b); input.onclick = () => input.select();
+    $('#iv-copy', b).onclick = async () => {
+      try { await navigator.clipboard.writeText(`${text} ${url}`); $('#iv-status', b).textContent = 'Link copied'; }
+      catch { input.select(); $('#iv-status', b).textContent = 'Select and copy the link above.'; }
+    };
+    $('#iv-new', b).onclick = async () => { try { await api('/api/friends/link/new', json('POST', {})); close(); toast('New invite link made'); inviteFriends(); } catch (x) { toast(x.message); } };
+  });
+  if (navigator.share) navigator.share({title: 'Join me on Kinetta', text, url}).catch((e) => { if (e.name !== 'AbortError') copySheet(); });
+  else copySheet();
+}
+const hiddenKey = () => 'kinetta.hideSuggest:' + readOwner();
+const hiddenPeople = () => { try { return new Set(store.get(hiddenKey()) || []); } catch { return new Set(); } };
+async function suggestedPeople() {
+  try { const hidden = hiddenPeople(); return (await api('/api/people/suggested')).filter((p) => !hidden.has(p.login)); }
+  catch (x) { return []; }
+}
+// A row of people to add, with why, and an invite tile. Used on the Friends feed (while you have few friends) and Friends.
+function peopleRow(box, people, {title = 'People you may know', onChange, invite = true} = {}) {
+  const tile = (p) => `<div class="pym-tile" data-login="${esc(p.login)}"><button type="button" class="pym-x icon-btn" data-hide="${esc(p.login)}" aria-label="Hide ${esc(p.name)}">${svg('close')}</button>
+      <a class="pym-who" href="${profileHref(p)}">${avatar(p, 'lg')}<b>${esc(p.name)}</b><small class="muted">${esc(p.why)}</small></a>
+      <button type="button" class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button></div>`;
+  if (!people.length && !invite) { box.innerHTML = ''; return; }
+  box.innerHTML = `<section class="card pym" aria-label="${esc(title)}"><div class="pym-head"><h2>${people.length ? esc(title) : 'Find your friends'}</h2>${invite && people.length ? '<button type="button" class="linkbtn" data-invite>Invite</button>' : ''}</div>
+    ${people.length ? `<div class="pym-track">${people.map(tile).join('')}</div>` : '<p class="small muted">Send friends a link. When they open it, you’re friends on Kinetta.</p><button type="button" class="ghost wide" data-invite>Invite friends to Kinetta</button>'}</section>`;
+  $$('[data-invite]', box).forEach((b) => b.onclick = inviteFriends);
+  $$('[data-hide]', box).forEach((b) => b.onclick = () => {
+    const hidden = hiddenPeople(); hidden.add(b.dataset.hide);
+    try { store.set(hiddenKey(), [...hidden].slice(-200)); } catch { /* hiding is a convenience */ }
+    b.closest('.pym-tile').remove();
+  });
+  $$('[data-add]', box).forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const r = await api('/api/friends', json('POST', {login: b.dataset.add}));
+      b.outerHTML = `<span class="badge on">${svg('check')} ${r.status === 'friends' ? 'Friends' : 'Requested'}</span>`;
+      invalidate('/api/friends'); invalidate('/api/people/'); onChange?.();
+    } catch (x) { toast(x.message); b.disabled = false; }
+  });
+}
+// People to add lead the Friends feed until you have a few friends; afterwards they live on the Friends page.
+// Asked at most every five minutes, so opening the feed stays a single read.
+async function feedPeople(box) {
+  const owner = readOwner(), hit = App.cache.get('people:feed');
+  let people = hit && hit.owner === owner && Date.now() - hit.at < 300000 ? hit.people : null;
+  if (!people) {
+    const f = await api('/api/friends').catch(() => null);
+    people = !f || f.friends.length >= 5 ? [] : (await suggestedPeople()).slice(0, 10);
+    if (owner !== readOwner()) return;
+    App.cache.set('people:feed', {owner, people, at: Date.now(), few: !!f && f.friends.length < 5});
+  }
+  if (box.isConnected && App.cache.get('people:feed').few) peopleRow(box, people.filter((p) => !hiddenPeople().has(p.login)), {onChange: () => App.cache.delete('people:feed')});
+}
+// The page an invite link opens when you're signed in: who sent it, and one button.
+route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
+  el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}`;
+  wireBack(el, '/activity');
+  let who;
+  try { who = await api('/api/friend-links/' + encodeURIComponent(code)); }
+  catch (x) { el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty"><b>This invite link doesn’t work</b>${esc(x.message)}<div class="btncol"><a class="ghost" href="/me/friends">Find friends</a></div></div>`; wireBack(el, '/activity'); return; }
+  el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty add-friend"><b>${esc(who.name)} invited you to be friends</b>
+    You’ll each see the activities the other shares with friends. You can change that or stop being friends any time.
+    <div class="btncol"><button class="primary" id="af-yes">Become friends</button><a class="ghost" href="/activity">Not now</a></div></div>`;
+  wireBack(el, '/activity');
+  $('#af-yes', el).onclick = async (e) => {
+    e.target.disabled = true;
+    try {
+      const r = await api('/api/friend-links/' + encodeURIComponent(code), json('POST', {}));
+      store.del('kinetta.friendLink'); invalidate('/api/friends'); invalidateFeed();
+      toast(r.new ? `You and ${r.name} are friends now` : `You and ${r.name} were already friends`); go(profileHref(r), {replace: true});
+    } catch (x) { toast(x.message); e.target.disabled = false; }
+  };
+});
+
 // One editor saves identity fields together; errors leave both drafts in place.
 function wireProfileEditing(box, p, reload) {
   $('#pf-photo', box).onclick = () => profilePhotoSheet(() => { invalidate('/api/me'); keep('/api/me', App.me); reload(); });
@@ -643,10 +729,13 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     <form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
       <input type="search" name="q" placeholder="Name or @username" aria-label="Search people" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
     <p class="small muted people-search-help">Find someone on Kinetta, or <button type="button" class="linkbtn" id="fr-browse">browse people</button>.</p>
-    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-lists">${skel(1)}</div>
+    <button type="button" class="primary wide" id="fr-invite">${svg('people')}Invite friends to Kinetta</button>
+    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-lists">${skel(1)}</div><div id="fr-suggest"></div>
     <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Default audience for new activities, and shared details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
-  const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el);
+  const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el), suggest = $('#fr-suggest', el);
+  $('#fr-invite', el).onclick = inviteFriends;
+  const drawSuggest = async () => { const people = await suggestedPeople(); if (suggest.isConnected && people.length) peopleRow(suggest, people, {invite: false, onChange: () => load('/api/friends', draw, {maxAge: 0}).catch(drawListError)}); else if (suggest.isConnected) suggest.innerHTML = ''; };
   const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}<span class="btnrow tight">${btns}</span></div>`;
   const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
     sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel request</button>`,
@@ -691,7 +780,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   let t, searchVersion = 0;
   async function find(again) {
     const q = input.value.trim();
-    clear.hidden = !q && !browsing; lists.hidden = !!q || browsing;
+    clear.hidden = !q && !browsing; lists.hidden = suggest.hidden = !!q || browsing;
     if (!q && !browsing) { last = null; found.innerHTML = ''; status.textContent = ''; found.setAttribute('aria-busy', 'false'); return; }
     if (q === last && !again) return; last = q;
     const request = ++searchVersion;
@@ -710,7 +799,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
     url.searchParams.delete('find'); history.replaceState(history.state, '', url.pathname + url.search);
     if (!q) { find(); return; }
-    clear.hidden = false; lists.hidden = true;
+    clear.hidden = false; lists.hidden = suggest.hidden = true;
     const term = q.replace(/^@/, '').toLocaleLowerCase();
     drawResults(known.filter(p => p.name.toLocaleLowerCase().includes(term) || p.login.toLocaleLowerCase().includes(term)).slice(0, 20), true);
     found.setAttribute('aria-busy', 'true'); status.textContent = 'Searching…';
@@ -735,6 +824,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   const searching = find();
   if (initial.has('find')) input.focus();
   await load('/api/friends', draw, {maxAge: 0}).catch(drawListError);
+  drawSuggest();
   await searching;
 });
 

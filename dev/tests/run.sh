@@ -120,6 +120,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/meal_chat_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_account_email.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_signup.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_friend_links.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
 
 echo "== admin launch tools (fictional accounts, stand-in mail)"
