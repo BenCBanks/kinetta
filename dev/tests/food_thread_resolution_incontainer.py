@@ -286,7 +286,7 @@ class Resolution(unittest.TestCase):
   self.a.put('/api/food/thread/preferences',json={'auto_log':False})
   foods=[{**PLAIN,'name':'First grain'},{**PLAIN,'name':'Second grain'}]
   self.look.side_effect=lambda text:{'kind':'brand','foods':foods}
-  m=self.root('1 serving Fictional grain');self.resolve(m)
+  m=self.root('1 serving grain');self.resolve(m)
   self.post(f"/api/food/thread/messages/{m['id']}/choose",{'catalog':0,'portion':{'count':1,'unit':'serving'}})
   r=self.post(f"/api/food/thread/messages/{m['id']}/choose",{'catalog':1,'portion':{'count':1,'unit':'serving'}})
   self.assertEqual(self.result(r)['parts'][0]['entries'][0]['name'],'Second grain')
@@ -429,6 +429,14 @@ class Resolution(unittest.TestCase):
   draft=str(uuid.uuid4());m,_=self.review_send('2 chicken tacos',draft);self.look.return_value=self.mass_catalog();self.look.side_effect=None;self.model.side_effect=HTTPException(503,'Fictional estimate unavailable')
   r=self.resolve(m);result=self.result(r);self.assertEqual(result['parts'][0]['status'],'quantity');self.assertIn('weight',result['text']);self.assertIn('error',result);self.assertEqual(self.entries(),[])
   self.resolve(m);self.model.assert_called_once()
+ def test_41_loose_brand_match_goes_straight_to_an_estimate_when_ai_is_on(self):
+  # "a garage beer" matched only "Beer Garage Hardcore Spritz": not worth a question when Kit can estimate.
+  self.look.side_effect=lambda text:{'kind':'brand','query':'garage beer','foods':[{**PLAIN,'name':'Beer Garage Hardcore Spritz','brand':'Garage'}]}
+  m=self.root('a garage beer');r=self.resolve(m);self.model.assert_called_once()
+  self.assertNotEqual(self.result(r)['parts'][0]['status'],'choose');self.assertNotIn('Which product',str(self.result(r)))
+  # Without AI the product list is still the best help on offer.
+  self.model.reset_mock();self.a.put('/api/profile',json={'ai_ok':False})
+  m=self.root('another garage beer');r=self.resolve(m);self.model.assert_not_called();self.assertEqual(self.result(r)['parts'][0]['status'],'choose')
  def test_40_confusion_without_food_never_looks_up_or_estimates_the_sentence(self):
   _,r=self.send('No idea what you mean');self.assertEqual(self.result(r)['intent'],'clarification_help');self.look.assert_not_called();self.model.assert_not_called();self.assertEqual(self.entries(),[])
 

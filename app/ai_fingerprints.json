@@ -1,0 +1,20 @@
+{
+ "about": "Text fingerprints of what each AI feature's model reads (app/ai_release.py). Fingerprints in one group were judged equivalent; a new group means changed AI behaviour that needs a reviewed evaluation.",
+ "general": [
+  [
+   "4149686a98329593981b5a946ebe5d7f2f7539494ab8d201e653d7b179c6413d",
+   "e1d323683617c6301dff96fea72b920561113f0852bef3aa21b81dee41af7317",
+   "046b1d62d95526035fb7b7de6ae2249f84124c590094c30a68a604e170ed4c0f"
+  ]
+ ],
+ "understanding": [
+  [
+   "cc624b0671e94d73094d7a1ff35a0decf4201caf515a18556a8b3e1e5487f451"
+  ]
+ ],
+ "kit": [
+  [
+   "9aec73aee6d739a7e5dd044e298916cb57f61ca020a0bb386e2501dfe7067140"
+  ]
+ ]
+}
