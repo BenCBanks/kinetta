@@ -8,7 +8,7 @@ Your workouts and your food, *in one app.*
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Track runs, rides and lifting alongside your calories, macros and recipes. See your training and food in the same daily view.
+Track runs, rides and lifting alongside your calories, macros and recipes. Then see what it all adds up to: whether you're getting fitter, when to take it easy, and how today compares with last time.
 
 ## runs-rides-and-lifting-4
 
@@ -16,7 +16,7 @@ Runs, rides and lifting
 
 ## import-runs-and-rides-from-your-watch-files-or-connect-5
 
-Maps, pace and heart rate from Apple Watch, Garmin and other watches, plus training plans and lifting logs.
+Maps, pace and heart rate from your watch, plus fitness and freshness, race predictions and a coach you can ask about your own training.
 
 ## quick-food-logging-6
 
