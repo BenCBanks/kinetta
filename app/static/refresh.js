@@ -21,8 +21,10 @@ const PageRefresh=(()=>{
     clearTimeout(settleT);pulled=distance>0;
     if(view){view.style.transition=glide?'transform .3s cubic-bezier(.2,.8,.2,1)':'none';view.style.transform=distance?`translate3d(0,${distance.toFixed(2)}px,0)`:'';}
     spinner.className='ptr'+(glide?' glide':'')+(mode==='hold'?' spinning':'');
-    spinner.style.opacity=String(Math.min(1,distance/READY));
-    spinner.style.transform=`translate3d(-50%,${(distance*.5-36).toFixed(2)}px,0)`;
+    // Centred in the gap the pull opens and visible almost at once: a pull that shows only empty space
+    // looked broken (Ben, 25 October).
+    spinner.style.opacity=String(Math.min(1,distance/24));
+    spinner.style.transform=`translate3d(-50%,${(distance*.5-24).toFixed(2)}px,0)`;
     if(mode==='drag'){spinner.style.setProperty('--refresh-angle',`${distance*4}deg`);$('svg',spinner).style.transform=`rotate(${distance*4}deg)`;}
     else if(mode==='hold')$('svg',spinner).style.transform='';
     // once the page is back in place, drop the transition so it can't affect anything else

@@ -791,6 +791,9 @@ class KinettaBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(KinettaWebSignInPlugin())
         bridge?.registerPluginInstance(KinettaActivitySharePlugin())
         webView?.scrollView.keyboardDismissMode = .interactive
+        // No native rubber-band on the page itself: pulling past the top opened a blank gap with no spinner.
+        // The app's own pull-to-refresh moves the page on the home tabs; inner scrolling areas keep their bounce.
+        webView?.scrollView.bounces = false
         // Swipe from the left edge to go back, like every iPhone app (owner: snappy and native, 20 Oct 2026).
         // The app's screens are history entries, so iOS shows its usual sliding preview of the previous screen.
         webView?.allowsBackForwardNavigationGestures = true
