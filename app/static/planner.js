@@ -605,7 +605,7 @@ route(/^\/routes\/plan\/(\d+)\/edit$/, 'progress', async (el, id) => {
     const d = (await api('/api/route-drafts/' + key)).data || store.get(planDraftKey(key));
     if (d?.waypoints?.length && d.baseVersion === r.version) plan = d;
   } catch (_) { /* the saved route */ }
-  Planner.open(el, {title: 'Edit route', key, plan, routeId: r.id, baseVersion: r.version, back: r.name, backHref: `/routes/plan/${id}`});
+  Planner.open(el, {title: 'Edit route', key, plan, routeId: r.id, baseVersion: r.version, back: 'Route', backHref: `/routes/plan/${id}`});
 });
 
 route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
