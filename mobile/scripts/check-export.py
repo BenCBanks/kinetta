@@ -27,6 +27,7 @@ def main():
         assert entitlements.get("aps-environment") == "production", "Export lost production push entitlement"
         assert entitlements.get("application-identifier") == os.environ["TEAM"] + ".com.kinetta.app", "Unexpected app signing identity"
         assert entitlements.get("get-task-allow") is not True, "Export uses a development profile"
+        assert "applinks:login.kinetta.app" in (entitlements.get("com.apple.developer.associated-domains") or []), "Export lost invite-link (Associated Domains) permission"
         profile = subprocess.run(["security", "cms", "-D", "-i", str(app / "embedded.mobileprovision")],
                                  capture_output=True, check=True)
         profile = plistlib.loads(profile.stdout)

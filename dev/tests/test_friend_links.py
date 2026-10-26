@@ -80,6 +80,18 @@ class FriendLinks(unittest.TestCase):
         token = re.search(r'/confirm-email/([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
         self.assertEqual(client().post('/api/account/email/confirm', json={'token': token}).status_code, 200)
 
+    def test_app_links_and_preview(self):
+        with patch.dict(os.environ, {'KINETTA_APNS_TEAM_ID': ''}): self.assertEqual(client().get('/.well-known/apple-app-site-association').status_code, 404)
+        with patch.dict(os.environ, {'KINETTA_APNS_TEAM_ID': 'TEAMFICT01', 'KINETTA_APNS_TOPIC': 'com.kinetta.app'}):
+            r = client().get('/.well-known/apple-app-site-association')
+            self.assertEqual(r.status_code, 200); self.assertEqual(r.headers['content-type'], 'application/json')
+            self.assertEqual(r.json()['applinks']['details'][0], {'appIDs': ['TEAMFICT01.com.kinetta.app'], 'components': [{'/': '/add/*', 'comment': 'friend invite links'}]})
+        ann = self.person('zz_test_fl_ann'); code = ann.get('/api/friends/link').json()['url'].rsplit('/', 1)[1]
+        with db.connect() as d: d.execute("UPDATE users SET name = 'Ann <b>&' WHERE login = 'zz_test_fl_ann'")
+        page = client().get('/add/' + code).text
+        self.assertIn('<meta property="og:title" content="Join Ann &lt;b&gt;&amp; on Kinetta">', page, 'named and escaped')
+        self.assertIn('<meta property="og:title" content="Kinetta">', client().get('/add/no-such-code').text, 'unknown links get the plain page')
+
     def test_people_you_may_know(self):
         ann, bo, cy, hid, blk = (self.person('zz_test_fl_' + n) for n in ('ann', 'bo', 'cy', 'hid', 'blk'))
         self.person('zz_test_fl_unc', confirmed=False)

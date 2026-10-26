@@ -1236,6 +1236,25 @@ async function showGetApp() {
     <p class="small muted">Not on an iPhone? <a href="/" id="ga-out">Log out</a> and log in from a computer or another phone’s browser.</p></div></div>`;
   $('#ga-out', root).onclick = async (e) => { e.preventDefault(); try { await api('/api/logout', json('POST', {})); } catch (x) { /* the login screen still shows */ } store.del('kinetta.getApp'); forgetKept(); App.me = null; history.replaceState(null, '', '/'); showLogin(); };
 }
+// A friend's invite link opened without the app (2026-10-26). With the iPhone app installed, the link opens the app
+// itself; here: who sent it, the app first on an iPhone, then sign up or log in on the web.
+async function showInvite(code) {
+  let who = null, s = {};
+  try { [who, s] = await Promise.all([api('/api/friend-links/' + encodeURIComponent(code)), api('/api/signup').catch(() => ({}))]); } catch (x) { /* shown as expired */ }
+  const login = '<p class="small muted">Already on Kinetta? <a href="/" id="iv-login">Log in</a> and you’ll see the invite.</p>';
+  if (!who) {
+    store.del('kinetta.friendLink');
+    root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This invite link has expired</h1><p>Ask your friend to send a new one from Friends › Invite friends.</p><a class="ghost wide" href="/" id="iv-login">Go to log in</a></div></div>`;
+  } else {
+    const phone = getAppFirst(), link = s.iphone_app;
+    root.innerHTML = `<div class="login invite-landing"><div class="form">${BRAND}<h1>${esc(who.name)} invited you to Kinetta</h1>
+      <p>Follow each other’s runs, rides and walks, and keep your food log private. You’ll be friends as soon as you join.</p>
+      ${phone && link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the iPhone app</a><p class="small muted">Kinetta is in beta through Apple’s TestFlight. After installing, open this invite link again and it opens in the app.</p>` : ''}
+      ${s.open ? `<a class="${phone && link ? 'ghost' : 'primary'} wide" href="/signup" id="iv-signup">Create an account${phone && link ? ' on the web' : ''}</a>` : ''}${login}</div></div>`;
+    const su = $('#iv-signup', root); if (su) su.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(code); };
+  }
+  $('#iv-login', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
+}
 async function showJoin(token) {
   let info;
   try { info = await api('/api/join/' + encodeURIComponent(token)); }
@@ -1366,7 +1385,7 @@ async function showWelcome() {
   if (location.pathname === '/beta') return showBeta();
   // A friend's invite link (2026-10-25): remember it, then sign up (or log in) and the two of you become friends.
   const add = location.pathname.match(/^\/add\/([\w-]+)$/);
-  if (add && !setup.needed) { store.set('kinetta.friendLink', add[1]); history.replaceState(null, '', '/signup'); return showSignup(add[1]); }
+  if (add && !setup.needed) { store.set('kinetta.friendLink', add[1]); return showInvite(add[1]); }
   if (location.pathname === '/signup' && !setup.needed) return showSignup();
   if (!setup.needed) return showLogin();
   showNewAccount({title: 'Welcome to Kinetta', button: 'Create my account',
