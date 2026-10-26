@@ -59,6 +59,7 @@ class Signup(unittest.TestCase):
         r = new.post('/api/signup', json=form('zz_test_su_new')); self.assertEqual(r.status_code, 200, r.text)
         me = new.get('/api/me').json()
         self.assertTrue(me['needs_email_confirm']); self.assertEqual(me['pending_email'], 'zz_test_su_new@example.test'); self.assertIsNone(me['email'])
+        self.assertTrue(me['ai_ok'], 'Kit starts on'); self.assertFalse(me['health_ai_ok'] or me['garmin_ai_ok'], 'Health and Garmin still need their own yes')
         self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_new@example.test'])
         # a member who would otherwise see "everyone" activities
         old = client(); self.assertEqual(old.post('/api/signup', json=form('zz_test_su_old')).status_code, 200)

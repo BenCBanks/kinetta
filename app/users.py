@@ -27,7 +27,7 @@ def main(a):
                 print(f"{r['login']:12} {r['name']:16} {'password set' if r['has_pw'] else 'NO PASSWORD YET':16} SQL: {r['sql_role'] or '-'}")
         elif a[0] == 'add' and len(a) == 3:
             uid = c.execute('INSERT INTO users (login, name) VALUES (%s, %s) RETURNING id', (a[1], a[2])).fetchone()['id']
-            c.execute('INSERT INTO profile (user_id) VALUES (%s)', (uid,))
+            c.execute('INSERT INTO profile (user_id, ai_ok) VALUES (%s, true)', (uid,))
             print(f'added {a[1]} - now set a password: python -m app.users password {a[1]}')
         elif a[0] == 'password' and len(a) == 2:
             if not c.execute('SELECT 1 FROM users WHERE login = %s', (a[1],)).fetchone(): sys.exit(f'no user {a[1]}')
