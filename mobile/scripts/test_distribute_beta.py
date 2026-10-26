@@ -95,6 +95,12 @@ class Distribution(unittest.TestCase):
         self.assertIn(("POST", "betaGroups/private-family/relationships/builds"), steps)
         self.assertEqual(store.writes[1][2]["data"]["attributes"]["whatsNew"], "Latest Kinetta test build.")
 
+    def test_what_to_test_lists_each_change_since_the_last_release(self):
+        self.assertEqual(distribute.message("Kit welcome step (#291)"), "Kit welcome step")
+        self.assertEqual(distribute.message("Kit welcome step (#291)\nTrack maps (#271)\n\nA private commit body"), "What's new:\n- Kit welcome step\n- Track maps")
+        self.assertEqual(distribute.message(""), "Latest Kinetta test build.")
+        self.assertLessEqual(len(distribute.message("\n".join(["x" * 300] * 40))), 4000)
+
     def test_missing_group_stops_before_waiting(self):
         store = FakeAppStore(groups=[])
         code, output = run(store)

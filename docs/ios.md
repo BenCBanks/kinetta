@@ -98,12 +98,18 @@ automatically sign for App Store Connect during export. You do not need to regis
 TestFlight upload. A successful upload and physical-device HealthKit test are still required.
 
 After step 7, start the upload once by hand: GitHub > **Actions > iPhone app > Run workflow** (branch `main`). The build
-shows up in App Store Connect under **TestFlight** 10 to 30 minutes later. From then on every change to the app on
-`main` uploads a new build by itself.
+shows up in App Store Connect under **TestFlight** 10 to 30 minutes later.
 
-**Testers get each new build by themselves.** After the upload, the workflow's `beta` job waits for Apple's
-processing, writes "What to Test" from the merged change's title, submits the build for beta review and adds it to
-the `Beta` group. Apple releases it to external testers once the review approves it: the first build of a new version
+**Testers get a new build twice a week, not on every merge** (each build emails every tester). Merges to `main` only
+check that the app still builds. Every **Monday and Thursday around 9-10 am US Eastern** the workflow signs, uploads
+and sends a build, but only when the app (`mobile/` or `app/static/`) changed since the last tester build; otherwise
+it stops without using the Mac or emailing anyone. **To send one right away** (an urgent fix): GitHub > **Actions >
+iPhone app > Run workflow**, branch `main`, then the green **Run workflow** button. A hand-started run always sends a
+build. GitHub can start scheduled runs a little late at busy times.
+
+**Testers get each release by themselves.** After the upload, the workflow's `beta` job waits for Apple's
+processing, writes "What to Test" as a list of the app changes since the last tester build (merge titles), submits
+the build for beta review and adds it to the `Beta` group. Apple releases it to external testers once the review approves it: the first build of a new version
 can take about a day, later builds are often quicker. Nothing to pick in App Store Connect. To send builds to other
 groups, add a repository variable `TESTFLIGHT_GROUPS` (GitHub > Settings > Secrets and variables > Actions >
 Variables) with the group names, comma separated, for example `Beta,Family`. Internal groups need no review; you can
