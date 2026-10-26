@@ -1627,6 +1627,12 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .track-live .track-splits { margin: 4px 0 14px; text-align: center; }
 .track-live .live-record-map { height: clamp(200px, 32dvh, 340px); }
 .live-record-map .leaflet-control-zoom { display: none; }
+.track-map-wrap { position: relative; }
+.gps-chip, .map-chip { position: absolute; z-index: 500; min-height: 32px; padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 650;
+  background: var(--card); color: var(--tx); box-shadow: 0 2px 10px #0002; }
+.gps-chip { left: 10px; top: 10px; pointer-events: none; }
+.map-chip { right: 10px; top: 10px; border: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--accent); }
+.map-chip svg { width: 15px; height: 15px; }
 .track-controls { display: flex; justify-content: center; gap: 44px; margin: 20px 0 6px; }
 .round-ctl { display: grid; justify-items: center; gap: 6px; } .round-ctl small { font-size: 13px; font-weight: 650; color: var(--tx2); }
 .track-live .track-controls .round-btn { width: 84px; height: 84px; }
