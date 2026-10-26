@@ -135,12 +135,18 @@ def submit_for_review(build_id, sleep=time.sleep):
 
 
 def message(raw):
-    # The merge commit's first line, without the "(#123)" GitHub adds; testers see this in TestFlight.
-    lines = (raw or "").strip().splitlines()
-    line = lines[0].strip() if lines else ""
-    if line.endswith(")") and " (#" in line:
-        line = line[:line.rindex(" (#")]
-    return (line or "Latest Kinetta test build.")[:4000]
+    # One line per change since the last tester build (merge titles, without the "(#123)" GitHub adds); testers see
+    # this in TestFlight. A blank line ends the list, so a commit body never reaches testers. Apple allows 4,000 characters.
+    lines = []
+    for line in (raw or "").strip().splitlines():
+        line = line.strip()
+        if not line: break
+        if line.endswith(")") and " (#" in line:
+            line = line[:line.rindex(" (#")]
+        if line: lines.append(line)
+    if len(lines) > 1:
+        return "What's new:\n" + "\n".join("- " + l for l in lines)[:3980]
+    return (lines[0] if lines else "Latest Kinetta test build.")[:4000]
 
 
 def main(sleep=time.sleep):
