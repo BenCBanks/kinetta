@@ -1588,6 +1588,51 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .stats-expanded .track-live-metrics { flex-direction: column; align-items: center; gap: 26px; text-align: center; padding-block: 24px; }
 .stats-expanded .track-live-metrics b { font-size: 48px; }
 .stats-expanded .track-live-metrics small { font-size: 14px; }
+/* Track redesign (Ben, 2026-10-26: "clunky, not slick"): the map leads, one big round Start, settings in a sheet,
+   a big clock while recording and round Pause / Resume / Finish controls. */
+#page .top #track-settings svg { width: 22px; height: 22px; }
+.track-ready-map { height: clamp(260px, 44dvh, 420px); border-radius: 20px; }
+.track-locate { right: 12px; top: 12px; bottom: auto; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); box-shadow: 0 2px 10px #0002; color: var(--accent); }
+.track-locate svg { width: 20px; height: 20px; }
+.track-go { display: grid; justify-items: center; gap: 6px; margin: 4px 0 2px; position: relative; z-index: 1; }
+.gps-ready .track-go { margin-top: -58px; }
+.track-go small { font-weight: 650; font-size: 15px; color: var(--tx2); }
+.round-btn { display: grid; place-items: center; width: 76px; height: 76px; min-height: 0; padding: 0; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--card); color: var(--tx); box-shadow: 0 6px 18px #0002, inset 0 0 0 1px var(--line); transition: transform .12s; }
+.round-btn:active { transform: scale(.94); }
+.round-btn svg { width: 30px; height: 30px; }
+.round-btn.start { width: 104px; height: 104px; background: var(--btn); color: var(--onbtn); box-shadow: 0 10px 28px color-mix(in srgb, var(--btn) 40%, transparent), 0 0 0 6px var(--bg); }
+.round-btn.start span { font: 750 21px/1 var(--font); letter-spacing: .01em; }
+.round-btn.go { background: var(--btn); color: var(--onbtn); box-shadow: 0 8px 22px color-mix(in srgb, var(--btn) 35%, transparent); }
+.round-btn.stop { background: var(--tx); color: var(--bg); }
+.round-btn:disabled { opacity: .6; }
+.track-prefs { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; margin: 2px 0 0; padding: 6px 10px;
+  border: 0; background: none; color: var(--tx2); font-size: 14px; font-weight: 550; }
+.track-prefs svg { width: 18px; height: 18px; flex: none; } .track-prefs svg:last-child { width: 14px; height: 14px; color: var(--tx3); }
+.track-ready #track-guidance { text-align: center; margin: 0; }
+.track-pref-list { display: grid; margin-bottom: 16px; }
+.track-live-top h2 { display: flex; align-items: center; gap: 10px; font-size: 24px; }
+.rec-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--alert); flex: none; }
+.is-recording .rec-dot { animation: rec-pulse 1.6s ease-in-out infinite; } .is-paused .rec-dot { background: var(--tx3); }
+@keyframes rec-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .is-recording .rec-dot { animation: none; } }
+.track-hero { display: grid; justify-items: center; margin: 14px 0 6px; }
+.track-hero b { font-size: clamp(56px, 18vw, 76px); font-weight: 700; letter-spacing: -.03em; line-height: 1.05; }
+.track-hero small, .track-live-metrics small { font-size: 13px; color: var(--tx3); font-weight: 600; }
+.track-live .track-live-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 12px 0 6px; text-align: center; }
+.track-live .track-live-metrics > div { display: grid; gap: 2px; } .track-live .track-live-metrics > div + div { border-left: 1px solid var(--line); }
+.track-live .track-live-metrics b { font-size: clamp(30px, 9vw, 40px); font-weight: 680; margin: 0; }
+.track-live .track-live-metrics small { margin: 0; }
+.track-live .track-splits { margin: 4px 0 14px; text-align: center; }
+.track-live .live-record-map { height: clamp(200px, 32dvh, 340px); }
+.live-record-map .leaflet-control-zoom { display: none; }
+.track-controls { display: flex; justify-content: center; gap: 44px; margin: 20px 0 6px; }
+.round-ctl { display: grid; justify-items: center; gap: 6px; } .round-ctl small { font-size: 13px; font-weight: 650; color: var(--tx2); }
+.track-live .track-controls .round-btn { width: 84px; height: 84px; }
+.stats-expanded .track-hero b { font-size: clamp(72px, 24vw, 96px); }
+.stats-expanded .track-live-metrics { padding-block: 18px; }
+.stats-expanded .track-live .track-live-metrics b, .stats-expanded .track-live-metrics b { font-size: clamp(40px, 12vw, 52px); }
 .track-saved { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
 .track-saved a { display: inline-flex; gap: 6px; align-items: center; }
 .track-saved svg { width: 16px; }
