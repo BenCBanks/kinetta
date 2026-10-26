@@ -235,7 +235,7 @@ def scan(c, sid, aid, points=None, seg_sport=None):
         prev = old.get(p['start_i'])
         if prev and prev['reason'] == 'reviewed' and prev['elapsed_s'] == p['elapsed_s']: state, reason = 'ok', 'reviewed'   # an admin cleared this hold
         dup = c.execute("""SELECT 1 FROM segment_efforts WHERE segment_id = %s AND user_id = %s AND activity_id <> %s AND activity_id < %s
-                             AND abs(extract(epoch FROM started) - %s) < 120 AND abs(elapsed_s - %s) <= greatest(5, %s * 0.1)""",
+                             AND abs(extract(epoch FROM started) - %s) < 30 AND abs(elapsed_s - %s) <= greatest(3, %s * 0.05)""",
                         (sid, uid, aid, aid, started, p['elapsed_s'], p['elapsed_s'])).fetchone()
         if dup: state, reason = 'excluded', 'duplicate'
         r = c.execute("""INSERT INTO segment_efforts (segment_id, user_id, activity_id, start_i, end_i, started, elapsed_raw, elapsed_s, matcher, state, reason)

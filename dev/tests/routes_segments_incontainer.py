@@ -341,7 +341,7 @@ class Segments(Base):
         self.assertEqual(self.c['ann'].get(f"/api/segments/{s['id']}/leaderboard").json()['count'], 2, 'blocks work both ways')
         self.c['cy'].delete('/api/people/zz_test_rs_ann/block')
         # garmin-sourced and hidden-area passes stay private
-        g = self.run_activity('cy', 400 / 70, source='garmin_connect', east=E); h = self.run_activity('cy', 400 / 65, begin=300, lead=300, east=E)   # starts 300 m before the segment: inside the hidden 400 m; self.jobs()
+        g = self.run_activity('cy', 400 / 70, source='garmin_connect', east=E); h = self.run_activity('cy', 400 / 65, begin=300, lead=300, east=E); self.jobs()   # h starts 300 m before the segment: inside the hidden 400 m
         mine = self.c['cy'].get(f"/api/segments/{s['id']}/efforts").json()['efforts']
         why = {e['activity_id']: e['why_not'] for e in mine}
         self.assertEqual((why[g], why[h]), ('source', 'hidden_area'))
@@ -361,6 +361,20 @@ class Segments(Base):
         self.assertEqual((r['paused'], r['rows']), (True, []))
         self.assertTrue(self.c['cy'].get(f"/api/segments/{s['id']}/efforts").json()['efforts'])
         with db.connect() as c: c.execute("DELETE FROM feature_switches WHERE name = 'leaderboards'")
+
+    def test_phone_and_watch_copies_count_once(self):
+        E = 4000.0
+        s = self.segment(name='Copy hill', east=E)
+        day = dt.datetime(2026, 10, 3, 8, tzinfo=dt.timezone.utc)
+        a = self.run_activity('bo', 400 / 90, start=day, east=E)
+        b = self.run_activity('bo', 400 / 90, start=day + dt.timedelta(seconds=4), source='healthkit', east=E)    # the watch's copy
+        c2 = self.run_activity('bo', 400 / 95, start=day + dt.timedelta(minutes=1), east=E)                      # a genuinely separate run
+        self.jobs()
+        mine = {e['activity_id']: (e['state'], e['reason']) for e in self.c['bo'].get(f"/api/segments/{s['id']}/efforts").json()['efforts']}
+        self.assertEqual(mine[b], ('excluded', 'duplicate'), 'the later copy is a duplicate')
+        self.assertEqual((mine[a][0], mine[c2][0]), ('ok', 'ok'), 'separate runs both count')
+        rows = self.c['ann'].get(f"/api/segments/{s['id']}/leaderboard").json()['rows']
+        self.assertEqual([(r['login'][11:], r['elapsed_s']) for r in rows], [('bo', 90)], 'one row, best time')
 
     def test_other_sports_and_reports(self):
         s = self.segment(name='Ride hill', sport='ride')
