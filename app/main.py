@@ -273,6 +273,33 @@ def admin_page(path: str = ''):
     return FileResponse(os.path.join(STATIC, 'admin.html'), headers={'Cache-Control':'no-store'})
 
 
+# Invite links open the iPhone app (2026-10-26). Apple reads this file to let the app claim /add/<code> links on this
+# server. The team is the one that signs the app (the same as push notifications); no team, no file.
+@app.get('/.well-known/apple-app-site-association')
+def app_links():
+    team = os.environ.get('KINETTA_APNS_TEAM_ID', '').strip()
+    if not team: raise HTTPException(404)
+    app_id = f"{team}.{os.environ.get('KINETTA_APNS_TOPIC', 'com.kinetta.app')}"
+    return JSONResponse({'applinks': {'details': [{'appIDs': [app_id], 'components': [{'/': '/add/*', 'comment': 'friend invite links'}]}]}},
+                        headers={'Cache-Control': 'public, max-age=3600'})
+
+
+@app.get('/add/{code}')
+def invite_page(code: str):
+    """The app page, with a link preview naming who sent the invite ("Join Alex on Kinetta") for Messages and others."""
+    import html
+    with open(os.path.join(STATIC, 'index.html')) as f: page = f.read()
+    try:
+        with db.connect() as c: name = api_social._link_owner(c, code)['name']
+    except HTTPException: name = None
+    if name:
+        title, text = html.escape(f'Join {name} on Kinetta'), html.escape(f'{name} invited you to be friends on Kinetta and follow each other’s workouts.')
+        page = page.replace('<meta property="og:title" content="Kinetta">', f'<meta property="og:title" content="{title}">', 1)
+        page = page.replace('<meta property="og:description" content="Private fitness and food tracking for you and your people.">',
+                            f'<meta property="og:description" content="{text}">', 1)
+    return Response(page, media_type='text/html', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get('/{path:path}')
 def page(path: str):
     if path.startswith('api/'): raise HTTPException(404)

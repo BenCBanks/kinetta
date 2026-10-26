@@ -151,7 +151,7 @@ const Native = (() => {
     const {url, externalEntry} = await push.takePending();
     if (account !== pushOwner()) return;
     if (url || externalEntry) { N.pushEntryBlocked = true; window.dispatchEvent(new Event('kinetta:external-entry')); }
-    if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people)|food\/cook\/\d+)$/.test(url)) go(url);
+    if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people)|food\/cook\/\d+|add\/[\w-]{1,40})$/.test(url)) go(url);
   };
   N.syncPush = () => {
     if (!push || !App.me || !N.token) return;
