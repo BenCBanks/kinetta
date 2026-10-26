@@ -29,3 +29,5 @@ h1,h2,h3{font-family:var(--font-ui,system-ui,sans-serif);font-weight:700}h1{font
 @media(max-width:700px){.admin-section-picker{position:sticky;top:0;z-index:3;background:var(--color-canvas);padding-block:8px}}
 
 label.inline{min-height:44px;align-items:center}
+
+.admin-route-map{height:280px;min-height:200px;border-radius:12px;overflow:hidden;margin:12px 0}

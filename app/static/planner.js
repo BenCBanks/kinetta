@@ -59,6 +59,7 @@ const PlanTrack = {
     for (const k of Object.keys(localStorage)) if (k.startsWith(prefix)) localStorage.removeItem(k);
     store.del(PlanTrack.key());
     sessionStorage.removeItem(`kinetta.segmentReview:${serverKey()}:${App.me.id}`);
+    if (typeof RouteShare !== 'undefined') RouteShare.eraseDevice();
     if (typeof Segments !== 'undefined') Segments.pending = null;
   },
   from(r) { return {id: r.id, version: r.loaded_version || r.version, name: r.name, sport: r.sport, distance_m: r.distance_m, line: r.full_line || r.line}; },
@@ -547,7 +548,7 @@ function stretchSheet(title, line, {unitLabel = '', onUse, note = ''}) {
 }
 
 // ---------- pages ----------
-const routesTabs = (on) => `<div class="seg routes-tabs" role="tablist" aria-label="Routes">${[['planned', 'Planned', '/routes'], ['matched', 'Matched', '/routes?view=matched'], ['segments', 'Segments', '/routes?view=segments']]
+const routesTabs = (on) => `<div class="seg routes-tabs" role="tablist" aria-label="Routes">${[['planned', 'Planned', '/routes'], ['shared', 'Shared', '/routes?view=shared'], ['matched', 'Matched', '/routes?view=matched'], ['segments', 'Segments', '/routes?view=segments']]
   .map(([k, l, h]) => `<a role="tab" href="${h}" aria-selected="${on === k}" data-replace>${l}</a>`).join('')}</div>`;
 
 route(/^\/routes$/, 'progress', async (el) => {
@@ -556,6 +557,7 @@ route(/^\/routes$/, 'progress', async (el) => {
   wireBack(el, '/progress');
   $$('[data-replace]', el).forEach((a) => a.onclick = (e) => { e.preventDefault(); go(a.getAttribute('href'), {replace: true}); });
   const body = $('#rt-body', el);
+  if (view === 'shared') return RouteShare.browse(body);
   if (view === 'matched') {
     body.innerHTML = '<p class="small muted">Matched routes group activities you’ve done more than once, with your trend on each. They’re made from what you recorded, not planned.</p><div id="rt-matched"></div>';
     return pRoutes($('#rt-matched', body), q);
@@ -609,6 +611,7 @@ route(/^\/routes\/plan\/(\d+)\/edit$/, 'progress', async (el, id) => {
 });
 
 route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
+  const shareOwner=readOwner();
   el.innerHTML = `<div class="top">${backBtn('Routes')}<span></span></div><div id="rp-body">${skel(2)}</div>`;
   wireBack(el, '/routes');
   await load(`/api/planned-routes/${id}`, (r) => {
@@ -627,12 +630,14 @@ route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
         <button class="row-link" id="rp-rename">${svg('edit')}<span class="grow">Rename</span>${svg('chev')}</button>
         <button class="row-link" id="rp-copy">${svg('plus')}<span class="grow">Duplicate<small class="muted">An independent copy</small></span>${svg('chev')}</button>
         <button class="row-link" id="rp-gpx">${svg('upload')}<span class="grow">Export GPX</span>${svg('chev')}</button>
+        <button class="row-link" id="rp-share">${svg('share')}<span class="grow">Share this route<small class="muted">Review exactly what recipients receive</small></span>${svg('chev')}</button>
         <button class="row-link" id="rp-seg">${svg('flag')}<span class="grow">Make a segment from part of it<small class="muted">A fixed, named course with times</small></span>${svg('chev')}</button>
         <button class="row-link danger" id="rp-del">${svg('trash')}<span class="grow">Delete route</span></button></div>
       <p class="small muted">Version ${r.version} · updated ${esc(fdate(r.updated, {month: 'short', day: 'numeric', year: 'numeric'}))}. Saving a route never adds an activity, totals or leaderboard times.</p>`;
     mapInto($('#rp-map', body), [full], {sport: r.sport}).catch(() => {});
     if (r.elevation) Planner.profile($('#rp-profile', body), r.elevation);
     $('#rp-use', body).onclick = () => { PlanTrack.set(PlanTrack.from({...r, full_line: full})); go('/track'); };
+    $('#rp-share', body).onclick = () => { if (body.isConnected && shareOwner === readOwner()) RouteShare.owner(r); };
     $('#rp-rename', body).onclick = () => sheet('Rename route', `<form class="form" id="rn"><label>Name<input name="name" maxlength="120" required value="${esc(r.name)}"></label><label>Notes<textarea name="d" maxlength="2000" rows="2">${esc(r.description || '')}</textarea></label><button class="primary wide">Save</button></form>`, (b, close) => {
       $('#rn', b).onsubmit = async (e) => { e.preventDefault(); try { await api(`/api/planned-routes/${id}`, json('PATCH', {name: e.target.elements.name.value, description: e.target.elements.d.value || null})); close(); invalidate('/api/planned-routes'); render(); } catch (x) { toast(x.message); } }; });
     $('#rp-copy', body).onclick = async () => { try { const c = await api(`/api/planned-routes/${id}/duplicate`, json('POST', {client_id: crypto.randomUUID()})); invalidate('/api/planned-routes'); toast('Copy saved'); go(`/routes/plan/${c.id}`); } catch (x) { toast(x.message); } };

@@ -332,6 +332,8 @@ def friend_remove(login: str, user=Depends(current_user)):
     """Cancel a request you sent, or stop being friends (either of you can)."""
     with db.connect() as c:
         t = _person(c, login)
+        from .route_sharing import access_lock
+        access_lock(c, user['id'], t['id'])
         c.execute("""DELETE FROM friendships WHERE (requester = %(me)s AND addressee = %(them)s)
                        OR (requester = %(them)s AND addressee = %(me)s AND status = 'accepted')""", {'me': user['id'], 'them': t['id']})
         notify.drop(c, t['id'], 'friend_request', user['id'])           # a request you cancelled stops showing for them
@@ -622,6 +624,8 @@ def block(login: str, user=Depends(current_user)):
     with db.connect() as c:
         t = _person(c, login)
         if t['id'] == user['id']: raise HTTPException(400, "You can't block yourself")
+        from .route_sharing import access_lock
+        access_lock(c, user['id'], t['id'])
         c.execute('INSERT INTO blocks (user_id, blocked) VALUES (%s, %s) ON CONFLICT DO NOTHING', (user['id'], t['id']))
         pair = {'me': user['id'], 'them': t['id']}
         c.execute("""DELETE FROM friendships WHERE (requester = %(me)s AND addressee = %(them)s)

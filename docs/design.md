@@ -1247,3 +1247,8 @@ Final food review and recipe-portion previews label missing macros as unknown. S
 ### Planned routes and segment review (26 October 2026)
 
 Routes lives under Progress and Track, retaining the five tabs. Planned routes remain editable and private; Matched routes still compares completed activities. The map editor offers a Points list alongside map gestures and explicitly labels straight sections and unavailable heights. Creating a segment requires a final immutable-course review; names, descriptions, direction, sport and path cannot be edited later. Boards default on at release, with each member off until they choose to join. The browser admin portal adds Segments & times for open reports, appeals, held times and a service-wide pause, with minimal derived checks and recorded reasons. Course retirement and permanent takedown are separate confirmed actions. See [routes](routes.md) and [segments](segments.md) for scope and limitations.
+
+
+### Deliberate route sharing (26 October 2026)
+
+Routes gains a Shared sub-tab while retaining the five main tabs. Owner sharing has separate public name/description fields, a protected recipient map and explicit acknowledgement before publication; private notes are never prefilled. The published route stays fixed until another reviewed update. Shared originals reauthorize on reads/foregrounding and hide unverifiable data; deliberate private copies are independent. Discovery uses compact audience choices and folded filters, with map-area search initiated explicitly and no live location. Route report review remains in the separate browser admin portal, limited to the currently shared projection; removal and dismissal require current material and exact-account confirmation. See [route sharing](route-sharing.md).

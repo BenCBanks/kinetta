@@ -36,6 +36,7 @@ try{const query=['logins','usage'].includes(view)?'?'+new URLSearchParams({days:
  if(view==='invites'){content.innerHTML='<h2>Invitations</h2><p>Create an expiring, single-use link for a Member. For website applicants, respond from Beta requests so email and acceptance history stay together.</p><form id="invite"><label>Private note<input name="note" maxlength="60"></label><button>Create invitation link</button></form><div id="new-invite"></div>'+table(['Note','Expires','Actions'],data.map(r=>'<tr><td>'+esc(r.note)+'</td><td>'+date(r.expires)+'</td><td>'+buttons(r,[['revoke','Revoke']])+'</td></tr>'));$('#invite').onsubmit=e=>{e.preventDefault();busy($('button',e.currentTarget),async()=>{const r=await api('/invites',{note:e.currentTarget.note.value});$('#new-invite').innerHTML='<div class="notice"><p>Invitation created. Share this privately; no email has been sent.</p><code>'+esc(r.url||location.origin+r.path)+'</code></div>'})};content.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>confirmAction('Revoke invitation','This link will stop working.','Revoke',async()=>api('/invites/'+b.dataset.id,undefined,'DELETE')))}
  if(view==='reports')reportsView(data,rev);
  if(view==='segments')segmentsView(data,rev);
+ if(view==='route-reports')routeReportsView(data,rev);
  if(view==='usage')usageView(data);
  if(view==='logins')await loginsView(data,rev);
  if(view==='audit')auditView(data,rev);

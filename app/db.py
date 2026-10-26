@@ -1607,6 +1607,59 @@ MIGRATIONS = [
     CREATE POLICY all_rows ON segments FOR SELECT TO fit_all_readers USING (true);
     GRANT SELECT ON segments TO fit_readers;
     """,
+    # 75. Deliberate route sharing. Published data is a reviewed, protected projection, never the private route row.
+    """
+    ALTER TABLE planned_routes ADD COLUMN share_audience text NOT NULL DEFAULT 'me' CHECK (share_audience IN ('me','friends','everyone'));
+    ALTER TABLE planned_routes ADD COLUMN share_revision int NOT NULL DEFAULT 0;
+    ALTER TABLE planned_routes ADD COLUMN share_disabled boolean NOT NULL DEFAULT false;
+    ALTER TABLE planned_routes ADD COLUMN source_route_id bigint REFERENCES planned_routes(id) ON DELETE SET NULL;
+    ALTER TABLE planned_routes ADD CONSTRAINT planned_routes_owner UNIQUE(id,user_id);
+    CREATE TABLE route_publications (
+      route_id bigint PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      revision int NOT NULL, source_version int NOT NULL,
+      data jsonb NOT NULL, geom geometry(LineString,4326) NOT NULL,
+      hidden_start_m double precision NOT NULL, hidden_end_m double precision NOT NULL,
+      created timestamptz NOT NULL DEFAULT now(),
+      FOREIGN KEY(route_id,user_id) REFERENCES planned_routes(id,user_id) ON DELETE CASCADE);
+    CREATE INDEX route_publications_map ON route_publications USING gist((geom::geography));
+    CREATE TABLE route_share_previews (
+      id uuid PRIMARY KEY, user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      route_id bigint NOT NULL,
+      source_version int NOT NULL, route_updated timestamptz NOT NULL, share_revision int NOT NULL,
+      policy_trim int NOT NULL, audience text NOT NULL CHECK (audience IN ('friends','everyone')),
+      data jsonb NOT NULL, hidden_start_m double precision NOT NULL, hidden_end_m double precision NOT NULL,
+      consumed_revision int, created timestamptz NOT NULL DEFAULT now(),
+      expires timestamptz NOT NULL DEFAULT now()+interval '15 minutes',
+      FOREIGN KEY(route_id,user_id) REFERENCES planned_routes(id,user_id) ON DELETE CASCADE);
+    CREATE INDEX route_share_previews_owner ON route_share_previews(user_id,expires);
+    CREATE TABLE route_copy_receipts (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE, client_id uuid NOT NULL,
+      source_route_id bigint REFERENCES planned_routes(id) ON DELETE SET NULL,
+      destination_id bigint,
+      snapshot_key text NOT NULL, created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(user_id,client_id),
+      FOREIGN KEY(destination_id,user_id) REFERENCES planned_routes(id,user_id) ON DELETE SET NULL(destination_id));
+    CREATE TABLE route_reports (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      reporter bigint REFERENCES users(id) ON DELETE SET NULL,
+      route_id bigint NOT NULL REFERENCES planned_routes(id) ON DELETE CASCADE,
+      reason text NOT NULL CHECK (reason IN ('unsafe','privacy','inaccurate','abusive')),
+      note text CHECK (length(note)<=500), created timestamptz NOT NULL DEFAULT now(),
+      status text NOT NULL DEFAULT 'open' CHECK (status IN ('open','dismissed','removed')),
+      decided_by bigint REFERENCES users(id) ON DELETE SET NULL, decided timestamptz, outcome text);
+    CREATE UNIQUE INDEX route_reports_open ON route_reports(reporter,route_id) WHERE status='open';
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['route_publications','route_share_previews','route_copy_receipts'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id=fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    ALTER TABLE route_reports ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON route_reports FROM PUBLIC,fit_readers,fit_all_readers;
+    """,
 ]
 
 

@@ -2584,3 +2584,14 @@ nav.tabs { view-transition-name: tabs; }
 .track-route-chip > svg {width:20px;height:20px;color:var(--route)}
 .track-route-chip .grow {display:grid;color:var(--tx);text-decoration:none;min-width:0} .track-route-chip b {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:360px) { .plan-bar > button span {font-size:11px} .plan-sports button svg {display:none} }
+
+/* Deliberately shared route plans (#277). Private notes and originals never enter recipient cards. */
+.route-public-notes {white-space:pre-wrap;overflow-wrap:anywhere}
+.route-find {margin:12px 0}.route-find label {min-width:0}.route-filter-pair {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.route-filter-pair input {min-width:0;width:100%}.routes-tabs a {min-height:44px;font-size:clamp(.75rem,3vw,.95rem)}
+@media(max-width:360px){.route-filter-pair{grid-template-columns:1fr}.routes-tabs a{padding-inline:5px}}
+/* Route actions keep their icons inside touch rows; map SVG paint cannot widen the page. */
+#rp-body,#shared-route-body{min-width:0;max-width:100%;overflow-x:clip}
+#rp-body .row-link>svg,#shared-route-body .row-link>svg{flex:none;width:20px;height:20px}
+#route-share-confirmed+span{min-width:0;flex:1;white-space:normal;overflow-wrap:anywhere}
+.routes-tabs a{min-width:0;text-align:center;overflow-wrap:anywhere;line-height:1.3;padding:8px 4px}

@@ -78,6 +78,8 @@ New accounts share new activities with everyone on Kinetta. You can change this 
 
 Shared maps hide where a route starts and ends, but the rest of the route and its time can still hint at where you live or your routine. We strip location data from photos you upload.
 
+**Planned routes.** New route plans are private. If you choose to share one, Kinetta publishes the exact recipient preview with a public name/description and protected map; private notes, hidden endpoints, activity times and health measurements are excluded. Original access follows current audience, friendship, block and account rules. Deliberate private copies, exports and screenshots cannot be recalled. Deleting the creator removes the original and its source links from other people’s copies; those independent copies belong to their new owners. Route reports let administrators review only the currently shared stretch, with private moderation records. Sharing previews, publications and copy receipts are included in the owner’s export and account deletion.
+
 ## sharing-pictures
 
 The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
