@@ -218,6 +218,19 @@ class Launch(unittest.TestCase):
         self.assertEqual(self.login('email')[1].status_code,403)
         self.assertEqual(self.manage('email','restore').status_code,200);self.assertEqual(self.login('email')[1].status_code,200)
 
+    def test_confirmation_email_can_be_sent_again(self):
+        """An unconfirmed signup is hidden from everyone; an admin can send them a fresh link (2026-10-26)."""
+        with db.connect() as c:
+            c.execute('UPDATE users SET needs_email_confirm=true WHERE id=%s',(self.ids['plain'],))
+            c.execute("INSERT INTO account_tokens(token_hash,user_id,kind,email,expires) VALUES ('zz-old',%s,'verify_email','zz_test_launch_plain@example.test',now()-interval '1 hour')",(self.ids['plain'],))
+        b=action(confirm='zz_test_launch_plain');url=f"/api/admin/manage/{self.ids['plain']}/confirm-email"
+        r=self.a.post(url,json=b);self.assertEqual(r.status_code,200,r.text)
+        self.assertEqual(len(self.sent),1);self.assertEqual(self.sent[0]['to'],['zz_test_launch_plain@example.test']);self.assertIn('/confirm-email/',self.sent[0]['text'])
+        self.assertEqual(self.a.post(url,json=b).json(),r.json());self.assertEqual(len(self.sent),1,'a retried request sends once')
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM account_tokens WHERE user_id=%s AND kind='verify_email' AND used_at IS NULL AND expires>now()",(self.ids['plain'],)).fetchone()['n'],1)
+        self.assertEqual(self.manage('email','confirm-email').status_code,409,'already confirmed')
+
     def test_audit_paginates_beyond_two_hundred_and_filters(self):
         with db.connect() as c:
             for _ in range(205):admin_auth.audit(c,self.ids['admin'],'account.restore',self.ids['plain'])

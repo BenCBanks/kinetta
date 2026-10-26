@@ -8,7 +8,7 @@ from .admin_actions import ActionIn, replay, complete
 
 router = APIRouter(prefix='/api/admin')
 ACTIONS = {'reset-email':'account.reset_email','signout':'account.sign_out_everywhere','suspend':'account.suspend',
-           'restore':'account.restore','role':'role.change','remove':'account.remove'}
+           'restore':'account.restore','role':'role.change','remove':'account.remove','confirm-email':'account.confirm_email_sent'}
 
 class ManageIn(ActionIn):
     confirm: str = Field(max_length=30)
@@ -17,7 +17,7 @@ class ManageIn(ActionIn):
 
 
 @router.post('/manage/{uid}/{action}')
-def manage(uid: int, action: Literal['reset-email','signout','suspend','restore','role','remove'], body: ManageIn,
+def manage(uid: int, action: Literal['reset-email','signout','suspend','restore','role','remove','confirm-email'], body: ManageIn,
            background: BackgroundTasks, user=Depends(admin_user)):
     audit_action = ('role.administrator' if body.administrator else 'role.member') if action == 'role' and body.administrator is not None else ACTIONS[action]
     with db.connect() as c:
@@ -34,6 +34,15 @@ def manage(uid: int, action: Literal['reset-email','signout','suspend','restore'
                 if not p['email_verified_at']: raise HTTPException(409, 'This account has no confirmed email.')
                 if not account_email.mail_ready(): raise HTTPException(503, 'Email is not set up on this server.')
                 account_email.send_reset(background, c, p, by_admin=True)
+            if action == 'confirm-email':
+                # A new account stays out of everyone's sight until its email is confirmed (#232). Its link lasts a day;
+                # this sends a fresh one to the address they signed up with (2026-10-26: Ben couldn't find a new member).
+                if p['email_verified_at'] or not c.execute('SELECT needs_email_confirm FROM users WHERE id=%s', (uid,)).fetchone()['needs_email_confirm']:
+                    raise HTTPException(409, 'This account’s email is already confirmed.')
+                pending = c.execute("SELECT email::text AS email FROM account_tokens WHERE user_id=%s AND kind='verify_email' AND email IS NOT NULL ORDER BY created DESC LIMIT 1", (uid,)).fetchone()
+                if not pending: raise HTTPException(409, 'This account has no email address waiting for confirmation.')
+                if not account_email.mail_ready(): raise HTTPException(503, 'Email is not set up on this server.')
+                account_email.confirmation(background, c, uid, p['name'], pending['email'], welcome=True)
             if action in ('signout','suspend','role','remove'):
                 for table in ('sessions','admin_sessions','admin_challenges','account_password_changes'):
                     # A role change must not sign ordinary app sessions out; match the existing role contract.
