@@ -480,6 +480,11 @@ class Segments(Base):
         uphold = f"/api/admin/segment-appeals/{appeal['id']}/uphold"
         self.assertEqual(admin.post(uphold, json={'outcome': 'Old fictional review', 'rev': e['rev']}).status_code, 409)
         self.assertEqual(self.c['bo'].post(f"/api/segment-efforts/{e['id']}/appeal", json={'note': '   '}).status_code, 400)
+        self.assertEqual(admin.post(uphold, json={'outcome': 'Reviewed current fictional decision', 'rev': evidence['rev']}).status_code, 200)
+        self.assertEqual(admin.post(uphold, json={'outcome': 'Repeated fictional closure', 'rev': evidence['rev']}).status_code, 409)
+        self.c['bo'].post(f"/api/segment-efforts/{e['id']}/appeal", json={'note': 'Additional fictional evidence'})
+        cases = admin.get('/api/admin/segments').json(); appeal = next(a for a in cases['appeals'] if a['effort_id'] == e['id'])
+        uphold = f"/api/admin/segment-appeals/{appeal['id']}/uphold"
         body = {'action': 'restore', 'reason': 'Reviewed valid fictional recording', 'rev': evidence['rev'], 'appeal_id': appeal['id']}
         self.assertEqual(admin.post(ep+'/decide', json=body).status_code, 200)
         self.assertEqual(admin.post(uphold, json={'outcome': 'Stale fictional review', 'rev': evidence['rev']}).status_code, 409)
