@@ -461,17 +461,26 @@ const Planner = (() => {
   }
   async function persist() {
     if (!S || !S.key || S.owner !== readOwner()) return;
-    const state = S;
-    const data = {...api_state(), line: undefined, at: Date.now()};
-    const local = keepDraft();
-    try { await api('/api/route-drafts/' + S.key, json('PUT', {data})); if (state !== S || state.owner !== readOwner()) return; autosave = 'saved'; }
-    catch (_) { if (state !== S || state.owner !== readOwner()) return; autosave = local ? 'local' : 'failed'; }
+    const state=S, draftKey=state.key, data={...api_state(),line:undefined,at:Date.now()};
+    const local=keepDraft();
+    // Serialize autosaves so completion can drain them before removing this draft.
+    const task=(state.draftTask||Promise.resolve()).catch(()=>{}).then(()=>{
+      if(state!==S||state.key!==draftKey||state.owner!==readOwner())return;
+      return api('/api/route-drafts/'+draftKey,json('PUT',{data}));
+    });
+    state.draftTask=task;
+    try { await task; if(state!==S||state.key!==draftKey||state.owner!==readOwner())return; autosave='saved'; }
+    catch (_) { if(state!==S||state.key!==draftKey||state.owner!==readOwner())return; autosave=local?'local':'failed'; }
     drawStatus();
   }
   async function forget() {
     if (!S?.key) return;
-    try { store.del(planDraftKey(S.key)); } catch (_) { /* none */ }
-    try { await api('/api/route-drafts/' + S.key, {method: 'DELETE'}); } catch (_) { /* cleared on the next save */ }
+    const state=S,draftKey=state.key,deviceKey=planDraftKey(draftKey);
+    state.key=null;clearTimeout(saveT);clearTimeout(elevT);
+    try { store.del(deviceKey); } catch (_) { /* none */ }
+    try { await state.draftTask; } catch (_) { /* still remove a failed autosave */ }
+    if(state!==S||state.owner!==readOwner())return;
+    try { await api('/api/route-drafts/'+draftKey,{method:'DELETE'}); } catch (_) { /* cleared on the next save */ }
   }
   function saveSheet(opts) {
     if(S.legs.some(l=>l.state!=='ok'||l.mode!=='path')){toast('Find every mapped path before saving. Your draft is kept.');return;}
