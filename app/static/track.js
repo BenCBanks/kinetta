@@ -141,6 +141,16 @@ const Track = (() => {
     try { if (navigator.wakeLock) { const lock = await navigator.wakeLock.request('screen'); if (session?.state === 'recording' && owner === readOwner()) wake = lock; else await lock.release(); } } catch (_) { /* foreground limitation remains visible */ }
     draw();
   }
+  // You are here (Ben, 2026-10-26: always show exactly where you are, to prove it's accurate): an Apple Maps-style dot
+  // with a ring the size of the GPS accuracy, so a wide ring honestly says the fix is rough; the label gives the number.
+  function hereMarker(view, prev, lat, lon, accuracy) {
+    const {L, map} = view, at = [lat, lon], r = Math.max(3, Math.min(Number(accuracy) || 0, 200));
+    if (prev && map.hasLayer(prev.dot)) { prev.ring.setLatLng(at).setRadius(r); prev.dot.setLatLng(at); prev.dot.bringToFront(); return prev; }
+    return {ring: L.circle(at, {radius: r, stroke: false, fillColor: col('--accent'), fillOpacity: .16, interactive: false}).addTo(map),
+            dot: L.circleMarker(at, {radius: 8, weight: 3, color: '#fff', fillColor: col('--accent'), fillOpacity: 1, interactive: false}).addTo(map)};
+  }
+  const gpsText = (a) => Number.isFinite(+a) && a > 0 ? `GPS ±${Math.max(1, Math.round(imp() ? a * 3.28084 : a))} ${imp() ? 'ft' : 'm'}` : '';
+  let follow = true;     // the live map follows you; "Whole route" shows everything so far
   let samples = [];
   const speedSport = (x) => ['ride', 'ski'].includes(x.sport);
   const unitName = (x) => x.splitMetres > 1500 ? 'Mile' : 'Km';
@@ -183,17 +193,22 @@ const Track = (() => {
         const ln = lines(); el.hidden = false;
         if (!mapView || mapView.el !== el) {
           const view = await mapInto(el, ln, {sport: session.sport, still: false, ends: false});
-          if (view && el.isConnected) { mapView = {...view, el}; if (view.map.getZoom()>17) view.map.setZoom(17); if (!ln.length && session.points.length) { const p=session.points.at(-1);view.map.setView([p.lat,p.lon],15); } }
-        } else {
-          const {map, L, group} = mapView; group.clearLayers();
-          for (const pts of ln) L.polyline(pts, {color: col('--route'), weight: 4}).addTo(group);
-          const here = session.points.at(-1); if (here) L.circleMarker([here.lat, here.lon], {radius: 7, weight: 3, color: '#fff', fillColor: col('--accent'), fillOpacity: 1}).addTo(group);
-          if(ln.length) map.fitBounds(L.latLngBounds(ln.flat()), {padding: [12, 12], maxZoom: 17, animate: false});
+          if (view && el.isConnected) { mapView = {...view, el, here: null}; mapView.map.on('dragstart', () => { follow = false; followButton(); }); }
         }
+        if (!mapView || !el.isConnected) return;
+        const {map, L, group} = mapView; group.clearLayers();
+        for (const pts of ln) L.polyline(pts, {color: col('--route'), weight: 4}).addTo(group);
+        const last = session.points.at(-1);
+        if (last) mapView.here = hereMarker(mapView, mapView.here, last.lat, last.lon, last.accuracy);
+        if (follow && last) map.setView([last.lat, last.lon], Math.max(map.getZoom() || 0, 16), {animate: false});
+        else if (ln.length) map.fitBounds(L.latLngBounds(ln.flat()), {padding: [24, 24], maxZoom: 17, animate: false});
+        const chip = $('#track-gps-live'); if (chip) { chip.textContent = last ? gpsText(last.accuracy) : 'Finding GPS…'; chip.hidden = false; }
+        followButton();
       } catch (_) { message = 'Map unavailable. Your timer and GPS recording continue.'; update(); }
       finally { mapTimer = null; }
     }, 1200);
   }
+  function followButton() { const b = $('#track-follow'); if (b) { b.innerHTML = follow ? 'Whole route' : `${svg('track')}Follow me`; b.setAttribute('aria-pressed', String(!follow)); } }
   function discard() {
     sheet('Discard this recording?', '<p>This removes the draft from this device. It has not been saved as an activity.</p><button class="ghost wide" id="tr-keep">Keep recording</button><button class="primary danger-btn wide" id="tr-discard">Discard recording</button>', (b, close) => {
       $('#tr-keep', b).onclick = close;
@@ -209,10 +224,11 @@ const Track = (() => {
       <p id="track-status" class="small muted" role="status"></p>
       <div class="track-hero"><b class="num" id="track-time"></b><small>Active time</small></div>
       ${session.gps ? `<div class="track-live-metrics"><div><b class="num" id="track-distance"></b><small>Distance · ${U.du()}</small></div><div><b class="num" id="track-pace"></b><small><span id="track-pace-label">${speedSport(session) ? 'Speed' : 'Pace'}</span> · ${speedSport(session) ? U.du() + '/h' : '/' + U.du()}</small></div></div><p class="small muted track-splits" id="track-splits"></p>` : ''}
-      ${session.gps && display === 'map' ? '<div class="track-map live-record-map" id="track-map"></div>' : ''}
+      ${session.gps && display === 'map' ? '<div class="track-map-wrap"><div class="track-map live-record-map" id="track-map"></div><span class="gps-chip" id="track-gps-live" hidden></span><button type="button" class="map-chip" id="track-follow">Whole route</button></div>' : ''}
       ${review ? `<form class="form" id="track-save-form"><label>Activity name<input name="activity_name" value="${esc(session.name || session.label)}" maxlength="200" required${saving?' disabled':''}></label><label>Who can see this activity<select name="visibility"${saving?' disabled':''}>${!session.visibility&&!App.me.share_default?'<option value="">Use my saved sharing setting</option>':''}${Object.entries({me:'Only me',friends:'Approved friends',everyone:'Everyone on Kinetta'}).map(([value,label])=>`<option value="${value}"${value===(session.visibility||App.me.share_default)?' selected':''}>${label}</option>`).join('')}</select></label><p class="small muted">Shared maps hide the start and end using your privacy settings.</p>${session.points.some((p) => p.segment !== session.points[0]?.segment) ? '<p class="small muted">Your activity map keeps every recorded section. Shared previews show the longest continuous section.</p>' : ''}<button class="primary wide" id="track-save"${saving ? ' disabled' : ''}>${saving ? 'Saving…' : 'Save activity'}</button><p class="small danger" id="track-save-error" role="alert"></p></form><button class="ghost wide" id="track-continue"${saving ? ' disabled' : ''}>Continue recording</button>` : `<div class="track-controls" role="group" aria-label="Recording controls">${paused ? `<span class="round-ctl"><button class="round-btn go" id="track-pause" aria-label="Resume">${svg('play')}</button><small>Resume</small></span><span class="round-ctl"><button class="round-btn stop" id="track-finish" aria-label="Finish">${svg('stop')}</button><small>Finish</small></span>` : `<span class="round-ctl"><button class="round-btn" id="track-pause" aria-label="Pause">${svg('pause')}</button><small>Pause</small></span>`}</div><p class="small muted">${session.native ? 'Recording continues with the screen locked or another app open.' : 'Browser recording pauses when you leave this page. Use the iPhone app for background GPS.'}</p>${paused && session.gps && !session.native ? '<button class="ghost wide" id="track-timer">Continue without GPS</button>' : ''}`}
       <button class="linkbtn danger track-discard" id="track-discard"${saving ? ' disabled' : ''}>Discard recording</button></section>`;
     $$('[data-display]', el).forEach((b) => b.onclick = () => { display = b.dataset.display; draw(); });
+    const fb = $('#track-follow', el); if (fb) fb.onclick = () => { follow = !follow; refreshMap(); followButton(); };
     update(); if (session.gps) refreshMap();
     if (!review) {
       $('#track-pause').onclick = async () => { if (session.state === 'recording') { await pause(); draw(); } else resume(); };
@@ -247,13 +263,13 @@ const Track = (() => {
     let selected = Math.min(choices.length-1, Math.max(0, +store.get(key + ':choice') || 0));
     const done = new URLSearchParams(location.search).get('done');
     el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">Record runs, rides and walks with GPS in the Kinetta iPhone app${App.me?.iphone_app ? ` (<a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">get it through TestFlight</a>)` : ''}. Here you can time indoor workouts, log lifting and add past activities.</p>`}<div class="track-quick" role="group" aria-label="Common activities">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${quick.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 && outdoor.length ? '<optgroup label="Outdoor · GPS">' : i===outdoor.length ? `${outdoor.length ? '</optgroup>' : ''}<optgroup label="Indoor · timer and sets">` : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
-      <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
+      <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
       <div class="track-go"><button class="round-btn start" id="track-start"><span>Start</span></button><small id="track-start-label"></small></div>
       <p class="small danger" id="track-ready-error" role="alert"></p>
       <button type="button" class="track-prefs" id="track-options" hidden></button><p class="small muted" id="track-guidance"></p>
       </form>
       <div id="track-open-lift"></div><section class="track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">More ways to add</h2><div class="card list">${Native.on ? `<a class="row-link" href="/track/health">${svg('heart')}<span class="grow">Apple Health</span>${svg('chev')}</a>` : ''}<a class="row-link" href="/track/connections">${svg('watch')}<span class="grow">Connections<small class="muted gs-sub">${Native.on ? 'Garmin and Apple Health' : 'Garmin, Apple Health and other apps'}</small></span>${svg('chev')}</a><button class="row-link" id="track-past">${svg('calendar')}<span class="grow">Log a past activity</span>${svg('chev')}</button>${Native.on ? '' : `<a class="row-link" href="/track/import">${svg('upload')}<span class="grow">Import activity history</span>${svg('chev')}</a>`}</div></section>`;
-    let view=null,dot=null,located=false,here=null,loadingMap=false;
+    let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false;
     const guide = () => { const c=choices[selected];$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start-label').textContent=c.lift?'Lifting':c.label;$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS keeps recording with your screen locked.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'A timer for active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
     // Spoken splits and auto-pause (#234 item 4): on by default, auto-pause off for rides; remembered on this device
     // Recording settings live in a sheet (Ben, 2026-10-26: big checkboxes up top weren't friendly); one quiet line
@@ -277,25 +293,29 @@ const Track = (() => {
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});guide();
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
     // (permission is remembered); a browser locates by itself only after the person has already allowed it.
-    const show=(lat,lon)=>{ located=true;here=[lat,lon];if(!view||!$('#track-ready-map')?.isConnected)return;view.map.setView([lat,lon],15);
-      if(dot)dot.setLatLng([lat,lon]);else dot=view.L.circleMarker([lat,lon],{radius:7,color:col('--accent'),fillOpacity:1}).addTo(view.map); };
+    const show=(lat,lon,accuracy)=>{ located=true;here=[lat,lon,accuracy];if(!view||!$('#track-ready-map')?.isConnected)return;
+      // street level, so the dot shows which side of the road you're on; later fixes keep it centred
+      if(!centred){view.map.setView([lat,lon],17);centred=true;}else view.map.panTo([lat,lon],{animate:true});
+      dot=hereMarker(view,dot,lat,lon,accuracy);const chip=$('#track-gps-chip');if(chip){chip.textContent=gpsText(accuracy);chip.hidden=!chip.textContent;} };
     const locate=async(quiet)=>{
       const button=$('#track-locate'),error=$('#track-ready-error');if(!button||button.disabled)return;
       button.disabled=true;if(!quiet)error.textContent='';
       try {
-        if(TrackNative.supported){const p=await TrackNative.locate();show(p.lat,p.lon);}
+        if(TrackNative.supported){const p=await TrackNative.locate();show(p.lat,p.lon,p.accuracy);}
         else {
           if(!navigator.geolocation)throw new Error('Location is unavailable on this device.');
           if(quiet){const state=await navigator.permissions?.query({name:'geolocation'}).then((s)=>s.state,()=>null);if(state!=='granted')return;}
           const p=await new Promise((ok,no)=>navigator.geolocation.getCurrentPosition(ok,no,{enableHighAccuracy:true,maximumAge:15000,timeout:15000}));
-          show(p.coords.latitude,p.coords.longitude);
+          show(p.coords.latitude,p.coords.longitude,p.coords.accuracy);
         }
       } catch(e) { if(button.isConnected)error.textContent=e?.message && TrackNative.supported ? e.message : 'Allow location access to see where you are. You can still choose an indoor activity.'; }
       finally { if(button.isConnected)button.disabled=false; }
     };
     const auto=()=>{ if(!located&&choices[selected].gps)locate(true); };
-    $('#track-locate').onclick=()=>locate(false);
+    $('#track-locate').onclick=()=>{centred=false;locate(false);};
     $('#track-kind').addEventListener('change',auto);auto();
+    // keep the dot live while you get ready, not just one fix from when the screen opened
+    const tick=setInterval(()=>{ if(!el.isConnected||session){clearInterval(tick);return;} if(located&&choices[selected].gps&&!document.hidden)locate(true); },8000);
     function ensureMap(){
       if(!choices[selected].gps||loadingMap)return;
       if(view){requestAnimationFrame(()=>{if(el.isConnected)view.map.invalidateSize();});return;}
