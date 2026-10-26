@@ -1,4 +1,5 @@
-// Welcome steps after a new account (#232 F): profile, who sees your activities, bring in workouts, friends.
+// Welcome steps after a new account (#232 F): profile, Kit, who sees your activities, bring in workouts, friends.
+// Kit's step shows only while it's off and this server offers it: new accounts start with AI off until they say yes (2026-10-26).
 // Each step saves only on Continue; Skip and Not now save nothing. Get started on Me reopens it until there's history.
 'use strict';
 const WELCOME_AUDIENCE = [
@@ -8,7 +9,9 @@ const WELCOME_AUDIENCE = [
 ];
 route(/^\/welcome$/, 'me', async (el) => {
   const owner = readOwner(), here = () => el.isConnected && readOwner() === owner;
-  const total = 4;
+  const access = Object.values(App.me?.ai_access || {});
+  const offerKit = !App.me?.ai_ok && (access.length ? access.some((a) => a.available && a.entitled) : !!App.me?.coach);
+  const k = offerKit ? 1 : 0, total = 4 + k;
   const frame = (n, title, intro, body, next = 'Continue') => {
     el.innerHTML = `<div class="welcome"><p class="eyebrow">Welcome · ${n} of ${total}</p><h1>${title}</h1><p class="muted">${intro}</p>${body}
       <p class="err" role="alert" id="wc-err"></p>
@@ -32,17 +35,28 @@ route(/^\/welcome$/, 'me', async (el) => {
     $('#wc-photo', el).onclick = () => profilePhotoSheet(() => { keep('/api/me', App.me); if (here()) { const keepName = f.elements.name.value, keepBio = f.elements.bio.value; profile(); const g = $('#wc-form', el); g.elements.name.value = keepName; g.elements.bio.value = keepBio; } });
     f.elements.bio.oninput = () => { $('#wc-count', el).textContent = `${f.elements.bio.value.length}/280`; };
     f.onsubmit = (e) => { e.preventDefault(); $('#wc-next', el).click(); };
-    $('#wc-skip', el).onclick = audience;
+    const after = offerKit ? kit : audience;
+    $('#wc-skip', el).onclick = after;
     $('#wc-next', el).onclick = step(async () => {
       if (!f.reportValidity()) throw new Error('Add your name to continue.');
       const name = f.elements.name.value.trim(), bio = f.elements.bio.value.trim();
       if (name === me.name && bio === (me.bio || '')) return;
       const r = await api('/api/account', json('PUT', {name, bio}));
       App.me.name = r.name || name; App.me.bio = bio; keep('/api/me', App.me); invalidate('/api/people/');
+    }, after);
+  }
+  function kit() {
+    frame(2, 'Turn on Kit?', 'Kit is Kinetta’s AI helper. Type “a mini muffin and a latte” and it fills in the calories, or ask how your training is going.',
+      `<p class="small muted">Only what a request needs goes to ${esc(App.me.ai_provider || 'the AI provider')}, never your whole account. Apple Health and Garmin need their own yes. Turn Kit off any time in Me.</p>
+      <details class="welcome-kit"><summary>What Kit sees</summary>${aiExplain()}</details>`, 'Turn on Kit');
+    $('#wc-skip', el).onclick = audience;
+    $('#wc-next', el).onclick = step(async () => {
+      await api('/api/profile', json('PUT', {ai_ok: true}));
+      App.me.ai_ok = true; keep('/api/me', App.me); invalidate('/api/coach'); toast('Kit is on');
     }, audience);
   }
   async function audience() {
-    frame(2, 'Who sees your activities', 'This applies to new activities. You can choose differently on any one of them.', `<div id="wc-aud">${skel(1)}</div>`);
+    frame(2 + k, 'Who sees your activities', 'This applies to new activities. You can choose differently on any one of them.', `<div id="wc-aud">${skel(1)}</div>`);
     $('#wc-skip', el).onclick = workouts;
     let current = 'everyone';
     try { current = (await api('/api/sharing')).default || current; } catch (x) { /* the choice below still works */ }
@@ -59,7 +73,7 @@ route(/^\/welcome$/, 'me', async (el) => {
     const card = (href, ico, title, sub) => `<a class="row-link" href="${href}"><span class="ri c-brand">${svg(ico)}</span><span class="grow">${title}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></a>`;
     // In the iPhone app, Apple Health leads: one tap, one Apple screen, then the recent workouts import (2026-10-24)
     const health = Native.on;
-    frame(3, 'Bring in your workouts', health ? 'Connect Apple Health to bring in workouts from your iPhone, Apple Watch and apps like Garmin and Strava, plus your weight.' : 'Pick one now, or come back to it from Get started on Me.',
+    frame(3 + k, 'Bring in your workouts', health ? 'Connect Apple Health to bring in workouts from your iPhone, Apple Watch and apps like Garmin and Strava, plus your weight.' : 'Pick one now, or come back to it from Get started on Me.',
       `${health ? '<button class="primary wide" id="wc-health">' + svg('heart') + ' Connect Apple Health</button><p class="small muted">Apple shows one screen where you choose what to share. You can change it any time in the Health app.</p><p class="err" role="alert" id="wc-health-err"></p>' : ''}
       <div class="card list">${card('/track', 'track', 'Record with this phone', 'Runs, rides, walks and lifting. Your phone asks for location when you start.')}
       ${card('/track/connections', 'watch', 'Garmin Connect', 'New workouts arrive by themselves after you connect.')}
@@ -80,7 +94,7 @@ route(/^\/welcome$/, 'me', async (el) => {
     }
   }
   async function friends() {
-    frame(4, 'Find your friends', 'See each other’s runs and rides, and send cheers.', `<div id="wc-inv"></div>
+    frame(4 + k, 'Find your friends', 'See each other’s runs and rides, and send cheers.', `<div id="wc-inv"></div>
       <a class="ghost wide" href="/me/friends?find=1">${svg('search')}Search by name or username</a>`, 'Done');
     $('#wc-next', el).onclick = () => { toast('You’re all set'); go('/me'); };
     let who = null;

@@ -45,11 +45,7 @@ def person(name, full_name=None):
     """A zz_test person, made by alex (the admin) the first time; logged in."""
     s, r = login(*ALEX).post('/api/admin/people', {'login': name, 'name': full_name or name.split('_')[-1].title() + ' Test', 'password': PW})
     assert s in (200, 409), f'make {name}: {s} {r}'
-    me = login(name)
-    if s == 200:     # Kit starts on for new accounts; these tests use AI only when they turn it on themselves
-        assert me.get('/api/me')[1]['ai_ok'], 'new accounts start with Kit on'
-        assert me.put('/api/profile', {'ai_ok': False})[0] == 200
-    return me
+    return login(name)
 
 
 def review_decision(admin, rid, action):

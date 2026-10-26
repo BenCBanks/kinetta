@@ -91,7 +91,7 @@ Do these in order. Nothing here costs money except the membership.
    **Identifiers** (user ID), **Location** (precise: workout routes), **User Content** (photos of food, other content: recipes
    and comments); all *linked to the user*, *not used for tracking*, used for *App Functionality*. These match the
    app's privacy manifest. If the AI features are on for your server, also say that health, fitness and food data and
-   food photos are shared with Google (Gemini) while AI features are on (they start on; Me turns them off).
+   food photos are shared with Google (Gemini) when the person turns AI features on (the welcome steps ask; Me changes it).
 
 The workflow archives without a development profile, preserves the HealthKit entitlements, then lets Xcode
 automatically sign for App Store Connect during export. You do not need to register a development iPhone for this
