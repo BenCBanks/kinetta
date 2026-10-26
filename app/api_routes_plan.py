@@ -49,7 +49,7 @@ class PathIn(BaseModel):
 @router.post('/plan/path')
 def plan_path(body: PathIn, user=Depends(current_user)):
     """Follow streets and trails between consecutive points (one leg per pair). A leg with no path comes back ok:false;
-    the phone keeps the last good route and offers a clearly marked straight line instead."""
+    the phone keeps the draft for moving points or retrying. It never substitutes a straight line."""
     if not all(route_geo.valid(p) for p in body.points): raise HTTPException(400, 'A point is outside the map')
     try: return {'legs': route_providers.route(user['id'], body.sport, [list(p) for p in body.points])}
     except route_providers.Unavailable as e: _unavailable(e)
@@ -122,6 +122,28 @@ def measure(plan: PlanIn):
     warnings = [{'code': 'manual', 'legs': [i for i, l in enumerate(legs) if l['mode'] == 'manual'], 'text': WARN_MANUAL}] if manual else []
     return {'waypoints': [[round(p[0], 6), round(p[1], 6)] for p in way], 'legs': legs, 'line': line,
             'distance_m': round(distance, 1), 'warnings': warnings}
+
+
+def measure_paths(body: "RouteIn", uid):
+    """Only the map service can supply a new plan's path; a client label is not evidence of a mapped connection.
+    Cache hits reuse the editor's answer. Rechecks run outside database transactions and never change a reviewed line.
+    """
+    if any(leg.mode != 'path' for leg in body.legs):
+        raise HTTPException(400, {'code':'paths_required','message':'Routes must follow mapped paths. Open the editor to find paths before saving.'})
+    m = measure(body)
+    try:
+        verified = []
+        for at in range(0, len(body.legs), 25):
+            verified.extend(route_providers.route(uid, body.sport, body.waypoints[at:at+26]))
+    except route_providers.Unavailable as e: _unavailable(e)
+    if len(verified) != len(body.legs) or any(not leg.get('ok') for leg in verified):
+        raise HTTPException(400, {'code':'paths_required','message':'No mapped path connects these points. Move a point or retry; your draft is kept.'})
+    if any(route_geo.encode(_line(leg.line)) != result['line'] for leg,result in zip(body.legs,verified)):
+        raise HTTPException(409, {'code':'paths_changed','message':'The mapped paths need to be refreshed. Review the updated route before saving.'})
+    for before,after in zip(m['legs'],m['legs'][1:]):
+        if route_geo.dist(_line(before['line'])[-1],_line(after['line'])[0]) > 2:
+            raise HTTPException(400, {'code':'paths_required','message':'The mapped sections do not meet. Move the joining point and find a continuous path.'})
+    return m
 
 
 def _wkt(line):
@@ -205,6 +227,7 @@ def create_route(body: RouteIn, user=Depends(current_user)):
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', (f"plan:{user['id']}:{body.client_id}",))
         had = c.execute('SELECT id FROM planned_routes WHERE user_id = %s AND client_id = %s', (user['id'], str(body.client_id))).fetchone()
         if had: return planned_route(had['id'], user=user) | {'duplicate': True}
+    m = measure_paths(body, user['id'])
     elev = _elevation(user['id'], m['line'])      # outside the transaction: a slow provider never holds a connection
     with db.connect() as c:
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', (f"plan:{user['id']}:{body.client_id}",))
@@ -221,7 +244,9 @@ def create_route(body: RouteIn, user=Depends(current_user)):
 @router.put('/planned-routes/{rid}')
 def update_route(rid: int, body: RouteIn, user=Depends(current_user)):
     """Save an edit as a new version. Segments made from this route are separate copies and never change."""
-    m = measure(body)
+    with db.connect() as c:
+        _owned(c, user['id'], rid)
+    m = measure_paths(body, user['id'])
     elev = _elevation(user['id'], m['line'])
     with db.connect() as c:
         r = _owned(c, user['id'], rid, lock=True)
@@ -250,6 +275,11 @@ def rename_route(rid: int, body: RenameIn, user=Depends(current_user)):
     return planned_route(rid, user=user)
 
 
+def require_mapped_copy(legs):
+    if any(leg['mode'] != 'path' for leg in legs):
+        raise HTTPException(400,'Open this route in the editor and find mapped paths before copying or sharing it.')
+
+
 class CopyIn(BaseModel):
     client_id: uuid.UUID
     name: str | None = Field(None, max_length=120)
@@ -263,6 +293,8 @@ def duplicate_route(rid: int, body: CopyIn, user=Depends(current_user)):
         had = c.execute('SELECT id FROM planned_routes WHERE user_id = %s AND client_id = %s', (user['id'], str(body.client_id))).fetchone()
         if not had:
             r = _owned(c, user['id'], rid)
+            v=c.execute('SELECT legs FROM planned_route_versions WHERE route_id=%s AND version=%s',(rid,r['version'])).fetchone()
+            require_mapped_copy(v['legs'])
             name = _clean(body.name) or (r['name'][:113] + ' (copy)')
             new = c.execute("""INSERT INTO planned_routes (user_id, client_id, name, description, sport, source)
                                VALUES (%s, %s, %s, %s, %s, 'copy') RETURNING id""",

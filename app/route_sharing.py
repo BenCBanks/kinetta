@@ -158,6 +158,7 @@ def preview(rid:int,body:PreviewIn,user=Depends(auth.current_user)):
         confirmed(c,user['id']);r=plans._owned(c,user['id'],rid,lock=True)
         if r['share_disabled']: raise HTTPException(403,'Sharing for this route was removed after a report. Contact support before publishing it again.')
         v=c.execute('SELECT *,ST_AsGeoJSON(geom) AS g FROM planned_route_versions WHERE route_id=%s AND user_id=%s AND version=%s',(rid,user['id'],r['version'])).fetchone()
+        plans.require_mapped_copy(v['legs'])
         trim=_policy(c,user['id'],True)
         pts=[[la,lo] for lo,la in json.loads(v['g'])['coordinates']];total=route_geo.length(pts)
         start=max(body.start_m,trim+3 if trim else 0);end=min(body.end_m or total,total-(trim+3 if trim else 0))
@@ -199,6 +200,8 @@ def publish(rid:int,body:PublishIn,user=Depends(auth.current_user)):
         if p['consumed_revision'] is not None:
             if r['share_revision']!=p['consumed_revision']: changed()
             return _state(c,user['id'],rid)|{'duplicate':True}
+        v=c.execute('SELECT legs FROM planned_route_versions WHERE route_id=%s AND version=%s',(rid,r['version'])).fetchone()
+        plans.require_mapped_copy(v['legs'])
         trim=_policy(c,user['id'],True)
         if r['share_disabled'] or (r['version'],r['updated'],r['share_revision'],trim)!=(p['source_version'],p['route_updated'],p['share_revision'],p['policy_trim']): changed()
         revision=r['share_revision']+1;data=p['data']
@@ -288,7 +291,11 @@ def copy(rid:int,body:CopyIn,user=Depends(auth.current_user)):
             return {'id':old['destination_id'],'duplicate':True}
         if c.execute('SELECT 1 FROM planned_routes WHERE user_id=%s AND client_id=%s',(user['id'],body.client_id)).fetchone():
             raise HTTPException(409,'This save identifier belongs to another route. Open a new copy confirmation.')
-        pts=route_geo.decode(d['line']);draft=route_geo.to_draft(pts);m=plans.measure(plans.PlanIn(**draft))
+        if any(w.get('code')=='manual' for w in d['warnings']):raise HTTPException(400,'This older route needs mapped paths before a new copy can be saved.')
+        pts=route_geo.decode(d['line']);draft=route_geo.to_draft(pts)
+        # Exact protected path already authorized by the source; never ask a provider to reconstruct hidden ends.
+        for leg in draft['legs']:leg['mode']='path'
+        m=plans.measure(plans.PlanIn(**draft))
         m['warnings']=d['warnings']
         new=c.execute('''INSERT INTO planned_routes(user_id,client_id,name,description,sport,source,source_route_id)
           VALUES(%s,%s,%s,%s,%s,'copy',%s) RETURNING id''',(user['id'],body.client_id,d['name'],d['description'],d['sport'],rid)).fetchone()['id']

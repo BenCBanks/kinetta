@@ -78,7 +78,7 @@ const Segments = (() => {
   }
   async function reviewPage(el) {
     let d = Segments.pending; if (d?.owner !== reviewOwner()) d = null; if (!d) { try { d = JSON.parse(sessionStorage.getItem(SEG_KEY()) || 'null'); } catch (_) { d = null; } }
-    if (!d || d.owner !== reviewOwner()) { go('/routes?view=segments', {replace: true}); return; }
+    if (!d || d.owner !== reviewOwner()) { go('/progress/segments', {replace: true}); return; }
     el.innerHTML = `<div class="top">${backBtn('Edit')}<span></span></div><h1>Review segment</h1><div id="sr-body">${skel(2)}</div>`;
     wireBack(el, '/segments/new');
     let chk;
@@ -129,7 +129,7 @@ const Segments = (() => {
   async function page(el, id) {
     const tab = new URLSearchParams(location.search).get('tab') || 'board';
     el.innerHTML = `<div class="top">${backBtn('Segments')}<span id="sg-acts" class="acts"></span></div><div id="sg-body">${skel(2)}</div>`;
-    wireBack(el, '/routes?view=segments');
+    wireBack(el, '/progress/segments');
     let s; try { s = await api(`/api/segments/${id}`); }
     catch (e) { $('#sg-body', el).innerHTML = `<div class="card empty"><b>${e.status === 410 ? 'This segment was removed' : 'Segment not found'}</b>${e.status === 410 ? 'It’s no longer available. Times on it were removed with it; the workouts themselves are untouched.' : 'It may be private, or the link may be wrong.'}</div>`; return; }
     const body = $('#sg-body', el);
@@ -176,7 +176,7 @@ const Segments = (() => {
       const x = (sel, fn) => { const e = $(sel, b); if (e) e.onclick = () => { close(); fn(); }; };
       x('[data-report]', () => report(s)); x('[data-retire]', () => report(s, null, 'creator_request'));
       x('[data-del]', () => sheet('Delete this segment?', '<p>Your times on it are deleted with it. Your activities stay.</p><button class="primary danger-btn wide" data-y>Delete segment</button><button class="ghost wide" data-close>Keep it</button>', (b2, c2) => {
-        $('[data-y]', b2).onclick = async () => { try { await api(`/api/segments/${s.id}`, {method: 'DELETE'}); c2(); invalidate('/api/segments'); toast('Segment deleted'); go('/routes?view=segments', {replace: true}); } catch (e) { toast(e.message); } }; }));
+        $('[data-y]', b2).onclick = async () => { try { await api(`/api/segments/${s.id}`, {method: 'DELETE'}); c2(); invalidate('/api/segments'); toast('Segment deleted'); go('/progress/segments', {replace: true}); } catch (e) { toast(e.message); } }; }));
     });
   }
   function report(s, row = null, reason = null) {
@@ -300,10 +300,10 @@ const Segments = (() => {
   return {list, review, reviewPage, page, activityCard, settingsRow, pending: null};
 })();
 
-route(/^\/segments$/, 'progress', async () => go('/routes?view=segments', {replace: true}));
+route(/^\/segments$/, 'progress', async () => go('/progress/segments', {replace: true}));
 route(/^\/segments\/review$/, 'progress', (el) => Segments.reviewPage(el));
 route(/^\/segments\/new$/, 'progress', async (el) => {
-  Planner.open(el, {mode: 'segment', title: 'New segment', key: 'segment-new', back: 'Segments', backHref: '/routes?view=segments',
+  Planner.open(el, {mode: 'segment', title: 'New segment', key: 'segment-new', back: 'Segments', backHref: '/progress/segments',
     onSave: (st) => Segments.review({sport: st.sport, line: Plan.enc(st.line), source: 'map', ...(Segments.pending ? {name: Segments.pending.name, description: Segments.pending.description, audience: Segments.pending.audience, draftId: Segments.pending.draftId, clientId: Segments.pending.clientId} : {})})});
 });
 route(/^\/segments\/(\d+)$/, 'progress', (el, id) => Segments.page(el, +id));

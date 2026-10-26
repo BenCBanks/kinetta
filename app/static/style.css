@@ -2528,6 +2528,8 @@ nav.tabs { view-transition-name: tabs; }
 .plan-bar {display:grid;grid-template-columns:repeat(4,1fr) 1.3fr;gap:6px;margin-top:8px}
 .plan-bar > button:not(.primary) {display:grid;justify-items:center;gap:2px;min-height:52px;padding:4px 2px;border:0;border-radius:var(--r2);background:var(--card);color:var(--tx);font-size:12px;font-weight:600;box-shadow:var(--shadow)}
 .plan-bar > button svg {width:20px;height:20px}
+.plan-paths {display:grid;place-content:center;justify-items:center;gap:2px;font-size:12px;color:var(--tx2);}
+.plan-paths svg {width:20px;height:20px;}
 .plan-bar > button:disabled {opacity:.4}
 .plan-bar > button[aria-pressed="false"] {color:var(--tx2)}
 .plan-bar .primary {min-height:52px;border-radius:var(--r2)}
@@ -2537,7 +2539,7 @@ nav.tabs { view-transition-name: tabs; }
 .plan-pt span {display:block;width:14px;height:14px;margin:2px;border-radius:50%;background:#fff;border:3px solid var(--route);box-shadow:0 1px 3px #0005}
 .plan-km span {display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--card);color:var(--tx);border:2px solid var(--route);font:700 11px/1 var(--numf)}
 .plan-arrow span {display:block;width:16px;height:16px;color:var(--route)} .plan-arrow svg {width:16px;height:16px;stroke-width:3}
-.plan-route .mini {width:56px;height:56px} .plan-route .mini svg {width:48px;height:48px}
+.plan-route .mini {flex:none;width:56px;height:56px} .plan-route>svg {flex:none;width:20px;height:20px} .plan-route .grow b {overflow-wrap:anywhere} .plan-route .mini svg {width:48px;height:48px}
 .plan-detail-map, .seg-course {height:280px;border-radius:var(--r3);overflow:hidden;margin:4px 0 12px;background:var(--card2)}
 .seg-map {height:260px;border-radius:var(--r3);overflow:hidden;margin:0 0 12px;background:var(--card2)}
 .seg-map[hidden] {display:none}

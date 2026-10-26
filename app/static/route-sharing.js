@@ -140,4 +140,4 @@ const RouteShare = (() => {
   }
   return {owner,browse,page,eraseDevice};
 })();
-route(/^\/routes\/shared\/(\d+)$/,'progress',(el,id)=>RouteShare.page(el,+id));
+route(/^\/routes\/shared\/(\d+)$/,'track',(el,id)=>RouteShare.page(el,+id));
