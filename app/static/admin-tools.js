@@ -113,12 +113,12 @@ function segmentsView(data,rev){
  if($('#segment-retry'))$('#segment-retry').onclick=()=>confirmForm('Retry failed matching jobs','Retry only jobs that stopped after five attempts. Matching rechecks the latest course and activity.','',()=>api('/segments/jobs/retry',{}),()=>show('segments'));
  content.querySelectorAll('[data-effort]').forEach(b=>b.onclick=()=>reviewSegmentEffort(Number(b.dataset.effort),b.dataset.case,Number(b.dataset.caseId)));
  content.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>segmentCaseClose('report',Number(b.dataset.dismiss)));
- content.querySelectorAll('[data-uphold]').forEach(b=>b.onclick=()=>segmentCaseClose('appeal',Number(b.dataset.uphold)));
+ content.querySelectorAll('[data-uphold]').forEach(b=>b.onclick=()=>segmentCaseClose('appeal',Number(b.dataset.uphold),data.appeals.find(a=>a.id===Number(b.dataset.uphold))?.effort?.rev));
  content.querySelectorAll('[data-course]').forEach(b=>b.onclick=()=>reviewSegmentCourse(data.reports.find(r=>r.id===Number(b.dataset.course))));
 }
 const segmentReasonField='<label>Reason<textarea name="reason" required minlength="3" maxlength="300"></textarea></label>';
-function segmentCaseClose(kind,id){confirmForm(kind==='report'?'Dismiss segment report':'Keep current decision','Record a short reason. This closes only this case; it does not change a time or course.',segmentReasonField,
- (f)=>api('/segment-'+(kind==='report'?'reports/':'appeals/')+id+(kind==='report'?'/dismiss':'/uphold'),{outcome:value(f,'reason').trim()}),()=>show('segments'));}
+function segmentCaseClose(kind,id,rev){confirmForm(kind==='report'?'Dismiss segment report':'Keep current decision','Record a short reason. This closes only this case; it does not change a time or course.',segmentReasonField,
+ (f)=>api('/segment-'+(kind==='report'?'reports/':'appeals/')+id+(kind==='report'?'/dismiss':'/uphold'),{outcome:value(f,'reason').trim(),...(kind==='appeal'?{rev}:{})}),()=>show('segments'));}
 async function reviewSegmentEffort(id,kind,caseId){
  const rev=revision,d=dialogRevision,owner=who;
  try{const e=await api('/segment-efforts/'+id);if(rev!==revision||d!==dialogRevision||owner!==who)return;

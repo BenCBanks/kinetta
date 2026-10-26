@@ -485,6 +485,7 @@ class AppealIn(BaseModel):
 @router.post('/segment-efforts/{eid}/appeal')
 def appeal(eid: int, body: AppealIn, user=Depends(current_user)):
     """Ask an admin to look again at one of your held or excluded times. It stays as it is until they decide."""
+    if not body.note.strip(): raise HTTPException(400, 'Add a short explanation for the review')
     with db.connect() as c:
         e = c.execute('SELECT state, moderation, reason FROM segment_efforts WHERE id = %s AND user_id = %s', (eid, user['id'])).fetchone()
         if not e: raise HTTPException(404, 'Not found')
@@ -604,6 +605,7 @@ def decide(eid: int, body: DecideIn, user=Depends(admin_user)):
 
 class CloseIn(BaseModel):
     outcome: str = Field(min_length=3, max_length=300)
+    rev: int | None = None
 
 
 @router.post('/admin/segment-reports/{rid}/dismiss')
@@ -622,10 +624,13 @@ def dismiss(rid: int, body: CloseIn, user=Depends(admin_user)):
 def uphold(aid: int, body: CloseIn, user=Depends(admin_user)):
     if len(body.outcome.strip()) < 3: raise HTTPException(400, 'Add a specific reason')
     with db.connect() as c:
+        # Use the same lock order as a result decision. An old case must not uphold a changed result.
+        e = c.execute('SELECT id, rev FROM segment_efforts WHERE id = (SELECT effort_id FROM segment_appeals WHERE id = %s) FOR UPDATE', (aid,)).fetchone()
+        if not e or e['rev'] != body.rev: raise HTTPException(409, 'This time changed. Reload the appeal before deciding.')
         r = c.execute("UPDATE segment_appeals SET status = 'upheld', decided = now(), outcome = %s WHERE id = %s AND status = 'open' RETURNING id",
                       (body.outcome.strip(), aid)).fetchone()
         if not r: raise HTTPException(409, 'This appeal was already handled')
-        _decision(c, user, 'appeal', aid, 'uphold', body.outcome)
+        _decision(c, user, 'appeal', aid, 'uphold', body.outcome, body.rev)
         audit(c, user['id'], 'segment_appeal.uphold', aid)
     return {'ok': True}
 

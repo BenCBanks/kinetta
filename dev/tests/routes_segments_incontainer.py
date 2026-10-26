@@ -477,8 +477,12 @@ class Segments(Base):
         self.c['bo'].post(f"/api/segment-efforts/{e['id']}/appeal", json={'note': 'Fictional review request'})
         cases = admin.get('/api/admin/segments').json(); appeal = next(a for a in cases['appeals'] if a['effort_id'] == e['id'])
         evidence = admin.get(ep).json()
+        uphold = f"/api/admin/segment-appeals/{appeal['id']}/uphold"
+        self.assertEqual(admin.post(uphold, json={'outcome': 'Old fictional review', 'rev': e['rev']}).status_code, 409)
+        self.assertEqual(self.c['bo'].post(f"/api/segment-efforts/{e['id']}/appeal", json={'note': '   '}).status_code, 400)
         body = {'action': 'restore', 'reason': 'Reviewed valid fictional recording', 'rev': evidence['rev'], 'appeal_id': appeal['id']}
         self.assertEqual(admin.post(ep+'/decide', json=body).status_code, 200)
+        self.assertEqual(admin.post(uphold, json={'outcome': 'Stale fictional review', 'rev': evidence['rev']}).status_code, 409)
         self.assertEqual(admin.get(ep).status_code, 404, 'closed case no longer browsable')
         switch = '/api/admin/segments/leaderboards'
         self.assertEqual(admin.put(switch, json={'enabled': False, 'expected': True}).status_code, 200)
