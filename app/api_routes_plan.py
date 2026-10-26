@@ -13,6 +13,9 @@ groups of activities you repeated.
 import datetime as dt
 import json
 import re
+import secrets
+import threading
+import time
 import uuid
 import xml.etree.ElementTree as ET
 from typing import Literal
@@ -26,6 +29,7 @@ from . import db, route_geo, route_providers
 from .auth import current_user
 
 router = APIRouter(prefix='/api')
+_downloads, _download_lock = {}, threading.Lock()
 SPORT = Literal['run', 'walk', 'hike', 'ride']
 GPX_MAX = 5 * 1024 * 1024
 LEG_END_GAP_M = 600            # a followed path starts where the map service snapped the tap, close to the waypoint
@@ -380,9 +384,40 @@ def export_gpx(rid: int, description: bool = False, user=Depends(current_user)):
         g = c.execute('SELECT ST_AsGeoJSON(geom) AS g FROM planned_route_versions WHERE route_id = %s AND user_id = %s AND version = %s',
                       (rid, user['id'], r['version'])).fetchone()['g']
     pts = [[la, lo] for lo, la in json.loads(g)['coordinates']]
-    safe = re.sub(r'[^\w .-]+', '', r['name']).strip()[:60] or 'route'
+    safe = re.sub(r'[^a-zA-Z0-9 .-]+', '', r['name']).strip()[:60] or 'route'
     return Response(gpx_for(r['name'], pts, r['description'] if description else None), media_type='application/gpx+xml',
                     headers={'Content-Disposition': f'attachment; filename="{safe}.gpx"'})
+
+
+class GpxLinkIn(BaseModel):
+    description: bool = False
+
+
+@router.post('/planned-routes/{rid}/gpx-link')
+def gpx_link(rid: int, body: GpxLinkIn, user=Depends(current_user)):
+    """Short-lived, single-use Safari download. A link never grants access to another route."""
+    planned_route(rid, user=user)
+    key, now = secrets.token_urlsafe(32), time.monotonic()
+    with _download_lock:
+        for k in list(_downloads):
+            if _downloads[k][0] < now: del _downloads[k]
+        if len(_downloads) >= 256: raise HTTPException(429, 'Downloads are busy. Try again shortly.')
+        _downloads[key] = (now + 60, user['id'], rid, body.description)
+    return {'path': '/api/planned-routes/download/' + key}
+
+
+@router.get('/planned-routes/download/{key}')
+def gpx_download(key: str):
+    with _download_lock: ticket = _downloads.pop(key, None)
+    if not ticket or ticket[0] < time.monotonic(): raise HTTPException(404, 'Download expired. Ask for a new link in the app.')
+    _, uid, rid, description = ticket
+    with db.connect() as c:
+        if not c.execute('SELECT 1 FROM users WHERE id = %s AND suspended_at IS NULL', (uid,)).fetchone():
+            raise HTTPException(404, 'Download no longer available')
+    response = export_gpx(rid, description, user={'id': uid})
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    return response
 
 
 # ---------- from your own activity ----------

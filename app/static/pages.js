@@ -1540,6 +1540,7 @@ function deleteSheet() {
         catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}
         // Once the server confirms deletion, every cleanup gets its own chance.
         const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
+        await cleanup(()=>typeof PlanTrack!=='undefined'?PlanTrack.eraseDevice():null);
         await cleanup(()=>Native.forget({deleted:true}));
         await cleanup(()=>typeof KitChat!=='undefined'?KitChat.eraseDevice():null);
         await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);

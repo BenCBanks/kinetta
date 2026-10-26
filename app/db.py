@@ -1580,6 +1580,13 @@ MIGRATIONS = [
     CREATE UNIQUE INDEX segment_appeals_open ON segment_appeals (effort_id) WHERE status = 'open';
     CREATE TABLE feature_switches (name text PRIMARY KEY, enabled boolean NOT NULL,
       changed timestamptz NOT NULL DEFAULT now(), actor_id bigint REFERENCES users(id) ON DELETE SET NULL);
+    -- Minimal moderation receipts, separate from immutable definitions and member workout data.
+    CREATE TABLE segment_decisions (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      actor_id bigint REFERENCES users(id) ON DELETE SET NULL,
+      target_kind text NOT NULL, target_id bigint NOT NULL, action text NOT NULL,
+      reviewed_rev int, reason text NOT NULL CHECK (length(reason) BETWEEN 3 AND 300),
+      created timestamptz NOT NULL DEFAULT now());
 
     DO $$ DECLARE t text; BEGIN
       FOREACH t IN ARRAY ARRAY['planned_routes', 'planned_route_versions', 'route_drafts', 'segment_drafts', 'segment_bookmarks',
@@ -1589,7 +1596,7 @@ MIGRATIONS = [
         EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
         EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
       END LOOP;
-      FOREACH t IN ARRAY ARRAY['segment_jobs', 'segment_reports', 'feature_switches'] LOOP
+      FOREACH t IN ARRAY ARRAY['segment_jobs', 'segment_reports', 'segment_decisions', 'feature_switches'] LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('REVOKE ALL ON %I FROM PUBLIC, fit_readers, fit_all_readers', t);
       END LOOP;

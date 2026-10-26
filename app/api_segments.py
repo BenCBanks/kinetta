@@ -505,6 +505,7 @@ def _effort_evidence(c, eid):
     """The minimum needed to decide: the derived timing and its checks. No streams, heart rate, notes or other history."""
     return c.execute("""SELECT e.id, e.segment_id, e.elapsed_s, e.elapsed_raw, e.state, e.reason, e.moderation, e.moderation_reason, e.rev,
                           e.started::date AS day, e.end_i - e.start_i + 1 AS fixes, e.matcher, a.sport, a.sport_label, a.source, a.visibility,
+                          s.name AS segment_name,
                           a.id AS activity_id, u.login::text AS login, u.name, s.distance_m, s.sport AS segment_sport,
                           round((s.distance_m / e.elapsed_raw)::numeric, 2) AS avg_speed
                         FROM segment_efforts e JOIN activities a ON a.id = e.activity_id JOIN users u ON u.id = e.user_id
@@ -541,9 +542,24 @@ def admin_overview(user=Depends(admin_user)):
 @router.get('/admin/segment-efforts/{eid}')
 def admin_effort(eid: int, user=Depends(admin_user)):
     with db.connect() as c:
+        _reviewable(c, eid)
         e = _effort_evidence(c, eid)
     if not e: raise HTTPException(404, 'Not found')
     return e
+
+
+def _reviewable(c, eid):
+    """A case or a held public-course result is the narrow exception, never arbitrary private history."""
+    if not c.execute("""SELECT 1 FROM segment_efforts e JOIN segments s ON s.id = e.segment_id WHERE e.id = %s AND (
+          (s.audience = 'everyone' AND (e.state = 'held' OR e.moderation = 'held')) OR
+          EXISTS (SELECT 1 FROM segment_reports r WHERE r.segment_id = e.segment_id AND r.person = e.user_id AND r.status = 'open') OR
+          EXISTS (SELECT 1 FROM segment_appeals ap WHERE ap.effort_id = e.id AND ap.status = 'open'))""", (eid,)).fetchone():
+        raise HTTPException(404, 'No open review case for this time')
+
+
+def _decision(c, user, kind, target, action, reason, rev=None):
+    c.execute('INSERT INTO segment_decisions (actor_id, target_kind, target_id, action, reason, reviewed_rev) VALUES (%s,%s,%s,%s,%s,%s)',
+              (user['id'], kind, target, action, reason.strip(), rev))
 
 
 class DecideIn(BaseModel):
@@ -556,10 +572,17 @@ class DecideIn(BaseModel):
 
 @router.post('/admin/segment-efforts/{eid}/decide')
 def decide(eid: int, body: DecideIn, user=Depends(admin_user)):
+    if len(body.reason.strip()) < 3: raise HTTPException(400, 'Add a specific reason')
     with db.connect() as c:
         e = c.execute('SELECT id, rev, state, reason, user_id, segment_id FROM segment_efforts WHERE id = %s FOR UPDATE', (eid,)).fetchone()
         if not e: raise HTTPException(404, 'Not found')
         if e['rev'] != body.rev: raise HTTPException(409, 'This time changed since you opened it. Reload and look again.')
+        _reviewable(c, eid)
+        if body.report_id and not c.execute("SELECT 1 FROM segment_reports WHERE id = %s AND segment_id = %s AND person = %s AND status = 'open' FOR UPDATE",
+                                           (body.report_id, e['segment_id'], e['user_id'])).fetchone():
+            raise HTTPException(409, 'This report changed or belongs to another result. Reload the cases.')
+        if body.appeal_id and not c.execute("SELECT 1 FROM segment_appeals WHERE id = %s AND effort_id = %s AND status = 'open' FOR UPDATE", (body.appeal_id, eid)).fetchone():
+            raise HTTPException(409, 'This appeal was already handled or belongs to another time')
         if body.action == 'restore':
             if e['reason'] == 'duplicate': raise HTTPException(400, 'Duplicates are worked out automatically')
             c.execute("""UPDATE segment_efforts SET moderation = NULL, moderation_reason = NULL, rev = rev + 1,
@@ -574,6 +597,7 @@ def decide(eid: int, body: DecideIn, user=Depends(admin_user)):
         if body.appeal_id:
             c.execute("UPDATE segment_appeals SET status = %s, decided = now(), outcome = %s WHERE id = %s AND effort_id = %s AND status = 'open'",
                       ('restored' if body.action == 'restore' else 'upheld', body.reason.strip(), body.appeal_id, eid))
+        _decision(c, user, 'effort', eid, body.action, body.reason, body.rev)
         audit(c, user['id'], f'segment_effort.{body.action}', eid)
     return {'ok': True}
 
@@ -584,20 +608,24 @@ class CloseIn(BaseModel):
 
 @router.post('/admin/segment-reports/{rid}/dismiss')
 def dismiss(rid: int, body: CloseIn, user=Depends(admin_user)):
+    if len(body.outcome.strip()) < 3: raise HTTPException(400, 'Add a specific reason')
     with db.connect() as c:
         r = c.execute("UPDATE segment_reports SET status = 'dismissed', decided_by = %s, decided = now(), outcome = %s WHERE id = %s AND status = 'open' RETURNING id",
                       (user['id'], body.outcome.strip(), rid)).fetchone()
         if not r: raise HTTPException(409, 'This report was already handled')
+        _decision(c, user, 'report', rid, 'dismiss', body.outcome)
         audit(c, user['id'], 'segment_report.dismiss', rid)
     return {'ok': True}
 
 
 @router.post('/admin/segment-appeals/{aid}/uphold')
 def uphold(aid: int, body: CloseIn, user=Depends(admin_user)):
+    if len(body.outcome.strip()) < 3: raise HTTPException(400, 'Add a specific reason')
     with db.connect() as c:
         r = c.execute("UPDATE segment_appeals SET status = 'upheld', decided = now(), outcome = %s WHERE id = %s AND status = 'open' RETURNING id",
                       (body.outcome.strip(), aid)).fetchone()
         if not r: raise HTTPException(409, 'This appeal was already handled')
+        _decision(c, user, 'appeal', aid, 'uphold', body.outcome)
         audit(c, user['id'], 'segment_appeal.uphold', aid)
     return {'ok': True}
 
@@ -607,6 +635,7 @@ class RetireIn(BaseModel):
     reason: str = Field(min_length=3, max_length=300)
     replaced_by: int | None = None
     report_id: int | None = None
+    expected_status: Literal['active', 'retired']
 
 
 def take_down(c, sids, reason):
@@ -621,10 +650,14 @@ def take_down(c, sids, reason):
 
 @router.post('/admin/segments/{sid}/retire')
 def retire(sid: int, body: RetireIn, user=Depends(admin_user)):
+    if len(body.reason.strip()) < 3: raise HTTPException(400, 'Add a specific reason')
     with db.connect() as c:
         s = c.execute('SELECT status FROM segments WHERE id = %s FOR UPDATE', (sid,)).fetchone()
         if not s: raise HTTPException(404, 'Not found')
         if s['status'] == 'removed': raise HTTPException(409, 'Already taken down')
+        if s['status'] != body.expected_status: raise HTTPException(409, 'This course changed. Reload the cases before deciding.')
+        if not body.report_id or not c.execute("SELECT 1 FROM segment_reports WHERE id = %s AND segment_id = %s AND status = 'open' FOR UPDATE", (body.report_id, sid)).fetchone():
+            raise HTTPException(409, 'An open report about this course is required')
         if body.replaced_by and not c.execute("SELECT 1 FROM segments WHERE id = %s AND id <> %s AND status = 'active' AND audience = 'everyone'", (body.replaced_by, sid)).fetchone():
             raise HTTPException(400, 'The replacement must be a different published segment')
         if body.kind == 'takedown': take_down(c, [sid], body.reason.strip())
@@ -636,17 +669,21 @@ def retire(sid: int, body: RetireIn, user=Depends(admin_user)):
             c.execute("UPDATE segment_reports SET status = 'actioned', decided_by = %s, decided = now(), outcome = %s WHERE id = %s AND status = 'open'",
                       (user['id'], f'{body.kind}: {body.reason.strip()}'[:300], body.report_id))
         audit(c, user['id'], f'segment.{body.kind}', sid)
+        _decision(c, user, 'segment', sid, body.kind, body.reason)
     return {'ok': True}
 
 
 class SwitchIn(BaseModel):
     enabled: bool
+    expected: bool
 
 
 @router.put('/admin/segments/leaderboards')
 def switch(body: SwitchIn, user=Depends(admin_user)):
     """The public-leaderboard switch: off hides every board at once (personal times stay)."""
     with db.connect() as c:
+        c.execute("SELECT pg_advisory_xact_lock(hashtext('segment-board-switch'))")
+        if boards_on(c) != body.expected: raise HTTPException(409, 'The boards switch changed. Reload before deciding.')
         c.execute("""INSERT INTO feature_switches (name, enabled, actor_id) VALUES ('leaderboards', %s, %s)
                      ON CONFLICT (name) DO UPDATE SET enabled = EXCLUDED.enabled, actor_id = EXCLUDED.actor_id, changed = now()""", (body.enabled, user['id']))
         audit(c, user['id'], 'leaderboards.' + ('on' if body.enabled else 'off'))

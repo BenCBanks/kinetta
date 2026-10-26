@@ -48,10 +48,19 @@ const Plan = {
 };
 
 // The route someone chose for Track (#276 item 10): the exact version, kept on this device for this account.
+const planDraftKey = key => App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null;
 const PlanTrack = {
   key: () => App.me ? `kinetta.trackRoute:${serverKey()}:${App.me.id}` : null,
   get() { const k = PlanTrack.key(); return k ? store.get(k) : null; },
   set(r) { const k = PlanTrack.key(); if (k) r ? store.set(k, r) : store.del(k); },
+  eraseDevice() {
+    if (!App.me) return;
+    const prefix = planDraftKey('');
+    for (const k of Object.keys(localStorage)) if (k.startsWith(prefix)) localStorage.removeItem(k);
+    store.del(PlanTrack.key());
+    sessionStorage.removeItem(`kinetta.segmentReview:${serverKey()}:${App.me.id}`);
+    if (typeof Segments !== 'undefined') Segments.pending = null;
+  },
   from(r) { return {id: r.id, version: r.loaded_version || r.version, name: r.name, sport: r.sport, distance_m: r.distance_m, line: r.full_line || r.line}; },
 };
 
@@ -69,9 +78,11 @@ const Planner = (() => {
   const total = () => S.legs.reduce((d, l) => d + legLen(l), 0);
 
   function open(el, opts) {
+    clearTimeout(saveT); clearTimeout(elevT); busy = false; view = layers = null;
     S = {mode: opts.mode || 'route', key: opts.key, sport: opts.sport || store.get('kinetta.planSport') || 'run', waypoints: [], legs: [], snap: true,
          name: '', description: '', routeId: opts.routeId || null, baseVersion: opts.baseVersion || null, clientId: crypto.randomUUID(), title: opts.title};
-    undo = []; redo = []; elev = null; autosave = 'idle';
+    S.owner = readOwner();
+    undo = []; redo = []; elev = null; autosave = 'idle'; localUnits = null;
     if (opts.plan) load(opts.plan);
     el.classList.add('planner-page');
     el.innerHTML = `<div class="top plan-top">${backBtn(opts.back || 'Routes')}<h1 class="plan-title">${esc(opts.title)}</h1>
@@ -89,7 +100,8 @@ const Planner = (() => {
         <button type="button" id="pl-more" aria-label="More route tools">${svg('more')}<span>More</span></button>
         <button type="button" class="primary" id="pl-save">${S.mode === 'segment' ? 'Review' : 'Save'}</button></div>
       <button type="button" class="plan-elev" id="pl-elev" hidden></button>
-      <p class="small muted plan-status" id="pl-status" role="status"></p>`;
+      <p class="small muted plan-status" id="pl-status" role="status"></p>
+      <p class="small muted">Online paths and heights send map points through this server to its map services (default: Valhalla/FOSSGIS). <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors · ODbL</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fix the map</a></p>`;
     wireBack(el, opts.backHref || '/routes');
     $$('[data-sport]', el).forEach((b) => b.onclick = () => { if (S.sport === b.dataset.sport) return; remember(); S.sport = b.dataset.sport; store.set('kinetta.planSport', S.sport);
       $$('[data-sport]', el).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
@@ -106,7 +118,7 @@ const Planner = (() => {
     $('#pl-elev', el).onclick = elevationSheet;
     document.addEventListener('keydown', keys);
     mount(el, opts);
-    return {state: () => S};
+    return {state: () => S, persist};
   }
   function keys(e) {
     if (!S || !$('#pl-map')?.isConnected) { document.removeEventListener('keydown', keys); return; }
@@ -119,21 +131,27 @@ const Planner = (() => {
     for (const k of ['sport', 'name', 'description', 'clientId', 'routeId', 'baseVersion', 'snap']) if (p[k] !== undefined && p[k] !== null) S[k] = p[k];
   }
   async function mount(el, opts) {
+    const state = S;
     const box = $('#pl-map', el);
-    try { view = await mapInto(box, [], {ends: false}); } catch (_) { view = null; }
+    let mounted; try { mounted = await mapInto(box, [], {ends: false}); } catch (_) { mounted = null; }
+    if (state !== S || state.owner !== readOwner()) return;
+    view = mounted;
     if (!view || !box.isConnected) { if (box.isConnected) box.innerHTML = '<p class="muted pad">The map couldn’t load. Check your connection and try again.</p>'; return; }
     const {map, L} = view; layers = {legs: L.layerGroup().addTo(map), marks: L.layerGroup().addTo(map), points: L.layerGroup().addTo(map)};
     map.doubleClickZoom.disable();
     map.on('click', (e) => { if (Date.now() < (S.quietUntil || 0)) return; add([e.latlng.lat, e.latlng.lng]); });
     // resume: the server's autosaved draft if it's newer than this device's copy
     if (!opts.plan && S.key) await resume();
+    if (state !== S || state.owner !== readOwner()) return;
     if (S.waypoints.length) fit(); else if (opts.center) map.setView(opts.center, 15); else locate(true);
     changed(false);
   }
   async function resume() {
+    const state = S;
     let local = null, remote = null;
-    try { local = store.get('kinetta.planDraft:' + S.key); } catch (_) { /* none */ }
+    try { local = store.get(planDraftKey(S.key)); } catch (_) { /* none */ }
     try { remote = await api('/api/route-drafts/' + S.key); } catch (_) { /* offline: the device copy */ }
+    if (state !== S || state.owner !== readOwner()) return;
     const pick = [local, remote?.data && {...remote.data, at: Date.parse(remote.updated)}].filter((d) => d?.waypoints?.length).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
     if (!pick) return;
     load(pick);
@@ -227,9 +245,9 @@ const Planner = (() => {
 
   // ---------- drawing ----------
   function changed(save = true) {
-    if (!S) return;
+    if (!S || S.owner !== readOwner()) return;
     elev = null; drawAll(); plan();
-    if (save) { clearTimeout(saveT); saveT = setTimeout(persist, 1200); autosave = 'waiting'; drawStatus(); }
+    if (save) { keepDraft(); clearTimeout(saveT); const state = S; saveT = setTimeout(() => { if (state === S) persist(); }, 1200); autosave = 'waiting'; drawStatus(); }
     clearTimeout(elevT); elevT = setTimeout(elevation, 1600);
   }
   function drawAll() { drawLegs(); drawPoints(); drawMarks(); drawTotal(); drawBar(); drawAlert(); drawStatus(); drawElev(); }
@@ -278,7 +296,7 @@ const Planner = (() => {
       while (step && d + step >= Math.min(next, arrow)) {
         const at = Math.min(next, arrow), t = (at - d) / step, p = [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t];
         if (at === next) { L.marker(p, {icon: L.divIcon({className: 'plan-km', iconSize: [22, 22], iconAnchor: [11, 11], html: `<span>${n}</span>`}), interactive: false, keyboard: false}).addTo(layers.marks); n++; next += unit; }
-        else { L.marker(p, {icon: L.divIcon({className: 'plan-arrow', iconSize: [16, 16], iconAnchor: [8, 8], html: `<span style="transform:rotate(${Plan.bearing(pts[i - 1], pts[i]).toFixed(0)}deg)">${svg('up')}</span>`}), interactive: false, keyboard: false}).addTo(layers.marks); arrow += unit; }
+        else { const mark = L.marker(p, {icon: L.divIcon({className: 'plan-arrow', iconSize: [16, 16], iconAnchor: [8, 8], html: `<span>${svg('up')}</span>`}), interactive: false, keyboard: false}).addTo(layers.marks); mark.getElement().firstElementChild.style.transform = `rotate(${Plan.bearing(pts[i - 1], pts[i]).toFixed(0)}deg)`; arrow += unit; }
         if (n > 300) return;
       }
       d += step;
@@ -444,17 +462,23 @@ const Planner = (() => {
     return {sport: S.sport, waypoints: S.waypoints, legs: S.legs.map((l) => ({mode: l.mode, line: Plan.enc(l.pts)})), name: S.name, description: S.description,
             clientId: S.clientId, routeId: S.routeId, baseVersion: S.baseVersion, snap: S.snap, line: Plan.line(S.legs), distance_m: total()};
   }
+  function keepDraft() {
+    if (!S?.key || S.owner !== readOwner()) return false;
+    try { localStorage.setItem(planDraftKey(S.key), JSON.stringify({...api_state(), line: undefined, at: Date.now()})); return true; }
+    catch (_) { return false; }
+  }
   async function persist() {
-    if (!S || !S.key) return;
+    if (!S || !S.key || S.owner !== readOwner()) return;
+    const state = S;
     const data = {...api_state(), line: undefined, at: Date.now()};
-    let local = true; try { store.set('kinetta.planDraft:' + S.key, data); } catch (_) { local = false; }
-    try { await api('/api/route-drafts/' + S.key, json('PUT', {data})); autosave = 'saved'; }
-    catch (_) { autosave = local ? 'local' : 'failed'; }
+    const local = keepDraft();
+    try { await api('/api/route-drafts/' + S.key, json('PUT', {data})); if (state !== S || state.owner !== readOwner()) return; autosave = 'saved'; }
+    catch (_) { if (state !== S || state.owner !== readOwner()) return; autosave = local ? 'local' : 'failed'; }
     drawStatus();
   }
   async function forget() {
     if (!S?.key) return;
-    try { store.del('kinetta.planDraft:' + S.key); } catch (_) { /* none */ }
+    try { store.del(planDraftKey(S.key)); } catch (_) { /* none */ }
     try { await api('/api/route-drafts/' + S.key, {method: 'DELETE'}); } catch (_) { /* cleared on the next save */ }
   }
   function saveSheet(opts) {
@@ -466,8 +490,8 @@ const Planner = (() => {
         <button class="primary wide" data-use>${svg('track')}Save and use in Track</button><button class="ghost wide" data-only>Save</button>
         <p class="small danger" id="pl-save-err" role="alert"></p></form>`, (b, close) => {
       const form = $('#pl-save-form', b), err = $('#pl-save-err', b);
-      form.elements.name.oninput = () => { S.name = form.elements.name.value; };
-      form.elements.description.oninput = () => { S.description = form.elements.description.value; };
+      form.elements.name.oninput = () => { S.name = form.elements.name.value; keepDraft(); };
+      form.elements.description.oninput = () => { S.description = form.elements.description.value; keepDraft(); };
       const go_ = async (useIt, btn) => {
         const name = form.elements.name.value.trim(); if (!name) { form.elements.name.reportValidity(); return; }
         $$('button', form).forEach((x) => x.disabled = true); btn.textContent = 'Saving…'; err.textContent = '';
@@ -556,9 +580,9 @@ route(/^\/routes$/, 'progress', async (el) => {
 route(/^\/routes\/new$/, 'progress', async (el) => {
   const q = new URLSearchParams(location.search), aid = q.get('activity');
   const ed = Planner.open(el, {title: 'New route', key: 'new', back: 'Routes', backHref: '/routes', source: aid ? 'activity' : 'drawn'});
-  if (aid && /^\d+$/.test(aid)) fromActivity(+aid, (d) => {
+  if (aid && /^\d+$/.test(aid)) fromActivity(+aid, async (d) => {
     const s = ed.state(); Object.assign(s, {waypoints: d.waypoints.map((w) => [+w[0], +w[1]]), legs: d.legs.map((l) => ({mode: l.mode, pts: decode(l.line), rev: 0, state: 'ok', dist: null})), sport: d.sport});
-    history.replaceState(null, '', '/routes/new'); setTimeout(() => render(), 0);
+    await ed.persist(); history.replaceState(null, '', '/routes/new'); setTimeout(() => render(), 0);
   });
 });
 
@@ -578,7 +602,7 @@ route(/^\/routes\/plan\/(\d+)\/edit$/, 'progress', async (el, id) => {
   const key = `route-${id}`;
   let plan = {...r, baseVersion: r.version, routeId: r.id, clientId: crypto.randomUUID()};
   try {   // an unsaved edit of this route on this account wins over the saved copy (it remembers which version it started from)
-    const d = (await api('/api/route-drafts/' + key)).data || store.get('kinetta.planDraft:' + key);
+    const d = (await api('/api/route-drafts/' + key)).data || store.get(planDraftKey(key));
     if (d?.waypoints?.length && d.baseVersion === r.version) plan = d;
   } catch (_) { /* the saved route */ }
   Planner.open(el, {title: 'Edit route', key, plan, routeId: r.id, baseVersion: r.version, back: r.name, backHref: `/routes/plan/${id}`});
@@ -614,7 +638,9 @@ route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
     $('#rp-copy', body).onclick = async () => { try { const c = await api(`/api/planned-routes/${id}/duplicate`, json('POST', {client_id: crypto.randomUUID()})); invalidate('/api/planned-routes'); toast('Copy saved'); go(`/routes/plan/${c.id}`); } catch (x) { toast(x.message); } };
     $('#rp-gpx', body).onclick = () => sheet('Export GPX', `<p>The file holds this route’s name and its ${decode(full).length.toLocaleString()} map points. No times, account, device or sharing details.</p>
         <label class="switch-row"><span><b>Include notes</b><small>Your private notes on this route go in the file too.</small></span><input type="checkbox" role="switch" id="gx-d"></label><button class="primary wide" id="gx-go">Download GPX</button>`, (b, close) => {
-      $('#gx-go', b).onclick = async () => { try { const res = await fetch(`${Native.base || ''}/api/planned-routes/${id}/gpx?description=${$('#gx-d', b).checked}`, {credentials: 'include', headers: Native.headers?.() || {}});
+      $('#gx-go', b).onclick = async () => { try {
+        if (Native.on) { const ticket = await api(`/api/planned-routes/${id}/gpx-link`, json('POST', {description: $('#gx-d', b).checked})); window.open(Native.base + ticket.path, '_blank'); close(); toast('Opening Safari to download your route'); return; }
+        const res = await fetch(`${Native.base || ''}/api/planned-routes/${id}/gpx?description=${$('#gx-d', b).checked}`, {credentials: 'include', headers: Native.headers?.() || {}});
         if (!res.ok) throw new Error('Couldn’t make the file. Try again.'); const url = URL.createObjectURL(await res.blob()); const a = document.createElement('a'); a.href = url; a.download = `${r.name.replace(/[^\w .-]+/g, '').trim() || 'route'}.gpx`; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000); close(); }
         catch (x) { toast(x.message); } }; });
     $('#rp-seg', body).onclick = () => stretchSheet('Choose the segment', full, {note: '<p class="small muted">Next you name it and review it. Once created, a segment can’t be changed, and editing this route never changes it.</p>',

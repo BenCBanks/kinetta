@@ -25,3 +25,6 @@ Demo route shapes in `dev/demo/routes.json` come from OpenStreetMap routing (© 
 - Six Phosphor regular icons (house, heartbeat, chart-bar, fork-knife, user, sneaker), MIT. Source: https://github.com/phosphor-icons/core ; license: `app/static/vendor/phosphor-LICENSE`.
 
 - [HTTPX](https://www.python-httpx.org/) and h2 (HTTP/2), BSD/MIT; [PyJWT](https://pyjwt.readthedocs.io/) (MIT) and cryptography (Apache-2.0/BSD): native Apple push delivery, installed through requirements.txt.
+
+
+Planned routing uses separately operated [Valhalla](https://github.com/valhalla/valhalla/blob/master/COPYING) (MIT), [OpenStreetMap data](https://www.openstreetmap.org/copyright) (ODbL) and optional Nominatim search, without bundling their software. Service permissions, attribution, public-demo limits, provider notice and configuration are documented in [docs/routes.md](docs/routes.md). These data/service terms do not relicense the app source.

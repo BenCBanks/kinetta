@@ -1242,3 +1242,8 @@ Ordinary support shows account status, connection/import state and client-report
 Settings → Edit profile opens the same profile editor as your own profile, with name/bio drafts retained after a failed save. Food entry uses the permanent conversation and final review; the retired fallback chat, nutrition rings and unused reaction pile are removed. Keep the current compact nutrition bars, training-plan completion ring, photo review, reactions and keyboard behavior.
 
 Final food review and recipe-portion previews label missing macros as unknown. Storage placeholders never count as known zero nutrients; a zero supplied by the person or source still displays as zero. A mixed-food total stays unknown if any included food lacks that nutrient.
+
+
+### Planned routes and segment review (26 October 2026)
+
+Routes lives under Progress and Track, retaining the five tabs. Planned routes remain editable and private; Matched routes still compares completed activities. The map editor offers a Points list alongside map gestures and explicitly labels straight sections and unavailable heights. Creating a segment requires a final immutable-course review; names, descriptions, direction, sport and path cannot be edited later. Boards default on at release, with each member off until they choose to join. The browser admin portal adds Segments & times for open reports, appeals, held times and a service-wide pause, with minimal derived checks and recorded reasons. Course retirement and permanent takedown are separate confirmed actions. See [routes](routes.md) and [segments](segments.md) for scope and limitations.

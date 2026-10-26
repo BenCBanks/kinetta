@@ -98,6 +98,40 @@ function reportsView(data,rev){
  content.innerHTML='<h2>Moderation reports</h2><p>Review the submitted item before acting. Support does not get a general browser for private account content.</p>'+(data.length?data.map(r=>'<article class="card"><h3>'+esc(r.reason)+'</h3><p>'+esc(r.what)+' · '+esc(r.name||r.login||'Account')+'</p><p>'+esc(r.note||'No additional note')+'</p><small>'+esc(date(r.created))+'</small><p><button data-review="'+r.id+'">Review reported item</button></p></article>').join(''):'<p>No open reports.</p>');
  content.querySelectorAll('[data-review]').forEach(b=>b.onclick=()=>reviewReport(b.dataset.review));
 }
+// Competition cases expose derived checks only. No private streams or unrelated workout history.
+const SEGMENT_REASON={gps:'GPS or matching',wrong_sport:'Wrong sport or assistance',duplicate:'Duplicate course',unsafe:'Unsafe or restricted access',abusive:'Abusive content',privacy:'Personal location',creator_request:'Creator request',speed_jump:'GPS speed jump',too_fast:'Unusually fast',duplicate_effort:'Duplicate recording'};
+function segmentsView(data,rev){
+ const label=r=>esc(SEGMENT_REASON[r]||r||'No reason recorded');
+ const review=(e,kind,id)=>e?'<button data-effort="'+e.id+'" data-case="'+kind+'" data-case-id="'+id+'">Review time for @'+esc(e.login)+'</button>':'<p>The time is no longer available.</p>';
+ content.innerHTML='<h2>Segments & times</h2><p>Boards are <b>'+(data.leaderboards?'on':'paused')+'</b>. Members choose whether to join. Pausing boards keeps their private times.</p><div class="actions"><button id="segment-switch">'+(data.leaderboards?'Pause all boards':'Resume all boards')+'</button><button id="segment-refresh">Refresh cases</button></div><p>'+data.stats.public_segments+' public segments · '+data.stats.backlog+' jobs waiting · '+data.stats.stuck+' failed jobs</p>'+(data.stats.stuck?'<button id="segment-retry">Retry failed matching jobs</button>':'')+
+ '<h3>Reports · '+data.reports.length+'</h3>'+data.reports.map(r=>'<article class="card"><h4>'+esc(r.segment||'Removed segment')+'</h4><p>'+label(r.reason)+' · '+esc(date(r.created))+'</p><p>'+esc(r.note||'No additional note')+'</p>'+(r.effort?review(r.effort,'report',r.id):'')+'<div class="actions"><button data-course="'+r.id+'">Review course action</button><button data-dismiss="'+r.id+'">Dismiss report</button></div></article>').join('')+(data.reports.length?'':'<p>No open segment reports.</p>')+
+ '<h3>Appeals · '+data.appeals.length+'</h3>'+data.appeals.map(a=>'<article class="card"><p>'+esc(a.note)+'</p><p>'+esc(date(a.created))+'</p>'+review(a.effort,'appeal',a.id)+'<button data-uphold="'+a.id+'">Keep current decision</button></article>').join('')+(data.appeals.length?'':'<p>No open appeals.</p>')+
+ '<h3>Held times · '+data.held.length+'</h3><p>Up to 50 oldest held times. Refresh after handling a case to see the next ones.</p>'+data.held.map(e=>'<article class="card"><h4>'+esc(e.segment_name||'Segment '+e.segment_id)+'</h4><p>@'+esc(e.login)+' · '+e.elapsed_s+' seconds · '+label(e.moderation_reason||e.reason)+'</p>'+review(e,'held',e.id)+'</article>').join('')+(data.held.length?'':'<p>No held times.</p>')+
+ '<details><summary>Matching outcomes</summary>'+(data.exclusions.length?'<ul>'+data.exclusions.map(r=>'<li>'+label(r.reason)+': '+r.n+'</li>').join('')+'</ul>':'<p>No exclusions or holds.</p>')+'</details>';
+ $('#segment-refresh').onclick=()=>show('segments');
+ $('#segment-switch').onclick=()=>confirmForm(data.leaderboards?'Pause all public boards':'Resume all public boards','This applies to every public segment on this server. Each member’s participation choice stays saved.','<label class="inline"><input type="checkbox" required> I reviewed this service-wide change.</label>',()=>api('/segments/leaderboards',{enabled:!data.leaderboards,expected:data.leaderboards},'PUT'),()=>show('segments'));
+ if($('#segment-retry'))$('#segment-retry').onclick=()=>confirmForm('Retry failed matching jobs','Retry only jobs that stopped after five attempts. Matching rechecks the latest course and activity.','',()=>api('/segments/jobs/retry',{}),()=>show('segments'));
+ content.querySelectorAll('[data-effort]').forEach(b=>b.onclick=()=>reviewSegmentEffort(Number(b.dataset.effort),b.dataset.case,Number(b.dataset.caseId)));
+ content.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>segmentCaseClose('report',Number(b.dataset.dismiss)));
+ content.querySelectorAll('[data-uphold]').forEach(b=>b.onclick=()=>segmentCaseClose('appeal',Number(b.dataset.uphold)));
+ content.querySelectorAll('[data-course]').forEach(b=>b.onclick=()=>reviewSegmentCourse(data.reports.find(r=>r.id===Number(b.dataset.course))));
+}
+const segmentReasonField='<label>Reason<textarea name="reason" required minlength="3" maxlength="300"></textarea></label>';
+function segmentCaseClose(kind,id){confirmForm(kind==='report'?'Dismiss segment report':'Keep current decision','Record a short reason. This closes only this case; it does not change a time or course.',segmentReasonField,
+ (f)=>api('/segment-'+(kind==='report'?'reports/':'appeals/')+id+(kind==='report'?'/dismiss':'/uphold'),{outcome:value(f,'reason').trim()}),()=>show('segments'));}
+async function reviewSegmentEffort(id,kind,caseId){
+ const rev=revision,d=dialogRevision,owner=who;
+ try{const e=await api('/segment-efforts/'+id);if(rev!==revision||d!==dialogRevision||owner!==who)return;
+  modal('Review time · @'+e.login,'<h3>'+esc(e.segment_name||'Segment '+e.segment_id)+'</h3><p>'+e.elapsed_s+' seconds · '+esc(e.day)+' · '+esc(e.sport_label||e.sport)+'</p><p>Source: '+esc(e.source)+' · Activity audience: '+esc(e.visibility)+'</p><p>Checks: '+e.fixes+' GPS fixes · '+e.avg_speed+' m/s average · matcher '+e.matcher+'</p><p>Current state: '+esc(e.moderation||e.state)+' · '+esc(e.moderation_reason||e.reason||'No failure recorded')+'</p><p>Only derived checks are shown. Ask the owner through support if you need additional evidence.</p><form id="segment-decision"><label>Decision<select name="action"><option value="hold">Hold for review</option><option value="exclude">Exclude this time</option><option value="restore">Restore if valid</option></select></label>'+segmentReasonField+'<button>Confirm decision</button></form>',(box,close)=>{
+   const f=$('#segment-decision',box);f.onsubmit=event=>{event.preventDefault();if(!f.reportValidity())return;busy($('button',f),async()=>{await api('/segment-efforts/'+id+'/decide',{action:value(f,'action'),reason:value(f,'reason').trim(),rev:e.rev,...(kind==='report'?{report_id:caseId}:kind==='appeal'?{appeal_id:caseId}:{})});if(rev!==revision||owner!==who||!f.isConnected)return;await closeTool(close);await show('segments')})};
+  });
+ }catch(e){if(rev===revision&&owner===who)error(e)}
+}
+function reviewSegmentCourse(r){
+ confirmForm('Review course · '+(r.segment||'Removed segment'),'The definition cannot be edited. Retirement keeps the historical course and stops new times. Takedown erases its name, path and derived times permanently; members keep their workouts.',
+ '<p>Current state: '+esc(r.status)+' · '+esc(r.audience)+'</p><label>Action<select name="kind"><option value="retire">Retire course</option><option value="takedown">Take down course permanently</option></select></label><label>Replacement segment ID (optional)<input name="replacement" type="number" min="1" step="1"></label>'+segmentReasonField+'<label>Type segment ID '+r.segment_id+' to confirm<input name="confirm" required pattern="'+r.segment_id+'" inputmode="numeric"></label>',
+ (f)=>api('/segments/'+r.segment_id+'/retire',{kind:value(f,'kind'),reason:value(f,'reason').trim(),expected_status:r.status,report_id:r.id,replaced_by:value(f,'replacement')?Number(value(f,'replacement')):null}),()=>show('segments'));
+}
 async function reviewReport(id){
  const rev=revision,d=dialogRevision,my=++personRevision;
  try{const r=await api('/review/'+id);if(rev!==revision||d!==dialogRevision||my!==personRevision||!who)return;

@@ -99,7 +99,7 @@ def allow(uid):
 def _post(url, body):
     """The one place a provider is called (tests replace it)."""
     try:
-        r = httpx.post(url, json=body, headers={'User-Agent': UA}, timeout=TIMEOUT)
+        r = httpx.post(url, json=body, headers={'User-Agent': UA, 'X-Client-Id': 'kinetta.app'}, timeout=TIMEOUT)
     except httpx.HTTPError:
         raise Unavailable('Map services did not answer. Your route is kept; try again.')
     if r.status_code >= 500 or r.status_code == 429: raise Unavailable('Map services are busy. Your route is kept; try again.')

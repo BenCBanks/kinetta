@@ -116,6 +116,29 @@ class Base(unittest.TestCase):
 
 
 class PlannedRoutes(Base):
+    def test_single_use_gpx_download(self):
+        from app import api_routes_plan
+        way, legs = self.plan()
+        route = self.c['ann'].post('/api/planned-routes', json={'client_id': str(uuid.uuid4()), 'name': 'Fictional café', 'description': 'Optional note', 'sport': 'walk', 'waypoints': way, 'legs': legs}).json()
+        path = f"/api/planned-routes/{route['id']}/gpx-link"
+        self.assertEqual(self.c['bo'].post(path, json={}).status_code, 404)
+        self.assertEqual(client().post(path, json={}).status_code, 401)
+        ticket = self.c['ann'].post(path, json={}).json()['path']
+        result = client().get(ticket)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertIn('Fictional café', result.text)
+        self.assertNotIn('Optional note', result.text)
+        self.assertEqual(result.headers['cache-control'], 'no-store')
+        self.assertEqual(client().get(ticket).status_code, 404, 'a Safari ticket works once')
+        ticket = self.c['ann'].post(path, json={'description': True}).json()['path']
+        key = ticket.rsplit('/', 1)[-1]
+        with api_routes_plan._download_lock:
+            old = api_routes_plan._downloads[key]; api_routes_plan._downloads[key] = (0, *old[1:])
+        self.assertEqual(client().get(ticket).status_code, 404, 'expired link')
+        ticket = self.c['ann'].post(path, json={}).json()['path']
+        self.c['ann'].delete(f"/api/planned-routes/{route['id']}")
+        self.assertEqual(client().get(ticket).status_code, 404, 'deleting the route revokes downloads')
+
     def plan(self, n=3):
         way = [north(i * 500) for i in range(n)]
         path = self.c['ann'].post('/api/plan/path', json={'sport': 'walk', 'points': way}).json()
@@ -427,12 +450,55 @@ class Segments(Base):
         exp = self.c['ann'].get('/api/account/export')
         self.assertEqual(exp.status_code, 200)
 
+    def test_admin_cases_scope_stale_actions_and_receipts(self):
+        from app import admin_auth
+        admin = client()
+        with db.connect() as c: token = admin_auth.issue_session(c, self.ids['admin'])
+        admin.cookies.set(admin_auth.COOKIE, token, path='/api')
+        admin.headers['X-Admin-CSRF'] = admin_auth.csrf(token)
+        s = self.segment(name='Admin case hill', east=6000)
+        self.run_activity('bo', 4, east=6000); self.jobs()
+        with db.connect() as c:
+            e = c.execute('SELECT id, rev FROM segment_efforts WHERE segment_id = %s AND user_id = %s', (s['id'], self.ids['bo'])).fetchone()
+        ep = f"/api/admin/segment-efforts/{e['id']}"
+        self.assertEqual(self.c['admin'].get('/api/admin/segments').status_code, 403, 'ordinary admin app login never elevates')
+        self.assertEqual(self.c['bo'].get('/api/admin/segments').status_code, 403)
+        self.assertEqual(admin.get(ep).status_code, 404, 'no open case: no private history by ID')
+        report = self.c['ann'].post(f"/api/segments/{s['id']}/report", json={'reason': 'gps', 'login': 'zz_test_rs_bo', 'note': 'Fictional GPS case'}).json()['id']
+        course_report = self.c['cy'].post(f"/api/segments/{s['id']}/report", json={'reason': 'unsafe', 'note': 'Fictional access case'}).json()['id']
+        evidence = admin.get(ep).json()
+        self.assertIn('fixes', evidence)
+        for key in ('lat', 'lon', 'heart_rate', 'streams', 'geom'): self.assertNotIn(key, evidence)
+        body = {'action': 'exclude', 'reason': 'Reviewed fictional GPS error', 'rev': e['rev'], 'report_id': course_report}
+        self.assertEqual(admin.post(ep+'/decide', json=body).status_code, 409, 'cannot close a different case')
+        body['report_id'] = report
+        self.assertEqual(admin.post(ep+'/decide', json=body).status_code, 200)
+        self.assertEqual(admin.post(ep+'/decide', json=body).status_code, 409, 'lost response retry cannot act again')
+        self.c['bo'].post(f"/api/segment-efforts/{e['id']}/appeal", json={'note': 'Fictional review request'})
+        cases = admin.get('/api/admin/segments').json(); appeal = next(a for a in cases['appeals'] if a['effort_id'] == e['id'])
+        evidence = admin.get(ep).json()
+        body = {'action': 'restore', 'reason': 'Reviewed valid fictional recording', 'rev': evidence['rev'], 'appeal_id': appeal['id']}
+        self.assertEqual(admin.post(ep+'/decide', json=body).status_code, 200)
+        self.assertEqual(admin.get(ep).status_code, 404, 'closed case no longer browsable')
+        switch = '/api/admin/segments/leaderboards'
+        self.assertEqual(admin.put(switch, json={'enabled': False, 'expected': True}).status_code, 200)
+        self.assertEqual(admin.put(switch, json={'enabled': False, 'expected': True}).status_code, 409)
+        self.assertEqual(admin.put(switch, json={'enabled': True, 'expected': False}).status_code, 200)
+        retire = {'kind': 'retire', 'reason': 'Fictional restricted access', 'expected_status': 'active', 'report_id': course_report}
+        self.assertEqual(admin.post(f"/api/admin/segments/{s['id']}/retire", json=retire).status_code, 200)
+        self.assertEqual(admin.post(f"/api/admin/segments/{s['id']}/retire", json=retire).status_code, 409)
+        with db.connect() as c:
+            receipts = c.execute('SELECT action, reason, reviewed_rev FROM segment_decisions WHERE target_kind = %s AND target_id = %s ORDER BY id', ('effort', e['id'])).fetchall()
+            self.assertEqual([r['action'] for r in receipts], ['exclude', 'restore'])
+            self.assertTrue(all(r['reason'] and r['reviewed_rev'] for r in receipts))
+            c.execute("DELETE FROM feature_switches WHERE name = 'leaderboards'")
+
     def test_rls_and_grants(self):
         with db.connect() as c:
             for t in ('planned_routes', 'planned_route_versions', 'route_drafts', 'segments', 'segment_drafts', 'segment_bookmarks', 'segment_efforts', 'segment_scans', 'segment_appeals'):
                 self.assertTrue(c.execute('SELECT relrowsecurity FROM pg_class WHERE relname = %s', (t,)).fetchone()['relrowsecurity'], t)
                 self.assertTrue(c.execute("SELECT 1 FROM pg_policies WHERE tablename = %s AND policyname = 'own_rows'", (t,)).fetchone(), t)
-            for t in ('segment_reports', 'segment_jobs', 'feature_switches'):
+            for t in ('segment_reports', 'segment_jobs', 'segment_decisions', 'feature_switches'):
                 self.assertFalse(c.execute("SELECT has_table_privilege('fit_readers', %s, 'SELECT') AS p", (t,)).fetchone()['p'], t)
         from app.api_mydata import TABLES
         for t in ('planned_routes', 'planned_route_versions', 'segment_efforts', 'segments_created', 'segment_bookmarks'): self.assertIn(t, TABLES)

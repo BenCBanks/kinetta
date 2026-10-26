@@ -18,7 +18,8 @@ const SEG_WHY = {
 const SEG_REPORT = [['gps', 'GPS or matching error'], ['wrong_sport', 'Wrong sport or motor-assisted'], ['privacy', 'Shows a private place'], ['abusive', 'Abusive name or description'],
   ['duplicate', 'Duplicate of another segment'], ['unsafe', 'Unsafe or no public access']];
 const Segments = (() => {
-  const SEG_KEY = 'kinetta.segmentReview';
+  const SEG_KEY = () => App.me ? `kinetta.segmentReview:${serverKey()}:${App.me.id}` : null;
+  const reviewOwner = () => App.me ? JSON.stringify([serverKey(), App.me.id]) : null;
   const sportName = (s) => SPORT_NAMES[s] || s;
   const pace = (s, d, sport) => sport === 'ride' ? `${U.speed(d / s)} ${U.su()}` : `${U.pace(s / d * 1000)}${U.pu()}`;
 
@@ -58,22 +59,23 @@ const Segments = (() => {
 
   // ---------- creating: draw (or pick a stretch), then review ----------
   function review(draft) {   // draft: {sport, line?, activity?, source, name?, description?, audience?, draftId?, clientId?}
-    const d = {clientId: crypto.randomUUID(), audience: 'everyone', ...draft};
-    try { sessionStorage.setItem(SEG_KEY, JSON.stringify(d)); } catch (_) { /* kept in memory */ }
+    const d = {clientId: crypto.randomUUID(), audience: 'everyone', ...draft, owner: reviewOwner()};
+    try { sessionStorage.setItem(SEG_KEY(), JSON.stringify(d)); } catch (_) { /* kept in memory */ }
     Segments.pending = d; go('/segments/review');
   }
   async function saveDraft(d) {   // explicit drafts stay private and editable until Create
+    if (d.owner !== reviewOwner()) return false;
     const data = {sport: d.sport, line: d.line, activity: d.activity, source: d.source, name: d.name || '', description: d.description || '', audience: d.audience};
     try {
       if (d.draftId) await api('/api/segment-drafts/' + d.draftId, json('PUT', {data}));
       else d.draftId = (await api('/api/segment-drafts', json('POST', {data}))).id;
-      try { sessionStorage.setItem(SEG_KEY, JSON.stringify(d)); } catch (_) { /* memory */ }
+      try { sessionStorage.setItem(SEG_KEY(), JSON.stringify(d)); } catch (_) { /* memory */ }
       return true;
     } catch (_) { return false; }
   }
   async function reviewPage(el) {
-    let d = Segments.pending; if (!d) { try { d = JSON.parse(sessionStorage.getItem(SEG_KEY) || 'null'); } catch (_) { d = null; } }
-    if (!d) { go('/routes?view=segments', {replace: true}); return; }
+    let d = Segments.pending; if (d?.owner !== reviewOwner()) d = null; if (!d) { try { d = JSON.parse(sessionStorage.getItem(SEG_KEY()) || 'null'); } catch (_) { d = null; } }
+    if (!d || d.owner !== reviewOwner()) { go('/routes?view=segments', {replace: true}); return; }
     el.innerHTML = `<div class="top">${backBtn('Edit')}<span></span></div><h1>Review segment</h1><div id="sr-body">${skel(2)}</div>`;
     wireBack(el, '/segments/new');
     let chk;
@@ -99,7 +101,9 @@ const Segments = (() => {
     mapInto($('#sr-map', body), [chk.line], {sport: d.sport}).then((v) => v && arrows(v, decode(chk.line))).catch(() => {});
     const f = $('#sr-form', body); let t = 0;
     f.oninput = () => { d.name = f.elements.name.value; d.description = f.elements.description.value; d.audience = f.elements.aud.value; clearTimeout(t);
-      t = setTimeout(async () => { $('#sr-draft', body).textContent = await saveDraft(d) ? 'Draft saved. It stays private until you create it.' : 'Couldn’t save the draft. Keep this screen open.'; }, 800); };
+      try { sessionStorage.setItem(SEG_KEY(), JSON.stringify(d)); } catch (_) { /* memory */ }
+      $('#sr-draft', body).textContent = 'Saving draft…';
+      t = setTimeout(async () => { const saved = await saveDraft(d); if (body.isConnected && d.owner === reviewOwner()) $('#sr-draft', body).textContent = saved ? 'Draft saved. It stays private until you create it.' : 'Couldn’t save the draft. Keep this screen open.'; }, 800); };
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('#sr-create', body); if (btn.disabled) return;
       const name = f.elements.name.value.trim(); if (!name) { f.elements.name.reportValidity(); return; }
@@ -107,7 +111,7 @@ const Segments = (() => {
       try {
         const s = await api('/api/segments', json('POST', {client_id: d.clientId, name, description: f.elements.description.value.trim() || null, sport: d.sport, line: d.activity ? null : d.line,
           activity: d.activity || null, source: d.source || 'map', audience: f.elements.aud.value, understood_fixed: true, draft_id: d.draftId || null}));
-        try { sessionStorage.removeItem(SEG_KEY); } catch (_) { /* none */ } Segments.pending = null;
+        try { sessionStorage.removeItem(SEG_KEY()); } catch (_) { /* none */ } Segments.pending = null;
         invalidate('/api/segments'); toast('Segment created'); go(`/segments/${s.id}`, {replace: true});
       } catch (x) { btn.disabled = false; btn.textContent = 'Create segment'; $('#sr-err', body).textContent = x.message + ' Your draft is kept.'; }
     };
@@ -115,7 +119,7 @@ const Segments = (() => {
   function arrows(v, pts) {   // the direction, drawn along the course
     const n = Math.min(6, Math.max(2, Math.round(Plan.length(pts) / 300))), len = Plan.length(pts);
     for (let k = 1; k < n; k++) { const part = Plan.slice(pts, 0, len * k / n), a = part.at(-2), b = part.at(-1); if (!a || !b) continue;
-      v.L.marker(b, {icon: v.L.divIcon({className: 'plan-arrow', iconSize: [16, 16], iconAnchor: [8, 8], html: `<span style="transform:rotate(${Plan.bearing(a, b).toFixed(0)}deg)">${svg('up')}</span>`}), interactive: false, keyboard: false}).addTo(v.map); }
+      const mark = v.L.marker(b, {icon: v.L.divIcon({className: 'plan-arrow', iconSize: [16, 16], iconAnchor: [8, 8], html: `<span>${svg('up')}</span>`}), interactive: false, keyboard: false}).addTo(v.map); mark.getElement().firstElementChild.style.transform = `rotate(${Plan.bearing(a, b).toFixed(0)}deg)`; }
   }
 
   // ---------- one segment ----------
