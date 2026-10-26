@@ -45,7 +45,7 @@ console.log('home food: hidden until something is logged today, compact card wit
  let callback,owner='one',writes=0,undo,closed=0;
  const uploadUndo=()=>{};
  const b={isConnected:true,innerHTML:''},save={disabled:false};
- const c={readOwner:()=>owner,skel:()=>'',esc:String,MEAL_NAMES:{lunch:'Lunch'},addDays:()=> '2026-10-16',fmtAmount:()=> '1 serving',
+ const c={readOwner:()=>owner,skel:()=>'',esc:String,newId:()=> 'fictional-upload',dayLabel:x=>x,MEAL_NAMES:{lunch:'Lunch'},addDays:()=> '2026-10-16',fmtAmount:()=> '1 serving',
   sheet:(title,html,fn)=>{callback=fn(b,()=>closed++)},$:()=>save,Native:{haptic(){}},refresh(){},toast:(text,fn)=>{if(fn)undo=fn},
   api:async(path,options)=>{if(options){writes++;return {}}return {entries:[{meal:'lunch',name:'Fictional soup',amount:1,unit:'serving',kcal:400,sodium_mg:425,sugar_g:0,saturated_fat_g:null,source:'quick'}]}},
   addEntries:async items=>{writes++;assert.equal(items[0].day,'2026-10-17');assert.equal(items[0].meal,'lunch');assert.equal(items[0].sodium_mg,425);assert.equal(items[0].sugar_g,0);assert.equal(items[0].saturated_fat_g,null);return {ids:[42],undo:uploadUndo}}};

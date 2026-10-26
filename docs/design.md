@@ -1242,3 +1242,7 @@ Ordinary support shows account status, connection/import state and client-report
 Settings → Edit profile opens the same profile editor as your own profile, with name/bio drafts retained after a failed save. Food entry uses the permanent conversation and final review; the retired fallback chat, nutrition rings and unused reaction pile are removed. Keep the current compact nutrition bars, training-plan completion ring, photo review, reactions and keyboard behavior.
 
 Final food review and recipe-portion previews label missing macros as unknown. Storage placeholders never count as known zero nutrients; a zero supplied by the person or source still displays as zero. A mixed-food total stays unknown if any included food lacks that nutrient.
+
+### Same as yesterday restored (26 October 2026)
+
+Returning food users have a Same as yesterday action on empty Nutrition meals and in each populated meal’s Edit menu. It previews the previous day’s corresponding meal and names the source and selected destination dates before explicit Log this meal. Retries retain upload identities; the existing offline queue and durable Undo apply. It never replaces foods already logged or adds a competing Me shortcut. New users retain the food-log introduction.

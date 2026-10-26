@@ -118,25 +118,31 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
   }, {maxAge: 5000});
 }
 function yesterdayMeal(day, meal) {
-  const owner = readOwner();
-  sheet(`Yesterday’s ${MEAL_NAMES[meal].toLowerCase()}`, skel(1), (b, close) => {
-    api(`/api/food/day?d=${addDays(day,-1)}`).then(D => {
-      if (!b.isConnected || readOwner() !== owner) return;
+  const owner = readOwner(), from = addDays(day, -1);
+  sheet('Same as yesterday', skel(1), (b, close) => {
+    const live = () => b.isConnected && readOwner() === owner;
+    api(`/api/food/day?d=${from}`).then(D => {
+      if (!live()) return;
       const rows = D.entries.filter(e => e.meal === meal && !e.pending);
-      b.innerHTML = rows.length ? `<p>Log these foods for ${esc(MEAL_NAMES[meal].toLowerCase())} today?</p><ul>${rows.map(e => `<li>${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">Log this meal</button>` : '<p>No foods were logged for this meal yesterday.</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>';
-      if (!rows.length) { $('#ym-usual', b).onclick = () => { close(); addSheet(day, meal); }; return; }
+      b.innerHTML = rows.length ? `<p>Add ${esc(MEAL_NAMES[meal].toLowerCase())} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">Log this meal</button><p class="small danger" id="ym-error" role="alert"></p>` : '<p>No foods were logged for this meal on the previous day.</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>';
+      if (!rows.length) { $('#ym-usual', b).onclick = () => { if (!live()) return; close(); addSheet(day, meal); }; return; }
+      // Keep the same upload identities when a response is lost and this preview is retried.
+      const items = rows.map(({name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,client_id:newId()}));
+      let busy = false, done = false;
       $('#ym-save', b).onclick = async e => {
-        e.currentTarget.disabled = true;
-        const items = rows.map(({name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}));
+        if (!live() || busy || done) return;
+        busy = true; const button = e.currentTarget; button.disabled = true; button.textContent = 'Logging…';
+        $('#ym-error', b).textContent = '';
         try {
           const result = await addEntries(items);
           if (readOwner() !== owner) return;
-          close(); Native.haptic('light');
+          done = true; close(); Native.haptic('light');
           toast(result.queued?'Meal saved on this phone · waiting to send':'Meal logged',result.undo);
         }
-        catch(x) { if (b.isConnected) { $('#ym-save',b).disabled = false; toast(x.message); } }
+        catch(x) { if (live()) $('#ym-error', b).textContent = x.message + ' Your meal is ready to retry.'; }
+        finally { busy = false; if (live() && !done) { button.disabled = false; button.textContent = 'Log this meal'; } }
       };
-    }).catch(x => { if (b.isConnected && readOwner() === owner) { b.innerHTML = '<p>Yesterday could not load.</p><button class="primary wide" id="ym-retry">Try again</button>'; $('#ym-retry',b).onclick = () => { close(); yesterdayMeal(day,meal); }; } });
+    }).catch(x => { if (live()) { b.innerHTML = '<p>The previous day could not load.</p><button class="primary wide" id="ym-retry">Try again</button>'; $('#ym-retry',b).onclick = () => { if (!live()) return; close(); yesterdayMeal(day,meal); }; } });
   });
 }
 
@@ -263,7 +269,7 @@ function drawDay(el, D) {
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
     if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
-      </section>`;
+      ${D.has_history ? `<button class="linkbtn meal-yesterday" data-yesterday-meal="${m}" aria-label="Same as yesterday for ${MEAL_NAMES[m].toLowerCase()}">Same as yesterday</button>` : ''}</section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`;
@@ -353,11 +359,12 @@ function mealMenu(D, meal) {
   sheet(`Edit ${MEAL_NAMES[meal].toLowerCase()}`, `<p class="small muted">${esc(dayLabel(D.day))} · ${list.length} food${list.length === 1 ? '' : 's'}. Edit an item’s amount or nutrition, or remove it below.</p>
     ${nutGrid(totals)}<div class="card list mm-list">${list.map(e => `<div class="logged-food"><button class="fe" data-me="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[meal]}"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))} · Edit</small></div>
       <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button><button class="linkbtn danger remove-food" data-remove-food="${e.id}" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[meal]}">${svg('trash')}Remove</button></div>`).join('')}</div>
-    <div class="btncol"><button class="primary" id="mm-add">${svg('plus')}Add food to ${MEAL_NAMES[meal]}</button>
+    <div class="btncol"><button class="ghost" id="mm-yesterday">Same as yesterday</button><button class="primary" id="mm-add">${svg('plus')}Add food to ${MEAL_NAMES[meal]}</button>
     ${D.day !== isoDay(new Date()) && list.length ? `<button class="ghost" id="mm-copy">Copy ${MEAL_NAMES[meal].toLowerCase()} to today</button>` : ''}
     <button class="ghost" id="mm-save"${list.length ? '' : ' disabled'}>Save these foods as a combination</button></div>`, (b, close) => {
     $$('[data-me]', b).forEach(x => x.onclick = () => { close(); entrySheet(list.find(e => String(e.id) === x.dataset.me), D.day); });
     $$('[data-remove-food]', b).forEach(x => x.onclick = () => removeFoodEntry(list.find(e => String(e.id) === x.dataset.removeFood), {button: x, after: close}));
+    $('#mm-yesterday', b).onclick = () => { close(); yesterdayMeal(D.day, meal); };
     $('#mm-add', b).onclick = () => { close(); describeSheet(D.day, meal); };
     const cp = $('#mm-copy', b); if (cp) cp.onclick = () => { close(); copyDay(D.day, isoDay(new Date()), meal); };
     // naming happens right here (the phone's own pop-up box looked out of place in the iPhone app)
