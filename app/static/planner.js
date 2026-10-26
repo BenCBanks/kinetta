@@ -340,7 +340,7 @@ const Planner = (() => {
     b.hidden = S.waypoints.length < 2;
     b.innerHTML = elev ? `${svg('hike')}<span>Elevation: ↑ ${U.elev(elev.ascent_m)} ${U.eu()} ↓ ${U.elev(elev.descent_m)} ${U.eu()}${elev.unknown_m > 50 ? ' · some unknown' : ''}</span>${svg('chev')}` : `${svg('hike')}<span>${elev === false ? 'Elevation unavailable' : 'Elevation…'}</span>`;
   }
-  function fit() { if (!view) return; const pts = Plan.line(S.legs).concat(S.waypoints); if (pts.length) view.map.fitBounds(view.L.latLngBounds(pts), {padding: [36, 36], maxZoom: 16}); }
+  function fit() { if (!view) return; const pts = Plan.line(S.legs).concat(S.waypoints); if (pts.length) view.map.fitBounds(view.L.latLngBounds(pts), {paddingTopLeft: [44, 76], paddingBottomRight: [44, 50], maxZoom: 16}); }
 
   async function elevation() {
     if (!S || S.waypoints.length < 2 || S.legs.some((l) => l.state !== 'ok')) return;
