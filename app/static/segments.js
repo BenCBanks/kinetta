@@ -13,6 +13,9 @@ const SEG_WHY = {
   held: 'Held for review. It isn’t public until an admin has looked at it.',
   excluded: 'Not counted on the leaderboard.',
   segment_private: 'This segment is only for you.',
+  processing: 'This recording changed. Its times are being checked again.',
+  assistance_unknown: 'Choose the assistance type on the activity before this time can be public.',
+  assisted: 'Assisted, virtual or indoor activities stay off outdoor leaderboards.',
   paused: 'Leaderboards are paused on this Kinetta.',
 };
 const SEG_REPORT = [['gps', 'GPS or matching error'], ['wrong_sport', 'Wrong sport or motor-assisted'], ['privacy', 'Shows a private place'], ['abusive', 'Abusive name or description'],
@@ -203,10 +206,10 @@ const Segments = (() => {
       : r.paused ? `<div class="card seg-me"><b>${SEG_WHY.paused}</b><p class="small muted">Your own times are still under Your times.</p></div>`
       : `<div class="card seg-me">${me.rank ? `<p>Your best public time <b class="num">${dur(me.public_best)}</b> · rank <b class="num">${me.rank}</b> of ${r.count}</p>` : me.private_best ? `<p>Your fastest private time <b class="num">${dur(me.private_best)}</b></p><p class="small muted">${esc(SEG_WHY[me.why_not] || '')}</p>` : '<p class="small muted">No time on this segment yet. Complete it from start to finish in a recorded activity.</p>'}
         ${me.joined ? `<button class="linkbtn" id="lb-join">Leaderboard settings</button>` : `<button class="primary sm" id="lb-join">Join leaderboards</button>`}</div>`;
-    box.innerHTML = `${myCard}${r.processing ? `<p class="plan-warn small" role="status">${svg('info')}Still checking past activities, so these places may change.</p>` : ''}
+    box.innerHTML = `${myCard}${r.matching_update&&!r.rebuilding?'<p class="small muted" role="status">A matching update is available. Existing complete results remain visible while an admin arranges the rebuild.</p>':''}${r.processing ? `<p class="plan-warn small" role="status">${svg('info')}Checking activities. During a rebuild, the previous complete results stay visible until the replacement is ready.</p>` : ''}
       ${r.public && !r.paused ? (r.rows.length ? `<ol class="lb card">${r.rows.map(row).join('')}</ol>` : `<div class="card empty"><b>No public times yet</b>Members who join leaderboards and complete this ${sportName(s.sport).toLowerCase()} appear here.</div>`) : ''}
       <div id="lb-more"></div>
-      <p class="small muted">One best time per member, in whole seconds; equal times share a place. Only ${sportName(s.sport).toLowerCase()}s shared with Everyone, by members who joined leaderboards, from the start to the finish in order.${r.scope ? ' ' + esc(r.scope) : ''}</p>`;
+      <p class="small muted">One best time per member, in whole seconds; equal times share a place. Only ${sportName(s.sport).toLowerCase()}s shared with Everyone, by members who joined leaderboards, declared outdoors without motor assistance, from the start to the finish in order.${r.scope ? ' ' + esc(r.scope) : ''}</p>`;
     const j = $('#lb-join', box); if (j) j.onclick = () => joinSheet(() => board(box, s));
     wireRows(box, s); moreBtn(box, s, r);
   }
@@ -225,6 +228,18 @@ const Segments = (() => {
     let r; try { r = await api(`/api/segments/${s.id}/efforts`); } catch (e) { box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; return; }
     box.innerHTML = (r.efforts.length ? `<ol class="card list seg-efforts">${r.efforts.map((e, i) => effortRow(e, s, i === 0 && e.state === 'ok')).join('')}</ol>` : '<div class="card empty"><b>No times yet</b>Record a GPS activity that covers the whole segment, start to finish. Past activities are checked automatically.</div>')
       + (r.near_misses.length ? `<details class="card"><summary>Activities near this segment that didn’t count</summary><ul class="small">${r.near_misses.map((m) => `<li><a href="/activity/${m.activity_id}">${esc(m.name)}</a>: ${esc(m.reason_text)}</li>`).join('')}</ul></details>` : '');
+    if(s.mine&&s.audience==='me'&&s.matching_update&&!s.rebuilding){
+      const owner=reviewOwner(),button=document.createElement('button');button.className='ghost wide';button.textContent='Recheck my private segment';box.prepend(button);
+      button.onclick=()=>{if(!box.isConnected||owner!==reviewOwner())return;
+        sheet('Recheck private times','<p>Check your private segment with the current matching rules. Its course stays fixed; your complete previous results stay visible until the replacement is ready.</p><label class="check-row"><input id="private-recheck-ok" type="checkbox">I confirm the recheck.</label><button class="primary wide" id="private-recheck-send" disabled>Recheck times</button><p id="private-recheck-error" role="alert"></p>',(body,close)=>{
+          $('#private-recheck-ok',body).onchange=e=>$('#private-recheck-send',body).disabled=!e.target.checked;
+          $('#private-recheck-send',body).onclick=async e=>{if(owner!==reviewOwner()||!box.isConnected)return;e.currentTarget.disabled=true;
+            try{await api(`/api/segments/${s.id}/recheck`,json('POST',{generation:s.generation,confirmed:$('#private-recheck-ok',body).checked}));if(owner===reviewOwner()&&box.isConnected){close();toast('Checking private times');render();}}
+            catch(x){if(owner===reviewOwner()&&body.isConnected){$('#private-recheck-error',body).textContent=x.message;e.currentTarget.disabled=false;}}
+          };
+        });
+      };
+    }
     wireAppeals(box);
   }
   function effortRow(e, s, best) {
@@ -243,15 +258,31 @@ const Segments = (() => {
 
   // ---------- on an activity, and in settings ----------
   async function activityCard(box, aid) {
-    let r; try { r = await api(`/api/activities/${aid}/segment-efforts`); } catch (_) { box.innerHTML = ''; return; }
+    const owner=reviewOwner(),seq=box._segmentRevision=(box._segmentRevision||0)+1;
+    const live=()=>owner&&owner===reviewOwner()&&box.isConnected&&seq===box._segmentRevision;
+    let r; try { r = await api(`/api/activities/${aid}/segment-efforts`); } catch (_) { if(live())box.innerHTML = ''; return; }
+    if(!live())return;
     box.innerHTML = `<div class="card"><h2>Segments</h2>${r.processing ? '<p class="small muted" role="status">Checking for segments…</p>' : ''}
       ${r.efforts.length ? `<ol class="list seg-efforts">${r.efforts.map((e) => `<li class="row-link seg-effort"><a class="grow" href="/segments/${e.segment_id}?tab=mine"><b>${esc(e.segment_name)}</b>${e.personal_best ? ' <span class="badge on">Your best</span>' : ''}
           <small class="num">${dur(e.elapsed_s)}</small>${e.public ? '<small class="good">On the leaderboard</small>' : `<small class="muted">${esc(SEG_WHY[e.why_not] || '')}</small>`}</a></li>`).join('')}</ol>` : r.processing ? '' : '<p class="small muted">No segments on this activity.</p>'}
+      <details class="segment-assistance"${r.assistance===null&&r.efforts.length?' open':''}><summary>Assistance: ${esc({unassisted:'outdoors, no motor assistance',assisted:'motor assisted',virtual:'virtual or indoors'}[r.assistance]||'not declared')}</summary>
+        <form id="sa-declare" class="form"><p class="small muted">Outdoor leaderboards need your declaration for this activity. Undeclared, motor-assisted and virtual activities keep their times private. Imported activity types and the other checks still apply.</p>
+        <label>Activity type<select name="assistance">${[['','Not declared'],['unassisted','Outdoors without motor assistance'],['assisted','Motor assisted'],['virtual','Virtual or indoors']].map(([v,label])=>`<option value="${v}"${(r.assistance||'')===v?' selected':''}>${label}</option>`).join('')}</select></label>
+        <label class="check-row"><input name="confirmed" type="checkbox" required><span>I confirm this describes this activity.</span></label><button class="primary wide">Save declaration</button><p id="sa-status" class="small" role="status"></p></form></details>
       <label class="switch-row"><span><b>Keep off leaderboards</b><small>Times from this activity stay private, without changing who can see the activity.</small></span><input type="checkbox" role="switch" id="sa-ex"${r.excluded ? ' checked' : ''}></label>
       <div class="list"><button class="row-link" id="sa-seg">${svg('flag')}<span class="grow">Make a segment from part of this</span>${svg('chev')}</button><a class="row-link" href="/routes/new?activity=${aid}">${svg('route')}<span class="grow">Plan a route from this</span>${svg('chev')}</a></div></div>`;
-    $('#sa-ex', box).onchange = async (e) => { try { await api(`/api/activities/${aid}/leaderboards`, json('PUT', {excluded: e.target.checked})); } catch (x) { e.target.checked = !e.target.checked; toast(x.message); } };
+    $('#sa-declare',box).onsubmit=async(e)=>{
+      e.preventDefault();if(!live())return;const f=e.currentTarget,button=$('button',f),status=$('#sa-status',f);
+      button.disabled=true;status.textContent='Saving declaration…';
+      try{await api(`/api/activities/${aid}/segment-assistance`,json('PUT',{assistance:f.elements.assistance.value||null,revision:r.assistance_revision,confirmed:f.elements.confirmed.checked}));
+        if(live()){toast('Declaration saved');activityCard(box,aid);}}
+      catch(x){if(live())status.textContent=x.message+' Your selection is kept.';}
+      finally{if(live())button.disabled=false;}
+    };
+    $('#sa-ex', box).onchange = async (e) => { if(!live())return;try { await api(`/api/activities/${aid}/leaderboards`, json('PUT', {excluded: e.target.checked})); } catch (x) { e.target.checked = !e.target.checked; toast(x.message); } };
     $('#sa-seg', box).onclick = async () => {
-      let s; try { s = await api(`/api/activities/${aid}/sections`); } catch (x) { toast(x.message); return; }
+      if(!live())return;let s; try { s = await api(`/api/activities/${aid}/sections`); } catch (x) { toast(x.message); return; }
+      if(!live())return;
       if (!s.sections.length) { toast('This activity has no GPS route.'); return; }
       const sport = PLAN_SPORTS.some(([k]) => k === s.sport) ? s.sport : 'run';
       const pick = (i) => stretchSheet('Choose the segment', s.sections[i].line, {note: '<p class="small muted">Only the path becomes the segment: no times, notes or dates. Choose a stretch away from where you started and finished if your privacy settings hide those.</p>',

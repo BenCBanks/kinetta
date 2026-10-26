@@ -29,6 +29,7 @@ node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js
 node dev/tests/test_route_drafts.js
 node dev/tests/test_route_sharing_ui.js
+node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
 node dev/tests/test_track.js
 node dev/tests/test_notification_rows.js
@@ -112,6 +113,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/cook_clarification_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_matching_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/routes_segments_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/segment_integrity_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_sharing_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/coach_incontainer.py

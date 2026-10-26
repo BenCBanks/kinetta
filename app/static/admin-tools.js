@@ -120,15 +120,31 @@ async function routeCaseMap(box,line){
  const map=L.map(box);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',maxZoom:19}).addTo(map);L.polyline(pts,{color:getComputedStyle(document.documentElement).getPropertyValue('--color-action').trim()||'#2563EB',weight:5}).addTo(map);map.fitBounds(L.latLngBounds(pts),{padding:[24,24]});$('#dialog').addEventListener('close',()=>map.remove(),{once:true});
 }
 // Competition cases expose derived checks only. No private streams or unrelated workout history.
-const SEGMENT_REASON={gps:'GPS or matching',wrong_sport:'Wrong sport or assistance',duplicate:'Duplicate course',unsafe:'Unsafe or restricted access',abusive:'Abusive content',privacy:'Personal location',creator_request:'Creator request',speed_jump:'GPS speed jump',too_fast:'Unusually fast',duplicate_effort:'Duplicate recording'};
+const SEGMENT_REASON={assistance_unknown:'Assistance not declared',assisted:'Assisted or virtual',processing:'Recording changed; recheck pending',source:'Source not eligible',not_joined:'Member has not joined',activity_private:'Activity kept private',map_hidden:'Shared map hidden',hidden_area:'Inside protected map ends',moderation_held:'Held by moderator',moderation_excluded:'Excluded by moderator',recomputed:'No longer matches the current recording',invalid_times:'Unreliable GPS timestamps',gps:'GPS or matching',wrong_sport:'Wrong sport or assistance',duplicate:'Duplicate course',unsafe:'Unsafe or restricted access',abusive:'Abusive content',privacy:'Personal location',creator_request:'Creator request',speed_jump:'GPS speed jump',too_fast:'Unusually fast',duplicate_effort:'Duplicate recording'};
 function segmentsView(data,rev){
  const label=r=>esc(SEGMENT_REASON[r]||r||'No reason recorded');
  const review=(e,kind,id)=>e?'<button data-effort="'+e.id+'" data-case="'+kind+'" data-case-id="'+id+'">Review time for @'+esc(e.login)+'</button>':'<p>The time is no longer available.</p>';
  content.innerHTML='<h2>Segments & times</h2><p>Boards are <b>'+(data.leaderboards?'on':'paused')+'</b>. Members choose whether to join. Pausing boards keeps their private times.</p><div class="actions"><button id="segment-switch">'+(data.leaderboards?'Pause all boards':'Resume all boards')+'</button><button id="segment-refresh">Refresh cases</button></div><p>'+data.stats.public_segments+' public segments · '+data.stats.backlog+' jobs waiting · '+data.stats.stuck+' failed jobs</p>'+(data.stats.stuck?'<button id="segment-retry">Retry failed matching jobs</button>':'')+
+ segmentGenerations(data.generations||[],data.available_matcher)+
  '<h3>Reports · '+data.reports.length+'</h3>'+data.reports.map(r=>'<article class="card"><h4>'+esc(r.segment||'Removed segment')+'</h4><p>'+label(r.reason)+' · '+esc(date(r.created))+'</p><p>'+esc(r.note||'No additional note')+'</p>'+(r.effort?review(r.effort,'report',r.id):'')+'<div class="actions"><button data-course="'+r.id+'">Review course action</button><button data-dismiss="'+r.id+'">Dismiss report</button></div></article>').join('')+(data.reports.length?'':'<p>No open segment reports.</p>')+
  '<h3>Appeals · '+data.appeals.length+'</h3>'+data.appeals.map(a=>'<article class="card"><p>'+esc(a.note)+'</p><p>'+esc(date(a.created))+'</p>'+review(a.effort,'appeal',a.id)+'<button data-uphold="'+a.id+'">Keep current decision</button></article>').join('')+(data.appeals.length?'':'<p>No open appeals.</p>')+
  '<h3>Held times · '+data.held.length+'</h3><p>Up to 50 oldest held times. Refresh after handling a case to see the next ones.</p>'+data.held.map(e=>'<article class="card"><h4>'+esc(e.segment_name||'Segment '+e.segment_id)+'</h4><p>@'+esc(e.login)+' · '+e.elapsed_s+' seconds · '+label(e.moderation_reason||e.reason)+'</p>'+review(e,'held',e.id)+'</article>').join('')+(data.held.length?'':'<p>No held times.</p>')+
  '<details><summary>Matching outcomes</summary>'+(data.exclusions.length?'<ul>'+data.exclusions.map(r=>'<li>'+label(r.reason)+': '+r.n+'</li>').join('')+'</ul>':'<p>No exclusions or holds.</p>')+'</details>';
+ let generations=data.generations||[];
+ const wireGenerations=()=>content.querySelectorAll('[data-rebuild]').forEach(b=>b.onclick=()=>{
+  const g=generations.find(g=>g.id===Number(b.dataset.rebuild));if(!g)return;
+  const action=g.pending?'cancel':'start';
+  confirmForm(action==='start'?'Rebuild segment times':'Cancel staged rebuild',action==='start'?'Check this course against the current algorithm. Existing complete results remain visible until all replacement results are ready. Privacy and moderation still apply immediately.':'Discard the pending replacement. Current complete results stay in place.',
+   '<p>'+esc(g.name)+' · generation '+g.active+'</p>'+segmentReasonField+'<label class="inline"><input name="confirmed" type="checkbox" required> I reviewed this course and generation.</label>',
+   f=>api('/segments/'+g.id+'/rebuild',{action,generation:g.active,pending:g.pending,reason:value(f,'reason').trim(),confirmed:f.elements.confirmed.checked}),()=>show('segments'));
+ });
+ wireGenerations();
+ let generationSearch=0;
+ $('#segment-generation-find').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget,rev=revision,request=++generationSearch,status=$('#segment-generation-status');
+  status.textContent='Finding courses…';
+  try{const rows=await api('/segments/generations?q='+encodeURIComponent(f.elements.q.value.trim()));if(rev!==revision||request!==generationSearch||!f.isConnected||!who)return;generations=rows;$('#segment-generation-list').innerHTML=segmentGenerationRows(rows,data.available_matcher);wireGenerations();status.textContent=rows.length+' courses found.';}
+  catch(x){if(rev===revision&&request===generationSearch&&f.isConnected)status.textContent=x.message+' Your search is kept.';}
+ };
  $('#segment-refresh').onclick=()=>show('segments');
  $('#segment-switch').onclick=()=>confirmForm(data.leaderboards?'Pause all public boards':'Resume all public boards','This applies to every public segment on this server. Each member’s participation choice stays saved.','<label class="inline"><input type="checkbox" required> I reviewed this service-wide change.</label>',()=>api('/segments/leaderboards',{enabled:!data.leaderboards,expected:data.leaderboards},'PUT'),()=>show('segments'));
  if($('#segment-retry'))$('#segment-retry').onclick=()=>confirmForm('Retry failed matching jobs','Retry only jobs that stopped after five attempts. Matching rechecks the latest course and activity.','',()=>api('/segments/jobs/retry',{}),()=>show('segments'));
@@ -137,6 +153,11 @@ function segmentsView(data,rev){
  content.querySelectorAll('[data-uphold]').forEach(b=>b.onclick=()=>segmentCaseClose('appeal',Number(b.dataset.uphold),data.appeals.find(a=>a.id===Number(b.dataset.uphold))?.effort?.rev));
  content.querySelectorAll('[data-course]').forEach(b=>b.onclick=()=>reviewSegmentCourse(data.reports.find(r=>r.id===Number(b.dataset.course))));
 }
+function segmentGenerations(rows,matcher){
+ return '<details class="card"><summary>Rebuild matching results</summary><p>Up to 50 courses, pending first. Search by course name or ID to find an older course. Each course switches to a complete replacement in one step. Definitions stay fixed and moderation decisions remain attached to each pass.</p><form id="segment-generation-find"><label>Find a public course<input name="q" maxlength="100" type="search"></label><button>Find courses</button></form><p id="segment-generation-status" role="status"></p><div id="segment-generation-list">'+segmentGenerationRows(rows,matcher)+'</div></details>';
+}
+function segmentGenerationRows(rows,matcher){return rows.map(g=>'<article><h4>'+esc(g.name||'Segment '+g.id)+'</h4><p>Generation '+g.active+(g.pending?' · checking replacement '+g.pending+' · '+g.processed+' recordings checked'+(g.attempts>=5?' · stopped after repeated errors':''):' · algorithm '+(g.active_matcher||1)+(g.active_matcher!==matcher?' · matching update available':''))+'</p>'+(g.status==='active'?'<button data-rebuild="'+g.id+'">'+(g.pending?'Cancel staged rebuild':'Rebuild this course')+'</button>':'<p>Retired courses do not take new results.</p>')+'</article>').join('');}
+
 const segmentReasonField='<label>Reason<textarea name="reason" required minlength="3" maxlength="300"></textarea></label>';
 function segmentCaseClose(kind,id,rev){confirmForm(kind==='report'?'Dismiss segment report':'Keep current decision','Record a short reason. This closes only this case; it does not change a time or course.',segmentReasonField,
  (f)=>api('/segment-'+(kind==='report'?'reports/':'appeals/')+id+(kind==='report'?'/dismiss':'/uphold'),{outcome:value(f,'reason').trim(),...(kind==='appeal'?{rev}:{})}),()=>show('segments'));}

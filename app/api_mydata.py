@@ -56,6 +56,7 @@ TABLES = {
     'segment_drafts': "SELECT to_jsonb(t)" + DROP + " FROM segment_drafts t WHERE user_id = %s ORDER BY id",
     'segment_bookmarks': "SELECT to_jsonb(t)" + DROP + " FROM segment_bookmarks t WHERE user_id = %s ORDER BY segment_id",
     'segment_efforts': "SELECT to_jsonb(t)" + DROP + " FROM segment_efforts t WHERE user_id = %s ORDER BY segment_id, started",
+    'segment_stage_scans': "SELECT to_jsonb(t)" + DROP + " FROM segment_stage_scans t WHERE user_id=%s ORDER BY segment_id,activity_id",
     'segment_appeals': "SELECT to_jsonb(t)" + DROP + " FROM segment_appeals t WHERE user_id = %s ORDER BY id",
     'gear': "SELECT to_jsonb(t)" + DROP + " FROM gear t WHERE user_id = %s ORDER BY id",
     'goals': "SELECT to_jsonb(t)" + DROP + " FROM goals t WHERE user_id = %s ORDER BY id",

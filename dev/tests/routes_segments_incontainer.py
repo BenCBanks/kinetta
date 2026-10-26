@@ -95,6 +95,7 @@ class Base(unittest.TestCase):
             aid = c.execute("""INSERT INTO activities (user_id, sport, sport_label, name, start_time, source, visibility, distance_m, elapsed_s)
                                VALUES (%s, %s, %s, 'Fictional run', %s, %s, %s, %s, %s) RETURNING id""",
                             (self.ids[who], sport, label, start or dt.datetime(2026, 10, 1, 8, tzinfo=dt.timezone.utc), source, visibility, total, t[-1])).fetchone()['id']
+            c.execute("UPDATE activities SET segment_assistance='unassisted' WHERE id=%s",(aid,))
             c.execute('INSERT INTO activity_streams (activity_id, user_id, t, lat, lon) VALUES (%s, %s, %s, %s, %s)', (aid, self.ids[who], st['t'], st['lat'], st['lon']))
             activities.set_geometry(c, aid, st)
         return aid

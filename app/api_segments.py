@@ -21,10 +21,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
-from . import db, notify, route_geo, route_providers, segments
+from . import db, notify, route_geo, route_providers, segments, segment_rebuilds
 from .admin_auth import admin_user, audit
+from .api_account import _admin
 from .api_routes_plan import FromActivityIn, _clean, _line, activity_part
 from .api_social import MIN_SHOWN_M, blocked, unconfirmed
 from .auth import current_user
@@ -37,7 +38,11 @@ SPORT = Literal['run', 'walk', 'hike', 'ride']
 BOARD_SOURCES = ['track', 'file', 'healthkit', 'apple']
 PAGE = 25
 TRIM = 'coalesce(p.share_trim_m, 400)'
-ELIGIBLE = f"""e.state = 'ok' AND e.moderation IS NULL AND e.on_line
+CURRENT = """e.source_revision=a.segment_revision AND EXISTS(SELECT 1 FROM segment_match_state g
+  WHERE g.segment_id=e.segment_id AND g.active=e.generation AND g.active_matcher=e.matcher)"""
+ASSISTANCE = """a.segment_assistance='unassisted' AND NOT(lower(coalesce(a.sport_label,'')) LIKE ANY(%(assisted_labels)s))"""
+# Dynamic eligibility is shared by every public ranking/report entry point.
+ELIGIBLE = f"""e.state = 'ok' AND e.moderation IS NULL AND e.on_line AND {CURRENT} AND {ASSISTANCE}
   AND a.visibility = 'everyone' AND NOT a.leaderboard_excluded AND a.source = ANY(%(sources)s)
   AND coalesce(p.segment_boards, false) AND NOT {unconfirmed('e.user_id')}
   AND coalesce((a.share_details->>'map')::boolean, (p.share_details->>'map')::boolean, true)
@@ -57,6 +62,13 @@ def _limit(uid, n=120, window=60):
 def boards_on(c):
     r = c.execute("SELECT enabled FROM feature_switches WHERE name = 'leaderboards'").fetchone()
     return True if r is None else r['enabled']
+
+
+def _matching(c,sid):
+    g=c.execute('SELECT active,active_matcher,pending FROM segment_match_state WHERE segment_id=%s',(sid,)).fetchone()
+    pending=bool(c.execute("SELECT 1 FROM segment_jobs WHERE kind IN ('segment','rebuild') AND ref=%s",(sid,)).fetchone())
+    return {'generation':g['active'] if g else 1,'rebuilding':bool(g and g['pending']),
+            'matching_update':bool(g and g['active_matcher']!=segments.MATCHER),'processing':pending}
 
 
 def _points(g): return [[la, lo] for lo, la in json.loads(g)['coordinates']] if g else None
@@ -87,7 +99,7 @@ def _out(c, s, uid):
             'replaced_by': s['replaced_by'], 'line': route_geo.encode(pts) if pts else None, 'mine': s['creator_id'] == uid,
             'creator': {'login': s['creator_login'], 'name': s['creator_name']} if s['creator_login'] else None,
             'saved': bool(c.execute('SELECT 1 FROM segment_bookmarks WHERE user_id = %s AND segment_id = %s', (uid, s['id'])).fetchone()),
-            'processing': bool(c.execute("SELECT 1 FROM segment_jobs WHERE kind = 'segment' AND ref = %s", (s['id'],)).fetchone()),
+            **_matching(c,s['id']),
             'fingerprint': s['fingerprint'][:12], 'path': f"/segments/{s['id']}"}
 
 
@@ -239,7 +251,7 @@ def publish(sid: int, body: PublishIn, user=Depends(current_user)):
         if c.execute('SELECT needs_email_confirm FROM users WHERE id = %s', (user['id'],)).fetchone()['needs_email_confirm']:
             raise HTTPException(403, 'Confirm your email first to publish segments.')
         c.execute("UPDATE segments SET audience = 'everyone', published = now() WHERE id = %s", (sid,))
-        c.execute("INSERT INTO segment_jobs (kind, ref) VALUES ('segment', %s) ON CONFLICT (kind, ref) DO UPDATE SET cursor = 0", (sid,))
+        c.execute("INSERT INTO segment_jobs (kind, ref) VALUES ('segment', %s) ON CONFLICT (kind, ref, epoch) DO UPDATE SET cursor = 0", (sid,))
     return get(sid, user=user)
 
 
@@ -305,6 +317,9 @@ def _why_not(e, joined, boards):
     """Why one of your times isn't on the public board, in your own words (most fixable first)."""
     if e['state'] == 'excluded' or e['moderation'] == 'excluded': return 'excluded'
     if e['state'] == 'held' or e['moderation'] == 'held': return 'held'
+    if not e['current_result']: return 'processing'
+    if e['segment_assistance'] is None: return 'assistance_unknown'
+    if e['segment_assistance'] != 'unassisted' or any(k in (e['sport_label'] or '').lower() for k in segments.ASSISTED): return 'assisted'
     if not boards: return 'paused'
     if e['audience'] != 'everyone': return 'segment_private'
     if not joined: return 'not_joined'
@@ -317,7 +332,7 @@ def _why_not(e, joined, boards):
 
 
 MY_EFFORTS = f"""SELECT e.id, e.activity_id, e.started, e.elapsed_s, e.state, e.reason, e.moderation, e.moderation_reason, e.rev,
-       a.name AS activity_name, a.visibility, a.leaderboard_excluded, a.source, s.audience, s.distance_m, s.id AS segment_id, s.name AS segment_name,
+       a.name AS activity_name, a.visibility, a.leaderboard_excluded, a.source, a.segment_assistance,a.sport_label,({CURRENT}) AS current_result, s.audience, s.distance_m, s.id AS segment_id, s.name AS segment_name,
        coalesce((a.share_details->>'map')::boolean, (p.share_details->>'map')::boolean, true) AS map_shared,
        (e.on_line AND e.start_m >= {TRIM} AND e.end_m <= e.line_m - {TRIM} AND e.line_m >= 2 * {TRIM} + {MIN_SHOWN_M}) AS public_ok,
        (SELECT status FROM segment_appeals ap WHERE ap.effort_id = e.id ORDER BY ap.created DESC LIMIT 1) AS appeal
@@ -356,19 +371,41 @@ def my_efforts(sid: int, user=Depends(current_user)):
 @router.get('/activities/{aid}/segment-efforts')
 def activity_efforts(aid: int, user=Depends(current_user)):
     with db.connect() as c:
-        a = c.execute('SELECT leaderboard_excluded FROM activities WHERE id = %s AND user_id = %s', (aid, user['id'])).fetchone()
+        a = c.execute('SELECT leaderboard_excluded,segment_assistance,segment_assistance_rev FROM activities WHERE id = %s AND user_id = %s', (aid, user['id'])).fetchone()
         if not a: raise HTTPException(404, 'Not found')
         joined, on = _joined(c, user['id']), boards_on(c)
         rows = c.execute(MY_EFFORTS + " WHERE e.activity_id = %s AND e.user_id = %s AND s.status <> 'removed' ORDER BY e.started", (aid, user['id'])).fetchall()
-        best = {r['segment_id']: r['b'] for r in c.execute("""SELECT segment_id, min(elapsed_s) AS b FROM segment_efforts WHERE user_id = %s
-            AND segment_id = ANY(%s) AND state = 'ok' AND moderation IS NULL GROUP BY segment_id""", (user['id'], [r['segment_id'] for r in rows])).fetchall()}
+        best = {r['segment_id']: r['b'] for r in c.execute("""SELECT e.segment_id, min(e.elapsed_s) AS b FROM segment_efforts e JOIN activities a ON a.id=e.activity_id WHERE e.user_id = %s
+            AND e.segment_id = ANY(%s) AND e.state = 'ok' AND e.moderation IS NULL AND """+CURRENT+""" GROUP BY e.segment_id""", (user['id'], [r['segment_id'] for r in rows])).fetchall()}
         pending = bool(c.execute("SELECT 1 FROM segment_jobs WHERE kind = 'activity' AND ref = %s", (aid,)).fetchone())
-    return {'efforts': [_effort(e, joined, on) | {'personal_best': e['state'] == 'ok' and not e['moderation'] and best.get(e['segment_id']) == e['elapsed_s']} for e in rows],
-            'excluded': a['leaderboard_excluded'], 'joined': joined, 'processing': pending}
+    return {'efforts': [_effort(e, joined, on) | {'personal_best': e['state'] == 'ok' and not e['moderation'] and e['current_result'] and best.get(e['segment_id']) == e['elapsed_s']} for e in rows],
+            'excluded': a['leaderboard_excluded'], 'joined': joined, 'processing': pending,
+            'assistance':a['segment_assistance'],'assistance_revision':a['segment_assistance_rev']}
 
 
 class ExcludeIn(BaseModel):
     excluded: bool
+
+
+class AssistanceIn(BaseModel):
+    assistance: Literal['unassisted','assisted','virtual'] | None
+    revision: int = Field(ge=0)
+    confirmed: StrictBool
+
+
+@router.put('/activities/{aid}/segment-assistance')
+def declare_assistance(aid: int, body: AssistanceIn, user=Depends(current_user)):
+    """An honest owner declaration, never proof of an upload's authenticity or a way to override source checks."""
+    if not body.confirmed: raise HTTPException(400,'Confirm the declaration before saving')
+    with db.connect() as c:
+        a=c.execute('SELECT segment_assistance,segment_assistance_rev FROM activities WHERE id=%s AND user_id=%s FOR UPDATE',(aid,user['id'])).fetchone()
+        if not a: raise HTTPException(404,'Not found')
+        if a['segment_assistance_rev']!=body.revision:
+            if a['segment_assistance_rev']==body.revision+1 and a['segment_assistance']==body.assistance:
+                return {'assistance':body.assistance,'revision':a['segment_assistance_rev']}
+            raise HTTPException(409,'This declaration changed. Reload the activity before deciding.')
+        rev=c.execute('UPDATE activities SET segment_assistance=%s,segment_assistance_rev=segment_assistance_rev+1 WHERE id=%s RETURNING segment_assistance_rev',(body.assistance,aid)).fetchone()['segment_assistance_rev']
+    return {'assistance':body.assistance,'revision':rev}
 
 
 @router.put('/activities/{aid}/leaderboards')
@@ -407,16 +444,16 @@ def leaderboard(sid: int, after: str | None = Query(None, max_length=80), user=D
         s = _visible(c, user['id'], sid)
         on = boards_on(c)
         base = {'segment': sid, 'paused': not on, 'rows': [], 'next': None, 'count': 0, 'me': None,
-                'processing': bool(c.execute("SELECT 1 FROM segment_jobs WHERE kind = 'segment' AND ref = %s", (sid,)).fetchone()),
+                **_matching(c,sid),
                 'scope': None, 'public': s['audience'] == 'everyone'}
         joined = _joined(c, user['id'])
         mine = c.execute(MY_EFFORTS + " WHERE e.segment_id = %s AND e.user_id = %s ORDER BY e.elapsed_s, e.started LIMIT 50", (sid, user['id'])).fetchall()
-        private_best = next((e for e in mine if e['state'] == 'ok' and not e['moderation']), None)
+        private_best = next((e for e in mine if e['state'] == 'ok' and not e['moderation'] and e['current_result']), None)
         if not on or s['audience'] != 'everyone':
             base['me'] = {'joined': joined, 'private_best': private_best and private_best['elapsed_s'], 'rank': None, 'public_best': None,
                           'why_not': private_best and _why_not(private_best, joined, on)}
             return base
-        args = {'sid': sid, 'viewer': user['id'], 'sources': BOARD_SOURCES}
+        args = {'sid': sid, 'viewer': user['id'], 'sources': BOARD_SOURCES, 'assisted_labels': ['%'+x+'%' for x in segments.ASSISTED]}
         ranked = f"""WITH best AS (
               SELECT DISTINCT ON (e.user_id) e.user_id, e.elapsed_s, e.activity_id, e.started FROM {BOARD_FROM}
               WHERE e.segment_id = %(sid)s AND {ELIGIBLE} AND (e.user_id = %(viewer)s OR NOT {blocked('e.user_id')})
@@ -460,7 +497,7 @@ def report(sid: int, body: ReportIn, user=Depends(current_user)):
             if body.reason in ('creator_request', 'duplicate', 'unsafe'): raise HTTPException(400, 'Choose a reason about the result')
             t = c.execute('SELECT id FROM users WHERE login = %s', (body.login.strip().lower(),)).fetchone()
             row = t and c.execute(f"""SELECT 1 FROM {BOARD_FROM} WHERE e.segment_id = %(sid)s AND e.user_id = %(t)s AND {ELIGIBLE}
-                                     AND NOT {blocked('e.user_id')} LIMIT 1""", {'sid': sid, 't': t['id'], 'viewer': user['id'], 'sources': BOARD_SOURCES}).fetchone()
+                                     AND NOT {blocked('e.user_id')} LIMIT 1""", {'sid': sid, 't': t['id'], 'viewer': user['id'], 'sources': BOARD_SOURCES, 'assisted_labels': ['%'+x+'%' for x in segments.ASSISTED]}).fetchone()
             if not row or t['id'] == user['id']: raise HTTPException(404, 'Not found')
             person = t['id']
         elif body.reason == 'creator_request' and s['creator_id'] != user['id']:
@@ -534,10 +571,27 @@ def admin_overview(user=Depends(admin_user)):
         stats = c.execute("""SELECT (SELECT count(*) FROM segment_jobs) AS backlog, (SELECT count(*) FROM segment_jobs WHERE attempts >= 5) AS stuck,
                                (SELECT count(*) FROM segments WHERE status = 'active' AND audience = 'everyone') AS public_segments,
                                (SELECT count(*) FROM segment_efforts) AS efforts""").fetchone()
-        reasons = c.execute("""SELECT coalesce(moderation_reason, reason) AS reason, count(*) AS n FROM segment_efforts
-                               WHERE state <> 'ok' OR moderation IS NOT NULL GROUP BY 1 ORDER BY 2 DESC""").fetchall()
+        reasons=c.execute(f"""SELECT reason,count(*) AS n FROM (SELECT CASE
+          WHEN e.moderation IS NOT NULL THEN 'moderation_'||e.moderation
+          WHEN e.state<>'ok' THEN coalesce(e.reason,e.state)
+          WHEN NOT({CURRENT}) THEN 'processing'
+          WHEN a.segment_assistance IS NULL THEN 'assistance_unknown'
+          WHEN NOT({ASSISTANCE}) THEN 'assisted'
+          WHEN a.source<>ALL(%(sources)s) THEN 'source'
+          WHEN NOT coalesce(p.segment_boards,false) THEN 'not_joined'
+          WHEN a.visibility<>'everyone' OR a.leaderboard_excluded THEN 'activity_private'
+          WHEN NOT coalesce((a.share_details->>'map')::boolean,(p.share_details->>'map')::boolean,true) THEN 'map_hidden'
+          WHEN NOT(e.on_line AND e.start_m>={TRIM} AND e.end_m<=e.line_m-{TRIM} AND e.line_m>=2*{TRIM}+{MIN_SHOWN_M}) THEN 'hidden_area'
+          ELSE NULL END AS reason FROM {BOARD_FROM} JOIN segments s ON s.id=e.segment_id
+          WHERE s.audience='everyone' AND s.status<>'removed') x WHERE reason IS NOT NULL GROUP BY reason ORDER BY n DESC""",
+          {'sources':BOARD_SOURCES,'assisted_labels':['%'+x+'%' for x in segments.ASSISTED]}).fetchall()
+        generations=c.execute('''SELECT s.id,s.name,s.status,coalesce(g.active,1) AS active,g.active_matcher,g.pending,g.pending_matcher,
+          coalesce(g.processed,0) AS processed,g.started,g.activated,
+          (SELECT attempts FROM segment_jobs j WHERE j.kind='rebuild' AND j.ref=s.id AND j.epoch=g.pending) AS attempts
+          FROM segments s LEFT JOIN segment_match_state g ON g.segment_id=s.id WHERE s.audience='everyone' AND s.status<>'removed'
+          ORDER BY (g.pending IS NOT NULL) DESC,s.id DESC LIMIT 50''').fetchall()
         on = boards_on(c)
-    return {'reports': reports, 'appeals': appeals, 'held': held, 'stats': stats, 'exclusions': reasons, 'leaderboards': on}
+    return {'reports': reports, 'appeals': appeals, 'held': held, 'stats': stats, 'exclusions': reasons, 'leaderboards': on,'generations':generations,'available_matcher':segments.MATCHER}
 
 
 @router.get('/admin/segment-efforts/{eid}')
@@ -650,7 +704,8 @@ def take_down(c, sids, reason):
     c.execute("""UPDATE segments SET status = 'removed', name = NULL, description = NULL, geom = NULL, creator_id = NULL,
                    status_reason = %s, status_changed = now() WHERE id = ANY(%s) AND status <> 'removed'""", (reason, sids))
     for t in ('segment_efforts', 'segment_scans'): c.execute(f'DELETE FROM {t} WHERE segment_id = ANY(%s)', (sids,))
-    c.execute("DELETE FROM segment_jobs WHERE kind = 'segment' AND ref = ANY(%s)", (sids,))
+    c.execute('DELETE FROM segment_stage_scans WHERE segment_id=ANY(%s)',(sids,))
+    c.execute('UPDATE segment_match_state SET pending=NULL,pending_matcher=NULL WHERE segment_id=ANY(%s)',(sids,))
 
 
 @router.post('/admin/segments/{sid}/retire')
@@ -670,7 +725,8 @@ def retire(sid: int, body: RetireIn, user=Depends(admin_user)):
             # Public status stays neutral; the case detail belongs only in the restricted decision receipt.
             c.execute("UPDATE segments SET status = 'retired', status_reason = 'Retired after administrator review.', status_changed = now(), replaced_by = %s WHERE id = %s",
                       (body.replaced_by, sid))
-            c.execute("DELETE FROM segment_jobs WHERE kind = 'segment' AND ref = %s", (sid,))
+            c.execute('UPDATE segment_match_state SET pending=NULL,pending_matcher=NULL WHERE segment_id=%s',(sid,))
+            c.execute('DELETE FROM segment_stage_scans WHERE segment_id=%s',(sid,))
         if body.report_id:
             c.execute("UPDATE segment_reports SET status = 'actioned', decided_by = %s, decided = now(), outcome = %s WHERE id = %s AND status = 'open'",
                       (user['id'], f'{body.kind}: {body.reason.strip()}'[:300], body.report_id))
@@ -699,6 +755,69 @@ def switch(body: SwitchIn, user=Depends(admin_user)):
 @router.post('/admin/segments/jobs/retry')
 def retry_jobs(user=Depends(admin_user)):
     with db.connect() as c:
-        n = c.execute('UPDATE segment_jobs SET attempts = 0, last_error = NULL WHERE attempts >= 5 RETURNING id').fetchall()
+        n = c.execute('''UPDATE segment_jobs SET attempts=0,last_error=NULL WHERE id IN
+          (SELECT id FROM segment_jobs WHERE attempts>=5 ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 100) RETURNING id''').fetchall()
         audit(c, user['id'], 'segment_jobs.retry', len(n))
     return {'retried': len(n)}
+
+
+class RebuildIn(BaseModel):
+    action: Literal['start','cancel']
+    generation: int = Field(ge=1)
+    pending: int | None = Field(None,ge=1)
+    reason: str = Field(min_length=3,max_length=300)
+    confirmed: StrictBool
+
+
+@router.get('/admin/segments/generations')
+def generation_find(q:str=Query('',max_length=100),user=Depends(admin_user)):
+    _admin(user)
+    with db.connect() as c:
+        return c.execute('''SELECT s.id,s.name,s.status,coalesce(g.active,1) AS active,g.active_matcher,g.pending,g.pending_matcher,
+          coalesce(g.processed,0) AS processed,g.started,g.activated,
+          (SELECT attempts FROM segment_jobs j WHERE j.kind='rebuild' AND j.ref=s.id AND j.epoch=g.pending) AS attempts
+          FROM segments s LEFT JOIN segment_match_state g ON g.segment_id=s.id WHERE s.audience='everyone' AND s.status<>'removed'
+          AND (%(q)s='' OR s.id::text=%(q)s OR position(lower(%(q)s) IN lower(s.name))>0)
+          ORDER BY (g.pending IS NOT NULL) DESC,s.id DESC LIMIT 50''',{'q':q.strip()}).fetchall()
+
+
+@router.post('/admin/segments/{sid}/rebuild')
+def rebuild(sid:int,body:RebuildIn,user=Depends(admin_user)):
+    _admin(user)
+    if not body.confirmed or len(body.reason.strip())<3: raise HTTPException(400,'Confirm this change and give a specific reason')
+    with db.connect() as c:
+        s=c.execute('SELECT audience,status FROM segments WHERE id=%s FOR SHARE',(sid,)).fetchone()
+        if not s or s['audience']!='everyone': raise HTTPException(404,'Public segment not found')
+        if s['status']!='active': raise HTTPException(409,'Only an active course can be rebuilt')
+        g=segment_rebuilds.lock_state(c,sid)
+        if g['active']!=body.generation or g['pending']!=body.pending:
+            raise HTTPException(409,'This generation changed. Reload before deciding.')
+        if body.action=='start':
+            epoch=segment_rebuilds.begin(c,sid,body.generation)
+            if not epoch: raise HTTPException(409,'A rebuild is already running')
+        else:
+            if not g['pending']: raise HTTPException(409,'There is no rebuild to cancel')
+            epoch=None
+            c.execute('UPDATE segment_match_state SET pending=NULL,pending_matcher=NULL WHERE segment_id=%s',(sid,))
+            c.execute('DELETE FROM segment_stage_scans WHERE segment_id=%s AND epoch=%s',(sid,g['pending']))
+        _decision(c,user,'segment',sid,'rebuild_'+body.action,body.reason,body.generation)
+        audit(c,user['id'],'segment.rebuild_'+body.action,sid)
+    return {'generation':body.generation,'pending':epoch}
+
+
+class PrivateRecheckIn(BaseModel):
+    generation:int=Field(ge=1)
+    confirmed:StrictBool
+
+
+@router.post('/segments/{sid}/recheck')
+def recheck_private(sid:int,body:PrivateRecheckIn,user=Depends(current_user)):
+    if not body.confirmed:raise HTTPException(400,'Confirm the recheck first')
+    _limit(user['id'],10)
+    with db.connect() as c:
+        s=c.execute("SELECT creator_id,audience,status FROM segments WHERE id=%s FOR SHARE",(sid,)).fetchone()
+        if not s or s['creator_id']!=user['id'] or s['audience']!='me':raise HTTPException(404,'Private segment not found')
+        if s['status']!='active':raise HTTPException(409,'This course is no longer active')
+        epoch=segment_rebuilds.begin(c,sid,body.generation)
+        if not epoch:raise HTTPException(409,'This generation changed or is already being checked. Reload first.')
+    return {'pending':epoch}

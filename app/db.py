@@ -1660,6 +1660,77 @@ MIGRATIONS = [
     ALTER TABLE route_reports ENABLE ROW LEVEL SECURITY;
     REVOKE ALL ON route_reports FROM PUBLIC,fit_readers,fit_all_readers;
     """,
+    # 76. Explicit assistance declarations and fenced, staged segment recalculation.
+    """
+    ALTER TABLE activities ADD COLUMN segment_assistance text CHECK (segment_assistance IN ('unassisted','assisted','virtual'));
+    ALTER TABLE activities ADD COLUMN segment_assistance_rev int NOT NULL DEFAULT 0;
+    ALTER TABLE activities ADD COLUMN segment_revision bigint NOT NULL DEFAULT 1;
+    ALTER TABLE activities ADD CONSTRAINT activities_segment_owner UNIQUE(id,user_id);
+    ALTER TABLE segment_efforts ADD COLUMN generation bigint NOT NULL DEFAULT 1;
+    ALTER TABLE segment_efforts ADD COLUMN source_revision bigint NOT NULL DEFAULT 1;
+    ALTER TABLE segment_scans ADD COLUMN generation bigint NOT NULL DEFAULT 1;
+    ALTER TABLE segment_scans ADD COLUMN source_revision bigint NOT NULL DEFAULT 1;
+    CREATE TABLE segment_match_state (
+      segment_id bigint PRIMARY KEY REFERENCES segments(id) ON DELETE CASCADE,
+      active bigint NOT NULL DEFAULT 1, active_matcher int NOT NULL DEFAULT 1,
+      pending bigint, pending_matcher int, next_epoch bigint NOT NULL DEFAULT 2,
+      processed bigint NOT NULL DEFAULT 0, cursor bigint NOT NULL DEFAULT 0, swept boolean NOT NULL DEFAULT false,
+      started timestamptz, activated timestamptz,
+      CHECK ((pending IS NULL) = (pending_matcher IS NULL)));
+    INSERT INTO segment_match_state(segment_id,active_matcher) SELECT id,matcher FROM segments WHERE status <> 'removed';
+    CREATE TABLE segment_stage_scans (
+      segment_id bigint NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      epoch bigint NOT NULL, activity_id bigint NOT NULL,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_revision bigint NOT NULL, matcher int NOT NULL,
+      result jsonb NOT NULL, outcome text NOT NULL, reason text,
+      PRIMARY KEY(segment_id,epoch,activity_id),
+      FOREIGN KEY(activity_id,user_id) REFERENCES activities(id,user_id) ON DELETE CASCADE);
+    ALTER TABLE segment_stage_scans ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON segment_stage_scans FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON segment_stage_scans FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON segment_stage_scans TO fit_readers;
+    ALTER TABLE segment_match_state ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON segment_match_state FROM PUBLIC,fit_readers,fit_all_readers;
+    ALTER TABLE segment_jobs DROP CONSTRAINT segment_jobs_kind_check;
+    ALTER TABLE segment_jobs ADD CHECK(kind IN ('activity','segment','rebuild'));
+    ALTER TABLE segment_jobs ADD COLUMN epoch bigint NOT NULL DEFAULT 0;
+    ALTER TABLE segment_jobs DROP CONSTRAINT segment_jobs_kind_ref_key;
+    ALTER TABLE segment_jobs ADD UNIQUE(kind,ref,epoch);
+    CREATE OR REPLACE FUNCTION segment_activity_job() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP='INSERT' OR NEW.segment_revision IS DISTINCT FROM OLD.segment_revision THEN
+        -- A source update must not wait on the old worker's locked job while holding the activity row.
+        INSERT INTO segment_jobs(kind,ref,epoch) VALUES('activity',NEW.id,NEW.segment_revision) ON CONFLICT(kind,ref,epoch) DO NOTHING;
+      END IF;
+      RETURN NULL;
+    END $$;
+    DROP TRIGGER segment_activity_job ON activities;
+    CREATE TRIGGER segment_activity_job AFTER INSERT OR UPDATE OF segment_revision ON activities FOR EACH ROW EXECUTE FUNCTION segment_activity_job();
+    CREATE FUNCTION segment_source_changed() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF ST_AsEWKB(NEW.geom) IS DISTINCT FROM ST_AsEWKB(OLD.geom) OR NEW.sport IS DISTINCT FROM OLD.sport
+         OR NEW.sport_label IS DISTINCT FROM OLD.sport_label OR NEW.start_time IS DISTINCT FROM OLD.start_time THEN
+        NEW.segment_revision=OLD.segment_revision+1;
+      END IF;
+      RETURN NEW;
+    END $$;
+    CREATE TRIGGER segment_source_changed BEFORE UPDATE ON activities FOR EACH ROW EXECUTE FUNCTION segment_source_changed();
+    CREATE FUNCTION segment_stream_changed() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP IN ('INSERT','DELETE') THEN
+        UPDATE activities SET segment_revision=segment_revision+1 WHERE id=CASE WHEN TG_OP='DELETE' THEN OLD.activity_id ELSE NEW.activity_id END;
+      ELSIF NEW.t IS DISTINCT FROM OLD.t OR NEW.lat IS DISTINCT FROM OLD.lat OR NEW.lon IS DISTINCT FROM OLD.lon THEN
+        UPDATE activities SET segment_revision=segment_revision+1 WHERE id=NEW.activity_id;
+      END IF;
+      IF TG_OP='UPDATE' AND NEW.activity_id IS DISTINCT FROM OLD.activity_id THEN
+        UPDATE activities SET segment_revision=segment_revision+1 WHERE id=OLD.activity_id;
+        UPDATE activities SET segment_revision=segment_revision+1 WHERE id=NEW.activity_id;
+      END IF;
+      RETURN NULL;
+    END $$;
+    CREATE TRIGGER segment_stream_changed AFTER INSERT OR UPDATE OR DELETE ON activity_streams FOR EACH ROW EXECUTE FUNCTION segment_stream_changed();
+    """,
 ]
 
 
