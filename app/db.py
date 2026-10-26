@@ -1407,6 +1407,199 @@ MIGRATIONS = [
     GRANT SELECT ON friend_links TO fit_readers;
     ALTER TABLE profile ADD COLUMN friend_link text;
     """,
+
+    # 74 (2026-10-26): planned routes (#276), named segments (#278), segment leaderboards (#285) and their integrity
+    # tools (#286).
+    #  - planned_routes: a route drawn on the map, imported or copied from an activity. Editable; each save is a new row in
+    #    planned_route_versions so Track keeps the exact version it loaded. route_drafts: the editor's autosave.
+    #  - segments: a named, directional course. Its definition (name, description, path, sport, distance...) is frozen at
+    #    creation by the segments_frozen trigger, for every database login the app or a person uses (a superuser can
+    #    switch triggers off; that is the documented limit). Only the operational state may change: Only me -> Everyone
+    #    (one way), retirement, takedown (which wipes the definition and leaves a tombstone row whose ID is never reused).
+    #  - segment_efforts: personal times found in the owner's own recordings, private to them. Public leaderboards are a
+    #    read-time query over these (api_segments.py ELIGIBLE), so leaving, an activity going private, a block or a
+    #    moderator's hold takes effect on the next page load with no cached copy to go stale.
+    #  - segment_jobs: matching work (new GPS activities via a trigger, backfill for new segments). Admin-only.
+    #  - segment_reports and segment_appeals: reports go to admins only; an appeal is the effort owner's own row.
+    """
+    CREATE TABLE planned_routes (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id uuid NOT NULL,
+      name text NOT NULL CHECK (length(name) BETWEEN 1 AND 120),
+      description text CHECK (description IS NULL OR length(description) <= 2000),
+      sport text NOT NULL CHECK (sport IN ('run', 'walk', 'hike', 'ride')),
+      source text NOT NULL DEFAULT 'drawn' CHECK (source IN ('drawn', 'gpx', 'activity', 'copy')),
+      version int NOT NULL DEFAULT 1,
+      created timestamptz NOT NULL DEFAULT now(), updated timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (user_id, client_id));
+    CREATE INDEX planned_routes_user ON planned_routes (user_id, updated DESC);
+    CREATE TABLE planned_route_versions (
+      route_id bigint NOT NULL REFERENCES planned_routes(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      version int NOT NULL,
+      waypoints jsonb NOT NULL, legs jsonb NOT NULL,
+      geom geometry(LineString, 4326) NOT NULL,
+      distance_m real NOT NULL, ascent_m real, descent_m real, elevation jsonb, warnings jsonb NOT NULL DEFAULT '[]',
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (route_id, version));
+    CREATE TABLE route_drafts (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      draft_key text NOT NULL CHECK (draft_key ~ '^[a-z0-9:-]{1,80}$'),
+      data jsonb NOT NULL, updated timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, draft_key));
+
+    CREATE TABLE segments (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      creator_id bigint REFERENCES users(id) ON DELETE SET NULL,
+      client_id uuid NOT NULL,
+      name text CHECK (name IS NULL OR length(name) BETWEEN 1 AND 120),
+      description text CHECK (description IS NULL OR length(description) <= 500),
+      sport text NOT NULL CHECK (sport IN ('run', 'walk', 'hike', 'ride')),
+      geom geometry(LineString, 4326),
+      distance_m real NOT NULL, ascent_m real, elevation_source text,
+      source text NOT NULL CHECK (source IN ('map', 'route', 'activity')),
+      fingerprint text NOT NULL,
+      matcher int NOT NULL DEFAULT 1,
+      created timestamptz NOT NULL DEFAULT now(),
+      audience text NOT NULL CHECK (audience IN ('me', 'everyone')),
+      published timestamptz,
+      status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retired', 'removed')),
+      status_reason text, status_changed timestamptz, replaced_by bigint REFERENCES segments(id) ON DELETE SET NULL,
+      UNIQUE (creator_id, client_id));
+    CREATE INDEX segments_geom ON segments USING gist (geom);
+    CREATE INDEX segments_fingerprint ON segments (fingerprint);
+
+    CREATE FUNCTION segments_frozen() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP = 'DELETE' THEN
+        IF OLD.audience = 'everyone' AND OLD.status <> 'removed' THEN
+          RAISE EXCEPTION 'Segment % is public: it is retired or taken down, never deleted', OLD.id USING ERRCODE = 'check_violation';
+        END IF;
+        RETURN OLD;
+      END IF;
+      IF OLD.status = 'removed' THEN
+        RAISE EXCEPTION 'Segment % was taken down', OLD.id USING ERRCODE = 'check_violation';
+      END IF;
+      IF NEW.id IS DISTINCT FROM OLD.id OR NEW.client_id IS DISTINCT FROM OLD.client_id OR NEW.sport IS DISTINCT FROM OLD.sport
+         OR NEW.distance_m IS DISTINCT FROM OLD.distance_m OR NEW.ascent_m IS DISTINCT FROM OLD.ascent_m
+         OR NEW.elevation_source IS DISTINCT FROM OLD.elevation_source OR NEW.source IS DISTINCT FROM OLD.source
+         OR NEW.fingerprint IS DISTINCT FROM OLD.fingerprint OR NEW.matcher IS DISTINCT FROM OLD.matcher
+         OR NEW.created IS DISTINCT FROM OLD.created OR (NEW.published IS DISTINCT FROM OLD.published AND OLD.published IS NOT NULL) THEN
+        RAISE EXCEPTION 'Segment % is fixed: its definition can''t be changed', OLD.id USING ERRCODE = 'check_violation';
+      END IF;
+      IF NEW.status = 'removed' THEN     -- a takedown removes the name, description, path and creator, nothing else
+        IF NEW.name IS NOT NULL OR NEW.description IS NOT NULL OR NEW.geom IS NOT NULL OR NEW.creator_id IS NOT NULL THEN
+          RAISE EXCEPTION 'A takedown removes the name, description, path and creator together' USING ERRCODE = 'check_violation';
+        END IF;
+        RETURN NEW;
+      END IF;
+      IF NEW.name IS DISTINCT FROM OLD.name OR NEW.description IS DISTINCT FROM OLD.description
+         OR ST_AsBinary(NEW.geom) IS DISTINCT FROM ST_AsBinary(OLD.geom) THEN
+        RAISE EXCEPTION 'Segment % is fixed: its definition can''t be changed', OLD.id USING ERRCODE = 'check_violation';
+      END IF;
+      IF NEW.creator_id IS DISTINCT FROM OLD.creator_id AND NEW.creator_id IS NOT NULL THEN
+        RAISE EXCEPTION 'A segment''s creator can''t be changed' USING ERRCODE = 'check_violation';
+      END IF;
+      IF NEW.audience <> OLD.audience AND NOT (OLD.audience = 'me' AND NEW.audience = 'everyone') THEN
+        RAISE EXCEPTION 'A published segment stays published; it can only be retired or taken down' USING ERRCODE = 'check_violation';
+      END IF;
+      IF OLD.status = 'retired' AND NEW.status <> 'retired' THEN
+        RAISE EXCEPTION 'A retired segment is never reopened' USING ERRCODE = 'check_violation';
+      END IF;
+      RETURN NEW;
+    END $$;
+    CREATE TRIGGER segments_frozen BEFORE UPDATE OR DELETE ON segments FOR EACH ROW EXECUTE FUNCTION segments_frozen();
+
+    CREATE TABLE segment_drafts (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      data jsonb NOT NULL, updated timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE segment_bookmarks (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      segment_id bigint NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      created timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (user_id, segment_id));
+    CREATE TABLE segment_efforts (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      segment_id bigint NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      activity_id bigint NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      start_i int NOT NULL, end_i int NOT NULL,
+      started timestamptz NOT NULL, elapsed_raw real NOT NULL CHECK (elapsed_raw > 0), elapsed_s int NOT NULL CHECK (elapsed_s > 0),
+      on_line boolean NOT NULL DEFAULT false, start_m real, end_m real, line_m real,
+      matcher int NOT NULL,
+      state text NOT NULL CHECK (state IN ('ok', 'held', 'excluded')), reason text,
+      moderation text CHECK (moderation IN ('held', 'excluded')), moderation_reason text,
+      rev int NOT NULL DEFAULT 1, created timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (segment_id, activity_id, start_i));
+    CREATE INDEX segment_efforts_board ON segment_efforts (segment_id, elapsed_s);
+    CREATE INDEX segment_efforts_user ON segment_efforts (user_id, segment_id);
+    CREATE INDEX segment_efforts_activity ON segment_efforts (activity_id);
+    CREATE TABLE segment_scans (
+      segment_id bigint NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      activity_id bigint NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      matcher int NOT NULL, outcome text NOT NULL CHECK (outcome IN ('match', 'none', 'ineligible')), reason text,
+      scanned timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (segment_id, activity_id));
+    CREATE INDEX segment_scans_user ON segment_scans (user_id, segment_id);
+    CREATE TABLE segment_jobs (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      kind text NOT NULL CHECK (kind IN ('activity', 'segment')), ref bigint NOT NULL,
+      cursor bigint NOT NULL DEFAULT 0, attempts int NOT NULL DEFAULT 0, last_error text,
+      created timestamptz NOT NULL DEFAULT now(), UNIQUE (kind, ref));
+    CREATE FUNCTION segment_activity_job() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NEW.geom IS NOT NULL AND (TG_OP = 'INSERT' OR NEW.geom IS DISTINCT FROM OLD.geom) THEN
+        INSERT INTO segment_jobs (kind, ref) VALUES ('activity', NEW.id) ON CONFLICT (kind, ref) DO NOTHING;
+      END IF;
+      RETURN NULL;
+    END $$;
+    CREATE TRIGGER segment_activity_job AFTER INSERT OR UPDATE OF geom ON activities FOR EACH ROW EXECUTE FUNCTION segment_activity_job();
+
+    ALTER TABLE profile ADD COLUMN segment_boards boolean NOT NULL DEFAULT false;
+    ALTER TABLE activities ADD COLUMN leaderboard_excluded boolean NOT NULL DEFAULT false;
+
+    CREATE TABLE segment_reports (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      reporter bigint REFERENCES users(id) ON DELETE SET NULL,
+      segment_id bigint NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      person bigint REFERENCES users(id) ON DELETE CASCADE,
+      reason text NOT NULL CHECK (reason IN ('gps', 'wrong_sport', 'duplicate', 'unsafe', 'abusive', 'privacy', 'creator_request')),
+      note text CHECK (note IS NULL OR length(note) <= 500),
+      status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'dismissed', 'actioned')),
+      decided_by bigint REFERENCES users(id) ON DELETE SET NULL, decided timestamptz, outcome text,
+      created timestamptz NOT NULL DEFAULT now());
+    CREATE UNIQUE INDEX segment_reports_once ON segment_reports (reporter, segment_id, coalesce(person, 0)) WHERE status = 'open';
+    CREATE TABLE segment_appeals (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      effort_id bigint NOT NULL REFERENCES segment_efforts(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      note text NOT NULL CHECK (length(note) BETWEEN 1 AND 1000),
+      status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'restored', 'upheld')),
+      decided timestamptz, outcome text, created timestamptz NOT NULL DEFAULT now());
+    CREATE UNIQUE INDEX segment_appeals_open ON segment_appeals (effort_id) WHERE status = 'open';
+    CREATE TABLE feature_switches (name text PRIMARY KEY, enabled boolean NOT NULL,
+      changed timestamptz NOT NULL DEFAULT now(), actor_id bigint REFERENCES users(id) ON DELETE SET NULL);
+
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['planned_routes', 'planned_route_versions', 'route_drafts', 'segment_drafts', 'segment_bookmarks',
+                               'segment_efforts', 'segment_scans', 'segment_appeals'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING (user_id = fit_me())', t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING (true)', t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers', t);
+      END LOOP;
+      FOREACH t IN ARRAY ARRAY['segment_jobs', 'segment_reports', 'feature_switches'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('REVOKE ALL ON %I FROM PUBLIC, fit_readers, fit_all_readers', t);
+      END LOOP;
+    END $$;
+    -- segments: a person's SQL login sees their own and published definitions (never another person's private one)
+    ALTER TABLE segments ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON segments FOR SELECT TO fit_readers USING (creator_id = fit_me() OR (audience = 'everyone' AND status <> 'removed'));
+    CREATE POLICY all_rows ON segments FOR SELECT TO fit_all_readers USING (true);
+    GRANT SELECT ON segments TO fit_readers;
+    """,
 ]
 
 

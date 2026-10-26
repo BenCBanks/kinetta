@@ -196,7 +196,7 @@ const Track = (() => {
           if (view && el.isConnected) { mapView = {...view, el, here: null}; mapView.map.on('dragstart', () => { follow = false; followButton(); }); }
         }
         if (!mapView || !el.isConnected) return;
-        const {map, L, group} = mapView; group.clearLayers();
+        const {map, L, group} = mapView; group.clearLayers(); planOverlay(mapView, false);
         for (const pts of ln) L.polyline(pts, {color: col('--route'), weight: 4}).addTo(group);
         const last = session.points.at(-1);
         if (last) mapView.here = hereMarker(mapView, mapView.here, last.lat, last.lon, last.accuracy);
@@ -250,6 +250,38 @@ const Track = (() => {
     const audience=$('#track-save-form select[name=visibility]');if(audience)audience.onchange=()=>{session.visibility=audience.value;persist();};
     $('#track-discard').onclick = discard;
   }
+  // A planned route (#276 item 10): drawn under you on the ready and live maps. Choosing one never starts GPS, asks for
+  // location or changes the activity; it's only a line to follow by eye (turn-by-turn guidance is separate, #279).
+  function planOverlay(v, fitIt) {
+    if (!v || typeof PlanTrack === 'undefined') return;
+    if (v.planLayer) { v.planLayer.remove(); v.planLayer = null; }
+    const r = PlanTrack.get(); if (!r?.line) return;
+    const pts = decode(r.line); if (pts.length < 2) return;
+    v.planLayer = v.L.layerGroup([v.L.polyline(pts, {color: col('--tx3'), weight: 9, opacity: .25, interactive: false}), v.L.polyline(pts, {color: col('--route'), weight: 4, opacity: .55, dashArray: '1 8', lineCap: 'round', interactive: false}),
+      v.L.marker(pts[0], {icon: endIcon(v.L, 'start', loopEnds(pts[0], pts.at(-1))), interactive: false, keyboard: false}), v.L.marker(pts.at(-1), {icon: endIcon(v.L, 'end', loopEnds(pts[0], pts.at(-1))), interactive: false, keyboard: false})]).addTo(v.map);
+    if (fitIt) v.map.fitBounds(v.L.latLngBounds(pts), {padding: [24, 24], maxZoom: 16});
+  }
+  function routeRow(c, redraw) {
+    const box = $('#track-route'); if (!box || typeof PlanTrack === 'undefined') return;
+    if (!c.gps) { box.innerHTML = ''; return; }
+    const r = PlanTrack.get();
+    box.innerHTML = r ? `<div class="track-route-chip">${svg('route')}<a class="grow" href="/routes/plan/${r.id}"><b>${esc(r.name)}</b><small class="muted">${U.dist(r.distance_m)} ${U.du()} · planned route</small></a><button type="button" class="linkbtn" id="track-route-change">Change</button><button type="button" class="icon-btn" id="track-route-clear" aria-label="Don't use a route">${svg('close')}</button></div>`
+      : `<button type="button" class="track-prefs" id="track-route-change">${svg('route')}<span>Add a planned route</span>${svg('chev')}</button>`;
+    $('#track-route-change', box).onclick = () => chooseRoute(c, redraw);
+    const x = $('#track-route-clear', box); if (x) x.onclick = () => { PlanTrack.set(null); routeRow(c, redraw); redraw(); };
+  }
+  async function chooseRoute(c, redraw) {
+    let rows; try { rows = await api('/api/planned-routes'); } catch (e) { toast(e.message); return; }
+    const sport = ['run', 'walk', 'hike', 'ride'].includes(c.sport) ? c.sport : '';
+    rows.sort((a, b) => (b.sport === sport) - (a.sport === sport));
+    sheet('Choose a route', rows.length ? `<div class="list card">${rows.map((r, i) => `<button class="row-link" data-r="${i}">${r.line ? miniRoute(r.line, r.sport) : ''}<span class="grow"><b>${esc(r.name)}</b><small class="muted">${esc(SPORT_NAMES[r.sport])} · ${U.dist(r.distance_m)} ${U.du()}</small></span>${svg('chev')}</button>`).join('')}</div><a class="ghost wide" href="/routes/new">${svg('plus')}Plan a new route</a>`
+      : `<p>You haven’t planned a route yet. Draw one on the map and it shows up here.</p><a class="primary wide" href="/routes/new">Plan a route</a>`, (b, close) => {
+      $$('[data-r]', b).forEach((x) => x.onclick = async () => {
+        try { const r = await api(`/api/planned-routes/${rows[+x.dataset.r].id}`); PlanTrack.set(PlanTrack.from({...r, full_line: Plan.enc(Plan.line(r.legs.map((l) => ({line: l.line}))))})); close(); routeRow(c, redraw); redraw(); }
+        catch (e) { toast(e.message); }
+      });
+    });
+  }
   const OUTDOOR = [['run','Run'],['run','Trail run','Trail Running'],['ride','Ride'],['ride','Mountain bike','Mountain Biking'],['walk','Walk'],['hike','Hike'],['swim','Open-water swim','Open Water'],['row','Row on water'],['ski','Ski'],['other','Other outdoor activity']];
   // One-tap shortcuts for the most common choices (2026-10-18 UI pass); everything else stays in the All activities list.
   const TRACK_QUICK = [0, 2, 4, 5, OUTDOOR.length];   // Run, Ride, Walk, Hike, then Lifting (the first choice after OUTDOOR)
@@ -264,13 +296,13 @@ const Track = (() => {
     const done = new URLSearchParams(location.search).get('done');
     el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">Record runs, rides and walks with GPS in the Kinetta iPhone app${App.me?.iphone_app ? ` (<a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">get it through TestFlight</a>)` : ''}. Here you can time indoor workouts, log lifting and add past activities.</p>`}<div class="track-quick" role="group" aria-label="Common activities">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${quick.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 && outdoor.length ? '<optgroup label="Outdoor · GPS">' : i===outdoor.length ? `${outdoor.length ? '</optgroup>' : ''}<optgroup label="Indoor · timer and sets">` : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
-      <div class="track-go"><button class="round-btn start" id="track-start"><span>Start</span></button><small id="track-start-label"></small></div>
+      <div class="track-route" id="track-route"></div><div class="track-go"><button class="round-btn start" id="track-start"><span>Start</span></button><small id="track-start-label"></small></div>
       <p class="small danger" id="track-ready-error" role="alert"></p>
       <button type="button" class="track-prefs" id="track-options" hidden></button><p class="small muted" id="track-guidance"></p>
       </form>
       <div id="track-open-lift"></div><section class="track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">More ways to add</h2><div class="card list">${Native.on ? `<a class="row-link" href="/track/health">${svg('heart')}<span class="grow">Apple Health</span>${svg('chev')}</a>` : ''}<a class="row-link" href="/track/connections">${svg('watch')}<span class="grow">Connections<small class="muted gs-sub">${Native.on ? 'Garmin and Apple Health' : 'Garmin, Apple Health and other apps'}</small></span>${svg('chev')}</a><button class="row-link" id="track-past">${svg('calendar')}<span class="grow">Log a past activity</span>${svg('chev')}</button>${Native.on ? '' : `<a class="row-link" href="/track/import">${svg('upload')}<span class="grow">Import activity history</span>${svg('chev')}</a>`}</div></section>`;
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false;
-    const guide = () => { const c=choices[selected];$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start-label').textContent=c.lift?'Lifting':c.label;$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS keeps recording with your screen locked.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'A timer for active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
+    const guide = () => { const c=choices[selected];routeRow(c,()=>{if(view)planOverlay(view,!centred);});$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start-label').textContent=c.lift?'Lifting':c.label;$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS keeps recording with your screen locked.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'A timer for active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
     // Spoken splits and auto-pause (#234 item 4): on by default, auto-pause off for rides; remembered on this device
     // Recording settings live in a sheet (Ben, 2026-10-26: big checkboxes up top weren't friendly); one quiet line
     // under Start says what's on and opens it. Same saved choices as before, per device.
@@ -320,7 +352,7 @@ const Track = (() => {
       if(!choices[selected].gps||loadingMap)return;
       if(view){requestAnimationFrame(()=>{if(el.isConnected)view.map.invalidateSize();});return;}
       loadingMap=true;
-      mapInto($('#track-ready-map'), [], {still:true}).then(v=>{if(!v)return;view=v;if(here)show(...here);})
+      mapInto($('#track-ready-map'), [], {still:true}).then(v=>{if(!v)return;view=v;planOverlay(view,!here);if(here)show(...here);})
         .catch(()=>{if(el.isConnected)$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';})
         .finally(()=>{loadingMap=false;});
     }
