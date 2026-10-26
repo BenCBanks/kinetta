@@ -111,7 +111,7 @@ def add_person(body: PersonIn, user=Depends(admin_user)):
         with db.connect() as c:
             uid = c.execute('INSERT INTO users (login, name, pw_hash) VALUES (%s, %s, %s) RETURNING id',
                             (login, name, auth.hash_pw(body.password))).fetchone()['id']
-            c.execute('INSERT INTO profile (user_id) VALUES (%s)', (uid,))
+            c.execute('INSERT INTO profile (user_id, ai_ok) VALUES (%s, true)', (uid,))   # Kit starts on (owner, 2026-10-26); Me turns it off
             audit(c,user['id'],'account.create_member',uid)
     except errors.UniqueViolation:
         raise HTTPException(409, 'That username is taken')
@@ -223,7 +223,9 @@ def _create(c, body, is_admin=False):
         except errors.UniqueViolation:
             if chosen or len(tried) > 20: raise HTTPException(409, 'That username is taken')
             tried.add(login); login = suggest_login(c, name, tried)     # someone took the same suggestion at that moment
-    c.execute('INSERT INTO profile (user_id, tz, units, share_default) VALUES (%s, %s, %s, %s)', (uid, tz, body.units or 'imperial',body.share_default))
+    # Kit (AI features) starts on for everyone (owner, 2026-10-26); Me > AI features turns it off. Apple Health and Garmin
+    # data still need their own yes before Kit reads them.
+    c.execute('INSERT INTO profile (user_id, tz, units, share_default, ai_ok) VALUES (%s, %s, %s, %s, true)', (uid, tz, body.units or 'imperial',body.share_default))
     return uid
 
 

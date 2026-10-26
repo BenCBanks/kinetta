@@ -60,7 +60,7 @@ If you connect Garmin Connect, Kinetta receives the activities you allow in Garm
 
 ## garmin-ai
 
-**AI and Garmin data.** Kit, the optional AI coach, can read your Garmin activities only after you turn on "Let Kit read my Garmin activities" in Me → Connections. This is separate from the main AI switch and from Apple Health, and it's off until you choose it. When it's on, Kinetta sends only the activities a question needs to the AI provider shown in the app (Google Gemini or Anthropic Claude). Turn the switch off at any time and Kit stops reading them. Garmin data, and anything made from it, is never used to train, test or improve AI models.
+**AI and Garmin data.** Kit, the AI coach, can read your Garmin activities only after you turn on "Let Kit read my Garmin activities" in Me → Connections. This is separate from the main AI switch and from Apple Health, and it's off until you choose it. When it's on, Kinetta sends only the activities a question needs to the AI provider shown in the app (Google Gemini or Anthropic Claude). Turn the switch off at any time and Kit stops reading them. Garmin data, and anything made from it, is never used to train, test or improve AI models.
 
 ## garmin-control
 
@@ -88,11 +88,11 @@ Other members can find you by name or username and see your profile, and anyone 
 
 ## ai-heading
 
-Optional AI features
+AI features (Kit)
 
 ## ai
 
-AI is off unless you turn it on. When you use it, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Apple Health and Garmin data each need a separate yes before they're included (see Garmin above). You can change these choices in Me.
+Kit's AI features start on for new accounts; turn them off at any time in Me → AI features, and nothing more is sent. When they're on, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Apple Health and Garmin data each need a separate yes before they're included (see Garmin above). You can change these choices in Me.
 
 ## provider-retention
 
