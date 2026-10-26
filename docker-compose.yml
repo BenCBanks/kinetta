@@ -41,7 +41,7 @@ services:
       - "${KINETTA_PORT:-8790}:8000"
     environment:
       KINETTA_ROUTING_URL: ${KINETTA_ROUTING_URL:-https://valhalla1.openstreetmap.de}
-      KINETTA_ELEVATION_URL: ${KINETTA_ELEVATION_URL:-https://valhalla1.openstreetmap.de}
+      KINETTA_ELEVATION_URL: ${KINETTA_ELEVATION_URL:-}
       KINETTA_GEOCODER_URL: ${KINETTA_GEOCODER_URL:-https://nominatim.openstreetmap.org}
       FIT_DB_HOST: db
       FIT_APP_PASSWORD_FILE: /run/kinetta/app_password

@@ -667,8 +667,9 @@ def retire(sid: int, body: RetireIn, user=Depends(admin_user)):
             raise HTTPException(400, 'The replacement must be a different published segment')
         if body.kind == 'takedown': take_down(c, [sid], body.reason.strip())
         elif s['status'] != 'retired':
-            c.execute("UPDATE segments SET status = 'retired', status_reason = %s, status_changed = now(), replaced_by = %s WHERE id = %s",
-                      (body.reason.strip(), body.replaced_by, sid))
+            # Public status stays neutral; the case detail belongs only in the restricted decision receipt.
+            c.execute("UPDATE segments SET status = 'retired', status_reason = 'Retired after administrator review.', status_changed = now(), replaced_by = %s WHERE id = %s",
+                      (body.replaced_by, sid))
             c.execute("DELETE FROM segment_jobs WHERE kind = 'segment' AND ref = %s", (sid,))
         if body.report_id:
             c.execute("UPDATE segment_reports SET status = 'actioned', decided_by = %s, decided = now(), outcome = %s WHERE id = %s AND status = 'open'",

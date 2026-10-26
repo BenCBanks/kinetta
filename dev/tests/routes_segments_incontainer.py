@@ -116,6 +116,11 @@ class Base(unittest.TestCase):
 
 
 class PlannedRoutes(Base):
+    def test_elevation_follows_configured_routing_service(self):
+        with patch.dict(os.environ, {'KINETTA_ROUTING_URL': 'https://example.test', 'KINETTA_ELEVATION_URL': ''}):
+            self.assertEqual(route_providers.elevation_url(), 'https://example.test')
+            with patch.dict(os.environ, {'KINETTA_ROUTING_URL': 'off'}):
+                self.assertIsNone(route_providers.elevation_url())
     def test_single_use_gpx_download(self):
         from app import api_routes_plan
         way, legs = self.plan()
@@ -495,6 +500,8 @@ class Segments(Base):
         self.assertEqual(admin.put(switch, json={'enabled': True, 'expected': False}).status_code, 200)
         retire = {'kind': 'retire', 'reason': 'Fictional restricted access', 'expected_status': 'active', 'report_id': course_report}
         self.assertEqual(admin.post(f"/api/admin/segments/{s['id']}/retire", json=retire).status_code, 200)
+        public = self.c['ann'].get(f"/api/segments/{s['id']}").json()
+        self.assertNotIn(retire['reason'], str(public), 'private moderator case details stay off public course status')
         self.assertEqual(admin.post(f"/api/admin/segments/{s['id']}/retire", json=retire).status_code, 409)
         with db.connect() as c:
             receipts = c.execute('SELECT action, reason, reviewed_rev FROM segment_decisions WHERE target_kind = %s AND target_id = %s ORDER BY id', ('effort', e['id'])).fetchall()
