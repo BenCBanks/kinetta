@@ -2604,3 +2604,24 @@ nav.tabs { view-transition-name: tabs; }
 .segment-assistance .check-row input { flex:0 0 22px; width:22px; height:22px; min-height:0; padding:0; margin-top:2px; }
 #private-recheck-ok { min-height:0; padding:0; }
 #d-segments .row-link>svg { flex:none; width:22px; height:22px; }
+/* Route following stays separate from measured recording controls and never covers Pause/Resume/Finish. */
+.track-plan-progress { display:grid; gap:3px; margin:8px 0; padding:10px 12px; border-radius:var(--r2); background:var(--card2); }
+.track-plan-progress>b { overflow-wrap:anywhere; font-size:14px; }
+.track-route-legend { display:flex; flex-wrap:wrap; gap:4px 12px; color:var(--tx2); font-size:12px; }
+.track-route-legend>span:nth-child(2),.track-route-legend>span:nth-child(3) { color:var(--route); }
+.track-route-choice>svg { flex:none; width:20px; height:20px; }
+#route-device-tools details,#shared-route-device-tools details { margin:12px 0; }
+#route-device-tools details p,#shared-route-device-tools details p { overflow-wrap:anywhere; }
+.track-plan-arrow span { color:var(--tx2); }
+/* Leave room for the full recorder controls above the stable bottom tabs, including the offline banner. */
+.track-live.has-route #track-time { line-height:1.05; }
+.track-live.has-route .track-hero { margin:6px 0 4px; }
+.track-live.has-route .track-live-metrics { margin:8px 0 4px; }
+.track-live.has-route .track-splits { min-height:0; margin:2px 0 6px; }
+.track-live.has-route .track-splits:empty { display:none; }
+.track-live.has-route .track-plan-progress { margin:4px 0 8px; padding:8px 10px; }
+.track-plan-progress>b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.track-live.has-route .live-record-map { height:clamp(96px,calc(20dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)),260px); }
+.track-live.has-route .track-controls { margin-top:12px; }
+
+@media(max-width:360px) { .track-live.has-route .live-record-map { height:clamp(96px,calc(18dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)),140px); } }

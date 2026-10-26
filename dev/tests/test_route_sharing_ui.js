@@ -9,7 +9,7 @@ function fixture(){
  const localStorage={};Object.defineProperty(localStorage,'setItem',{value(k,v){localStorage[k]=v;}});Object.defineProperty(localStorage,'removeItem',{value(k){delete localStorage[k]}});
  const c={console,URLSearchParams,crypto:require('node:crypto').webcrypto,App:{me:{id:1}},Native:{base:''},location:{origin:'https://example.test'},
   serverKey:()=> 'https://example.test',readOwner:()=>owner,localStorage,store:{get(k){try{return JSON.parse(localStorage[k])}catch(_){return null}},del(k){delete localStorage[k]}},
-  esc:String,skel:()=>'<skeleton>',backBtn:()=>'',wireBack(){},route(){},viewResources:new Map(),mapInto:async()=>null,cleanViews(){},
+  esc:String,skel:()=>'<skeleton>',backBtn:()=>'',wireBack(){},route(){},viewResources:new Map(),mapInto:async()=>null,cleanViews(){},RouteDownloads:{tools(){},fromShared:r=>r},
   document:{hidden:false,addEventListener(){},removeEventListener(){}},window:{addEventListener(){},removeEventListener(){}},
   $:s=>node(s),stat:()=>'',U:{dist:x=>x,du:()=> 'm',elev:x=>x,eu:()=> 'm'},SPORT_NAMES:{run:'Run'},svg:()=>'',
   json:(method,body)=>({method,body:JSON.stringify(body)}),api:async()=>({}),invalidate(){},toast(){},go:url=>moves.push(url),

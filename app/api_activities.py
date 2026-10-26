@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import secrets
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
@@ -154,6 +155,8 @@ def detail(aid: int, user=Depends(current_user)):
         a['line'] = _line(c, aid, DETAIL_TOL)
         a['efforts'] = _rank_efforts(c, user['id'], aid)
         a['similar'] = _similar(c, user['id'], aid, 6)
+        a['route_plan']=c.execute('''SELECT source_kind,route_id,version,snapshot_key,name,distance_m FROM activity_route_plans
+          WHERE activity_id=%s AND user_id=%s''',(aid,user['id'])).fetchone()
     return a
 
 
@@ -279,6 +282,16 @@ class TrackPoint(BaseModel):
     valt: float | None = Field(None, ge=0, le=1000)         # its vertical accuracy
 
 
+class RecordingPlanIn(BaseModel):
+    model_config=ConfigDict(allow_inf_nan=False,extra='forbid',str_strip_whitespace=True)
+    source_kind:Literal['owned','shared']
+    route_id:int=Field(gt=0,le=9_007_199_254_740_991)
+    version:int=Field(gt=0,le=2_147_483_647)
+    snapshot_key:str|None=Field(None,pattern='^[a-f0-9]{64}$')
+    name:str=Field(min_length=1,max_length=120)
+    distance_m:float=Field(gt=0,le=500000)
+
+
 class TrackIn(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     client_id: str = Field(pattern=r'^[a-f0-9-]{36}$')
@@ -291,6 +304,7 @@ class TrackIn(BaseModel):
     points: list[TrackPoint] = Field(default_factory=list, max_length=72000)   # ~360 km at the iPhone's 5 m spacing (#234 item 8)
     visibility: str | None = Field(None, pattern='^(me|friends|everyone)$')
     expected_sharing_default: str | None = Field(None, pattern='^(me|friends|everyone)$')
+    route_plan: RecordingPlanIn | None = None
 
 
 def _spread(points, run, counted):
@@ -314,6 +328,8 @@ def _spread(points, run, counted):
 def save_track(body: TrackIn, user=Depends(current_user)):
     """One activity per account/recording, using its reviewed or default audience. Retry after a lost acknowledgement returns the same id."""
     from . import parsers
+    if body.route_plan and body.route_plan.source_kind=='shared' and not body.route_plan.snapshot_key:
+        raise HTTPException(422,'A shared recording plan needs its reviewed snapshot identity')
     start = body.start
     if not start.tzinfo: raise HTTPException(422, 'Recording start needs a time zone')
     if start > dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=60): raise HTTPException(422, 'Start is in the future')
@@ -360,8 +376,15 @@ def save_track(body: TrackIn, user=Depends(current_user)):
     # for a second connection. The activity and acknowledgement identity commit together.
     with db.connect() as c:
         c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"track:{user['id']}:{body.client_id}",))
+        if not c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE',(user['id'],)).fetchone():raise HTTPException(404,'Account unavailable')
+        receipt=c.execute('SELECT activity_id FROM track_recording_receipts WHERE user_id=%s AND client_id=%s',(user['id'],body.client_id)).fetchone()
+        if receipt:
+            if receipt['activity_id'] is None:raise HTTPException(409,'This recording was already saved and removed. It cannot be restored by retrying the upload.')
+            return {'id':receipt['activity_id'],'duplicate':True}
         found = c.execute("SELECT id FROM activities WHERE user_id = %s AND source = 'track' AND source_id = %s", (user['id'], body.client_id)).fetchone()
-        if found: return {'id': found['id'], 'duplicate': True}
+        if found:
+            c.execute('INSERT INTO track_recording_receipts(user_id,client_id,activity_id) VALUES(%s,%s,%s)',(user['id'],body.client_id,found['id']))
+            return {'id': found['id'], 'duplicate': True}
         if body.visibility is None and body.expected_sharing_default is None:
             # Installed app builds without the audience picker told people recordings start private.
             body.visibility = 'me'
@@ -376,6 +399,13 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         _, aid = activities.store(user['id'], parsed, meta, raw=raw, ext='.json', source='track', connection=c)
         if body.visibility is not None:
             c.execute('UPDATE activities SET visibility=%s WHERE user_id=%s AND id=%s',(body.visibility,user['id'],aid))
+        if body.route_plan:
+            p=body.route_plan
+            # A previously authorized, pinned route can finish offline after its original was revoked/deleted.
+            # This is private user-supplied history. Never refetch hidden geometry or use it for measured totals.
+            c.execute('''INSERT INTO activity_route_plans(activity_id,user_id,source_kind,route_id,version,snapshot_key,name,distance_m)
+              VALUES(%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(activity_id) DO NOTHING''',(aid,user['id'],p.source_kind,p.route_id,p.version,p.snapshot_key,p.name,p.distance_m))
+        c.execute('INSERT INTO track_recording_receipts(user_id,client_id,activity_id) VALUES(%s,%s,%s)',(user['id'],body.client_id,aid))
     return {'id': aid, 'duplicate': False}
 
 

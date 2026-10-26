@@ -10,6 +10,71 @@ struct TrackFix: Codable {
     var valt: Double? = nil        // its vertical accuracy
 }
 
+// A previously authorized route is pinned with the recording, including its offline line and credits.
+// Invalid route metadata can be dropped during recovery without discarding the measured workout journal.
+struct TrackRoutePlan: Codable {
+    var schema=0
+    var kind=""
+    var id:Int64=0
+    var version=0
+    var name=""
+    var sport=""
+    var distance_m:Double=0
+    var line=""
+    var snapshot_key:String?
+    var warnings:[String]=[]
+    var attribution:[String]=[]
+    var breaks:[Int]=[]
+    var downloadedAt:Double=0
+    enum CodingKeys:String,CodingKey { case schema,kind,id,version,name,sport,distance_m,line,snapshot_key,warnings,attribution,breaks,downloadedAt }
+    init(from decoder:Decoder) throws {
+        guard let c=try? decoder.container(keyedBy:CodingKeys.self) else{return}
+        schema=(try? c.decode(Int.self,forKey:.schema)) ?? 0
+        kind=(try? c.decode(String.self,forKey:.kind)) ?? ""
+        id=(try? c.decode(Int64.self,forKey:.id)) ?? 0
+        version=(try? c.decode(Int.self,forKey:.version)) ?? 0
+        name=(try? c.decode(String.self,forKey:.name)) ?? ""
+        sport=(try? c.decode(String.self,forKey:.sport)) ?? ""
+        distance_m=(try? c.decode(Double.self,forKey:.distance_m)) ?? 0
+        line=(try? c.decode(String.self,forKey:.line)) ?? ""
+        snapshot_key=try? c.decode(String.self,forKey:.snapshot_key)
+        warnings=(try? c.decode([String].self,forKey:.warnings)) ?? []
+        attribution=(try? c.decode([String].self,forKey:.attribution)) ?? []
+        breaks=(try? c.decode([Int].self,forKey:.breaks)) ?? []
+        downloadedAt=(try? c.decode(Double.self,forKey:.downloadedAt)) ?? 0
+    }
+    var valid:Bool {
+        guard schema==1,["owned","shared"].contains(kind),id>0,id<=9_007_199_254_740_991,version>0,version<=2_147_483_647,
+              !name.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,name.count<=120,
+              ["run","walk","hike","ride"].contains(sport),distance_m.isFinite,distance_m>0,distance_m<=500000,
+              line.utf8.count<=400000,warnings.count<=20,warnings.allSatisfy({$0.count<=300}),
+              attribution.count<=10,attribution.allSatisfy({$0.count<=300}),downloadedAt.isFinite else{return false}
+        if kind=="shared" {guard let k=snapshot_key,k.count==64,k.allSatisfy({"0123456789abcdef".contains($0)}) else{return false}}
+        guard let count=pointCount(),breaks.allSatisfy({$0>0 && $0<count}) else{return false}
+        return true
+    }
+    private func pointCount()->Int? {
+        let bytes=Array(line.utf8);var i=0,lat=0,lon=0,count=0
+        while i<bytes.count {
+            var values:[Int]=[]
+            for _ in 0..<2 {
+                var value=0,shift=0,done=false
+                while i<bytes.count && shift<=30 {
+                    let b=Int(bytes[i])-63;i+=1
+                    guard b>=0 && b<=63 else{return nil}
+                    value |= (b & 31)<<shift;shift+=5
+                    if b<32 {done=true;break}
+                }
+                guard done else{return nil}
+                values.append((value & 1)==1 ? ~(value>>1) : value>>1)
+            }
+            lat+=values[0];lon+=values[1];count+=1
+            guard abs(lat)<=9_000_000,abs(lon)<=18_000_000,count<=50000 else{return nil}
+        }
+        return count>=2 ? count:nil
+    }
+}
+
 // Native time and GPS survive a suspended WebView. Units are milliseconds here, metres for distance.
 struct TrackRecordingState: Codable {
     var owner: String
@@ -28,6 +93,7 @@ struct TrackRecordingState: Codable {
     var points: [TrackFix] = []
     var finishedAt: Double?
     var native = true
+    var routePlan:TrackRoutePlan?
     var anchor: TrackFix?          // the last fix that counted toward distance (missing in older saved recordings: fine)
     // Spoken splits and auto-pause (#234 item 4). Optional so recordings saved by older builds still open.
     var voice: Bool?
@@ -135,6 +201,8 @@ enum NativeTrackVoiceText {
 // One small atomic manifest plus an append-only point journal. A torn final journal line is ignored on recovery.
 final class TrackRecordingFiles {
     let folder: URL
+    private var pinnedRecording:String?
+    private struct PinnedRoute:Codable {var owner:String;var id:String;var plan:TrackRoutePlan}
     init(folder: URL) throws {
         self.folder=folder
         try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
@@ -145,6 +213,7 @@ final class TrackRecordingFiles {
     }
     var manifest: URL { folder.appendingPathComponent("session.json") }
     var journal: URL { folder.appendingPathComponent("points.jsonl") }
+    var routeFile: URL { folder.appendingPathComponent("route.json") }
     private func write(_ data: Data, to url: URL) throws {
         #if os(iOS)
         try data.write(to:url,options:[.atomic,.completeFileProtectionUntilFirstUserAuthentication])
@@ -154,10 +223,20 @@ final class TrackRecordingFiles {
     }
     func save(_ state: TrackRecordingState, resetPoints: Bool = false) throws {
         if resetPoints { try write(Data(),to:journal) }
-        var metadata=state;metadata.points=[]
+        // The large pinned line is written once, rather than at every GPS checkpoint.
+        if let plan=state.routePlan {
+            if resetPoints || pinnedRecording != state.id {
+                try write(JSONEncoder().encode(PinnedRoute(owner:state.owner,id:state.id,plan:plan)),to:routeFile)
+                pinnedRecording=state.id
+            }
+        } else {
+            if FileManager.default.fileExists(atPath:routeFile.path) {try FileManager.default.removeItem(at:routeFile)}
+            pinnedRecording=nil
+        }
+        var metadata=state;metadata.points=[];metadata.routePlan=nil
         try write(JSONEncoder().encode(metadata),to:manifest)
         #if os(iOS)
-        for url in [manifest,journal] where FileManager.default.fileExists(atPath:url.path) {
+        for url in [manifest,journal,routeFile] where FileManager.default.fileExists(atPath:url.path) {
             try FileManager.default.setAttributes([.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],ofItemAtPath:url.path)
         }
         #endif
@@ -170,7 +249,14 @@ final class TrackRecordingFiles {
     func load(owner: String) throws -> TrackRecordingState? {
         guard FileManager.default.fileExists(atPath:manifest.path) else { return nil }
         var state=try JSONDecoder().decode(TrackRecordingState.self,from:Data(contentsOf:manifest))
+        if state.routePlan?.valid==false {state.routePlan=nil}
         guard state.owner==owner else { throw NSError(domain:"KinettaTrack",code:1,userInfo:[NSLocalizedDescriptionKey:"Recording belongs to another account."]) }
+        if FileManager.default.fileExists(atPath:routeFile.path) {
+            if let data=try? Data(contentsOf:routeFile),let saved=try? JSONDecoder().decode(PinnedRoute.self,from:data),
+               saved.owner==owner,saved.id==state.id,saved.plan.valid {
+                state.routePlan=saved.plan;pinnedRecording=state.id
+            } else {state.routePlan=nil;pinnedRecording=nil}
+        }
         if let data=try? Data(contentsOf:journal) {
             // Only complete records count. Partial final bytes cannot erase previous durable fixes.
             if !data.isEmpty && data.last != 10 {
@@ -190,6 +276,7 @@ final class TrackRecordingFiles {
         return state
     }
     func clear() throws {
-        for url in [manifest,journal] where FileManager.default.fileExists(atPath:url.path) { try FileManager.default.removeItem(at:url) }
+        for url in [manifest,journal,routeFile] where FileManager.default.fileExists(atPath:url.path) { try FileManager.default.removeItem(at:url) }
+        pinnedRecording=nil
     }
 }

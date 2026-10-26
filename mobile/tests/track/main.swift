@@ -55,3 +55,36 @@ check(e.accept(lat:0.0001,lon:10,accuracy:5,timestamp:3000,now:3000,alt:251,valt
 check(e.accept(lat:0.0002,lon:10,accuracy:5,timestamp:5000,now:5000)?.alt==nil,"older callers without altitude still record")
 check(TrackRecordingState.maxPoints==72000,"point limit raised")
 print("PASS native tracking state: GPS quality, pause/gaps, durable journal, interrupted recovery and account isolation")
+// A selected route survives the same journal recovery and never supplies measured distance/splits.
+let planJSON: [String:Any] = ["schema":1,"kind":"shared","id":23,"version":4,"name":"Fictional trail","sport":"run","distance_m":9999,
+    "line":"_p~iF~ps|U_ulLnnqC_mqNvxq`@","snapshot_key":String(repeating:"a",count:64),"warnings":["Manual section"],"attribution":["OpenStreetMap contributors"],"breaks":[],"downloadedAt":1000]
+let route=try JSONDecoder().decode(TrackRoutePlan.self,from:JSONSerialization.data(withJSONObject:planJSON))
+check(route.valid,"bounded route snapshot accepted")
+var pinned=s;pinned.routePlan=route
+let measured=pinned.distance,oldSplits=pinned.splits
+let routeFolder=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+let routeFiles=try TrackRecordingFiles(folder:routeFolder)
+try routeFiles.save(pinned,resetPoints:true)
+for fix in pinned.points {try routeFiles.append(fix)}
+var pinnedRestored=try routeFiles.load(owner:"fictional-account")!
+check(pinnedRestored.routePlan?.line==route.line && pinnedRestored.routePlan?.version==4,"route version and line survive termination")
+check(pinnedRestored.distance==measured && pinnedRestored.splits==oldSplits,"planned distance never replaces measured totals")
+pinnedRestored.recover(at:1200000)
+check(pinnedRestored.routePlan?.line==route.line,"pause/recovery keeps the pinned snapshot")
+let routeBytes=try Data(contentsOf:routeFiles.routeFile)
+try routeFiles.save(pinnedRestored)
+check(try Data(contentsOf:routeFiles.routeFile)==routeBytes,"GPS checkpoints do not rewrite the large route")
+let manifestJSON=try JSONSerialization.jsonObject(with:Data(contentsOf:routeFiles.manifest)) as! [String:Any]
+check(manifestJSON["routePlan"]==nil,"checkpoint manifest excludes route geometry")
+var corrupt=try JSONSerialization.jsonObject(with:routeBytes) as! [String:Any]
+corrupt["plan"]=["line":123,"schema":"invalid"]
+try JSONSerialization.data(withJSONObject:corrupt).write(to:routeFiles.routeFile)
+let withoutRoute=try routeFiles.load(owner:"fictional-account")!
+check(withoutRoute.routePlan==nil && withoutRoute.points.count==pinned.points.count,"a damaged optional route cannot discard the workout")
+var legacy=try JSONSerialization.jsonObject(with:JSONEncoder().encode(pinned)) as! [String:Any];legacy.removeValue(forKey:"routePlan")
+check(try JSONDecoder().decode(TrackRecordingState.self,from:JSONSerialization.data(withJSONObject:legacy)).routePlan==nil,"older journals still decode")
+var invalid=planJSON;invalid["line"]="??~"
+check(!(try JSONDecoder().decode(TrackRoutePlan.self,from:JSONSerialization.data(withJSONObject:invalid))).valid,"truncated routes rejected before recording")
+try routeFiles.clear();check(try routeFiles.load(owner:"fictional-account")==nil && !FileManager.default.fileExists(atPath:routeFiles.routeFile.path),"discard clears route and workout together")
+try FileManager.default.removeItem(at:routeFolder)
+print("PASS pinned route: bounded decoding, journal/recovery/account isolation, invalid optional metadata and measured-total independence")
