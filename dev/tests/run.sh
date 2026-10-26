@@ -109,6 +109,7 @@ echo "== in the app container"
 docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/cook_clarification_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_matching_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/coach_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py

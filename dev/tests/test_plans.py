@@ -88,6 +88,8 @@ for g in p.get('/api/goals')[1]: p.delete(f"/api/goals/{g['id']}")
 F = p.get('/api/fitness?days=60')[1]
 P = F['predictions']
 if P: check('predictions slow down with distance', all(P[i]['seconds'] / P[i]['distance_m'] < P[i + 1]['seconds'] / P[i + 1]['distance_m'] for i in range(len(P) - 1)), P)
+# the effort behind each prediction carries its date (2026-10-26: the phone showed "Invalid Date" without it)
+if P: check('predictions name the date they are based on', all(x['from'].get('start_time') for x in P), P)
 # each prediction carries your best ever at that distance (None if you never ran that far), which the green tile compares against
 if P: check('predictions carry the best at each distance', all('best_s' in x for x in P) and all(x['best_s'] is None or x['best_s'] > 0 for x in P), P)
 

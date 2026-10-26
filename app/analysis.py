@@ -324,21 +324,45 @@ def endurance_k(weekly_km):
     return 1.06 + 0.04 * min(1.0, max(0.0, (70 - weekly_km) / 55))
 
 
-def predict(meters, seconds, target_m, weekly_km):
+def personal_k(efforts, floor):
+    """How much this runner really slows as races get longer (2026-10-26, Ben: a 40:20 10K was predicting a 3:06
+    marathon a day after he ran 3:57). From their own recent full-length efforts, i.e. a best effort that was most of
+    its run (a race or hard run, not a fast stretch inside an easy one): the best short one (up to a half marathon) and
+    the best one at least twice as long (15 km or more). Riegel's exponent between those two is what the runner has
+    actually shown. It is never below the mileage-based value and at most PERSONAL_K_MAX, so one bad day (heat, a fade)
+    doesn't make every long prediction pessimistic. Without such a pair: the mileage-based value."""
+    full = [e for e in efforts if e.get('activity_m') and e['distance_m'] >= 0.8 * e['activity_m']]
+    shorts = [e for e in full if e['distance_m'] <= 21100]
+    if not shorts: return floor, None
+    s = max(shorts, key=lambda e: vdot(e['distance_m'], e['elapsed_s']))
+    longs = [e for e in full if e['distance_m'] >= max(15000, 2 * s['distance_m'])]
+    if not longs: return floor, None
+    l = max(longs, key=lambda e: vdot(e['distance_m'], e['elapsed_s']))
+    k = math.log(l['elapsed_s'] / s['elapsed_s']) / math.log(l['distance_m'] / s['distance_m'])
+    return min(PERSONAL_K_MAX, max(floor, k)), (s, l)
+
+
+PERSONAL_K_MAX = 1.20
+
+
+def predict(meters, seconds, target_m, weekly_km, k=None):
     """Race time (s) for target_m from one effort: Daniels for the same or a shorter race; for a longer one, whichever
-    is slower of Daniels and Riegel with the mileage-based exponent, so a fast mile doesn't promise a fast marathon."""
+    is slower of Daniels and Riegel (exponent k: the runner's own, else mileage-based), so a fast 10K doesn't promise a
+    fast marathon."""
     t = race_time(vdot(meters, seconds), target_m)
-    if target_m > meters: t = max(t, seconds * (target_m / meters) ** endurance_k(weekly_km))
+    if target_m > meters: t = max(t, seconds * (target_m / meters) ** (k or endurance_k(weekly_km)))
     return round(t)
 
 
 def predictions(efforts, weekly_km, targets):
-    """For each (meters, label) target: the best prediction over the efforts (dicts with distance_m and elapsed_s), and
-    the effort it came from. Longer efforts win the longer races, because stretching a short one costs more."""
+    """For each (meters, label) target: the best prediction over the efforts (dicts with distance_m, elapsed_s and
+    activity_m, the length of the run it came from), and the effort it came from. Longer efforts win the longer races,
+    because stretching a short one costs more."""
+    k, _ = personal_k(efforts, endurance_k(weekly_km))
     out = []
     for m, label in targets:
-        best = min(efforts, key=lambda e: predict(e['distance_m'], e['elapsed_s'], m, weekly_km), default=None)
-        if best: out.append({'label': label, 'distance_m': m, 'seconds': predict(best['distance_m'], best['elapsed_s'], m, weekly_km), 'from': best})
+        best = min(efforts, key=lambda e: predict(e['distance_m'], e['elapsed_s'], m, weekly_km, k), default=None)
+        if best: out.append({'label': label, 'distance_m': m, 'seconds': predict(best['distance_m'], best['elapsed_s'], m, weekly_km, k), 'from': best})
     return out
 
 

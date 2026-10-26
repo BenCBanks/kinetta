@@ -284,8 +284,9 @@ def current_vdot(c, uid):
 def run_predictions(c, uid, targets):
     """Race predictions from the best efforts (a mile or longer) of the last 90 days and the last 8 weeks' running
     (analysis.predictions). Shared by Progress > Fitness and the plan."""
-    effs = c.execute("""SELECT label, distance_m, elapsed_s, start_time, activity_id FROM best_efforts WHERE user_id = %s
-                        AND sport = 'run' AND distance_m >= 1609 AND elapsed_s > 0 AND start_time > now() - interval '90 days'""", (uid,)).fetchall()
+    effs = c.execute("""SELECT b.label, b.distance_m, b.elapsed_s, b.start_time, b.activity_id, a.distance_m AS activity_m
+                        FROM best_efforts b JOIN activities a ON a.id = b.activity_id WHERE b.user_id = %s AND a.user_id = %s
+                        AND b.sport = 'run' AND b.distance_m >= 1609 AND b.elapsed_s > 0 AND b.start_time > now() - interval '90 days'""", (uid, uid)).fetchall()
     effs = [e for e in effs if 25 <= analysis.vdot(e['distance_m'], e['elapsed_s']) <= 85]      # drop GPS glitches
     km = c.execute("""SELECT coalesce(sum(distance_m), 0) / 8000.0 AS km FROM activities WHERE user_id = %s AND sport = 'run'
                       AND start_time > now() - interval '56 days'""", (uid,)).fetchone()['km']
