@@ -91,7 +91,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
     }
     func begin(account: String, id: String, sport: String, label: String, kind: String?, gps: Bool,
                voice: Bool = false, autoPause: Bool = false, splitMetres: Double = 1000, routePlan:TrackRoutePlan? = nil,
-               intervals: IntervalPin? = nil, intervalVoice: Bool = true, intervalVibration: Bool = true,
+               intervals: IntervalPin? = nil, intervalVoice: Bool = true, intervalVibration: Bool = false,
                completion: @escaping (Error?) -> Void) {
         do {
             try check(account)
@@ -102,7 +102,6 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
             if let intervals {
                 _=try intervals.expanded()
                 guard gps,["run","walk"].contains(sport) else { throw fail("Intervals need an outdoor Run or Walk.") }
-                if intervalVibration && !NativeIntervalAlerts.vibrationAvailable { throw fail("Vibration is unavailable on this device. Turn it off or use an iPhone.") }
             }
             let action={
                 do {
@@ -116,10 +115,12 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
                         next.voice=voice;next.autoPause=autoPause;next.splits=[];next.autoMs=0;next.lastMove=now
                         next.splitMetres=splitMetres==1609.344 ? 1609.344 : 1000
                     }
-                    if let intervals { next.intervals=try IntervalState(pin:intervals,voice:intervalVoice,vibration:intervalVibration) }
+                    if let intervals { next.intervals=try IntervalState(pin:intervals,voice:intervalVoice,vibration:intervalVibration && NativeIntervalAlerts.vibrationAvailable) }
                     guard let files=self.files else { throw self.fail("Recording storage is unavailable.") }
                     try files.save(next,resetPoints:true);self.session=next
-                    self.startGPS();self.startIntervalTimer();self.deliverIntervals();completion(nil)
+                    self.startGPS()
+                    if intervals != nil && intervalVibration && !NativeIntervalAlerts.vibrationAvailable {self.message += " · Vibration unavailable; spoken and on-screen guidance continue according to your settings."}
+                    self.startIntervalTimer();self.deliverIntervals();completion(nil)
                 } catch { completion(error) }
             }
             authorize(gps:gps,action:action,completion:completion)
@@ -264,8 +265,8 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         case "end":NativeTrackVoice.shared.cancel();next.intervals?.end(at:elapsed,reason:"ended")
         case "alerts":
             guard let voice,let vibration else { throw fail("Choose both alert settings.") }
-            if vibration && !NativeIntervalAlerts.vibrationAvailable { throw fail("Vibration is unavailable on this device.") }
-            NativeTrackVoice.shared.cancel();next.intervals?.suppress();next.intervals?.voice=voice;next.intervals?.vibration=vibration
+            NativeTrackVoice.shared.cancel();next.intervals?.suppress();next.intervals?.voice=voice;next.intervals?.vibration=vibration && NativeIntervalAlerts.vibrationAvailable
+            if vibration && !NativeIntervalAlerts.vibrationAvailable {message="Vibration unavailable; spoken and on-screen guidance continue according to your settings."}
             if next.state=="recording" { next.intervals?.resumed() }
         default:throw fail("Unknown interval control.")
         }
@@ -277,9 +278,10 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         try check(account)
         guard session==nil,UIApplication.shared.applicationState == .active else { throw fail("Test alerts in the foreground before starting a recording.") }
         guard voice || vibration else { throw fail("Choose Voice or Vibration before testing alerts.") }
-        if vibration && !NativeIntervalAlerts.vibrationAvailable { throw fail("Vibration is unavailable on this device.") }
+        if !voice && vibration && !NativeIntervalAlerts.vibrationAvailable { throw fail("Vibration is unavailable here. Turn Voice on to test spoken prompts.") }
         if voice && !NativeTrackVoice.shared.say("Interval test. Run, then walk.",completion:{}) { throw fail("Voice is unavailable or interrupted.") }
-        if vibration && !NativeIntervalAlerts.vibrate({}) { throw fail("Vibration is unavailable on this device.") }
+        if vibration && NativeIntervalAlerts.vibrationAvailable {_=NativeIntervalAlerts.vibrate({})}
+        if vibration && !NativeIntervalAlerts.vibrationAvailable {return "Voice test requested. Optional vibration is unavailable here. Confirm what you heard; this does not verify a locked phone."}
         return "Foreground requests sent. Confirm what you heard or felt; this does not verify a locked phone."
     }
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -335,7 +337,7 @@ final class NativeTrackVoice: NSObject, AVSpeechSynthesizerDelegate {
     static let shared=NativeTrackVoice()
     private let synth=AVSpeechSynthesizer()
     private var callbacks:[ObjectIdentifier:() -> Void]=[:]
-    override private init() { super.init();synth.delegate=self }
+    override private init() { super.init();synth.delegate=self;synth.usesApplicationAudioSession=true }
     func cancel() {
         callbacks.removeAll();synth.stopSpeaking(at:.immediate)
         try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
@@ -464,7 +466,7 @@ class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
                 catch { call.reject("Review a complete supported interval preset before Start.");return }
             }
             r.begin(account:owner,id:call.getString("id") ?? "",sport:call.getString("sport") ?? "",label:call.getString("label") ?? "",kind:call.getString("sportLabel"),gps:call.getBool("gps") ?? false,
-                    voice:call.getBool("voice") ?? false,autoPause:call.getBool("autoPause") ?? false,splitMetres:call.getDouble("splitMetres") ?? 1000,routePlan:plan,intervals:pin,intervalVoice:call.getBool("intervalVoice") ?? true,intervalVibration:call.getBool("intervalVibration") ?? true) { error in
+                    voice:call.getBool("voice") ?? false,autoPause:call.getBool("autoPause") ?? false,splitMetres:call.getDouble("splitMetres") ?? 1000,routePlan:plan,intervals:pin,intervalVoice:call.getBool("intervalVoice") ?? true,intervalVibration:call.getBool("intervalVibration") ?? false) { error in
                 if let error=error { call.reject(error.localizedDescription);return }
                 do { call.resolve(try r.snapshot(account:owner,id:nil,since:0)) } catch { call.reject(error.localizedDescription) }
             }

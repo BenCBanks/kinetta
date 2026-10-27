@@ -19,6 +19,13 @@ for (t,index) in [(0.0,0),(180,1),(240,2),(420,3),(480,4),(660,5),(720,6)] {
 }
 check(timed.status=="complete" && timed.results.count==6,"Complete once, six results")
 let count=timed.effects.count;timed.advance(to:800);check(timed.effects.count==count,"No post-completion restart")
+var voiceOnly=try IntervalState(pin:fixtures.first { $0.name=="time" }!.pin,voice:true,vibration:false)
+for boundary in [0.0,180,240,420,480,660,720] {
+ voiceOnly.advance(to:boundary)
+ check(voiceOnly.effects.last?.voice=="pending" && voiceOnly.effects.allSatisfy { $0.vibration=="disabled" },"Every transition/completion retains a voice request with vibration off")
+}
+check(voiceOnly.status=="complete" && voiceOnly.results.count==6,"Voice-only intervals finish the same exact workout")
+try voiceOnly.validateStored()
 var omit=try state("omit");omit.advance(to:660);check(omit.status=="complete" && omit.results.count==5,"Final recovery omitted once")
 var mixed=try state("mixed")
 for t in [0.0,20,40,60,80,98] { mixed.advance(to:t,accepted:IntervalSample(time:t,distance:4*t,segment:0)) }
