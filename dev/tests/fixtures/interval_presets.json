@@ -1,0 +1,436 @@
+[
+  {
+    "name": "time",
+    "pin": {
+      "id": "29417091-1087-5ba5-8656-3547c6d80766",
+      "version": 1,
+      "content_hash": "0908997fbe25b08d1f37f141ea3fa5aaa4fad9abf1b3644ee598b54daa96b62f",
+      "definition": {
+        "schema": 1,
+        "name": "Demo intervals",
+        "description": "",
+        "blocks": [
+          {
+            "id": "main",
+            "repeat": 3,
+            "steps": [
+              {
+                "id": "run",
+                "action": "run",
+                "role": "effort",
+                "title": "",
+                "target": {
+                  "kind": "time",
+                  "amount": "3",
+                  "unit": "min"
+                }
+              },
+              {
+                "id": "walk",
+                "action": "walk",
+                "role": "recovery",
+                "title": "",
+                "target": {
+                  "kind": "time",
+                  "amount": "1",
+                  "unit": "min"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expected_steps": [
+      {
+        "key": "main:run:1",
+        "block": "main",
+        "execution": 1,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "time",
+        "target": 180.0
+      },
+      {
+        "key": "main:walk:1",
+        "block": "main",
+        "execution": 1,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "time",
+        "target": 60.0
+      },
+      {
+        "key": "main:run:2",
+        "block": "main",
+        "execution": 2,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "time",
+        "target": 180.0
+      },
+      {
+        "key": "main:walk:2",
+        "block": "main",
+        "execution": 2,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "time",
+        "target": 60.0
+      },
+      {
+        "key": "main:run:3",
+        "block": "main",
+        "execution": 3,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "time",
+        "target": 180.0
+      },
+      {
+        "key": "main:walk:3",
+        "block": "main",
+        "execution": 3,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "time",
+        "target": 60.0
+      }
+    ]
+  },
+  {
+    "name": "omit",
+    "pin": {
+      "id": "798d47ad-593a-578a-aa8a-cb4b935e5b1d",
+      "version": 1,
+      "content_hash": "7844ed2ada5cd198882145856f5fd4b045d72dc9bba318acbbbb4893bacd1c73",
+      "definition": {
+        "schema": 1,
+        "name": "Demo intervals",
+        "description": "",
+        "blocks": [
+          {
+            "id": "main",
+            "repeat": 3,
+            "steps": [
+              {
+                "id": "run",
+                "action": "run",
+                "role": "effort",
+                "title": "",
+                "target": {
+                  "kind": "time",
+                  "amount": "3",
+                  "unit": "min"
+                }
+              },
+              {
+                "id": "walk",
+                "action": "walk",
+                "role": "recovery",
+                "title": "",
+                "target": {
+                  "kind": "time",
+                  "amount": "1",
+                  "unit": "min"
+                }
+              }
+            ],
+            "omit_final_recovery": "walk"
+          }
+        ]
+      }
+    },
+    "expected_steps": [
+      {
+        "key": "main:run:1",
+        "block": "main",
+        "execution": 1,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "time",
+        "target": 180.0
+      },
+      {
+        "key": "main:walk:1",
+        "block": "main",
+        "execution": 1,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "time",
+        "target": 60.0
+      },
+      {
+        "key": "main:run:2",
+        "block": "main",
+        "execution": 2,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "time",
+        "target": 180.0
+      },
+      {
+        "key": "main:walk:2",
+        "block": "main",
+        "execution": 2,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "time",
+        "target": 60.0
+      },
+      {
+        "key": "main:run:3",
+        "block": "main",
+        "execution": 3,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "time",
+        "target": 180.0
+      }
+    ]
+  },
+  {
+    "name": "distance",
+    "pin": {
+      "id": "cd44366e-c642-583c-9614-7cd124f3c124",
+      "version": 1,
+      "content_hash": "f2637e16e222fca691b45741eef6af7304ecc0c7143c38de488ce22ecedf0a52",
+      "definition": {
+        "schema": 1,
+        "name": "Demo intervals",
+        "description": "",
+        "blocks": [
+          {
+            "id": "main",
+            "repeat": 3,
+            "steps": [
+              {
+                "id": "run",
+                "action": "run",
+                "role": "effort",
+                "title": "",
+                "target": {
+                  "kind": "distance",
+                  "amount": "400",
+                  "unit": "m"
+                }
+              },
+              {
+                "id": "walk",
+                "action": "walk",
+                "role": "recovery",
+                "title": "",
+                "target": {
+                  "kind": "distance",
+                  "amount": "100",
+                  "unit": "m"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expected_steps": [
+      {
+        "key": "main:run:1",
+        "block": "main",
+        "execution": 1,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "distance",
+        "target": 400.0
+      },
+      {
+        "key": "main:walk:1",
+        "block": "main",
+        "execution": 1,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "distance",
+        "target": 100.0
+      },
+      {
+        "key": "main:run:2",
+        "block": "main",
+        "execution": 2,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "distance",
+        "target": 400.0
+      },
+      {
+        "key": "main:walk:2",
+        "block": "main",
+        "execution": 2,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "distance",
+        "target": 100.0
+      },
+      {
+        "key": "main:run:3",
+        "block": "main",
+        "execution": 3,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "distance",
+        "target": 400.0
+      },
+      {
+        "key": "main:walk:3",
+        "block": "main",
+        "execution": 3,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "distance",
+        "target": 100.0
+      }
+    ]
+  },
+  {
+    "name": "mixed",
+    "pin": {
+      "id": "ba5a4275-a2ff-5e50-bc1b-7af32b7e97d2",
+      "version": 1,
+      "content_hash": "96ba9bf8cfe59f4dd8ff8203f054fb5ef15fdc238be754daf78bb0bc1c3038e2",
+      "definition": {
+        "schema": 1,
+        "name": "Demo intervals",
+        "description": "",
+        "blocks": [
+          {
+            "id": "main",
+            "repeat": 3,
+            "steps": [
+              {
+                "id": "run",
+                "action": "run",
+                "role": "effort",
+                "title": "",
+                "target": {
+                  "kind": "distance",
+                  "amount": "400",
+                  "unit": "m"
+                }
+              },
+              {
+                "id": "walk",
+                "action": "walk",
+                "role": "recovery",
+                "title": "",
+                "target": {
+                  "kind": "time",
+                  "amount": "1",
+                  "unit": "min"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expected_steps": [
+      {
+        "key": "main:run:1",
+        "block": "main",
+        "execution": 1,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "distance",
+        "target": 400.0
+      },
+      {
+        "key": "main:walk:1",
+        "block": "main",
+        "execution": 1,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "time",
+        "target": 60.0
+      },
+      {
+        "key": "main:run:2",
+        "block": "main",
+        "execution": 2,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "distance",
+        "target": 400.0
+      },
+      {
+        "key": "main:walk:2",
+        "block": "main",
+        "execution": 2,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "time",
+        "target": 60.0
+      },
+      {
+        "key": "main:run:3",
+        "block": "main",
+        "execution": 3,
+        "executions": 3,
+        "action": "run",
+        "role": "effort",
+        "title": "",
+        "kind": "distance",
+        "target": 400.0
+      },
+      {
+        "key": "main:walk:3",
+        "block": "main",
+        "execution": 3,
+        "executions": 3,
+        "action": "walk",
+        "role": "recovery",
+        "title": "",
+        "kind": "time",
+        "target": 60.0
+      }
+    ]
+  }
+]

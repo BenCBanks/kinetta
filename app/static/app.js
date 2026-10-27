@@ -1234,7 +1234,7 @@ async function showGetApp() {
     ${link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the Kinetta iPhone app</a>` : ''}
     ${me?.needs_email_confirm ? `<p class="small muted">We also sent a link to ${esc(who)}. Open it to confirm your email.</p>` : ''}
     <p class="small muted">Not on an iPhone? <a href="/" id="ga-out">Log out</a> and log in from a computer or another phone’s browser.</p></div></div>`;
-  $('#ga-out', root).onclick = async (e) => { e.preventDefault(); try { await api('/api/logout', json('POST', {})); } catch (x) { /* the login screen still shows */ } store.del('kinetta.getApp'); forgetKept(); App.me = null; history.replaceState(null, '', '/'); showLogin(); };
+  $('#ga-out', root).onclick = async (e) => { e.preventDefault(); try { await api('/api/logout', json('POST', {})); } catch (x) { /* the login screen still shows */ } store.del('kinetta.getApp'); globalThis.Intervals?.clear(); forgetKept(); App.me = null; history.replaceState(null, '', '/'); showLogin(); };
 }
 // A friend's invite link opened without the app (2026-10-26). With the iPhone app installed, the link opens the app
 // itself; here: who sent it, the app first on an iPhone, then sign up or log in on the web.

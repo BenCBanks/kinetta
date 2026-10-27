@@ -86,7 +86,7 @@ The Share button makes a picture of your own activity (map, time and pace) that 
 
 ## identity
 
-Other members can find you by name or username and see your profile, and anyone who can see an activity can see its cheers and comments. Your food log, weight, body details and private notes are never shared. Recipes are shared only with the people you send them to.
+Other members can find you by name or username and see your profile, and anyone who can see an activity can see its cheers and comments. Your food log, weight, body details and private notes are never shared. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
 
 ## ai-heading
 

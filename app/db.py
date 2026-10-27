@@ -1753,6 +1753,29 @@ MIGRATIONS = [
     CREATE POLICY all_rows ON track_recording_receipts FOR SELECT TO fit_all_readers USING(true);
     GRANT SELECT ON track_recording_receipts TO fit_readers;
     """,
+    # 78: private finite interval presets and retry receipts. Deleted IDs remain tombstones so a delayed save cannot recreate them.
+    """CREATE TABLE interval_presets(id uuid PRIMARY KEY,user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      definition jsonb,version integer NOT NULL DEFAULT 1 CHECK(version>0),updated timestamptz NOT NULL DEFAULT now(),
+      deleted_at timestamptz,UNIQUE(id,user_id),CHECK((definition IS NOT NULL)=(deleted_at IS NULL)));
+    CREATE INDEX interval_presets_owner ON interval_presets(user_id,updated DESC);
+    CREATE TABLE activity_intervals(user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recording_id uuid NOT NULL,activity_id bigint NOT NULL,payload jsonb NOT NULL,request_hash text NOT NULL,
+      PRIMARY KEY(user_id,recording_id),FOREIGN KEY(activity_id,user_id) REFERENCES activities(id,user_id) ON DELETE CASCADE);
+    CREATE INDEX activity_intervals_activity ON activity_intervals(user_id,activity_id);
+
+    CREATE TABLE interval_preset_receipts(user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,mutation_id uuid NOT NULL,
+      preset_id uuid NOT NULL,request_hash text NOT NULL,version integer NOT NULL,PRIMARY KEY(user_id,mutation_id),
+      FOREIGN KEY(preset_id,user_id) REFERENCES interval_presets(id,user_id) ON DELETE CASCADE);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['interval_presets','interval_preset_receipts','activity_intervals'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+        EXECUTE format('CREATE POLICY own_rows ON %I FOR SELECT TO fit_readers USING(user_id=fit_me())',t);
+        EXECUTE format('CREATE POLICY all_rows ON %I FOR SELECT TO fit_all_readers USING(true)',t);
+        EXECUTE format('GRANT SELECT ON %I TO fit_readers',t);
+      END LOOP;
+    END $$;
+    """,
+
 ]
 
 
