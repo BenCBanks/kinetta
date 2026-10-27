@@ -530,7 +530,23 @@ const Planner = (() => {
       };
     });
   }
-  return {open, profile};
+  // A server can switch path routing off (KINETTA_ROUTING_URL=off). No new path can then be found or saved, so say so
+  // plainly instead of opening an editor whose Retry can never work. Offline, the editor opens as before.
+  let paths = null;
+  async function pathsOff() {
+    if (paths === null) try { paths = (await api('/api/plan/services')).paths; } catch (_) { return false; }
+    return !paths;
+  }
+  async function unavailable(el, opts) {
+    if (!(await pathsOff())) return false;
+    el.innerHTML = `<div class="top plan-top">${backBtn(opts.back || 'Routes')}<h1 class="plan-title">${esc(opts.title)}</h1><span></span></div>
+      <div class="card empty"><b>Route planning is off for now</b>${opts.mode === 'segment'
+        ? 'Drawing on the map isn’t available yet. You can still make a segment from part of one of your own activities.'
+        : 'Finding mapped paths isn’t available yet. Your saved and shared routes still work in Track.'}</div>`;
+    wireBack(el, opts.backHref || '/routes');
+    return true;
+  }
+  return {open, profile, pathsOff, unavailable};
 })();
 
 // "Choose a stretch": two handles along a line (an activity section or a saved route), with the result on a map.
@@ -567,7 +583,8 @@ route(/^\/routes$/, 'track', async (el) => {
   const body=$('#rt-body',el);
   if(view==='shared')return RouteShare.browse(body);
   const sport = q.get('sport') || '', term = q.get('q') || '';
-  body.innerHTML = `<a class="primary wide" href="/routes/new">${svg('plus')}Plan a route</a>
+  const off = await Planner.pathsOff();
+  body.innerHTML = `${off ? '<p class="small muted">Planning new routes is off for now. Saved and shared routes still work.</p>' : `<a class="primary wide" href="/routes/new">${svg('plus')}Plan a route</a>`}
     <form class="searchbox" id="rt-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" value="${esc(term)}" placeholder="Search your routes" aria-label="Search your routes" maxlength="120" enterkeyhint="search"></form>
     <div class="chips" role="group" aria-label="Sport">${[['', 'All'], ...PLAN_SPORTS].map(([k, l]) => `<button type="button" class="chip" data-s="${k}" aria-pressed="${sport === k}">${l}</button>`).join('')}</div><div id="rt-list">${skel(2)}</div>`;
   const reload = (s, t) => go(`/routes?${new URLSearchParams({...(s ? {sport: s} : {}), ...(t ? {q: t} : {})})}`, {replace: true});
@@ -578,12 +595,14 @@ route(/^\/routes$/, 'track', async (el) => {
     box.innerHTML = rows.length ? `<div class="card list">${rows.map((r) => `<a class="row-link plan-route" href="/routes/plan/${r.id}">${r.line ? miniRoute(r.line, r.sport) : ''}<span class="grow"><b>${esc(r.name)}</b>
         <small class="muted">${esc(SPORT_NAMES[r.sport])} · ${U.dist(r.distance_m)} ${U.du()}${r.ascent_m != null ? ` · ↑ ${U.elev(r.ascent_m)} ${U.eu()}` : ''}</small></span>${svg('chev')}</a>`).join('')}</div>`
       : term || sport ? '<div class="card empty"><b>No routes match</b>Try another name or sport.</div>'
+      : off ? '<div class="card empty"><b>No saved routes yet</b>Routes people share with you appear under Shared routes.</div>'
       : '<div class="card empty"><b>Plan where you’ll go next</b>Tap points on the map, see the distance as you go, and save it. Then load it in Track before you start.</div>';
   });
 });
 
 route(/^\/routes\/new$/, 'track', async (el) => {
   const q = new URLSearchParams(location.search), aid = q.get('activity');
+  if (await Planner.unavailable(el, {title: 'New route', back: 'Routes', backHref: '/routes'})) return;
   const ed = Planner.open(el, {title: 'New route', key: 'new', back: 'Routes', backHref: '/routes', source: aid ? 'activity' : 'drawn'});
   if (aid && /^\d+$/.test(aid)) fromActivity(+aid, async (d) => {
     const s = ed.state(); Object.assign(s, {waypoints: d.waypoints.map((w) => [+w[0], +w[1]]), legs: d.legs.map((l) => ({mode:'path',pts:decode(l.line),rev:0,state:'pending',dist:null})), sport: d.sport});
@@ -603,6 +622,7 @@ async function fromActivity(aid, done) {   // copy positions from your own activ
 
 route(/^\/routes\/plan\/(\d+)\/edit$/, 'track', async (el, id) => {
   el.innerHTML = skel(1);
+  if (await Planner.unavailable(el, {title: 'Edit route', back: 'Route', backHref: `/routes/plan/${id}`})) return;
   let r; try { r = await api(`/api/planned-routes/${id}`); } catch (e) { showError(el, e); return; }
   const key = `route-${id}`;
   let plan = {...r, baseVersion: r.version, routeId: r.id, clientId: crypto.randomUUID()};
