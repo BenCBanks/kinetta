@@ -102,3 +102,8 @@ Sign-in history records successful web, native-app and separate portal sessions,
 Usage shows aggregate accounts, successful sign-ins, workouts and food entries added, workout sources and import job outcomes over 7, 30 or 90 UTC days. Workouts are counted when added, including historic imports, rather than when exercised. Food entries are counted when added, rather than the day they describe. Counts reflect stored records and decrease on deletion. A completed import job may include failed individual files.
 
 An active account is one that requested its signed-in profile (`/api/me`) that UTC day. This records one account/day rather than every request; it does not measure session duration, screen visits or background sync. Active-account and sign-in tracking begins at the migration and cannot reconstruct earlier history. Earlier active days display “Not tracked”. Account/day rows are retained for up to 365 days and do not contain food, chat, workout, location or health contents. The new tables have RLS enabled and no grants or policies for account SQL readers or AI tools.
+
+
+## Segments & times
+
+Review segment reports, appeals and held times from this section. It shows derived timing and quality checks for open cases, without private GPS streams or unrelated history. Decisions need a reason and the current reviewed version. Pause or resume every board here, and retry jobs that stopped after five attempts. See the [segment moderator guide](segments.md#moderator-guide) for retirement, takedown, appeals and recovery.

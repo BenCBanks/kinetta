@@ -234,7 +234,7 @@ route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // Me's shortcuts (owner 2026-10-18): small round icons for places one level deeper than the tab bar, never a repeat
 // of a tab. Friends and Goals live here instead of in the list below.
 const ME_SHORTCUTS = [['/plan', 'calendar', 'Plan'], ['/progress?view=fitness', 'flame', 'Fitness'], ['/progress?view=records', 'trophy', 'Records'],
-  ['/progress/routes', 'dist', 'Routes'], ['/me/goals', 'target', 'Goals'], ['/me/friends', 'people', 'Friends']];
+  ['/routes', 'dist', 'Routes'], ['/me/goals', 'target', 'Goals'], ['/me/friends', 'people', 'Friends']];
 async function meOverview(el) {
   // A greeting instead of the word "Me" (2026-10-16, Ben: "Hi, Ben"); your photo at the top right opens your profile,
   // which replaces the separate name row that used to sit under the chart.
@@ -493,7 +493,8 @@ function drawDetail(el, a) {
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
-      ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}`,
+      ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}
+      ${a.line ? '<div id="d-segments"></div>' : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
       ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
     charts: `${a.chart ? '<div class="card"><div id="d-charts"></div></div>' : ''}
@@ -526,6 +527,7 @@ function drawDetail(el, a) {
   show(want && want !== 'comments' ? want : 'overview');
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
+  const segBox = $('#d-segments', el); if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
   $('#d-send', el).onclick = () => shareOut(a);
   const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   ownSocial(el, a);
@@ -887,7 +889,7 @@ async function routePicture(a, trim) {
 // ---------- Matched route ----------
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn()}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
-  wireBack(el, '/progress/routes');
+  wireBack(el, '/routes?view=matched');
   await load(`/api/routes/${id}`, (r) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
     const pts = acts.filter((a) => a.moving_s && a.distance_m).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.moving_s / a.distance_m * 1000, id: a.id}));
@@ -906,7 +908,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
       <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
         <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
         <div class="r"><b class="num">${dur(a.moving_s)}</b><br><small class="muted num">${foot ? U.pace(a.moving_s / a.distance_m * 1000) + U.pu() : U.speed(a.distance_m / a.moving_s) + ' ' + U.su()}</small></div></a>`).join('')}</div>`;
-    wireBack(el, '/progress/routes');
+    wireBack(el, '/routes?view=matched');
     requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
     if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).catch(() => {}));
     $('#r-edit', el).onclick = () => sheet('Rename route', `<form class="form"><label>Name<input name="name" value="${esc(r.name)}" maxlength="120" enterkeyhint="done"></label>
@@ -926,7 +928,7 @@ const PVIEWS = [['totals', 'Totals', 'Distance by week, month and year', 'progre
   ['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
   ['lifting', 'Lifting', 'Every exercise, your bests and its history', 'workout', 'c-brand']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
-  ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
+  ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Routes', 'Plan routes, segments and loops you repeat', 'activity', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-brand'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
 const PPERIODS = [['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']];
 function pSport(q) {
@@ -1010,7 +1012,8 @@ route(/^\/progress$/, 'progress', async (el) => {
   q.set('sport', forView(sport, view)); q.set('period', period);
   await ({totals: pMileage, fitness: pFitness, records: pRecords, lifting: pLifting}[view])($('#p-body', el), q);
 });
-route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, view) => {
+route(/^\/progress\/routes$/, 'progress', async () => go('/routes', {replace: true}));   // one Routes library (#276)
+route(/^\/progress\/(trends|calendar|heatmap)$/, 'progress', async (el, view) => {
   const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
   pHead(el, view, (withSport ? sportBtn(forView(sport, view)) : '') + (view === 'trends' ? '<span class="rng" id="p-rng"></span>' : ''));
   wireSport(el, sport);
@@ -1537,6 +1540,7 @@ function deleteSheet() {
         catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}
         // Once the server confirms deletion, every cleanup gets its own chance.
         const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
+        await cleanup(()=>typeof PlanTrack!=='undefined'?PlanTrack.eraseDevice():null);
         await cleanup(()=>Native.forget({deleted:true}));
         await cleanup(()=>typeof KitChat!=='undefined'?KitChat.eraseDevice():null);
         await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);

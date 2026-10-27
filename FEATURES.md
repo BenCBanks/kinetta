@@ -245,3 +245,8 @@ Activity sharing: one 4:5 picture for texts, Instagram and anything else, openin
 - The activity picture is one size (1080×1350, 4:5). The map fills it and the details sit on a frosted, see-through card; start and finish markers show when not hidden. Route maps in the app show the same start and finish markers.
 - Notifications use a short title and full body. iOS owns final banner size. The Help catalog covers definitions and the updated flows.
 - Training-day nutrition guidance and automatic calorie adjustments are parked in `dev/deferred/training-food/`; see issue #236. The usual target and explicit day goals remain.
+
+
+## Planned routes and fixed segments (#272; implementation branch)
+
+Map editor and private route library, editable versions, GPX import/export and a saved-version Track overlay; immutable named segments, private matched times, opt-in public best-time boards and browser admin reports/appeals/holds with a global pause. See [routes](docs/routes.md) and [segments](docs/segments.md) for supported behavior, provider terms and acceptance gaps. Ordinary route sharing, a generation-based rebuild and physical-iPhone/provider release checks remain separate; implementation is not release acceptance.

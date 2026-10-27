@@ -13,6 +13,7 @@ import threading
 from .auth import current_user
 from . import request_log
 from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread
+from . import api_routes_plan, api_segments, segments
 
 @asynccontextmanager
 async def lifespan(app):
@@ -21,12 +22,15 @@ async def lifespan(app):
     threading.Thread(target=meal_reminders.scheduler,daemon=True).start()
     recipe_stop=threading.Event()
     recipe_worker=threading.Thread(target=recipe_import.cleanup,args=(recipe_stop,),daemon=True);recipe_worker.start()
+    segment_stop,segment_worker=segments.start_worker()      # segment times from new GPS activities and new segments (#278)
     try:yield
     finally:
-        recipe_stop.set();recipe_worker.join(timeout=3)
+        recipe_stop.set();recipe_worker.join(timeout=3);segment_stop.set();segment_worker.join(timeout=3)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(api_activities.router)
+app.include_router(api_routes_plan.router)
+app.include_router(api_segments.router)
 app.include_router(api_lifts.router)
 app.include_router(api_food.router)
 app.include_router(garmin_connect.router)     # before api_connections: its /connections/{kind} would catch these
