@@ -1243,6 +1243,25 @@ Settings → Edit profile opens the same profile editor as your own profile, wit
 
 Final food review and recipe-portion previews label missing macros as unknown. Storage placeholders never count as known zero nutrients; a zero supplied by the person or source still displays as zero. A mixed-food total stays unknown if any included food lacks that nutrient.
 
+
+### Planned routes and segment review (26 October 2026)
+
+Routes lives in Track, retaining the five tabs. My routes/Shared routes plan ahead; Progress → More holds Matched routes and Segments & times for completed efforts. Planned routes remain editable and private; Matched routes still compares completed activities. The map editor offers a Points list alongside map gestures and requires mapped paths and labels unavailable heights. Pending/unavailable connections are never straight fallback lines and cannot be saved. GPX/activity guide points are replanned and reviewed. Creating a segment requires a final immutable-course review; names, descriptions, direction, sport and path cannot be edited later. Boards default on at release, with each member off until they choose to join. The browser admin portal adds Segments & times for open reports, appeals, held times and a service-wide pause, with minimal derived checks and recorded reasons. Course retirement and permanent takedown are separate confirmed actions. See [routes](routes.md) and [segments](segments.md) for scope and limitations.
+
+
+### Deliberate route sharing (26 October 2026)
+
+Routes gains a Shared routes sub-tab while retaining the five main tabs. Owner sharing has separate public name/description fields, a protected recipient map and explicit acknowledgement before publication; private notes are never prefilled. The published route stays fixed until another reviewed update. Shared originals reauthorize on reads/foregrounding and hide unverifiable data; deliberate private copies are independent. Discovery uses compact audience choices and folded filters, with map-area search initiated explicitly and no live location. Route report review remains in the separate browser admin portal, limited to the currently shared projection; removal and dismissal require current material and exact-account confirmation. See [route sharing](route-sharing.md).
+
+Route following (#279 implementation): pre-start review keeps route choice separate from Start and activity audience. During a workout the pinned plan is dashed with direction arrows; the actual GPS trail is solid and location is a dot. Label all three and keep Pause/Resume/Finish large and reachable. Show along/remaining only with a confident match, and never turn planned length into measured totals. Downloads show their size/version and explicitly exclude an offline basemap. Browser native/GPS evidence remains labelled as a stand-in pending signed physical-iPhone checks.
+## Run/walk intervals · Track (26 October 2026)
+
+Intervals are an optional pre-start entry in Track, beside the activity/route choices. A sheet holds private presets, editing, exact expansion and alerts; no new main tab or retrospective Progress home. Loading a snapshot starts no recording and never changes sport or audience. A Run with Walk recovery stays one Run. Unsupported activity/platform selections require an explicit change or removal, including Lifting.
+
+The live card names the current Run/Walk action, remaining target, execution and next step. Skip/End are deliberate secondary controls, while existing Pause/Finish remain primary. Completion/end leaves normal recording running. Saved planned/actual history is private, with unknown measurements and skipped/ended steps stated plainly. Source deletion cannot change the active pin.
+
+Outdoor iPhone first; indoor later. Spoken guidance defaults on, optional vibration off; missing vibration never blocks a voice-enabled workout. The first release can be voice-only. Early builds disclose that locked, stationary and pocket spoken guidance has not passed physical acceptance; a foreground alert test is not that evidence. No permission is requested by merely opening the preset editor. A quiet pre-start position may use an already granted permission, while a new location request requires Locate me or Start. Use current Sky Blue tokens, 16px inputs, native keyboard dismissal, retained account-bound drafts and stable recording controls. See [run/walk contracts](run-walk-intervals.md).
+
 ### Same as yesterday restored (26 October 2026)
 
 Returning food users have a Same as yesterday action on empty Nutrition meals and in each populated meal’s Edit menu. It previews the previous day’s corresponding meal and names the source and selected destination dates before explicit Log this meal. Retries retain upload identities; the existing offline queue and durable Undo apply. It never replaces foods already logged or adds a competing Me shortcut. New users retain the food-log introduction.

@@ -234,7 +234,7 @@ route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // Me's shortcuts (owner 2026-10-18): small round icons for places one level deeper than the tab bar, never a repeat
 // of a tab. Friends and Goals live here instead of in the list below.
 const ME_SHORTCUTS = [['/plan', 'calendar', 'Plan'], ['/progress?view=fitness', 'flame', 'Fitness'], ['/progress?view=records', 'trophy', 'Records'],
-  ['/progress/routes', 'dist', 'Routes'], ['/me/goals', 'target', 'Goals'], ['/me/friends', 'people', 'Friends']];
+  ['/routes', 'dist', 'Routes'], ['/me/goals', 'target', 'Goals'], ['/me/friends', 'people', 'Friends']];
 async function meOverview(el) {
   // A greeting instead of the word "Me" (2026-10-16, Ben: "Hi, Ben"); your photo at the top right opens your profile,
   // which replaces the separate name row that used to sit under the chart.
@@ -489,11 +489,13 @@ function drawDetail(el, a) {
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
   const pane = {
-    overview: `${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
+    overview: `${a.has_intervals?'<section class="card" id="activity-interval-history"></section>':''}${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
-      ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}`,
+      ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}
+      ${a.route_plan?`<div class="card"><h2>Route you followed</h2><a href="${a.route_plan.source_kind==='shared'?'/routes/shared/':'/routes/plan/'}${a.route_plan.route_id}">${esc(a.route_plan.name)}</a><p class="small muted">Version ${a.route_plan.version} · Your recorded distance comes from your GPS trail. The original route may have changed or been removed.</p></div>`:''}
+      ${a.line ? '<div id="d-segments"></div>' : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
       ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
     charts: `${a.chart ? '<div class="card"><div id="d-charts"></div></div>' : ''}
@@ -526,8 +528,10 @@ function drawDetail(el, a) {
   show(want && want !== 'comments' ? want : 'overview');
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
+  const segBox = $('#d-segments', el); if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
   $('#d-send', el).onclick = () => shareOut(a);
   const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
+  if(a.has_intervals)globalThis.Intervals?.history($('#activity-interval-history',el),a.id);
   ownSocial(el, a);
   photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
@@ -926,7 +930,7 @@ const PVIEWS = [['totals', 'Totals', 'Distance by week, month and year', 'progre
   ['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
   ['lifting', 'Lifting', 'Every exercise, your bests and its history', 'workout', 'c-brand']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
-  ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Routes', 'Loops you repeat, and your trend on each', 'activity', 'c-green'],
+  ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Matched routes', 'Compare the loops you have recorded more than once', 'activity', 'c-green'], ['segments', 'Segments & times', 'Your fixed courses, personal times and leaderboards', 'route', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-brand'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
 const PPERIODS = [['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']];
 function pSport(q) {
@@ -1010,7 +1014,9 @@ route(/^\/progress$/, 'progress', async (el) => {
   q.set('sport', forView(sport, view)); q.set('period', period);
   await ({totals: pMileage, fitness: pFitness, records: pRecords, lifting: pLifting}[view])($('#p-body', el), q);
 });
-route(/^\/progress\/(trends|calendar|routes|heatmap)$/, 'progress', async (el, view) => {
+route(/^\/progress\/routes$/, 'progress', async el => { pHead(el,'routes',''); await pRoutes($('#p-body',el)); });
+route(/^\/progress\/segments$/, 'progress', async el => { pHead(el,'segments',''); await Segments.list($('#p-body',el)); });
+route(/^\/progress\/(trends|calendar|heatmap)$/, 'progress', async (el, view) => {
   const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
   pHead(el, view, (withSport ? sportBtn(forView(sport, view)) : '') + (view === 'trends' ? '<span class="rng" id="p-rng"></span>' : ''));
   wireSport(el, sport);
@@ -1520,6 +1526,7 @@ function emailSheet() {
 // delete my own account and everything in it (2026-10-11); needs the password, can't be undone
 function deleteSheet() {
   const account=readOwner(),login=App.me.login;
+  const recordingOwner=typeof TrackNative!=='undefined'?TrackNative.owner():null;
   sheet('Delete my account', `<form class="form" id="del">
     <input name="username" value="${esc(App.me.login)}" autocomplete="username" hidden>
     <p>This deletes your account and <b>everything</b> in it straight away: activities, routes, food log, weigh-ins, plans and the files you uploaded. It can't be undone.</p>
@@ -1537,12 +1544,15 @@ function deleteSheet() {
         catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}
         // Once the server confirms deletion, every cleanup gets its own chance.
         const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
+        await cleanup(()=>typeof TrackNative!=='undefined'?TrackNative.eraseDraft(recordingOwner):null);
+        await cleanup(()=>typeof PlanTrack!=='undefined'?PlanTrack.eraseDevice():null);
         await cleanup(()=>Native.forget({deleted:true}));
         await cleanup(()=>typeof KitChat!=='undefined'?KitChat.eraseDevice():null);
         await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
         await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
         await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
         await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));
+        await cleanup(()=>globalThis.Intervals?.clear());
         await cleanup(()=>forgetKept());await cleanup(()=>close());
         App.me=null;App.cache.clear();
         await cleanup(()=>netbar());await cleanup(()=>history.replaceState(null,'','/'));

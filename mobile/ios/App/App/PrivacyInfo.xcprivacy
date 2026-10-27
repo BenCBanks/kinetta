@@ -35,6 +35,9 @@
 	</array>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
+        <!-- Only elapsed workout/event intervals leave the device; raw boot-time readings never do. -->
+        <dict><key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key><array><string>35F9.1</string></array></dict>
 		<!-- the login token and server address are kept with Capacitor Preferences, which uses UserDefaults -->
 		<dict><key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryUserDefaults</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key><array><string>CA92.1</string></array></dict>

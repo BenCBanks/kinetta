@@ -25,8 +25,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     // through the same pending path a notification tap uses, so the app shows it once it's ready and signed in.
     private func openLink(_ activity: NSUserActivity) {
         guard activity.activityType == NSUserActivityTypeBrowsingWeb, let url = activity.webpageURL,
-              url.path.range(of: "^/add/[A-Za-z0-9_-]{1,40}$", options: .regularExpression) != nil else { return }
+              url.scheme == "https",
+              url.path.range(of: "^(/add/[A-Za-z0-9_-]{1,40}|/routes/shared/[0-9]{1,18})$", options: .regularExpression) != nil else { return }
         NativePushCenter.shared.pendingURL = url.path
+        if let host = url.host {
+            NativePushCenter.shared.pendingServer = "https://" + host + (url.port.map { ":\($0)" } ?? "")
+        }
         NativePushCenter.shared.plugin?.notifyListeners("notificationOpened", data: [:])
     }
 

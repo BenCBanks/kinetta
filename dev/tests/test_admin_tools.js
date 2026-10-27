@@ -24,7 +24,7 @@ function fixture(){
   const r=fixture();let release,after=0;r.c.confirmForm('Confirm','','',()=>new Promise(ok=>release=ok),()=>after++);r.c.form.onsubmit({preventDefault(){}});abandon(r.c);release({ok:true});await r.c.pending;assert.equal(after,0);
  }
  // A slow support/review response cannot replace a newly selected view or dialog.
- for(const fn of ['openPerson','reviewReport'])for(const abandon of [c=>c.revision++,c=>c.dialogRevision++,c=>{c.who=null}]){
+ for(const fn of ['openPerson','reviewReport','reviewSegmentEffort','reviewRouteReport'])for(const abandon of [c=>c.revision++,c=>c.dialogRevision++,c=>{c.who=null}]){
   const r=fixture();let release,opened=0;r.c.api=()=>new Promise(ok=>release=ok);r.c.modal=()=>opened++;const pending=r.c[fn](3);abandon(r.c);release({});await pending;assert.equal(opened,0,fn+' late reply');
  }
  // Older account-search results must not replace a newer query; failures leave an explicit retry.

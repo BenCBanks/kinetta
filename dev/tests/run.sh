@@ -27,7 +27,11 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js
+node dev/tests/test_route_drafts.js
+node dev/tests/test_route_sharing_ui.js
+node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
+node dev/tests/test_route_following.js
 node dev/tests/test_track.js
 node dev/tests/test_notification_rows.js
 node dev/tests/test_track_native.js
@@ -40,6 +44,8 @@ node dev/tests/test_kit_chat_ui.js
 node dev/tests/test_kit_memory_ui.js
 node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
+python3 dev/tests/test_intervals.py
+node dev/tests/test_interval_client.js
 node dev/tests/test_combined_week_ui.js
 node dev/tests/test_mileage_chart.js
 node dev/tests/test_fitness_chart_controls.js
@@ -103,13 +109,19 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_progress test_chart_weeks test_track test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
+for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_progress test_chart_weeks test_track test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"
+docker compose -p "$P" exec -T app python - < dev/tests/intervals_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/cook_clarification_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_matching_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/routes_segments_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/route_paths_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/segment_integrity_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/route_sharing_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/route_following_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/coach_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py

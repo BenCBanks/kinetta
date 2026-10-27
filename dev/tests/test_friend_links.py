@@ -85,7 +85,9 @@ class FriendLinks(unittest.TestCase):
         with patch.dict(os.environ, {'KINETTA_APNS_TEAM_ID': 'TEAMFICT01', 'KINETTA_APNS_TOPIC': 'com.kinetta.app'}):
             r = client().get('/.well-known/apple-app-site-association')
             self.assertEqual(r.status_code, 200); self.assertEqual(r.headers['content-type'], 'application/json')
-            self.assertEqual(r.json()['applinks']['details'][0], {'appIDs': ['TEAMFICT01.com.kinetta.app'], 'components': [{'/': '/add/*', 'comment': 'friend invite links'}]})
+            self.assertEqual(r.json()['applinks']['details'][0], {'appIDs': ['TEAMFICT01.com.kinetta.app'], 'components': [
+                {'/': '/add/*', 'comment': 'friend invite links'},
+                {'/': '/routes/shared/*', 'comment': 'signed-in shared route links'}]})
         ann = self.person('zz_test_fl_ann'); code = ann.get('/api/friends/link').json()['url'].rsplit('/', 1)[1]
         with db.connect() as d: d.execute("UPDATE users SET name = 'Ann <b>&' WHERE login = 'zz_test_fl_ann'")
         page = client().get('/add/' + code).text

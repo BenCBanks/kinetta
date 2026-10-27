@@ -78,13 +78,15 @@ New accounts share new activities with everyone on Kinetta. You can change this 
 
 Shared maps hide where a route starts and ends, but the rest of the route and its time can still hint at where you live or your routine. We strip location data from photos you upload.
 
+**Planned routes.** New route plans are private. If you choose to share one, Kinetta publishes the exact recipient preview with a public name/description and protected map; private notes, hidden endpoints, activity times and health measurements are excluded. Original access follows current audience, friendship, block and account rules. Deliberate private copies, exports and screenshots cannot be recalled. Deleting the creator removes the original and its source links from other people’s copies; those independent copies belong to their new owners. Route reports let administrators review only the currently shared stretch, with private moderation records. Sharing previews, publications and copy receipts are included in the owner’s export and account deletion. Route-only downloads stay on the device for the selected account and server; map tiles are not downloaded. Reusable shared-original caches are removed when a revocation is learned or the account changes. A workout already started retains its authorized route snapshot until it finishes or is discarded. Its plan identity/version is saved privately with the activity and included in export/deletion, without publishing the plan through activity sharing.
+
 ## sharing-pictures
 
 The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
 
 ## identity
 
-Other members can find you by name or username and see your profile, and anyone who can see an activity can see its cheers and comments. Your food log, weight, body details and private notes are never shared. Recipes are shared only with the people you send them to.
+Other members can find you by name or username and see your profile, and anyone who can see an activity can see its cheers and comments. Your food log, weight, body details and private notes are never shared. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
 
 ## ai-heading
 
@@ -104,7 +106,7 @@ Other services we use
 
 ## providers
 
-Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends confirmation and password-reset links, account safety notices, and replies to beta requests, which may include an invite link.
+Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. When you plan a route online, the routing and elevation services configured by the operator (by default Valhalla/FOSSGIS) receive the map points through Kinetta’s server. Place search sends your typed query and map area to the configured geocoder (by default Nominatim), only when you press Search. These services see the server’s address and may log requests; Kinetta sends no account, workout times or health measurements. Do not include private information in place searches. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends confirmation and password-reset links, account safety notices, and replies to beta requests, which may include an invite link.
 
 ## providers-connected
 

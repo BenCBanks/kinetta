@@ -91,8 +91,13 @@ jobs:
           "$RUNNER_TEMP/share-food-tests"
       - name: Test the durable activity recorder
         run: |
-          swiftc ios/App/App/TrackRecordingState.swift tests/track/main.swift -o "$RUNNER_TEMP/track-state-tests"
+          swiftc ios/App/App/TrackRecordingState.swift ios/App/App/IntervalState.swift tests/track/main.swift -o "$RUNNER_TEMP/track-state-tests"
           "$RUNNER_TEMP/track-state-tests"
+      - name: Test native interval contracts (fictional data; no device alerts)
+        working-directory: mobile
+        run: |
+          swiftc ios/App/App/TrackRecordingState.swift ios/App/App/IntervalState.swift tests/intervals/main.swift -o "$RUNNER_TEMP/interval-tests"
+          "$RUNNER_TEMP/interval-tests" ../dev/tests/fixtures/interval_presets.json
       - name: Build for the iPhone Simulator (unsigned)
         run: >
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug

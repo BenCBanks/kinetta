@@ -8,6 +8,7 @@ const TrackNative = (() => {
   async function invoke(method, args = {}, expected = readOwner()) {
     const account = owner();
     if (!supported || !account) throw new Error('Sign in to the iPhone app before recording.');
+    if(typeof plugin[method]!=='function')throw new Error('Update the Kinetta iPhone app to use this recording control. Your draft is kept.');
     const result = await Native.healthCall(plugin[method]({owner: account, ...args}), 'The iPhone recorder did not respond. Reopen Track to recover it.', method === 'start' || method === 'resume' ? 120000 : 15000);
     if (expected !== readOwner() || account !== owner()) throw Object.assign(new Error('The recording account changed.'), {stale: true});
     return result;
@@ -28,7 +29,16 @@ const TrackNative = (() => {
     // Capture the account before authentication disappears; never attach a new owner while stopping an old one.
     try { await Native.healthCall(plugin.detach({owner:account}), 'The iPhone recorder did not respond. Reopen Track before switching accounts.', 15000); } finally { if (boundAccount === account) { bound=null;boundAccount=null; } }
   }
+  async function eraseDraft(account=owner()||boundAccount) {
+    if(!supported||!account)return;
+    const guard=()=>{if(owner()&&owner()!==account||boundAccount&&boundAccount!==account)throw Error('The recording account changed. Its draft was kept.');};guard();
+    const local=(method,args={})=>Native.healthCall(plugin[method]({owner:account,...args}),'Local recording cleanup did not finish. Clear app storage before using a shared device.',15000);
+    let legacy=!plugin.erase;
+    if(!legacy){try{await local('erase');}catch(e){if(/UNIMPLEMENT/i.test(String(e.code||''))||/not implemented/i.test(e.message||''))legacy=true;else throw e;}}
+    if(legacy){await local('attach');guard();const result=await local('status',{since:0});guard();if(result.session?.id)await local('clear',{id:result.session.id});await local('detach');}
+    if(boundAccount===account){bound=null;boundAccount=null;}
+  }
   // One position for the map before Start, from Core Location: iOS remembers the permission, unlike the WebView's API.
-  const locate = () => Native.healthCall(plugin.locate(), 'Location did not answer. Tap Locate me to try again.', 30000);
-  return {supported, call, detach, owner, locate};
+  const locate = (options={}) => Native.healthCall(plugin.locate(options), 'Location did not answer. Tap Locate me to try again.', 30000);
+  return {supported, call, detach, eraseDraft, owner, locate};
 })();

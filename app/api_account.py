@@ -168,6 +168,11 @@ def erase(c, t):
     # A verified deletion request completes in the same transaction as the deletion; the account link is then cleared.
     for r in c.execute("UPDATE admin_data_requests SET status='completed',completed_at=now() WHERE user_id=%s AND kind='deletion' AND status='verified' RETURNING id", (t['id'],)).fetchall():
         audit(c, None, 'request.completed', r['id'])
+    # Segments you created (#278/#286): published ones are taken down (definition, path and name wiped; a tombstone keeps
+    # the ID from ever being reused), private ones deleted. Other people's workouts stay; only times on these courses go.
+    from . import api_segments
+    api_segments.take_down(c, [r['id'] for r in c.execute("SELECT id FROM segments WHERE creator_id = %s AND audience = 'everyone' AND status <> 'removed'", (t['id'],)).fetchall()], 'creator_deleted')
+    c.execute("DELETE FROM segments WHERE creator_id = %s AND audience = 'me'", (t['id'],))
     c.execute('DELETE FROM users WHERE id = %s', (t['id'],))
     if t['sql_role']:
         try:
