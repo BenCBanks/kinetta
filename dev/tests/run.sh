@@ -63,6 +63,7 @@ node dev/tests/test_social_profiles_ui.js
 node dev/tests/test_onboarding.js
 node dev/tests/test_welcome.js
 node dev/tests/test_home_food.js
+node dev/tests/test_yesterday_meal.js
 node dev/tests/test_home_loading.js
 node dev/tests/test_sheet_motion.js
 node dev/tests/test_navigation.js
