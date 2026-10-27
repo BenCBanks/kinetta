@@ -2304,14 +2304,17 @@ button.thread-food:active { opacity: .7; }
 
 /* Kit uses the same conversation surface and keyboard behavior as Add food. */
 .kit-settings {justify-self:end;}
-.kit-chat #kit-intro {margin:auto 0;overflow-y:auto;padding:24px 0;}
-.kit-chat #kit-intro h2 {margin:12px 0 8px;font:650 1.75rem/1.2 var(--font-display);}
-.kit-chat #kit-intro p {color:var(--tx2);max-width:30rem;}
-.kit-mark {color:var(--accent);}
-.kit-mark svg {width:28px;height:28px;}
-.kit-starters {display:grid;gap:10px;margin-top:24px;}
-.kit-starters button {display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;min-height:52px;font-size:1rem;white-space:normal;}
-.kit-starters svg {width:16px;flex:none;}
+/* Compact empty state (27 October 2026): sits just above the composer like a messaging app; suggestions are small chips. */
+.kit-chat #kit-intro {margin:auto 0 0;overflow-y:auto;padding:12px 0 8px;animation:kit-in .18s ease-out;}
+@keyframes kit-in {from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce) {.kit-chat #kit-intro {animation:none;}}
+.kit-chat #kit-intro h2 {display:flex;align-items:center;gap:8px;margin:0 0 12px;font:650 1.25rem/1.3 var(--font-display);}
+.kit-mark {color:var(--accent);display:inline-flex;}
+.kit-mark svg {width:20px;height:20px;}
+.kit-starters {display:flex;flex-wrap:wrap;gap:8px;}
+.kit-starters button {width:auto;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--tx);font-size:.9375rem;font-weight:550;text-align:left;white-space:normal;}
+.kit-fine {margin:12px 0 0;color:var(--tx3);font-size:.8125rem;}
+.kit-fine .linkbtn {font-size:inherit;min-height:0;padding:0;}
 .kit-chat #thread-messages:empty {flex:0;padding:0;}
 .kit-compose-row {grid-template-columns:minmax(0,1fr) 44px;}
 #kit-text {font-size:16px;resize:none;max-height:140px;min-height:44px;}
