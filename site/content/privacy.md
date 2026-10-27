@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 24, 2026
+Last updated October 27, 2026
 
 ## intro
 
@@ -36,7 +36,7 @@ What we keep
 
 ## collect-chat
 
-**Chats:** Kit and food-log conversations are private to you. A Kit chat is deleted when you leave it. Kit can remember up to 12 short notes about your goals and preferences; you can see, delete or turn these off in Kit settings, and notes older than six months are removed. We don't keep food photos after they're processed. When you import a recipe link we keep the recipe, not the web page.
+**Chats:** Kit and food-log conversations are private to you. A Kit chat is deleted when you leave it. Kit can remember up to 12 short notes about your goals and preferences; you can see or delete them in Me → Settings → What Kit remembers, or turn memory off in Kit, and notes older than six months are removed. We don't keep food photos after they're processed. When you import a recipe link we keep the recipe, not the web page.
 
 ## collect-other
 
@@ -60,11 +60,11 @@ If you connect Garmin Connect, Kinetta receives the activities you allow in Garm
 
 ## garmin-ai
 
-**AI and Garmin data.** Kit, the AI coach, can read your Garmin activities only after you turn on "Let Kit read my Garmin activities" in Me → Connections. This is separate from the main AI switch and from Apple Health, and it's off until you choose it. When it's on, Kinetta sends only the activities a question needs to the AI provider shown in the app (Google Gemini or Anthropic Claude). Turn the switch off at any time and Kit stops reading them. Garmin data, and anything made from it, is never used to train, test or improve AI models.
+**AI and Garmin data.** Kit, the AI coach, can read your Garmin activities only after you turn on "Let Kit read my Garmin activities" in Me → Settings → Connections. This is separate from the main AI switch and from Apple Health, and it's off until you choose it. When it's on, Kinetta sends only the activities a question needs to the AI provider shown in the app (Google Gemini or Anthropic Claude). Turn the switch off at any time and Kit stops reading them. Garmin data, and anything made from it, is never used to train, test or improve AI models.
 
 ## garmin-control
 
-To stop, tap Disconnect in Me → Connections or remove Kinetta in Garmin Connect. Kinetta then tells Garmin to stop sending data and deletes its sign-in tokens. Activities already imported stay in your account until you delete them, and deleting your account removes them.
+To stop, tap Disconnect in Me → Settings → Connections or remove Kinetta in Garmin Connect. Kinetta then tells Garmin to stop sending data and deletes its sign-in tokens. Activities already imported stay in your account until you delete them, and deleting your account removes them.
 
 ## sharing-heading
 
@@ -72,13 +72,19 @@ What other people can see
 
 ## sharing
 
-New accounts share new activities with everyone on Kinetta. You can change this to approved friends or only you when you sign up, in Settings → Sharing & privacy, or each time you save a recording. You also choose which details, like heart rate, are shown.
+New accounts share new activities with everyone on Kinetta. You can change this to approved friends or only you when you sign up, in Me → Settings → Sharing & privacy, or each time you save a recording. You also choose which details, like heart rate, are shown.
 
 ## sharing-maps
 
 Shared maps hide where a route starts and ends, but the rest of the route and its time can still hint at where you live or your routine. We strip location data from photos you upload.
 
+## sharing-routes
+
 **Planned routes.** New route plans are private. If you choose to share one, Kinetta publishes the exact recipient preview with a public name/description and protected map; private notes, hidden endpoints, activity times and health measurements are excluded. Original access follows current audience, friendship, block and account rules. Deliberate private copies, exports and screenshots cannot be recalled. Deleting the creator removes the original and its source links from other people’s copies; those independent copies belong to their new owners. Route reports let administrators review only the currently shared stretch, with private moderation records. Sharing previews, publications and copy receipts are included in the owner’s export and account deletion. Route-only downloads stay on the device for the selected account and server; map tiles are not downloaded. Reusable shared-original caches are removed when a revocation is learned or the account changes. A workout already started retains its authorized route snapshot until it finishes or is discarded. Its plan identity/version is saved privately with the activity and included in export/deletion, without publishing the plan through activity sharing.
+
+## sharing-segments
+
+**Segments and leaderboards.** A segment you create starts private to you. If you publish it, its name, description and path are visible to everyone on this Kinetta server, and publishing can't be undone. Leaderboards are opt-in: you appear only after you turn on Me → Settings → Sharing & privacy → Segment leaderboards, and then only with your best time from activities shared with Everyone, with a visible map and an outdoor, unassisted declaration. Garmin Connect activities are never shown on public boards. Turning leaderboards off removes your public times; you still see your own times privately.
 
 ## sharing-pictures
 
@@ -94,7 +100,7 @@ AI features (Kit)
 
 ## ai
 
-When you set up your account, Kinetta asks whether to turn on Kit's AI features. You can turn them on or off at any time in Me → AI features; when they're off, nothing is sent. When they're on, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Apple Health and Garmin data each need a separate yes before they're included (see Garmin above). You can change these choices in Me.
+When you set up your account, Kinetta asks whether to turn on Kit's AI features. You can turn them on or off at any time with the AI features switch in Me → Settings; when they're off, nothing is sent. When they're on, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Apple Health and Garmin data each need a separate yes before they're included (see Garmin above). You can change these choices in Me → Settings.
 
 ## provider-retention
 
@@ -106,7 +112,7 @@ Other services we use
 
 ## providers
 
-Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. When you plan a route online, the routing and elevation services configured by the operator (by default Valhalla/FOSSGIS) receive the map points through Kinetta’s server. Place search sends your typed query and map area to the configured geocoder (by default Nominatim), only when you press Search. These services see the server’s address and may log requests; Kinetta sends no account, workout times or health measurements. Do not include private information in place searches. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends confirmation and password-reset links, account safety notices, and replies to beta requests, which may include an invite link.
+Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. When you plan a route online, the routing and elevation services configured by the operator (by default Valhalla/FOSSGIS) receive the map points through Kinetta’s server. Place search sends your typed query and map area to the configured geocoder (by default Nominatim), only when you press Search. These services see the server’s address and may log requests; Kinetta sends no account, workout times or health measurements. Do not include private information in place searches. Route planning and place search are switched off on the hosted beta for now, so nothing is sent to these services until they are turned back on. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends confirmation and password-reset links, account safety notices, and replies to beta requests, which may include an invite link.
 
 ## providers-connected
 
@@ -134,7 +140,7 @@ Your choices
 
 ## choices
 
-In Me you can change your details, sharing, AI and notification settings. You can edit or delete any activity, food entry or weigh-in to correct it. Me → Your data lets you download everything, including original activity files, or delete your account. Deleting your account removes your data and files right away, except for the backups described above.
+In Me → Settings you can change your details, sharing, AI and notification settings. You can edit or delete any activity, food entry or weigh-in to correct it. Me → Settings lets you download everything, including original activity files, or delete your account. Deleting your account removes your data and files right away, except for the backups described above.
 
 ## security-heading
 
