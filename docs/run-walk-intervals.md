@@ -1,6 +1,6 @@
 # Run/walk intervals in Track
 
-Implementation for #274, selected by the owner on 26 October 2026. Outdoor iPhone first, with spoken prompts as the first-release guidance; vibration is optional and off initially. Indoor/treadmill, Watch and Android guidance remain later work. This branch is a review build, not a claim of physical acceptance or release.
+Implementation for #274, selected by the owner on 26 October 2026. Outdoor iPhone first, with spoken prompts as the only guidance (vibration option removed 27 October 2026; the native vibration request path remains but the app always asks for voice only). Indoor/treadmill, Watch and Android guidance remain later work. This branch is a review build, not a claim of physical acceptance or release.
 
 Track → Intervals is the single authoring/loading home. A browser can save private presets and preview the exact sequence. Choosing a preset does not start a recording. The iPhone recorder receives a complete immutable copy only after Start. Run phases and Walk recovery remain one activity of the deliberately selected sport.
 
@@ -30,7 +30,7 @@ Private results are validated in the same transaction as activity save. Before u
 - Core Haptics and UIKit tap feedback are not used as evidence of locked delivery. Apple's [haptic preparation guidance](https://developer.apple.com/documentation/corehaptics/preparing-your-app-to-play-haptics) describes background/suspension stoppage.
 - No silent-audio keepalive, dummy GPS, push dependency, background-task abuse or undocumented API is added. No local notifications/alarms are pre-scheduled, so pause or skip cannot leave a notification instructing the old action. [AlarmKit](https://developer.apple.com/videos/play/wwdc2025/230/) is not adopted: its newer OS/permission/system-alarm behavior is a separate product decision; minimum iOS remains 15.
 
-The owner accepts voice-only guidance for the first release. Voice defaults on and vibration defaults off; existing explicit choices are retained. Before Start, capabilities explicitly say locked/stationary spoken delivery is **unverified**, indoor guidance is unavailable, and optional vibration may be unavailable. If voice is selected, missing vibration produces a clear explanation and a voice-only session. It is not a release blocker. This early build requires acknowledgement of that limit. A foreground Test alerts action requests no recording or GPS and cannot certify background delivery. Voice-only release acceptance depends on actual spoken delivery in the advertised modes, not on vibration. Optional vibration remains separately unverified until demonstrated; do not claim either channel physically accepted from an API callback, browser stand-in or Simulator build.
+The owner accepts voice-only guidance, and on 27 October 2026 removed the vibration option and the pre-Start acknowledgement checkbox to keep the screens simple. Start always asks the recorder for voice on, vibration off and interval auto-pause off; older saved alert choices are ignored. The Intervals sheet carries one short note that locked/stationary spoken delivery is an early version to check. A foreground Test voice action requests no recording or GPS and cannot certify background delivery.
 
 | Mode | Logical progression / spoken guidance acceptance |
 | --- | --- |
