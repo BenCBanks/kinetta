@@ -92,3 +92,5 @@ Physical acceptance on an updated iPhone: installed/missing Instagram, actual In
 ## Shared route links (#277)
 
 Universal links for `/routes/shared/<id>` use the existing pending-navigation bridge and wait for sign-in. The native bridge carries the source server origin; JavaScript refuses to navigate a route ID on a different currently selected server. Notification paths remain restricted. AASA adds only the shared-route prefix; signed-out web previews remain generic. Physical Messages/cold-launch/login/server-switch and system-share behavior need a signed-device check; unsigned CI only proves the build.
+
+Planned routes: Track can pin a bounded route snapshot into its native recording journal. Status snapshots omit unchanged geometry on incremental point reads; recovery restores the full plan, and account deletion erases the journal independently of decoding it. Older builds without this capability require an update for route-guided starts. See [route following](../docs/route-following.md) for software behavior and physical-device release checks.

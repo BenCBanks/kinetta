@@ -51,8 +51,8 @@ const Plan = {
 const planDraftKey = key => App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null;
 const PlanTrack = {
   key: () => App.me ? `kinetta.trackRoute:${serverKey()}:${App.me.id}` : null,
-  get() { const k = PlanTrack.key(); return k ? store.get(k) : null; },
-  set(r) { const k = PlanTrack.key(); if (k) r ? store.set(k, r) : store.del(k); },
+  get() { const k=PlanTrack.key(),r=k?store.get(k):null;if(!r||typeof RouteDownloads==='undefined')return r;try{return RouteDownloads.clean({...r,kind:r.kind||'owned'});}catch(_){return null;} },
+  set(r) { const k=PlanTrack.key();if(!k)return;if(!r){store.del(k);return;}if(typeof RouteDownloads==='undefined'){store.set(k,r);return;}const complete=RouteDownloads.save(r);try{localStorage.setItem(k,JSON.stringify(complete));}catch(_){throw Error('The route download is kept, but this device could not select it. Free some storage and retry.');}return complete; },
   eraseDevice() {
     if (!App.me) return;
     const prefix = planDraftKey('');
@@ -60,9 +60,10 @@ const PlanTrack = {
     store.del(PlanTrack.key());
     sessionStorage.removeItem(`kinetta.segmentReview:${serverKey()}:${App.me.id}`);
     if (typeof RouteShare !== 'undefined') RouteShare.eraseDevice();
+    if (typeof RouteDownloads !== 'undefined') RouteDownloads.eraseDevice();
     if (typeof Segments !== 'undefined') Segments.pending = null;
   },
-  from(r) { return {id: r.id, version: r.loaded_version || r.version, name: r.name, sport: r.sport, distance_m: r.distance_m, line: r.full_line || r.line}; },
+  from(r) { return typeof RouteDownloads!=='undefined'?RouteDownloads.fromOwned(r):{id: r.id, version: r.loaded_version || r.version, name: r.name, sport: r.sport, distance_m: r.distance_m, line: r.full_line || r.line}; },
 };
 
 // ---------- the map editor ----------
@@ -500,8 +501,10 @@ const Planner = (() => {
                       source: opts.source || 'drawn', base_version: S.baseVersion};
         try {
           const r = S.routeId ? await api('/api/planned-routes/' + S.routeId, json('PUT', body)) : await api('/api/planned-routes', json('POST', body));
+          S.routeId=r.id;S.baseVersion=r.version;keepDraft();
+          if(useIt)PlanTrack.set(PlanTrack.from({...r,full_line:Plan.enc(st.line)}));
           await forget(); invalidate('/api/planned-routes'); close();
-          if (useIt) { PlanTrack.set(PlanTrack.from({...r, full_line: Plan.enc(st.line)})); toast('Route ready in Track'); go('/track'); }
+          if (useIt) { toast('Route ready in Track'); go('/track'); }
           else { toast('Route saved'); go(`/routes/plan/${r.id}`, {replace: true}); }
         } catch (x) {
           $$('button', form).forEach((y) => y.disabled = false); btn.textContent = useIt ? 'Save and use in Track' : 'Save';
@@ -617,7 +620,7 @@ route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
   await load(`/api/planned-routes/${id}`, (r) => {
     const body = $('#rp-body', el); if (!body) return;
     const full = Plan.enc(Plan.line(r.legs.map((l) => ({line: l.line}))));
-    const chosen = PlanTrack.get()?.id === r.id;
+    const chosen = PlanTrack.get()?.id === r.id&&PlanTrack.get()?.kind!=='shared';
     body.innerHTML = `<h1>${esc(r.name)}</h1><p class="muted">${esc(SPORT_NAMES[r.sport])} · Planned route · private to you</p>
       <div class="plan-detail-map" id="rp-map"></div>
       <div class="bigstat">${stat('Distance', `${U.dist(r.distance_m)} ${U.du()}`)}${stat('Climb', r.ascent_m != null ? `${U.elev(r.ascent_m)} ${U.eu()}` : 'Unknown')}${stat('Descent', r.descent_m != null ? `${U.elev(r.descent_m)} ${U.eu()}` : 'Unknown')}</div>
@@ -625,7 +628,7 @@ route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
       ${r.description ? `<p class="plan-notes">${esc(r.description)}</p>` : ''}
       ${r.elevation ? '<div class="card"><h2>Elevation</h2><div id="rp-profile"></div><p class="small muted">Approximate heights from satellite data.</p></div>' : ''}
       <button class="primary wide" id="rp-use">${svg('track')}${chosen ? 'In Track now · open Track' : 'Use in Track'}</button>
-      <div class="card list">
+      <div id="route-device-tools"></div><div class="card list">
         <a class="row-link" href="/routes/plan/${r.id}/edit">${svg('edit')}<span class="grow">Edit route</span>${svg('chev')}</a>
         <button class="row-link" id="rp-rename">${svg('edit')}<span class="grow">Rename</span>${svg('chev')}</button>
         <button class="row-link" id="rp-copy">${svg('plus')}<span class="grow">Duplicate<small class="muted">An independent copy</small></span>${svg('chev')}</button>
@@ -636,7 +639,9 @@ route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
       <p class="small muted">Version ${r.version} · updated ${esc(fdate(r.updated, {month: 'short', day: 'numeric', year: 'numeric'}))}. Saving a route never adds an activity, totals or leaderboard times.</p>`;
     mapInto($('#rp-map', body), [full], {sport: r.sport}).catch(() => {});
     if (r.elevation) Planner.profile($('#rp-profile', body), r.elevation);
-    $('#rp-use', body).onclick = () => { PlanTrack.set(PlanTrack.from({...r, full_line: full})); go('/track'); };
+    RouteDownloads.tools($('#route-device-tools',body),RouteDownloads.fromOwned({...r,full_line:full}));
+    $('#rp-use',body).onclick=async e=>{const button=e.currentTarget,alive=()=>body.isConnected&&shareOwner===readOwner();if(!alive())return;button.disabled=true;
+      try{await RouteDownloads.choose('owned',r.id,{version:r.loaded_version||r.version,alive});if(alive())go('/track');}catch(x){if(alive())toast(x.message);}finally{if(alive())button.disabled=false;}};
     $('#rp-share', body).onclick = () => { if (body.isConnected && shareOwner === readOwner()) RouteShare.owner(r); };
     $('#rp-rename', body).onclick = () => sheet('Rename route', `<form class="form" id="rn"><label>Name<input name="name" maxlength="120" required value="${esc(r.name)}"></label><label>Notes<textarea name="d" maxlength="2000" rows="2">${esc(r.description || '')}</textarea></label><button class="primary wide">Save</button></form>`, (b, close) => {
       $('#rn', b).onsubmit = async (e) => { e.preventDefault(); try { await api(`/api/planned-routes/${id}`, json('PATCH', {name: e.target.elements.name.value, description: e.target.elements.d.value || null})); close(); invalidate('/api/planned-routes'); render(); } catch (x) { toast(x.message); } }; });
@@ -652,6 +657,6 @@ route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
       onUse: async (a, z, close) => { close(); Segments.review({sport: r.sport, line: Plan.enc(Plan.slice(decode(full), a, z)), source: 'route'}); }});
     $('#rp-del', body).onclick = () => sheet('Delete this route?', '<p>This deletes the route and its earlier versions. Activities you recorded with it, copies, and segments made from it stay.</p><button class="primary danger-btn wide" data-del>Delete route</button><button class="ghost wide" data-keep>Keep it</button>', (b, close) => {
       $('[data-keep]', b).onclick = close;
-      $('[data-del]', b).onclick = async () => { try { await api(`/api/planned-routes/${id}`, {method: 'DELETE'}); if (PlanTrack.get()?.id === r.id) PlanTrack.set(null); close(); invalidate('/api/planned-routes'); toast('Route deleted'); go('/routes', {replace: true}); } catch (x) { toast(x.message); } }; });
+      $('[data-del]', b).onclick = async () => { try { await api(`/api/planned-routes/${id}`, {method: 'DELETE'}); RouteDownloads.remove('owned',r.id);RouteDownloads.remove('shared',r.id);if (PlanTrack.get()?.id === r.id) PlanTrack.set(null); close(); invalidate('/api/planned-routes'); toast('Route deleted'); go('/routes', {replace: true}); } catch (x) { toast(x.message); } }; });
   });
 });

@@ -19,18 +19,22 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
     static var now: Double { Date().timeIntervalSince1970*1000 }
     override private init() { super.init();manager.delegate=self }
     private func fail(_ text: String) -> NSError { NSError(domain:"KinettaTrack",code:1,userInfo:[NSLocalizedDescriptionKey:text]) }
+    private func storage(_ account:String) throws -> TrackRecordingFiles {
+        guard !account.isEmpty,account.count<=2000 else {throw fail("Log in before recording.")}
+        let base=try FileManager.default.url(for:.applicationSupportDirectory,in:.userDomainMask,appropriateFor:nil,create:true)
+        let hash=SHA256.hash(data:Data(account.utf8)).map {String(format:"%02x",$0)}.joined()
+        return try TrackRecordingFiles(folder:base.appendingPathComponent("Track/"+hash,isDirectory:true))
+    }
     func attach(_ account: String) throws {
         guard !account.isEmpty,account.count<=2000 else { throw fail("Log in before recording.") }
         guard account != owner else { return }
         try detach()
-        let base=try FileManager.default.url(for:.applicationSupportDirectory,in:.userDomainMask,appropriateFor:nil,create:true)
-        let hash=SHA256.hash(data:Data(account.utf8)).map { String(format:"%02x",$0) }.joined()
-        let nextFiles=try TrackRecordingFiles(folder:base.appendingPathComponent("Track/"+hash,isDirectory:true))
+        let nextFiles=try storage(account)
         var restored=try nextFiles.load(owner:account)
         if restored?.state=="recording",restored?.gps==true {
             restored?.recover(at:Self.now)
             if let restored=restored { try nextFiles.save(restored) }
-            message="Recording was interrupted. Your saved route is kept; resume when ready."
+            message="Recording was interrupted. Your recording is kept; resume when ready."
         } else { message="" }
         files=nextFiles;session=restored;owner=account
     }
@@ -48,24 +52,37 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         guard owner != nil else { return }
         try check(account);try detach()
     }
+    func erase(account:String) throws {
+        guard owner==nil || owner==account else {throw fail("The recording account changed. Its draft was kept.")}
+        permissionTimeout?.cancel();permissionAction=nil
+        let reject=permissionFailure;permissionFailure=nil;reject?("The account was deleted.")
+        manager.stopUpdatingLocation()
+        defer {session=nil;files=nil;owner=nil;message=""}
+        // Erasure must not need to decode a damaged journal, or recreate it on a later detach.
+        let target:TrackRecordingFiles
+        if let files {target=files} else {target=try storage(account)}
+        try target.clear()
+    }
     func check(_ account: String, id: String? = nil) throws {
         guard account==owner else { throw fail("The recording account changed. Reopen Track.") }
         if let id=id,session?.id != id { throw fail("The recording changed. Reopen Track before continuing.") }
     }
     func begin(account: String, id: String, sport: String, label: String, kind: String?, gps: Bool,
-               voice: Bool = false, autoPause: Bool = false, splitMetres: Double = 1000,
+               voice: Bool = false, autoPause: Bool = false, splitMetres: Double = 1000, routePlan:TrackRoutePlan? = nil,
                completion: @escaping (Error?) -> Void) {
         do {
             try check(account)
             guard session==nil else { throw fail("Finish or discard the existing recording first.") }
             guard UUID(uuidString:id) != nil,["run","ride","walk","hike","swim","row","ski","workout","other"].contains(sport),
                   !label.isEmpty,label.count<=60,(kind?.count ?? 0)<=60 else { throw fail("Choose a valid activity.") }
+            if let routePlan,(!routePlan.valid || !gps) {throw fail("Open and review a valid outdoor route before starting.")}
             let action={
                 do {
                     try self.check(account)
                     guard self.session==nil else { throw self.fail("Another recording has already started.") }
                     let now=Self.now
                     var next=TrackRecordingState(owner:account,id:id,sport:sport,label:label,sportLabel:kind,gps:gps,start:now,activeAt:now,checkpoint:now)
+                    next.routePlan=routePlan
                     if gps {
                         next.voice=voice;next.autoPause=autoPause;next.splits=[];next.autoMs=0;next.lastMove=now
                         next.splitMetres=splitMetres==1609.344 ? 1609.344 : 1000
@@ -129,12 +146,13 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
     }
     func snapshot(account: String, id: String?, since: Int) throws -> [String:Any] {
         try check(account)
-        guard let session=session else { return ["session":NSNull(),"message":message] }
-        let offset=id==session.id ? min(session.points.count,max(0,since)) : 0
+        guard let session=session else { return ["session":NSNull(),"message":message,"routePlanSupport":1] }
+        let offset=id==session.id && since<=session.points.count ? max(0,since) : 0
         var partial=session;partial.points=Array(session.points.dropFirst(offset))
         var result=try JSONSerialization.jsonObject(with:JSONEncoder().encode(partial)) as! [String:Any]
+        if offset>0 {result.removeValue(forKey:"routePlan")} else if session.routePlan==nil {result["routePlan"]=NSNull()}
         result["pointOffset"]=offset
-        return ["session":result,"message":message]
+        return ["session":result,"message":message,"routePlanSupport":1]
     }
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status=manager.authorizationStatus
@@ -203,8 +221,9 @@ final class NativeTrackLocator: NSObject, CLLocationManagerDelegate {
     private var timeout: DispatchWorkItem?
     override private init() { super.init();manager.delegate=self;manager.desiredAccuracy=kCLLocationAccuracyNearestTenMeters }
     private func fail(_ text: String) -> NSError { NSError(domain:"KinettaTrack",code:2,userInfo:[NSLocalizedDescriptionKey:text]) }
-    func locate(_ done: @escaping (Result<CLLocation,Error>) -> Void) {
+    func locate(quiet:Bool=false,_ done: @escaping (Result<CLLocation,Error>) -> Void) {
         guard CLLocationManager.locationServicesEnabled() else { done(.failure(fail("Location Services are off. Enable them in iPhone Settings.")));return }
+        if quiet && ![CLAuthorizationStatus.authorizedAlways,.authorizedWhenInUse].contains(manager.authorizationStatus) {done(.failure(fail("Location has not been allowed yet.")));return}
         // A fix from the last minute is good enough to centre the map, and shows at once.
         if let last=manager.location,last.timestamp.timeIntervalSinceNow > -60,last.horizontalAccuracy>=0,last.horizontalAccuracy<=100 { done(.success(last));return }
         waiting.append(done)
@@ -241,13 +260,13 @@ final class NativeTrackLocator: NSObject, CLLocationManagerDelegate {
 class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
     let identifier="KinettaTrackPlugin"
     let jsName="KinettaTrack"
-    let pluginMethods: [CAPPluginMethod] = ["attach","start","status","pause","resume","finish","clear","detach","locate"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
+    let pluginMethods: [CAPPluginMethod] = ["attach","start","status","pause","resume","finish","clear","detach","erase","locate"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
     // Only a position for the preview map: nothing is stored or sent to the server.
     @objc func locate(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            NativeTrackLocator.shared.locate { result in
+            NativeTrackLocator.shared.locate(quiet:call.getBool("quiet") ?? false) { result in
                 switch result {
-                case .success(let l): call.resolve(["lat":l.coordinate.latitude,"lon":l.coordinate.longitude,"accuracy":l.horizontalAccuracy])
+                case .success(let l): call.resolve(["lat":l.coordinate.latitude,"lon":l.coordinate.longitude,"accuracy":l.horizontalAccuracy,"timestamp":l.timestamp.timeIntervalSince1970*1000])
                 case .failure(let error): call.reject(error.localizedDescription)
                 }
             }
@@ -267,14 +286,27 @@ class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func pause(_ call: CAPPluginCall) { reply(call) { r,owner in try r.pause(account:owner,id:call.getString("id") ?? "") } }
     @objc func finish(_ call: CAPPluginCall) { reply(call) { r,owner in try r.finish(account:owner,id:call.getString("id") ?? "") } }
     @objc func clear(_ call: CAPPluginCall) { reply(call) { r,owner in try r.clear(account:owner,id:call.getString("id") ?? "") } }
+    @objc func erase(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {do {try NativeTrackRecorder.shared.erase(account:call.getString("owner") ?? "");call.resolve()} catch {call.reject(error.localizedDescription)}}
+    }
     @objc func detach(_ call: CAPPluginCall) {
         DispatchQueue.main.async { do { try NativeTrackRecorder.shared.detach(account:call.getString("owner") ?? "");call.resolve() } catch { call.reject(error.localizedDescription) } }
     }
     @objc func start(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             let r=NativeTrackRecorder.shared,owner=call.getString("owner") ?? ""
+            let plan:TrackRoutePlan?
+            do {
+                if let value=call.getObject("routePlan") {
+                    let data=try JSONSerialization.data(withJSONObject:value)
+                    guard data.count<=600000 else {call.reject("The planned route is too large.");return}
+                    let decoded=try JSONDecoder().decode(TrackRoutePlan.self,from:data)
+                    guard decoded.valid else {call.reject("Review this route again before starting.");return}
+                    plan=decoded
+                } else {plan=nil}
+            } catch {call.reject("Review this route again before starting.");return}
             r.begin(account:owner,id:call.getString("id") ?? "",sport:call.getString("sport") ?? "",label:call.getString("label") ?? "",kind:call.getString("sportLabel"),gps:call.getBool("gps") ?? false,
-                    voice:call.getBool("voice") ?? false,autoPause:call.getBool("autoPause") ?? false,splitMetres:call.getDouble("splitMetres") ?? 1000) { error in
+                    voice:call.getBool("voice") ?? false,autoPause:call.getBool("autoPause") ?? false,splitMetres:call.getDouble("splitMetres") ?? 1000,routePlan:plan) { error in
                 if let error=error { call.reject(error.localizedDescription);return }
                 do { call.resolve(try r.snapshot(account:owner,id:nil,since:0)) } catch { call.reject(error.localizedDescription) }
             }

@@ -494,6 +494,7 @@ function drawDetail(el, a) {
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
       ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}
+      ${a.route_plan?`<div class="card"><h2>Route you followed</h2><a href="${a.route_plan.source_kind==='shared'?'/routes/shared/':'/routes/plan/'}${a.route_plan.route_id}">${esc(a.route_plan.name)}</a><p class="small muted">Version ${a.route_plan.version} · Your recorded distance comes from your GPS trail. The original route may have changed or been removed.</p></div>`:''}
       ${a.line ? '<div id="d-segments"></div>' : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
       ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
@@ -1523,6 +1524,7 @@ function emailSheet() {
 // delete my own account and everything in it (2026-10-11); needs the password, can't be undone
 function deleteSheet() {
   const account=readOwner(),login=App.me.login;
+  const recordingOwner=typeof TrackNative!=='undefined'?TrackNative.owner():null;
   sheet('Delete my account', `<form class="form" id="del">
     <input name="username" value="${esc(App.me.login)}" autocomplete="username" hidden>
     <p>This deletes your account and <b>everything</b> in it straight away: activities, routes, food log, weigh-ins, plans and the files you uploaded. It can't be undone.</p>
@@ -1540,6 +1542,7 @@ function deleteSheet() {
         catch(e){if(account===readOwner())Native.resumeHealth?.();throw e;}
         // Once the server confirms deletion, every cleanup gets its own chance.
         const cleanup=async action=>{try{await action();}catch(e){toast('Account deleted. Some device cleanup needs retry; clear app storage if old data remains.');}};
+        await cleanup(()=>typeof TrackNative!=='undefined'?TrackNative.eraseDraft(recordingOwner):null);
         await cleanup(()=>typeof PlanTrack!=='undefined'?PlanTrack.eraseDevice():null);
         await cleanup(()=>Native.forget({deleted:true}));
         await cleanup(()=>typeof KitChat!=='undefined'?KitChat.eraseDevice():null);

@@ -1731,6 +1731,28 @@ MIGRATIONS = [
     END $$;
     CREATE TRIGGER segment_stream_changed AFTER INSERT OR UPDATE OR DELETE ON activity_streams FOR EACH ROW EXECUTE FUNCTION segment_stream_changed();
     """,
+    # 77. Private plan identity used during a recording; it is never a source for activity totals or public ranks.
+    """
+    CREATE TABLE activity_route_plans (
+      activity_id bigint PRIMARY KEY, user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_kind text NOT NULL CHECK(source_kind IN ('owned','shared')), route_id bigint NOT NULL,
+      version int NOT NULL CHECK(version>0), snapshot_key text,
+      name text NOT NULL CHECK(length(name) BETWEEN 1 AND 120), distance_m real NOT NULL CHECK(distance_m>0 AND distance_m<=500000),
+      FOREIGN KEY(activity_id,user_id) REFERENCES activities(id,user_id) ON DELETE CASCADE);
+    ALTER TABLE activity_route_plans ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON activity_route_plans FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON activity_route_plans FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON activity_route_plans TO fit_readers;
+    CREATE TABLE track_recording_receipts (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id text NOT NULL CHECK(length(client_id)=36), activity_id bigint,
+      created timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(user_id,client_id),
+      FOREIGN KEY(activity_id,user_id) REFERENCES activities(id,user_id) ON DELETE SET NULL(activity_id));
+    ALTER TABLE track_recording_receipts ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON track_recording_receipts FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON track_recording_receipts FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON track_recording_receipts TO fit_readers;
+    """,
 ]
 
 
