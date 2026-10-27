@@ -9,7 +9,7 @@ async function run({cached=false,food=true,failure=false}={}){
  const el=node();el.closest=()=>page;
  const get=s=>{if(!nodes.has(s))nodes.set(s,node());return nodes.get(s);};
  const request=(key,paint,payload)=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.set(key,{paint,payload,resolve,reject});if(cached)paint(payload);return promise;};
- const ctx={console,Date,Promise,Set,App:{me:{name:'Demo',food_user:food}},Native:{on:false},esc:String,svg:()=>'',avatar:()=>'',profileHref:()=>'/people/demo',bellBtn:()=>'',skel:()=>'<p>Loading</p>',kitChatOn:()=>true,sportMark:()=>'',SPORT_NAMES:{run:'Run'},getStarted:()=>'',goalRow:()=>'',dur:()=>'',when:()=>'',mileageChart:(box,data)=>charts.push(data),$:get,
+ const ctx={console,Date,Promise,Set,App:{me:{name:'Demo',food_user:food}},Native:{on:false},esc:String,svg:()=>'',avatar:()=>'',profileHref:()=>'/people/demo',bellBtn:()=>'',skel:()=>'<p>Loading</p>',skelFeed:()=>'<p>Loading</p>',skelChart:()=>'<p>Loading</p>',skelFood:()=>'<p>Loading</p>',kitChatOn:()=>true,sportMark:()=>'',SPORT_NAMES:{run:'Run'},getStarted:()=>'',goalRow:()=>'',dur:()=>'',when:()=>'',mileageChart:(box,data)=>charts.push(data),$:get,
  load:(key,paint)=>request(key,paint,{'/api/activities?limit=3':[], '/api/stats':{},'/api/goals':[], '/api/fitness?days=60':{days:[]},'/api/feed/friends?limit=3':[]}[key]),
  planCard:(box,opts)=>request('plan',()=>{box.innerHTML='';opts.onReady();}),
  todayFoodCard:(box,opts)=>request('food',()=>{box.innerHTML=food?'<p>Food today</p>':'';opts.onHistory(food);opts.onFoodUser(food);}),

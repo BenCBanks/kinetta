@@ -623,7 +623,13 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------- skeleton ----------
+// The launch mark from index.html, reused wherever the whole app restarts itself.
+const LAUNCH = `<div class="launch" role="status" aria-label="Loading Kinetta">${document.querySelector('.launch')?.innerHTML || ''}</div>`;
 const skel = (n = 3) => Array.from({length: n}, () => '<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join('');
+// Placeholders shaped like what is about to appear (27 October 2026), so a slow load previews the real layout.
+const skelFeed = (n = 3) => Array.from({length: n}, () => '<div class="card sk-card" aria-hidden="true"><div class="sk-row"><span class="sk dot round"></span><span class="grow"><span class="sk line short"></span><span class="sk line tiny"></span></span></div><div class="sk line mid"></div><div class="d-ph-stats"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div><div class="sk block map"></div></div>').join('');
+const skelChart = () => '<div class="card sk-card" aria-hidden="true"><div class="d-ph-stats"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div><div class="sk-bars">' + '<span class="sk"></span>'.repeat(12) + '</div></div>';
+const skelFood = () => '<div class="card sk-card" aria-hidden="true"><div class="sk line tiny"></div><div class="sk big"></div><div class="sk meter"></div><div class="sk line"></div><div class="sk line short"></div></div>' + Array.from({length: 2}, () => '<div class="card sk-card" aria-hidden="true"><div class="sk line mid"></div><div class="sk-row"><span class="grow"><span class="sk line"></span><span class="sk line tiny"></span></span></div></div>').join('');
 
 // ---------- polyline + mini route ----------
 function decode(str) {
@@ -1116,7 +1122,7 @@ function showLogin(msg = '') {
     <p class="err" role="alert">${esc(msg)}</p>
     <button class="primary" type="submit">Log in</button>
     <p class="small"><a href="/forgot-password" id="l-forgot">Forgot password?</a></p>
-    <p class="small muted">New here? Ask the person who runs this Kinetta for an invite link.</p></form></div>`;
+    <p class="small muted login-new" aria-live="polite"></p></form></div>`;
   cleanViews();
   const f = $('form', root);
   $('input[name=login]', f).focus();
@@ -1125,10 +1131,12 @@ function showLogin(msg = '') {
   // account, the waitlist and Forgot password happen right here in the app, as on the web (#232 E).
   Native.preLogin?.();
   Promise.all([api('/api/beta'), api('/api/signup').catch(() => ({}))]).then(([r, open]) => {   // point newcomers to signup or the waitlist
-    const p = $('.login .small.muted', root);
+    // Filled once the server says what is open, so the invite-only line never flashes before Create an account.
+    const p = $('.login .login-new', root);
     if (open.open && p) { p.innerHTML = 'New here? <a href="/signup">Create an account</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(); }; return; }
-    if (r.open && p) { p.innerHTML = 'New here? <a href="/beta">Join the beta</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/beta'); showBeta(); }; }
-  }).catch(() => {});
+    if (r.open && p) { p.innerHTML = 'New here? <a href="/beta">Join the beta</a>'; $('a', p).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/beta'); showBeta(); }; return; }
+    if (p) p.textContent = 'New here? Ask the person who runs this Kinetta for an invite link.';
+  }).catch(() => { const p = $('.login .login-new', root); if (p) p.textContent = 'New here? Ask the person who runs this Kinetta for an invite link.'; });
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const b = $('button', f), err = $('.err', f);
@@ -1377,7 +1385,7 @@ async function showConfirmEmail(token) {
   // 27 October 2026): a same-site https link can't hand off from Safari to the app.
   const iphone = !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
   root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? '<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="/me" id="c-go">Continue in browser</a>' : '<a class="primary wide" href="/me" id="c-go">Open Kinetta</a>'}</div></div>`;
-  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/me'); root.innerHTML = '<p class="boot">Loading…</p>'; start(); };
+  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/me'); root.innerHTML = LAUNCH; start(); };
 }
 async function showWelcome() {
   if (Native.on) return showLogin();   // new accounts, invites and the waitlist are on the server's web page
@@ -1432,7 +1440,7 @@ async function start() {
       render(); return;
     }
     root.innerHTML = `<div class="boot"><p>${esc(x.message)}</p><button class="ghost" id="retry">Try again</button></div>`;
-    $('#retry').addEventListener('click', () => { root.innerHTML = '<p class="boot">Loading…</p>'; start(); });
+    $('#retry').addEventListener('click', () => { root.innerHTML = LAUNCH; start(); });
   }
 }
 // (the iPhone app has its files built in: no service worker there)

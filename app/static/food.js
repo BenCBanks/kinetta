@@ -196,7 +196,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <span class="nbar-arrows"><button class="icon-btn sm" id="fd-prev" aria-label="Previous day">${svg('back')}</button><button class="icon-btn sm" id="fd-next" aria-label="Next day">${svg('chev')}</button></span>`);
   body.innerHTML = `${day === today ? '' : '<p class="center backtoday"><button class="linkbtn" id="fd-today">Back to today</button></p>'}<div class="quick"><button class="primary" id="fq-add">${svg('search')} Add food</button></div>
-    <p class="food-library-link"><a href="/food/meals">${svg('pot')}My recipes &amp; foods${svg('chev')}</a></p><div id="fd-sum">${skel(1)}</div><div id="fd-meals"></div><div id="fd-details"></div>`;
+    <p class="food-library-link"><a href="/food/meals">${svg('pot')}My recipes &amp; foods${svg('chev')}</a></p><div id="fd-sum">${skelFood()}</div><div id="fd-meals"></div><div id="fd-details"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});

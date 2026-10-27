@@ -9,7 +9,7 @@ const form={elements:{name:field('Sam Fictional'),bio:field('')},reportValidity:
 const c={App:{me:{name:'Sam Fictional',bio:''}},Native:{on:false},readOwner:()=>'one',route:(re,tab,fn)=>route=fn,go:p=>went.push(p),
   $:(sel)=>sel==='#wc-form'?form:sel==='input[name="aud"]:checked'?{value:c.pick}:node(sel),
   api:async(path,opts)=>{calls.push([path,opts&&opts.body]);return path==='/api/sharing'?{default:'everyone'}:path==='/api/account/inviter'?{inviter:null}:{name:'Sam Fictional'};},
-  json:(m,b)=>({method:m,body:b}),esc:String,svg:()=>'',avatar:()=>'',skel:()=>'',keep(){},invalidate(){},toast(){},profilePhotoSheet(){},aiExplain:()=>'Kit sends what a feature needs.',pick:'everyone'};
+  json:(m,b)=>({method:m,body:b}),esc:String,svg:()=>'',avatar:()=>'',skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',keep(){},invalidate(){},toast(){},profilePhotoSheet(){},aiExplain:()=>'Kit sends what a feature needs.',pick:'everyone'};
 vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/welcome.js','utf8'),c);
 const tick=()=>new Promise(r=>setTimeout(r,0));
 (async()=>{

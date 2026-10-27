@@ -64,7 +64,7 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  const pv=vm.runInNewContext(text.match(/const PVIEWS = (\[.*?\]);/s)[1]);
  const pm=vm.runInNewContext(text.match(/const PMORE = (\[.*?\]);/s)[1]);
  let more,handler;
- const c={PVIEWS:pv,PMORE:pm,progressSwitch:()=>'',bellBtn:()=>'',pillBtn:()=>'<button id="p-view">More</button>',esc:String,skel:()=>'',wireProgressFocus(){},foodUser:()=>false,
+ const c={PVIEWS:pv,PMORE:pm,progressSwitch:()=>'',bellBtn:()=>'',pillBtn:()=>'<button id="p-view">More</button>',esc:String,skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',wireProgressFocus(){},foodUser:()=>false,
   $:()=>more,location:{search:''},URLSearchParams,pickSheet:(title,html,fn)=>{handler=fn},pickRows:()=>'',go:()=>{}};
  vm.createContext(c);vm.runInContext(text.slice(text.indexOf('function pHead('),text.indexOf('// each view takes')),c);
  for(const [view,label] of [['calendar','Calendar'],['heatmap','Heatmap'],['lifting','Lifting']]){

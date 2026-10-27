@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app/static/social.js','utf8');let account='a',requests=[],toggle={checked:false,disabled:false},error={textContent:''},retry={};
-const context={readOwner:()=>account,api:(path,options)=>new Promise((resolve,reject)=>requests.push({path,options,resolve,reject})),MEAL_NAMES:{breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner'},esc:String,skel:()=>'',Native:{haptic(){}},json:(method,body)=>({method,body}),$:selector=>selector==='[data-meal-reminders]'?toggle:selector==='.err'?error:retry};
+const context={readOwner:()=>account,api:(path,options)=>new Promise((resolve,reject)=>requests.push({path,options,resolve,reject})),MEAL_NAMES:{breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner'},esc:String,skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',Native:{haptic(){}},json:(method,body)=>({method,body}),$:selector=>selector==='[data-meal-reminders]'?toggle:selector==='.err'?error:retry};
 vm.createContext(context);vm.runInContext(source.slice(source.indexOf('async function mealReminderCard')),context);
 const state={enabled:false,push_ready:true,device_ready:true,tz:'UTC',times:[{meal:'lunch',ready:true,time:'12:15'}]};
 (async()=>{
