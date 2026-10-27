@@ -251,14 +251,22 @@ final class TrackRecordingFiles {
         #endif
     }
     func save(_ state: TrackRecordingState, resetPoints: Bool = false) throws {
+        try state.intervals?.validateStored()
         if resetPoints { try write(Data(),to:journal) }
-        // The large pinned line is written once, rather than at every GPS checkpoint.
+        // The large pinned route is written once, rather than at every GPS checkpoint.
         if let plan=state.routePlan {
             if resetPoints || pinnedRecording != state.id {
-                try state.intervals?.validateStored()
-        // Atomic writes prevent torn JSON; one prior valid interval manifest also survives later corruption.
+                try write(JSONEncoder().encode(PinnedRoute(owner:state.owner,id:state.id,plan:plan)),to:routeFile)
+                pinnedRecording=state.id
+            }
+        } else {
+            if FileManager.default.fileExists(atPath:routeFile.path) {try FileManager.default.removeItem(at:routeFile)}
+            pinnedRecording=nil
+        }
+        var metadata=state;metadata.points=[];metadata.routePlan=nil
+        // Atomic writes prevent torn JSON; retain one prior valid interval checkpoint too.
         if state.intervals != nil,let data=try? Data(contentsOf:manifest),let prior=try? decode(data) {
-            if prior.owner==state.owner { try write(data,to:previous) }
+            if prior.owner==state.owner && prior.id==state.id { try write(data,to:previous) }
         }
         try write(JSONEncoder().encode(metadata),to:manifest)
         #if os(iOS)

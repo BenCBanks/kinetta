@@ -27,7 +27,10 @@ try:
   rows.append(dict(key=step['key'],outcome='complete',start_time=time,end_time=time+step['target'],start_distance=0,end_distance=0));time+=step['target']
  state=dict(pin=pin,status='complete',results=rows,effects=[])
  track=dict(client_id=str(uuid.uuid4()),sport='run',name='Fictional interval workout',start=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(seconds=1000)).isoformat(),elapsed_s=900,moving_s=720,points=[],visibility='everyone',intervals=state)
+ track['route_plan']=dict(source_kind='owned',route_id=123,version=1,name='Fictional planned route',distance_m=499999)
  first=req(owner,'POST','/api/activities/track',track);aid=first['id'];assert req(owner,'POST','/api/activities/track',track)==dict(id=aid,duplicate=True)
+ assert req(owner,'GET',f'/api/activities/{aid}')['route_plan']['name']=='Fictional planned route'
+ assert req(owner,'GET',f'/api/activities/{aid}')['distance_m']==0,'Neither planned length nor interval targets create measured distance'
  own=req(owner,'GET',f'/api/activities/{aid}/intervals');assert own[0]['summary']==dict(visited_steps=6,planned_steps=6,completed_steps=6,skipped_steps=0)
  assert own[0]['pin']['content_hash']==pin['content_hash']
  req(other,'GET',f'/api/activities/{aid}/intervals',status=404)
@@ -37,6 +40,7 @@ try:
  bad=copy.deepcopy(track);bad['client_id']=str(uuid.uuid4());bad['intervals']['pin']['content_hash']='0'*64;req(owner,'POST','/api/activities/track',bad,422)
  bad=copy.deepcopy(track);bad['client_id']=str(uuid.uuid4());bad['sport']='ride';req(owner,'POST','/api/activities/track',bad,422)
  req(owner,'DELETE',f'/api/activities/{aid}');req(owner,'GET',f'/api/activities/{aid}/intervals',status=404)
+ req(owner,'POST','/api/activities/track',track,409)
  print('PASS interval HTTP: exact previews, ownership, optimistic conflicts, concurrent replay, deletion tombstone, atomic pinned results, retry identity and social privacy')
 finally:
  for name in ['zz_test_interval_owner','zz_test_interval_other']:

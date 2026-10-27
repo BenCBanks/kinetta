@@ -62,7 +62,11 @@ let folder=FileManager.default.temporaryDirectory.appendingPathComponent("kinett
 defer { try? FileManager.default.removeItem(at:folder) }
 let files=try TrackRecordingFiles(folder:folder)
 var recording=TrackRecordingState(owner:"fictional-interval-account",id:UUID().uuidString,sport:"run",label:"Run",gps:true,start:0,activeAt:0,checkpoint:0)
+let routeJSON:[String:Any] = ["schema":1,"kind":"owned","id":23,"version":4,"name":"Fictional trail","sport":"run","distance_m":9999,"line":"_p~iF~ps|U_ulLnnqC_mqNvxq`@","warnings":[],"attribution":[],"breaks":[],"downloadedAt":1000]
+recording.routePlan=try JSONDecoder().decode(TrackRoutePlan.self,from:JSONSerialization.data(withJSONObject:routeJSON))
 recording.intervals=try state("time");try files.save(recording,resetPoints:true)
+let combined=try files.load(owner:"fictional-interval-account")!
+check(combined.routePlan?.version==4 && combined.intervals?.pin.content_hash==recording.intervals?.pin.content_hash && combined.distance==0,"Route and interval snapshots coexist without supplying measured distance")
 recording.intervals?.advance(to:100);recording.checkpoint=100000;try files.save(recording)
 try Data("{broken".utf8).write(to:files.manifest)
 let prior=try files.load(owner:"fictional-interval-account")
