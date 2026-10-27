@@ -258,7 +258,7 @@ async function meOverview(el) {
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a><a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
     <div id="t-start"></div>
-    <section id="t-week" aria-label="Last 14 days"><div class="card mileage-loading" aria-hidden="true">${skel(1)}</div></section>
+    <section id="t-week" aria-label="Last 14 days"><div class="mileage-loading" aria-hidden="true">${skelChart()}</div></section>
     <div id="t-loading" role="status"><span class="vh">Loading your day</span><div class="sk-row" aria-hidden="true"><span class="sk dot"></span><span class="grow"><span class="sk line short"></span><span class="sk line"></span></span></div>${skel(1)}</div>
     <div id="t-content"><div id="t-last"></div>
     <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
@@ -393,7 +393,7 @@ route(/^\/activity$/, 'activity', async (el) => {
   el.innerHTML = `${actTop(true)}${whoseSeg('mine')}<div id="workout-sync"></div>
     <form id="f-sform" class="${term ? '' : 'hidden'}" role="search"><input type="search" name="q" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form>
     <div class="chips" role="group" aria-label="Sport">${sports.map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s === 'other' ? 'Other' : s ? SPORT_NAMES[s] + 's' : 'All'}</button>`).join('')}</div>
-    <div class="feed-list" id="f-list">${skel(4)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
+    <div class="feed-list" id="f-list">${skelFeed(3)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
   wireWhose(el);workoutSyncStatus($('#workout-sync',el));
   const sf = $('#f-sform', el); if (!term) sf.hidden = true;
   $('#f-search', el).onclick = () => { sf.hidden = !sf.hidden; if (!sf.hidden) $('input', sf).focus(); };
@@ -981,7 +981,7 @@ async function foodProgress(el,q) {
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
   el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
-    <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav>${v && !PVIEWS.slice(0,3).some(([k])=>k===view)?`<h2 class="progress-view-title">${esc(v[1])}</h2>`:''}<div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skel(2)}</div>`;
+    <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav>${v && !PVIEWS.slice(0,3).some(([k])=>k===view)?`<h2 class="progress-view-title">${esc(v[1])}</h2>`:''}<div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skelChart()}</div>`;
   wireProgressFocus(el);
   if(v&&!PVIEWS.slice(0,3).some(([k])=>k===view)){const more=$('#p-view',el);more.classList.add('current-view');more.setAttribute('aria-label',`More progress views · current view: ${v[1]}`);}
   if (foodUser()) combinedWeek($('#p-combined-week',el));
@@ -1160,7 +1160,7 @@ function monthSeries(firstYm, get) {   // every month from firstYm to this month
 async function pMileage(body, q) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
   const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
-  body.innerHTML = `<div id="m-body">${skel(2)}</div>`;   // Weeks / Months / Years: the button in the row at the top
+  body.innerHTML = `<div id="m-body">${skelChart()}</div>`;   // Weeks / Months / Years: the button in the row at the top
   await load(`/api/progress/volume?period=${period}`, (r) => {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
