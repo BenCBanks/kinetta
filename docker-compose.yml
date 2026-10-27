@@ -100,7 +100,7 @@ services:
   # Start with:  docker compose --profile tunnel up -d
   # It sits on its own network with only the app, so it can't reach the database.
   tunnel:
-    image: cloudflare/cloudflared:2026.9.2
+    image: cloudflare/cloudflared:2026.10.3
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
