@@ -76,12 +76,11 @@ const Planner = (() => {
   const snapshot = () => JSON.stringify({w: S.waypoints, l: S.legs.map(({mode, pts, state}) => ({mode, pts, state}))});
   function restore(js) { const o = JSON.parse(js); S.waypoints = o.w; S.legs = o.l.map((l) => ({...l, rev: 0, dist: null})); }
   function remember() { undo.push(snapshot()); if (undo.length > 200) undo.shift(); redo = []; }
-  function straight(a, b, intent) { return {mode: 'manual', pts: [a, b], rev: 0, state: intent === 'manual' ? 'ok' : 'pending', dist: null}; }
-  const total = () => S.legs.reduce((d, l) => d + legLen(l), 0);
+  const total = () => S.legs.filter(l=>l.state==='ok').reduce((d, l) => d + legLen(l), 0);
 
   function open(el, opts) {
     clearTimeout(saveT); clearTimeout(elevT); busy = false; view = layers = null;
-    S = {mode: opts.mode || 'route', key: opts.key, sport: opts.sport || store.get('kinetta.planSport') || 'run', waypoints: [], legs: [], snap: true,
+    S = {mode: opts.mode || 'route', key: opts.key, sport: opts.sport || store.get('kinetta.planSport') || 'run', waypoints: [], legs: [],
          name: '', description: '', routeId: opts.routeId || null, baseVersion: opts.baseVersion || null, clientId: crypto.randomUUID(), title: opts.title};
     S.owner = readOwner();
     undo = []; redo = []; elev = null; autosave = 'idle'; localUnits = null;
@@ -98,7 +97,7 @@ const Planner = (() => {
       <div class="plan-bar" role="toolbar" aria-label="Route tools">
         <button type="button" id="pl-undo" aria-label="Undo">${svg('undo')}<span>Undo</span></button>
         <button type="button" id="pl-redo" aria-label="Redo">${svg('redo')}<span>Redo</span></button>
-        <button type="button" id="pl-snap" aria-pressed="true">${svg('snap')}<span>Follow paths</span></button>
+        <span class="plan-paths">${svg('snap')}Paths only</span>
         <button type="button" id="pl-more" aria-label="More route tools">${svg('more')}<span>More</span></button>
         <button type="button" class="primary" id="pl-save">${S.mode === 'segment' ? 'Review' : 'Save'}</button></div>
       <button type="button" class="plan-elev" id="pl-elev" hidden></button>
@@ -110,7 +109,6 @@ const Planner = (() => {
       S.legs.forEach((l) => { if (l.mode === 'path') { l.state = 'pending'; l.rev++; } }); changed(); });   // a ride follows different paths from a walk
     $('#pl-undo', el).onclick = () => { if (!undo.length) return; redo.push(snapshot()); restore(undo.pop()); changed(); };
     $('#pl-redo', el).onclick = () => { if (!redo.length) return; undo.push(snapshot()); restore(redo.pop()); changed(); };
-    $('#pl-snap', el).onclick = () => { S.snap = !S.snap; drawBar(); toast(S.snap ? 'New connections follow streets and trails' : 'New connections are straight lines'); };
     $('#pl-more', el).onclick = more;
     $('#pl-save', el).onclick = () => opts.onSave ? opts.onSave(api_state()) : saveSheet(opts);
     $('#pl-search', el).onclick = search;
@@ -129,8 +127,8 @@ const Planner = (() => {
   }
   function load(p) {
     S.waypoints = p.waypoints.map((w) => [+w[0], +w[1]]);
-    S.legs = p.legs.map((l) => ({mode: l.mode === 'track' ? 'track' : l.mode, pts: l.pts || decode(l.line), rev: 0, state: 'ok', dist: null}));
-    for (const k of ['sport', 'name', 'description', 'clientId', 'routeId', 'baseVersion', 'snap']) if (p[k] !== undefined && p[k] !== null) S[k] = p[k];
+    S.legs = p.legs.map((l,i) => ({mode: 'path', pts: l.pts || decode(l.line), rev: 0, state: l.mode==='path'&&l.ready===true?'ok':'pending', dist: null}));
+    for (const k of ['sport', 'name', 'description', 'clientId', 'routeId', 'baseVersion']) if (p[k] !== undefined && p[k] !== null) S[k] = p[k];
   }
   async function mount(el, opts) {
     const state = S;
@@ -161,12 +159,12 @@ const Planner = (() => {
   }
 
   // ---------- edits ----------
-  function connect(a, b, mode) { return mode === 'manual' ? straight(a, b, 'manual') : {mode: 'path', pts: [a, b], rev: 1, state: 'pending', dist: null}; }
-  function intentAt(i) { const l = S.legs[i]; return !l ? (S.snap ? 'path' : 'manual') : l.mode === 'manual' ? 'manual' : 'path'; }
+  function connect(a, b) { return {mode:'path',pts:[a,b],rev:1,state:'pending',dist:null}; }
+  function intentAt() { return 'path'; }
   function add(p, at = S.waypoints.length) {
     if (S.waypoints.length >= 100) { toast('Routes can have up to 100 points'); return; }
     remember();
-    if (at >= S.waypoints.length) { S.waypoints.push(p); if (S.waypoints.length > 1) S.legs.push(connect(S.waypoints.at(-2), p, S.snap ? 'path' : 'manual')); }
+    if (at >= S.waypoints.length) { S.waypoints.push(p); if (S.waypoints.length > 1) S.legs.push(connect(S.waypoints.at(-2), p, 'path')); }
     else insert(at - 1, p, false);
     changed();
   }
@@ -199,9 +197,9 @@ const Planner = (() => {
   }
   function reverse() {   // paths are planned again (one-way streets and bike rules), not just flipped
     if (S.waypoints.length < 2) return;
-    remember(); const modes = S.legs.map((l) => l.mode).reverse(), old = [...S.legs].reverse();
+    remember(); const old = [...S.legs].reverse();
     S.waypoints.reverse();
-    S.legs = old.map((l, k) => modes[k] === 'manual' ? straight(S.waypoints[k], S.waypoints[k + 1], 'manual') : connect(S.waypoints[k], S.waypoints[k + 1], 'path'));
+    S.legs = old.map((l, k) => connect(S.waypoints[k], S.waypoints[k + 1]));
     changed(); toast('Route reversed');
   }
   function loop() {
@@ -211,11 +209,10 @@ const Planner = (() => {
   }
   function outAndBack() {
     if (S.waypoints.length < 2) { toast('Add at least two points first'); return; }
-    remember(); const back = S.waypoints.slice(0, -1).reverse(), n = S.waypoints.length, modes = S.legs.map((l) => l.mode).reverse();
-    for (let k = 0; k < back.length; k++) { S.waypoints.push(back[k]); S.legs.push(modes[k] === 'manual' ? straight(S.waypoints[n + k - 1], back[k], 'manual') : connect(S.waypoints[n + k - 1], back[k], 'path')); }
+    remember(); const back = S.waypoints.slice(0, -1).reverse(), n = S.waypoints.length;
+    for (let k = 0; k < back.length; k++) { S.waypoints.push(back[k]); S.legs.push(connect(S.waypoints[n + k - 1], back[k])); }
     changed(); toast('Out and back the same way');
   }
-  function setLeg(i, mode) { remember(); S.legs[i] = mode === 'manual' ? straight(S.waypoints[i], S.waypoints[i + 1], 'manual') : connect(S.waypoints[i], S.waypoints[i + 1], 'path'); changed(); }
   function clear() {
     sheet('Clear this route?', '<p>This removes every point. You can still Undo afterwards.</p><button class="ghost wide" data-keep>Keep it</button><button class="primary danger-btn wide" data-clear>Clear route</button>', (b, close) => {
       $('[data-keep]', b).onclick = close; $('[data-clear]', b).onclick = () => { remember(); S.waypoints = []; S.legs = []; elev = null; close(); changed(); };
@@ -232,7 +229,8 @@ const Planner = (() => {
     busy = true; drawTotal();
     try {
       const r = await api('/api/plan/path', json('POST', {sport: S.sport, points: pts}));
-      if (key !== S) return;
+      if (key !== S || key.owner!==readOwner()) return;
+      if(!Array.isArray(r.legs)||r.legs.length!==ask.length)throw Error('The map service returned an incomplete path. Your draft is kept.');
       r.legs.forEach((res, k) => {
         const l = S.legs[i + k];
         if (!l || l !== ask[k] || l.rev !== revs[k]) return;      // edited meanwhile: that answer is stale
@@ -242,7 +240,7 @@ const Planner = (() => {
     } catch (e) {
       if (key === S) for (const [k, l] of ask.entries()) if (l === S.legs[i + k] && l.rev === revs[k]) Object.assign(l, {state: 'offline', why: e.message});
     } finally { busy = false; }
-    if (key === S) { drawAll(); plan(); }
+    if (key === S && key.owner===readOwner()) { drawAll(); plan(); }
   }
 
   // ---------- drawing ----------
@@ -257,8 +255,8 @@ const Planner = (() => {
     if (!layers) return; const {L} = view; layers.legs.clearLayers();
     const color = col('--route');
     S.legs.forEach((l, i) => {
-      const bad = l.state === 'failed' || l.state === 'offline', manual = l.mode === 'manual';
-      const style = bad ? {color: col('--alert'), weight: 4, dashArray: '6 8', opacity: .9} : manual ? {color, weight: 4, dashArray: '2 9', lineCap: 'round'} : {color, weight: 5, opacity: l.state === 'pending' ? .45 : .95};
+      if(l.state!=='ok')return;  // Unresolved connections are points, never a drawn straight fallback.
+      const style = {color,weight:5,opacity:.95};
       L.polyline(l.pts, {weight: 22, opacity: 0, interactive: true}).addTo(layers.legs).on('mousedown touchstart', (e) => grabLine(e, i));   // a wide, invisible handle
       L.polyline(l.pts, {...style, interactive: false}).addTo(layers.legs);
     });
@@ -290,6 +288,7 @@ const Planner = (() => {
   }
   function drawMarks() {   // a numbered marker at each mile/km, and arrows showing the direction
     if (!layers) return; const {L} = view; layers.marks.clearLayers();
+    if(S.legs.some(l=>l.state!=='ok'))return;
     const pts = Plan.line(S.legs), unit = units() === 'mi' ? MI : 1000;
     if (pts.length < 2) return;
     let d = 0, next = unit, arrow = unit / 2, n = 1;
@@ -308,35 +307,29 @@ const Planner = (() => {
     const box = $('#pl-total'); if (!box) return;
     const pending = busy || S.legs.some((l) => l.state === 'pending');
     const climb = elev && elev.ascent_m != null ? ` · ↑ ${U.elev(elev.ascent_m)} ${U.eu()}` : '';
-    box.innerHTML = S.waypoints.length < 2 ? `<b class="num">0.00</b> ${units()}` : `<b class="num">${fmt(total())}</b> ${units()}${climb}${pending ? '<small> · updating</small>' : ''}`;
+    box.innerHTML = S.waypoints.length < 2 ? `<b class="num">0.00</b> ${units()}` : S.legs.some(l=>l.state!=='ok') ? `<b>${pending?'Finding paths…':'Path needed'}</b>` : `<b class="num">${fmt(total())}</b> ${units()}${climb}`;
     box.classList.toggle('pending', pending);
     const hint = $('#pl-hint'); if (hint) { hint.textContent = !S.waypoints.length ? 'Tap the map to start your route' : S.waypoints.length === 1 ? 'Tap where to go next' : ''; hint.hidden = !hint.textContent; }
   }
   function drawBar() {
-    const u = $('#pl-undo'), r = $('#pl-redo'), sn = $('#pl-snap'), sv = $('#pl-save'); if (!u) return;
+    const u = $('#pl-undo'), r = $('#pl-redo'), sv = $('#pl-save'); if (!u) return;
     u.disabled = !undo.length; r.disabled = !redo.length;
-    sn.setAttribute('aria-pressed', String(S.snap)); sn.innerHTML = `${svg(S.snap ? 'snap' : 'straight')}<span>${S.snap ? 'Follow paths' : 'Straight lines'}</span>`;
     sv.disabled = S.waypoints.length < 2 || S.legs.some((l) => l.state !== 'ok');
   }
-  function drawAlert() {   // a connection with no path, or no answer: keep the route and offer a clearly marked straight line
+  function drawAlert() {
     const box = $('#pl-alert'); if (!box) return;
-    const i = S.legs.findIndex((l) => l.state === 'failed' || l.state === 'offline');
-    if (i < 0) { box.hidden = true; return; }
-    const l = S.legs[i], off = l.state === 'offline';
-    box.hidden = false;
-    box.innerHTML = `<p><b>${off ? 'Couldn’t reach the map service.' : `No ${S.sport === 'ride' ? 'bike' : 'walking'} path found between points ${i + 1} and ${i + 2}.`}</b> ${off ? esc(l.why || '') + ' ' : ''}Your route is kept.</p>
-      <div class="btnrow"><button type="button" class="ghost sm" data-straight>Use a straight line</button><button type="button" class="ghost sm" data-retry>Retry</button><button type="button" class="linkbtn" data-undo>Undo</button></div>`;
-    $('[data-straight]', box).onclick = () => sheet('Use a straight line?', `<p>Straight lines aren’t known roads or trails. They’re marked on the map and on the saved route, so check the way is passable before you go.</p><button class="primary wide" data-ok>Use a straight line</button><button class="ghost wide" data-no>Cancel</button>`, (b, close) => {
-      $('[data-no]', b).onclick = close; $('[data-ok]', b).onclick = () => { close(); setLeg(i, 'manual'); }; });
-    $('[data-retry]', box).onclick = () => { l.state = 'pending'; l.rev++; drawAll(); plan(); };
-    $('[data-undo]', box).onclick = () => $('#pl-undo').click();
+    const i = S.legs.findIndex(l=>l.state==='failed'||l.state==='offline');
+    if(i<0){box.hidden=true;return;}
+    const l=S.legs[i];box.hidden=false;
+    box.innerHTML=`<p><b>${l.state==='offline'?'Couldn’t reach the map service.':`No path found between points ${i+1} and ${i+2}.`}</b> Move a point onto a nearby path or retry. Your draft is kept; every connection must follow mapped paths before saving.</p><div class="btnrow"><button type="button" class="ghost sm" data-retry>Retry paths</button><button type="button" class="linkbtn" data-undo>Undo</button></div>`;
+    $('[data-retry]',box).onclick=()=>{S.legs.filter(x=>x.state!=='ok').forEach(x=>{x.state='pending';x.rev++;});drawAll();plan();};
+    $('[data-undo]',box).onclick=()=>$('#pl-undo').click();
   }
   function drawStatus() {
     const box = $('#pl-status'); if (!box) return;
-    const manual = S.legs.filter((l) => l.mode === 'manual').length;
-    box.textContent = [manual ? `${manual} straight-line ${manual > 1 ? 'sections' : 'section'} (not known roads or trails)` : '',
-      {waiting: 'Saving draft…', saved: 'Draft saved', local: 'Draft saved on this phone; it will sync when you’re back online', failed: 'Autosave isn’t working right now. Keep this screen open and save when you can.'}[autosave] || ''].filter(Boolean).join(' · ');
+    box.textContent = {waiting:'Saving draft…',saved:'Draft saved',local:'Draft saved on this phone; it will sync when you’re back online',failed:'Autosave isn’t working right now. Keep this screen open and save when you can.'}[autosave] || '';
   }
+
   function drawElev() {
     const b = $('#pl-elev'); if (!b) return;
     b.hidden = S.waypoints.length < 2;
@@ -369,14 +362,11 @@ const Planner = (() => {
   // ---------- sheets ----------
   function pointSheet(i) {
     const n = S.waypoints.length, label = i === 0 ? 'Start' : i === n - 1 ? 'Finish' : `Point ${i + 1}`;
-    const legBefore = S.legs[i - 1];
     sheet(label, `<div class="list card">
-        ${legBefore ? `<button class="row-link" data-leg>${svg(legBefore.mode === 'manual' ? 'snap' : 'straight')}<span class="grow">Connection from point ${i}: ${legBefore.mode === 'manual' ? 'follow paths instead' : 'use a straight line instead'}</span></button>` : ''}
         ${i > 0 ? `<button class="row-link" data-up>${svg('up')}<span class="grow">Move earlier in the route</span></button>` : ''}
         ${i < n - 1 ? `<button class="row-link" data-down>${svg('down')}<span class="grow">Move later in the route</span></button>` : ''}
         <button class="row-link danger" data-remove>${svg('trash')}<span class="grow">Remove this point</span></button></div>`, (b, close) => {
       const act = (sel, fn) => { const x = $(sel, b); if (x) x.onclick = () => { close(); fn(); }; };
-      act('[data-leg]', () => setLeg(i - 1, legBefore.mode === 'manual' ? 'path' : 'manual'));
       act('[data-up]', () => swap(i, i - 1)); act('[data-down]', () => swap(i, i + 1)); act('[data-remove]', () => remove(i));
     });
   }
@@ -415,7 +405,7 @@ const Planner = (() => {
       if (file.size > 5 * 1024 * 1024) { toast('GPX files can be up to 5 MB'); return; }
       try {
         const r = await api('/api/planned-routes/import', json('POST', {gpx: await file.text()}));
-        const use = (t) => { const replace = () => { remember(); load({waypoints: t.waypoints, legs: t.legs}); if (!S.name) S.name = t.name; changed(); fit(); toast('Imported. Drag any point to change that part'); };
+        const use = (t) => { const replace = () => { remember(); load({waypoints: t.waypoints, legs: t.legs}); if (!S.name) S.name = t.name; changed(); fit(); toast('Finding mapped paths from the imported track. Review the result before saving.'); };
           if (S.waypoints.length) sheet('Replace your route?', '<p>The imported route replaces what’s on the map. You can Undo afterwards.</p><button class="primary wide" data-ok>Replace</button><button class="ghost wide" data-no>Cancel</button>', (b, close) => { $('[data-no]', b).onclick = close; $('[data-ok]', b).onclick = () => { close(); replace(); }; });
           else replace(); };
         if (r.tracks.length === 1) use(r.tracks[0]);
@@ -461,8 +451,8 @@ const Planner = (() => {
 
   // ---------- drafts and saving ----------
   function api_state() {
-    return {sport: S.sport, waypoints: S.waypoints, legs: S.legs.map((l) => ({mode: l.mode, line: Plan.enc(l.pts)})), name: S.name, description: S.description,
-            clientId: S.clientId, routeId: S.routeId, baseVersion: S.baseVersion, snap: S.snap, line: Plan.line(S.legs), distance_m: total()};
+    return {sport: S.sport, waypoints: S.waypoints, legs: S.legs.map((l) => ({mode:l.mode,line:Plan.enc(l.pts),ready:l.state==='ok'})), name: S.name, description: S.description,
+            clientId: S.clientId, routeId: S.routeId, baseVersion: S.baseVersion, line: Plan.line(S.legs), distance_m: total()};
   }
   function keepDraft() {
     if (!S?.key || S.owner !== readOwner()) return false;
@@ -471,43 +461,57 @@ const Planner = (() => {
   }
   async function persist() {
     if (!S || !S.key || S.owner !== readOwner()) return;
-    const state = S;
-    const data = {...api_state(), line: undefined, at: Date.now()};
-    const local = keepDraft();
-    try { await api('/api/route-drafts/' + S.key, json('PUT', {data})); if (state !== S || state.owner !== readOwner()) return; autosave = 'saved'; }
-    catch (_) { if (state !== S || state.owner !== readOwner()) return; autosave = local ? 'local' : 'failed'; }
+    const state=S, draftKey=state.key, data={...api_state(),line:undefined,at:Date.now()};
+    const local=keepDraft();
+    // Serialize autosaves so completion can drain them before removing this draft.
+    const task=(state.draftTask||Promise.resolve()).catch(()=>{}).then(()=>{
+      if(state!==S||state.key!==draftKey||state.owner!==readOwner())return;
+      return api('/api/route-drafts/'+draftKey,json('PUT',{data}));
+    });
+    state.draftTask=task;
+    try { await task; if(state!==S||state.key!==draftKey||state.owner!==readOwner())return; autosave='saved'; }
+    catch (_) { if(state!==S||state.key!==draftKey||state.owner!==readOwner())return; autosave=local?'local':'failed'; }
     drawStatus();
   }
   async function forget() {
     if (!S?.key) return;
-    try { store.del(planDraftKey(S.key)); } catch (_) { /* none */ }
-    try { await api('/api/route-drafts/' + S.key, {method: 'DELETE'}); } catch (_) { /* cleared on the next save */ }
+    const state=S,draftKey=state.key,deviceKey=planDraftKey(draftKey);
+    state.key=null;clearTimeout(saveT);clearTimeout(elevT);
+    try { store.del(deviceKey); } catch (_) { /* none */ }
+    try { await state.draftTask; } catch (_) { /* still remove a failed autosave */ }
+    if(state!==S||state.owner!==readOwner())return;
+    try { await api('/api/route-drafts/'+draftKey,{method:'DELETE'}); } catch (_) { /* cleared on the next save */ }
   }
   function saveSheet(opts) {
-    const st = api_state();
+    if(S.legs.some(l=>l.state!=='ok'||l.mode!=='path')){toast('Find every mapped path before saving. Your draft is kept.');return;}
+    const st = api_state(), state=S;
     sheet(S.routeId ? 'Save changes' : 'Save route', `<form class="form" id="pl-save-form">
         <label>Name<input name="name" maxlength="120" required value="${esc(S.name || '')}" placeholder="Morning loop"></label>
         <label>Notes <small class="muted">(optional, only you see them)</small><textarea name="description" maxlength="2000" rows="2">${esc(S.description || '')}</textarea></label>
-        <p class="small muted">${PLAN_SPORTS.find(([k]) => k === S.sport)[1]} · ${fmt(st.distance_m)} ${units()}${S.legs.some((l) => l.mode === 'manual') ? ' · includes straight-line sections' : ''}. Saved routes are private to you.</p>
+        <p class="small muted">${PLAN_SPORTS.find(([k]) => k === S.sport)[1]} · ${fmt(st.distance_m)} ${units()} · follows mapped paths. Saved routes are private to you.</p>
         <button class="primary wide" data-use>${svg('track')}Save and use in Track</button><button class="ghost wide" data-only>Save</button>
         <p class="small danger" id="pl-save-err" role="alert"></p></form>`, (b, close) => {
-      const form = $('#pl-save-form', b), err = $('#pl-save-err', b);
+      const form = $('#pl-save-form', b), err = $('#pl-save-err', b), live=()=>state===S&&state.owner===readOwner()&&b.isConnected;
       form.elements.name.oninput = () => { S.name = form.elements.name.value; keepDraft(); };
       form.elements.description.oninput = () => { S.description = form.elements.description.value; keepDraft(); };
       const go_ = async (useIt, btn) => {
+        if(!live())return;
         const name = form.elements.name.value.trim(); if (!name) { form.elements.name.reportValidity(); return; }
         $$('button', form).forEach((x) => x.disabled = true); btn.textContent = 'Saving…'; err.textContent = '';
         const body = {client_id: S.clientId, name, description: form.elements.description.value.trim() || null, sport: S.sport, waypoints: st.waypoints, legs: st.legs,
                       source: opts.source || 'drawn', base_version: S.baseVersion};
         try {
           const r = S.routeId ? await api('/api/planned-routes/' + S.routeId, json('PUT', body)) : await api('/api/planned-routes', json('POST', body));
+          if(!live())return;
           S.routeId=r.id;S.baseVersion=r.version;keepDraft();
           if(useIt)PlanTrack.set(PlanTrack.from({...r,full_line:Plan.enc(st.line)}));
-          await forget(); invalidate('/api/planned-routes'); close();
+          await forget(); if(!live())return; invalidate('/api/planned-routes'); close();
           if (useIt) { toast('Route ready in Track'); go('/track'); }
           else { toast('Route saved'); go(`/routes/plan/${r.id}`, {replace: true}); }
         } catch (x) {
+          if(!live())return;
           $$('button', form).forEach((y) => y.disabled = false); btn.textContent = useIt ? 'Save and use in Track' : 'Save';
+          if(x.code==='paths_changed'||x.code==='paths_required'){close();S.legs.forEach(l=>{l.state='pending';l.rev++;});changed();toast(x.message);return;}
           if (x.code === 'route_changed') { close(); conflict(opts, body); return; }
           err.textContent = x.message + ' Your route is kept; try again.';
         }
@@ -551,21 +555,17 @@ function stretchSheet(title, line, {unitLabel = '', onUse, note = ''}) {
 }
 
 // ---------- pages ----------
-const routesTabs = (on) => `<div class="seg routes-tabs" role="tablist" aria-label="Routes">${[['planned', 'Planned', '/routes'], ['shared', 'Shared', '/routes?view=shared'], ['matched', 'Matched', '/routes?view=matched'], ['segments', 'Segments', '/routes?view=segments']]
-  .map(([k, l, h]) => `<a role="tab" href="${h}" aria-selected="${on === k}" data-replace>${l}</a>`).join('')}</div>`;
+const routesTabs = (on) => `<div class="seg routes-tabs" role="tablist" aria-label="Routes">${[['planned','My routes','/routes'],['shared','Shared routes','/routes?view=shared']].map(([k,l,h])=>`<a role="tab" href="${h}" aria-selected="${on===k}" data-replace>${l}</a>`).join('')}</div>`;
 
-route(/^\/routes$/, 'progress', async (el) => {
-  const q = new URLSearchParams(location.search), view = q.get('view') || 'planned';
-  el.innerHTML = `<div class="top">${backBtn('Progress')}<span></span></div><h1>Routes</h1>${routesTabs(view)}<div id="rt-body"></div>`;
-  wireBack(el, '/progress');
-  $$('[data-replace]', el).forEach((a) => a.onclick = (e) => { e.preventDefault(); go(a.getAttribute('href'), {replace: true}); });
-  const body = $('#rt-body', el);
-  if (view === 'shared') return RouteShare.browse(body);
-  if (view === 'matched') {
-    body.innerHTML = '<p class="small muted">Matched routes group activities you’ve done more than once, with your trend on each. They’re made from what you recorded, not planned.</p><div id="rt-matched"></div>';
-    return pRoutes($('#rt-matched', body), q);
-  }
-  if (view === 'segments') return Segments.list(body);
+route(/^\/routes$/, 'track', async (el) => {
+  const q=new URLSearchParams(location.search),view=q.get('view')||'planned';
+  if(view==='matched')return go('/progress/routes',{replace:true});
+  if(view==='segments')return go('/progress/segments',{replace:true});
+  el.innerHTML=`<div class="top">${backBtn('Track')}<h1>Routes</h1><span></span></div><p class="small muted">Plan a route, then choose it before you start recording.</p>${routesTabs(view)}<div id="rt-body"></div>`;
+  wireBack(el,'/track');
+  $$('[data-replace]',el).forEach(a=>a.onclick=e=>{e.preventDefault();go(a.getAttribute('href'),{replace:true});});
+  const body=$('#rt-body',el);
+  if(view==='shared')return RouteShare.browse(body);
   const sport = q.get('sport') || '', term = q.get('q') || '';
   body.innerHTML = `<a class="primary wide" href="/routes/new">${svg('plus')}Plan a route</a>
     <form class="searchbox" id="rt-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" value="${esc(term)}" placeholder="Search your routes" aria-label="Search your routes" maxlength="120" enterkeyhint="search"></form>
@@ -582,11 +582,11 @@ route(/^\/routes$/, 'progress', async (el) => {
   });
 });
 
-route(/^\/routes\/new$/, 'progress', async (el) => {
+route(/^\/routes\/new$/, 'track', async (el) => {
   const q = new URLSearchParams(location.search), aid = q.get('activity');
   const ed = Planner.open(el, {title: 'New route', key: 'new', back: 'Routes', backHref: '/routes', source: aid ? 'activity' : 'drawn'});
   if (aid && /^\d+$/.test(aid)) fromActivity(+aid, async (d) => {
-    const s = ed.state(); Object.assign(s, {waypoints: d.waypoints.map((w) => [+w[0], +w[1]]), legs: d.legs.map((l) => ({mode: l.mode, pts: decode(l.line), rev: 0, state: 'ok', dist: null})), sport: d.sport});
+    const s = ed.state(); Object.assign(s, {waypoints: d.waypoints.map((w) => [+w[0], +w[1]]), legs: d.legs.map((l) => ({mode:'path',pts:decode(l.line),rev:0,state:'pending',dist:null})), sport: d.sport});
     await ed.persist(); history.replaceState(null, '', '/routes/new'); setTimeout(() => render(), 0);
   });
 });
@@ -601,7 +601,7 @@ async function fromActivity(aid, done) {   // copy positions from your own activ
     (b, close) => $$('[data-s]', b).forEach((x) => x.onclick = () => { close(); pick(+x.dataset.s); }));
 }
 
-route(/^\/routes\/plan\/(\d+)\/edit$/, 'progress', async (el, id) => {
+route(/^\/routes\/plan\/(\d+)\/edit$/, 'track', async (el, id) => {
   el.innerHTML = skel(1);
   let r; try { r = await api(`/api/planned-routes/${id}`); } catch (e) { showError(el, e); return; }
   const key = `route-${id}`;
@@ -613,7 +613,7 @@ route(/^\/routes\/plan\/(\d+)\/edit$/, 'progress', async (el, id) => {
   Planner.open(el, {title: 'Edit route', key, plan, routeId: r.id, baseVersion: r.version, back: 'Route', backHref: `/routes/plan/${id}`});
 });
 
-route(/^\/routes\/plan\/(\d+)$/, 'progress', async (el, id) => {
+route(/^\/routes\/plan\/(\d+)$/, 'track', async (el, id) => {
   const shareOwner=readOwner();
   el.innerHTML = `<div class="top">${backBtn('Routes')}<span></span></div><div id="rp-body">${skel(2)}</div>`;
   wireBack(el, '/routes');

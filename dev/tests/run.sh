@@ -114,6 +114,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/cook_clarification_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_matching_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/routes_segments_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/route_paths_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/segment_integrity_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_sharing_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_following_incontainer.py

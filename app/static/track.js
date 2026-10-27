@@ -419,7 +419,7 @@ const Track = (() => {
   return {get active() { return !!session; }, sync, draw, pause, pullNative, async leave() { if(TrackNative.supported) await TrackNative.detach();else await pause(); }, forgetDraft() { stopGPS(); if (key) store.del(key); session = null; }};
 })();
 route(/^\/track$/, 'track', async (el) => {
-  Track.sync(); el.innerHTML = `<div class="top"><h1>Track</h1>${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div><div id="track-content"></div>`;
+  Track.sync(); el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts"><a class="linkbtn" href="/routes">${svg('route')}Routes</a>${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div></div><div id="track-content"></div>`;
   if (TrackNative.supported) { try { await Track.pullNative(); } catch(e) { toast(e.message); } }
   Track.draw();
 });

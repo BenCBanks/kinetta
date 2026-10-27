@@ -2,7 +2,7 @@
 
 - Paths that follow streets and trails: Valhalla (MIT engine, OpenStreetMap data, ODbL). Default server: the public
   FOSSGIS instance (fair use: about one request a second, no bulk use). KINETTA_ROUTING_URL points at your own Valhalla
-  instead; "off" turns path-following off and the planner offers straight lines only.
+  instead; "off" prevents creating or replanning routes until routing is configured.
 - Heights: the same Valhalla server's /height (SRTM-derived). KINETTA_ELEVATION_URL overrides; "off" leaves climb unknown.
 - Place search: Nominatim (OpenStreetMap). Searched only when someone presses Search, never while typing (its policy
   forbids autocomplete). KINETTA_GEOCODER_URL overrides; "off" hides search.
@@ -119,7 +119,7 @@ def _get(url, params):
 
 def _route_once(sport, points):
     base = routing_url()
-    if not base: raise Unavailable('Following paths is turned off on this server. Use straight lines.')
+    if not base: raise Unavailable('Path routing is turned off on this server. Your draft is kept; configure routing before saving a new route.')
     costing, opts = COSTING[sport]
     body = {'locations': [{'lat': round(p[0], 6), 'lon': round(p[1], 6), 'type': 'break'} for p in points],
             'costing': costing, 'costing_options': {costing: opts}, 'shape_format': 'polyline6', 'units': 'kilometers',
@@ -128,6 +128,8 @@ def _route_once(sport, points):
         code, data = _post(base + '/route', body)
     if code != 200 or 'trip' not in data:
         return None      # no path between these points (water, private land, wrong network for the sport)
+    if len(data['trip'].get('legs',[])) != len(points)-1:
+        raise Unavailable('Map services returned an incomplete path. Your draft is kept; try again.')
     legs = []
     for leg in data['trip']['legs']:
         line = route_geo.decode(leg['shape'], 6)
@@ -147,8 +149,10 @@ def route(uid, sport, points):
         for a, b in zip(points, points[1:]):
             one = _route_once(sport, [a, b]) if len(points) > 2 else None
             legs.append(one[0] if one else {'ok': False, 'reason': 'no_path'})
-    with _cache_lock:
-        _cache[key] = legs
+    # A failed connection must be retried with the provider, rather than remembered forever as no path.
+    if all(leg.get('ok') for leg in legs):
+        with _cache_lock:
+            _cache[key] = legs
     return legs
 
 

@@ -33,6 +33,7 @@ class Sharing(unittest.TestCase):
     def setUpClass(cls):cls.pw=auth.hash_pw(PW)
     def setUp(self):
         self.patch=patch.object(plans,'_elevation',side_effect=terrain);self.patch.start()
+        self.path_patch=patch.object(plans.route_providers,'route',side_effect=lambda uid,sport,pts:[{'ok':True,'line':route_geo.encode([a,b])} for a,b in zip(pts,pts[1:])]);self.path_patch.start()
         self.ids={};self.tokens={};self.c={};self.prefix='zz_test_share_'+uuid.uuid4().hex[:8]+'_'
         with db.connect() as c:
             for name in ('owner','friend','stranger','admin'):
@@ -44,14 +45,14 @@ class Sharing(unittest.TestCase):
         self.admin=client();self.admin.cookies.set(admin_auth.COOKIE,token,path='/api');self.admin.headers['X-Admin-CSRF']=admin_auth.csrf(token)
         self.route=self.make_route()
     def tearDown(self):
-        self.patch.stop()
+        self.patch.stop();self.path_patch.stop()
         from app.api_account import erase
         with db.connect() as c:
             for uid in self.ids.values():erase(c,{'id':uid,'sql_role':None})
     def make_route(self,length=4000):
         pts=[north(length*i/20) for i in range(21)]
         r=self.c['owner'].post('/api/planned-routes',json={'client_id':str(uuid.uuid4()),'name':'Private original title','description':'Never share this private note','sport':'run',
-          'waypoints':[pts[0],pts[-1]],'legs':[{'mode':'manual','line':route_geo.encode([pts[0],pts[-1]])}]})
+          'waypoints':[pts[0],pts[-1]],'legs':[{'mode':'path','line':route_geo.encode([pts[0],pts[-1]])}]})
         self.assertEqual(r.status_code,200,r.text);return r.json()
     def preview(self,audience='friends',**kw):
         r=self.c['owner'].post(f"/api/planned-routes/{self.route['id']}/sharing/preview",json={'audience':audience,'name':'Fictional shared loop','description':'Meet at the public trailhead',**kw})

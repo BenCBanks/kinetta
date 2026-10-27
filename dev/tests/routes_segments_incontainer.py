@@ -170,7 +170,7 @@ class PlannedRoutes(Base):
         self.assertEqual(ann.post('/api/planned-routes', json={**body, 'client_id': str(uuid.uuid4()), 'legs': [bad_manual, legs[1]]}).status_code, 400)
         manual = {'mode': 'manual', 'line': route_geo.encode([way[0], way[1]])}
         m = ann.post('/api/planned-routes', json={**body, 'client_id': str(uuid.uuid4()), 'name': 'With a straight bit', 'legs': [manual, legs[1]]}).json()
-        self.assertEqual(m['warnings'][0]['code'], 'manual', 'straight sections are marked on the saved route')
+        self.assertEqual(m['detail']['code'],'paths_required','manual connections cannot create saved routes')
         # edit = new version; a stale edit gets 409 instead of overwriting
         v2 = ann.put(f"/api/planned-routes/{route['id']}", json={**body, 'base_version': 1, 'name': 'Park loop 2'}).json()
         self.assertEqual(v2['version'], 2)

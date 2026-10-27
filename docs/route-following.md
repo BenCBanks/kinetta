@@ -2,7 +2,9 @@
 
 In the iPhone app, open a route and choose **Use in Track**, or choose **Save and use in Track** after editing a plan. Track also offers **Add a planned route** and **Choose a route**. You can use your own route, a private copy, or a currently shared original that you can access. No segment or leaderboard enrollment is needed. Choosing a route does not start a recording or change your activity audience.
 
-Review the sport, version, start/finish and manual-section or gap warnings before Start. The distance to the planned start is a straight-line distance from a recent clear position, not directions to reach it. A stale or inaccurate fix leaves that distance unknown. The map preview's automatic location check uses permission already granted; choosing a route does not prompt for new location permission. Locate me is an explicit request, and Start uses the existing iPhone recorder and permission flow.
+Review the sport, version, start/finish and any legacy or gap warnings before Start. The distance to the planned start is a straight-line distance from a recent clear position, not directions to reach it. A stale or inaccurate fix leaves that distance unknown. The map preview's automatic location check uses permission already granted; choosing a route does not prompt for new location permission. Locate me is an explicit request, and Start uses the existing iPhone recorder and permission flow.
+
+New routes must follow mapped paths; imported guide points are replanned before saving. If a path cannot be found, keep editing or retry.
 
 ## Save the route on this device
 

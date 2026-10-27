@@ -1,6 +1,6 @@
 # Share a planned route
 
-Open a route under **Progress → Routes → Planned**, then **Share this route**. New routes start **Only me**, independently of your activity-sharing default. Choose **Approved friends** or **Everyone on this server**, a public name and an optional public description. Private notes are never prefilled into the public description. You may choose a shorter stretch before previewing.
+Open a route under **Track → Routes → My routes**, then **Share this route**. New routes start **Only me**, independently of your activity-sharing default. Choose **Approved friends** or **Everyone on this server**, a public name and an optional public description. Private notes are never prefilled into the public description. You may choose a shorter stretch before previewing.
 
 **Preview for recipients** shows exactly the protected map, name, sport, shared distance, available climb and public description they will receive. The server applies the current start/end hiding setting as well as your selected stretch. A three-metre rounding margin protects the clipped boundaries. At least 200 metres must remain; a too-short route is refused rather than falling back to the original. Review the whole visible course: endpoint hiding is not a geofence around every sensitive place a loop might revisit.
 
