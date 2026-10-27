@@ -577,7 +577,7 @@ route(/^\/routes$/, 'track', async (el) => {
   const q=new URLSearchParams(location.search),view=q.get('view')||'planned';
   if(view==='matched')return go('/progress/routes',{replace:true});
   if(view==='segments')return go('/progress/segments',{replace:true});
-  el.innerHTML=`<div class="top">${backBtn('Track')}<h1>Routes</h1><span></span></div><p class="small muted">Plan a route, then choose it before you start recording.</p>${routesTabs(view)}<div id="rt-body"></div>`;
+  el.innerHTML=`<div class="top">${backBtn('Track')}</div><h1>Routes</h1><p class="small muted">Plan a route, then choose it before you start recording.</p>${routesTabs(view)}<div id="rt-body"></div>`;
   wireBack(el,'/track');
   $$('[data-replace]',el).forEach(a=>a.onclick=e=>{e.preventDefault();go(a.getAttribute('href'),{replace:true});});
   const body=$('#rt-body',el);
