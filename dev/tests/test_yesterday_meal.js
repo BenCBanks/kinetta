@@ -5,7 +5,7 @@ function fixture(){
  let owner='A',calls=[],finish,closed=0,writes=[],id=0,fail=false;
  const box={isConnected:true,innerHTML:''},nodes=new Map();
  const node=s=>{if(!nodes.has(s))nodes.set(s,{disabled:false,textContent:''});return nodes.get(s)};
- const c={readOwner:()=>owner,skel:()=>'',esc:String,newId:()=> 'copy-'+(++id),dayLabel:x=>x,addDays:()=> '2026-10-16',MEAL_NAMES:{lunch:'Lunch'},fmtAmount:e=>e.amount+' '+e.unit,
+ const c={readOwner:()=>owner,skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',esc:String,newId:()=> 'copy-'+(++id),dayLabel:x=>x,addDays:()=> '2026-10-16',MEAL_NAMES:{lunch:'Lunch'},fmtAmount:e=>e.amount+' '+e.unit,
   sheet:(title,html,fn)=>{assert.equal(title,'Same as yesterday');fn(box,()=>{closed++;box.isConnected=false})},$:node,Native:{haptic(){}},toast(){},addSheet:(...a)=>calls.push(a),
   api:path=>{calls.push(path);return new Promise((resolve,reject)=>finish={resolve,reject})},addEntries:async items=>{writes.push(JSON.parse(JSON.stringify(items)));if(fail)throw Error('Lost acknowledgement');return {queued:true,undo:()=>{}}}};
  vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function yesterdayMeal'),source.indexOf('// nutrition for an amount')),c);
