@@ -1757,13 +1757,11 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 /* The two Progress focuses (#122 C); the Food & weight half shows only for food users (#164). */
 .progress-heading { gap: 8px; flex-wrap: wrap; }
 .progress-heading > .acts { margin-left: auto; align-items: center; }
-.progress-focus { position: relative; font-size: .9rem; }
-.progress-focus > summary { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 6px; color: var(--accent); cursor: pointer; list-style: none; font-weight: 650; }
-.progress-focus > summary::-webkit-details-marker { display: none; }
-.progress-focus > summary svg { width: 16px; height: 16px; }
-.progress-focus nav { position: absolute; right: 0; top: 100%; z-index: 40; width: min(240px, calc(100vw - 44px)); padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--lift); }
-.progress-focus nav a { display: flex; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 8px; color: var(--tx); }
-.progress-focus nav a[aria-current] { color: var(--accent); background: var(--accent2); font-weight: 700; }
+.progress-focus { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; margin: 0 0 12px; }
+.progress-focus a { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 5px 12px; border-radius: 12px; font-weight: 600; color: var(--tx3); text-decoration: none; }
+.progress-focus a[aria-current] { background: var(--segon); color: var(--accent); font-weight: 700; }
+.record-effort .record-rank { flex: none; width: 2em; color: var(--tx3); } .record-effort-main { flex: 1; min-width: 0; }
+.pym-slim { padding-top: 12px; padding-bottom: 12px; }
 .food-calendar { display:grid; grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr)); gap:8px; }
 .food-calendar a { display:grid; text-align:center; min-height:72px; padding:8px 4px; border-radius:12px; color:var(--tx2); background:var(--card2); }
 .food-calendar a.logged { color:var(--accent); background:var(--accent2); }

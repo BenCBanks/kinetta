@@ -164,7 +164,7 @@ function combinedWeekHtml(w) {
   if(w.seconds>0)stats.push(stat('Time',dur(w.seconds)));
   const food=w.days_logged?`${w.days_logged} of 7 days with food logged.`:'Your food consistency will appear as you log meals.';
   const protein=w.days_logged&&w.protein_target?`${w.protein_days_reached?`${w.protein_days_reached} ${w.protein_days_reached===1?'day':'days'} reached`:'No logged days reached'} your current ${r0(w.protein_target)} g protein target.${w.protein_days_unknown?` ${w.protein_days_unknown} logged ${w.protein_days_unknown===1?'day has':'days have'} unknown protein.`:''}`:'';
-  return `<details class="card combined-week"><summary>Your week · food &amp; training</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}${w.days_logged?'<p class="small muted">Food logged does not mean the whole day is complete. Protein compares known recorded amounts with your current target.</p>':''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?' <a class="linkbtn" href="/activity?view=mine">Your workouts</a>':''}</details>`;
+  return `<details class="card combined-week"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}${w.days_logged?'<p class="small muted">Food logged does not mean the whole day is complete. Protein compares known recorded amounts with your current target.</p>':''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?' <a class="linkbtn" href="/activity?view=mine">Your workouts</a>':''}</details>`;
 }
 function combinedWeek(box) {
   if(!box)return;const owner=readOwner();
@@ -960,14 +960,10 @@ const progressChoice = () => foodUser() && store.get(progressKey()) === 'food' ?
 function progressSwitch(section) {
   if (section === 'training' && !foodUser()) return '';
   store.set(progressKey(),section);
-  return `<details class="progress-focus"><summary aria-label="Change progress focus">${section === 'food' ? 'Food &amp; weight' : 'Training'}${svg('down')}</summary><nav aria-label="Progress focus"><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a></nav></details>`;
+  return `<nav class="seg progress-focus" aria-label="Progress focus"><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a></nav>`;
 }
-function wireProgressFocus(el) {
-  const menu=$('.progress-focus',el);if(!menu)return;
-  const close=e=>{if(menu.open&&(!menu.contains(e.target)||e.key==='Escape')){menu.open=false;if(e.key==='Escape')$('summary',menu).focus();}};
-  document.addEventListener('pointerdown',close);document.addEventListener('keydown',close);
-  viewResources.set(menu,()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',close);});
-}
+// Kit sits at the far right of the Progress header like other pages; the header is redrawn per view, so add it each time.
+function wireProgressFocus(el) { if (typeof KitChat !== 'undefined') KitChat.entry(el, '/progress'); }
 function nutritionHref(view, params = '') {
   return location.pathname === '/progress' ? `/progress?section=food&foodview=${view}${params ? '&' + params : ''}` : `/food?view=${view}${params ? '&' + params : ''}`;
 }
@@ -984,7 +980,7 @@ async function foodProgress(el,q) {
 // the header every Progress view shares: title + bell, then View and the filters this view uses
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
-  el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${progressSwitch('training')}${bellBtn()}</div></div>
+  el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
     <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav>${v && !PVIEWS.slice(0,3).some(([k])=>k===view)?`<h2 class="progress-view-title">${esc(v[1])}</h2>`:''}<div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skel(2)}</div>`;
   wireProgressFocus(el);
   if(v&&!PVIEWS.slice(0,3).some(([k])=>k===view)){const more=$('#p-view',el);more.classList.add('current-view');more.setAttribute('aria-label',`More progress views · current view: ${v[1]}`);}
@@ -1106,8 +1102,12 @@ route(/^\/records\/(\w+)\/([\d.]+)$/, 'progress', async (el, sport, dist) => {
     const label = (rows[0] && rows[0].label) || '';
     el.innerHTML = `<div class="top">${backBtn('Records')}</div><div class="card"><h1>${esc(U.dist(+dist) + ' ' + U.du())} · ${SPORT_NAMES[sport]}</h1>
       <p class="muted">${rows.length} efforts · ${prs.length} times you set a new PR</p><div id="h-chart"></div></div>
-      <div class="card"><h2>PR progression</h2>${[...prs].reverse().map((r) => `<a class="row-link" href="/activity/${r.activity_id}"><div><b class="num">${dur(r.elapsed_s)}</b><br><small class="muted">${esc(r.name)}</small></div><small class="muted">${esc(fdate(r.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>`).join('')}</div>`;
+      <div class="card"><h2>PR progression</h2>${[...prs].reverse().map((r) => `<a class="row-link" href="/activity/${r.activity_id}"><div><b class="num">${dur(r.elapsed_s)}</b><br><small class="muted">${esc(r.name)}</small></div><small class="muted">${esc(fdate(r.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>`).join('')}</div>
+      <div class="card"><h2>All efforts</h2><p class="small muted">Fastest first</p><div id="h-all"></div></div>`;
     wireBack(el, `/progress?view=records&sport=${sport}`);
+    const all = [...rows].sort((a, b) => a.elapsed_s - b.elapsed_s), allRow = (r, i) => `<a class="row-link record-effort" href="/activity/${r.activity_id}"><span class="record-rank num">${i + 1}</span><div class="record-effort-main"><b class="num">${dur(r.elapsed_s)}</b><br><small class="muted">${esc(r.name)}</small></div><small class="muted">${esc(fdate(r.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>`;
+    const drawAll = (n) => { const box = $('#h-all', el); if (!box) return; box.innerHTML = all.slice(0, n).map(allRow).join('') + (all.length > n ? `<button type="button" class="ghost wide" id="h-more">Show all ${all.length}</button>` : ''); const more = $('#h-more', box); if (more) more.onclick = () => drawAll(all.length); };
+    drawAll(10);
     const best = rows.reduce((b, r) => (!b || r.elapsed_s < b.elapsed_s ? r : b), null);
     requestAnimationFrame(() => dotChart($('#h-chart', el), rows.map((r) => ({x: new Date(r.start_time) / 864e5, y: r.elapsed_s, id: r.activity_id})), {yfmt: (v) => dur(v), invert: true, best: best && best.activity_id}));
   });

@@ -1269,3 +1269,7 @@ Returning food users have a Same as yesterday action on empty Nutrition meals an
 ### Ask Kit start (27 October 2026)
 
 After owner phone review ("big and clunky"), the empty Ask Kit screen is compact and sits just above the message box: a small sparkle with "What can I help with?", the three screen-specific suggestions as wrapping chips, and one fine-print line: new chat each visit, the AI provider in use, and a Memory link. Kit chat settings (the ••• button) still hold memory, permissions, earlier reviews and New chat.
+
+### Progress, Activity and record polish (27 October 2026)
+
+After owner phone review: Progress keeps the title row for the bell (and Nutrition help in Food & weight) with Kit at the far right like other pages; the Training | Food & weight toggle is a two-part control directly under the title, in the same place in both modes (it was a dropdown that moved between the header and its own row). The combined weekly summary is called Your week in review. The weekly check-in drops its "No watch or Kit needed" note. On Activity, Find your friends with no suggestions is one slim row with an Invite link. A record distance page lists every effort (fastest first, ten then Show all) under PR progression.
