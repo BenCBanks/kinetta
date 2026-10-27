@@ -107,3 +107,7 @@ An active account is one that requested its signed-in profile (`/api/me`) that U
 ## Segments & times
 
 Review segment reports, appeals and held times from this section. It shows derived timing and quality checks for open cases, without private GPS streams or unrelated history. Decisions need a reason and the current reviewed version. Pause or resume every board here, and retry jobs that stopped after five attempts. See the [segment moderator guide](segments.md#moderator-guide) for retirement, takedown, appeals and recovery.
+
+## Shared route reports
+
+Review an open case to see only the currently shared, protected route. Private originals and notes are unavailable. Dismiss or remove sharing with a reason, current material version and exact creator username; durable receipts prevent a lost-response retry from acting twice. Removal keeps the owner's private plan and deliberate copies while revoking the original. See [route sharing](route-sharing.md#report-and-moderate).

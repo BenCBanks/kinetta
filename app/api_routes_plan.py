@@ -198,6 +198,8 @@ def planned_route(rid: int, version: int | None = None, user=Depends(current_use
 @router.post('/planned-routes')
 def create_route(body: RouteIn, user=Depends(current_user)):
     """Save a new route. Saving twice (a lost answer, a double tap) returns the first one."""
+    from .route_sharing import rate
+    rate('create', user['id'], 100, 300)
     m = measure(body)
     with db.connect() as c:
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', (f"plan:{user['id']}:{body.client_id}",))

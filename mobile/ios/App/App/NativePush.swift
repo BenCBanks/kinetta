@@ -7,6 +7,7 @@ final class NativePushCenter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NativePushCenter()
     weak var plugin: KinettaPushPlugin?
     var pendingURL: String?
+    var pendingServer: String?
     private(set) var externalEntry = false
     private var pendingExternalEntry = false
 
@@ -43,6 +44,7 @@ final class NativePushCenter: NSObject, UNUserNotificationCenterDelegate {
             if let path = response.notification.request.content.userInfo["url"] as? String,
                path.hasPrefix("/"), !path.hasPrefix("//"), !path.contains(":") {
                 self.pendingURL = path
+                self.pendingServer = nil
                 self.plugin?.notifyListeners("notificationOpened", data: [:])
             }
         }
@@ -117,6 +119,7 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             UIApplication.shared.unregisterForRemoteNotifications()
             NativePushCenter.shared.pendingURL = nil
+            NativePushCenter.shared.pendingServer = nil
             UNUserNotificationCenter.current().removeAllDeliveredNotifications()
             call.resolve()
         }
@@ -144,8 +147,10 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func takePending(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             let path = NativePushCenter.shared.pendingURL
+            let server = NativePushCenter.shared.pendingServer
             NativePushCenter.shared.pendingURL = nil
-            call.resolve(["url": path ?? "", "externalEntry": NativePushCenter.shared.externalEntry])
+            NativePushCenter.shared.pendingServer = nil
+            call.resolve(["url": path ?? "", "server": server ?? "", "externalEntry": NativePushCenter.shared.externalEntry])
         }
     }
 }

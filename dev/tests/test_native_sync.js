@@ -8,12 +8,12 @@ const workout = {id: '12345678-test-workout', workoutType: 'running', startDate:
   endDate: new Date(now - 20 * DAY + 1800000).toISOString(), duration: 1800, distance: 5000, calories: 300};
 function device(background = null, push = null) {
   const saved = new Map(), queries = [], sent = [], events = {};
-  const ctx = {console, Date, Map, JSON, Error, Promise, setTimeout, clearTimeout,
+  const ctx = {console, Date, Map, JSON, Error, Promise, URL, Event:class {}, setTimeout, clearTimeout,
     App: {me: {id: 1}, cache: new Map()}, route() {}, forgetKept() {}, invalidate() {}, toast() {}, render() {},
     document: {documentElement: {}, addEventListener(k, fn) { events[k] = fn; }},
     MutationObserver: class { observe() {} },
     json: (method, body) => ({method, body: JSON.stringify(body)}),
-    window: {addEventListener(k, fn) { events[k] = fn; }, Capacitor: {isNativePlatform: () => true, Plugins: {
+    window: {dispatchEvent(){}, addEventListener(k, fn) { events[k] = fn; }, Capacitor: {isNativePlatform: () => true, Plugins: {
       Preferences: {get: async ({key}) => ({value: saved.get(key) ?? null}),
         set: async ({key, value}) => saved.set(key, value), remove: async ({key}) => saved.delete(key)},
       HealthPlugin: {isHealthAvailable: async () => ({available: true}), requestHealthPermissions: async () => {},
@@ -33,6 +33,11 @@ function device(background = null, push = null) {
   return {ctx, n: ctx.client, saved, queries, sent, events};
 }
 (async () => {
+  for(const [server,path,allowed] of [['https://example.test','/routes/shared/42',true],['https://other.example.test','/routes/shared/42',false],['https://example.test','//elsewhere.test',false]]) {
+    const opened=[],messages=[],linkPush={takePending:async()=>({url:path,server}),status:async()=>({allowed:false}),addListener(){}};
+    const link=device(null,linkPush);await link.n.ready;link.n.base='https://example.test';link.n.token='fictional-native-session';link.ctx.go=p=>opened.push(p);link.ctx.toast=m=>messages.push(m);
+    link.n.syncPush();await link.n.pushNavigationReady;assert.equal(opened.length,allowed?1:0,'shared link path/server allowlist');if(allowed)assert.equal(opened[0],path);
+  }
   const registrations = [], pushEvents = {};
   const push = {status: async () => ({allowed: true, denied: false}),
     register: async () => ({token: 'ab'.repeat(32), environment: 'production'}),

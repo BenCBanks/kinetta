@@ -1,6 +1,6 @@
 # Planned routes
 
-Open **Progress → Routes → Planned**, or **Track → Add a planned route**. Planned routes are editable plans, separate from completed activities, Matched routes and fixed competitive segments. Saving a plan adds no workout, distance total or leaderboard result. Sharing and discovery of ordinary route plans (#277) are separate future work; this implementation keeps plans private.
+Open **Progress → Routes → Planned**, or **Track → Add a planned route**. Planned routes are editable plans, separate from completed activities, Matched routes and fixed competitive segments. Saving a plan adds no workout, distance total or leaderboard result. Routes start private. [Deliberate route sharing](route-sharing.md) adds protected recipient previews, discovery and independent copies; an activity's audience never publishes a plan automatically.
 
 Choose Run, Walk, Hike or Ride. Tap the map to add points, drag a point to move it, or tap/drag a line to insert one. **Points** in More offers labelled controls without dragging. Undo/Redo, Reverse, Back to start and Out and back operate on the plan. Reverse requests paths again because cycling access can differ by direction. Distance updates in miles or kilometres; unavailable connections retain the last line and require a deliberate straight-line choice. Straight lines do not promise a usable trail or crossing. Heights are approximate terrain measurements; missing heights stay unknown.
 
@@ -43,4 +43,4 @@ Public-demo requests have no per-call charge and no availability promise. Capaci
 
 ## Release checks
 
-Browser screenshots with fictional data and stand-in path/height responses demonstrate the interface, not provider coverage or outdoor accuracy. Before release, review the provider notice/rights above and run the documented physical-iPhone checks: point/line dragging in WKWebView, GPX arriving in Files through Safari, recording against the saved version, offline overlay/recovery, background/locked-screen recording and account cleanup. Keep #277 route sharing and the rest of #279 following acceptance open until actually delivered.
+Browser screenshots with fictional data and stand-in path/height responses demonstrate the interface, not provider coverage or outdoor accuracy. Before release, review the provider notice/rights above and run the documented physical-iPhone checks: point/line dragging in WKWebView, GPX arriving in Files through Safari, recording against the saved version, offline overlay/recovery, background/locked-screen recording and account cleanup. Sharing's universal-link/system-share acceptance and #279 following acceptance remain distinct from its implemented server/browser behavior.

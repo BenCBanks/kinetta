@@ -13,7 +13,7 @@ import threading
 from .auth import current_user
 from . import request_log
 from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread
-from . import api_routes_plan, api_segments, segments
+from . import api_routes_plan, api_segments, segments, route_sharing
 
 @asynccontextmanager
 async def lifespan(app):
@@ -30,6 +30,7 @@ async def lifespan(app):
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(api_activities.router)
 app.include_router(api_routes_plan.router)
+app.include_router(route_sharing.router)
 app.include_router(api_segments.router)
 app.include_router(api_lifts.router)
 app.include_router(api_food.router)
@@ -284,7 +285,9 @@ def app_links():
     team = os.environ.get('KINETTA_APNS_TEAM_ID', '').strip()
     if not team: raise HTTPException(404)
     app_id = f"{team}.{os.environ.get('KINETTA_APNS_TOPIC', 'com.kinetta.app')}"
-    return JSONResponse({'applinks': {'details': [{'appIDs': [app_id], 'components': [{'/': '/add/*', 'comment': 'friend invite links'}]}]}},
+    return JSONResponse({'applinks': {'details': [{'appIDs': [app_id], 'components': [
+        {'/': '/add/*', 'comment': 'friend invite links'},
+        {'/': '/routes/shared/*', 'comment': 'signed-in shared route links'}]}]}},
                         headers={'Cache-Control': 'public, max-age=3600'})
 
 
