@@ -638,8 +638,8 @@ function peopleRow(box, people, {title = 'People you may know', onChange, invite
       <a class="pym-who" href="${profileHref(p)}">${avatar(p, 'lg')}<b>${esc(p.name)}</b><small class="muted">${esc(p.why)}</small></a>
       <button type="button" class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button></div>`;
   if (!people.length && !invite) { box.innerHTML = ''; return; }
-  box.innerHTML = `<section class="card pym" aria-label="${esc(title)}"><div class="pym-head"><h2>${people.length ? esc(title) : 'Find your friends'}</h2>${invite && people.length ? '<button type="button" class="linkbtn" data-invite>Invite</button>' : ''}</div>
-    ${people.length ? `<div class="pym-track">${people.map(tile).join('')}</div>` : '<p class="small muted">Send friends a link. When they open it, you’re friends on Kinetta.</p><button type="button" class="ghost wide" data-invite>Invite friends to Kinetta</button>'}</section>`;
+  box.innerHTML = `<section class="card pym${people.length ? '' : ' pym-slim'}" aria-label="${esc(title)}"><div class="pym-head"><h2>${people.length ? esc(title) : 'Find your friends'}</h2>${invite ? '<button type="button" class="linkbtn" data-invite>Invite</button>' : ''}</div>
+    ${people.length ? `<div class="pym-track">${people.map(tile).join('')}</div>` : ''}</section>`;
   $$('[data-invite]', box).forEach((b) => b.onclick = inviteFriends);
   $$('[data-hide]', box).forEach((b) => b.onclick = () => {
     const hidden = hiddenPeople(); hidden.add(b.dataset.hide);
