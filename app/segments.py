@@ -29,7 +29,7 @@ from . import db, route_geo
 from .analysis import MAX_SPEED
 
 log = logging.getLogger(__name__)
-MATCHER = 1
+MATCHER = 2
 STEP = 5.0              # the segment path is measured at a point every 5 m
 START_R = 25.0          # how close the recording must pass the start and finish
 ON_LINE = 10.0
@@ -44,6 +44,8 @@ PLAUSIBLE = {'run': (7.5, 10.5), 'walk': (3.3, 3.3), 'hike': (3.5, 3.5), 'ride':
 MIN_M, MAX_M = 100.0, 50_000.0
 ASSISTED = ('e-bike', 'ebike', 'e_bike', 'electric', 'virtual', 'indoor', 'motor', 'trainer', 'zwift')
 REASONS = {
+    'invalid_times': 'The GPS timestamps are missing, non-finite or go backwards. The recording needs correction.',
+    'recomputed': 'This pass no longer matches the current recording and course checks.',
     'wrong_sport': 'A different sport from this segment.',
     'assisted': 'Assisted, virtual or indoor rides compete separately.',
     'gap': 'The recording has a gap on the segment.',
@@ -141,6 +143,8 @@ def match(points, sport, t, lat, lon):
            and route_geo.valid([lat[i], lon[i]]) and not (lat[i] == 0 and lon[i] == 0)]
     if len(idx) < 2: return [], 'no_times'
     T = np.array([float(t[i]) for i in idx]); P = np.array([c.xy([lat[i], lon[i]]) for i in idx])
+    # A summary duration cannot repair an unreliable recording clock. Keep it out rather than invent elapsed time.
+    if not np.isfinite(T).all() or np.any(np.diff(T) <= 0): return [], 'invalid_times'
     S0, S1 = c.v[0], c.v[-1]
     u0 = (P - S0) @ c.t0; d0 = np.hypot(*(P - S0).T)
     u1 = (P - S1) @ c.t1; d1 = np.hypot(*(P - S1).T)
@@ -210,56 +214,87 @@ def _follow(c, T, P, d1, u1, j0, ts, sport, vmax, sparse):
 
 
 # ---------- applying matches to the database ----------
+def lock_people(c, ids):
+    """Deletion locks accounts before their courses. Workers follow that order before adding personal rows."""
+    if ids: c.execute('SELECT id FROM users WHERE id=ANY(%s) ORDER BY id FOR KEY SHARE',(sorted(set(ids)),)).fetchall()
+
+
+def lock_match_people(c,sids,aids):
+    ids=[r['id'] for r in c.execute('''SELECT creator_id AS id FROM segments WHERE id=ANY(%s) AND creator_id IS NOT NULL
+      UNION SELECT user_id FROM activities WHERE id=ANY(%s)''',(sids,aids)).fetchall()]
+    lock_people(c,ids)
+
+
 def _segment_points(c, sid):
     r = c.execute('SELECT ST_AsGeoJSON(geom) AS g, sport FROM segments WHERE id = %s', (sid,)).fetchone()
     if not r or not r['g']: return None, None
     return [[la, lo] for lo, la in json.loads(r['g'])['coordinates']], r['sport']
 
 
-def scan(c, sid, aid, points=None, seg_sport=None):
-    """Match one segment against one activity and store the result (idempotent: re-running replaces the old answer,
-    keeping an admin's decision on the same pass)."""
+def calculate(c, sid, aid, points=None, seg_sport=None):
+    """Read and match one source revision. Source locks also fence concurrent stream replacement/deletion."""
     if points is None: points, seg_sport = _segment_points(c, sid)
-    if not points: return
-    a = c.execute("""SELECT a.user_id, a.sport, a.sport_label, a.start_time, s.t, s.lat, s.lon FROM activities a
-                     LEFT JOIN activity_streams s ON s.activity_id = a.id WHERE a.id = %s""", (aid,)).fetchone()
-    if not a: return
-    uid = a['user_id']
+    if not points: return None
+    a = c.execute("""SELECT user_id,sport,sport_label,start_time,segment_revision FROM activities WHERE id=%s FOR SHARE""", (aid,)).fetchone()
+    if not a: return None
+    stream=c.execute('SELECT t,lat,lon FROM activity_streams WHERE activity_id=%s',(aid,)).fetchone()
+    a.update(stream or {'t':None,'lat':None,'lon':None})
     bad = sport_fit(seg_sport, a['sport'], a['sport_label'])
     passes, why = ([], bad) if bad else match(points, seg_sport, a['t'], a['lat'], a['lon'])
-    old = {r['start_i']: r for r in c.execute('SELECT id, start_i, elapsed_s, state, reason, moderation FROM segment_efforts WHERE segment_id = %s AND activity_id = %s', (sid, aid)).fetchall()}
-    keep = set()
     for p in passes:
-        started = a['start_time'].timestamp() + p['t_start']
-        state, reason = p['state'], p['reason']
-        prev = old.get(p['start_i'])
-        if prev and prev['reason'] == 'reviewed' and prev['elapsed_s'] == p['elapsed_s']: state, reason = 'ok', 'reviewed'   # an admin cleared this hold
-        dup = c.execute("""SELECT 1 FROM segment_efforts WHERE segment_id = %s AND user_id = %s AND activity_id <> %s AND activity_id < %s
-                             AND abs(extract(epoch FROM started) - %s) < 30 AND abs(elapsed_s - %s) <= greatest(3, %s * 0.05)""",
-                        (sid, uid, aid, aid, started, p['elapsed_s'], p['elapsed_s'])).fetchone()
-        if dup: state, reason = 'excluded', 'duplicate'
-        r = c.execute("""INSERT INTO segment_efforts (segment_id, user_id, activity_id, start_i, end_i, started, elapsed_raw, elapsed_s, matcher, state, reason)
-                         VALUES (%s, %s, %s, %s, %s, to_timestamp(%s), %s, %s, %s, %s, %s)
-                         ON CONFLICT (segment_id, activity_id, start_i) DO UPDATE SET end_i = EXCLUDED.end_i, started = EXCLUDED.started,
-                           elapsed_raw = EXCLUDED.elapsed_raw, elapsed_s = EXCLUDED.elapsed_s, matcher = EXCLUDED.matcher,
-                           state = EXCLUDED.state, reason = EXCLUDED.reason, rev = segment_efforts.rev + 1
-                         RETURNING id""",
-                      (sid, uid, aid, p['start_i'], p['end_i'], started, p['elapsed_raw'], p['elapsed_s'], MATCHER, state, reason)).fetchone()
-        keep.add(p['start_i'])
-        # where on the activity's shared map line the pass lies: leaderboards leave out passes in its hidden start/end
-        c.execute("""UPDATE segment_efforts e SET line_m = q.len, start_m = q.sf * q.len, end_m = q.ef * q.len,
-                       on_line = ST_DWithin(a.geom::geography, q.sp::geography, 30) AND ST_DWithin(a.geom::geography, q.ep::geography, 30)
-                     FROM activities a, LATERAL (SELECT ST_SetSRID(ST_MakePoint(%s, %s), 4326) AS sp, ST_SetSRID(ST_MakePoint(%s, %s), 4326) AS ep,
-                       ST_Length(a.geom::geography) AS len) q0, LATERAL (SELECT q0.sp, q0.ep, q0.len,
-                       ST_LineLocatePoint(a.geom, q0.sp) AS sf, ST_LineLocatePoint(a.geom, q0.ep) AS ef) q
-                     WHERE e.id = %s AND a.id = e.activity_id AND a.geom IS NOT NULL""",
-                  (p['start_pt'][1], p['start_pt'][0], p['end_pt'][1], p['end_pt'][0], r['id']))
-    gone = [o['id'] for i, o in old.items() if i not in keep]
-    if gone: c.execute('DELETE FROM segment_efforts WHERE id = ANY(%s)', (gone,))
-    outcome = 'match' if passes else 'ineligible' if bad else 'none'
-    c.execute("""INSERT INTO segment_scans (segment_id, activity_id, user_id, matcher, outcome, reason) VALUES (%s, %s, %s, %s, %s, %s)
-                 ON CONFLICT (segment_id, activity_id) DO UPDATE SET matcher = EXCLUDED.matcher, outcome = EXCLUDED.outcome,
-                   reason = EXCLUDED.reason, scanned = now()""", (sid, aid, uid, MATCHER, outcome, None if passes else why))
+        p['started'] = a['start_time'].timestamp() + p['t_start']
+        p.update(c.execute("""SELECT ST_Length(a.geom::geography) AS line_m,
+          ST_LineLocatePoint(a.geom,q.sp)*ST_Length(a.geom::geography) AS start_m,
+          ST_LineLocatePoint(a.geom,q.ep)*ST_Length(a.geom::geography) AS end_m,
+          coalesce(ST_DWithin(a.geom::geography,q.sp::geography,30) AND ST_DWithin(a.geom::geography,q.ep::geography,30),false) AS on_line
+          FROM activities a, LATERAL (SELECT ST_SetSRID(ST_MakePoint(%s,%s),4326) AS sp,
+            ST_SetSRID(ST_MakePoint(%s,%s),4326) AS ep) q WHERE a.id=%s""",
+          (p['start_pt'][1],p['start_pt'][0],p['end_pt'][1],p['end_pt'][0],aid)).fetchone())
+    return a, passes, 'match' if passes else 'ineligible' if bad else 'none', None if passes else why
+
+
+def scan(c, sid, aid, points=None, seg_sport=None):
+    """Replace the current derived answer, retaining moderation and appeal identity on the same pass."""
+    from .segment_rebuilds import lock_state
+    lock_match_people(c,[sid],[aid])
+    g = lock_state(c,sid)
+    if not g or g['active_matcher'] != MATCHER: return
+    data = calculate(c,sid,aid,points,seg_sport)
+    if not data: return
+    a,passes,outcome,why = data
+    uid,revision = a['user_id'],a['segment_revision']
+    keep=[]
+    for p in passes:
+        state,reason=p['state'],p['reason']
+        dup = c.execute("""SELECT 1 FROM segment_efforts WHERE segment_id=%s AND generation=%s AND user_id=%s AND activity_id<%s
+          AND reason IS DISTINCT FROM 'recomputed' AND abs(extract(epoch FROM started)-%s)<30
+          AND abs(elapsed_s-%s)<=greatest(3,%s*0.05)""",(sid,g['active'],uid,aid,p['started'],p['elapsed_s'],p['elapsed_s'])).fetchone()
+        if dup: state,reason='excluded','duplicate'
+        c.execute("""INSERT INTO segment_efforts(segment_id,user_id,activity_id,start_i,end_i,started,elapsed_raw,elapsed_s,matcher,state,reason,
+            on_line,start_m,end_m,line_m,generation,source_revision)
+          VALUES(%s,%s,%s,%s,%s,to_timestamp(%s),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+          ON CONFLICT(segment_id,activity_id,start_i) DO UPDATE SET
+            state=CASE WHEN segment_efforts.reason='reviewed' AND segment_efforts.matcher=EXCLUDED.matcher
+              AND segment_efforts.source_revision=EXCLUDED.source_revision AND segment_efforts.elapsed_raw=EXCLUDED.elapsed_raw
+              AND segment_efforts.end_i=EXCLUDED.end_i AND segment_efforts.started=EXCLUDED.started AND EXCLUDED.reason IS DISTINCT FROM 'duplicate'
+              THEN 'ok' ELSE EXCLUDED.state END,
+            reason=CASE WHEN segment_efforts.reason='reviewed' AND segment_efforts.matcher=EXCLUDED.matcher
+              AND segment_efforts.source_revision=EXCLUDED.source_revision AND segment_efforts.elapsed_raw=EXCLUDED.elapsed_raw
+              AND segment_efforts.end_i=EXCLUDED.end_i AND segment_efforts.started=EXCLUDED.started AND EXCLUDED.reason IS DISTINCT FROM 'duplicate'
+              THEN 'reviewed' ELSE EXCLUDED.reason END,
+            end_i=EXCLUDED.end_i,started=EXCLUDED.started,elapsed_raw=EXCLUDED.elapsed_raw,elapsed_s=EXCLUDED.elapsed_s,
+            matcher=EXCLUDED.matcher,on_line=EXCLUDED.on_line,start_m=EXCLUDED.start_m,end_m=EXCLUDED.end_m,line_m=EXCLUDED.line_m,
+            generation=EXCLUDED.generation,source_revision=EXCLUDED.source_revision,rev=segment_efforts.rev+1""",
+          (sid,uid,aid,p['start_i'],p['end_i'],p['started'],p['elapsed_raw'],p['elapsed_s'],MATCHER,state,reason,
+           p['on_line'],p['start_m'],p['end_m'],p['line_m'],g['active'],revision))
+        keep.append(p['start_i'])
+    # A vanished pass remains private with its moderation/appeal receipt, never an eligible old time.
+    c.execute("""UPDATE segment_efforts SET state='excluded',reason='recomputed',generation=%s,source_revision=%s,rev=rev+1
+      WHERE segment_id=%s AND activity_id=%s AND NOT(start_i=ANY(%s))""",(g['active'],revision,sid,aid,keep))
+    c.execute("""INSERT INTO segment_scans(segment_id,activity_id,user_id,matcher,outcome,reason,generation,source_revision)
+      VALUES(%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(segment_id,activity_id) DO UPDATE SET
+      matcher=EXCLUDED.matcher,outcome=EXCLUDED.outcome,reason=EXCLUDED.reason,scanned=now(),
+      generation=EXCLUDED.generation,source_revision=EXCLUDED.source_revision""",(sid,aid,uid,MATCHER,outcome,why,g['active'],revision))
 
 
 # Segments an activity could pass: active, the activity's owner may use them (published, or their own private one),
@@ -271,7 +306,10 @@ BATCH = 150
 
 
 def activity_job(c, aid):
-    for s in c.execute(f'SELECT s.id FROM segments s, activities a WHERE a.id = %s AND a.geom IS NOT NULL AND {NEAR}', (aid,)).fetchall():
+    rows=c.execute(f'''SELECT s.id FROM segments s,activities a WHERE a.id=%s AND s.status='active' AND s.geom IS NOT NULL
+        AND ((a.geom IS NOT NULL AND {NEAR}) OR EXISTS(SELECT 1 FROM segment_efforts e WHERE e.segment_id=s.id AND e.activity_id=a.id)) ORDER BY s.id''',(aid,)).fetchall()
+    lock_match_people(c,[s['id'] for s in rows],[aid])
+    for s in rows:
         scan(c, s['id'], aid)
     return True
 
@@ -282,6 +320,7 @@ def segment_job(c, sid, cursor):
     if not points: return None
     rows = c.execute(f"""SELECT a.id FROM activities a, segments s WHERE s.id = %s AND a.id > %s AND a.geom IS NOT NULL AND a.sport = s.sport
                          AND {NEAR} ORDER BY a.id LIMIT %s""", (sid, cursor, BATCH)).fetchall()
+    lock_match_people(c,[sid],[r['id'] for r in rows])
     for r in rows: scan(c, sid, r['id'], points, sport)
     return rows[-1]['id'] if len(rows) == BATCH else None
 
@@ -292,13 +331,16 @@ def run_jobs(limit=10):
     done = 0
     for _ in range(limit):
         with db.connect() as c:
-            j = c.execute("""SELECT id, kind, ref, cursor, attempts FROM segment_jobs WHERE attempts < 5
+            j = c.execute("""SELECT id, kind, ref, cursor, attempts, epoch FROM segment_jobs WHERE attempts < 5
                              ORDER BY (kind = 'segment'), id FOR UPDATE SKIP LOCKED LIMIT 1""").fetchone()
             if not j: break
             try:
                 with c.transaction():
                     if j['kind'] == 'activity':
                         activity_job(c, j['ref']); c.execute('DELETE FROM segment_jobs WHERE id = %s', (j['id'],))
+                    elif j['kind'] == 'rebuild':
+                        from .segment_rebuilds import run_batch
+                        if run_batch(c,j['ref'],j['epoch']): c.execute('DELETE FROM segment_jobs WHERE id=%s',(j['id'],))
                     else:
                         nxt = segment_job(c, j['ref'], j['cursor'])
                         if nxt is None: c.execute('DELETE FROM segment_jobs WHERE id = %s', (j['id'],))
