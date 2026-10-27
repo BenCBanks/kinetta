@@ -6,7 +6,7 @@ import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
-from app import db,intervals,api_mydata,api_activities
+from app import db,intervals,api_mydata,api_activities,activities,parsers
 
 suffix=uuid.uuid4().hex[:10];role='zz_interval_reader_'+suffix;password='fictional reader password only';ids=[]
 definition=dict(schema=1,name='Fictional private interval',description='Not shared',blocks=[dict(id='block',repeat=2,steps=[dict(id='run',action='run',role='effort',title='',target=dict(kind='time',amount='5',unit='s')),dict(id='walk',action='walk',role='recovery',title='',target=dict(kind='time',amount='5',unit='s'))])])
@@ -35,6 +35,23 @@ try:
     rows=[json.loads(line) for line in z.read('data/'+table+'.jsonl').decode().splitlines()];assert len(rows)==1,table
     assert all('user_id' not in row for row in rows)
    assert 'Fictional private interval' in z.read('data/activity_intervals.jsonl').decode()
+ # The real store handles both Watch/phone arrival orders; immutable private results survive enrichment/replay.
+ for order in ['watch-first','phone-first']:
+  start=dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=2 if order=='watch-first' else 3)
+  parsed=dict(sport='run',start=start,streams={k:[] for k in ('t',)+parsers.STREAMS},session=dict(elapsed_s=20,moving_s=20,distance_m=50))
+  watch=lambda:activities.store(ids[0],parsed,meta=dict(source_id='fictional-watch-'+order,elapsed_s=20,moving_s=20,distance_m=50),source='apple')
+  if order=='watch-first':expected=watch()[1]
+  state=dict(pin=dict(id=str(pids[0]),version=1,content_hash=plan['content_hash'],definition=plan['definition']),status='finished',results=[dict(key=plan['steps'][0]['key'],outcome='finished',start_time=0,end_time=2)],effects=[])
+  phone=api_activities.TrackIn(client_id=str(uuid.uuid4()),sport='run',name='Fictional combined workout',start=start,elapsed_s=20,moving_s=2,points=[],visibility='me',intervals=state)
+  saved=api_activities.save_track(phone,user=dict(id=ids[0]));aid=saved['id']
+  if order=='watch-first':assert aid==expected
+  with db.connect() as c:original_result=c.execute('SELECT payload FROM activity_intervals WHERE user_id=%s AND activity_id=%s',(ids[0],aid)).fetchone()['payload']
+  assert watch()[1]==aid
+  assert api_activities.save_track(phone,user=dict(id=ids[0]))==dict(id=aid,duplicate=True)
+  with db.connect() as c:
+   assert c.execute('SELECT payload FROM activity_intervals WHERE user_id=%s AND activity_id=%s',(ids[0],aid)).fetchone()['payload']==original_result
+   assert c.execute('SELECT count(*) n FROM activities WHERE user_id=%s AND start_time=%s',(ids[0],start)).fetchone()['n']==1
+   c.execute('DELETE FROM activities WHERE user_id=%s AND id=%s',(ids[0],aid))
  # A forced failure after activity creation rolls back both activity and interval link.
  key=str(uuid.uuid4());raw=dict(pin=dict(id=str(pids[0]),version=1,content_hash=plan['content_hash'],definition=plan['definition']),status='finished',results=[dict(key=plan['steps'][0]['key'],outcome='finished',start_time=0,end_time=2)],effects=[])
  body=api_activities.TrackIn(client_id=key,sport='run',name='Rollback fixture',start=dt.datetime.now(dt.timezone.utc)-dt.timedelta(seconds=30),elapsed_s=20,moving_s=2,points=[],visibility='me',intervals=raw)

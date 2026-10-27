@@ -2,7 +2,7 @@
 import copy,json,sys,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
-from app.intervals import definition
+from app.intervals import definition,results
 
 def step(id,action,kind,amount,unit,role='effort'):
  return dict(id=id,action=action,role=role,title='',target=dict(kind=kind,amount=amount,unit=unit))
@@ -35,6 +35,13 @@ class ContractTests(unittest.TestCase):
   with self.assertRaises(ValueError):definition(p)
   p=example();p['blocks'][0]['steps'][0]['target']['amount']='360';p['blocks'][0]['repeat']=5
   with self.assertRaises(ValueError):definition(p)
+ def test_private_results_distance_gaps_and_invalid_evidence(self):
+  raw=example('distance');raw['blocks'][0]['repeat']=1;plan=definition(raw)
+  payload=dict(pin=dict(id='f004f2a3-33f8-444d-a5dc-aa6bddc56ec5',version=1,content_hash=plan['content_hash'],definition=plan['definition']),status='finished',results=[dict(key=plan['steps'][0]['key'],outcome='complete',start_time=0,end_time=140,start_distance=0,end_distance=550,unallocated_distance=150,distance_baseline_time=0),dict(key=plan['steps'][1]['key'],outcome='finished',start_time=140,end_time=150,start_distance=550,end_distance=580)],effects=[])
+  self.assertEqual(results(payload,150,580)['summary']['completed_steps'],1)
+  for patch in [dict(unallocated_distance=-1),dict(unallocated_distance=False),dict(unallocated_distance=151),dict(distance_baseline_time=141),dict(end_distance=float('nan'))]:
+   bad=copy.deepcopy(payload);bad['results'][0].update(patch)
+   with self.assertRaises(ValueError):results(bad,150,580)
  def test_shared_fixtures(self):
   for row in json.loads((Path(__file__).parent/'fixtures/interval_presets.json').read_text()):
    p=definition(row['pin']['definition']);self.assertEqual(p['content_hash'],row['pin']['content_hash']);self.assertEqual(p['steps'],row['expected_steps'])
