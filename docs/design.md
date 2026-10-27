@@ -1265,3 +1265,7 @@ Outdoor iPhone first; indoor later. Guidance is spoken only: no vibration option
 ### Same as yesterday restored (26 October 2026)
 
 Returning food users have a Same as yesterday action on empty Nutrition meals and in each populated meal’s Edit menu. It previews the previous day’s corresponding meal and names the source and selected destination dates before explicit Log this meal. Retries retain upload identities; the existing offline queue and durable Undo apply. It never replaces foods already logged or adds a competing Me shortcut. New users retain the food-log introduction.
+
+### Ask Kit start (27 October 2026)
+
+After owner phone review ("big and clunky"), the empty Ask Kit screen is compact and sits just above the message box: a small sparkle with "What can I help with?", the three screen-specific suggestions as wrapping chips, and one fine-print line: new chat each visit, the AI provider in use, and a Memory link. Kit chat settings (the ••• button) still hold memory, permissions, earlier reviews and New chat.
