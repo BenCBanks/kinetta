@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB2700000000000000000011 /* NativeIntervalAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2700000000000000000001 /* NativeIntervalAlerts.swift */; };
+		AB2700000000000000000010 /* IntervalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2700000000000000000000 /* IntervalState.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
@@ -37,6 +39,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AB2700000000000000000001 /* NativeIntervalAlerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeIntervalAlerts.swift; sourceTree = "<group>"; };
+		AB2700000000000000000000 /* IntervalState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntervalState.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -119,6 +123,8 @@
 				AB2300000000000000000000 /* NativeActivityShare.swift */,
 				AB1600000000000000000001 /* NativeTrack.swift */,
 				AB1600000000000000000000 /* TrackRecordingState.swift */,
+				AB2700000000000000000001 /* NativeIntervalAlerts.swift */,
+				AB2700000000000000000000 /* IntervalState.swift */,
 				AB1400000000000000000000 /* HealthSyncState.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -231,6 +237,8 @@
 				AB2300000000000000000010 /* NativeActivityShare.swift in Sources */,
 				AB1600000000000000000011 /* NativeTrack.swift in Sources */,
 				AB1600000000000000000010 /* TrackRecordingState.swift in Sources */,
+				AB2700000000000000000011 /* NativeIntervalAlerts.swift in Sources */,
+				AB2700000000000000000010 /* IntervalState.swift in Sources */,
 				AB1400000000000000000010 /* HealthSyncState.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);

@@ -44,11 +44,11 @@ const TrackMath = {
   // again, without a jump in the time shown. Only time beyond those 15 s is left out.
   AUTO_MS: 15000,
   idle(s, now) { return s.autoPause && s.state === 'recording' && s.lastMove != null ? Math.max(0, now - s.lastMove - this.AUTO_MS) : 0; },
-  autoPaused(s, now = Date.now()) { return this.idle(s, now) > 0; },
+  autoPaused(s, now = Date.now()) { return s.native&&typeof s.autoPausedNow==='boolean'?s.autoPausedNow:this.idle(s, now) > 0; },
   moved(s, at) { s.autoMs = (s.autoMs || 0) + this.idle(s, at); s.lastMove = at; },
   // On a manual pause the idle stretch so far is kept out; Resume counts as movement.
   settle(s, at) { s.autoMs = (s.autoMs || 0) + this.idle(s, at); s.lastMove = null; },
-  seconds(s, now = Date.now()) { return Math.max(0, s.activeMs + (s.state === 'recording' ? Math.max(0, now - s.activeAt) : 0) - (s.autoMs || 0) - this.idle(s, now)) / 1000; },
+  seconds(s, now = Date.now()) { if(s.native&&Number.isFinite(s.activeSeconds)){const delta=typeof performance!=='undefined'&&Number.isFinite(s._snapshotClock)?Math.max(0,(performance.now()-s._snapshotClock)/1000):0;return s.activeSeconds+(s.state==='recording'&&!s.autoPausedNow?delta:0);}return Math.max(0, s.activeMs + (s.state === 'recording' ? Math.max(0, now - s.activeAt) : 0) - (s.autoMs || 0) - this.idle(s, now)) / 1000; },
   // Pace or speed over the last ~30 s of samples [{t, d}] the screen keeps; null when too little movement to say.
   current(samples, now) {
     const recent = samples.filter((x) => now - x.t <= 30000);
@@ -96,7 +96,7 @@ const Track = (() => {
     const same = session?.id === incoming.id;
     const points = same && incoming.pointOffset === session.points.length ? [...session.points, ...incoming.points] : incoming.points;
     const name = same ? session.name : null,visibility=same?session.visibility:null,pinned=same?session.routePlan:null;
-    session = {...incoming, points,routePlan:Object.prototype.hasOwnProperty.call(incoming,'routePlan')?incoming.routePlan:pinned}; if (name) session.name = name;if(visibility)session.visibility=visibility;
+    session = {...incoming, points,_snapshotClock:typeof performance!=='undefined'?performance.now():0,routePlan:Object.prototype.hasOwnProperty.call(incoming,'routePlan')?incoming.routePlan:pinned}; if (name) session.name = name;if(visibility)session.visibility=visibility;
     message = result.message || ''; persist(); update(); refreshMap();
   }
   async function pullNative() {
@@ -110,10 +110,10 @@ const Track = (() => {
     })().finally(() => { nativeTask = null; });
     return nativeTask;
   }
-  async function nativeControl(method) {
+  async function nativeControl(method, args = {}) {
     if (controlling || !session?.native) return;
     controlling = true; nativeRevision++; const revision = readOwner();
-    try { if(nativeTask) await nativeTask.catch(()=>{}); adoptNative(await TrackNative.call(method, {id:session.id,since:0})); }
+    try { if(nativeTask) await nativeTask.catch(()=>{}); adoptNative(await TrackNative.call(method, {id:session.id,since:0,...args})); }
     catch (e) { if (revision === readOwner()) message = e.message; }
     finally { controlling = false; if (revision === readOwner()) { draw(); sync(); } }
   }
@@ -170,6 +170,7 @@ const Track = (() => {
   function update() {
     updateTab();
     if (!session || !App.me || accountKey() !== key) return;
+    globalThis.Intervals?.updateLive($('#interval-live'),session,nativeControl);
     const time = $('#track-time'); if (time) time.textContent = clock(TrackMath.seconds(session));
     const d = $('#track-distance'); if (d) d.textContent = U.dist(session.distance, 2);
     const now = Date.now(), secs = TrackMath.seconds(session, now), idle = TrackMath.autoPaused(session, now);
@@ -227,7 +228,7 @@ const Track = (() => {
     const id=session?.id,account=readOwner(),live=()=>session?.id===id&&account===readOwner();if(!id)return;
     sheet('Discard this recording?', '<p>This removes the draft from this device. It has not been saved as an activity.</p><button class="ghost wide" id="tr-keep">Keep recording</button><button class="primary danger-btn wide" id="tr-discard">Discard recording</button>', (b, close) => {
       $('#tr-keep', b).onclick = close;
-      $('#tr-discard', b).onclick = async () => { if(!live())return;if (session.native) { const btn=$('#tr-discard',b);btn.disabled=true;try { nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});await TrackNative.call('clear',{id}); } catch(e) { if(live()){toast(e.message);btn.disabled=false;}return; } }if(!live())return; stopGPS(); store.del(key); session = null; message = ''; close(); draw(); sync(); };
+      $('#tr-discard', b).onclick = async () => { if(!live())return;if (session.native) { const btn=$('#tr-discard',b);btn.disabled=true;try { nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});await TrackNative.call('clear',{id,discardIntervals:!!session.intervals}); } catch(e) { if(live()){toast(e.message);btn.disabled=false;}return; } }if(!live())return; stopGPS(); store.del(key); session = null; message = ''; close(); draw(); sync(); };
     });
   }
   function draw() {
@@ -239,6 +240,7 @@ const Track = (() => {
     const top = el.parentElement?.querySelector(':scope > .top'); if (top) top.hidden = !review;   // the session header names it
     el.innerHTML = `<section class="track-session track-live ${session.routePlan?'has-route':''} ${display === 'stats' ? 'stats-expanded' : ''} ${paused ? 'is-paused' : 'is-recording'}"><div class="track-live-top"><h2><span class="rec-dot" aria-hidden="true"></span>${esc(session.label)}</h2>${session.gps && !review ? `<div class="seg" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</div>
       <p id="track-status" class="small muted" role="status"></p>
+      ${session.intervals?'<section id="interval-live" class="card track-interval-live" aria-label="Current interval"></section>':''}
       <div class="track-hero"><b class="num" id="track-time"></b><small>Active time</small></div>
       ${session.gps ? `<div class="track-live-metrics"><div><b class="num" id="track-distance"></b><small>Distance · ${U.du()}</small></div><div><b class="num" id="track-pace"></b><small><span id="track-pace-label">${speedSport(session) ? 'Speed' : 'Pace'}</span> · ${speedSport(session) ? U.du() + '/h' : '/' + U.du()}</small></div></div><p class="small muted track-splits" id="track-splits"></p>` : ''}
       ${session.routePlan?`<div class="track-plan-progress" id="track-route-progress" aria-label="Planned route progress"><b>${esc(session.routePlan.name)}</b><span id="track-route-distance" class="small muted"></span><small class="track-route-legend"><span>┄ Planned route</span><span>━ Recorded trail</span><span>● Your location</span></small></div>`:''}
@@ -258,9 +260,9 @@ const Track = (() => {
       form.onsubmit = async (e) => {
         e.preventDefault(); if (saving||!live()) return; const name = form.elements.namedItem('activity_name').value.trim(); if (!name) { form.elements.namedItem('activity_name').setCustomValidity('Add an activity name'); form.elements.namedItem('activity_name').reportValidity(); return; } form.elements.namedItem('activity_name').setCustomValidity('');
         session.name = name; persist(); saving = true; const active = session, k = key;
-        const payload = {visibility:session.visibility||undefined,expected_sharing_default:session.visibility?undefined:form.elements.namedItem('visibility').value||undefined,client_id: session.id, sport: session.sport, sport_label: session.sportLabel || null, name, start: new Date(session.start).toISOString(), elapsed_s: (session.finishedAt - session.start) / 1000, moving_s: TrackMath.seconds(session), points: session.points,route_plan:typeof RouteDownloads!=='undefined'?RouteDownloads.metadata(session.routePlan):undefined};
+        const payload = {visibility:session.visibility||undefined,expected_sharing_default:session.visibility?undefined:form.elements.namedItem('visibility').value||undefined,client_id: session.id, sport: session.sport, sport_label: session.sportLabel || null, name, start: new Date(session.start).toISOString(), elapsed_s: session.native&&Number.isFinite(session.elapsedSeconds)?session.elapsedSeconds:(session.finishedAt - session.start) / 1000, moving_s: TrackMath.seconds(session), points: session.points,...(session.intervals?{intervals:globalThis.Intervals?Intervals.resultPayload(session.intervals):session.intervals}:{}),route_plan:typeof RouteDownloads!=='undefined'?RouteDownloads.metadata(session.routePlan):undefined};
         draw();
-        try { const result = await api('/api/activities/track', json('POST', payload)); if (session?.id !== active.id || key !== k) return; if (session.native) { nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});await TrackNative.call('clear', {id:session.id}); } store.del(k); session = null; invalidate('/api/'); toast(result.duplicate?'This activity was saved earlier. Check its sharing on the activity.':'Activity saved'); if(result.duplicate)go(`/activity/${result.id}`);else if (location.pathname === '/track') go(`/track?done=${result.id}`, {replace:true}); else sync(); }
+        try { if(active.intervals){if(!globalThis.Intervals)throw Error('Reload the app before saving private interval results.');await Intervals.verifySaveSupport();if(session?.id!==active.id||key!==k||!live())return;} const result = await api('/api/activities/track', json('POST', payload)); if (session?.id !== active.id || key !== k) return; if (session.native) { nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});await TrackNative.call('clear', {id:session.id,intervalResultSaved:!!active.intervals}); } store.del(k); session = null; invalidate('/api/'); toast(result.duplicate?'This activity was saved earlier. Check its sharing on the activity.':'Activity saved'); if(result.duplicate)go(`/activity/${result.id}`);else if (location.pathname === '/track') go(`/track?done=${result.id}`, {replace:true}); else sync(); }
         catch (x) { if (session?.id === active.id && key === k) { if(x.code==='sharing_changed'&&['me','friends','everyone'].includes(x.detail?.sharing_default)){App.me.share_default=x.detail.sharing_default;keep('/api/me',App.me);} draw(); const err = $('#track-save-error'); if (err) err.textContent = x.message + ' Your draft is kept. Retry when ready.'; } }
         finally { saving = false; if (session?.id === active.id && key === k) { const form=$('#track-save-form');if(form)$$('input,select',form).forEach(field=>field.disabled=false); const btn = $('#track-save'); if (btn) { btn.disabled = false; btn.textContent = 'Save activity'; } for (const id of ['track-continue', 'track-discard']) { const b = $('#' + id); if (b) b.disabled = false; } } }
       };
@@ -325,6 +327,7 @@ const Track = (() => {
     const done = new URLSearchParams(location.search).get('done');
     el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">Record runs, rides and walks with GPS in the Kinetta iPhone app${App.me?.iphone_app ? ` (<a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">get it through TestFlight</a>)` : ''}. Here you can time indoor workouts, log lifting and add past activities.</p>`}<div class="track-quick" role="group" aria-label="Common activities">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${quick.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 && outdoor.length ? '<optgroup label="Outdoor · GPS">' : i===outdoor.length ? `${outdoor.length ? '</optgroup>' : ''}<optgroup label="Indoor · timer and sets">` : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
+      <section class="card track-interval-ready" id="track-interval-ready" aria-label="Interval preset"></section>
       <div class="track-go"><button class="round-btn start" id="track-start"><span>Start</span></button><small id="track-start-label"></small></div><div class="track-route" id="track-route"></div>
       <p class="small danger" id="track-ready-error" role="alert"></p>
       <button type="button" class="track-prefs" id="track-options" hidden></button><p class="small muted" id="track-guidance"></p>
@@ -385,7 +388,9 @@ const Track = (() => {
         .catch(()=>{if(el.isConnected)$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';})
         .finally(()=>{loadingMap=false;});
     }
-    $('#track-setup').onsubmit=async(e)=>{e.preventDefault();if(controlling||!readyLive())return;const c=choices[selected];if(c.lift){startLiftSheet();return;}await begin(c.sport,c.label,c.sportLabel,c.gps);};
+    globalThis.Intervals?.mount($('#track-interval-ready'));
+    if(globalThis.Intervals&&new URLSearchParams(location.search).get('intervals')==='1'){const url=new URL(location.href);url.searchParams.delete('intervals');history.replaceState(null,'',url.pathname+url.search+url.hash);Intervals.library(()=>Intervals.mount($('#track-interval-ready')));}
+    $('#track-setup').onsubmit=async(e)=>{e.preventDefault();if(controlling||!readyLive())return;const c=choices[selected];if(c.lift){if(globalThis.Intervals?.hasSelection()){const error=$('#track-ready-error');if(error)error.textContent='Intervals need an outdoor Run or Walk in the iPhone app. Change the activity or remove the loaded preset.';return;}startLiftSheet();return;}await begin(c.sport,c.label,c.sportLabel,c.gps);};
     $('#track-past').onclick=()=>addActivitySheet();liftNowCard($('#track-open-lift'));
   }
   function recordOptions(sport) {
@@ -395,15 +400,18 @@ const Track = (() => {
   async function begin(sport,label,sportLabel,gps) {
     if(session||controlling)return;
     const o=gps?recordOptions(sport):{voice:false,autoPause:false,splitMetres:imp()?1609.344:1000},revision=readOwner(),button=$('#track-start'),hadRoute=gps&&typeof PlanTrack!=='undefined'&&!!PlanTrack.get();let problem=null;
+    const startError=$('#track-ready-error');if(startError)startError.textContent='';
     controlling=true;nativeRevision++;if(button){button.disabled=true;$('span',button).textContent='Starting…';}
     try{
+      const intervalOptions=globalThis.Intervals?await Intervals.startOptions({sport,gps}):null;
+      if(revision!==readOwner()||!button?.isConnected)return;
       const routePlan=gps&&typeof RouteDownloads!=='undefined'?await RouteDownloads.beforeStart():null;
       if(revision!==readOwner()||!button?.isConnected)return;
       if(TrackNative.supported){
         if(nativeTask)await nativeTask.catch(()=>{});
         if(routePlan){const status=await TrackNative.call('status',{since:0});if(status.routePlanSupport!==1)throw Error('Update the iPhone app before starting with a planned route. Your route is saved.');}
         if(revision!==readOwner())return;
-        adoptNative(await TrackNative.call('start',{id:crypto.randomUUID(),sport,label,sportLabel:sportLabel||null,gps,...o,...(routePlan?{routePlan}:{})}));
+        adoptNative(await TrackNative.call('start',{id:crypto.randomUUID(),sport,label,sportLabel:sportLabel||null,gps,...o,...(intervalOptions||{}),...(routePlan?{routePlan}:{})}));
         if(revision===readOwner()){draw();sync();window.scrollTo(0,0);}return;
       }
       const now=Date.now();session={id:crypto.randomUUID(),sport,label,sportLabel,gps,start:now,activeAt:now,checkpoint:now,activeMs:0,state:'paused',points:[],segment:0,distance:0,...o,splits:[],autoMs:0,lastMove:null,routePlan};

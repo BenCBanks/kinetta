@@ -1,4 +1,26 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
+
+// Sleep-inclusive monotonic time, independent of wall-clock corrections. The transform
+// is injectable in Foundation tests; wall time remains only the activity's absolute origin.
+enum TrackNativeClock {
+    static var seconds: Double {
+        #if canImport(Darwin)
+        var scale=mach_timebase_info_data_t();mach_timebase_info(&scale)
+        return Double(mach_continuous_time())*Double(scale.numer)/Double(scale.denom)/1_000_000_000
+        #else
+        return ProcessInfo.processInfo.systemUptime
+        #endif
+    }
+}
+struct TrackMonotonicClock {
+    var wallMilliseconds: Double
+    var monotonicSeconds: Double
+    func at(_ now: Double) -> Double { wallMilliseconds+max(0,now-monotonicSeconds)*1000 }
+    func locationTime(timestamp: Double,wallNow: Double,monotonicNow: Double) -> Double { at(monotonicNow)+(timestamp-wallNow) }
+}
 
 struct TrackFix: Codable {
     var lat: Double
@@ -94,6 +116,7 @@ struct TrackRecordingState: Codable {
     var finishedAt: Double?
     var native = true
     var routePlan:TrackRoutePlan?
+    var intervals: IntervalState?
     var anchor: TrackFix?          // the last fix that counted toward distance (missing in older saved recordings: fine)
     // Spoken splits and auto-pause (#234 item 4). Optional so recordings saved by older builds still open.
     var voice: Bool?
@@ -104,6 +127,10 @@ struct TrackRecordingState: Codable {
     var lastMove: Double?          // when you last moved (ms)
     static let autoAfter: Double = 15000
 
+    mutating func advanceIntervals(at now: Double, accepted: IntervalSample? = nil, cues: Bool = true) {
+        let elapsed=seconds(at:now),previous=intervals?.time ?? 0
+        intervals?.advance(to:max(elapsed,previous),accepted:accepted,cues:cues)
+    }
     var maxSpeed: Double { ["run":12.0,"walk":4,"hike":4,"ride":30,"swim":4,"row":8,"ski":40][sport] ?? 30 }
     // Same rule as track.js TrackMath: 15 s without moving stops the clock until you move again, without a jump in the time
     // shown; only the time beyond those 15 s is left out.
@@ -211,7 +238,9 @@ final class TrackRecordingFiles {
         #endif
         var url=folder;var values=URLResourceValues();values.isExcludedFromBackup=true;try? url.setResourceValues(values)
     }
+    private(set) var recoveredPrevious=false
     var manifest: URL { folder.appendingPathComponent("session.json") }
+    var previous: URL { folder.appendingPathComponent("previous-session.json") }
     var journal: URL { folder.appendingPathComponent("points.jsonl") }
     var routeFile: URL { folder.appendingPathComponent("route.json") }
     private func write(_ data: Data, to url: URL) throws {
@@ -222,8 +251,9 @@ final class TrackRecordingFiles {
         #endif
     }
     func save(_ state: TrackRecordingState, resetPoints: Bool = false) throws {
+        try state.intervals?.validateStored()
         if resetPoints { try write(Data(),to:journal) }
-        // The large pinned line is written once, rather than at every GPS checkpoint.
+        // The large pinned route is written once, rather than at every GPS checkpoint.
         if let plan=state.routePlan {
             if resetPoints || pinnedRecording != state.id {
                 try write(JSONEncoder().encode(PinnedRoute(owner:state.owner,id:state.id,plan:plan)),to:routeFile)
@@ -234,9 +264,13 @@ final class TrackRecordingFiles {
             pinnedRecording=nil
         }
         var metadata=state;metadata.points=[];metadata.routePlan=nil
+        // Atomic writes prevent torn JSON; retain one prior valid interval checkpoint too.
+        if state.intervals != nil,let data=try? Data(contentsOf:manifest),let prior=try? decode(data) {
+            if prior.owner==state.owner && prior.id==state.id { try write(data,to:previous) }
+        }
         try write(JSONEncoder().encode(metadata),to:manifest)
         #if os(iOS)
-        for url in [manifest,journal,routeFile] where FileManager.default.fileExists(atPath:url.path) {
+        for url in [manifest,journal,previous,routeFile] where FileManager.default.fileExists(atPath:url.path) {
             try FileManager.default.setAttributes([.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],ofItemAtPath:url.path)
         }
         #endif
@@ -246,9 +280,16 @@ final class TrackRecordingFiles {
         let file=try FileHandle(forWritingTo:journal);defer { try? file.close() }
         try file.seekToEnd();try file.write(contentsOf:data);try file.synchronize()
     }
+    private func decode(_ data: Data) throws -> TrackRecordingState {
+        let state=try JSONDecoder().decode(TrackRecordingState.self,from:data)
+        try state.intervals?.validateStored();return state
+    }
     func load(owner: String) throws -> TrackRecordingState? {
         guard FileManager.default.fileExists(atPath:manifest.path) else { return nil }
-        var state=try JSONDecoder().decode(TrackRecordingState.self,from:Data(contentsOf:manifest))
+        recoveredPrevious=false
+        var state:TrackRecordingState
+        do { state=try decode(Data(contentsOf:manifest)) }
+        catch { state=try decode(Data(contentsOf:previous));recoveredPrevious=true }
         if state.routePlan?.valid==false {state.routePlan=nil}
         guard state.owner==owner else { throw NSError(domain:"KinettaTrack",code:1,userInfo:[NSLocalizedDescriptionKey:"Recording belongs to another account."]) }
         if FileManager.default.fileExists(atPath:routeFile.path) {
@@ -276,7 +317,7 @@ final class TrackRecordingFiles {
         return state
     }
     func clear() throws {
-        for url in [manifest,journal,routeFile] where FileManager.default.fileExists(atPath:url.path) { try FileManager.default.removeItem(at:url) }
+        for url in [manifest,journal,previous,routeFile] where FileManager.default.fileExists(atPath:url.path) { try FileManager.default.removeItem(at:url) }
         pinnedRecording=nil
     }
 }

@@ -8,6 +8,7 @@ const TrackNative = (() => {
   async function invoke(method, args = {}, expected = readOwner()) {
     const account = owner();
     if (!supported || !account) throw new Error('Sign in to the iPhone app before recording.');
+    if(typeof plugin[method]!=='function')throw new Error('Update the Kinetta iPhone app to use this recording control. Your draft is kept.');
     const result = await Native.healthCall(plugin[method]({owner: account, ...args}), 'The iPhone recorder did not respond. Reopen Track to recover it.', method === 'start' || method === 'resume' ? 120000 : 15000);
     if (expected !== readOwner() || account !== owner()) throw Object.assign(new Error('The recording account changed.'), {stale: true});
     return result;

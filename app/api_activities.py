@@ -157,6 +157,7 @@ def detail(aid: int, user=Depends(current_user)):
         a['similar'] = _similar(c, user['id'], aid, 6)
         a['route_plan']=c.execute('''SELECT source_kind,route_id,version,snapshot_key,name,distance_m FROM activity_route_plans
           WHERE activity_id=%s AND user_id=%s''',(aid,user['id'])).fetchone()
+        a['has_intervals']=bool(c.execute('SELECT 1 FROM activity_intervals WHERE user_id=%s AND activity_id=%s LIMIT 1',(user['id'],aid)).fetchone())
     return a
 
 
@@ -305,6 +306,7 @@ class TrackIn(BaseModel):
     visibility: str | None = Field(None, pattern='^(me|friends|everyone)$')
     expected_sharing_default: str | None = Field(None, pattern='^(me|friends|everyone)$')
     route_plan: RecordingPlanIn | None = None
+    intervals: dict | None = None
 
 
 def _spread(points, run, counted):
@@ -353,6 +355,12 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         segments.setdefault(point.segment, []).append(point)
         run.append(distance); counted.append(step is not None)
         previous = point
+    interval_result=None
+    if body.intervals is not None:
+        from . import intervals
+        if body.sport not in ('run','walk'):raise HTTPException(422,'Run/walk intervals require an outdoor Run or Walk recording.')
+        try:interval_result=intervals.results(body.intervals,body.moving_s,distance)
+        except ValueError as e:raise HTTPException(422,str(e))
     # Every section goes into the streams (#234 item 6), so splits, charts and best efforts cover the whole session. The
     # running distance stands still across a gap and the gap is never "moving" (over 30 s), so nothing is counted across
     # it; best efforts never span sections. The map line (feed and shared previews) stays the longest single section, so
@@ -377,12 +385,24 @@ def save_track(body: TrackIn, user=Depends(current_user)):
     with db.connect() as c:
         c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"track:{user['id']}:{body.client_id}",))
         if not c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE',(user['id'],)).fetchone():raise HTTPException(404,'Account unavailable')
+        from psycopg.types.json import Jsonb
+        import hashlib
+        from uuid import UUID
+        try:recording_id=UUID(body.client_id)
+        except ValueError:raise HTTPException(422,'Invalid recording ID')
+        digest=hashlib.sha256(json.dumps(interval_result,sort_keys=True,separators=(',',':')).encode()).hexdigest() if interval_result is not None else None
+        interval_receipt=c.execute('SELECT activity_id,request_hash FROM activity_intervals WHERE user_id=%s AND recording_id=%s',(user['id'],recording_id)).fetchone()
+        if interval_receipt and digest is not None and digest!=interval_receipt['request_hash']:
+            raise HTTPException(409,'This recording was already saved with different interval results. Your draft is kept.')
         receipt=c.execute('SELECT activity_id FROM track_recording_receipts WHERE user_id=%s AND client_id=%s',(user['id'],body.client_id)).fetchone()
         if receipt:
             if receipt['activity_id'] is None:raise HTTPException(409,'This recording was already saved and removed. It cannot be restored by retrying the upload.')
+            if interval_result is not None and not interval_receipt:raise HTTPException(409,'This recording was already saved without intervals; review the existing activity before retrying.')
             return {'id':receipt['activity_id'],'duplicate':True}
+        if interval_receipt:return {'id':interval_receipt['activity_id'],'duplicate':True}
         found = c.execute("SELECT id FROM activities WHERE user_id = %s AND source = 'track' AND source_id = %s", (user['id'], body.client_id)).fetchone()
         if found:
+            if interval_result is not None:raise HTTPException(409,'This recording was already saved without intervals; review the existing activity before retrying.')
             c.execute('INSERT INTO track_recording_receipts(user_id,client_id,activity_id) VALUES(%s,%s,%s)',(user['id'],body.client_id,found['id']))
             return {'id': found['id'], 'duplicate': True}
         if body.visibility is None and body.expected_sharing_default is None:
@@ -406,6 +426,8 @@ def save_track(body: TrackIn, user=Depends(current_user)):
             c.execute('''INSERT INTO activity_route_plans(activity_id,user_id,source_kind,route_id,version,snapshot_key,name,distance_m)
               VALUES(%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(activity_id) DO NOTHING''',(aid,user['id'],p.source_kind,p.route_id,p.version,p.snapshot_key,p.name,p.distance_m))
         c.execute('INSERT INTO track_recording_receipts(user_id,client_id,activity_id) VALUES(%s,%s,%s)',(user['id'],body.client_id,aid))
+        if interval_result is not None:
+            c.execute('INSERT INTO activity_intervals(user_id,recording_id,activity_id,payload,request_hash) VALUES(%s,%s,%s,%s,%s)',(user['id'],recording_id,aid,Jsonb(interval_result),digest))
     return {'id': aid, 'duplicate': False}
 
 
@@ -854,3 +876,11 @@ def coach_week_make(user=Depends(current_user)):
 def activity_food_summary(user=Depends(current_user)):
     from . import activity_food
     with db.connect() as c:return activity_food.read(c,user['id'])
+
+
+@router.get('/activities/{aid}/intervals')
+def own_intervals(aid: int, user=Depends(current_user)):
+    with db.connect() as c:
+        if not c.execute('SELECT 1 FROM activities WHERE id=%s AND user_id=%s',(aid,user['id'])).fetchone():raise HTTPException(404,'Activity not found')
+        rows=c.execute('SELECT payload FROM activity_intervals WHERE activity_id=%s AND user_id=%s ORDER BY recording_id',(aid,user['id'])).fetchall()
+    return [r['payload'] for r in rows]

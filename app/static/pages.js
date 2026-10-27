@@ -489,7 +489,7 @@ function drawDetail(el, a) {
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
   const pane = {
-    overview: `${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
+    overview: `${a.has_intervals?'<section class="card" id="activity-interval-history"></section>':''}${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
@@ -531,6 +531,7 @@ function drawDetail(el, a) {
   const segBox = $('#d-segments', el); if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
   $('#d-send', el).onclick = () => shareOut(a);
   const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
+  if(a.has_intervals)globalThis.Intervals?.history($('#activity-interval-history',el),a.id);
   ownSocial(el, a);
   photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
@@ -1551,6 +1552,7 @@ function deleteSheet() {
         await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
         await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
         await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));
+        await cleanup(()=>globalThis.Intervals?.clear());
         await cleanup(()=>forgetKept());await cleanup(()=>close());
         App.me=null;App.cache.clear();
         await cleanup(()=>netbar());await cleanup(()=>history.replaceState(null,'','/'));
