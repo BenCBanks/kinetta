@@ -12,7 +12,7 @@ Search for a task, open its instructions and jump to it in Kinetta. Find food lo
 
 ## start-by-adding-your-weight-height-sex-and-birth-year--3
 
-For calorie-needs and heart-rate estimates, you can add body details in **Me → Body & heart rate**. Choose which details to provide; they stay separate from your public profile.
+For calorie-needs and heart-rate estimates, you can add body details in **Me → Settings → Body & heart rate**. Choose which details to provide; they stay separate from your public profile.
 
 ## no-features-match-try-another-search-4
 
