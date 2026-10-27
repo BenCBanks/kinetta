@@ -1373,7 +1373,10 @@ async function showConfirmEmail(token) {
   let title, text;
   try { const r = await api('/api/account/email/confirm', json('POST', {token})); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
   catch (x) { title = "This link doesn't work"; text = x.message; }
-  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p><a class="primary wide" href="/me" id="c-go">Open Kinetta</a></div></div>`;
+  // Email links open in the phone's browser. On an iPhone, offer the app itself (kinetta:// is registered by the app,
+  // 27 October 2026): a same-site https link can't hand off from Safari to the app.
+  const iphone = !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
+  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? '<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="/me" id="c-go">Continue in browser</a>' : '<a class="primary wide" href="/me" id="c-go">Open Kinetta</a>'}</div></div>`;
   $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/me'); root.innerHTML = '<p class="boot">Loading…</p>'; start(); };
 }
 async function showWelcome() {

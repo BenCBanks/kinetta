@@ -90,5 +90,16 @@
 		<string>fetch</string>
 		<string>audio</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.kinetta.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kinetta</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
