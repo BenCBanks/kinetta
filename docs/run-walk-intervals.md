@@ -20,7 +20,7 @@ Preset saves use owner-scoped mutation receipts and expected versions. A deleted
 
 Transitions and attempted effects are persisted before delivery. Each channel retains logical boundary, pre-call request-mark time and optional OS-acknowledgement time on the shared active clock; these are distinct from physically observed delivery. A late batch suppresses obsolete instructions. Controls carry the expected phase key where needed; pause/end/finish/account changes cancel outstanding speech and pending effects. Relaunch restores a defensible paused recording, marks uncertain requests unknown and does not replay them. Resume is deliberate. Completion/end leaves ordinary recording running; Finish remains explicit.
 
-Private results are validated in the same transaction as activity save. Their totals cannot replace recorded activity metrics or supply competitive times. Recording UUID receipts also survive phone/watch deduplication. Friends' activity responses do not include preset names, notes or per-step observations.
+Private results are validated in the same transaction as activity save. Before upload the client checks server support; an unavailable/older server keeps the draft. Native cleanup requires either acknowledged result saving or explicit discard, so an older WebView cannot erase the only interval copy. Their totals cannot replace recorded activity metrics or supply competitive times. Recording UUID receipts also survive phone/watch deduplication. Friends' activity responses do not include preset names, notes or per-step observations.
 
 ## Platform decision and honest capability boundary
 

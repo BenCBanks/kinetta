@@ -178,8 +178,10 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         next.intervals?.end(at:elapsed,reason:"finished")
         next.state="review";next.finishedAt=self.instant;try files?.save(next);session=next;message="Ready to save"
     }
-    func clear(account: String, id: String) throws {
-        try check(account,id:id);manager.stopUpdatingLocation();stopIntervalTimer();NativeTrackVoice.shared.cancel();try files?.clear();session=nil;message=""
+    func clear(account: String, id: String, intervalResultSaved: Bool = false, discardIntervals: Bool = false) throws {
+        try check(account,id:id)
+        guard session?.intervals==nil || intervalResultSaved || discardIntervals else {throw fail("Update the app before clearing private interval results. Your recording draft is kept.")}
+        manager.stopUpdatingLocation();stopIntervalTimer();NativeTrackVoice.shared.cancel();try files?.clear();session=nil;message=""
     }
     func snapshot(account: String, id: String?, since: Int) throws -> [String:Any] {
         try check(account)
@@ -436,7 +438,7 @@ class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func status(_ call: CAPPluginCall) { reply(call) { r,owner in try r.check(owner) } }
     @objc func pause(_ call: CAPPluginCall) { reply(call) { r,owner in try r.pause(account:owner,id:call.getString("id") ?? "") } }
     @objc func finish(_ call: CAPPluginCall) { reply(call) { r,owner in try r.finish(account:owner,id:call.getString("id") ?? "") } }
-    @objc func clear(_ call: CAPPluginCall) { reply(call) { r,owner in try r.clear(account:owner,id:call.getString("id") ?? "") } }
+    @objc func clear(_ call: CAPPluginCall) { reply(call) { r,owner in try r.clear(account:owner,id:call.getString("id") ?? "",intervalResultSaved:call.getBool("intervalResultSaved") ?? false,discardIntervals:call.getBool("discardIntervals") ?? false) } }
     @objc func erase(_ call: CAPPluginCall) {
         DispatchQueue.main.async {do {try NativeTrackRecorder.shared.erase(account:call.getString("owner") ?? "");call.resolve()} catch {call.reject(error.localizedDescription)}}
     }

@@ -43,6 +43,11 @@ def presets(user=Depends(current_user)):
     return out
 
 
+@router.get('/capabilities')
+def capabilities(user=Depends(current_user)):
+    return dict(schema=1,private_results=1)
+
+
 @router.get('/{pid}')
 def preset(pid: UUID, user=Depends(current_user)):
     with db.connect() as c:

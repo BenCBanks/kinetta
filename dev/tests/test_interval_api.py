@@ -6,6 +6,7 @@ owner=person('zz_test_interval_owner');other=person('zz_test_interval_other')
 def req(c,method,path,body=None,status=200):
  code,data=c.req(method,path,body);assert code==status,(path,code,data);return data
 try:
+ assert req(owner,'GET','/api/interval-presets/capabilities')==dict(schema=1,private_results=1)
  fixture=json.loads((Path(__file__).parent/'fixtures/interval_presets.json').read_text())[0]
  raw=fixture['pin']['definition'];pid=str(uuid.uuid4());mutation=str(uuid.uuid4());body=dict(mutation_id=mutation,expected_version=None,definition=raw)
  saved=req(owner,'PUT','/api/interval-presets/'+pid,body);assert saved['version']==1 and len(saved['steps'])==6 and saved['totals']['seconds']==720
