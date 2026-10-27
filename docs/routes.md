@@ -31,7 +31,7 @@ Set these on the **app container**; recreate the app after changing them:
 
 | Variable | Default | `off` |
 | --- | --- | --- |
-| `KINETTA_ROUTING_URL` | `https://valhalla1.openstreetmap.de` | Drafts kept; new routes cannot save until paths are available |
+| `KINETTA_ROUTING_URL` | `https://valhalla1.openstreetmap.de` | New route, Edit route and New segment (map) show "Route planning is off for now"; saved/shared routes, following and segments made from your own activities keep working |
 | `KINETTA_ELEVATION_URL` | Same as routing | No height estimate |
 | `KINETTA_GEOCODER_URL` | `https://nominatim.openstreetmap.org` | Search unavailable |
 

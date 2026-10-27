@@ -34,3 +34,15 @@ console.log('PASS route device storage: account/server isolation, own deletion, 
  calls=[];vm.runInContext("S={owner:'A',key:'new'}",context);const writing=context.persist();await Promise.resolve();await Promise.resolve();const removing=context.forget();owner='B';context.change();pending();await Promise.all([writing,removing]);assert.deepEqual(calls,[['/api/route-drafts/new','PUT']]);
  console.log('PASS route draft completion: serialized writes, drained deletion, cancelled timers, no resurrection and no late new-owner cleanup');
 })().catch(e=>{console.error(e);process.exitCode=1});
+
+// A server with routing switched off shows a plain notice instead of an editor whose Retry can never work.
+(async()=>{
+ const run=async(answer)=>{let calls=0;const el={innerHTML:'editor'};
+  const context={api:async()=>{calls++;if(answer instanceof Error)throw answer;return answer;},esc:String,backBtn:()=>'',wireBack(){}};
+  vm.createContext(context);vm.runInContext(source.slice(source.indexOf('  // A server can switch path routing off'),source.indexOf('  return {open, profile, pathsOff'))+';this.off=pathsOff;this.gate=unavailable',context);
+  const shown=await context.gate(el,{title:'New route',mode:'segment'});await context.off();return {shown,el,calls};};
+ const off=await run({paths:false});assert.equal(off.shown,true);assert.match(off.el.innerHTML,/Route planning is off for now/);assert.match(off.el.innerHTML,/your own activities/);assert.equal(off.calls,1,'answer cached');
+ const on=await run({paths:true});assert.equal(on.shown,false);assert.equal(on.el.innerHTML,'editor');
+ const offline=await run(new Error('offline'));assert.equal(offline.shown,false,'offline opens the editor as before');assert.equal(offline.el.innerHTML,'editor');
+ console.log('PASS route planning off: notice instead of editor, cached answer, offline unchanged');
+})().catch(e=>{console.error(e);process.exitCode=1});

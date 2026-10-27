@@ -303,6 +303,7 @@ const Segments = (() => {
 route(/^\/segments$/, 'progress', async () => go('/progress/segments', {replace: true}));
 route(/^\/segments\/review$/, 'progress', (el) => Segments.reviewPage(el));
 route(/^\/segments\/new$/, 'progress', async (el) => {
+  if (await Planner.unavailable(el, {mode: 'segment', title: 'New segment', back: 'Segments', backHref: '/progress/segments'})) return;
   Planner.open(el, {mode: 'segment', title: 'New segment', key: 'segment-new', back: 'Segments', backHref: '/progress/segments',
     onSave: (st) => Segments.review({sport: st.sport, line: Plan.enc(st.line), source: 'map', ...(Segments.pending ? {name: Segments.pending.name, description: Segments.pending.description, audience: Segments.pending.audience, draftId: Segments.pending.draftId, clientId: Segments.pending.clientId} : {})})});
 });
