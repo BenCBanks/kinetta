@@ -12,7 +12,7 @@ try:
   name='zz_test_foodkit_'+uuid.uuid4().hex[:12]
   with db.connect() as c:
    uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES (%s,%s,%s) RETURNING id',(name,'Fictional food Kit',auth.hash_pw(PW))).fetchone()['id'];ids.append(uid)
-   c.execute("INSERT INTO profile(user_id,tz,ai_ok,health_ai_ok,kcal_target,protein_target) VALUES (%s,'UTC',true,false,2200,130)",(uid,))
+   c.execute("INSERT INTO profile(user_id,tz,ai_ok,health_ai_ok,kcal_target,protein_target,ai_adult_at) VALUES(%s,'UTC',true,false,2200,130,now())",(uid,))
   client=TestClient(app,raise_server_exceptions=False);client.headers['Origin']='http://testserver'
   check(client.post('/api/login',json={'login':name,'password':PW}).status_code==200);clients.append(client)
  a,b=clients;uid,other=ids

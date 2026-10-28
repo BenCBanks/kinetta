@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 27, 2026
+Last updated October 28, 2026
 
 ## intro
 
@@ -156,7 +156,7 @@ Children
 
 ## age
 
-Kinetta is not for anyone under 16. If you think a child has signed up, email us and we'll remove their information.
+Kinetta is not for anyone under 16. Kit, the optional AI assistant, is only for people 18 or older: you confirm your age when you turn it on, and Kit stays off without that confirmation. If you think a child has signed up, email us and we'll remove their information.
 
 ## contact-heading
 

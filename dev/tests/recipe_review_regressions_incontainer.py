@@ -9,7 +9,7 @@ try:
  with db.connect() as c:
   name='zz_test_recipe_regress_'+uuid.uuid4().hex[:10]
   uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',(name,'Fictional recipe regressions',auth.hash_pw('green teapot on the hill'))).fetchone()['id']
-  c.execute('INSERT INTO profile(user_id,ai_ok) VALUES(%s,true)',(uid,))
+  c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())',(uid,))
  client=TestClient(app,raise_server_exceptions=False);client.headers['Origin']='http://testserver'
  assert client.post('/api/login',json={'login':name,'password':'green teapot on the hill'}).status_code==200
  did=client.post('/api/dishes',json={'name':'Fictional weightless recipe'}).json()['id']

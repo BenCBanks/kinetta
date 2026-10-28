@@ -14,7 +14,7 @@ try:
   login='zz_test_healthweight_'+uuid.uuid4().hex[:12]
   with db.connect() as c:
    uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',(login,'Fictional Health weight',auth.hash_pw('green teapot on the hill'))).fetchone()['id'];uids.append(uid)
-   c.execute("INSERT INTO profile(user_id,tz,kcal_target,protein_target,weight_kg,resting_source,ai_ok,health_ai_ok) VALUES(%s,'Pacific/Honolulu',2100,120,75,'apple_health',true,true)",(uid,))
+   c.execute("INSERT INTO profile(user_id,tz,kcal_target,protein_target,weight_kg,resting_source,ai_ok,health_ai_ok,ai_adult_at) VALUES(%s,'Pacific/Honolulu',2100,120,75,'apple_health',true,true,now())",(uid,))
   cl=TestClient(app,raise_server_exceptions=False);cl.headers['Origin']='http://testserver';assert cl.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200;clients.append(cl)
  a,b=clients;uid,other=uids;now=dt.datetime.now(dt.timezone.utc);anchor=now-dt.timedelta(days=2);day=anchor.astimezone(dt.timezone(dt.timedelta(hours=-10))).date().isoformat();key=str(uuid.uuid4())
  def prefs(client=a,enabled=True,**extra):

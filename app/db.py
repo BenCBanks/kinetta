@@ -1776,6 +1776,13 @@ MIGRATIONS = [
     END $$;
     """,
 
+    # 79. Kit (the AI features) is for people 18 or older (Gemini API terms; owner decision 28 October 2026). Sign-up
+    # stays 16+; turning Kit on records this separate confirmation, and no AI call runs without it. Existing Kit users are
+    # asked once, the next time they use it.
+    """
+    ALTER TABLE profile ADD COLUMN ai_adult_at timestamptz;
+    """,
+
 ]
 
 

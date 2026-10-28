@@ -7,7 +7,7 @@ class Clarification(unittest.TestCase):
  def setUp(self):
   with db.connect() as c:
    self.uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',('zz_test_clarify_'+uuid.uuid4().hex[:12],'Fictional cook',auth.hash_pw('green teapot on the hill'))).fetchone()['id']
-   c.execute('INSERT INTO profile(user_id,ai_ok) VALUES(%s,true)',(self.uid,))
+   c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())',(self.uid,))
   self.user={'id':self.uid};self.did=D.dish_add(D.DishIn(name='Fictional ingredient test'),user=self.user)['id']
  def tearDown(self):
   with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(self.uid,))

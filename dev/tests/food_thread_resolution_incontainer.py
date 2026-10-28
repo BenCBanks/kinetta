@@ -21,7 +21,7 @@ class Resolution(unittest.TestCase):
    for _ in range(2):
     login='zz_test_resolution_'+uuid.uuid4().hex[:12]
     uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES (%s,%s,%s) RETURNING id',(login,'Fictional food log',auth.hash_pw(PW))).fetchone()['id']
-    c.execute("INSERT INTO profile(user_id,tz,ai_ok,weight_kg,kcal_target,protein_target) VALUES (%s,'UTC',true,75,2000,110)",(uid,));self.uids.append(uid)
+    c.execute("INSERT INTO profile(user_id,tz,ai_ok,weight_kg,kcal_target,protein_target,ai_adult_at) VALUES(%s,'UTC',true,75,2000,110,now())",(uid,));self.uids.append(uid)
     accounts.append(login)
   for login in accounts:
    client=TestClient(app);client.headers['Origin']='http://testserver';self.assertEqual(client.post('/api/login',json={'login':login,'password':PW}).status_code,200);self.clients.append(client)

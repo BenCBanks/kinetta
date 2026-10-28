@@ -38,7 +38,7 @@ try:
         for login in ('zz_test_ai_access_a', 'zz_test_ai_access_b'):
             uid = c.execute('INSERT INTO users (login,name,pw_hash) VALUES (%s,%s,%s) RETURNING id', (login, 'Access Test', hash_pw(password))).fetchone()['id']
             ids.append(uid)
-            c.execute('INSERT INTO profile (user_id,ai_ok) VALUES (%s,true)', (uid,))
+            c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())', (uid,))
         c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role), sql.Literal(password)))
         c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)))
         c.execute('UPDATE users SET sql_role = %s WHERE id = %s', (role, ids[0]))

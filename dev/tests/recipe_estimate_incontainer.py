@@ -14,7 +14,7 @@ try:
   login='zz_test_recipe_est_'+uuid.uuid4().hex[:12]
   with db.connect() as c:
    uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',(login,'Fictional recipe estimate',auth.hash_pw(PW))).fetchone()['id'];uids.append(uid)
-   c.execute('INSERT INTO profile(user_id,ai_ok) VALUES(%s,true)',(uid,))
+   c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())',(uid,))
   cl=TestClient(app,raise_server_exceptions=False);cl.headers['Origin']='http://testserver';assert cl.post('/api/login',json={'login':login,'password':PW}).status_code==200;clients.append(cl)
  a,b=clients;uid,other=uids
  assert a.post('/api/food/foods',json={'name':'Fictional beans','kcal':200,'serving_g':100,'protein_g':10,'carbs_g':25,'fat_g':3,'fiber_g':6}).status_code==200
@@ -35,7 +35,7 @@ try:
   assert estimate.call_count==0
   with db.connect() as c:c.execute('UPDATE profile SET ai_ok=false WHERE user_id=%s',(uid,))
   assert a.post(path+'/estimate',json=body).status_code==403 and estimate.call_count==0
-  with db.connect() as c:c.execute('UPDATE profile SET ai_ok=true WHERE user_id=%s',(uid,))
+  with db.connect() as c:c.execute('UPDATE profile SET ai_ok = true, ai_adult_at = now() WHERE user_id=%s',(uid,))
   result=a.post(path+'/estimate',json=body);assert result.status_code==200,result.text
   assert estimate.call_count==1 and estimate.call_args.args[0].note==__import__('app.recipe_schema',fromlist=['text']).text(RECIPE['recipeIngredient'][1])
   assert estimate.call_args.args[0].image is None and not estimate.call_args.args[0].images
@@ -65,7 +65,7 @@ try:
    if not revoke:assert result.json()['cancelled']
   with db.connect() as c:
    row=c.execute('SELECT data FROM recipe_link_drafts WHERE user_id=%s AND id=%s',(uid,path.rsplit('/',1)[1])).fetchone();assert not row['data'].get('estimates')
-   c.execute('UPDATE profile SET ai_ok=true WHERE user_id=%s',(uid,))
+   c.execute('UPDATE profile SET ai_ok = true, ai_adult_at = now() WHERE user_id=%s',(uid,))
  # Reuse the real estimator validation adapter; only its transport is a stand-in.
  identity=str(uuid.uuid4());photo={'client_id':identity,'image':'data:image/jpeg;base64,/9j/2Q=='}
  model={'items':[{'name':'Fictional screenshot beans','amount':'100 g','grams':100,'kcal':200,'protein_g':10,'carbs_g':25,'fat_g':3,'fiber_g':6}],'notes':'Illustrative screenshot result; no actual OCR.'}

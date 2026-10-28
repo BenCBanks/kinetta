@@ -13,7 +13,7 @@ try:
   name='zz_test_kit_'+suffix+uuid.uuid4().hex[:8]
   with db.connect() as c:
    uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES (%s,%s,%s) RETURNING id',(name,'Fictional Kit tester',auth.hash_pw(pw))).fetchone()['id'];uids.append(uid)
-   c.execute("INSERT INTO profile(user_id,tz,ai_ok,kcal_target,protein_target) VALUES (%s,'UTC',true,2200,120)",(uid,))
+   c.execute("INSERT INTO profile(user_id,tz,ai_ok,kcal_target,protein_target,ai_adult_at) VALUES(%s,'UTC',true,2200,120,now())",(uid,))
   client=TestClient(app,raise_server_exceptions=True);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':name,'password':pw}).status_code==200;clients.append(client)
  a,b=clients;uid,other=uids
  def req(client,method,path,body=None,code=200):
@@ -68,7 +68,7 @@ try:
    future=pool.submit(req,a,'POST',root+'/messages/'+body['client_id']+'/answer',{'generation':generation});assert started.wait(10)
    with db.connect() as c:c.execute('UPDATE profile SET ai_ok=false WHERE user_id=%s',(uid,))
    release.set();late=future.result();assert late['state']=='failed' and late['answer'] is None
-  with db.connect() as c:c.execute('UPDATE profile SET ai_ok=true WHERE user_id=%s',(uid,))
+  with db.connect() as c:c.execute('UPDATE profile SET ai_ok = true, ai_adult_at = now() WHERE user_id=%s',(uid,))
  # Release gate, access and consent are separate; no provider work when unreviewed.
  with patch('app.coach.provider',return_value='gemini'),patch('app.ai_release.enabled',return_value=False):req(a,'POST',root+'/messages',message('Question while unreleased'),503)
  with patch('app.ai_release.enabled',return_value=True),patch('app.coach.allowed',return_value=False):req(a,'POST',root+'/messages',message('Question without consent'),403)

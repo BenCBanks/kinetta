@@ -13,7 +13,7 @@ try:
   login='zz_test_weekly_food_'+uuid.uuid4().hex[:12]
   with db.connect() as c:
    uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',(login,'Fictional weekly food log',auth.hash_pw('green teapot on the hill'))).fetchone()['id'];uids.append(uid)
-   c.execute('INSERT INTO profile(user_id,tz,ai_ok) VALUES(%s,%s,false)',(uid,tz))
+   c.execute('INSERT INTO profile(user_id,tz,ai_ok,ai_adult_at) VALUES(%s,%s,false,now())',(uid,tz))
   cl=TestClient(app,raise_server_exceptions=False);cl.headers['Origin']='http://testserver';assert cl.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200;clients.append(cl)
  a,b=clients;uid,other=uids
  with db.connect() as c:

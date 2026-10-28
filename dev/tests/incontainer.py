@@ -30,7 +30,7 @@ with db.connect() as c:
     tray = c.execute("SELECT id FROM dishes WHERE user_id = %s AND name = 'Chicken and veg traybake'", (uid,)).fetchone()['id']
     c.execute('DELETE FROM ai_requests'); c.execute("DELETE FROM coach_notes WHERE kind = 'diet'")
     c.execute('UPDATE dishes SET ai_note = NULL, ai_note_at = NULL'); c.execute('UPDATE saved_meals SET ai_note = NULL, ai_note_at = NULL')
-    c.execute('UPDATE profile SET ai_ok = (user_id = %s)', (uid,))
+    c.execute('UPDATE profile SET ai_ok = (user_id = %s), ai_adult_at = now()', (uid,))
     day = c.execute("SELECT max(day) AS d FROM food_entries WHERE user_id = %s", (uid,)).fetchone()['d']
 api_dishes.share(tray, api_dishes.ShareIn(login='jordan'), user={'id': uid})
 
@@ -77,7 +77,7 @@ def fake_ask(parts, schema, label, timeout=45):
                         {'op': 'add', 'name': 'Olive oil', 'amount': '1 tbsp', 'grams': 13.5, 'kcal': 9000, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 14}],
             'reply': 'Added 2 medium apples (about 360 g) and 1 tbsp olive oil.'}, {}, 'stand-in'
 food_photo.ask = fake_ask
-with db.connect() as c: c.execute('UPDATE profile SET ai_ok = (user_id = %s)', (uid,))
+with db.connect() as c: c.execute('UPDATE profile SET ai_ok = (user_id = %s), ai_adult_at = now()', (uid,))
 cd = api_dishes.dish_add(api_dishes.DishIn(name='Test cook chat'), user={'id': uid})['id']
 r = cook_chat.say(cd, cook_chat.SayIn(text='2 apples and a tbsp of olive oil'), user={'id': uid})
 ck(r['by']=='clarification' and not r['added'] and not asked_cook, 'unknown household amounts ask before a model can guess')
@@ -198,7 +198,7 @@ label_out = {'readable': True, 'name': 'Protein penne', 'brand': 'Test', 'servin
              'per_serving': {'kcal': 190, 'protein_g': 10, 'carbs_g': 38, 'fat_g': 1, 'fiber_g': 5}}
 food_photo.ask = lambda parts, schema, label, timeout=45: (label_out, {}, 'stand-in')
 try:
-    with db.connect() as c: c.execute('UPDATE profile SET ai_ok = true WHERE user_id = %s', (uid,))
+    with db.connect() as c: c.execute('UPDATE profile SET ai_ok = true, ai_adult_at = now() WHERE user_id = %s', (uid,))
     L = food_photo.label(food_photo.LabelIn(image=jpeg), user={'id': uid})
     ck(round(L['per100']['kcal']) == 339 and round(L['per100']['protein_g'], 1) == 17.9 and L['package_g'] == 392 and L['serving']['g'] == 56, f'label read {L}')
     label_out = {**label_out, 'package_g': 411}; ck(food_photo.label(food_photo.LabelIn(image=jpeg), user={'id': uid})['package_g'] == 411, 'net weight wins')
@@ -238,7 +238,7 @@ z = _zf.ZipFile(buf)
 try: importer._zip_read(z, 'bomb.fit'); ck(False, 'zip bomb read')
 except parsers.ParseError: ck(True, 'a zip member that unpacks too big is refused')
 with db.connect() as c:
-    c.execute('UPDATE profile SET ai_ok = true WHERE user_id = %s', (uid,))
+    c.execute('UPDATE profile SET ai_ok = true, ai_adult_at = now() WHERE user_id = %s', (uid,))
     keep = c.execute('SELECT id, ai_note, ai_note_at FROM activities WHERE user_id = %s ORDER BY id LIMIT %s', (uid, coach.DAILY_LIMIT + 1)).fetchall()
     c.execute("UPDATE activities SET ai_note = 'x', ai_note_at = now() WHERE id = ANY(%s)", ([r['id'] for r in keep[:coach.DAILY_LIMIT]],))
 try:
