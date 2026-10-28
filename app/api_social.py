@@ -172,12 +172,18 @@ def _pair(c, me, them, lock=False):
                          {'FOR UPDATE' if lock else ''}""", {'me': me, 'them': them}).fetchone()
 
 
+def _friend_rows(c, uid):
+    return c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status,
+                     f.requester = %(viewer)s AS sent, f.created, f.accepted
+        FROM friendships f JOIN users u ON u.id = CASE WHEN f.requester = %(viewer)s THEN f.addressee ELSE f.requester END
+        WHERE %(viewer)s IN (f.requester, f.addressee) AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')}
+        ORDER BY lower(u.name), u.login""", {'viewer': uid}).fetchall()
+
+
 @router.get('/friends')
 def friends(user=Depends(current_user)):
     with db.connect() as c:
-        rows = c.execute("""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status, f.requester = %(me)s AS sent, f.created, f.accepted
-                            FROM friendships f JOIN users u ON u.id = CASE WHEN f.requester = %(me)s THEN f.addressee ELSE f.requester END
-                            WHERE %(me)s IN (f.requester, f.addressee) ORDER BY u.name""", {'me': user['id']}).fetchall()
+        rows = _friend_rows(c, user['id'])
     pick = lambda r: {'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'since': r['accepted'] or r['created']}
     return {'friends': [pick(r) for r in rows if r['status'] == 'accepted'],
             'incoming': [pick(r) for r in rows if r['status'] == 'pending' and not r['sent']],
@@ -227,6 +233,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         if not person or _blocked_pair(c, user['id'], person['id']) or (person.pop('needs_email_confirm') and person['id'] != user['id']):
             raise HTTPException(404, 'Not found')
         person['bio'] = (c.execute('SELECT bio FROM profile WHERE user_id = %s', (person['id'],)).fetchone() or {}).get('bio', '')
+        friend_count = sum(r['status'] == 'accepted' for r in _friend_rows(c, person['id']))
         relation = _pair(c, user['id'], person['id'])
         status = ('friends' if relation['status'] == 'accepted' else
                   'sent' if relation['requester'] == user['id'] else 'incoming') if relation else None
@@ -277,7 +284,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
     items = [shared_activity(row) for row in rows[:limit]]
     last = rows[limit - 1] if len(rows) > limit else None
     return {'person': {k: person[k] for k in ('login', 'name', 'photo', 'created', 'bio')}, 'status': status,
-            'mileage': mileage, 'recent': recent, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
+            'friend_count': friend_count, 'mileage': mileage, 'recent': recent, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
             'next': {'before': last['start_time'], 'before_id': last['id']} if last else None}
 
 

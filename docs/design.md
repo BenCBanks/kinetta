@@ -1297,3 +1297,7 @@ On the recording screen the title, numbers, map and round controls fill exactly 
 ### Kit is 18+ (28 October 2026)
 
 Kinetta accounts stay 16+, but Kit (every AI feature) is for people 18 or older, as the AI provider's terms require. Turning Kit on — the Turn on Kit sheet (also used by Me → AI features) and the welcome step — shows "Kit is for people 18 or older." and an "I'm 18 or older" checkbox; without it nothing is saved and the reason shows beside the button. The server records the confirmation once (`profile.ai_adult_at`, migration 79), refuses a Kit yes without it, and every AI permission check requires it, so people who turned Kit on before this rule are asked once, the next time they use Kit.
+
+## Friends and profile counts (28 October 2026)
+
+Anyone allowed to see a profile can see its accepted-friend count, excluding pending or unavailable accounts. The list is owner-only, with no mutual-friend exposure. Me → Friends puts incoming requests and the alphabetized list before discovery, with a local name/username filter for longer lists. Manage and destructive confirmations use app sheets. Successful removal updates the list/count immediately; offline/error states retain the last list and offer Retry.
