@@ -1,5 +1,5 @@
 .milestone-banner {font-size:1rem;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin-block:12px;}
-.milestone-copy {flex:1 1 170px;min-width:0;overflow-wrap:anywhere;}
+.milestone-copy {flex:1 1 140px;min-width:0;overflow-wrap:anywhere;}
 .milestone-copy b {display:block;}
 .milestone-more {padding-left:0;}
 .milestone-actions {display:flex;align-items:center;gap:8px;}
@@ -14,3 +14,5 @@
 .scrim:has(#milestone-picture) .sbody {display:flex;flex-direction:column;flex:1;min-height:0;}
 .milestone-body {flex:1;min-height:0;overflow-y:auto;padding-bottom:8px;}
 @media(max-width:360px){.milestone-actions {flex:1 1 100%;justify-content:center;}.milestone-share {flex:1;}}
+
+#me-milestones .row-link>svg,.milestone-list .row-link>svg {width:20px;height:20px;flex:none;}
