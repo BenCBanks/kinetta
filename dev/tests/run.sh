@@ -204,7 +204,8 @@ docker compose -p "$P" exec -T app python - < dev/tests/recipe_creation_incontai
 echo "== public card privacy, signup and requests"
 docker compose -p "$P" exec -T app python - < dev/tests/cards_incontainer.py
 
-echo "== all passed"
 
 echo "== stationary ride charts and HR sharing"
 docker compose -p "$P" exec -T app python - < dev/tests/stationary_charts_incontainer.py
+
+echo "== all passed"
