@@ -201,6 +201,8 @@ docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_inc
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
 echo "== separate recipe creation and explicit portions"
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_creation_incontainer.py
+echo "== public card privacy, signup and requests"
+docker compose -p "$P" exec -T app python - < dev/tests/cards_incontainer.py
 
 echo "== all passed"
 

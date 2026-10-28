@@ -26,7 +26,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     private func openLink(_ activity: NSUserActivity) {
         guard activity.activityType == NSUserActivityTypeBrowsingWeb, let url = activity.webpageURL,
               url.scheme == "https",
-              url.path.range(of: "^/add/[A-Za-z0-9_-]{1,40}$", options: .regularExpression) != nil else { return }
+              url.path.range(of: "^(/add/[A-Za-z0-9_-]{1,40}|/card/[A-Za-z0-9_-]{1,60})$", options: .regularExpression) != nil else { return }
         NativePushCenter.shared.pendingURL = url.path
         if let host = url.host {
             NativePushCenter.shared.pendingServer = "https://" + host + (url.port.map { ":\($0)" } ?? "")

@@ -84,11 +84,13 @@ Shared maps hide where a route starts and ends, but the rest of the route and it
 
 ## sharing-pictures
 
+**Public Kinetta cards.** Cards start off. If you turn yours on, anyone with its random link can see your username and only the photo, sports and up to two fixed summary stats you choose. No real name, individual activity, food entry, map, place, weight or bio appears. Food summary stats show days with food logged, never what you ate or calories. Turning the card off or making a new link stops the old page and image immediately; pictures already saved by other people cannot be recalled. Opening a card does not make anyone a friend. Requests need approval, and card signups retain the person's request choice through email confirmation. Kinetta stores joined/pending counts, not a tracking history of page views.
+
 The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
 
 ## identity
 
-Other members can find you by name or username and see your profile and accepted-friend count. Your friends list is visible only to you; other people do not receive it or a mutual-friends list. Anyone who can see an activity can see its cheers and comments. Your food log, weight, body details and private notes are never shared. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
+Other members can find you by name or username and see your profile and accepted-friend count. Your friends list is visible only to you; other people do not receive it or a mutual-friends list. Anyone who can see an activity can see its cheers and comments. Your food entries, weight, body details and private notes are never shared. Deliberately shared recap pictures and public cards may include only the food-consistency summaries you select. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
 
 ## ai-heading
 

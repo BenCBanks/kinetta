@@ -1790,6 +1790,28 @@ MIGRATIONS = [
     UPDATE profile SET ai_adult_by = 'self' WHERE ai_adult_at IS NOT NULL;
     """,
 
+    # 81. Revocable public cards: codes and signup intents have no SQL-reader grant.
+    """ALTER TABLE beta_requests ADD COLUMN card_code text;
+    ALTER TABLE beta_requests ADD COLUMN card_request boolean NOT NULL DEFAULT false;
+    CREATE TABLE public_cards(user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      code text NOT NULL UNIQUE,enabled boolean NOT NULL DEFAULT false,photo boolean NOT NULL DEFAULT false,
+      sports boolean NOT NULL DEFAULT true,stats jsonb NOT NULL DEFAULT '[]',allow_requests boolean NOT NULL DEFAULT true,
+      created timestamptz NOT NULL DEFAULT now(),updated timestamptz NOT NULL DEFAULT now());
+    ALTER TABLE public_cards ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON public_cards FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE TABLE card_connections(user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      member_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,joined boolean NOT NULL DEFAULT false,
+      created timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,member_id));
+    ALTER TABLE card_connections ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON card_connections FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON card_connections TO fit_readers;
+    CREATE TABLE signup_join_intents(user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK(kind IN ('card','challenge')),code text NOT NULL,want_request boolean NOT NULL DEFAULT true,
+      created timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,kind));
+    ALTER TABLE signup_join_intents ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON signup_join_intents FOR SELECT TO fit_readers USING(user_id=fit_me());
+    """,
+
 ]
 
 

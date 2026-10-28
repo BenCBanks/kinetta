@@ -601,6 +601,7 @@ function profileProgress(recent, mine) {
 function shareProfile(p) {
   const url = `${appBase()}${profileHref(p)}`;
   const copySheet = () => sheet('Share your profile', `<p>People need a Kinetta account to open your profile. Your sharing choices still apply.</p><label class="form">Profile link<input readonly value="${esc(url)}" aria-label="Profile link"></label><button type="button" class="primary wide" id="pf-copy">Copy link</button><p class="small muted" id="pf-copy-status" role="status"></p>`, (b) => {
+    $('#iv-public-card',b).onclick=()=>{close();KinettaCard.open();};
     const input = $('input', b); input.onclick = () => input.select();
     $('#pf-copy', b).onclick = async () => {
       try { await navigator.clipboard.writeText(url); $('#pf-copy-status', b).textContent = 'Link copied'; }
@@ -619,7 +620,7 @@ async function inviteFriends() {
   try { link = await api('/api/friends/link'); } catch (x) { toast(x.message); return; }
   const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
   const text = `Join me on Kinetta so we can follow each other's workouts.`;
-  const copySheet = () => sheet('Invite friends', `<p>Anyone who opens this link becomes your friend on Kinetta, so send it only to people you’d add yourself. It works for 30 days.</p>
+  const copySheet = () => sheet('Invite friends', `<p>Posting somewhere? <button type="button" class="linkbtn" id="iv-public-card">Use your card</button> so you approve requests.</p><p>Anyone who opens this link becomes your friend on Kinetta, so send it only to people you’d add yourself. It works for 30 days.</p>
     <label class="form">Your invite link<input readonly value="${esc(url)}" aria-label="Invite link"></label><button type="button" class="primary wide" id="iv-copy">Copy link</button>
     <p class="small muted" id="iv-status" role="status"></p><button type="button" class="linkbtn muted" id="iv-new">Make a new link (the old one stops working)</button>`, (b, close) => {
     const input = $('input', b); input.onclick = () => input.select();
@@ -629,8 +630,7 @@ async function inviteFriends() {
     };
     $('#iv-new', b).onclick = async () => { try { await api('/api/friends/link/new', json('POST', {})); close(); toast('New invite link made'); inviteFriends(); } catch (x) { toast(x.message); } };
   });
-  if (navigator.share) navigator.share({title: 'Join me on Kinetta', text, url}).catch((e) => { if (e.name !== 'AbortError') copySheet(); });
-  else copySheet();
+  copySheet();
 }
 const hiddenKey = () => 'kinetta.hideSuggest:' + readOwner();
 const hiddenPeople = () => { try { return new Set(store.get(hiddenKey()) || []); } catch { return new Set(); } };
@@ -743,7 +743,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el), suggest = $('#fr-suggest', el);
   $('#fr-invite', el).onclick = inviteFriends;
   const drawSuggest = async () => { const people = await suggestedPeople(); if (suggest.isConnected && people.length) peopleRow(suggest, people, {invite: false, onChange: () => loadFriends()}); else if (suggest.isConnected) suggest.innerHTML = ''; };
-  const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}<span class="btnrow tight">${btns}</span></div>`;
+  const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}${p.via_card?'<small class="muted card-origin">via your card</small>':''}<span class="btnrow tight">${btns}</span></div>`;
   const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
     sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel request</button>`,
     incoming: `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button>`})[p.status] || `<button class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button>`;

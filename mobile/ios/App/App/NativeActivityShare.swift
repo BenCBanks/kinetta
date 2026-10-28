@@ -10,7 +10,8 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     let pluginMethods: [CAPPluginMethod] = {
         var methods: [CAPPluginMethod] = [
             CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
-            CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
+            CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "keepAwake", returnType: CAPPluginReturnPromise)
         ]
         #if DEBUG
         methods.append(CAPPluginMethod(name: "uiTestMetrics", returnType: CAPPluginReturnPromise))
@@ -32,6 +33,7 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     }
     #endif
 
+    private var awakeBefore: Bool?
     private var pending: CAPPluginCall?
     private var document: UIDocumentInteractionController?
     private var activity: UIActivityViewController?
@@ -44,6 +46,20 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
         // A crashed/interrupted share must not retain activity pictures indefinitely.
         if let files = try? FileManager.default.contentsOfDirectory(at: shareDirectory, includingPropertiesForKeys: nil) {
             for file in files { try? FileManager.default.removeItem(at: file) }
+        }
+    }
+
+    @objc func keepAwake(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { call.resolve(); return }
+            if call.getBool("enabled") == true {
+                if self.awakeBefore == nil { self.awakeBefore = UIApplication.shared.isIdleTimerDisabled }
+                UIApplication.shared.isIdleTimerDisabled = true
+            } else if let before = self.awakeBefore {
+                UIApplication.shared.isIdleTimerDisabled = before
+                self.awakeBefore = nil
+            }
+            call.resolve()
         }
     }
 
@@ -98,7 +114,11 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
 
     private func shareWithSystem(_ image: UIImage, call: CAPPluginCall, controller: UIViewController) {
         begin(call)
-        let sheet = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+        var items: [Any] = [image]
+        if let value = call.getString("url"), value.count <= 500,
+           let link = URL(string: value), link.scheme == "https", link.host != nil,
+           link.user == nil, link.password == nil { items.append(link) }
+        let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
         sheet.completionWithItemsHandler = { [weak self, weak call] _, completed, _, _ in
             guard let self = self, let call = call, self.pending === call else { return }
             // A completed share is a handoff, never proof that another app published a post.

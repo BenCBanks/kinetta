@@ -8,7 +8,7 @@ import os
 import re
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from . import db, auth
 from .auth import current_user
 from .admin_auth import admin_user
@@ -25,6 +25,8 @@ def enabled():
 
 
 class BetaIn(BaseModel):
+    card_code: str | None = Field(None,max_length=60)
+    card_request: StrictBool = False
     name: str = Field(min_length=1, max_length=60)
     email: str = Field(min_length=3, max_length=120)
     phone: Literal['iphone', 'android', 'other']
@@ -50,11 +52,16 @@ def beta_request(body: BetaIn, request: Request):
     with db.connect() as c:
         if c.execute("SELECT count(*) AS n FROM beta_requests WHERE status = 'new'").fetchone()['n'] >= MAX_WAITING:
             raise HTTPException(503, 'The beta is full right now - please try again later')
-        c.execute("""INSERT INTO beta_requests (name, email, phone, watch, note) VALUES (%s, %s, %s, %s, %s)
+        origin=None
+        if body.card_code:
+            from . import cards
+            try:origin=cards.active(c,body.card_code)['code']
+            except HTTPException:pass
+        c.execute("""INSERT INTO beta_requests (name, email, phone, watch, note,card_code,card_request) VALUES (%s, %s, %s, %s, %s,%s,%s)
                      ON CONFLICT (lower(email)) DO UPDATE SET name = EXCLUDED.name, phone = EXCLUDED.phone,
-                       watch = EXCLUDED.watch, note = EXCLUDED.note
+                       watch = EXCLUDED.watch, note = EXCLUDED.note,card_code=EXCLUDED.card_code,card_request=EXCLUDED.card_request
                      WHERE beta_requests.status = 'new'""",
-                  (body.name.strip(), email, body.phone, clean(body.watch), clean(body.note)))
+                  (body.name.strip(), email, body.phone, clean(body.watch), clean(body.note),origin,body.card_request if origin else False))
     return {'ok': True}
 
 

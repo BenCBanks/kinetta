@@ -12,7 +12,7 @@ import secrets
 import unicodedata
 import shutil
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from psycopg import errors, sql
 from . import db, auth
 from .auth import current_user
@@ -196,6 +196,8 @@ INVITE_DAYS = 7
 
 
 class NewAccountIn(BaseModel):
+    card_code: str | None = Field(None,max_length=60)
+    card_request: StrictBool = False
     name: str = Field(max_length=60)
     login: str | None = Field(None, max_length=30)      # optional: made from the name, and changeable any time
     password: str = Field(min_length=8, max_length=200)
@@ -233,6 +235,7 @@ def _create(c, body, is_admin=False):
             tried.add(login); login = suggest_login(c, name, tried)     # someone took the same suggestion at that moment
     # Kit (AI features) stays off until the person says yes; the welcome steps ask (owner, 2026-10-26).
     c.execute('INSERT INTO profile (user_id, tz, units, share_default) VALUES (%s, %s, %s, %s)', (uid, tz, body.units or 'imperial',body.share_default))
+    if body.card_code:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,%s)",(uid,body.card_code,body.card_request))
     return uid
 
 
@@ -288,7 +291,9 @@ def cancel_invite(invite_id: int, user=Depends(admin_user)):
 
 
 def _open_invite(c, token, lock=False):
-    r = c.execute(f"""SELECT i.id, i.note, u.name AS inviter FROM invites i LEFT JOIN users u ON u.id = i.created_by
+    r = c.execute(f"""SELECT i.id, i.note, '@'||u.login::text AS inviter,
+                      (SELECT card_code FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_card,
+                      (SELECT card_request FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_request FROM invites i LEFT JOIN users u ON u.id = i.created_by
                       WHERE i.token_hash = %s AND i.used_at IS NULL AND i.expires > now(){' FOR UPDATE OF i' if lock else ''}""",
                   (_hash(token or ''),)).fetchone()
     if not r: raise HTTPException(404, 'This invite link has expired or was already used. Ask for a new one.')
@@ -301,7 +306,14 @@ def invite_info(token: str):
     from . import account_email
     with db.connect() as c:
         r = _open_invite(c, token)
-    return {'inviter': r['inviter'], 'note': r['note'], 'email': account_email.mail_ready()}
+    card=None
+    if r.get('origin_card'):
+        from . import cards
+        try:
+            with db.connect() as c:
+                origin=cards.active(c,r['origin_card']);card={'code':r['origin_card'],'username':origin['login'],'allow_requests':origin['allow_requests'],'request_default':bool(r['origin_request'])}
+        except HTTPException:pass
+    return {'inviter':r['inviter'],'email':account_email.mail_ready(),'card':card}
 
 
 class JoinIn(NewAccountIn):
@@ -323,8 +335,12 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
     with db.connect() as c:
         inv = _open_invite(c, body.token, lock=True)
         uid = _create(c, body)
+        if not body.card_code and inv.get('origin_card'):c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,false)",(uid,inv['origin_card']))
         c.execute('UPDATE invites SET used_by = %s, used_at = now() WHERE id = %s', (uid, inv['id']))
         if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email, welcome=True)
+        else:
+            from .cards import consume_signup
+            consume_signup(c,uid)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
     auth.set_cookie(request, response, token)

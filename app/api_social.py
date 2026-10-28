@@ -179,7 +179,8 @@ def _pair(c, me, them, lock=False):
 
 def _friend_rows(c, uid):
     return c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo, f.status,
-                     f.requester = %(viewer)s AS sent, f.created, f.accepted
+                     f.requester = %(viewer)s AS sent, f.created, f.accepted,
+                     EXISTS(SELECT 1 FROM card_connections k WHERE k.user_id=%(viewer)s AND k.member_id=u.id) AS via_card
         FROM friendships f JOIN users u ON u.id = CASE WHEN f.requester = %(viewer)s THEN f.addressee ELSE f.requester END
         WHERE %(viewer)s IN (f.requester, f.addressee) AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')}
         ORDER BY lower(u.name), u.login""", {'viewer': uid}).fetchall()
@@ -189,7 +190,7 @@ def _friend_rows(c, uid):
 def friends(user=Depends(current_user)):
     with db.connect() as c:
         rows = _friend_rows(c, user['id'])
-    pick = lambda r: {'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'since': r['accepted'] or r['created']}
+    pick = lambda r: {'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'since': r['accepted'] or r['created'],**({'via_card':True} if r.get('via_card') and r['status']=='pending' and not r['sent'] else {})}
     return {'friends': [pick(r) for r in rows if r['status'] == 'accepted'],
             'incoming': [pick(r) for r in rows if r['status'] == 'pending' and not r['sent']],
             'outgoing': [pick(r) for r in rows if r['status'] == 'pending' and r['sent']]}
@@ -435,7 +436,7 @@ def _link_owner(c, code, viewer=None):
 def friend_link_preview(code: str):
     """For the page the link opens, signed in or not: only the name of the person who sent it."""
     with db.connect() as c:
-        return {'name': _link_owner(c, code)['name']}
+        return {'name': '@'+_link_owner(c, code)['login']}
 
 
 def join_by_link(c, uid, code):
