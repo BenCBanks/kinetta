@@ -2339,7 +2339,10 @@ button.thread-food:active { opacity: .7; }
 .kit-mark {color:var(--accent);display:inline-flex;}
 .kit-mark svg {width:20px;height:20px;}
 .kit-starters {display:flex;flex-wrap:wrap;gap:8px;}
-.kit-starters button {width:auto;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--tx);font-size:.9375rem;font-weight:550;text-align:left;white-space:normal;}
+.kit-starters button {display:inline-flex;align-items:center;gap:8px;max-width:100%;width:auto;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--tx);font-size:.9375rem;font-weight:550;text-align:left;white-space:normal;}
+.kit-starters button svg {flex:none;width:18px;height:18px;color:var(--accent);}
+.kit-starters button span {min-width:0;overflow-wrap:anywhere;}
+#thread-empty h2 {display:flex;align-items:center;gap:8px;}
 .kit-fine {margin:12px 0 0;color:var(--tx3);font-size:.8125rem;}
 .kit-fine .linkbtn {font-size:inherit;min-height:44px;padding:0 4px;}
 .kit-chat #thread-messages:empty {flex:0;padding:0;}
