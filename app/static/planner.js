@@ -44,7 +44,7 @@ const Plan = {
   bearing(a, b) { const r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; },
 };
 
-// The route someone chose for Track (#276 item 10): the exact version, kept on this device for this account.
+// Remove retired route snapshots together with this account’s segment drafts.
 const planDraftKey = key => App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null;
 // Erase device drafts only for this signed-in account/server. Legacy geometry stays in account exports.
 function clearSegmentDrafts() {
@@ -92,7 +92,7 @@ const Planner = (() => {
       <button type="button" class="plan-elev" id="pl-elev" hidden></button>
       <p class="small muted plan-status" id="pl-status" role="status"></p>
       <p class="small muted">Online paths and heights send map points through this server to its map services (default: Valhalla/FOSSGIS). <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors · ODbL</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fix the map</a></p>`;
-    wireBack(el, opts.backHref || '/routes');
+    wireBack(el, opts.backHref || '/progress/segments');
     $$('[data-sport]', el).forEach((b) => b.onclick = () => { if (S.sport === b.dataset.sport) return; remember(); S.sport = b.dataset.sport; store.set('kinetta.planSport', S.sport);
       $$('[data-sport]', el).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       S.legs.forEach((l) => { if (l.mode === 'path') { l.state = 'pending'; l.rev++; } }); changed(); });   // a ride follows different paths from a walk

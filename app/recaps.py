@@ -36,7 +36,7 @@ def garmin_source(source,device):
 
 def facts(c,uid,period,now=None):
     profile=c.execute('SELECT tz,units,protein_target FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
-    tz=profile.get('tz') or db.DEFAULT_TZ;zone=ZoneInfo(tz)
+    tz=db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ;zone=ZoneInfo(tz)
     today=(now or dt.datetime.now(dt.timezone.utc)).astimezone(zone).date()
     start,end=dates(period,today)
     lo=dt.datetime.combine(start,dt.time.min,zone);hi=dt.datetime.combine(end,dt.time.min,zone)

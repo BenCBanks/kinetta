@@ -350,12 +350,10 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
         if not body.card_code and inv.get('origin_card'):c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,false)",(uid,inv['origin_card']))
         c.execute('UPDATE invites SET used_by = %s, used_at = now() WHERE id = %s', (uid, inv['id']))
         if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email, welcome=True)
-        else:
-            from .cards import consume_signup
-            consume_signup(c,uid)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
-    from . import challenges
+    from . import cards,challenges
+    with db.connect() as c:cards.consume_signup(c,uid)
     with db.connect() as c:challenges.consume_signup(c,uid)
     auth.set_cookie(request, response, token)
     return {'ok': True, 'login': login}

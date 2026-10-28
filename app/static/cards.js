@@ -5,7 +5,7 @@ const KinettaCard=(()=>{
   async function picture(owner){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
     try{
-      const r=await fetch((Native.base||'')+'/api/card/image.png',{headers:{...Native.headers(),'X-Kinetta-Account':String(App.me.id)},credentials:'include',signal:controller.signal});
+      const r=await fetch((Native.base||'')+'/api/card/image.png',{headers:{...Native.headers(),'X-Kinetta-Account':String(App.me.id)},credentials:Native.on?'omit':'same-origin',signal:controller.signal});
       if(!r.ok)throw Error('Couldn’t load the card picture. Try again.');const b=await r.blob();if(owner!==readOwner())throw Error('The account changed.');return b;
     }finally{clearTimeout(timer);}
   }
@@ -27,7 +27,7 @@ const KinettaCard=(()=>{
       $('#card-retry',b).onclick=()=>refresh();
       $$('input',b).forEach(x=>x.onchange=()=>refresh(true));
       $('#card-share',b).onclick=async()=>{if(busy||!blob||!data.enabled)return;busy=true;disable(true);try{await ShareArt.deliver(blob,'kinetta-card.png',live,data.url);}catch(e){if(live()&&e.name!=='AbortError')status.textContent=e.message;}finally{busy=false;if(live())disable(false);}};
-      $('#card-copy',b).onclick=async()=>{try{await navigator.clipboard.writeText(data.url);if(live())toast('Card link copied');}catch(e){if(live())sheet('Your card link',`<label class="form">Copy this link<input readonly value="${esc(data.url)}" aria-label="Card link"></label>`,root=>{$('input',root).select();});}};
+      $('#card-copy',b).onclick=async()=>{try{await navigator.clipboard.writeText(data.url);if(live())toast('Card link copied');}catch(e){if(live())sheet('Your card link',`<label class="form">Copy this link<input readonly value="${esc(data.url)}" aria-label="Card link"></label>`,(root,done)=>{guardFoodSheet(root,done,owner);$('input',root).select();});}};
       $('#card-qr',b).onclick=()=>{if(!data.enabled)return;const link=data.url;close();qr(link);};
       $('#card-new',b).onclick=()=>{close();sheet('Make a new card link?',`<p>The old link and QR code will stop working immediately. Existing friendships stay.</p><div class="actions"><button type="button" class="ghost" id="card-keep">Keep current link</button><button type="button" class="primary" id="card-rotate">Make new link</button></div>`,(confirm,leave)=>{guardFoodSheet(confirm,leave,owner);$('#card-keep',confirm).onclick=()=>{leave();open();};$('#card-rotate',confirm).onclick=async e=>{e.target.disabled=true;try{await api('/api/card/new',{method:'POST'});if(readOwner()!==owner)return;leave();open();}catch(x){toast(x.message);e.target.disabled=false;}};});};
       refresh();

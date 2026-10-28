@@ -1882,6 +1882,11 @@ MIGRATIONS = [
     ALTER TABLE beta_requests ADD COLUMN challenge_join boolean NOT NULL DEFAULT false;
     """,
 
+    # 84. SQL readers may inspect their own non-secret card/intent metadata, never invitation codes.
+    """GRANT SELECT(user_id,enabled,photo,sports,stats,allow_requests,created,updated) ON public_cards TO fit_readers;
+    GRANT SELECT(user_id,kind,want_request,created) ON signup_join_intents TO fit_readers;
+    """,
+
 ]
 
 

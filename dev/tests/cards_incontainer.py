@@ -110,12 +110,47 @@ class Cards(unittest.TestCase):
   with patch.dict(os.environ,{'KINETTA_SIGNUP':'invite','KINETTA_BETA_SIGNUP':'0'}):
    page=self.guest.get('/card/'+self.code).text;self.assertIn('Ask the server owner for an invitation',page);self.assertNotIn('/beta?card=',page)
 
+ def test_confirmation_commits_before_consuming_card_relationships(self):
+  import os
+  self.enable();tokens={}
+  def confirmation(background,c,uid,name,email,**kw):tokens[uid]=cards.account_email._token(c,uid,'verify_email',30,email)
+  env={'KINETTA_SIGNUP':'open','KINETTA_MAX_ACCOUNTS':'','KINETTA_RESEND_KEY':'fictional-mail-key','KINETTA_MAIL_FROM':'Kinetta <mail@example.test>','KINETTA_MAIL_REPLY_TO':'help@example.test','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
+  original=cards.consume_signup;checked=[]
+  def after_commit(c,uid):
+   with db.connect() as other:
+    other.execute('SELECT id FROM users WHERE id=%s FOR UPDATE NOWAIT',(uid,));checked.append(uid)
+   return original(c,uid)
+  with patch.dict(os.environ,env),patch('app.account_email.confirmation',side_effect=confirmation),patch('app.auth.client_ip',return_value='fictional-card-lock-'+uuid.uuid4().hex):
+   client=TestClient(app);login='zz_test_card_lock_'+uuid.uuid4().hex[:8]
+   r=client.post('/api/signup',json={'name':'Fictional new person','email':login+'@example.test','login':login,'password':'fictional new card phrase','age_ok':True,'card_code':self.code,'card_request':True});self.assertEqual(r.status_code,200,r.text)
+   with db.connect() as c:uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];self.ids.append(uid)
+   with patch('app.cards.consume_signup',side_effect=after_commit):r=client.post('/api/account/email/confirm',json={'token':tokens[uid]})
+   self.assertEqual(r.status_code,200,r.text);self.assertEqual(checked,[uid])
+   with db.connect() as c:self.assertEqual(c.execute('SELECT status FROM friendships WHERE requester=%s AND addressee=%s',(uid,self.ids[0])).fetchone()['status'],'pending')
  def test_twenty_pending_limit_and_viewer_rate_limit(self):
   self.enable()
   with db.connect() as c:
    for n in range(20):
     uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',('zz_test_card_cap_'+uuid.uuid4().hex[:10],'Fictional member',self.pw)).fetchone()['id'];self.ids.append(uid);c.execute('INSERT INTO friendships(requester,addressee) VALUES(%s,%s)',(uid,self.ids[0]));c.execute('INSERT INTO card_connections(user_id,member_id) VALUES(%s,%s)',(self.ids[0],uid))
   self.assertEqual(self.clients[1].post('/api/cards/'+self.code+'/request').status_code,429)
+ def test_real_reader_can_read_only_own_metadata_and_never_codes(self):
+  import psycopg
+  from psycopg import sql
+  from psycopg.rows import dict_row
+  self.clients[1].get('/api/card');role='zz_test_card_reader_'+uuid.uuid4().hex[:8];password='fictional reader card phrase'
+  try:
+   with db.connect() as c:
+    c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role),sql.Literal(password)));c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)));c.execute('UPDATE users SET sql_role=%s WHERE id=%s',(role,self.ids[0]))
+    c.execute('UPDATE users SET needs_email_confirm=true WHERE id=ANY(%s)',(self.ids[:2],))
+    for uid in self.ids[:2]:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card','fictional-private-code',false)",(uid,))
+   with psycopg.connect(db._conninfo(role,password),row_factory=dict_row) as reader:
+    self.assertEqual(reader.execute('SELECT user_id,enabled FROM public_cards').fetchall(),[{'user_id':self.ids[0],'enabled':False}])
+    self.assertEqual(reader.execute('SELECT user_id,kind FROM signup_join_intents').fetchall(),[{'user_id':self.ids[0],'kind':'card'}])
+    for table in ('public_cards','signup_join_intents'):
+     with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+      with reader.transaction():reader.execute('SELECT code FROM '+table)
+  finally:
+   with db.connect() as c:c.execute('UPDATE users SET sql_role=NULL WHERE id=%s',(self.ids[0],));c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
  def test_codes_have_no_reader_grant_and_exports_exclude_codes(self):
   from app.api_mydata import TABLES
   with db.connect() as c:

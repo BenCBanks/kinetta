@@ -341,9 +341,11 @@ def start_worker():
         while not stop.wait(10):
             try:
                 with db.connect() as c:
-                    pending=[r['user_id'] for r in c.execute("SELECT i.user_id FROM signup_join_intents i JOIN users u ON u.id=i.user_id WHERE i.kind='challenge' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL LIMIT 50").fetchall()]
-                for uid in pending:
-                    with db.connect() as c:consume_signup(c,uid)
+                    pending=c.execute("SELECT i.user_id,i.kind FROM signup_join_intents i JOIN users u ON u.id=i.user_id WHERE i.kind IN ('card','challenge') AND NOT u.needs_email_confirm AND u.suspended_at IS NULL LIMIT 50").fetchall()
+                for intent in pending:
+                    with db.connect() as c:
+                        if intent['kind']=='card':cards.consume_signup(c,intent['user_id'])
+                        else:consume_signup(c,intent['user_id'])
                 with db.connect() as c:
                     ids=[r['id'] for r in c.execute("SELECT id FROM challenges WHERE checked_at<now()-interval '30 seconds' ORDER BY checked_at LIMIT 50").fetchall()]
                 for cid in ids:

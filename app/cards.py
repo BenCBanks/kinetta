@@ -108,7 +108,8 @@ def request_friend(c,uid,code,joined=False):
     from .api_social import confirmed,_pair,MAX_PENDING
     confirmed(c,uid);candidate=active(c,code,uid);owner=candidate['user_id']
     # Account erasure uses account-before-personal-row order; card requests do too.
-    c.execute('SELECT id FROM users WHERE id=ANY(%s) ORDER BY id FOR KEY SHARE',(sorted({uid,owner}),)).fetchall()
+    c.execute('SELECT id FROM users WHERE id=ANY(%s) ORDER BY id FOR UPDATE',(sorted({uid,owner}),)).fetchall()
+    confirmed(c,uid)
     row=active(c,code,uid,True)
     if owner==uid:return {'status':'self'}
     if not row['allow_requests']:raise HTTPException(409,'Friend requests from this card are turned off')
@@ -128,18 +129,25 @@ def ask(code:str,user=Depends(current_user)):
     with db.connect() as c:return request_friend(c,user['id'],code)
 
 def consume_signup(c,uid):
-    rows=c.execute("DELETE FROM signup_join_intents WHERE user_id=%s AND kind='card' RETURNING kind,code,want_request",(uid,)).fetchall()
+    # Confirmation/account creation must commit before this helper acquires both accounts.
+    person=c.execute("SELECT u.needs_email_confirm,u.suspended_at,u.email_verified_at,EXISTS(SELECT 1 FROM account_tokens t WHERE t.user_id=u.id AND t.kind='verify_email') AS asked FROM users u WHERE u.id=%s",(uid,)).fetchone()
+    if not person or person['needs_email_confirm'] or person['suspended_at'] or (person['asked'] and person['email_verified_at'] is None):return
+    intent=c.execute("SELECT code FROM signup_join_intents WHERE user_id=%s AND kind='card'",(uid,)).fetchone()
+    if not intent:return
+    try:owner=active(c,intent['code'],uid)['user_id']
+    except HTTPException:owner=uid
+    c.execute('SELECT id FROM users WHERE id=ANY(%s) ORDER BY id FOR UPDATE',(sorted({uid,owner}),)).fetchall()
+    rows=c.execute("DELETE FROM signup_join_intents WHERE user_id=%s AND kind='card' RETURNING code,want_request",(uid,)).fetchall()
     for r in rows:
-        if r['kind']=='card':
+        try:
+            with c.transaction():
+                row=active(c,r['code'],uid)
+                if row['user_id']!=uid:c.execute('INSERT INTO card_connections(user_id,member_id,joined) VALUES(%s,%s,true) ON CONFLICT(user_id,member_id) DO UPDATE SET joined=true',(row['user_id'],uid))
+        except HTTPException:continue
+        if r['want_request']:
             try:
-                with c.transaction():
-                    row=active(c,r['code'],uid)
-                    if row['user_id']!=uid:c.execute('INSERT INTO card_connections(user_id,member_id,joined) VALUES(%s,%s,true) ON CONFLICT(user_id,member_id) DO UPDATE SET joined=true',(row['user_id'],uid))
-            except HTTPException:continue
-            if r['want_request']:
-                try:
-                    with c.transaction():request_friend(c,uid,r['code'],True)
-                except HTTPException:pass   # revoked/blocked/capped links never prevent confirmation
+                with c.transaction():request_friend(c,uid,r['code'],True)
+            except HTTPException:pass  # Revoked/blocked/capped links never prevent confirmation.
 
 
 def sport_icon(g,sport,x,y,size=48):

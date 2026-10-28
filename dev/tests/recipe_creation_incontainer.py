@@ -18,6 +18,10 @@ class RecipeCreation(unittest.TestCase):
   with db.connect() as c:
    for uid in self.ids:erase(c,{'id':uid,'sql_role':None})
   for uid in self.ids:erase_files(uid)
+ def test_empty_create_retry_reuses_only_the_unfinished_draft(self):
+  first=self.clients[0].post('/api/dishes',json={}).json();again=self.clients[0].post('/api/dishes',json={}).json();self.assertEqual(first['id'],again['id']);self.assertNotEqual(first['id'],self.old)
+  self.clients[0].patch('/api/dishes/'+str(first['id']),json={'name':'Fictional named recipe'})
+  following=self.clients[0].post('/api/dishes',json={}).json();self.assertNotEqual(following['id'],first['id']);self.assertEqual(following['items'],[])
  def test_new_recipe_ingredient_list_never_substitutes_previous_whole_recipe(self):
   client=self.clients[0];new=client.post('/api/dishes',json={});self.assertEqual(new.status_code,200,new.text);did=new.json()['id'];self.assertNotEqual(did,self.old)
   client.patch('/api/dishes/'+str(did),json={'name':'Fictional new coffee'})

@@ -234,7 +234,7 @@ route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // Me's shortcuts (owner 2026-10-18): small round icons for places one level deeper than the tab bar, never a repeat
 // of a tab. Friends and Goals live here instead of in the list below.
 const ME_SHORTCUTS = [['/plan', 'calendar', 'Plan'], ['/progress?view=fitness', 'flame', 'Fitness'], ['/progress?view=records', 'trophy', 'Records'],
-  ['/routes', 'dist', 'Routes'], ['/me/goals', 'target', 'Goals'], ['/me/friends', 'people', 'Friends']];
+  ['/progress/routes', 'dist', 'Matched routes'], ['/me/goals', 'target', 'Goals'], ['/me/friends', 'people', 'Friends']];
 // Keep food above training only while this local day contains logged food.
 function arrangeHomeFood(el,loggedToday) {
   const food=$('#t-food',el),lead=$('#t-food-lead',el),agenda=$('.me-agenda',el);
@@ -484,7 +484,12 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   wireBack(el, '/activity');
   SocialData.prefetch(id);
   const milestoneOwner=readOwner(),milestoneOffers=Milestones.read({activity_id:id}).catch(()=>({items:[]}));let milestoneDraw=0;
-  await load(`/api/activities/${id}`, (a) => {const stamp=++milestoneDraw;milestoneOffers.then(data=>{if(!el.isConnected||readOwner()!==milestoneOwner||stamp!==milestoneDraw)return;drawDetail(el,a);Milestones.paint($('#d-milestones',el),data,{params:{activity_id:id}});if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}}).catch(e=>{if(el.isConnected&&readOwner()===milestoneOwner)showError(el,e);});}, {maxAge:60000});
+  await load(`/api/activities/${id}`, (a) => {
+    const stamp=++milestoneDraw;drawDetail(el,a);
+    // An optional celebration must not delay the workout, chart or food-energy summary.
+    milestoneOffers.then(data=>{if(el.isConnected&&readOwner()===milestoneOwner&&stamp===milestoneDraw)Milestones.paint($('#d-milestones',el),data,{params:{activity_id:id}});}).catch(()=>{});
+    if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}
+  }, {maxAge:60000});
 });
 
 // Sections (2026-10-12, Ben: "one huge long list"): the map, title and headline numbers stay on top; the rest is
