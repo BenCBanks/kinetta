@@ -90,6 +90,6 @@ fork or product without permission.
 
 Copyright © 2026 Ben Banks.
 
-Route planning and map services: [routes](docs/routes.md). Fixed courses and moderation: [segments](docs/segments.md).
+Fixed courses and moderation: [segments](docs/segments.md).
 
 Website writing: [edit Markdown copy without changing layouts](docs/website-content.md). Apple Watch maps: [requirements and troubleshooting](docs/apple-watch-routes.md).

@@ -2542,7 +2542,7 @@ nav.tabs { view-transition-name: tabs; }
 
 .has-back > .top + .map-head {margin-top:0}
 
-/* ---------- Route planner, segments and leaderboards (#276, #278, #285; 2026-10-26) ----------
+/* ---------- Segment editor and leaderboards (#276, #278, #285; 2026-10-26) ----------
    The map is the workspace: it fills the space between the sport choice and the tool bar. Straight-line sections are
    dashed and listed, a connection with no path is red and dashed, and the distance says "updating" while it changes. */
 .planner-page {display:flex;flex-direction:column;min-height:calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom,0px));padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 8px)}
@@ -2619,10 +2619,6 @@ nav.tabs { view-transition-name: tabs; }
 .seg-effort {display:flex;align-items:center;gap:8px}
 .seg-effort .grow {display:grid;gap:2px;color:var(--tx);text-decoration:none}
 .seg-effort small.good {color:var(--good);font-weight:600}
-.track-route {margin:10px 0 0}
-.track-route-chip {display:flex;align-items:center;gap:10px;min-height:52px;padding:6px 6px 6px 12px;border-radius:var(--r2);background:var(--card);box-shadow:var(--shadow)}
-.track-route-chip > svg {width:20px;height:20px;color:var(--route)}
-.track-route-chip .grow {display:grid;color:var(--tx);text-decoration:none;min-width:0} .track-route-chip b {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:360px) { .plan-bar > button span {font-size:11px} .plan-sports button svg {display:none} }
 
 /* Deliberately shared route plans (#277). Private notes and originals never enter recipient cards. */
@@ -2644,27 +2640,6 @@ nav.tabs { view-transition-name: tabs; }
 .segment-assistance .check-row input { flex:0 0 22px; width:22px; height:22px; min-height:0; padding:0; margin-top:2px; }
 #private-recheck-ok { min-height:0; padding:0; }
 #d-segments .row-link>svg { flex:none; width:22px; height:22px; }
-/* Route following stays separate from measured recording controls and never covers Pause/Resume/Finish. */
-.track-plan-progress { display:grid; gap:3px; margin:8px 0; padding:10px 12px; border-radius:var(--r2); background:var(--card2); }
-.track-plan-progress>b { overflow-wrap:anywhere; font-size:14px; }
-.track-route-legend { display:flex; flex-wrap:wrap; gap:4px 12px; color:var(--tx2); font-size:12px; }
-.track-route-legend>span:nth-child(2),.track-route-legend>span:nth-child(3) { color:var(--route); }
-.track-route-choice>svg { flex:none; width:20px; height:20px; }
-#route-device-tools details,#shared-route-device-tools details { margin:12px 0; }
-#route-device-tools details p,#shared-route-device-tools details p { overflow-wrap:anywhere; }
-.track-plan-arrow span { color:var(--tx2); }
-/* Leave room for the full recorder controls above the stable bottom tabs, including the offline banner. */
-.track-live.has-route #track-time { line-height:1.05; }
-.track-live.has-route .track-hero { margin:6px 0 4px; }
-.track-live.has-route .track-live-metrics { margin:8px 0 4px; }
-.track-live.has-route .track-splits { min-height:0; margin:2px 0 6px; }
-.track-live.has-route .track-splits:empty { display:none; }
-.track-live.has-route .track-plan-progress { margin:4px 0 8px; padding:8px 10px; }
-.track-plan-progress>b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.track-live.has-route .live-record-map { height:clamp(96px,calc(20dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)),260px); }
-.track-live.has-route .track-controls { margin-top:12px; }
-
-@media(max-width:360px) { .track-live.has-route .live-record-map { height:clamp(96px,calc(18dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)),140px); } }
 /* Run/walk presets belong beside Track setup; controls remain reachable on a phone. */
 .track-interval-summary{text-align:center;margin:0 0 6px}.interval-line{display:grid;grid-template-columns:8.6em minmax(0,1fr) 5.5em;gap:8px;align-items:center;margin:10px 0}.interval-line>span:first-child{font-weight:650}.interval-line input,.interval-line select{min-height:44px;width:100%;font-size:16px}.interval-line>.muted{padding-left:4px}#interval-editor .interval-extra{display:flex;align-items:center;gap:8px;min-height:44px;margin:0;font-weight:650;grid-column:1/2}.interval-extra input{width:22px;height:22px;flex:none}#interval-editor .interval-name{margin:16px 0 4px}#interval-editor .interval-name input{display:block;width:100%;margin-top:6px}.interval-selected b{display:block;font-size:17px;margin:2px 0}.interval-selected p{margin:2px 0 6px}.interval-library-list{margin:12px 0}.interval-library-list .row-link small{display:block}.interval-blocks fieldset{border:1px solid var(--line);border-radius:12px;margin:18px 0;padding:14px;min-width:0}.interval-blocks legend{padding:0 8px;font-weight:650}.interval-step{border-top:1px solid var(--line);padding:14px 0}.interval-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.interval-field-grid label,.interval-time label{min-width:0}.interval-time{display:grid;grid-template-columns:1fr 1fr;gap:8px;grid-column:1/-1}.interval-row-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.interval-row-actions button{min-height:44px;flex:1;padding:10px}.interval-preview{padding-left:24px;max-height:340px;overflow:auto}.interval-preview li{padding:8px 0}.interval-preview small{display:block;color:var(--tx3)}.interval-totals{font-weight:650}.interval-library-list article{border-bottom:1px solid var(--line);padding:14px 0}.interval-selected{padding:14px;border:1px solid var(--line);border-radius:12px;margin:12px 0}.interval-current{display:flex;justify-content:space-between;gap:14px;align-items:center}.interval-current h3{margin:4px 0;font-size:28px;color:var(--tx)}.interval-current>b{font-size:22px;font-variant-numeric:tabular-nums}.interval-current small{color:var(--tx3)}.track-interval-live{padding:16px;margin:12px 0}.track-interval-live p{margin:10px 0}.interval-blocks input,.interval-blocks select,#interval-editor input,#interval-editor textarea{font-size:16px;max-width:100%}#interval-editor label{display:block;margin:10px 0}#interval-editor .check,#interval-library .check{display:flex;align-items:flex-start;gap:10px;margin:16px 0}#interval-editor .check input,#interval-library .check input{width:22px;height:22px;flex:none}.interval-selected h3{overflow-wrap:anywhere}@media(max-width:360px){.interval-field-grid{grid-template-columns:1fr}.interval-row-actions button{flex-basis:45%}.interval-current{align-items:flex-start}.interval-current>b{font-size:19px}}
 
@@ -2690,7 +2665,7 @@ html.native body::before { content: ''; position: fixed; top: 0; left: 0; right:
 html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim)::before { display: none; }
 /* Recording controls always above the tab bar (28 October 2026, Ben: Pause and Finish were cut off in the iPhone app).
    Title, numbers, map and controls fill exactly the space between the status bar and the tab bar; the map takes what is
-   left rather than a fixed share of the screen, so a status line, a planned route or a short phone never pushes the
+   left rather than a fixed share of the screen, so a status line or a short phone never pushes the
    controls down. The note and Discard sit below, a scroll away. */
 .track-live-main { display: flex; flex-direction: column;
   min-height: calc(100dvh - env(safe-area-inset-top, 0px) - 10px - env(safe-area-inset-bottom, 0px) - var(--tab-h) - 28px); }
@@ -2702,7 +2677,6 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
   .track-live .track-live-metrics { margin: 6px 0 2px; } .track-live .track-controls .round-btn { width: 76px; height: 76px; }
   .track-live.has-route .track-splits { display: none; } .track-live-main .track-controls { margin-top: 10px; }
   .track-live-main .track-map-wrap, .track-live.has-route .track-live-main .track-map-wrap { min-height: 72px; } }
-@media (max-height: 820px) { .track-live .track-route-legend { display: none; } }
 /* Lifting summary after Finish (28 October 2026): the run summary's title and stat card, then records and exercises. */
 .lift-review .track-review-when svg { width: 18px; height: 18px; color: var(--accent); }
 .lift-review-records h3, .lift-review-ex h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }

@@ -454,7 +454,7 @@ class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 if let value=call.getObject("routePlan") {
                     let data=try JSONSerialization.data(withJSONObject:value)
-                    guard data.count<=600000 else {call.reject("The planned route is too large.");return}
+                    guard data.count<=600000 else {call.reject("The recording metadata is too large.");return}
                     let decoded=try JSONDecoder().decode(TrackRoutePlan.self,from:data)
                     guard decoded.valid else {call.reject("Review this route again before starting.");return}
                     plan=decoded

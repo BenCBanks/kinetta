@@ -29,10 +29,8 @@ node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js
 node dev/tests/test_friend_management.js
 node dev/tests/test_route_drafts.js
-node dev/tests/test_route_sharing_ui.js
 node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
-node dev/tests/test_route_following.js
 node dev/tests/test_track.js
 node dev/tests/test_lift_summary.js
 node dev/tests/test_recipe_delete.js
@@ -120,6 +118,7 @@ cd ../..
 
 echo "== in the app container"
 docker compose -p "$P" exec -T app python - < dev/tests/friend_count_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/retired_routes_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/intervals_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/cook_clarification_incontainer.py
