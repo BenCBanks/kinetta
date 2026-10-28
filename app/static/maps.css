@@ -1,0 +1,6 @@
+/* Map credits occupy their own corner and never sit beneath recording controls. */
+.leaflet-container{background:var(--card2,var(--color-soft))!important}.leaflet-control-attribution{max-width:100%;white-space:normal;line-height:1.4!important;font-size:12px!important;background:var(--card,var(--color-surface))!important;color:var(--tx2,var(--color-text-secondary))!important}.leaflet-control-attribution a{color:var(--tx,var(--color-text))!important;text-decoration:underline}.leaflet-bottom.leaflet-right{max-width:80%}.map-unavailable{max-width:150px;padding:4px 6px;border-radius:6px;background:var(--card,var(--color-surface));color:var(--tx2,var(--color-text-secondary));font:11px var(--font-ui,system-ui)}.map-unavailable[hidden]{display:none}.map-unavailable button{font:inherit;min-height:24px;padding:0 4px;border:0;background:none;color:var(--brand,var(--color-brand));text-decoration:underline}.track-map-wrap>.map-chip{top:12px;bottom:auto}
+
+.leaflet-bottom.leaflet-left{bottom:36px}
+/* Start overlaps the ready-map edge; credits sit above that overlap. */
+#track-ready-map .leaflet-bottom.leaflet-right{bottom:60px}

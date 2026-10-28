@@ -760,14 +760,6 @@ function mercator(la, lo) {     // 0..1 across the world map
   const s = Math.sin(la * Math.PI / 180);
   return [(lo + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)];
 }
-function loadTile(url) {
-  return new Promise((res) => {
-    const im = new Image(); im.crossOrigin = 'anonymous'; im.referrerPolicy = 'strict-origin-when-cross-origin';
-    const t = setTimeout(() => res(null), 8000);
-    im.onload = () => { clearTimeout(t); res(im); }; im.onerror = () => { clearTimeout(t); res(null); };
-    im.src = url;
-  });
-}
 async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon -> canvas x/y. box.top/under: kept clear of the route
   const m = pts.map(([la, lo]) => mercator(la, lo));
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -777,16 +769,8 @@ async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon 
   const cx = (x0 + x1) / 2 * n, cy = (y0 + y1) / 2 * n, mx = box.x + box.w / 2, my = box.y + (box.top || 0) + (box.h - box.under - (box.top || 0)) / 2;
   const tx0 = Math.floor((cx + (box.x - mx) / k) / TILE), tx1 = Math.floor((cx + (box.x + box.w - mx) / k) / TILE);
   const ty0 = Math.max(0, Math.floor((cy + (box.y - my) / k) / TILE)), ty1 = Math.min(2 ** z - 1, Math.floor((cy + (box.y + box.h - my) / k) / TILE));
-  const jobs = [];
-  for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
-    const wx = ((tx % 2 ** z) + 2 ** z) % 2 ** z;
-    jobs.push(loadTile(`https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`).then((im) => im && [im, tx, ty]));
-  }
-  const got = (await Promise.all(jobs)).filter(Boolean);
-  g.save(); g.beginPath(); g.rect(box.x, box.y, box.w, box.h); g.clip();
-  for (const [im, tx, ty] of got) g.drawImage(im, (tx * TILE - cx) * k + mx, (ty * TILE - cy) * k + my, TILE * k + 0.5, TILE * k + 0.5);
-  g.restore();
-  return {tiles: got.length, P: ([la, lo]) => { const [x, y] = mercator(la, lo); return [(x * n - cx) * k + mx, (y * n - cy) * k + my]; }};
+  const count=await MapTiles.paint(g,pts,box,{z,k,n,cx,cy,mx,my,tx0,tx1,ty0,ty1,zf});
+  return {tiles: count, P: ([la, lo]) => { const [x, y] = mercator(la, lo); return [(x * n - cx) * k + mx, (y * n - cy) * k + my]; }};
 }
 // The share picture uses the light Sky Blue tokens in either app appearance; routes are blue, like the map.
 // Story: 1080 × 1920. Post: 1080 × 1350. Destinations share the exact previewed image.
@@ -848,10 +832,11 @@ async function routePicture(a, trim) {
     g.beginPath(); g.arc(W / 2, cy, 250, 0, Math.PI * 2); g.fillStyle = col('--share-soft'); g.fill();
     drawMark(g, W / 2, cy, 360, hue);
   }
-  if (tiles) {   // the map credit OpenStreetMap asks for, just above the card
-    g.font = `600 20px ${ui}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
-    g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.9)'; g.strokeText('© OpenStreetMap contributors', W - M - 8, CY - 14);
-    g.fillStyle = PIC.muted; g.fillText('© OpenStreetMap contributors', W - M - 8, CY - 14);
+  if(tiles){
+    const text=MapTiles.credit(await MapTiles.config());
+    g.font=`600 20px ${ui}`;g.textAlign='right';g.textBaseline='alphabetic';
+    const words=text.split(' '),lines=[];let line='';for(const word of words){if(g.measureText(line+' '+word).width>W-2*M&&line){lines.push(line);line=word;}else line+=(line?' ':'')+word;}if(line)lines.push(line);
+    for(let i=0;i<lines.length;i++){const y=CY-14-(lines.length-1-i)*25;g.lineWidth=5;g.strokeStyle='rgba(255,255,255,.9)';g.strokeText(lines[i],W-M-8,y);g.fillStyle=PIC.muted;g.fillText(lines[i],W-M-8,y);}
   }
   // the card: the map behind it, blurred, under a light tint, so it reads as frosted glass rather than a white box
   const card = () => { g.beginPath(); g.roundRect(CX, CY, CW, CH, 40); };

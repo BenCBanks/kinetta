@@ -13,7 +13,7 @@ import threading
 from .auth import current_user
 from . import request_log
 from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread
-from . import api_routes_plan, api_segments, segments, route_sharing
+from . import api_routes_plan, api_segments, segments, route_sharing, map_config
 
 @asynccontextmanager
 async def lifespan(app):
@@ -30,6 +30,7 @@ async def lifespan(app):
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 from . import api_intervals
 app.include_router(api_intervals.router)
+app.include_router(map_config.router)
 app.include_router(api_activities.router)
 app.include_router(api_routes_plan.active_router)  # Fixed-segment drawing and activity sections only.
 app.include_router(api_segments.router)
@@ -84,7 +85,8 @@ async def invalid_request(request: Request, exc: RequestValidationError):
 
 
 STATIC = os.path.join(os.path.dirname(__file__), 'static')
-CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; "
+MAP_ORIGINS = ' '.join(map_config.origins())
+CSP = (f"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: {MAP_ORIGINS}; connect-src 'self' {MAP_ORIGINS}; "
        "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
 
