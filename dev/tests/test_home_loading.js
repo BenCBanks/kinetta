@@ -5,7 +5,7 @@ const source=fs.readFileSync('app/static/pages.js','utf8');
 const code=source.slice(source.indexOf('const ME_SHORTCUTS'),source.indexOf('function goalFmt'));
 async function run({cached=false,food=true,failure=false}={}){
  const page={dataset:{}},nodes=new Map(),requests=new Map(),charts=[];
- const node=()=>({isConnected:true,innerHTML:'',hidden:false,remove(){this.removed=true;}});
+ const node=()=>({isConnected:true,innerHTML:'',hidden:false,remove(){this.removed=true;},append(child){child.parentElement=this;},insertBefore(child){child.parentElement=this;}});
  const el=node();el.closest=()=>page;
  const get=s=>{if(!nodes.has(s))nodes.set(s,node());return nodes.get(s);};
  const request=(key,paint,payload)=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.set(key,{paint,payload,resolve,reject});if(cached)paint(payload);return promise;};
@@ -26,10 +26,13 @@ async function run({cached=false,food=true,failure=false}={}){
  }
  assert(!('homeLoading'in page.dataset),'first data is sufficient; stale revalidation and unrelated reads do not block');
  assert(get('#t-loading').removed,'loading status removed when actions are exposed');
- assert.equal(get('.me-agenda').hidden,!food,'empty conditional day is absent; food-only day or its retry appears');
+ assert.equal(get('#t-last').hidden,food&&!failure,'Latest activity hides only after food is logged today');
+ assert.equal(get('#t-food').parentElement,food&&!failure?get('#t-food-lead'):get('.me-agenda'),'food moves above the chart only on a logged day');
+ assert.equal(get('.me-agenda').hidden,!failure,'food-only day does not leave an empty Your day heading');
+ assert(!('homeFoodLoading' in page.dataset),'training position is revealed after food classification');
  if(failure)assert.match(get('#t-food').innerHTML,/could not load/,'food failure retains an explicit retry');
  // Finish background reads after the first paint. They cannot put the page back into its loading state.
  for(const [key,r]of requests){if(!['plan','food','checkin','/api/activities?limit=3','/api/stats'].includes(key)){r.paint(r.payload);r.resolve(r.payload);}else r.resolve(r.payload);}
  await done;assert(!('homeLoading'in page.dataset));
 }
-(async()=>{await run();await run({food:false});await run({failure:true});await run({cached:true});console.log('Home first paint: chart independent, conditional day/actions coordinated, no-food day hidden, failure released, cached content immediate during pending refresh PASS');})().catch(e=>{console.error(e);process.exitCode=1;});
+(async()=>{await run();await run({food:false});await run({failure:true});await run({cached:true});console.log('Home food priority and first paint: chart independent, conditional day/actions coordinated, no-food day hidden, failure released, cached content immediate during pending refresh PASS');})().catch(e=>{console.error(e);process.exitCode=1;});

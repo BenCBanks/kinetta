@@ -1303,3 +1303,7 @@ Empty Add food entry keeps the keyboard closed so the quick-action bubbles are v
 ## Friends and profile counts (28 October 2026)
 
 Anyone allowed to see a profile can see its accepted-friend count, excluding pending or unavailable accounts. The list is owner-only, with no mutual-friend exposure. Me → Friends puts incoming requests and the alphabetized list before discovery, with a local name/username filter for longer lists. Manage and destructive confirmations use app sheets. Successful removal updates the list/count immediately; offline/error states retain the last list and offer Retry.
+
+### Food priority on Me · owner, 28 October 2026
+
+When the local day has logged food, Food today sits above the weekly activity chart and Latest activity is hidden. With no food today, Latest activity remains. Historical food or a goal alone does not promote an empty day. Resolve the food state before revealing chart position so late data cannot shift an exposed control. Keep the conditional plan/check-in panels and five tabs.

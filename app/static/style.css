@@ -1452,6 +1452,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 /* Me personal overview and foreground Track (October 2026). */
 .me-heading h1 { margin: 0; }
 /* Keep actions out of the loading layout until the conditional cards above them have their first result. */
+[data-home-food-loading] #t-food-lead, [data-home-food-loading] #t-week { display:none; }
 [data-home-loading] #t-content, [data-home-loading] > .me-tools, [data-home-loading] > .me-settings { display:none; }
 .mileage-loading { min-block-size:24rem; }
 .mileage-loading > .card { min-block-size:21rem; margin:0; }
