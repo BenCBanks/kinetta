@@ -331,11 +331,13 @@ class RemoveFoodIn(BaseModel):
 
 
 @router.post('/messages/{mid}/remove-food')
-def remove_food(mid: int, body: RemoveFoodIn, user=Depends(current_user)):
+def remove_food(mid: int, body: RemoveFoodIn, response:Response, user=Depends(current_user)):
     from . import food_thread_remove
     with db.connect() as c:
         message=locked_message(c,user['id'],mid)
-        return food_thread_remove.remove_food(c,user['id'],message,body)
+        result=food_thread_remove.remove_food(c,user['id'],message,body)
+        if result.get('changed'):response.status_code=409
+        return result
 
 
 class DestinationIn(BaseModel):

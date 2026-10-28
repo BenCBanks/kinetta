@@ -64,9 +64,24 @@ class PendingNutrition(unittest.TestCase):
   for extra in ({'amount':0},{'amount':-1},{'amount':2,'item':{'name':'Food','kcal':1}},{'item':{'name':'Food','kcal':1},'basis_amount':0}):self.post(path,self.edit(m,p,**extra),status=422)
   self.assertEqual(self.a.put('/api/food/foods/'+str(f['id']),json={'name':'Fictional rice','serving_label':'1 bowl','serving_g':100,'kcal':200,'protein_g':8,'carbs_g':40,'fat_g':2}).status_code,200)
   data=self.post(path,self.edit(m,p,amount=2),status=409);self.assertTrue(data['changed']);self.assertEqual(self.result(data,m['id'])['parts'][0]['entries'][0]['kcal'],200);self.assertEqual(self.entries(),[])
+  fresh=self.result(data,m['id'])['parts'][0]
+  self.assertEqual(self.a.delete('/api/food/foods/'+str(f['id']),headers={'Content-Type':'application/json'}).status_code,200)
+  removed=self.post(f"/api/food/thread/messages/{m['id']}/remove-food",self.edit(m,fresh));self.assertEqual(self.result(removed,m['id'])['parts'],[],'removing the last food needs no retained source')
  def test_source_fallback_is_not_a_made_up_serving_and_zero_remains_known(self):
   f=F._off_food({'product_name':'Fictional drink','serving_size':'1 bottle','nutriments':{'energy-kcal_100g':0,'proteins_100g':0,'carbohydrates_100g':0,'fat_100g':0}})
   self.assertTrue(f['serving']['is_default']);self.assertIsNone(S.catalog_draft(f));self.assertEqual(S.catalog_draft(f,{'grams':100})['food']['kcal'],0)
+ def test_group_removal_revalidates_sources_before_snapshotting_remaining_foods(self):
+  foods=[self.post('/api/food/foods',{'name':name,'serving_g':100,'kcal':100,'protein_g':4,'carbs_g':20,'fat_g':1}) for name in ['Fictional rice','Fictional beans']]
+  m,_=self.staged()
+  with db.connect() as c:
+   data=C.write(c,self.ids[0],T.locked_message(c,self.ids[0],m['id']),{'composed':True,'day':str(dt.date.today()),'meal':'dinner',
+    'parts':[{'index':0,'status':'ready','templates':[{'kind':'custom','id':f['id'],'portion':{'count':1}} for f in foods]}]})
+  p=self.result(data,m['id'])['parts'][0];path=f"/api/food/thread/messages/{m['id']}/remove-food"
+  self.assertEqual(self.a.put('/api/food/foods/'+str(foods[1]['id']),json={'name':'Fictional beans','serving_g':100,'kcal':200,'protein_g':8,'carbs_g':40,'fat_g':2}).status_code,200)
+  data=self.post(path,self.edit(m,p),status=409);self.assertTrue(data['changed']);p=self.result(data,m['id'])['parts'][0]
+  self.assertEqual(len(p['entries']),2);self.assertEqual(p['entries'][1]['kcal'],200)
+  self.assertEqual(self.a.delete('/api/food/foods/'+str(foods[1]['id']),headers={'Content-Type':'application/json'}).status_code,200)
+  self.post(path,self.edit(m,p),status=404);self.assertEqual(self.entries(),[])
  def test_barcode_http_flow_keeps_incomplete_macros_ready_for_explicit_review(self):
   code='999'+str(uuid.uuid4().int%10000000000).zfill(10)
   product={'code':code,'product_name':'Fictional scanned grain','brands':'Fictional Pantry','quantity':'500 g','serving_size':'1 cup','serving_quantity':50,

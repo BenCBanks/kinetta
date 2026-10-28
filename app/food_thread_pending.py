@@ -14,6 +14,16 @@ def manual_part(part):
     return part
 
 
+def fresh_part(c,uid,part):
+    """Revalidate every live source before turning a group into one-off foods."""
+    if part.get('recipe_pick'):
+        from .food_entry_review import dish_entry
+        pick=part['recipe_pick'];part['entries']=[dish_entry(c,uid,pick['did'],pick['portion'])]
+    elif part.get('drafts'):C.fresh_drafts(c,uid,part)
+    elif part.get('templates'):C.fresh_templates(c,uid,part)
+    elif not part.get('manual'):C.fresh_own(c,uid,part)
+
+
 def edit(c,uid,message,body):
     result=C.card(c,uid,message)
     if not result or not (message.get('result') or {}).get('review_only'):
@@ -25,12 +35,7 @@ def edit(c,uid,message,body):
     if not 0<=body.entry<len(part.get('entries') or []):raise HTTPException(422,'Choose a food on this card')
     part=copy.deepcopy(part);before=copy.deepcopy(part['entries'])
     # Preserve source/ownership checks before taking an explicit one-off snapshot.
-    if part.get('recipe_pick'):
-        from .food_entry_review import dish_entry
-        pick=part['recipe_pick'];part['entries']=[dish_entry(c,uid,pick['did'],pick['portion'])]
-    elif part.get('drafts'):C.fresh_drafts(c,uid,part)
-    elif part.get('templates'):C.fresh_templates(c,uid,part)
-    elif not part.get('manual'):C.fresh_own(c,uid,part)
+    fresh_part(c,uid,part)
     if before!=part['entries']:
         result['parts']=[part if p['index']==body.part else p for p in result['parts']]
         response=C.write(c,uid,message,result);response['changed']=True;return response

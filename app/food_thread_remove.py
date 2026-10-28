@@ -50,7 +50,12 @@ def remove_food(c,uid,message,body):
         # Do not teach an alias for a meal whose ingredients were removed.
         part.pop('learn_phrase',None)
     else:
-        from .food_thread_pending import manual_part
+        from .food_thread_pending import manual_part,fresh_part
+        before=copy.deepcopy(part['entries'])
+        if len(before)>1:fresh_part(c,uid,part)
+        if before!=part['entries']:
+            result['parts']=[part if p['index']==body.part else p for p in result['parts']]
+            response=C.write(c,uid,message,result);response['changed']=True;return response
         part=manual_part(part);part['entries'].pop(body.entry)
     result['parts']=[part if p['index']==body.part else p for p in result['parts'] if p['index']!=body.part or part['entries']]
     result.pop('error',None)
