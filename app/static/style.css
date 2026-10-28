@@ -2133,6 +2133,11 @@ html:has(.recipe-page) nav.tabs { display: none; }
 .recipe-page .measure .m-seg button { min-width: 0; }
 .recipe-page .share-row small { white-space: normal; }
 
+/* The shell already clears the status bar. A sticky child in this fixed flex
+   editor is clamped to its padded top, adding the safe inset a second time. */
+.shell.recipe-page.has-back > .top:not(.over):has([data-back]) { position:static;margin-top:0;padding-top:0;box-shadow:none; }
+.recipe-page > .top { flex-wrap:wrap; }
+.recipe-page .top .acts { margin-left:auto;max-width:100%;flex-wrap:wrap; }
 .recipe-title { display:flex;align-items:flex-start;gap:4px; }
 .recipe-title textarea { flex:1;min-width:0; }
 .recipe-title .icon-btn { flex:none;min-width:44px;min-height:44px; }

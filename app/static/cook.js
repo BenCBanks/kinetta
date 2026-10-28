@@ -53,10 +53,10 @@ function drawDish(el, d) {
   const source=d.recipe_source||{}, imported=!!source.import_id, display=imported?d.per_serving:t;
   el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
   const sums = has ? `<p class="dish-sum num"><b>${r0(display.kcal)} kcal${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${r0(display[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn(imported?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
+  el.innerHTML = `<div class="top">${backBtn(imported?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
     <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
     ${mine?'<p class="small muted">Add ingredients, then choose whether to log a portion. This recipe is saved for reuse.</p>':''}
-    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button></div><p id="recipe-title-status" class="small muted" role="status">Tap the pencil to rename. The title saves automatically.</p>`
+    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button><button type="button" class="icon-btn danger" id="dk-delete" aria-label="Delete recipe" title="Delete recipe">${svg('trash')}</button></div><p id="recipe-title-status" class="small muted" role="status">Tap the pencil to rename. The title saves automatically.</p>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
     ${sums}
     ${imported?recipeSourceCard(d):''}
@@ -82,6 +82,7 @@ function drawDish(el, d) {
   const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&aiCan('coach') ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
   if (!mine) return;
   $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Leave this unmatched line out of the recipe nutrition? If you added it separately, its nutrition will be included.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
+  $('#dk-delete',el).onclick=()=>deleteRecipe(d);
   $('#dk-help', el).onclick = () => sheet('How recipes work', cookSteps(d));
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
@@ -563,13 +564,34 @@ function knownSheet(d, set) {
 function dishMenu(d, set, search, known) {
   sheet(d.name, `<div class="btncol"><button class="ghost" id="dm-search">Search the food database</button>
     <button class="ghost" id="dm-known">${d.known.kcal != null ? 'Change the total you typed in' : 'I already know the total'}</button>
-    <button class="ghost danger" id="dm-del">Delete meal</button></div>
+    <button class="ghost danger" id="dm-del">${svg('trash')}Delete recipe</button></div>
     <p class="small muted">What you've logged from it stays in your food log.</p>`, (b, close) => {
     $('#dm-search', b).onclick = () => { close(); search(); };
     $('#dm-known', b).onclick = () => { close(); known(); };
-    $('#dm-del', b).onclick = async () => {
-      if (!confirm(`Delete ${d.name}?`)) return;
-      try { await api(`/api/dishes/${d.id}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); toast('Meal deleted'); } catch (x) { toast(x.message); }
+    $('#dm-del', b).onclick = () => { close(); deleteRecipe(d); };
+  });
+}
+
+// Keep deletion separate from ingredient removal and preserve the person's logged portions.
+function deleteRecipe(d) {
+  const owner=readOwner();
+  sheet('Delete recipe?',`<p>Delete <b>${esc(d.name)}</b> from My Recipes? Friends you shared it with will lose access.</p><p>Portions already logged stay in each person’s food log.</p><p class="small danger" id="recipe-delete-error" role="alert" hidden></p><div class="actions"><button type="button" class="ghost" id="recipe-delete-cancel">Cancel</button><button type="button" class="primary danger" id="recipe-delete-confirm">Delete recipe</button></div>`,(b,close)=>{
+    guardFoodSheet(b,close,owner);
+    const cancel=$('#recipe-delete-cancel',b),button=$('#recipe-delete-confirm',b),error=$('#recipe-delete-error',b);
+    cancel.onclick=close;
+    button.onclick=async()=>{
+      if(button.disabled||!b.isConnected||readOwner()!==owner)return;
+      button.disabled=cancel.disabled=true;error.hidden=true;
+      try {
+        await api(`/api/dishes/${d.id}`,{method:'DELETE'});
+        if(!b.isConnected||readOwner()!==owner)return;
+        App.cache.delete('/api/dishes');App.cache.delete(`/api/dishes/${d.id}`);close();go('/food/meals',{replace:true});toast('Recipe deleted');
+      } catch(x) {
+        if(!b.isConnected||readOwner()!==owner)return;
+        // A lost acknowledgement is safe to retry: a missing recipe has already been deleted.
+        if(x.status===404){App.cache.delete('/api/dishes');App.cache.delete(`/api/dishes/${d.id}`);close();go('/food/meals',{replace:true});toast('Recipe deleted');return;}
+        error.textContent=x.message;error.hidden=false;button.disabled=cancel.disabled=false;
+      }
     };
   });
 }
