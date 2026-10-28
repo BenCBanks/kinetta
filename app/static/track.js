@@ -244,13 +244,22 @@ const Track = (() => {
     }
     return n >= 10 ? gain : null;
   }
+  // Same estimate as the server's energy.activity_kcal (no watch number exists for a phone recording yet): run ~1 kcal
+  // per kg per km, walk/hike 0.6 plus climbing, ride 7 METs, anything else 5 METs. Profile weight, else 75 kg as there.
+  function kcalEstimate(s, active, gain) {
+    const kg = App.me?.weight_kg || 75, km = s.gps ? s.distance / 1000 : 0, h = active / 3600;
+    if (s.sport === 'run' && km) return kg * km;
+    if ((s.sport === 'walk' || s.sport === 'hike') && km) return kg * km * 0.6 + kg * (gain || 0) * 0.0098 / 0.25 / 4.184;
+    return (s.sport === 'ride' ? 7 : 5) * kg * h;
+  }
   function reviewHTML() {
     const active = TrackMath.seconds(session), elapsed = session.native && Number.isFinite(session.elapsedSeconds) ? session.elapsedSeconds : ((session.finishedAt || Date.now()) - session.start) / 1000;
     const avg = session.gps && session.distance > 10 && active > 0 ? session.distance / active : null, gain = session.gps ? climb(session.points) : null, start = new Date(session.start);
     const stat = (v, u, l) => `<div><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b><small>${esc(l)}</small></div>`;
     const stats = [session.gps && stat(U.dist(session.distance, 2), U.du(), 'Distance'), stat(clock(active), '', 'Active time'),
       avg && stat(rateText(session, avg), speedSport(session) ? U.su() : '/' + U.du(), speedSport(session) ? 'Avg speed' : 'Avg pace'),
-      elapsed - active >= 30 && stat(clock(elapsed), '', 'Total time'), gain != null && stat(U.elev(gain), U.eu(), 'Elevation gain')].filter(Boolean).join('');
+      elapsed - active >= 30 && stat(clock(elapsed), '', 'Total time'), gain != null && stat(U.elev(gain), U.eu(), 'Elevation gain'),
+      stat(Math.round(kcalEstimate(session, active, gain)).toLocaleString(), 'kcal', 'Calories (est.)')].filter(Boolean).join('');
     const sp = session.splits || [], rows = sp.map((t, i) => [`${unitName(session)} ${i + 1}`, t - (i ? sp[i - 1] : 0)]);
     const rest = session.distance - sp.length * (session.splitMetres || 0);
     if (sp.length && session.splitMetres && rest > 50) rows.push([`Last ${U.dist(rest, 2)} ${U.du()}`, active - sp[sp.length - 1]]);
