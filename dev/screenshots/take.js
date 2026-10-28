@@ -83,7 +83,7 @@ function chrome(dark) {
 // The food chat: open it for a meal with the demo account's AI consent on (the estimates are stand-ins), send a message,
 // and wait until nothing is pending on this phone.
 async function chat(page, meal) {
-  await page.evaluate(async (m) => { await api('/api/profile', json('PUT', {ai_ok: true})); App.me.ai_ok = true; go('/food/describe?meal=' + m); }, meal);
+  await page.evaluate(async (m) => { await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true})); App.me.ai_ok = true; go('/food/describe?meal=' + m); }, meal);
   await page.locator('#thread-text').waitFor();
 }
 function snapshotFood() {
