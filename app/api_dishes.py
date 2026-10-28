@@ -47,7 +47,7 @@ for words, unit, grams in (
         (('l', 'litre', 'litres', 'liter', 'liters'), 'l', 1000),
         (('tbsp', 'tbsps', 'tbs', 'tbl', 'tablespoon', 'tablespoons'), 'tbsp', None),   # weight depends on the food
         (('tsp', 'tsps', 'teaspoon', 'teaspoons'), 'tsp', None),
-        (('cup', 'cups'), 'cup', None),
+        (('cup', 'cups'), 'cup', None), (('shot', 'shots'), 'shot', None),
         (('pinch', 'pinches'), 'pinch', None), (('clove', 'cloves'), 'clove', None),
         (('slice', 'slices'), 'slice', None), (('can', 'cans', 'tin', 'tins'), 'can', None),
         (('piece', 'pieces'), 'piece', None), (('handful', 'handfuls'), 'handful', None)):

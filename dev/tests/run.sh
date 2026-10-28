@@ -35,6 +35,7 @@ node dev/tests/test_route_following.js
 node dev/tests/test_track.js
 node dev/tests/test_lift_summary.js
 node dev/tests/test_recipe_delete.js
+node dev/tests/test_recipe_creation.js
 node dev/tests/test_navigation_animation.js
 node dev/tests/test_notification_rows.js
 node dev/tests/test_track_native.js
@@ -191,4 +192,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_inconta
 docker compose -p "$P" exec -T app python - < dev/tests/activity_food_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
+echo "== separate recipe creation and explicit portions"
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_creation_incontainer.py
+
 echo "== all passed"

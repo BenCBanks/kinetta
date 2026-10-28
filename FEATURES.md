@@ -258,3 +258,5 @@ Route following (#279 implementation): account/server-bound route-only downloads
 ## Run/walk interval review build (#274)
 
 Track holds private time/distance/mixed presets, exact repeat/final-recovery previews, immutable preloads and native interval controls. Guidance is spoken only; the vibration option was removed on 27 October 2026. The recorder owns clock/GPS progression and voice/system-vibration requests; one activity retains private planned/actual results with retry safety and account export/deletion. Browser authoring does not provide browser or indoor guidance. This implementation remains in review; signed locked/stationary/pocket delivery acceptance (#303/#305), merge, hosted deployment and TestFlight are separate gates. [Contract and capability matrix](docs/run-walk-intervals.md).
+
+Recipe creation uses its own ingredient editor with naming first, a Save recipe review and optional logging off by default. It does not reuse an Add food conversation or match ingredients to saved whole recipes. Add food has visible Kit-style recipe/photo/barcode/search quick actions.

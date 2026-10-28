@@ -15,8 +15,13 @@ const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.l
 
 // New recipes share food entry; the optional recipe choice appears only at final review.
 async function newDish(btn,where=null){
-  if(typeof FoodThread!=='undefined'&&FoodThread.collecting())return FoodThread.review({saveRecipe:true});
-  go('/food/describe?save=1'+(where?.meal?'&meal='+encodeURIComponent(where.meal):''));
+  const owner=readOwner();if(btn?.disabled)return;if(btn)btn.disabled=true;
+  try{
+    // The ingredient editor never resolves a new recipe through saved meal matches.
+    const d=await api('/api/dishes',json('POST',{}));
+    if(owner!==readOwner())return;App.cache.delete('/api/dishes');go('/food/cook/'+d.id);
+  }catch(e){if(owner===readOwner())toast(e.message);}
+  finally{if(btn?.isConnected&&owner===readOwner())btn.disabled=false;}
 }
 
 route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
@@ -52,12 +57,12 @@ function drawDish(el, d) {
   const bySv = d.serving === 'one';
   const source=d.recipe_source||{}, imported=!!source.import_id, display=imported?d.per_serving:t;
   el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
-  const sums = has ? `<p class="dish-sum num"><b>${r0(display.kcal)} kcal${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${r0(display[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn(imported?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
+  const sums = has ? `<p class="dish-sum num"><b>${display.kcal==null?'Calories unknown':r0(display.kcal)+' kcal'}${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${display[k]==null?'Unknown '+nm.toLowerCase():r0(display[k])+' g '+nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
+  el.innerHTML = `<div class="top">${backBtn(mine?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button> </div></div>
     <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
-    ${mine?'<p class="small muted">Add ingredients, then choose whether to log a portion. This recipe is saved for reuse.</p>':''}
     ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button><button type="button" class="icon-btn danger" id="dk-delete" aria-label="Delete recipe" title="Delete recipe">${svg('trash')}</button></div><p id="recipe-title-status" class="small muted" role="status">Tap the pencil to rename. The title saves automatically.</p>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
+    ${mine?'<p class="small muted">Build your recipe from its ingredients. Your changes save as you go; nothing is added to your food log.</p>':''}
     ${sums}
     ${imported?recipeSourceCard(d):''}
     ${d.items.length ? `<div class="card ing-card"><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
@@ -68,13 +73,13 @@ function drawDish(el, d) {
           value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole meal in grams"><span>g</span></span></form>
           ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
     ${mine&&(has||shared.length)?`<button type="button" class="card tap share-row" id="dk-share">${shared.length?`<span class="avs">${shared.map(p=>avatar(p)).join('')}</span>`:''}<span class="grow"><b>${shared.length?'Shared with '+esc(shared.map(p=>p.name.split(' ')[0]).join(', ')):'Share with…'}</b><small class="muted">${shared.length?'Change who can see this recipe':'Optional · private until you choose a friend'}</small></span>${svg('chev')}</button>`:''}
-    ${mine ? `${chatLog(d)}<div id="dk-match"></div></div>
+    ${mine ? `${chatLog(d)}<div id="dk-match"></div></div><button type="button" class="primary wide recipe-save" id="dk-done"${has?'':' disabled'}>Save recipe</button>
       <form class="composer" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
         <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'e.g. 100 g oats' : 'Search ingredients…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="${aiCan('food')?'send':'search'}" maxlength="600" required>
         <button class="icon-btn send" aria-label="${aiCan('food')?'Add ingredient':'Search ingredients'}">${svg('send')}</button></form>
       <input type="file" accept="image/*" multiple id="dk-label-file" hidden>`
       : has ? `</div><div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `</div><p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
-  wireBack(el, imported?'/food/meals':'/food');
+  wireBack(el, mine?'/food/meals':'/food');
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set)) : sharedMenu(d));
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
@@ -92,6 +97,7 @@ function drawDish(el, d) {
   // Finish saves the name, then offers an explicit meal-and-portion review.
   $('#dk-done', el).onclick = async () => {
     const button=$('#dk-done',el);if(button.disabled)return;button.disabled=true;
+    if($('#dk-t',el)?.value.trim()){toast('Send or clear the ingredient text before saving your recipe.');button.disabled=false;$('#dk-t',el).focus();return;}
     if(!await measureSave||!await saveName()||!active()){if(active())button.disabled=false;return;}
     if (!has && !$('#dk-name', el).value.trim()) { api(`/api/dishes/${d.id}`, {method: 'DELETE'}).catch(() => {}); App.cache.delete('/api/dishes'); }
     else if (has) { if(!d.named){toast('What would you like to call this food or recipe?');$('#dk-name',el).focus();button.disabled=false;return;}finishDish(d);button.disabled=false;return; }
@@ -143,10 +149,19 @@ function manualDishFood(d,set){
   });
 }
 function finishDish(d){
-  sheet('Log a portion today?', `<p>${esc(d.name)} is saved in My Recipes. Would you like to log some today?</p><div class="actions"><button type="button" class="ghost" id="df-later">Not now</button><button type="button" class="primary" id="df-log">Choose meal and amount</button></div>`,(b,close)=>{
-    const owner=readOwner();guardFoodSheet(b,close,owner);
-    $('#df-later',b).onclick=()=>{close();go('/food/meals',{replace:true});};
-    $('#df-log',b).onclick=()=>{close();dishLogSheet(d,{day:isoDay(new Date()),meal:null},editing=>{if(!editing)go('/food?d='+isoDay(new Date()),{replace:true});},{chooseMeal:true});};
+  const owner=readOwner();
+  sheet('Save recipe',`<form class="form" id="recipe-finish"><label>Recipe name<input name="title" value="${esc(d.name)}" maxlength="80" required autocomplete="off"></label><p>Your recipe is saved in My Recipes for reuse.</p><p class="small muted">${d.items.length} ingredient${d.items.length===1?'':'s'} · ${d.totals.kcal==null?'Calories unknown':r0(d.totals.kcal)+' kcal in the whole recipe'}</p><label class="switch-row"><span><b>Add to log</b><small>Optional · choose a meal and portion next</small></span><input type="checkbox" role="switch" name="log_today"></label><p class="small danger" role="alert" id="recipe-finish-error" hidden></p><button type="submit" class="primary wide" id="recipe-finish-save">Save recipe</button></form>`,(b,close)=>{
+    guardFoodSheet(b,close,owner);const form=$('#recipe-finish',b),button=$('#recipe-finish-save',b),error=$('#recipe-finish-error',b),live=()=>b.isConnected&&owner===readOwner();
+    form.elements.log_today.onchange=()=>button.textContent=form.elements.log_today.checked?'Save and choose a portion':'Save recipe';
+    form.onsubmit=async e=>{
+      e.preventDefault();if(!live()||button.disabled)return;const name=form.elements.title.value.trim();if(!name){error.textContent='Name your recipe first.';error.hidden=false;return;}button.disabled=true;error.hidden=true;
+      try{
+        const fresh=name!==d.name?await api('/api/dishes/'+d.id,json('PATCH',{name})):d;
+        if(!live())return;App.cache.delete('/api/dishes');App.cache.delete('/api/dishes/'+d.id);const logging=form.elements.log_today.checked;close();
+        if(logging)dishLogSheet(fresh,{day:isoDay(new Date()),meal:null},editing=>{if(!editing)go('/food/meals',{replace:true});},{chooseMeal:true});
+        else{go('/food/meals',{replace:true});toast('Recipe saved · nothing added to your log');}
+      }catch(x){if(live()){error.textContent=x.message;error.hidden=false;button.disabled=false;}}
+    };
   });
 }
 
