@@ -235,17 +235,24 @@ route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // of a tab. Friends and Goals live here instead of in the list below.
 const ME_SHORTCUTS = [['/plan', 'calendar', 'Plan'], ['/progress?view=fitness', 'flame', 'Fitness'], ['/progress?view=records', 'trophy', 'Records'],
   ['/routes', 'dist', 'Routes'], ['/me/goals', 'target', 'Goals'], ['/me/friends', 'people', 'Friends']];
+// Keep food above training only while this local day contains logged food.
+function arrangeHomeFood(el,loggedToday) {
+  const food=$('#t-food',el),lead=$('#t-food-lead',el),agenda=$('.me-agenda',el);
+  if(loggedToday)lead.append(food);else agenda.insertBefore(food,$('#t-checkin',el));
+  lead.hidden=!loggedToday;$('#t-last',el).hidden=loggedToday;
+  delete el.closest('#page').dataset.homeFoodLoading;
+}
 async function meOverview(el) {
   // A greeting instead of the word "Me" (2026-10-16, Ben: "Hi, Ben"); your photo at the top right opens your profile,
   // which replaces the separate name row that used to sit under the chart.
   // A simple landing pad (owner decisions 2026-10-18): high-level stats, then one row of icon shortcuts to everything
-  // else; the 14-day chart and latest activity lead. Food, the weekly check-in and the food & training week appear only
+  // else. Food today leads when something is logged; otherwise the chart and latest activity lead. The weekly check-in and food & training week appear only
   // once something is logged today. Your day shows only when it has something in it.
-  // Show the chart as soon as it arrives. Reveal the conditional day and its actions together, so a late
+  // Draw the chart as soon as it arrives, but wait for today’s food classification before revealing its position. Reveal the conditional day and its actions together, so a late
   // plan/food/check-in cannot insert itself above an already tappable shortcut. Cached first draws release this
   // gate immediately; background revalidation and unrelated fitness/friends reads never hold it open.
   const page = el.closest('#page'), waiting = new Set(['chart', 'latest', 'plan', 'food', 'checkin']);
-  page.dataset.homeLoading = '';
+  page.dataset.homeLoading = '';page.dataset.homeFoodLoading = '';
   const ready = key => {
     waiting.delete(key);
     if (!waiting.size && el.isConnected) { delete page.dataset.homeLoading; $('#t-loading', el)?.remove(); }
@@ -257,7 +264,7 @@ async function meOverview(el) {
   const first = (App.me.name || App.me.login || '').trim().split(/\s+/)[0];
   el.innerHTML = `<div class="top me-heading"><div class="me-hello"><small>${esc(new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}))}</small><h1>Hi, ${esc(first)}</h1></div>
     <div class="acts"><div id="t-review"></div>${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a><a class="me-avatar" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div></div>
-    <div id="t-start"></div>
+    <div id="t-start"></div><div id="t-food-lead" hidden></div>
     <section id="t-week" aria-label="Last 14 days"><div class="mileage-loading" aria-hidden="true">${skelChart()}</div></section>
     <div id="t-loading" role="status"><span class="vh">Loading your day</span><div class="sk-row" aria-hidden="true"><span class="sk dot"></span><span class="grow"><span class="sk line short"></span><span class="sk line"></span></span></div>${skel(1)}</div>
     <div id="t-content"><div id="t-last"></div>
@@ -267,7 +274,7 @@ async function meOverview(el) {
     <div id="t-combined-week"></div><div id="t-friends"></div>
     <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
   // Your day appears only when the plan or food card (or a pending check-in) has something to show.
-  const agenda = () => { const box = $('.me-agenda', el); if (box) box.hidden = !['#t-plan', '#t-food', '#t-checkin'].some(id => $(id, el)?.innerHTML.trim()); };
+  const agenda = () => { const box=$('.me-agenda',el),food=$('#t-food',el);if(box)box.hidden=!(['#t-plan','#t-checkin'].some(id=>$(id,el)?.innerHTML.trim())||(food.parentElement===box&&food.innerHTML.trim())); };
   tracked('plan', planCard($('#t-plan', el), {onReady: () => { agenda(); ready('plan'); }})).then(agenda).catch(() => {});
   let foodHistory=null,activityHistory=null,healthConnected=false;
   const drawSetup=()=>{
@@ -281,13 +288,13 @@ async function meOverview(el) {
       (missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
   };
   tracked('food', todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
-    agenda(); ready('food');
+    if(!el.isConnected)return;arrangeHomeFood(el,loggedToday);agenda(); ready('food');
     if(!loggedToday||!el.isConnected){ ready('checkin'); return; }
     tracked('checkin', weeklyCheckinCard($('#t-checkin',el),{home:true,onReady:()=>{agenda();ready('checkin');}})).then(agenda);
     combinedWeek($('#t-combined-week',el));
   }})).catch(() => {
     if (!el.isConnected) return;
-    foodHistory=false;drawSetup();ready('checkin');
+    arrangeHomeFood(el,false);foodHistory=false;drawSetup();ready('checkin');
     // Only food users see a failure here; for anyone else the food card would have been empty anyway.
     if (!App.me.food_user && !App.me.kcal_target) return;
     $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="ghost wide" id="tf-retry">Try again</button></div>';agenda();

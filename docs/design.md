@@ -1297,3 +1297,7 @@ On the recording screen the title, numbers, map and round controls fill exactly 
 ### Kit is 18+ (28 October 2026)
 
 Kinetta accounts stay 16+, but Kit (every AI feature) is for people 18 or older, as the AI provider's terms require. Turning Kit on — the Turn on Kit sheet (also used by Me → AI features) and the welcome step — shows "Kit is for people 18 or older." and an "I'm 18 or older" checkbox; without it nothing is saved and the reason shows beside the button. The server records the confirmation once (`profile.ai_adult_at`, migration 79), refuses a Kit yes without it, and every AI permission check requires it, so people who turned Kit on before this rule are asked once, the next time they use Kit.
+
+### Food priority on Me · owner, 28 October 2026
+
+When the local day has logged food, Food today sits above the weekly activity chart and Latest activity is hidden. With no food today, Latest activity remains. Historical food or a goal alone does not promote an empty day. Resolve the food state before revealing chart position so late data cannot shift an exposed control. Keep the conditional plan/check-in panels and five tabs.
