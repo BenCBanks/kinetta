@@ -130,6 +130,18 @@ jobs:
           assert entitlements['com.apple.developer.healthkit'] is True
           assert entitlements['com.apple.developer.healthkit.background-delivery'] is True
           PYCODE
+      - name: Check native WebView layout with fictional records
+        timeout-minutes: 12
+        run: |
+          python3 ../dev/tests/native-ui/run.py --app build/Build/Products/Debug-iphonesimulator/App.app --output "$RUNNER_TEMP/native-ui"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ui-fictional-evidence
+          path: |
+            ${{ runner.temp }}/native-ui/*.png
+            ${{ runner.temp }}/native-ui/*.json
+          retention-days: 7
       - name: Pack the Simulator app
         run: cd build/Build/Products/Debug-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/Kinetta-simulator.zip" App.app
       - uses: actions/upload-artifact@v4

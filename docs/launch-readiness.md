@@ -1,0 +1,74 @@
+# Launch work and acceptance checklist · 28 October 2026
+
+This consolidates the owner’s requests and all 19 currently open issues. It is the working acceptance plan; it does not claim that an open PR is deployed. Keep [ROADMAP.md](../ROADMAP.md) as the ordered queue, and update this checklist as evidence arrives. P3 work is explicitly deferred. No merge, hosted deployment, billing activation or TestFlight release is authorized by this checklist.
+
+## Current state
+
+| Work | Priority | Implementation and remaining acceptance |
+| --- | --- | --- |
+| [#325 Friends](https://github.com/BenCBanks/kinetta/issues/325) | P1 | [PR330](https://github.com/BenCBanks/kinetta/pull/330): complete local regression suite, eight browser configurations and CI passed. Final combined UI/account/privacy review remains. |
+| [#327 maps](https://github.com/BenCBanks/kinetta/issues/327) | P1 | [PR334](https://github.com/BenCBanks/kinetta/pull/334): configuration, real dark vector maps, attribution, exports and failure handling tested; CI passed. Real USA coverage, optional UK cost, hosting, billing, retention and physical performance remain release steps. |
+| Saved-route removal | P1 owner scope | [PR331](https://github.com/BenCBanks/kinetta/pull/331): active planning/library/sharing/following removed; completed activity maps, matched routes and segments retained. Full suite/browser/CI passed. Verify all combined app, website, native-link and help references. Future reconsideration is [#328](https://github.com/BenCBanks/kinetta/issues/328), P3. |
+| [#332 recipe gap/deletion](https://github.com/BenCBanks/kinetta/issues/332) | P1 | [PR339](https://github.com/BenCBanks/kinetta/pull/339): repeated inset in the fixed editor corrected and visible trash/confirmation added; full suite/browser/CI passed. **Spacing acceptance is reopened:** browser screenshots reserve an emulated safe area but omit the OS status bar. Obtain actual native WebView evidence and check related screens before calling the gap resolved. |
+| [#333 stationary charts](https://github.com/BenCBanks/kinetta/issues/333) | P1 | [PR338](https://github.com/BenCBanks/kinetta/pull/338): no generated zero-speed line; available HR is shown only with sharing permission, including when pace is private. Full suite/API/browser/CI passed. Combine and review ordinary outdoor/manual-value cases. |
+| [#335 account deletion](https://github.com/BenCBanks/kinetta/issues/335) | P1 | [PR337](https://github.com/BenCBanks/kinetta/pull/337): consistent account-before-segment locks; deterministic concurrency regression, full suite and CI passed. Apply the same order to new relationship writes. |
+| [#340 food-first Me](https://github.com/BenCBanks/kinetta/issues/340) | P1 | [PR342](https://github.com/BenCBanks/kinetta/pull/342): Food today leads and Latest activity is hidden when today has food; full suite/eight browser configurations/CI passed. Verify with all other home additions combined. |
+| [#341 deliberate recipe creation](https://github.com/BenCBanks/kinetta/issues/341) | P1 | In progress on PR339’s base: separate ingredient editor, name first, Save recipe, off-default logging and visible Add food quick actions. Ingredient/whole-recipe SQL regressions and eight flow plus keyboard browser configurations passed. The complete fresh suite also passed; native spacing evidence and final review remain. [PR343](https://github.com/BenCBanks/kinetta/pull/343) contains this flow change. |
+| [#305 intervals](https://github.com/BenCBanks/kinetta/issues/305) | P1 | Existing implementation needs signed physical-iPhone voice/locked-screen/offline/interruptions/battery acceptance. Saved-route co-use is outside current scope. Prepare an exact test matrix; browser, simulator or unsigned compilation cannot close this device issue. |
+| [#294 recaps](https://github.com/BenCBanks/kinetta/issues/294) | P2 | [PR336](https://github.com/BenCBanks/kinetta/pull/336): full suite, SQL/renderer tests, eight browser configurations, monthly-offer edge checks and CI passed. Replace any mid-scroll/mid-animation evidence with representative stable captures and perform combined review. |
+| [#295 public cards](https://github.com/BenCBanks/kinetta/issues/295) | P2 | In progress on the recap base. Ten API groups cover fields, revocation, pending requests, signup/confirmation, blocking, limits and SQL grants. Full-suite assertions are being reconciled with username-only invite previews and new app links. UI, QR scan, native share/awake compilation, upgrade and complete regression evidence remain. |
+| [#296 milestones](https://github.com/BenCBanks/kinetta/issues/296) | P2 | Not implemented yet. Reuse recap drawing after P1 fixes and cards. Import-time detection, silent backfill, invalidation and off-default notifications require tests. |
+| [#297 challenges](https://github.com/BenCBanks/kinetta/issues/297) | P2 | Not implemented yet. Depends on card join handling and recap drawing. Privacy, per-person local dates, limits, leave/remove/block/end and retention require tests. |
+| [#293 sharing umbrella](https://github.com/BenCBanks/kinetta/issues/293) | P2 | Keep open until the four children and their shared privacy/source/explicit-sharing rules are accepted. |
+| [#300 private overview](https://github.com/BenCBanks/kinetta/issues/300) | P2 | Maintain the owner-only overview throughout. Review code/doc conflicts, then leave plain-language owner acceptance explicit; private contents do not belong in this repository. |
+
+[#275](https://github.com/BenCBanks/kinetta/issues/275), [#273](https://github.com/BenCBanks/kinetta/issues/273), [#280](https://github.com/BenCBanks/kinetta/issues/280), [#281](https://github.com/BenCBanks/kinetta/issues/281) and [#328](https://github.com/BenCBanks/kinetta/issues/328) remain P3. No new routing service or community heatmap implementation is included. The earlier food-macro issue #319 was completed separately in PR322.
+
+## Required behavior
+
+### Recipe creation and editing
+
+- My Recipes → Create a recipe opens a fresh ingredient editor. A pending Add food conversation is retained separately; it must never become the recipe’s ingredients implicitly.
+- Recipe name appears above ingredients/nutrition in creation, editing and review. Long names wrap and remain editable.
+- A saved whole recipe must not replace milk, espresso or sugar supplied as individual new ingredients. Known source quantities remain authoritative; unknown weights/nutrients are not invented. Remembered shots require a known per-shot weight.
+- Save recipe is a clear action. Changes saving as the person builds must be disclosed accurately. No food entry is written when Add to log is off; it starts off for deliberate creation.
+- Add to log explicitly leads to meal/portion review. Cancellation, retry, lost acknowledgements and account changes cannot duplicate or misdirect a food write.
+- Visible trash opens an app confirmation that says existing logged portions remain. Reader views cannot delete another person’s recipe.
+- Add food retains its own logging purpose and optional recipe saving. My Recipes, Take a photo, Scan a barcode and Search foods use Kit’s existing suggestion-bubble style; + remains available. Quick actions make no model call merely by appearing.
+
+### Spacing, layout and keyboard
+
+- Apply safe-area clearance once. Check native WebView inset configuration, CSS padding and sticky/fixed positioning together. A toolbar must not sit an extra safe-area height below the status bar.
+- Native evidence must show the actual OS status bar or record the real WebView/safe-area measurements. A browser with a fabricated inset is a stand-in and must be labelled as such. Do not present a blank fabricated band as proof that native spacing is correct.
+- Check recipe editor/review, Add food, Kit, Friends, profiles, activity detail/charts, recording, plans, settings, public cards and all newly added flows.
+- No horizontal clipping or overlapping controls. Titles, body text, labels, units and errors wrap. Long content remains reachable by scrolling. Main buttons are centered/full width where appropriate; targets are at least44px and inputs at least16px.
+- Verify330/390px, a short phone, desktop, both themes and enlarged text. Use approved Sky Blue tokens and maintain readable contrast.
+- Opening/closing the keyboard retains drafts and visible focused fields/composer. No app-supplied Done bar. Preserve background/swipe dismissal, text selection and normal control actions.
+- Capture only after animations/layout settle. Review every representative screenshot before attaching it.
+
+### Home, social and activity privacy
+
+- Food today appears above the weekly chart when this local day has food, with useful numbers visible on opening. Hide Latest activity in that case. A goal or historical food alone keeps the normal training layout. Adding/removing today’s food updates the arrangement without shifting an exposed control during the initial load.
+- Friend count is visible to anyone allowed to see the profile; the friends list stays owner-only. Pending, blocked, suspended and unconfirmed accounts follow existing rules.
+- Stationary HR-only recordings have no artificial speed line. Explicit values and normal outdoor charts remain useful. HR requires real samples and the owner’s sharing choice. Private pace must not be reconstructed from paired time/distance series.
+- No private account, activity, location or food data enters public fixtures/screenshots/issues. Use made-up demo and zz_test records only.
+
+### Sharing features
+
+- Recaps: local week/month/year totals match Progress; empty/lifting/unknown cases are honest; Food and identity are opt-in; no body or location data; private activity highlights are not named; Garmin attribution remains visible. Cancelled sharing does not dismiss an offer.
+- Cards: off by default, username-only, selected photo/sports/up-to-two stats, revocable random links and accurate previews. Opening a card never auto-friends. Requests are pending, limited and owner-approved; signup confirmation, blocked/unconfirmed/suspended/deleted owners and disabled/rotated links are enforced. Do not bypass server signup/waitlist settings.
+- Milestones: fixed first/best/total thresholds, cumulative food days rather than food streaks, at most one visible banner, once-only records, silent older imports, edits/deletion invalidation, private-activity reminder and off-default notification settings.
+- Challenges: fixed templates and generated names, explicit joining without friendship, only username/photo/aggregate progress shared, private food/protein targets, per-participant local dates, limits, immediate leave/remove/block behavior, end/finish pictures and90-day cleanup.
+- Reuse the reviewed child issues for detailed behavior. Do not replace their acceptance criteria with this shorter summary.
+
+## Execution order and evidence
+
+1. Finish the requirements reconciliation and native spacing investigation before adding further features.
+2. Finish P1 recipe creation/quick actions and any related spacing defects; retain all earlier P1 branches.
+3. Finish public cards → milestones → challenges in dependency order, with migrations, ownership/RLS, source credit, notifications and failure/retry checks.
+4. Combine the branches in an isolated integration copy. Resolve shared CSS, cache versions, native links, migration numbers and documentation; verify saved-route removal stays complete.
+5. Run the entire existing `dev/tests/run.sh` suite on the combined fresh install, plus required upgrade tests for every new migration. Run syntax, generated content/design/contrast, API/privacy/concurrency and relevant native state checks. CI must pass on the exact review head.
+6. Perform a screenshot-first full UI review using fictional data in both themes, all target widths and larger text. Exercise real controls with external writes/devices/providers blocked or replaced by recorded stand-ins. Fix findings and repeat affected checks; rerun the full suite when shared changes justify it.
+7. Recheck every open issue and priority label, update each implementation/evidence status, update the private overview and shared work log, and present the reviewable PRs with remaining operator/device/release steps.
+
+Physical iPhone share sheets, camera, VoiceOver, locked-screen intervals and actual hosted map coverage/cost remain distinct from software evidence. Never silently turn on a billed provider, change someone’s sharing settings, publish to TestFlight or describe a PR as a live deployment.
