@@ -26,7 +26,7 @@ Release: Build/test only, PR, or approved deployment scope.
 - **Out of scope:** Android, reading sleep, editing Apple Health, guaranteed instant delivery.
 - **Done when:** Build passes; physical iPhone tests pass for inactive/locked/offline/relaunch/expired-login/account-switch scenarios; repeated deliveries produce one workout; no cross-account uploads occur.
 - **Dependencies:** Matching Apple signing capability and an owner-installed signed build.
-- **Constraints:** Private by default; Health data only to the selected server; no AI sharing without separate consent.
+- **Constraints:** Food, weight and body details private; activity audience chosen by the person (new accounts default to Everyone on Kinetta); Health data only to the selected server; no AI sharing without separate consent.
 - **Release:** Prepare code and tests; record the actual build/device/release status before calling it complete.
 
 ## Keep decisions easy to find
