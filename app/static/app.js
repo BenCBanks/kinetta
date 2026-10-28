@@ -509,7 +509,10 @@ function slide(kind, from) {
   document.documentElement.dataset.nav = kind;
   let done;
   const t = document.startViewTransition(() => { done = render(); });
-  t.finished.finally(() => { delete document.documentElement.dataset.nav; });
+  // Resizing for a keyboard can cancel the animation after navigation succeeded.
+  const clear = () => { delete document.documentElement.dataset.nav; };
+  t.finished.then(clear, clear);
+  t.ready?.catch(() => {});
   return t.updateCallbackDone.then(() => done);
 }
 // Photos and profile pictures fade in once they've loaded instead of popping (already-loaded ones show at once).
