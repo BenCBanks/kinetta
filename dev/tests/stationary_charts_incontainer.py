@@ -30,6 +30,25 @@ class StationaryCharts(unittest.TestCase):
   aid=self.ride();chart=self.share(aid,True,False)['chart'];self.assertEqual(set(chart),{'t','hr'});self.assertEqual(chart['t'],[0,10,20,30]);self.assertNotIn('chart',self.share(aid,False,False))
  def test_outdoor_short_distance_does_not_leak_time_when_pace_private(self):
   aid=self.ride({'d':[0,20,40,60],'t':[0,5,10,15],'speed':[0,4,4,4],'hr':[120,130,140,135]},60);chart=self.share(aid,True,False)['chart'];self.assertEqual(set(chart),{'d','hr'});self.assertEqual(chart['d'][-1],60);self.assertIn('speed',self.share(aid)['chart'])
+ def test_summary_availability_preserves_manual_values_and_unknown_outdoor_imports(self):
+  aid=self.ride(distance=10000)
+  def mine():return self.clients[0].get('/api/activities/'+str(aid)).json()
+  self.assertFalse(mine()['speed_available']);self.assertFalse(self.share(aid)['speed_available']);self.assertNotIn('speed_available',self.share(aid,True,False))
+  feed=self.clients[0].get('/api/activities').json();self.assertFalse(next(x for x in feed if x['id']==aid)['speed_available'])
+  with db.connect() as c:c.execute('UPDATE activities SET summary_overrides=%s WHERE id=%s',(json.dumps({'distance_m':10000}),aid))
+  self.assertTrue(mine()['speed_available']);self.assertTrue(self.share(aid)['speed_available'])
+  with db.connect() as c:c.execute("UPDATE activities SET summary_overrides='{}',source='manual' WHERE id=%s",(aid,))
+  self.assertTrue(mine()['speed_available'])
+  with db.connect() as c:c.execute("UPDATE activities SET source='fit',sub_sport=NULL WHERE id=%s",(aid,))
+  self.assertTrue(mine()['speed_available'],'Missing GPS alone cannot classify an outdoor file as stationary')
+  with db.connect() as c:c.execute("UPDATE activities SET sub_sport='indoor_cycling',max_speed=12,chart=%s WHERE id=%s",(json.dumps({'t':[0,10],'speed':[10,12],'hr':[120,130]}),aid))
+  self.assertFalse(mine()['speed_available'],'Indoor sensor speed is hidden until the person explicitly edits it')
+  self.assertNotIn('speed',mine()['chart']);self.assertNotIn('speed',self.share(aid)['chart'])
+ def test_indoor_metadata_survives_an_older_client_retry(self):
+  start=dt.datetime.now(UTC)-dt.timedelta(hours=2);data=dict(id=str(uuid.uuid4()),type='cycling',start=start,end=start+dt.timedelta(minutes=30),duration_s=1800,distance_m=10000,indoor=True,max_speed=10)
+  _,aid,_=api_health.save(self.ids[0],api_health.WorkoutIn(**data));self.assertFalse(self.clients[0].get('/api/activities/'+str(aid)).json()['speed_available'])
+  del data['indoor'];api_health.save(self.ids[0],api_health.WorkoutIn(**data))
+  with db.connect() as c:self.assertIs(c.execute('SELECT health_details FROM activities WHERE id=%s',(aid,)).fetchone()['health_details']['indoor'],True)
  def test_empty_samples_and_explicit_distance_are_preserved(self):
   self.assertIsNone(analysis.clean_chart({'t':[0,10],'d':[0,0],'speed':[0,None],'hr':[None,None]}));self.assertEqual(analysis.clean_chart({'t':[0,10],'speed':[0,5]})['speed'],[0,5])
   aid=self.ride(distance=10000);self.assertEqual(self.clients[0].get('/api/activities/'+str(aid)).json()['distance_m'],10000);self.assertEqual(self.share(aid,False)['distance_m'],10000)

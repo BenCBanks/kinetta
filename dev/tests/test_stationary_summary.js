@@ -1,0 +1,10 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const app=fs.readFileSync('app/static/app.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8');
+const ctx={FOOT:['run','walk','hike'],dur:s=>s+'s',esc:String,U:{dist:n=>String(n),du:()=> 'm',speed:n=>String(n),su:()=> 'km/h',pace:n=>String(n),pu:()=> '/km'}};
+vm.createContext(ctx);vm.runInContext(app.slice(app.indexOf('function rate(a)'),app.indexOf('// ---------- icons'))+'\n'+pages.slice(pages.indexOf('const stat ='),pages.indexOf('// One card'))+'\n'+pages.slice(pages.indexOf('function sharedHeadline'),pages.indexOf('// Cheers straight')),ctx);
+const ride={sport:'ride',distance_m:10000,moving_s:1800,avg_hr:131,speed_available:false,shares:{pace:true}};
+assert.equal(ctx.rate(ride).label,'Time');assert(!ctx.headline(ride).includes('Speed'));assert(ctx.headline(ride).includes('Avg HR'));assert.equal((ctx.headline(ride).match(/<small>Time<\/small>/g)||[]).length,1);
+assert(!ctx.sharedHeadline(ride).includes('Speed'));assert.equal((ctx.sharedHeadline(ride).match(/<small>Time<\/small>/g)||[]).length,1);
+assert.equal(ctx.rate({...ride,speed_available:true}).label,'Speed');assert.equal(ctx.rate({...ride,sport:'run',speed_available:true}).label,'Pace');
+console.log('Actual activity/feed summary: indoor speed absent, time once, HR retained; manual and outdoor rates preserved PASS');
