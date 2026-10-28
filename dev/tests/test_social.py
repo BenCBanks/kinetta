@@ -155,6 +155,17 @@ check(fr.q('GET', '/api/feed/friends') == [], 'after unfriending: feed empty')
 alex.q('PUT', '/api/sharing', {'default': 'friends'})
 n2 = alex.q('POST', '/api/activities/manual', {'sport': 'walk', 'start': '2026-10-02T07:00', 'duration_s': 900})['id']
 check(alex.q('GET', f'/api/activities/{n2}/social')['visibility'] == 'friends', 'new activity uses default')
+# a lifting session still being logged is nobody else's until it's finished, and can be discarded outright (28 October 2026)
+lid = alex.q('POST', '/api/lifts/start', {})['id']
+alex.q('PUT', f'/api/activities/{lid}/sharing', {'visibility': 'everyone'})
+fr.q('GET', f'/api/shared/{lid}', want=404)   # open session hidden from a friend
+check(lid not in [x.get('id') for x in fr.q('GET', '/api/feed/friends?limit=50')], 'open session not in the friends feed')
+alex.q('PUT', f'/api/activities/{lid}/lifts', {'exercises': [], 'finish': True})
+fr.q('GET', f'/api/shared/{lid}')   # finished: shared as chosen
+alex.q('DELETE', f'/api/activities/{lid}')
+lid = alex.q('POST', '/api/lifts/start', {})['id']
+alex.q('DELETE', f'/api/activities/{lid}'); alex.q('GET', f'/api/activities/{lid}/lifts', want=404)
+check(alex.q('GET', '/api/lifts/sessions?limit=5') == [] or all(s['id'] != lid for s in alex.q('GET', '/api/lifts/sessions?limit=5')), 'discarded session is gone')
 alex.q('PUT', '/api/sharing', {'default': 'me'})
 for i in (short, n2): alex.q('DELETE', f'/api/activities/{i}')
 for i in (a1, a2): alex.q('PUT', f'/api/activities/{i}/sharing', {'visibility': 'me'})

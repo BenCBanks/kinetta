@@ -2707,3 +2707,11 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
 .lift-review-records b { white-space: nowrap; }
 .lift-review-ex > div { display: grid; gap: 2px; padding: 9px 0; border-top: 1px solid var(--line); }
 .lift-review-ex > div small { font-size: .875rem; overflow-wrap: anywhere; }
+/* Discard right away (28 October 2026): while paused it is a smaller round control beside Resume and Finish, in the
+   same row, so it adds no height; a lifting session has Discard session under its sets and Delete this session on its
+   summary. */
+.track-controls:has(.round-ctl-discard) { align-items: center; gap: 28px; }
+.track-live .track-controls .round-btn.discard { width: 60px; height: 60px; background: var(--card2); color: var(--alert); }
+.round-btn.discard svg { width: 24px; height: 24px; }
+@media (max-width: 360px) { .track-controls:has(.round-ctl-discard) { gap: 18px; } }
+#lf-discard, #lf-sum-del { display: block; margin: 14px auto 0; }
