@@ -87,7 +87,7 @@ function liftLogger(el, aid, data) {
   // the session's time, and Rest: time since the last ticked set (shown once a set is ticked; nothing to set up)
   if (S.open) {
     const t0 = new Date(S.start).getTime(), tick = () => {
-      if (!el.isConnected) { clearInterval(iv); return; }
+      if (!list.isConnected) { clearInterval(iv); return; }   // left the page, or Finish replaced the logger with its summary
       $('#lf-time', el).textContent = dur(Math.max(0, (Date.now() - t0) / 1000));
       $('#lf-restbox', el).hidden = !S.lastTick;
       if (S.lastTick) $('#lf-rest', el).textContent = dur((Date.now() - S.lastTick) / 1000);
@@ -263,7 +263,10 @@ function liftLogger(el, aid, data) {
       // planned sets nobody ticked are left out: they never happened
       if (S.open) S.ex.forEach((e) => { e.sets = e.sets.filter((s) => s.done); });
       S.ex = S.ex.filter((e) => e.sets.length || !S.open);
-      try { await save(true); store.del(key); gone = true; go(`/track?done=${aid}`, {replace: true}); toast(S.open ? 'Session saved' : 'Saved'); }
+      try {
+        const r = await save(true); store.del(key); gone = true;
+        if (S.open && r) liftSummary(el, aid, r); else { go(`/track?done=${aid}`, {replace: true}); toast(S.open ? 'Session saved' : 'Saved'); }
+      }
       catch (x) { fin.disabled = false; toast(x.offline ? "Can't reach Kinetta - your sets are kept on this phone. Try again when you're back online." : x.message); }
     };
     if (S.open && open) sheet('Finish the session?', `<p>${open} set${open > 1 ? 's are' : ' is'} not ticked off. ${open > 1 ? "They're" : "It's"} left out of the session.</p>
@@ -272,6 +275,70 @@ function liftLogger(el, aid, data) {
   };
   draw();
   if (store.get(key) && store.get(key).unsent) save();     // a copy from earlier that never reached the server
+}
+
+// ---------- after Finish ----------
+// The session's numbers (28 October 2026, Ben: runs had a summary, lifting went straight back to Track). Working sets
+// only: warm-ups are left out, as in every other total here.
+function liftTotals(exercises) {
+  const t = {exercises: 0, sets: 0, reps: 0, kg: 0, records: []};
+  for (const e of exercises) {
+    const real = e.sets.filter((s) => s.done !== false && !s.warmup && (s.reps || s.secs));
+    if (real.length) t.exercises++;
+    t.sets += real.length;
+    for (const s of real) { t.reps += s.reps || 0; t.kg += (s.kg || 0) * (s.reps || 0); }
+    for (const s of e.sets) for (const k of s.pr || []) t.records.push({name: e.name, kind: e.kind, what: k, set: s});
+  }
+  return t;
+}
+const recordText = (r) => (r.what === 'secs' ? `${r.set.secs} s` : r.what === 'reps' ? `${r.set.reps} reps${r.set.kg ? ` +${toW(r.set.kg)} ${wUnit()}` : ''}`
+  : `${toW(r.set.kg)} ${wUnit()} × ${r.set.reps}`);
+
+// The session is already saved; this screen names it, shows what was done and sets who can see it, the way a recording's
+// summary does. Done sends only what changed.
+async function liftSummary(el, aid, r) {
+  invalidate(`/api/activities/${aid}`);
+  let a;
+  try { a = await api(`/api/activities/${aid}`); } catch (x) { go(`/track?done=${aid}`, {replace: true}); toast('Session saved'); return; }
+  if (!el.isConnected) return;
+  const t = liftTotals(r.exercises), secs = a.elapsed_s || a.moving_s || 0, start = new Date(a.start_time);
+  // the server's estimate for a workout without a watch number (energy.activity_kcal): 5 METs, profile weight else 75 kg
+  const kcal = a.calories > 0 ? a.calories : 5 * (App.me?.weight_kg || 75) * (a.moving_s || secs) / 3600;
+  const stat = (v, u, l) => `<div><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b><small>${esc(l)}</small></div>`;
+  const stats = [stat(dur(secs), '', 'Duration'), stat(t.exercises, '', t.exercises === 1 ? 'Exercise' : 'Exercises'), stat(t.sets, '', 'Working sets'),
+    t.reps && stat(t.reps.toLocaleString(), '', 'Reps'), t.kg && stat(Math.round(imp() ? t.kg * LB : t.kg).toLocaleString(), wUnit(), 'Volume'),
+    stat(Math.round(kcal).toLocaleString(), 'kcal', a.calories > 0 ? 'Calories' : 'Calories (est.)')].filter(Boolean).join('');
+  const when = `${start.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'})}, ${start.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}`;
+  const vis = a.visibility || App.me.share_default || 'me';
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div>
+    <section class="track-session track-review lift-review"><form class="form" id="lf-sum">
+      <p class="track-review-when">${svg('workout')}${esc(a.sport_label || 'Strength')} · ${esc(when)}</p>
+      <label class="track-title">Title<input name="activity_name" value="${esc(a.name || '')}" maxlength="200" autocomplete="off" enterkeyhint="done" required></label>
+      <div class="card track-review-stats">${stats}</div>
+      ${t.records.length ? `<div class="card lift-review-records"><h3>${svg('trophy')} New record${t.records.length > 1 ? 's' : ''}</h3>
+        ${t.records.map((x) => `<div><span>${esc(x.name)}<small>${esc(PR_NAMES[x.what])}</small></span><b class="num">${esc(recordText(x))}</b></div>`).join('')}</div>` : ''}
+      ${r.exercises.length ? `<div class="card lift-review-ex"><h3>Exercises</h3>${r.exercises.map((e) => `<div><b>${esc(e.name)}</b><small class="num">${esc(setsText(e.sets, e.kind))}</small>
+        ${e.last ? `<small class="muted">${esc(shortDay(e.last.start_time))}: ${esc(setsText(e.last.sets, e.kind))}</small>` : ''}</div>`).join('')}</div>` : ''}
+      <label>Who can see this activity<select name="visibility">${Object.entries({me: 'Only me', friends: 'Approved friends', everyone: 'Everyone on Kinetta'}).map(([value, label]) => `<option value="${value}"${value === vis ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
+      <button class="primary wide" id="lf-sum-done">Done</button><p class="small danger" id="lf-sum-error" role="alert"></p></form>
+      <button class="ghost wide" id="lf-carry">Carry on with this session</button></section>`;
+  wireBack(el, '/track');
+  const f = $('#lf-sum', el), err = $('#lf-sum-error', el), done = $('#lf-sum-done', el), carry = $('#lf-carry', el);
+  f.onsubmit = async (ev) => {
+    ev.preventDefault(); done.disabled = carry.disabled = true; err.textContent = '';
+    const name = f.activity_name.value.trim(), visibility = f.visibility.value;
+    try {
+      if (name && name !== a.name) await api(`/api/activities/${aid}`, json('PATCH', {name}));
+      if (visibility !== a.visibility) { await api(`/api/activities/${aid}/sharing`, json('PUT', {visibility})); if (typeof socialChanged === 'function') socialChanged(aid); }
+      invalidate('/api/'); App.cache.delete('feed:home'); go(`/track?done=${aid}`, {replace: true}); toast('Session saved');
+    } catch (x) { done.disabled = carry.disabled = false; err.textContent = x.offline ? "Can't reach Kinetta. The session is saved; try again to keep the new title or sharing." : x.message; }
+  };
+  // finished by mistake: back into the logger, within the session's 4 hours (unticked sets were already left out)
+  carry.onclick = async () => {
+    done.disabled = carry.disabled = true;
+    try { await api(`/api/activities/${aid}/lifts/reopen`, json('POST', {})); invalidate('/api/'); liftLogger(el, aid, await api(`/api/activities/${aid}/lifts`)); }
+    catch (x) { done.disabled = carry.disabled = false; toast(x.message); }
+  };
 }
 
 const hintSeen = () => { try { return !!localStorage.getItem('fit.lift.hint'); } catch (x) { return true; } };

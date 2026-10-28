@@ -33,6 +33,7 @@ node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
 node dev/tests/test_route_following.js
 node dev/tests/test_track.js
+node dev/tests/test_lift_summary.js
 node dev/tests/test_notification_rows.js
 node dev/tests/test_track_native.js
 node dev/tests/test_recording_sharing.js
