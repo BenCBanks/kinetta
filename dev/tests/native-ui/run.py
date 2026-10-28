@@ -1,7 +1,7 @@
 """Run native layout evidence on isolated Simulator devices. Fixtures and artifacts contain no real data."""
 import argparse,json,os,platform,re,subprocess,time,uuid
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
  except subprocess.TimeoutExpired as error:
@@ -32,6 +32,7 @@ for names in [('iPhone SE (3rd generation)','iPhone 16e','iPhone 17'),('iPhone 1
  choice=next((t for name in names for t in iphones if t['name']==name),None)
  if choice:preferred.append(choice)
 assert len(preferred)==2,'Two phone device types are required'
+if a.device!='all':preferred=[preferred[0 if a.device=='compact' else 1]]
 results=[]
 for device in preferred:
  udid=None
@@ -84,4 +85,5 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
+assert len(results)==8*len(preferred),'Every selected phone needs all eight layout cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')

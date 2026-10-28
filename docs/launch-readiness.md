@@ -82,3 +82,14 @@ The layout check now runs as a separate required Apple Silicon job using the exi
 The first combined full `dev/tests/run.sh` passed. The browser pass then exposed a duplicate recap-script include introduced during combination;7035cc2 removes it and adds an entry-asset check.216 fresh views across27 main surfaces/eight size-theme configurations had no runtime errors or page overflow; four narrow segment-filter captures clipped a label and are being corrected. The practical action-target review also found smaller feed toggles, pickers, composer and Memory controls; these are being enlarged and rechecked. Dense calendar/chart data points retain their compact grid, as permitted where44px is not practical in the design standard. Captures are evidence for review, not automatic visual acceptance.
 
 The Apple Silicon compile/archive succeeded. Its initial Simulator startup also exceeded the three-minute harness budget before app launch. Capture now selects a runtime matching the chosen Xcode SDK, retains sanitized startup diagnostics and allows a bounded cold-runtime boot. All required screen/theme/text-size assertions remain enabled.
+
+## Final completion gates · owner,28 October
+
+Do not stop at component PRs. After all non-P3 work is combined and findings are fixed:
+
+1. Run the entire existing regression suite twice against the final combined code, including fresh installation and the required migration/upgrade checks. Earlier partial/component passes do not replace these final runs.
+2. Perform two code-review passes: ownership/privacy/permissions/validation/concurrency first; then user-flow/retry/offline/native compatibility/performance/maintainability. Record concrete findings and fixes, then recheck affected behavior.
+3. Review the final UI in both themes, narrow/short phones, larger text and desktop. Confirm the experience stays simple, controls and labels fit, primary actions are clear, and native spacing evidence is valid. Repair and recheck findings.
+4. Reconcile every issue/requirement with evidence and remaining real operator/device gates, keep priorities and the private overview current, and leave implementation/CI/merge/deployment/TestFlight clearly separate.
+
+Native checkpoint:8e4d23d produced all eight valid compact-iPhone captures with actual status bars, settled20px safe tops, Back at30px, both themes, larger text and no runtime/status errors. Visual review confirms the extra recipe top gap is gone in that scope. The second, Pro Simulator failed during boot. CI now gives each phone a fresh runner; both eight-case jobs stay required. Pro and physical-device acceptance remain open.
