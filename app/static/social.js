@@ -917,7 +917,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 // ---------- Notifications (2026-10-11, notify.py) ----------
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
 // (/me/notifications). /notifications lights no tab (it opens from several).
-const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts'};
+const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts', milestones:'Milestones (at most one a day)'};
 const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', report: 'lock'};
 // One notification (2026-10-23, Ben: the list felt scrunched): the person's name in bold, a quoted comment on its own
 // quieter line, a short time, and a dot for new ones instead of tinted rows.

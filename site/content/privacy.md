@@ -90,7 +90,7 @@ Shared maps hide where a route starts and ends, but the rest of the route and it
 
 **Public Kinetta cards.** Cards start off. If you turn yours on, anyone with its random link can see your username and only the photo, sports and up to two fixed summary stats you choose. No real name, individual activity, food entry, map, place, weight or bio appears. Food summary stats show days with food logged, never what you ate or calories. Turning the card off or making a new link stops the old page and image immediately; pictures already saved by other people cannot be recalled. Opening a card does not make anyone a friend. Requests need approval, and card signups retain the person's request choice through email confirmation. Kinetta stores joined/pending counts, not a tracking history of page views.
 
-The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
+Milestone offers stay private and use only fixed activity achievements or cumulative food-logging days. Photo and username start off in milestone pictures. Sharing or dismissing marks an offer seen; old imports stay silent. Optional milestone notifications start off and send at most one a day. The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
 
 ## identity
 

@@ -68,7 +68,7 @@ ck(n1.post('/api/push/ios', {'token': 'ab' * 32, 'environment': 'arbitrary-host'
 ck(n1.post('/api/push/ios', {'token': 'ab' * 32, 'environment': 'production'})[0] == 200, 'native device registered')
 ck(n1.delete('/api/push/ios')[0] == 200, 'native device disabled for this session')
 s, r = n1.put('/api/notifications/settings', {'cheers': False})
-ck(r['push'] == {'friends': True, 'cheers': False, 'comments': True, 'dishes': True, 'activities': True}, 'settings')
+ck(r['push'] == {'friends': True, 'cheers': False, 'comments': True, 'dishes': True, 'activities': True, 'milestones': False}, 'settings')
 n1.put('/api/notifications/settings', {'cheers': True})
 # A workout typed in by hand is never congratulated: you just did it yourself. (Workouts that arrive by
 # themselves are covered in incontainer.py, with Health/Garmin sources.)

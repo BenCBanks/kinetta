@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool
-from . import cards
+from . import cards,milestones
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts, garmin_connect
 import threading
 from .auth import current_user
@@ -24,8 +24,10 @@ async def lifespan(app):
     recipe_stop=threading.Event()
     recipe_worker=threading.Thread(target=recipe_import.cleanup,args=(recipe_stop,),daemon=True);recipe_worker.start()
     segment_stop,segment_worker=segments.start_worker()      # segment times from new GPS activities and new segments (#278)
+    milestone_stop,milestone_worker=milestones.start_worker()
     try:yield
     finally:
+        milestone_stop.set();milestone_worker.join(timeout=3)
         recipe_stop.set();recipe_worker.join(timeout=3);segment_stop.set();segment_worker.join(timeout=3)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -320,6 +322,7 @@ def invite_page(code: str):
 
 
 app.include_router(cards.router)
+app.include_router(milestones.router)
 
 @app.get('/{path:path}')
 def page(path: str):

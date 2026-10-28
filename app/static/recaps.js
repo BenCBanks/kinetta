@@ -20,7 +20,27 @@ const ShareArt=(()=>{
     const url=URL.createObjectURL(picture),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);toast('Picture saved');return true;
   }
   async function photo(url){return new Promise(ok=>{const i=new Image(),t=setTimeout(()=>ok(null),4000);i.onload=()=>{clearTimeout(t);ok(i);};i.onerror=()=>{clearTimeout(t);ok(null);};i.src=url;});}
-  return{palette,text,lines,blob,deliver,photo};
+  async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false}){
+    await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
+    const g=canvas.getContext('2d'),p=palette(),M=72;g.fillStyle=p.bg;g.fillRect(0,0,1080,1350);let y=85;
+    if(identity){
+      const image=App.me.photo?await photo(`${Native.base||''}/api/people/${encodeURIComponent(App.me.login)}/photo?v=${App.me.photo}`):null;
+      if(image){g.save();g.beginPath();g.arc(M+34,y+20,34,0,Math.PI*2);g.clip();g.drawImage(image,M,y-14,68,68);g.restore();}
+      text(g,'@'+App.me.login,M+(image?94:0),y+35,34,{max:image?830:936,color:p.soft});y+=100;
+    }
+    text(g,kicker,M,y+30,28,{color:p.muted});y+=85;
+    for(const line of lines(g,title,936,56)){text(g,line,M,y+45,56);y+=70;}
+    if(date){text(g,date,M,y+38,32,{color:p.soft});y+=70;}
+    y=Math.max(y+80,520);text(g,value,M,y+120,148);if(unit)text(g,unit,M,y+178,40,{color:p.soft});y+=235;
+    for(const fact of facts)for(const line of lines(g,fact,936,32)){text(g,line,M,y+35,32,{color:p.soft});y+=48;}
+    const list=[...new Set(sources)],credit=list.length?'Includes data from '+list.slice(0,2).join(', ')+(list.length>2?` + ${list.length-2} other Garmin devices`:''):'';
+    const creditLines=credit?lines(g,credit,936,22):[];const top=1260-creditLines.length*27;
+    if(y+20>top)throw Error('The picture could not fit clearly. Try again without photo and username.');
+    creditLines.forEach((line,n)=>text(g,line,M,top+n*27,22,{color:p.muted}));
+    g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(M,1275);g.lineTo(1008,1275);g.stroke();drawMark(g,M+24,1311,48,p.blue);text(g,'Kinetta',M+62,1323,30);text(g,'kinetta.app',1008,1321,26,{align:'right',color:p.muted});
+    return{blob:await blob(canvas),alt:[identity?'@'+App.me.login:'',kicker,title,date,value,unit,...facts,credit].filter(Boolean).join('. ')};
+  }
+  return{palette,text,lines,blob,deliver,photo,simplePicture};
 })();
 const Recaps=(()=>{
   const periods=[['this_week','This week'],['last_week','Last week'],['this_month','This month'],['last_month','Last month'],['this_year','This year']];
