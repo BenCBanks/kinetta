@@ -49,7 +49,7 @@ const Native = (() => {
   // new login token in the app's own settings.
   const signIn = async (server, path, body) => {
     if (typeof Track !== 'undefined' && App.me) await Track.leave();
-    await N.stopActivityShare();
+    await N.stopActivityShare();N.clearPictures();
     N.pauseFoodEntry?.();
     await N.disconnectPush();
     const stopped=await N.disconnectHealth({preserve:true});
@@ -66,22 +66,34 @@ const Native = (() => {
   N.signup = (body) => signIn(N.base || N.server, '/api/signup', body);
   // before anyone has logged in on this phone, sign-up, the waitlist and Forgot password talk to the hosted server
   N.preLogin = () => { if (on && !N.base) N.base = N.server; };
-  // photos (app.js pimg): fetched with the login token, kept in memory by address (an address never changes its picture)
-  const pics = new Map();
+  // photos (app.js pimg): private blobs belong to one server/login, including in-flight loads.
+  const pics = new Map();let pictureOwner=null,pictureJobs=new WeakMap();
+  N.clearPictures=()=>{
+    for(const item of pics.values()){item.controller.abort();if(item.url)URL.revokeObjectURL(item.url);}
+    pics.clear();pictureJobs=new WeakMap();pictureOwner=readOwner();
+  };
+  const picture=(path,owner)=>{
+    let item=pics.get(path);
+    if(!item){
+      item={controller:new AbortController(),url:null};pics.set(path,item);
+      item.promise=fetch(N.base+path,{credentials:'omit',cache:'no-store',headers:N.headers(),signal:item.controller.signal})
+        .then(r=>r.ok?r.blob():Promise.reject(new Error(r.status)))
+        .then(blob=>{if(owner!==readOwner()||pics.get(path)!==item||item.controller.signal.aborted)throw Error('Account changed');item.url=URL.createObjectURL(blob);return item.url;})
+        .catch(error=>{if(pics.get(path)===item)pics.delete(path);throw error;});
+    }
+    return item.promise;
+  };
   const fill = () => {
-    for (const im of document.querySelectorAll('img[data-asrc]')) {
-      const p = im.dataset.asrc; im.removeAttribute('data-asrc');
-      let u = pics.get(p);
-      if (!u) {
-        u = fetch(N.base + p, {credentials: 'omit', headers: N.headers()}).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(r.status)))).then((b) => URL.createObjectURL(b));
-        pics.set(p, u); u.catch(() => pics.delete(p));
-      }
-      u.then((x) => { im.src = x; }, () => im.dispatchEvent(new Event('error')));
+    const owner=readOwner();if(pictureOwner!==owner)N.clearPictures();
+    for(const im of document.querySelectorAll('img[data-asrc]')){
+      const path=im.dataset.asrc,stamp={};pictureJobs.set(im,stamp);im.removeAttribute('data-asrc');
+      const current=()=>owner===readOwner()&&im.isConnected&&pictureJobs.get(im)===stamp;
+      picture(path,owner).then(url=>{if(current())im.src=url;},()=>{if(current())im.dispatchEvent(new Event('error'));});
     }
   };
-  if (on) new MutationObserver(fill).observe(document.documentElement, {childList: true, subtree: true});
+  if(on)new MutationObserver(fill).observe(document.documentElement,{childList:true,subtree:true});
   N.forget = async ({deleted=false}={}) => {
-    const tasks=[];N.token=null;
+    N.clearPictures();const tasks=[];N.token=null;
     if(typeof Track!=='undefined'&&App.me)tasks.push(Promise.resolve().then(()=>Track.leave()));
     if(on){tasks.push(N.stopActivityShare());tasks.push(N.stopFoodEntry({clear:true}));tasks.push(Promise.resolve().then(()=>N.disconnectPush({signedOut:true})));tasks.push(N.disconnectHealth({preserve:!deleted,clearFoodState:deleted}));tasks.push(put('token',null));}
     await Promise.allSettled(tasks.map(p=>N.healthCall(p,'Local sign-out cleanup is waiting.',1000)));
@@ -157,7 +169,7 @@ const Native = (() => {
       let same=false;try{same=new URL(server).origin===new URL(N.base).origin;}catch(_){}
       if(!same){toast('This link belongs to another Kinetta server. Sign in there to open it.');return;}
     }
-    if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people|milestones)|food\/cook\/\d+|add\/[\w-]{1,40}|card\/[A-Za-z0-9_-]{1,60}|routes\/shared\/\d{1,18})$/.test(url)) go(url);
+    if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people|milestones)|food\/cook\/\d+|add\/[\w-]{1,40}|card\/[A-Za-z0-9_-]{1,60}|challenge\/[A-Za-z0-9_-]{1,60}|me\/challenges(?:\/[A-Za-z0-9_-]{1,60})?|routes\/shared\/\d{1,18})$/.test(url)) go(url);
   };
   N.syncPush = () => {
     if (!push || !App.me || !N.token) return;

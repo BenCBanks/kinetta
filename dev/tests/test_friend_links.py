@@ -88,6 +88,7 @@ class FriendLinks(unittest.TestCase):
             self.assertEqual(r.json()['applinks']['details'][0], {'appIDs': ['TEAMFICT01.com.kinetta.app'], 'components': [
                 {'/': '/add/*', 'comment': 'friend invite links'},
                 {'/': '/card/*', 'comment': 'revocable public cards'},
+                {'/': '/challenge/*', 'comment': 'explicit challenge previews'},
                 {'/': '/routes/shared/*', 'comment': 'signed-in shared route links'}]})
         ann = self.person('zz_test_fl_ann'); code = ann.get('/api/friends/link').json()['url'].rsplit('/', 1)[1]
         with db.connect() as d: d.execute("UPDATE users SET name = 'Ann <b>&' WHERE login = 'zz_test_fl_ann'")

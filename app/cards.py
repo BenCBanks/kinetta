@@ -128,7 +128,7 @@ def ask(code:str,user=Depends(current_user)):
     with db.connect() as c:return request_friend(c,user['id'],code)
 
 def consume_signup(c,uid):
-    rows=c.execute('DELETE FROM signup_join_intents WHERE user_id=%s RETURNING kind,code,want_request',(uid,)).fetchall()
+    rows=c.execute("DELETE FROM signup_join_intents WHERE user_id=%s AND kind='card' RETURNING kind,code,want_request",(uid,)).fetchall()
     for r in rows:
         if r['kind']=='card':
             try:

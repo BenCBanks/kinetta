@@ -94,7 +94,7 @@ async function load(path, render, {maxAge = 15000} = {}) {
 function refreshMe(me) {
   const previous = App.me, same = previous && previous.id === me.id;
   if (same && readSessions.has(previous)) readSessions.set(me, readSessions.get(previous));
-  if (!same) { App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {}); App.cache.clear(); forgetKept(); }
+  if (!same) { Native.clearPictures?.();App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {}); App.cache.clear(); forgetKept(); }
   App.me = me; keep('/api/me', me);
   if (!same) render();
 }
@@ -1173,7 +1173,12 @@ function phoneDefaults() {
 // Email-first (2026-10-24, Ben): when the server can send email, people give their email (their login) and get a username
 // made from their name, which they can change any time like a gamertag. Without email set up (first run, or a server
 // with no mail service) they choose a username to log in with, as before.
-function showNewAccount({title, intro, button, send, signup = false, email = signup, card = null}) {
+async function challengeOrigin(){
+  const code=store.get('kinetta.challengeLink');if(!code)return null;
+  try{const q=await api('/api/challenges/'+encodeURIComponent(code));if(q.joining_closed)return null;return {code:q.code,title:q.title,join_default:false};}
+  catch(_){store.del('kinetta.challengeLink');return null;}
+}
+function showNewAccount({title, intro, button, send, signup = false, email = signup, card = null,challenge=null}) {
   const pick = !email;
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
@@ -1188,6 +1193,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
     ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older and agree to the <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">privacy policy</a></span></label>
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>` : ''}
+    ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"${challenge.join_default?' checked':''}><span>Join ${esc(challenge.title)} ${email?'after I confirm my email':'when I create my account'}. Only my username, permitted photo and progress are shared.</span></label>`:''}
     ${card?.allow_requests?`<label class="check"><input type="checkbox" name="card_request"${card.request_default===false?'':' checked'}><span>Send @${esc(card.username)} a friend request ${email?'after I confirm my email':'when I create my account'}</span></label>`:''}
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
@@ -1226,7 +1232,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     b.disabled = true; fieldErr(null, '');
     try { await send({name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
         ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim()}),
-        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{})});
+        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})});
       // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
       if (getAppFirst()) { store.set('kinetta.getApp', '1'); history.replaceState(null, '', '/'); return showGetApp(); }
       history.replaceState(null, '', '/welcome'); await start(); }
@@ -1279,21 +1285,21 @@ async function showJoin(token) {
     $('a', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
     return;
   }
-  showNewAccount({title: 'Join Kinetta', button: 'Create my account', email: !!info.email,card:info.card,
+  showNewAccount({title: 'Join Kinetta', button: 'Create my account', email: !!info.email,card:info.card,challenge:info.challenge,
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
 // "Create an account" (open signup, #232): email, username, password and a 16+ confirmation. When the server's account
 // cap is reached the waitlist takes over; the email link still has to be opened before others can see the person.
 async function showSignup(friendLink = store.get('kinetta.friendLink')) {
-  let s = {}, inviter = null, card = null;
+  let s = {}, inviter = null, card = null,challenge=await challengeOrigin();
   const cardCode=store.get('kinetta.cardLink');
   if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));}catch(_){store.del('kinetta.cardLink');}}
   try { s = await api('/api/signup'); } catch (x) { /* treat as closed */ }
   if (friendLink) { try { inviter = (await api('/api/friend-links/' + encodeURIComponent(friendLink))).name; } catch (x) { store.del('kinetta.friendLink'); friendLink = null; } }
   if (s.full) { history.replaceState(null, '', '/beta'); return showBeta(true); }
   if (!s.open) { history.replaceState(null, '', '/'); return showLogin(); }
-  showNewAccount({title: 'Create your account', button: 'Create my account', signup: true, card,
+  showNewAccount({title: 'Create your account', button: 'Create my account', signup: true, card,challenge,
     intro: (inviter ? `${esc(inviter)} invited you. You’ll be friends once you confirm your email. ` : '') + 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
     send: async (body) => {
       if(card)body={...body,card_code:cardCode};
@@ -1305,7 +1311,7 @@ async function showSignup(friendLink = store.get('kinetta.friendLink')) {
 }
 // "Join the beta" (public waitlist, only when the server has KINETTA_BETA_SIGNUP=1): no account yet, an admin invites them
 async function showBeta(full = false) {
-  let card=null;const cardCode=store.get('kinetta.cardLink');if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));}catch(_){store.del('kinetta.cardLink');}}
+  const challenge=await challengeOrigin();let card=null;const cardCode=store.get('kinetta.cardLink');if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));}catch(_){store.del('kinetta.cardLink');}}
   let open = false;
   try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }
   if (!open) { history.replaceState(null, '', '/'); return showLogin(); }
@@ -1317,6 +1323,7 @@ async function showBeta(full = false) {
     <label>Your watch or tracker (optional)<input name="watch" maxlength="60" placeholder="e.g. Garmin Forerunner, Apple Watch, none"></label>
     <label>Anything we should know? (optional)<textarea name="note" maxlength="300" rows="3"></textarea></label>
     ${card?.allow_requests?`<label class="check"><input type="checkbox" name="card_request" checked><span>Send @${esc(card.username)} a friend request after I join and confirm my email</span></label>`:''}
+    ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"><span>Join ${esc(challenge.title)} after I receive an invitation, create my account and confirm my email.</span></label>`:''}
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
     <p class="small muted">We use your email only to send your invite. <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
     <p class="err" role="alert"></p>
@@ -1331,7 +1338,7 @@ async function showBeta(full = false) {
     if (!f.phone.value) { err.textContent = 'Choose your phone.'; f.phone.focus(); return; }
     b.disabled = true; err.textContent = '';
     try {
-      await api('/api/beta', json('POST', {name: f.name.value, email: f.email.value, phone: f.phone.value, watch: f.watch.value, note: f.note.value, website: f.website.value,...(card?{card_code:cardCode,card_request:!!f.card_request?.checked}:{})}));
+      await api('/api/beta', json('POST', {name: f.name.value, email: f.email.value, phone: f.phone.value, watch: f.watch.value, note: f.note.value, website: f.website.value,...(card?{card_code:cardCode,card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})}));
       root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Thanks, ${esc(f.name.value.trim().split(/\s+/)[0])}!</h1>
         <p>You're on the list. We'll email your invite link to ${esc(f.email.value.trim())} when there's a spot.</p>${Native.on ? '<a class="primary wide" href="/" id="b-done">Back to log in</a>' : '<a class="primary wide" href="https://kinetta.app/">Back to the Kinetta website</a>'}</div></div>`;
       const done = $('#b-done', root); if (done) done.onclick = (ev) => { ev.preventDefault(); backToLogin(); };
@@ -1392,7 +1399,7 @@ async function showReset(token) {
 async function showConfirmEmail(token) {
   root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Confirming your email…</h1></div></div>`;
   let title, text;
-  try { const r = await api('/api/account/email/confirm', json('POST', {token})); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
+  try { const r = await api('/api/account/email/confirm', json('POST', {token})); if(r.challenge_joined)store.set('kinetta.challengeLink',r.challenge_joined); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
   catch (x) { title = "This link doesn't work"; text = x.message; }
   // Email links open in the phone's browser. On an iPhone, offer the app itself (kinetta:// is registered by the app,
   // 27 October 2026): a same-site https link can't hand off from Safari to the app.
@@ -1419,7 +1426,9 @@ async function showWelcome() {
 async function start() {
   await Native.ready;
   const cardCode=location.pathname.match(/^\/card\/([A-Za-z0-9_-]{1,60})$/)?.[1]||new URLSearchParams(location.search).get('card');
-  if(cardCode&&/^[A-Za-z0-9_-]{1,60}$/.test(cardCode))store.set('kinetta.cardLink',cardCode);
+  if(cardCode&&/^[A-Za-z0-9_-]{1,60}$/.test(cardCode)){store.set('kinetta.cardLink',cardCode);store.del('kinetta.challengeLink');store.del('kinetta.friendLink');}
+  const challengeCode=location.pathname.match(/^\/challenge\/([A-Za-z0-9_-]{1,60})$/)?.[1]||new URLSearchParams(location.search).get('challenge');
+  if(challengeCode&&/^[A-Za-z0-9_-]{1,60}$/.test(challengeCode)){store.set('kinetta.challengeLink',challengeCode);store.del('kinetta.cardLink');store.del('kinetta.friendLink');}
   // emailed links work whether or not this browser is logged in
   const link = location.pathname.match(/^\/(reset-password|confirm-email)\/([\w-]+)$/);
   if (link) return link[1] === 'reset-password' ? showReset(link[2]) : showConfirmEmail(link[2]);
@@ -1433,11 +1442,14 @@ async function start() {
     if (friendLink) { store.del('kinetta.friendLink'); if (location.pathname === '/me') history.replaceState(null, '', '/add/' + friendLink); }
     const cardLink=store.get('kinetta.cardLink');
     if(cardLink){store.del('kinetta.cardLink');if(location.pathname==='/me')history.replaceState(null,'','/card/'+encodeURIComponent(cardLink));}
+    const challengeLink=store.get('kinetta.challengeLink');
+    if(challengeLink){store.del('kinetta.challengeLink');if(['/me','/welcome'].includes(location.pathname))history.replaceState(null,'','/me/challenges/'+encodeURIComponent(challengeLink));}
     // The first time a new account opens the iPhone app, the welcome steps lead, with Apple Health (2026-10-24)
     const seen = 'kinetta.welcomed:' + readOwner();
     if (Native.on && !store.get(seen) && App.me?.created && Date.now() - new Date(App.me.created) < 14 * 864e5 && location.pathname === '/me') history.replaceState(null, '', '/welcome');
     if (Native.on) store.set(seen, 1);
-    Native.resumeFoodEntry?.();render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
+    Native.resumeFoodEntry?.();render();
+    if(typeof Challenges!=='undefined')Challenges.resumeSignup(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
   const saved = kept('/api/me');

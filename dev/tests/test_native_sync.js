@@ -28,6 +28,7 @@ function device(background = null, push = null) {
       return {added: 0, duplicates: 1, failed: 0, results: [{id: workout.id, result: 'duplicate'}]};
     },
   };
+  ctx.readOwner=()=>JSON.stringify([ctx.client?.base,ctx.client?.token,ctx.App.me?.id]);
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync('app/static/native.js', 'utf8') + '\nglobalThis.client = Native;', ctx);
   return {ctx, n: ctx.client, saved, queries, sent, events};

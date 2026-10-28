@@ -196,6 +196,8 @@ INVITE_DAYS = 7
 
 
 class NewAccountIn(BaseModel):
+    challenge_code:str|None=Field(None,max_length=60)
+    challenge_join:StrictBool=False
     card_code: str | None = Field(None,max_length=60)
     card_request: StrictBool = False
     name: str = Field(max_length=60)
@@ -236,6 +238,7 @@ def _create(c, body, is_admin=False):
     # Kit (AI features) stays off until the person says yes; the welcome steps ask (owner, 2026-10-26).
     c.execute('INSERT INTO profile (user_id, tz, units, share_default) VALUES (%s, %s, %s, %s)', (uid, tz, body.units or 'imperial',body.share_default))
     if body.card_code:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,%s)",(uid,body.card_code,body.card_request))
+    if body.challenge_code and body.challenge_join:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'challenge',%s,true)",(uid,body.challenge_code))
     return uid
 
 
@@ -293,7 +296,9 @@ def cancel_invite(invite_id: int, user=Depends(admin_user)):
 def _open_invite(c, token, lock=False):
     r = c.execute(f"""SELECT i.id, i.note, '@'||u.login::text AS inviter,
                       (SELECT card_code FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_card,
-                      (SELECT card_request FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_request FROM invites i LEFT JOIN users u ON u.id = i.created_by
+                      (SELECT card_request FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_request,
+                      (SELECT challenge_code FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_challenge,
+                      (SELECT challenge_join FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_challenge_join FROM invites i LEFT JOIN users u ON u.id = i.created_by
                       WHERE i.token_hash = %s AND i.used_at IS NULL AND i.expires > now(){' FOR UPDATE OF i' if lock else ''}""",
                   (_hash(token or ''),)).fetchone()
     if not r: raise HTTPException(404, 'This invite link has expired or was already used. Ask for a new one.')
@@ -313,7 +318,14 @@ def invite_info(token: str):
             with db.connect() as c:
                 origin=cards.active(c,r['origin_card']);card={'code':r['origin_card'],'username':origin['login'],'allow_requests':origin['allow_requests'],'request_default':bool(r['origin_request'])}
         except HTTPException:pass
-    return {'inviter':r['inviter'],'email':account_email.mail_ready(),'card':card}
+    challenge=None
+    if r.get('origin_challenge'):
+        from . import challenges
+        try:
+            with db.connect() as c:
+                origin=challenges.accessible(c,r['origin_challenge']);challenge={'code':origin['code'],'title':challenges.title(origin),'join_default':bool(r['origin_challenge_join'])}
+        except HTTPException:pass
+    return {'inviter':r['inviter'],'email':account_email.mail_ready(),'card':card,'challenge':challenge}
 
 
 class JoinIn(NewAccountIn):
@@ -343,6 +355,8 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
             consume_signup(c,uid)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
+    from . import challenges
+    with db.connect() as c:challenges.consume_signup(c,uid)
     auth.set_cookie(request, response, token)
     return {'ok': True, 'login': login}
 
