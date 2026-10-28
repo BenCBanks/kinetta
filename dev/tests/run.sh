@@ -190,3 +190,6 @@ docker compose -p "$P" exec -T app python - < dev/tests/activity_food_incontaine
 docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
 echo "== all passed"
+
+echo "== stationary ride charts and HR sharing"
+docker compose -p "$P" exec -T app python - < dev/tests/stationary_charts_incontainer.py

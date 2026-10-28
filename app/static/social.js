@@ -306,7 +306,7 @@ function drawShared(el, a) {
   if (a.chart) requestAnimationFrame(() => sharedCharts($('#s-charts', el), a));
 }
 function sharedCharts(box, a) {
-  const c = a.chart, x = c.d && c.d[c.d.length - 1] > 100 ? c.d : c.t, byDist = x === c.d, rows = [];
+  const c = a.chart, x = c.d && (c.d[c.d.length - 1] > 100 || !c.t) ? c.d : c.t, byDist = x === c.d, rows = [];
   if (!x) { box.closest('.card').remove(); return; }
   const foot = FOOT.includes(a.sport) && a.sport !== 'swim';
   if (c.speed) rows.push(foot ? {name: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s1'), invert: true, clip: true}

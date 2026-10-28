@@ -17,6 +17,8 @@ import os
 import secrets
 from zoneinfo import ZoneInfo
 
+from . import analysis
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
 from pydantic import BaseModel, Field
@@ -133,11 +135,14 @@ def shared_activity(r):
         for k in ('splits_km', 'splits_mi'):
             if k in r: out[k] = _pick(r[k], sk)
         if 'laps' in r: out['laps'] = _pick(r['laps'], lk)
-    ch = r.get('chart')
+    ch = analysis.clean_chart(r.get('chart'))
     if ch:   # chart series: only the shared ones; without pace, only the distance axis (distance + time = pace)
         keep = [k for k, on in (('speed', d['pace']), ('gap_speed', d['pace']), ('hr', hr), ('alt', el)) if on and ch.get(k)]
         if keep:
-            axes = ('d', 't') if d['pace'] or not ch.get('d') else ('d',)
+            # A time-only indoor chart reveals no distance/pace series. For outdoor
+            # charts keep distance alone when pace is private, including short routes.
+            has_distance = any(isinstance(v, (int, float)) and v > 0 for v in ch.get('d') or [])
+            axes = ('d', 't') if d['pace'] else (('d',) if has_distance else ('t',))
             out['chart'] = {k: ch[k] for k in (*axes, *keep) if ch.get(k)}
     out['owner'] = {'login': r['owner_login'], 'name': r['owner_name'], 'photo': r['owner_photo']}
     out['photos'] = r['photos']    # photos follow the activity: whoever sees it sees them (api_photos.py)
