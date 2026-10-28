@@ -152,6 +152,7 @@ def detail(aid: int, user=Depends(current_user)):
             except (OSError, ValueError, TypeError, KeyError):
                 pass
         for k in ('geom', 'start_pt', 'end_pt', 'file_path', 'file_sha256', 'user_id'): a.pop(k, None)
+        a['chart'] = analysis.clean_chart(a.get('chart'))
         a['line'] = _line(c, aid, DETAIL_TOL)
         a['efforts'] = _rank_efforts(c, user['id'], aid)
         a['similar'] = _similar(c, user['id'], aid, 6)

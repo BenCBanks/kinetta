@@ -199,3 +199,6 @@ echo "== separate recipe creation and explicit portions"
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_creation_incontainer.py
 
 echo "== all passed"
+
+echo "== stationary ride charts and HR sharing"
+docker compose -p "$P" exec -T app python - < dev/tests/stationary_charts_incontainer.py
