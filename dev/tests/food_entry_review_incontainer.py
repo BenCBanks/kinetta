@@ -13,7 +13,7 @@ class Review(unittest.TestCase):
    login='zz_test_review_'+uuid.uuid4().hex[:12]
    with db.connect() as c:
     uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',(login,'Fictional food reviewer',auth.hash_pw('green teapot on the hill'))).fetchone()['id'];self.ids.append(uid)
-    c.execute('INSERT INTO profile(user_id,ai_ok) VALUES(%s,false)',(uid,))
+    c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,false,now())',(uid,))
    client=TestClient(app);client.headers['Origin']='http://testserver';self.assertEqual(client.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code,200);self.clients.append(client)
   self.a,self.b=self.clients;self.network=patch('urllib.request.urlopen',side_effect=AssertionError('No external provider call'));self.network.start()
  def tearDown(self):

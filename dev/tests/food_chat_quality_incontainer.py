@@ -35,7 +35,7 @@ class Conversation(unittest.TestCase):
         login='zz_test_chat_'+uuid.uuid4().hex[:10]
         with db.connect() as c:
             self.uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES (%s,%s,%s) RETURNING id',(login,'Fictional',auth.hash_pw(PW))).fetchone()['id']
-            c.execute("INSERT INTO profile(user_id,tz,ai_ok,weight_kg,kcal_target,protein_target) VALUES (%s,'UTC',true,75,2000,110)",(self.uid,))
+            c.execute("INSERT INTO profile(user_id,tz,ai_ok,weight_kg,kcal_target,protein_target,ai_adult_at) VALUES(%s,'UTC',true,75,2000,110,now())",(self.uid,))
         self.a=TestClient(app);self.a.headers['Origin']='http://testserver'
         self.assertEqual(self.a.post('/api/login',json={'login':login,'password':PW}).status_code,200)
         self.patches=[patch('urllib.request.urlopen',side_effect=AssertionError('Unexpected external request')),

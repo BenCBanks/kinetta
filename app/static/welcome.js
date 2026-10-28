@@ -48,10 +48,11 @@ route(/^\/welcome$/, 'me', async (el) => {
   function kit() {
     frame(2, 'Turn on Kit?', 'Kit is Kinetta’s AI helper. Type “a mini muffin and a latte” and it fills in the calories, or ask how your training is going.',
       `<p class="small muted">Only what a request needs goes to ${esc(App.me.ai_provider || 'the AI provider')}, never your whole account. Apple Health and Garmin need their own yes. Turn Kit off any time in Me.</p>
-      <details class="welcome-kit"><summary>What Kit sees</summary>${aiExplain()}</details>`, 'Turn on Kit');
+      <details class="welcome-kit"><summary>What Kit sees</summary>${aiExplain()}</details><p class="small">Kit is for people 18 or older.</p>${aiAdultBox()}`, 'Turn on Kit');
     $('#wc-skip', el).onclick = audience;
     $('#wc-next', el).onclick = step(async () => {
-      await api('/api/profile', json('PUT', {ai_ok: true}));
+      if (!$('[name=ai_adult]', el).checked) throw new Error('Tick the box to confirm you’re 18 or older.');
+      await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true}));
       App.me.ai_ok = true; keep('/api/me', App.me); invalidate('/api/coach'); toast('Kit is on');
     }, audience);
   }

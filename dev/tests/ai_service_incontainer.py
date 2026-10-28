@@ -10,7 +10,7 @@ class Service(unittest.TestCase):
  def setUpClass(cls):
   with db.connect() as c:
    cls.uids=[c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',(f'zz_test_service_budget_{i}','Fictional budget')).fetchone()['id'] for i in range(3)]
-   for uid in cls.uids:c.execute('INSERT INTO profile(user_id,ai_ok) VALUES (%s,true)',(uid,))
+   for uid in cls.uids:c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())',(uid,))
  @classmethod
  def tearDownClass(cls):
   with db.connect() as c:

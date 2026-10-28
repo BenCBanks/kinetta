@@ -1099,12 +1099,19 @@ function aiError(btn, msg) {
 const aiExplain = () => `<p>Kit is Kinetta’s AI assistant for training, nutrition and progress. Ask questions, review your records, estimate food, or prepare a plan or meal proposal that you review before confirming.</p>
   <p class="small muted">Your question, current chat, saved Kit memories and the relevant food, workout, strength, goal, recipe or body records are sent to ${esc(App.me.ai_provider || 'the configured AI provider')}. Kit reads selected records through private account tools; it does not receive your whole database or login credentials. Apple Health sharing follows your separate connection permissions.</p>
   <p class="small muted">Kit starts a fresh chat when you leave. It can remember useful statements you share about preferences, goals and routines. View, remove or turn off memory in Kit’s chat settings. Your food, workouts and goals stay saved. You can turn Kit off in Me and download or delete your account data under Your data.</p>`;
+// Kit is for people 18 or older (28 October 2026; the AI provider's terms), though Kinetta itself is 16+: turning it on
+// asks for that separately, and the server refuses AI calls without it.
+const aiAdultBox = () => `<label class="check ai-adult"><input type="checkbox" name="ai_adult" required><span>I'm 18 or older</span></label>`;
 function aiSheet(after) {   // ask once; after() runs when they turn it on
-  sheet('Turn on Kit?', `<div class="form">${aiExplain()}<div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
+  sheet('Turn on Kit?', `<div class="form">${aiExplain()}<p class="small">Kit is for people 18 or older.</p>${aiAdultBox()}<p class="small danger" id="ai-age-err" role="alert"></p>
+    <div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
     $('#ai-no', b).onclick = close;
     $('#ai-yes', b).onclick = async (e) => {
+      const adult = $('[name=ai_adult]', b).checked;
+      $('#ai-age-err', b).textContent = adult ? '' : 'Tick the box to confirm you’re 18 or older.';
+      if (!adult) return;
       e.target.disabled = true;
-      try { await api('/api/profile', json('PUT', {ai_ok: true})); App.me.ai_ok = true; keep('/api/me', App.me); close(); toast('Kit is on'); if (after) after(); }
+      try { await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true})); App.me.ai_ok = true; keep('/api/me', App.me); close(); toast('Kit is on'); if (after) after(); }
       catch (x) { toast(x.message); e.target.disabled = false; }
     };
   });

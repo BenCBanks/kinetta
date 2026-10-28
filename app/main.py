@@ -195,7 +195,7 @@ def logout(request: Request, response: Response):
 def me(user=Depends(current_user)):
     from . import ai_access
     with db.connect() as c:
-        p = c.execute('SELECT share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, ai_ok, health_ai_ok, health_weight_ai_ok, garmin_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, (ai_ok AND ai_adult_at IS NOT NULL) AS ai_ok, health_ai_ok, health_weight_ai_ok, garmin_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
         from .admin_usage import opened
@@ -211,6 +211,7 @@ class ProfileIn(BaseModel):
     units: str | None = Field(None, pattern='^(imperial|metric)$')
     tz: str | None = Field(None, max_length=64)
     ai_ok: bool | None = None      # consent to AI features (coach notes, weekly review, food photos)
+    ai_adult: StrictBool | None = None   # "I'm 18 or older", required with the first ai_ok yes (migration 79)
     max_hr: int | None = Field(None, ge=120, le=230)
     rest_hr: int | None = Field(None, ge=30, le=100)
     sex: str | None = Field(None, pattern='^(male|female)$')
@@ -239,6 +240,11 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
         with db.connect() as c:
             c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
             old=c.execute('SELECT tz,health_ai_ok,weight_kg,weight_health_derived,health_weight_read FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
+            # Kit is 18+: a yes needs the age confirmation, now or recorded earlier (sign-up itself is 16+)
+            adult=vals.pop('ai_adult',None)
+            if vals.get('ai_ok') and not adult and not c.execute('SELECT ai_adult_at FROM profile WHERE user_id=%s',(user['id'],)).fetchone()['ai_adult_at']:
+                raise HTTPException(400,'Kit is for people 18 or older. Confirm your age to turn it on.')
+            if adult:c.execute('UPDATE profile SET ai_adult_at=coalesce(ai_adult_at,now()) WHERE user_id=%s',(user['id'],))
             if vals.get('health_ai_ok') is False:vals['health_weight_ai_ok']=False
             if vals.get('health_weight_ai_ok') and not vals.get('health_ai_ok',old.get('health_ai_ok')):raise HTTPException(400,'Allow Health data for AI before including Health weight')
             if 'weight_kg' in vals and vals['weight_kg']!=old.get('weight_kg'):vals['weight_health_derived']=False
@@ -248,7 +254,7 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
                 from uuid import uuid4
                 vals['health_weight_epoch']=uuid4()
                 vals['health_nutrition_epoch']=uuid4()
-            c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in vals)} WHERE user_id = %s", (*vals.values(), user['id']))
+            if vals:c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in vals)} WHERE user_id = %s", (*vals.values(), user['id']))
             if changed_tz and old.get('health_weight_read'):
                 api_health_weights.rebuild(c,user['id'],vals['tz'])
                 if api_health_nutrition.profile(c,user['id'])['health_nutrition_write']:api_health_nutrition.invalidate(c,user['id'])

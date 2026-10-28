@@ -21,7 +21,7 @@ try:
         name='zz_test_visits_'+suffix+uuid.uuid4().hex[:8]
         with db.connect() as c:
             uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES (%s,%s,%s) RETURNING id',(name,'Fictional visit tester',auth.hash_pw('green kettle after morning walk'))).fetchone()['id'];uids.append(uid)
-            c.execute('INSERT INTO profile(user_id,ai_ok) VALUES (%s,true)',(uid,))
+            c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())',(uid,))
             assert c.execute('SELECT share_default FROM profile WHERE user_id=%s',(uid,)).fetchone()['share_default']=='everyone'
         client=TestClient(app);client.headers['Origin']='http://testserver';client.headers['Content-Type']='application/json';assert client.post('/api/login',json={'login':name,'password':'green kettle after morning walk'}).status_code==200;clients.append(client)
     a,b=clients;uid,other=uids

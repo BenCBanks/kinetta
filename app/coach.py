@@ -45,16 +45,20 @@ def enabled():
     return provider() is not None
 
 
+# Kit's yes counts only with the 18+ confirmation that goes with it (migration 79).
+ADULT_OK = 'SELECT ai_ok AND ai_adult_at IS NOT NULL AS ai_ok FROM profile WHERE user_id = %s'
+
+
 def allowed(user_id, feature='coach', connection=None):
     """Provider, per-feature product access and AI consent must all allow generation."""
     if not enabled() or not ai_budget.enabled(): return False
     from . import ai_access
     if not ai_access.has(user_id, feature, connection): return False
     if connection is not None:
-        r = connection.execute('SELECT ai_ok FROM profile WHERE user_id = %s', (user_id,)).fetchone()
+        r = connection.execute(ADULT_OK, (user_id,)).fetchone()
         return bool(r and r['ai_ok'])
     with db.connect() as c:
-        r = c.execute('SELECT ai_ok FROM profile WHERE user_id = %s', (user_id,)).fetchone()
+        r = c.execute(ADULT_OK, (user_id,)).fetchone()
     return bool(r and r['ai_ok'])
 
 
@@ -219,7 +223,7 @@ def weekly_scheduler():
         time.sleep((target - now).total_seconds())
         if not enabled(): continue
         with db.connect() as c:
-            ids = [r['user_id'] for r in c.execute('SELECT user_id FROM profile WHERE ai_ok').fetchall()]
+            ids = [r['user_id'] for r in c.execute('SELECT user_id FROM profile WHERE ai_ok AND ai_adult_at IS NOT NULL').fetchall()]
         for uid in ids:
             try: week_review(uid)
             except Exception as e: print('weekly review', uid, e, flush=True)

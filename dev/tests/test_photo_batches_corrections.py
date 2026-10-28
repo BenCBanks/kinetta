@@ -10,7 +10,7 @@ class Corrections(unittest.TestCase):
     def setUpClass(cls):
         with db.connect() as c:
             cls.uid=c.execute("INSERT INTO users(login,name,pw_hash) VALUES ('zz_test_correct','Correction Test',%s) RETURNING id",(auth.hash_pw('fictional correction password'),)).fetchone()['id']
-            c.execute('INSERT INTO profile(user_id,ai_ok) VALUES (%s,true)',(cls.uid,))
+            c.execute('INSERT INTO profile(user_id,ai_ok,ai_adult_at) VALUES(%s,true,now())',(cls.uid,))
     @classmethod
     def tearDownClass(cls):
         with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(cls.uid,))

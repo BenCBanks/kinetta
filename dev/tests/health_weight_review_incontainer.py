@@ -9,7 +9,7 @@ try:
  login='zz_test_weight_review_'+uuid.uuid4().hex[:10]
  with db.connect() as c:
   uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',(login,'Fictional Health review',auth.hash_pw('green teapot on the hill'))).fetchone()['id']
-  c.execute('INSERT INTO profile(user_id,tz,ai_ok,health_ai_ok) VALUES(%s,%s,true,true)',(uid,db.DEFAULT_TZ))
+  c.execute('INSERT INTO profile(user_id,tz,ai_ok,health_ai_ok,ai_adult_at) VALUES(%s,%s,true,true,now())',(uid,db.DEFAULT_TZ))
  client=TestClient(app,raise_server_exceptions=False);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200
  def state():return client.get('/api/health/weights').json()
  def pref(on):

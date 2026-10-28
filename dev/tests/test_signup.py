@@ -60,6 +60,20 @@ class Signup(unittest.TestCase):
         me = new.get('/api/me').json()
         self.assertTrue(me['needs_email_confirm']); self.assertEqual(me['pending_email'], 'zz_test_su_new@example.test'); self.assertIsNone(me['email'])
         self.assertFalse(me.get('ai_ok'), 'Kit waits for a yes (the welcome steps ask)'); self.assertFalse(me['health_ai_ok'] or me['garmin_ai_ok'], 'Health and Garmin still need their own yes')
+        # Kit is 18+ although sign-up is 16+: its yes needs the age confirmation, which is recorded once
+        self.assertEqual(new.put('/api/profile', json={'ai_ok': True}).status_code, 400, 'Kit needs the 18+ confirmation')
+        self.assertFalse(new.get('/api/me').json().get('ai_ok'))
+        self.assertEqual(new.put('/api/profile', json={'ai_ok': True, 'ai_adult': True}).status_code, 200)
+        self.assertTrue(new.get('/api/me').json()['ai_ok'])
+        new.put('/api/profile', json={'ai_ok': False}); self.assertEqual(new.put('/api/profile', json={'ai_ok': True}).status_code, 200, 'asked once')
+        # a yes from before the age rule (existing Kit users) counts for nothing until they confirm
+        with db.connect() as c:
+            uid = c.execute("SELECT id FROM users WHERE login = 'zz_test_su_new'").fetchone()['id']
+            c.execute('UPDATE profile SET ai_adult_at = NULL WHERE user_id = %s', (uid,))
+            from app import coach
+            self.assertFalse(c.execute(coach.ADULT_OK, (uid,)).fetchone()['ai_ok'], 'no AI call without the confirmation')
+        self.assertFalse(new.get('/api/me').json()['ai_ok'], 'the app asks again')
+        new.put('/api/profile', json={'ai_ok': False})
         self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_new@example.test'])
         # a member who would otherwise see "everyone" activities
         old = client(); self.assertEqual(old.post('/api/signup', json=form('zz_test_su_old')).status_code, 200)

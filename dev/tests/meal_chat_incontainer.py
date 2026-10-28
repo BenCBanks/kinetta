@@ -27,7 +27,7 @@ uid = None
 try:
     with db.connect() as c:
         uid = c.execute("INSERT INTO users (login,name) VALUES ('zz_test_meal_dates','Meal Date Test') RETURNING id").fetchone()['id']
-        c.execute("INSERT INTO profile (user_id,tz,ai_ok) VALUES (%s,'Pacific/Honolulu',false)", (uid,))
+        c.execute("INSERT INTO profile(user_id,tz,ai_ok,ai_adult_at) VALUES(%s,'Pacific/Honolulu',false,now())", (uid,))
     user = {'id': uid}
     d = api_dishes.dish_add(api_dishes.DishIn(name='Pasta'), user)
     api_dishes.dish_edit(d['id'], api_dishes.DishEdit(known_kcal=2000, cooked_g=1000), user)
