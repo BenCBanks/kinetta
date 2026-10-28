@@ -1277,3 +1277,7 @@ After owner phone review: Progress keeps the title row for the bell (and Nutriti
 ### Loading and first impressions (27 October 2026)
 
 Owner asked for a more professional, launch-ready feel. Slow loads now show placeholders shaped like the content: feed cards (avatar, title, three stats, map), a stats-and-bars chart card (Me week, Progress totals) and the Nutrition summary plus meal cards. Full app restarts reuse the animated launch mark instead of plain "Loading…" text. The login newcomer line stays empty until the server says whether sign-up, the waitlist or invite-only applies, so the wrong line never flashes. Track activity chips wrap long names instead of clipping them.
+
+### Post-recording summary (27 October 2026)
+
+After owner phone review, Finish opens a summary rather than the live recording layout: sport and start time, a large Title field first, a stat card (distance, active time, average pace or speed, total time when pauses add 30 s or more, elevation gain when the iPhone recorded enough good altitudes; 3 m hysteresis; estimated calories using the same rule as the server's energy estimate with the profile weight, else 75 kg), splits per mile or km plus the last part, a small map fitted to the whole recording, then sharing, Save activity, Continue recording and Discard. In the iPhone app a soft page-coloured strip sits behind the status bar so scrolled content never runs under the clock and Dynamic Island (hidden while a sheet is open and on full-bleed map pages).

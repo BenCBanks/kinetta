@@ -6,6 +6,7 @@
 'use strict';
 const Native = (() => {
   const C = window.Capacitor, on = !!(C && C.isNativePlatform && C.isNativePlatform());
+  if (on) document.documentElement?.classList?.add('native');   // CSS hook: status-bar strip in the iPhone app
   const P = on ? C.Plugins : {}, prefs = P.Preferences, health = P.HealthPlugin, background = P.KinettaHealthSync;
   const get = async (key) => (await prefs.get({key})).value;
   const put = (key, value) => (value == null ? prefs.remove({key}) : prefs.set({key, value: String(value)}));
