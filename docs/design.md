@@ -1305,3 +1305,7 @@ My Recipes → Create a recipe opens the recipe’s dedicated ingredient editor.
 Add food shows My Recipes, Take a photo, Scan a barcode and Search foods as the existing Kit-style suggestion bubbles above the composer, in addition to +. They wrap at narrow widths and hide with the software keyboard so the focused field remains visible. Closing the keyboard restores them without losing the draft. These are app actions and make no model call.
 
 Empty Add food entry keeps the keyboard closed so the quick-action bubbles are visible immediately. A retained unsent text draft can resume focus; deliberate tool links still open their selected tool.
+
+## Friends and profile counts (28 October 2026)
+
+Anyone allowed to see a profile can see its accepted-friend count, excluding pending or unavailable accounts. The list is owner-only, with no mutual-friend exposure. Me → Friends puts incoming requests and the alphabetized list before discovery, with a local name/username filter for longer lists. Manage and destructive confirmations use app sheets. Successful removal updates the list/count immediately; offline/error states retain the last list and offer Retry.

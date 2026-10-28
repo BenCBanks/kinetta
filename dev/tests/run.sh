@@ -27,6 +27,7 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js
+node dev/tests/test_friend_management.js
 node dev/tests/test_route_drafts.js
 node dev/tests/test_route_sharing_ui.js
 node dev/tests/test_segment_assistance_ui.js
@@ -118,6 +119,7 @@ for t in test_food_thread_receipts test_expected_account test_food_history test_
 cd ../..
 
 echo "== in the app container"
+docker compose -p "$P" exec -T app python - < dev/tests/friend_count_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/intervals_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/cook_clarification_incontainer.py

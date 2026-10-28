@@ -519,7 +519,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
       r.status === 'sent' ? '<button class="ghost" data-person-action="cancel">Request sent</button>' :
       r.status === 'incoming' ? '<button class="primary" data-person-action="accept">Approve request</button>' : '<button class="primary" data-person-action="add">Add friend</button>';
     box.innerHTML = `${r.mine ? '<div class="pf-preview"><b>Your profile, as friends see it</b><span>Only shared workouts appear here. You choose what to show.</span></div>' : ''}
-      <div class="profile public-profile">${r.mine ? `<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p, 'lg')}<span class="av-cam">${svg('camera')}</span></button>` : avatar(p, 'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
+      <div class="profile public-profile">${r.mine ? `<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p, 'lg')}<span class="av-cam">${svg('camera')}</span></button>` : avatar(p, 'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div>${r.mine?`<a class="profile-friends" href="/me/friends">${Number.isInteger(r.friend_count)?friendCountText(r.friend_count):'Friends'}${r.friend_count===0?' · Find people':''}</a>`:Number.isInteger(r.friend_count)?`<span class="profile-friends">${friendCountText(r.friend_count)}</span>`:''}<small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
       ${p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${r.mine ? '<button type="button" class="primary" id="pf-edit-profile">Edit profile</button><button type="button" class="ghost" id="pf-share">Share profile</button>' : action + '<button class="ghost" data-person-report>Report or block</button>'}</div>
       ${r.mine ? '<div class="profile-tools"><a href="/me/settings">Settings</a></div>' : ''}
       ${empty ? '' : profileProgress(r.recent, r.mine)}
@@ -564,22 +564,28 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   await load(path0, draw, {maxAge: 0});
 });
 
-function friendshipSheet(p, onChange) {
-  sheet(p.name, `<p>You’re friends on Kinetta.</p><a class="ghost wide" href="${profileHref(p)}" data-close>View profile</a><button class="ghost wide danger" type="button" data-remove>Remove friend</button><button class="ghost wide danger" type="button" data-block>Block</button><p class="err" role="alert"></p>`, (b, close) => {
-    const change = (selector, block) => {
-      const button = $(selector, b);
-      button.onclick = async () => {
-        const message = block ? `Block ${p.name}? Neither of you can find or see the other on Kinetta. They aren’t told.` : `Remove ${p.name} from your friends? You’ll stop seeing each other’s friends-only activities.`;
-        if (!confirm(message)) return;
-        $$('button', b).forEach(x => x.disabled = true);
-        try {
-          await api(block ? `/api/people/${encodeURIComponent(p.login)}/block` : `/api/friends/${encodeURIComponent(p.login)}`, block ? json('POST', {}) : {method:'DELETE'});
-          invalidate('/api/friends'); invalidate('/api/people/'); invalidate('/api/shared/'); invalidate('/api/blocks'); invalidateFeed();
-          close(); toast(block ? `${p.name} is blocked` : 'Friend removed'); await onChange({blocked:block});
-        } catch (x) { $('.err', b).textContent = x.message; $$('button', b).forEach(x => x.disabled = false); }
-      };
+const friendCountText = n => n===0?'No friends yet':`${n} ${n===1?'friend':'friends'}`;
+function friendChangeSheet(p, block, onChange) {
+  const owner=readOwner(),verb=block?'Block':'Remove';
+  const message=block?`Neither of you can find or see the other on Kinetta. You stop being friends. They aren’t told.`:`You’ll stop seeing each other’s friends-only activities. They aren’t told.`;
+  sheet(`${verb} ${p.name}?`, `<p>${esc(message)}</p><p class="err" role="alert"></p><div class="actions"><button type="button" class="ghost" data-keep>${block?'Cancel':'Keep'}</button><button type="button" class="primary danger-btn" data-confirm>${verb}</button></div>`,(b,close)=>{
+    const live=()=>owner===readOwner()&&b.isConnected;
+    $('[data-keep]',b).onclick=close;
+    $('[data-confirm]',b).onclick=async()=>{
+      if(!live()||$('[data-confirm]',b).disabled)return;
+      $$('button',b).forEach(x=>x.disabled=true);
+      try {
+        await api(block?`/api/people/${encodeURIComponent(p.login)}/block`:`/api/friends/${encodeURIComponent(p.login)}`,block?json('POST',{}):{method:'DELETE'});
+        if(owner!==readOwner())return;
+        invalidate('/api/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();
+        close();toast(block?`${p.name} is blocked`:'Friend removed');await onChange?.({blocked:block,login:p.login});
+      }catch(x){if(live()){$('.err',b).textContent=x.message;$$('button',b).forEach(x=>x.disabled=false);}}
     };
-    change('[data-remove]', false); change('[data-block]', true);
+  });
+}
+function friendshipSheet(p, onChange) {
+  sheet(p.name, `<p>You’re friends on Kinetta.</p><a class="ghost wide" href="${profileHref(p)}" data-close>View profile</a><button class="ghost wide danger" type="button" data-remove>Remove friend</button><button class="ghost wide danger" type="button" data-block>Block</button>`,(b,close)=>{
+    for(const [selector,block] of [['[data-remove]',false],['[data-block]',true]])$(selector,b).onclick=()=>{close();friendChangeSheet(p,block,onChange);};
   });
 }
 
@@ -725,17 +731,18 @@ function editProfile(p, reload) {
 }
 
 route(/^\/me\/friends$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1>Friends</h1>
+  el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1 id="fr-title">Friends</h1><div id="fr-list-error" role="status"></div><div id="fr-lists">${skel(1)}</div><details class="friend-discovery" id="fr-discover"><summary>Find people</summary>
     <form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
       <input type="search" name="q" placeholder="Name or @username" aria-label="Search people" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
     <p class="small muted people-search-help">Find someone on Kinetta, or <button type="button" class="linkbtn" id="fr-browse">browse people</button>.</p>
     <button type="button" class="primary wide" id="fr-invite">${svg('people')}Invite friends to Kinetta</button>
-    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-lists">${skel(1)}</div><div id="fr-suggest"></div>
+    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-suggest"></div></details>
     <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Default audience for new activities, and shared details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
+  const pageOwner=readOwner();let currentFriends=null,filterText='',friendLoadVersion=0;
   const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el), suggest = $('#fr-suggest', el);
   $('#fr-invite', el).onclick = inviteFriends;
-  const drawSuggest = async () => { const people = await suggestedPeople(); if (suggest.isConnected && people.length) peopleRow(suggest, people, {invite: false, onChange: () => load('/api/friends', draw, {maxAge: 0}).catch(drawListError)}); else if (suggest.isConnected) suggest.innerHTML = ''; };
+  const drawSuggest = async () => { const people = await suggestedPeople(); if (suggest.isConnected && people.length) peopleRow(suggest, people, {invite: false, onChange: () => loadFriends()}); else if (suggest.isConnected) suggest.innerHTML = ''; };
   const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}<span class="btnrow tight">${btns}</span></div>`;
   const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
     sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel request</button>`,
@@ -746,16 +753,24 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   let last = null, people = [], known = [], browsing = false;
   const who = (login) => (people.find((p) => p.login === login) || {}).name || login;
   const drawListError = (x) => {
-    if (!lists.isConnected) return;
-    lists.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" id="fr-list-retry">Retry friends</button>`;
-    $('#fr-list-retry', lists).onclick = () => render();
+    if(!lists.isConnected||pageOwner!==readOwner())return;
+    const box=$('#fr-list-error',el);box.innerHTML=`<p class="small muted">${currentFriends?'Showing your last friends list. ':''}${esc(x.message)}</p><button type="button" class="ghost" id="fr-list-retry">Retry friends</button>`;
+    $('#fr-list-retry',box).onclick=loadFriends;
   };
-  const refresh = async () => {
-    clearTimeout(t); searchVersion++;
-    // A removed/blocked friendship also invalidates previously opened shared details.
-    invalidate('/api/feed/friends'); invalidate('/api/people/'); invalidate('/api/shared/'); invalidate('/api/blocks'); invalidateFeed(); App.cache.delete('/api/friends');
-    await load('/api/friends', draw, {maxAge: 0}).catch(drawListError);
-    if (found.isConnected) await find(true);
+  async function loadFriends(){
+    const request=++friendLoadVersion;
+    try{const r=await api('/api/friends');if(request!==friendLoadVersion||pageOwner!==readOwner()||!lists.isConnected)return;App.cache.set('/api/friends',{data:r,at:Date.now()});keep('/api/friends',r);draw(r);$('#fr-list-error',el).innerHTML='';}
+    catch(x){if(request===friendLoadVersion)drawListError(x);}
+  }
+  const refresh = async (change) => {
+    if(pageOwner!==readOwner()||!lists.isConnected)return;
+    clearTimeout(t);searchVersion++;
+    if(change?.login&&currentFriends){
+      const r={...currentFriends};for(const k of ['friends','incoming','outgoing'])r[k]=r[k].filter(p=>p.login!==change.login);
+      keep('/api/friends',r);draw(r);
+    }
+    invalidate('/api/feed/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();App.cache.delete('/api/friends');
+    await loadFriends();if(found.isConnected)await find(true);
   };
   const act = (box, sel, fn) => $$(sel, box).forEach((b) => b.onclick = async () => {
     b.disabled = true;
@@ -768,10 +783,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     act(box, '[data-ok]', async (b) => { await api(`/api/friends/${encodeURIComponent(b.dataset.ok)}/accept`, json('POST', {})); toast(`You and ${who(b.dataset.ok)} are friends now`); });
     act(box, '[data-no]', (b) => api(`/api/friends/${encodeURIComponent(b.dataset.no)}/decline`, json('POST', {})));
     act(box, '[data-cancel]', (b) => api('/api/friends/' + encodeURIComponent(b.dataset.cancel), {method: 'DELETE'}));
-    act(box, '[data-blk]', async (b) => {
-      if (!confirm(`Block ${who(b.dataset.blk)}? They can't see your activities, find you or ask to be friends, and you won't see theirs. They aren't told.`)) return false;
-      await api(`/api/people/${encodeURIComponent(b.dataset.blk)}/block`, json('POST', {})); toast(`${who(b.dataset.blk)} is blocked`);
-    });
+    $$('[data-blk]',box).forEach(b=>b.onclick=()=>friendChangeSheet(people.find(p=>p.login===b.dataset.blk),true,refresh));
   };
   const drawResults = (rows, pending = false) => {
     found.innerHTML = `<h2 class="sec-head">${browsing ? 'People on Kinetta' : 'Search results'}</h2><div class="card list">${rows.length ? rows.map((p) => person(p, btnFor(p))).join('') : pending ? '<p class="small muted">Searching…</p>' : '<p class="small muted">No people found. Try their full username, or check the spelling.</p>'}</div>`;
@@ -780,7 +792,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   let t, searchVersion = 0;
   async function find(again) {
     const q = input.value.trim();
-    clear.hidden = !q && !browsing; lists.hidden = suggest.hidden = !!q || browsing;
+    clear.hidden = !q && !browsing; suggest.hidden = !!q || browsing;
     if (!q && !browsing) { last = null; found.innerHTML = ''; status.textContent = ''; found.setAttribute('aria-busy', 'false'); return; }
     if (q === last && !again) return; last = q;
     const request = ++searchVersion;
@@ -799,7 +811,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
     url.searchParams.delete('find'); history.replaceState(history.state, '', url.pathname + url.search);
     if (!q) { find(); return; }
-    clear.hidden = false; lists.hidden = suggest.hidden = true;
+    clear.hidden = false; suggest.hidden = true;
     const term = q.replace(/^@/, '').toLocaleLowerCase();
     drawResults(known.filter(p => p.name.toLocaleLowerCase().includes(term) || p.login.toLocaleLowerCase().includes(term)).slice(0, 20), true);
     found.setAttribute('aria-busy', 'true'); status.textContent = 'Searching…';
@@ -811,19 +823,30 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   viewResources.set(f, () => { clearTimeout(t); searchVersion++; });
   f.onsubmit = (e) => { e.preventDefault(); clearTimeout(t); find(true); };
   const draw = (r) => {
+    r={...r,friends:[...r.friends].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'})||a.login.localeCompare(b.login))};
+    currentFriends=r;$('#fr-title',el).textContent=`Friends (${r.friends.length})`;
     Social.set(r.incoming.length);
     known = r.incoming.map(p => ({...p, status:'incoming'})).concat(r.friends.map(p => ({...p,status:'friends'})), r.outgoing.map(p => ({...p,status:'sent'})));
     people = [...new Map(people.concat(known).map(p => [p.login, p])).values()];
     lists.innerHTML = (r.incoming.length ? `<h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2><div class="card list">${r.incoming.map((p) =>
         person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button><button class="ghost sm danger" data-blk="${esc(p.login)}" aria-label="Block ${esc(p.name)}">Block</button>`, 'req')).join('')}</div>` : '') +
-      `<h2 class="sec-head">Your friends${r.friends.length ? ` <span class="count">${r.friends.length}</span>` : ''}</h2><div class="card list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="icon-btn" type="button" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button>`)).join('')
-        : '<p class="small muted">No friends yet. Search for someone above. They approve it first, then you each see what the other shares with friends.</p>'}</div>` +
+      `<h2 class="sec-head">Your friends (${r.friends.length})</h2>${r.friends.length>8?'<label class="friend-filter">Filter your friends<input type="search" id="fr-filter" placeholder="Name or @username" autocomplete="off"></label>':''}<div class="card list" id="fr-own-list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="ghost sm" type="button" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">Friends ${svg('chev')}</button>`)).join('')
+        : '<p class="small muted">No friends yet. <button type="button" class="linkbtn" data-find-people>Find people</button> or <button type="button" class="linkbtn" data-invite-empty>Invite friends</button>. You each approve the friendship first.</p>'}</div>` +
       (r.outgoing.length ? `<h2 class="sec-head">Requests you sent</h2><div class="card list">${r.outgoing.map((p) => person(p, `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel</button>`)).join('')}</div>` : '');
+    const filter=$('#fr-filter',lists),filterRows=()=>{
+      const term=filterText.trim().replace(/^@/,'').toLocaleLowerCase();let shown=0;
+      $$('#fr-own-list .person',lists).forEach((row,i)=>{const p=r.friends[i];row.hidden=!(p.name.toLocaleLowerCase().includes(term)||p.login.toLocaleLowerCase().includes(term));if(!row.hidden)shown++;});
+      let note=$('#fr-filter-empty',lists);if(!note){note=document.createElement('p');note.id='fr-filter-empty';note.className='small muted';$('#fr-own-list',lists).append(note);}note.textContent=shown?'':'No friends match that filter.';note.hidden=!!shown;
+    };
+    if(filter){filter.value=filterText;filter.oninput=()=>{filterText=filter.value;filterRows();};filterRows();}
+    const findButton=$('[data-find-people]',lists);if(findButton)findButton.onclick=()=>{$('#fr-discover',el).open=true;input.focus();};
+    const inviteButton=$('[data-invite-empty]',lists);if(inviteButton)inviteButton.onclick=inviteFriends;
     wire(lists);
   };
   const searching = find();
-  if (initial.has('find')) input.focus();
-  await load('/api/friends', draw, {maxAge: 0}).catch(drawListError);
+  if(initial.has('find')||initial.has('q')){$('#fr-discover',el).open=true;input.focus();}
+  const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);
+  await loadFriends();
   drawSuggest();
   await searching;
 });
@@ -847,13 +870,7 @@ function reportSheet(p, what = {}, onBlocked) {
       try { await api('/api/reports', json('POST', {login: p.login, reason: why, note: f.note.value.trim() || null, ...what})); close(); toast('Thanks. Your report was sent'); }
       catch (x) { toast(x.message); }
     };
-    $('#rp-block', b).onclick = async () => {
-      try {
-        await api(`/api/people/${encodeURIComponent(p.login)}/block`, json('POST', {})); invalidate('/api/'); invalidateFeed();
-        close(); toast(`${p.name} is blocked`);
-        if (onBlocked) onBlocked(); else go('/activity', {replace: true});
-      } catch (x) { toast(x.message); }
-    };
+    $('#rp-block',b).onclick=()=>{close();friendChangeSheet(p,true,()=>{if(onBlocked)onBlocked();else go('/activity',{replace:true});});};
   });
 }
 
