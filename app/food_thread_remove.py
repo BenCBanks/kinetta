@@ -15,11 +15,7 @@ def removal_token(part):
 def removable_entries(part):
     if part.get('logged'):return []
     entries=part.get('entries') or []
-    if part.get('drafts'):
-        mapping=part.get('entry_drafts') or []
-        return [i for i,d in enumerate(mapping) if mapping.count(d)==1]
-    if part.get('manual') or len(entries)==1:return list(range(len(entries)))
-    return []
+    return list(range(len(entries)))
 
 
 def annotate(messages):
@@ -47,12 +43,20 @@ def remove_food(c,uid,message,body):
         raise HTTPException(409,'This food card changed. Check it before removing a food.')
     if body.entry not in removable_entries(part):raise HTTPException(422,'Choose a removable food on this card')
     part=copy.deepcopy(part)
-    if part.get('drafts'):
+    mapping=part.get('entry_drafts') or []
+    if part.get('drafts') and body.entry<len(mapping) and mapping.count(mapping[body.entry])==1:
         part['drafts'].pop(part['entry_drafts'][body.entry])
         part['entries']=S.draft_entries(part['drafts'])
         # Do not teach an alias for a meal whose ingredients were removed.
         part.pop('learn_phrase',None)
-    else:part['entries'].pop(body.entry)
+    else:
+        from .food_thread_pending import manual_part,fresh_part
+        before=copy.deepcopy(part['entries'])
+        if len(before)>1:fresh_part(c,uid,part)
+        if before!=part['entries']:
+            result['parts']=[part if p['index']==body.part else p for p in result['parts']]
+            response=C.write(c,uid,message,result);response['changed']=True;return response
+        part=manual_part(part);part['entries'].pop(body.entry)
     result['parts']=[part if p['index']==body.part else p for p in result['parts'] if p['index']!=body.part or part['entries']]
     result.pop('error',None)
     if not result['parts']:

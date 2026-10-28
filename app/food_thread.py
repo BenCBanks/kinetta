@@ -331,11 +331,13 @@ class RemoveFoodIn(BaseModel):
 
 
 @router.post('/messages/{mid}/remove-food')
-def remove_food(mid: int, body: RemoveFoodIn, user=Depends(current_user)):
+def remove_food(mid: int, body: RemoveFoodIn, response:Response, user=Depends(current_user)):
     from . import food_thread_remove
     with db.connect() as c:
         message=locked_message(c,user['id'],mid)
-        return food_thread_remove.remove_food(c,user['id'],message,body)
+        result=food_thread_remove.remove_food(c,user['id'],message,body)
+        if result.get('changed'):response.status_code=409
+        return result
 
 
 class DestinationIn(BaseModel):
@@ -398,6 +400,26 @@ class ManualItem(N.ExtraValues):
     carbs_g: float | None = Field(None,ge=0,le=2000)
     fat_g: float | None = Field(None,ge=0,le=2000)
     fiber_g: float | None = Field(None,ge=0,le=1000)
+
+
+class PendingFoodIn(RemoveFoodIn):
+    model_config=ConfigDict(extra='forbid',allow_inf_nan=False)
+    amount: float | None = Field(None,gt=0,le=100000)
+    item: ManualItem | None = None
+    basis_amount: float = Field(1,gt=0,le=100000)
+    basis_label: str = Field('1 serving',min_length=1,max_length=120)
+    basis_g: float | None = Field(None,gt=0,le=10000)
+
+
+@router.post('/messages/{mid}/edit-food')
+def edit_pending_food(mid:int,body:PendingFoodIn,response:Response,user=Depends(current_user)):
+    from . import food_thread_pending
+    if (body.amount is None)==(body.item is None):raise HTTPException(422,'Change the amount or enter nutrition')
+    with db.connect() as c:
+        message=locked_message(c,user['id'],mid)
+        result=food_thread_pending.edit(c,user['id'],message,body)
+        if result.get('changed'):response.status_code=409
+        return result
 
 
 class ManualIn(BaseModel):

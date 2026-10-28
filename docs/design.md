@@ -1266,6 +1266,12 @@ Outdoor iPhone first; indoor later. Guidance is spoken only: no vibration option
 
 Returning food users have a Same as yesterday action on empty Nutrition meals and in each populated meal’s Edit menu. It previews the previous day’s corresponding meal and names the source and selected destination dates before explicit Log this meal. Retries retain upload identities; the existing offline queue and durable Undo apply. It never replaces foods already logged or adds a competing Me shortcut. New users retain the food-log introduction.
 
+### Pending food nutrition (#319)
+
+Before logging, each food has one quiet Protein · Carbs · Fat line beneath its name, for the displayed amount. Missing values say unknown; known zero remains zero. Calories stay on the right. The name and macro line open a nutrition sheet with source-serving and chosen-amount columns, source, available brand/package details, and known fibre, sugars, saturated fat and sodium. A source's 100 g fallback is labelled per 100 g rather than presented as its package serving. Estimates keep their source label.
+
+Change amount previews the chosen totals in place; the serving comparison stays fixed. Enter nutrition takes numbers for the stated source basis and changes only the selected draft food. Remove food removes only that food. Other foods and unsent chat text remain. Portion steppers update calories and macros together, block final review while saving and restore the authoritative card after failure. Keep the existing final Add to log review, compact rows, wrapping text, keyboard dismissal and both themes. Browser evidence does not establish physical iPhone or VoiceOver acceptance.
+
 ### Ask Kit start (27 October 2026)
 
 After owner phone review ("big and clunky"), the empty Ask Kit screen is compact and sits just above the message box: a small sparkle with "What can I help with?", the three screen-specific suggestions as wrapping chips, and one fine-print line: new chat each visit, the AI provider in use, and a Memory link. Kit chat settings (the ••• button) still hold memory, permissions, earlier reviews and New chat.

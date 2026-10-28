@@ -110,12 +110,13 @@ const FoodThread = (() => {
     if(ref.origin_edited)label+=' · Edited';
     return label;
   }
-  function food(entry,index,hideNotes=false) {
-    const unknown=entry.ref?.unknown_nutrients||[],protein=unknown.includes('protein_g')||entry.protein_g==null?'Protein unknown':`${r1(entry.protein_g)} g protein`;
-    // Simple chat rows (2026-10-18, owner: "busy and messy"): tap a logged food to edit it; calories sit on the right.
-    const inner=`<span class="tf-main"><strong>${esc(entry.name)}</strong><small>${esc(fmtAmount(entry))} · ${esc(source(entry))}${protein==='Protein unknown'?' · protein unknown':''}</small>${!hideNotes&&entry.ref?.origin_notes?`<small>${esc(entry.ref.origin_notes)}</small>`:''}</span><span class="tf-kcal num">${entry.kcal==null||unknown.includes('kcal')?'Unknown':homeCalories(entry.kcal)+'<small> kcal</small>'}</span>`;
-    return entry.id?`<button type="button" class="thread-food" data-entry="${index}" aria-label="Edit ${esc(entry.name)}, about ${homeCalories(entry.kcal)} kcal">${inner}</button>`:`<div class="thread-food">${inner}</div>`;
+  function food(entry,index,hideNotes=false,pending=null) {
+    const unknown=entry.ref?.unknown_nutrients||[],macros=!entry.id?`<small class="tf-macros">${esc(FoodNutrition.macros(entry))}</small>`:'';
+    const inner=`<span class="tf-main"><strong>${esc(entry.name)}</strong>${macros}<small>${esc(fmtAmount(entry))} · ${esc(source(entry))}${entry.id&&!nutrientKnown(entry,'protein_g')?' · protein unknown':''}</small>${!hideNotes&&entry.ref?.origin_notes?`<small>${esc(entry.ref.origin_notes)}</small>`:''}</span><span class="tf-kcal num">${entry.kcal==null||unknown.includes('kcal')?'Unknown':homeCalories(entry.kcal)+'<small> kcal</small>'}</span>`;
+    if(entry.id)return `<button type="button" class="thread-food" data-entry="${index}" aria-label="Edit ${esc(entry.name)}, about ${homeCalories(entry.kcal)} kcal">${inner}</button>`;
+    return pending?`<button type="button" class="thread-food" ${nutritionAttr(pending)}>${inner}</button>`:`<div class="thread-food">${inner}</div>`;
   }
+  const nutritionAttr=row=>`data-food-nutrition="${esc(JSON.stringify({part:row.part,entry:row.entry}))}" aria-haspopup="dialog" aria-label="Nutrition for ${esc(row.e.name)}, ${esc(FoodNutrition.macros(row.e))}"`;
   function choices(result) {
     if(result.correction&&result.choices?.length)return `<div class="thread-choices">${result.choices.map((c,i)=>`<button type="button" class="ghost" data-choice="${esc(JSON.stringify({select:i}))}">${esc(c.name)}${c.day?' · '+esc(dayLabel(c.day))+' · '+esc(MEAL_NAMES[c.meal]||c.meal):''}</button>`).join('')}</div>`;
     const parts=result.parts || (result.resolution?.items||[]).map((item,index)=>({index,status:item.status,item}));
@@ -168,16 +169,16 @@ const FoodThread = (() => {
   function previewRows(root,r){
     if(!root.result?.review_only||r.cancelled||r.food_review||!r.parts)return null;
     const rows=[];
-    for(const p of r.parts){if(p.logged)continue;(p.entries||[]).forEach((e,j)=>{const d=p.entry_drafts?.[j];rows.push({e,part:p.index,draft:d,remove:p.remove_entries?.includes(j)?{part:p.index,entry:j,expected:p.remove_token}:null,step:p.status==='ready'&&(d!=null?!!p.drafts?.[d]:!!p.item?.kind&&!p.templates)});});}
+    for(const p of r.parts){if(p.logged)continue;(p.entries||[]).forEach((e,j)=>{const d=p.entry_drafts?.[j];rows.push({e,part:p.index,entry:j,draft:d,remove:p.remove_entries?.includes(j)?{part:p.index,entry:j,expected:p.remove_token}:null,step:p.status==='ready'&&(d!=null?!!p.drafts?.[d]:!!p.item?.kind&&!p.templates)});});}
     return rows;
   }
   function stepRow(row){
     // The amount sits between − and +, like a quantity control: "− 3 servings +".
     const {e}=row;
     const remove=row.remove?`<button type="button" class="linkbtn danger thread-remove" data-remove-food="${esc(JSON.stringify(row.remove))}" aria-label="Remove ${esc(e.name)}">Remove</button>`:'';
-    if(!row.step)return `<div class="thread-preview-food">${food(e,undefined,row.hideNotes)}${remove}</div>`;
+    if(!row.step)return `<div class="thread-preview-food">${food(e,undefined,row.hideNotes,row)}${remove}</div>`;
     const data=`data-part="${row.part}"${row.draft!=null?` data-draft="${row.draft}"`:''}`,notes=row.hideNotes?null:e.ref?.origin_notes;
-    return `<div class="thread-food has-stepper"><span class="tf-main"><strong>${esc(e.name)}</strong><span class="thread-stepper"><button type="button" class="icon-btn" data-step="-1" ${data} aria-label="Less ${esc(e.name)}">−</button><span class="num">${esc(fmtAmount(e))}</span><button type="button" class="icon-btn" data-step="1" ${data} aria-label="More ${esc(e.name)}">+</button></span><span class="tf-meta"><small>${esc(source(e))}${notes?' · '+esc(notes):''}</small>${remove}</span></span><span class="tf-kcal num">${e.kcal==null||e.ref?.unknown_nutrients?.includes('kcal')?'Unknown':homeCalories(e.kcal)+'<small> kcal</small>'}</span></div>`;
+    return `<div class="thread-food has-stepper"><span class="tf-main"><button type="button" class="tf-inspect" ${nutritionAttr(row)}><strong>${esc(e.name)}</strong><small class="tf-macros">${esc(FoodNutrition.macros(e))}</small></button><span class="thread-stepper"><button type="button" class="icon-btn" data-step="-1" ${data} aria-label="Less ${esc(e.name)}">−</button><span class="num">${esc(fmtAmount(e))}</span><button type="button" class="icon-btn" data-step="1" ${data} aria-label="More ${esc(e.name)}">+</button></span><span class="tf-meta"><small>${esc(source(e))}${notes?' · '+esc(notes):''}</small>${remove}</span></span><span class="tf-kcal num">${e.kcal==null||e.ref?.unknown_nutrients?.includes('kcal')?'Unknown':homeCalories(e.kcal)+'<small> kcal</small>'}</span></div>`;
   }
 
   const pendingReview=()=>(typeof FoodReview!=='undefined'&&FoodReview.busy())||Q.mine().some(op=>/^\/api\/food\/thread\/reviews\/\d+\/confirm$/.test(op.path));
@@ -284,6 +285,66 @@ const FoodThread = (() => {
       status(ctx,path==='undo'?'Food removed.':'Saved.');return r;}
     catch(e){if(e.code==='preview_changed')await merge(ctx.owner,e.payload);else if(e.status===409)await refresh(ctx);status(ctx,e.message);throw e;}
   }
+  function pendingRow(ctx,m,key){
+    if(!active(ctx))return null;
+    const root=ctx.messages.find(x=>x.id===m.id),r=ctx.messages.find(x=>x.reply_to===m.id)?.result;
+    if(!root?.result?.review_only||root.state==='cancelled'||r?.food_review||r?.cancelled)return null;
+    const part=r?.parts?.find(p=>p.index===key.part),e=part?.entries?.[key.entry];
+    return e&&!part.logged?{e,part,expected:part.remove_token}:null;
+  }
+  async function changePending(ctx,m,key,row,body){
+    if(!active(ctx)||ctx.preparingReview||pendingReview())throw Error('Wait for the current food change to finish.');
+    ctx.preparingReview=true;primary(ctx);
+    try{return await action(ctx,m.id,'edit-food',{...key,expected:row.expected,...body});}
+    finally{ctx.preparingReview=false;primary(ctx);}
+  }
+  function pendingFood(ctx,m,key){
+    let row=pendingRow(ctx,m,key);if(!row)return;
+    sheet(row.e.name,`<div id="pending-nutrition" tabindex="-1" role="group" aria-label="Nutrition comparison"></div><div class="food-label-actions">
+      <button type="button" class="ghost wide" id="pending-amount">Change amount</button>
+      <form class="form" id="pending-amount-form" hidden><label>Amount (${esc(row.e.unit)})<input name="amount" inputmode="decimal" type="number" min="0.01" max="100000" step="any" required value="${row.e.amount}"></label><p class="err" role="status"></p><button class="primary wide">Use this amount</button></form>
+      <button type="button" class="linkbtn" id="pending-label">Enter nutrition</button>
+      <button type="button" class="linkbtn danger" id="pending-remove">Remove food</button></div>`,(b,close)=>{
+      guardFoodSheet(b,close,ctx.session);
+      const valid=()=>active(ctx)&&b.isConnected,form=$('#pending-amount-form',b),input=form.elements.amount;
+      const draw=e=>$('#pending-nutrition',b).innerHTML=FoodNutrition.html(e,source(e));draw(row.e);
+      $('#pending-amount',b).onclick=()=>{form.hidden=false;input.focus();input.select();};
+      input.oninput=()=>{const amount=Number(input.value);if(amount>0&&Number.isFinite(amount))draw(FoodNutrition.scale(row.e,amount,!!row.part.drafts));};
+      form.onsubmit=async ev=>{
+        ev.preventDefault();if(!valid())return;const button=$('button',form);button.disabled=true;$('.err',form).textContent='';
+        try{await changePending(ctx,m,key,row,{amount:Number(input.value)});if(!valid())return;row=pendingRow(ctx,m,key);if(!row){close();return;}input.value=row.e.amount;form.hidden=true;draw(row.e);$('#pending-nutrition',b).focus({preventScroll:true});b.closest('.sheet').scrollTop=0;}
+        catch(e){if(valid())$('.err',form).textContent=e.message;}
+        finally{button.disabled=false;}
+      };
+      $('#pending-label',b).onclick=()=>{if(valid()){close();pendingLabel(ctx,m,key,row);}};
+      $('#pending-remove',b).onclick=async()=>{
+        if(!valid()||ctx.preparingReview||pendingReview())return;
+        const button=$('#pending-remove',b);button.disabled=true;ctx.preparingReview=true;primary(ctx);
+        try{await action(ctx,m.id,'remove-food',{...key,expected:row.expected});if(valid())close();}
+        catch(e){if(valid())toast(e.message);}
+        finally{ctx.preparingReview=false;primary(ctx);if(button.isConnected)button.disabled=false;}
+      };
+    });
+  }
+  function pendingLabel(ctx,m,key,row){
+    const basis=FoodNutrition.basis(row.e),factor=basis.factor>0?basis.factor:1,values=basis.factor>0?basis.values:FoodNutrition.values(row.e),label=basis.factor>0?basis.label:fmtAmount(row.e);
+    sheet('Enter nutrition',`<form class="form" id="pending-label-form"><label>Food<input name="name" value="${esc(row.e.name)}" maxlength="200" required></label>
+      <p>Numbers for ${esc(label)}. Leave a value blank if it is unknown.</p>${macroInputs(values)}
+      <p class="small muted">Changes only this food in your draft.</p><p class="err" role="status"></p><button class="primary wide">Use these numbers</button></form>`,(b,close)=>{
+      guardFoodSheet(b,close,ctx.session);const f=$('#pending-label-form',b);
+      f.onsubmit=async ev=>{
+        ev.preventDefault();if(!active(ctx)||!b.isConnected)return;
+        const item={name:f.elements.name.value,amount:1,unit:'serving'};
+        for(const k of FOOD_NUTRIENTS){const text=f.elements[k].value.trim();item[k]=text===''?null:Number(text.replace(',','.'));}
+        if(item.kcal==null||!Number.isFinite(item.kcal)||item.kcal<0){$('.err',f).textContent='Enter calories before using these numbers.';return;}
+        const button=$('button',f);button.disabled=true;
+        try{await changePending(ctx,m,key,row,{item,basis_amount:row.e.amount/factor,basis_label:label,
+          basis_g:row.e.unit==='g'?row.e.amount/factor:null});if(active(ctx)&&b.isConnected){close();pendingFood(ctx,m,key);}}
+        catch(e){if(b.isConnected)$('.err',f).textContent=e.message;}
+        finally{button.disabled=false;}
+      };
+    });
+  }
   function wireCard(ctx,node,m,reply){
     const r={...(reply?.result||{}),...(reply?.entries?.[0]?{day:reply.entries[0].day,meal:reply.entries[0].meal}:{})};
     const itemize=$('[data-photo-itemize]',node);if(itemize)itemize.onclick=()=>{ctx.photoRetry={id:+itemize.dataset.photoItemize,itemize:true};const file=$('#ql-file',ctx.el);file.removeAttribute('capture');file.click();};
@@ -293,6 +354,7 @@ const FoodThread = (() => {
     const review=$('[data-kit-review]',node);if(review)review.onclick=()=>{if(!active(ctx))return;kitReview(r.kit.selection,{scopeKey:m.client_id,onStale:async()=>{await action(ctx,m.id,'kit',{refresh:true});},onSaved:async data=>{if(active(ctx)){await merge(ctx.owner,data);await refresh(ctx);}}});};
     $$('[data-choice]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,'choose',JSON.parse(b.dataset.choice));}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
     $$('[data-entry]',node).forEach(b=>b.onclick=()=>{entrySheet(reply.entries[+b.dataset.entry],reply.entries[+b.dataset.entry].day);});
+    $$('[data-food-nutrition]',node).forEach(b=>b.onclick=()=>pendingFood(ctx,m,JSON.parse(b.dataset.foodNutrition)));
     const dest=$('[data-destination]',node);if(dest)dest.onclick=()=>destination(ctx,m,r);
     $$('[data-remove-food]',node).forEach(b=>b.onclick=async()=>{
       if(!active(ctx)||ctx.preparingReview||pendingReview())return;
@@ -303,13 +365,21 @@ const FoodThread = (() => {
       finally{ctx.preparingReview=false;if(node.isConnected)controls.forEach(c=>c.disabled=false);primary(ctx);}
     });
     $$('[data-step]',node).forEach(b=>b.onclick=async()=>{
+      if(!active(ctx)||ctx.preparingReview||pendingReview())return;
       const p=r.parts?.find(x=>x.index===+b.dataset.part);if(!p)return;const up=+b.dataset.step>0;
       const old=b.dataset.draft!=null?p.drafts?.[+b.dataset.draft]?.portion:p.item?.portion;if(!old)return;
       const next=old.grams?null:old.count>1||up?Math.max(.5,(old.count>=1?Math.round(old.count):old.count)+(up?1:-1)):old.count/2;
       const factor=old.grams?(up?1.25:.8):next/old.count;if(!(factor>0)||next!=null&&next<.25)return;
       b.disabled=true;Native.haptic('selection');
       const body=b.dataset.draft!=null?{part:p.index,draft:+b.dataset.draft,factor}:{part:p.index,portion:old.grams?{grams:Math.round(old.grams*factor)}:{count:next,...(old.unit?{unit:old.unit}:{})}};
-      try{await action(ctx,m.id,'choose',body);}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}
+      // Show calories and macros together immediately; failed saves restore the
+      // authoritative card. The final review cannot race this pending amount.
+      const ratio=body.portion?.grams?body.portion.grams/old.grams:factor;
+      const preview={...p,entries:(p.entries||[]).map((e,i)=>b.dataset.draft==null||p.entry_drafts?.[i]===+b.dataset.draft?FoodNutrition.scale(e,e.amount*ratio,true):e)};
+      const card=$('.thread-card',node);if(card)card.outerHTML=replyHtml(m,{...reply,result:{...r,parts:r.parts.map(x=>x.index===p.index?preview:x)}});
+      $$('button',node).forEach(control=>control.disabled=true);ctx.preparingReview=true;primary(ctx);
+      try{await action(ctx,m.id,'choose',body);}catch(e){if(active(ctx))toast(e.message);}
+      finally{ctx.preparingReview=false;node._html=null;draw(ctx);}
     });
     $$('[data-reply]',node).forEach(b=>b.onclick=()=>{if(!$('#thread-text',ctx.el).value.trim())send(ctx,{body:b.dataset.reply});else status(ctx,'Send or clear your typed message first.');});
     $$('[data-estimate]',node).forEach(b=>b.onclick=()=>action(ctx,m.id,'resolve',{retry:true,allow_brand_estimate:true,part:+b.dataset.estimate}).catch(()=>{}));

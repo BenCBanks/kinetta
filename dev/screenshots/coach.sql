@@ -12,7 +12,7 @@ FROM users WHERE login = 'alex'
 ON CONFLICT (user_id, kind, period_start) DO UPDATE SET text = excluded.text, created = now();
 UPDATE dishes SET ai_note = $${"summary": "A 400 g portion is about 440 kcal with 40 g protein: a solid recovery dinner with plenty of vegetables.",
   "ideas": [{"change": "Cut the olive oil from 27 g to 15 g", "effect": "About 30 kcal less per portion, same roast"},
-            {"change": "Swap 200 g of the sweet potato for broccoli", "effect": "Around 40 kcal less and more fibre per portion"},
-            {"change": "Add a 400 g can of chickpeas", "effect": "About 6 g more protein and 5 g fibre per portion"}]}$$,
+            {"change": "Swap 200 g of the sweet potato for broccoli", "effect": "Around 40 kcal less and more fiber per portion"},
+            {"change": "Add a 400 g can of chickpeas", "effect": "About 6 g more protein and 5 g fiber per portion"}]}$$,
   ai_note_at = now() + interval '1 minute'
 WHERE name = 'Chicken and veg traybake' AND user_id = (SELECT id FROM users WHERE login = 'alex');
