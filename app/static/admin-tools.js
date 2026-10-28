@@ -99,6 +99,7 @@ function reportsView(data,rev){
  content.querySelectorAll('[data-review]').forEach(b=>b.onclick=()=>reviewReport(b.dataset.review));
 }
 
+const SEGMENT_REASON={assistance_unknown:'Assistance not declared',assisted:'Assisted or virtual',processing:'Recording changed; recheck pending',source:'Source not eligible',not_joined:'Member has not joined',activity_private:'Activity kept private',map_hidden:'Shared map hidden',hidden_area:'Inside protected map ends',moderation_held:'Held by moderator',moderation_excluded:'Excluded by moderator',recomputed:'No longer matches the current recording',invalid_times:'Unreliable GPS timestamps',gps:'GPS or matching',wrong_sport:'Wrong sport or assistance',duplicate:'Duplicate course',unsafe:'Unsafe or restricted access',abusive:'Abusive content',privacy:'Personal location',creator_request:'Creator request',speed_jump:'GPS speed jump',too_fast:'Unusually fast',duplicate_effort:'Duplicate recording'};
 function segmentsView(data,rev){
  const label=r=>esc(SEGMENT_REASON[r]||r||'No reason recorded');
  const review=(e,kind,id)=>e?'<button data-effort="'+e.id+'" data-case="'+kind+'" data-case-id="'+id+'">Review time for @'+esc(e.login)+'</button>':'<p>The time is no longer available.</p>';

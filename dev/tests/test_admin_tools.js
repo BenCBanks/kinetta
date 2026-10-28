@@ -5,7 +5,7 @@ const source=fs.readFileSync('app/static/admin-tools.js','utf8').replace(/start\
 const tick=()=>new Promise(r=>setTimeout(r,0));
 function fixture(){
  const nodes=new Map(),calls=[];let currentForm;
- const node=s=>{if(!nodes.has(s))nodes.set(s,{textContent:'',innerHTML:'',isConnected:true,disabled:false,setAttribute(){},removeAttribute(){}});return nodes.get(s)};
+ const node=s=>{if(!nodes.has(s))nodes.set(s,{textContent:'',innerHTML:'',isConnected:true,disabled:false,querySelectorAll:()=>[],setAttribute(){},removeAttribute(){}});return nodes.get(s)};
  const c={crypto:require('node:crypto').webcrypto,URLSearchParams,Date,setTimeout,clearTimeout,AUDIT_LABEL:{},STATUS_LABEL:{},revision:1,dialogRevision:1,who:{id:1},err:node('err'),content:node('content'),esc:String,date:String,table:()=>'',show:v=>calls.push(v),error:e=>calls.push(e.message),
   $:s=>s==='#tool-form'?currentForm:node(s),busy:(_,f)=>{c.pending=f()},
   modal:(_,html,wire)=>{c.dialogRevision++;currentForm={isConnected:true,reportValidity:()=>true};c.form=currentForm;c.html=html;wire({},()=>{})},api:async()=>({})};
@@ -13,6 +13,9 @@ function fixture(){
  return {c,node,calls};
 }
 (async()=>{
+ // Nonempty segment cases still render their reason labels after saved-route tools are removed.
+ const cases=fixture();cases.c.segmentsView({leaderboards:false,stats:{public_segments:1,backlog:0,stuck:0},reports:[{id:1,reason:'privacy',created:'2026-10-28',segment:'Fictional course'}],appeals:[],held:[],exclusions:[{reason:'activity_private',n:1}]},1);
+ assert.match(cases.c.content.innerHTML,/Personal location/);assert.match(cases.c.content.innerHTML,/Activity kept private/);
  // An ambiguous response retries exactly the same request. Editing a draft creates a new action identity.
  const f=fixture(),keys=[];let fail=true,done=0;
  f.c.confirmForm('Confirm','','',async(_,key)=>{keys.push(key.request_key);if(fail)throw Error('Lost response')},()=>done++);
