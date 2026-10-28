@@ -1783,6 +1783,13 @@ MIGRATIONS = [
     ALTER TABLE profile ADD COLUMN ai_adult_at timestamptz;
     """,
 
+    # 80. Who made the Kit 18+ confirmation: the person ('self', the checkbox) or the server operator vouching for people
+    # already using Kit when the rule arrived ('operator'). An operator's word is never recorded as the person's own.
+    """
+    ALTER TABLE profile ADD COLUMN ai_adult_by text CHECK (ai_adult_by IN ('self', 'operator'));
+    UPDATE profile SET ai_adult_by = 'self' WHERE ai_adult_at IS NOT NULL;
+    """,
+
 ]
 
 
