@@ -55,7 +55,7 @@ for device in preferred:
     sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'.png')))
     metrics.update(device=device['name'],runtime=runtime['name']);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
     assert 'error' not in metrics,metrics
-    assert metrics['native'] and metrics['theme']==theme,metrics
+    assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
     assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop']-10)<=4,metrics
     if stage=='recipe':

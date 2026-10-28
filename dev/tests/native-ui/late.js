@@ -11,9 +11,15 @@
     }
     if(cfg.stage==='review')finishDish(cfg.dish);
     await document.fonts.ready;await new Promise(ok=>setTimeout(ok,2000));
-    // UIKit can report initial zero insets before didAppear; require a stable settled layout.
-    let previous='',stable=0;for(let n=0;n<50&&stable<8;n++){const key=JSON.stringify([rect('.shell'),rect(cfg.stage==='food'?'.thread-heading':'.top'),visualViewport?.height]);stable=key===previous?stable+1:0;previous=key;await new Promise(ok=>setTimeout(ok,100));}
-    const probe=document.createElement('div');probe.style.paddingTop='env(safe-area-inset-top,0px)';probe.style.paddingBottom='env(safe-area-inset-bottom,0px)';probe.style.position='fixed';probe.style.visibility='hidden';document.body.append(probe);const cs=getComputedStyle(probe),safeTop=parseFloat(cs.paddingTop)||0,safeBottom=parseFloat(cs.paddingBottom)||0;probe.remove();
+    // UIKit can initially report zero insets. Require a real status-bar inset and settled layout.
+    const probe=document.createElement('div');probe.style.paddingTop='env(safe-area-inset-top,0px)';probe.style.paddingBottom='env(safe-area-inset-bottom,0px)';probe.style.position='fixed';probe.style.visibility='hidden';document.body.append(probe);
+    let safeTop=0,safeBottom=0,previous='',stable=0;
+    for(let n=0;n<150&&stable<8;n++){
+      const cs=getComputedStyle(probe);safeTop=parseFloat(cs.paddingTop)||0;safeBottom=parseFloat(cs.paddingBottom)||0;
+      const key=JSON.stringify([safeTop,safeBottom,rect('.shell'),rect(cfg.stage==='food'?'.thread-heading':'.top'),visualViewport?.height]);
+      stable=key===previous&&(!Native.on||safeTop>=20)?stable+1:0;previous=key;await new Promise(ok=>setTimeout(ok,100));
+    }
+    probe.remove();if(Native.on&&(safeTop<20||stable<8))throw Error('Native safe-area layout did not settle');
     const result={fixture:true,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(cfg.stage==='food'?'.thread-heading':'.top'),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests};
     globalThis.KinettaUIResult=result;
     if(Native.on)await Capacitor.Plugins.KinettaActivityShare.uiTestMetrics({value:JSON.stringify(result)});
