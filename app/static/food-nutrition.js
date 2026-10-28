@@ -20,7 +20,9 @@ const FoodNutrition=(()=>{
     const ref=e.ref||{},src=ref.origin_ref||ref,serving=src.serving||ref.serving||{};
     if(src.per_serving)return {label:serving.label||'1 serving',values:values({...src.per_serving,ref:{unknown_nutrients:src.unknown_nutrients}}),factor:src.basis_unit===e.unit&&src.basis_amount>0?e.amount/src.basis_amount:portionFactor(e,serving)};
     if(src.per100){
-      const declared=serving.g>0&&!serving.is_default,g=declared?serving.g:100;
+      // Older catalog records did not distinguish a 100 g fallback from a
+      // declared serving. Per 100 g is the honest comparison in that case.
+      const declared=serving.g>0&&!serving.is_default&&(serving.g!==100||serving.is_default===false||!['off','usda'].includes(src.source)),g=declared?serving.g:100;
       return {label:declared?(serving.label||`${r1(g)} g`):'100 g',per100:!declared,
         note:!declared&&serving.label&&serving.label!=='100 g'?`Source serving: ${serving.label}. Its weight is unavailable.`:'',
         values:multiply(src.per100,g/100),factor:e.unit==='g'?e.amount/g:e.unit==='serving'?e.amount*(serving.g||0)/g:null};

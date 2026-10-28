@@ -15,6 +15,9 @@ const scaled=c.preview.scale(pasta,3);assert.equal(scaled.protein_g,21);assert.e
 html=c.preview.html({...pasta,fat_g:0,carbs_g:0,ref:{...pasta.ref,unknown_nutrients:['fat_g','carbs_g']}},'My foods');assert.equal((html.match(/Unknown/g)||[]).length,2);assert(!c.preview.macros({...pasta,fat_g:null}).includes('Fat 0'));
 const fallback={...pasta,amount:150,unit:'g',ref:{per100:{kcal:200,protein_g:10,carbs_g:30,fat_g:2},serving:{label:'1 bowl',g:100,is_default:true}}};
 assert.equal(c.preview.basis(fallback).label,'100 g');assert.match(c.preview.html(fallback,'USDA'),/Its weight is unavailable/);
+const legacy={...fallback,ref:{...fallback.ref,source:'off',serving:{label:'1 bowl',g:100}}};
+assert.equal(c.preview.basis(legacy).per100,true,'old 100 g fallback metadata must not invent a package serving');
+assert.equal(c.preview.basis({...legacy,ref:{...legacy.ref,serving:{...legacy.ref.serving,is_default:false}}}).label,'1 bowl','a declared 100 g serving remains usable');
 const label={...pasta,amount:112,unit:'g',ref:{origin:'label',per_serving:{kcal:210,protein_g:8,carbs_g:41,fat_g:2},serving:{label:'2 oz (56 g)',g:56},basis_unit:'g',basis_amount:56}};
 assert.equal(c.preview.basis(label).factor,2);assert.equal(c.preview.basis(c.preview.scale(label,168)).factor,3);
 const part={index:0,status:'ready',entries:[pasta],entry_drafts:[0],drafts:[{}],remove_entries:[0],remove_token:'a'.repeat(64)};
