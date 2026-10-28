@@ -118,11 +118,11 @@ def claim(uid,mid,body):
         return {'message':message,'result':copy.deepcopy(result),'media':media,'lease':lease,'photo_previous':previous}
 
 
-def _catalog(food,part):
+def _catalog(food,part,*,review_only=False):
     parsed=meal_chat.read_part(part['text'],[])
     portion=part.get('portion_override') or parsed.get('portion')
     incomplete=False
-    try:draft=S.catalog_draft(food,portion)
+    try:draft=S.catalog_draft(food,portion,partial=review_only)
     except HTTPException:draft=None;incomplete=True
     if draft:return {**part,'status':'ready','drafts':[draft],'entries':S.draft_entries([draft]),'looked_up':True}
     return {**part,'status':'quantity','catalog':part.get('catalog') or [food],'catalog_selected':part.get('catalog_selected',0),'looked_up':True,
@@ -151,7 +151,7 @@ def resolve_outside(uid,work,body):
         if food.get('source')=='custom':
             return [{'indices':[p['index'] for p in unknown],'part':{**unknown[0],'status':'ready','looked_up':True,
                      'templates':[{'kind':'custom','id':food['id'],'portion':{'count':1}}]}}],None
-        return [{'indices':[p['index'] for p in unknown],'part':_catalog(food,unknown[0])}],None
+        return [{'indices':[p['index'] for p in unknown],'part':_catalog(food,unknown[0],review_only=S.held_review(message))}],None
     if media['kind']=='photo':estimate=unknown
     else:
         # Long loose paragraphs stay intact for the estimator; public catalog
@@ -180,7 +180,7 @@ def resolve_outside(uid,work,body):
                 updates.append({'indices':[part['index']],'part':{**part,'status':'choose','looked_up':True,
                                 'catalog':lookup['foods'],'question':'Which product did you have?' }})
             elif lookup['kind']=='plain' and lookup['foods']:
-                candidate=_catalog(lookup['foods'][0],part)
+                candidate=_catalog(lookup['foods'][0],part,review_only=S.held_review(message))
                 update={'indices':[part['index']],'part':candidate}
                 if candidate['status']=='quantity' and not candidate.get('catalog_incomplete') and coach.allowed(uid,'food'):
                     # A mass-only catalog entry cannot convert a known taco count.
@@ -248,7 +248,7 @@ def complete(uid,mid,work,updates,error=None):
                         S.apply_portion(replacement['drafts'],pending_portions[0],current[update['indices'][0]]['text'])
                         replacement.update({'status':'ready','entries':S.draft_entries(replacement['drafts'])})
                     elif replacement.get('catalog'):
-                        draft=S.catalog_draft(replacement['catalog'][0],pending_portions[0])
+                        draft=S.catalog_draft(replacement['catalog'][0],pending_portions[0],partial=S.held_review(message))
                         if draft:replacement.update({'status':'ready','drafts':[draft],'entries':S.draft_entries([draft])})
                 except HTTPException:
                     replacement['status']='quantity';replacement['question']='Which food and portion should I use?'

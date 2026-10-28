@@ -73,6 +73,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Log a past session by hand, then add its sets; the AI coach note reads the sets and last time's; SQL view `v_lift_sets`
 
 ## Food
+- Pending food nutrition (#319, implementation branch): protein, carbs and fat before logging, with unknown values preserved; tap a food for source-serving and chosen-amount nutrition, source/brand/package details, amount changes, one-food label correction or removal. Scanned products with known calories can retain missing macros through explicit review; no AI prompt/model changes or provider calls are added. Physical-iPhone acceptance follows the next TestFlight build.
 - [x] Optional goal-first setup (#122 A): five goals, private optional body details, everyday activity and bounded pace;
       review/edit calorie and protein estimates before an explicit Save. Skip writes nothing; existing macro targets,
       daily overrides and Health/resting choices are preserved. Available from Me and Nutrition without a watch or AI.

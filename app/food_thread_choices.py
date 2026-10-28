@@ -31,7 +31,7 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
     elif catalog is not None and part.get('catalog'):
         if not 0<=catalog<len(part['catalog']):raise HTTPException(422,'Choose the product you meant')
         if portion:part['portion_override']=portion.clean()
-        part=resolver._catalog(part['catalog'][catalog],part)
+        part=resolver._catalog(part['catalog'][catalog],part,review_only=S.held_review(message))
         part['catalog_selected']=catalog
     elif part.get('drafts'):
         if draft is not None and not 0<=draft<len(part['drafts']):raise HTTPException(422,'Choose a food on this card')
@@ -54,7 +54,7 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
         selected=catalog if catalog is not None else part.get('catalog_selected')
         if selected is None or not 0<=selected<len(part['catalog']):raise HTTPException(422,'Choose the product you meant')
         if portion:part['portion_override']=portion.clean()
-        part=resolver._catalog(part['catalog'][selected],part)
+        part=resolver._catalog(part['catalog'][selected],part,review_only=S.held_review(message))
         if part['status']=='quantity':part['catalog_selected']=0
     elif portion and part.get('item',{}).get('kind'):
         item=part['item'];pick=meal_chat.Pick(kind=item['kind'],id=item['id'])

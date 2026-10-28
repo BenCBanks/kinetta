@@ -2226,6 +2226,30 @@ body .leaflet-container .leaflet-control-attribution { background: var(--card); 
   background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; }
 .thread-tools-sheet button svg { width: 26px; height: 26px; color: var(--accent); }
 .thread-food.has-stepper .tf-main { flex: 1 1 10rem; min-width: 0; }
+.thread-food .tf-inspect { display: grid; gap: 3px; min-height: 44px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.thread-food .tf-inspect strong, .thread-food .tf-main strong { overflow-wrap: anywhere; }
+.thread-food .tf-macros, .review-food-row .tf-macros { font-size: .8rem; font-weight: 400; color: var(--tx2); line-height: 1.45; }
+.food-label-source { margin-top: 0; overflow-wrap: anywhere; }
+.food-label { container: food-label / inline-size; }
+.food-label table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .85rem; }
+.food-label th, .food-label td { padding: 10px 4px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.food-label th { text-align: left; font-weight: 600; }
+.food-label th:first-child { width: 34%; }
+.food-label td, .food-label thead th:not(:first-child) { text-align: right; }
+.food-label thead { border-top: 3px solid var(--tx); border-bottom: 2px solid var(--tx); }
+.food-label thead small { display: block; font-size: .75rem; font-weight: 400; color: var(--tx2); margin-top: 4px; }
+.food-label-actions { display: grid; gap: 12px; margin-top: 20px; }
+.food-label-actions [hidden] { display: none!important; }
+.food-label-actions .linkbtn { min-height: 44px; justify-self: center; }
+.food-label-actions .err:empty { display: none; }
+@container food-label (max-width: 20rem) {
+  .food-label table, .food-label thead, .food-label tbody { display: block; }
+  .food-label tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-bottom: 1px solid var(--line); }
+  .food-label th, .food-label td { border: 0; }
+  .food-label tbody th:first-child { grid-column: 1 / -1; width: auto; padding-bottom: 0; }
+  .food-label thead th:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; }
+  .food-label thead th:not(:first-child) { width: auto; }
+}
 /* Remove is a quiet link beside the source line; the 44px touch area overlaps the row instead of adding one (owner, 23 Oct 2026). */
 .thread-food .tf-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 .food-thread .thread-card .thread-remove { min-height: 44px; margin: -12px 0; padding: 0 2px; font-size: .8rem; font-weight: 600; text-align: left; }

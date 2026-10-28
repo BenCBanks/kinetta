@@ -73,15 +73,23 @@ def _sane(per100):
 
 def _off_food(p):
     n = p.get('nutriments') or {}
-    per100 = {'kcal': _num(n.get('energy-kcal_100g')) or (_num(n.get('energy_100g')) and round(_num(n.get('energy_100g')) / 4.184, 1)),
+    kcal=_num(n.get('energy-kcal_100g'))
+    if kcal is None and _num(n.get('energy_100g')) is not None:kcal=round(_num(n.get('energy_100g'))/4.184,1)
+    per100 = {'kcal': kcal,
               'protein_g': _num(n.get('proteins_100g')), 'carbs_g': _num(n.get('carbohydrates_100g')),
               'fat_g': _num(n.get('fat_100g')), 'fiber_g': _num(n.get('fiber_100g')),**N.off_values(n)}
     per100 = _sane(per100)
     if not per100: return None
     sq = _num(p.get('serving_quantity'))
+    per_serving={k:(v*sq/100 if v is not None else None) for k,v in per100.items()} if sq else None
+    if per_serving is not None:
+        for key,off_key in (('kcal','energy-kcal'),('protein_g','proteins'),('carbs_g','carbohydrates'),('fat_g','fat'),('fiber_g','fiber')):
+            value=_num(n.get(off_key+'_serving'))
+            if value is not None and value<=N.ENTRY_MAX[key]:per_serving[key]=value
     return {'source': 'off', 'us': 'en:united-states' in (p.get('countries_tags') or []), 'id': p.get('code') or p.get('_id'), 'name': (p.get('product_name') or p.get('product_name_en') or '').strip() or 'Unnamed product',
-            'brand': ((p.get('brands') if isinstance(p.get('brands'), str) else ','.join(p.get('brands') or [])) or '').split(',')[0].strip() or None, 'per100': per100,
-            'serving': {'label': p.get('serving_size') or (f'{sq:g} g' if sq else '100 g'), 'g': sq or 100.0}}
+            'brand': ((p.get('brands') if isinstance(p.get('brands'), str) else ','.join(p.get('brands') or [])) or '').split(',')[0].strip() or None, 'per100': per100, 'per_serving':per_serving,
+            'package_size': str(p.get('quantity') or '')[:120] or None,
+            'serving': {'label': p.get('serving_size') or (f'{sq:g} g' if sq else '100 g'), 'g': sq or 100.0, 'is_default': not bool(sq)}}
 
 
 FDC_IDS = {'kcal': (1008, '208'), 'protein_g': (1003, '203'), 'carbs_g': (1005, '205'), 'fat_g': (1004, '204'), 'fiber_g': (1079, '291')}
@@ -103,7 +111,7 @@ def _fdc_food(f):
     sg = _num(f.get('servingSize')) if (f.get('servingSizeUnit') or '').lower() in ('g', 'grm', 'ml', 'mlt') else None
     label = f.get('householdServingFullText') or (f'{sg:g} g' if sg else '100 g')
     return {'source': 'usda', 'generic': f.get('dataType') != 'Branded', 'id': str(f.get('fdcId')), 'name': (f.get('description') or '').strip().capitalize(),
-            'brand': f.get('brandName') or f.get('brandOwner') or None, 'per100': per100, 'serving': {'label': label, 'g': sg or 100.0}}
+            'brand': f.get('brandName') or f.get('brandOwner') or None, 'per100': per100, 'serving': {'label': label, 'g': sg or 100.0, 'is_default': not bool(sg)}}
 
 
 def _search_off(q):
@@ -113,7 +121,7 @@ def _search_off(q):
             wait = 6 - (time.time() - _last_off[0])
             if wait > 0: time.sleep(min(wait, 6))
             _last_off[0] = time.time()
-        fields = 'code,product_name,brands,nutriments,serving_size,serving_quantity,countries_tags'
+        fields = 'code,product_name,brands,nutriments,serving_size,serving_quantity,quantity,countries_tags'
         try:
             d = _get('https://search.openfoodfacts.org/search?' + urllib.parse.urlencode({'q': q, 'page_size': 20, 'fields': fields}))
             items = d.get('hits') or []
@@ -184,7 +192,7 @@ def barcode(code: str, user=Depends(current_user)):
         mine = c.execute('SELECT * FROM custom_foods WHERE user_id = %s AND barcode = %s LIMIT 1', (user['id'], code)).fetchone()
     if mine: return _custom_food(mine)
     def fetch():
-        d = _get(f'https://world.openfoodfacts.org/api/v2/product/{code}.json?fields=code,product_name,brands,nutriments,serving_size,serving_quantity')
+        d = _get(f'https://world.openfoodfacts.org/api/v2/product/{code}.json?fields=code,product_name,brands,nutriments,serving_size,serving_quantity,quantity')
         return d.get('product') if d.get('status') in (1, 'success') else None
     try: p = _cached('off-code:' + code, fetch, days=60)
     except Exception: raise HTTPException(502, "Couldn't reach the food database - try again or add it by hand")

@@ -10,16 +10,22 @@ from . import nutrients as N
 from . import api_food,meal_chat
 
 
+def held_review(message):
+    # Legacy auto-logging learns reusable foods with complete core nutrition.
+    # Held drafts can retain missing macros until their final explicit review.
+    return bool((message.get('result') or {}).get('review_only'))
+
+
 def positive(value,maximum=20000):
     if type(value) not in (int,float) or not math.isfinite(value) or not 0<value<=maximum:return None
     return float(value)
 
 
-def numbers(item):
+def numbers(item,*,partial=False):
     result={}
     for key,maximum in N.ENTRY_MAX.items():
         value=item.get(key)
-        if value is None and key in ('fiber_g',*N.EXTRA):result[key]=None;continue
+        if value is None and (key in ('fiber_g',*N.EXTRA) or partial and key!='kcal'):result[key]=None;continue
         if type(value) not in (int,float) or not math.isfinite(value) or not 0<=value<=maximum:
             raise HTTPException(422,'Check the nutrition numbers; missing values cannot be logged as zero')
         result[key]=N.rounded(key,value)
@@ -69,23 +75,26 @@ def draft_entries(drafts):
                         'unit':'g' if p.get('grams') else 'serving',**meal_chat.scaled(f,scale),
                         'source':'ai' if draft['origin']=='ai' else (draft.get('origin_ref') or {}).get('source','quick'),
                         'ref':{'origin':draft['origin'],'origin_notes':draft.get('notes'),'origin_model':draft.get('model'),
-                               'serving':{'label':f['serving_label'],'g':f.get('serving_g')},'origin_ref':draft.get('origin_ref')}})
+                               'serving':{'label':f['serving_label'],'g':f.get('serving_g')},
+                               'per_serving':{k:f.get(k) for k in N.ALL},'origin_ref':draft.get('origin_ref')}})
     return entries
 
 
-def catalog_draft(food,portion=None):
+def catalog_draft(food,portion=None,*,partial=False):
     per=api_food._sane(food.get('per100') or {})
     if not per:return None
-    serving=food.get('serving') or {};grams=positive(serving.get('g'),10000)
+    if not partial and any(per.get(k) is None for k in ('kcal','protein_g','carbs_g','fat_g')):
+        raise HTTPException(422,'This database entry has missing nutrition')
+    serving=food.get('serving') or {};grams=positive(serving.get('g'),10000) if not serving.get('is_default') else None
     label=str(serving.get('label') or '')[:60]
     if portion and portion.get('grams'):
         amount=positive(portion['grams']);base=100
         if not amount:return None
-        return {'food':{'name':str(food['name'])[:200],'brand':food.get('brand'),'serving_label':'100 g','serving_g':100,**numbers(per)},
+        return {'food':{'name':str(food['name'])[:200],'brand':food.get('brand'),'serving_label':'100 g','serving_g':100,**numbers(per,partial=True)},
                 'portion':{'grams':amount},'origin':'catalog','notes':None,'model':None,'origin_ref':food}
     if not grams:return None
     if portion and portion.get('unit')=='serving' and portion.get('count'):
-        return catalog_draft(food,{'grams':grams*portion['count']})
+        return catalog_draft(food,{'grams':grams*portion['count']},partial=partial)
     label_portion,_=meal_chat.amount(meal_chat.raw(label))
     # "100 g" is not an apple, slice or bowl. Do not silently call a mass-only
     # catalog reference the household serving the person described.

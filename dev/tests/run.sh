@@ -82,6 +82,7 @@ node dev/tests/test_thread_outbox.js
 node dev/tests/test_food_send_recovery.js
 node dev/tests/test_food_chat_viewport.js
 node dev/tests/test_food_review_strip.js
+node dev/tests/test_pending_food_nutrition.js
 node dev/tests/test_thread_privacy.js
 node dev/tests/test_quick_food_visit.js
 node dev/tests/test_thread_nutrients.js
@@ -156,6 +157,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_i
 docker compose -p "$P" exec -T app python - < dev/tests/food_chat_quality_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_chat_understand_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_entry_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/pending_food_nutrition_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_sql.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_receipts_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_kit_incontainer.py

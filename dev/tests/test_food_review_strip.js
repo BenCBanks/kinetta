@@ -53,6 +53,8 @@ console.log('all estimate cards: visible row breakdown and total even one/zero, 
 
 // Explicit removal names each ingredient and disappears with the final food.
 Object.assign(c,{fmtAmount:()=>"0.25 serving",source:()=>"Kit’s estimate"});
+Object.assign(c,{FoodNutrition:{macros:()=> 'Protein unknown · Carbs unknown · Fat unknown'}});
+vm.runInContext(source.slice(source.indexOf('  const nutritionAttr='),source.indexOf('  function choices(')),c);
 vm.runInContext(source.slice(source.indexOf('  function previewRows('),source.indexOf('  const pendingReview=')),c);
 const removable={index:0,status:'ready',entries:[{name:'Mayonnaise <test>',kcal:25}],drafts:[{portion:{count:.25}}],entry_drafts:[0],remove_entries:[0],remove_token:'a'.repeat(64)};
 const rows=c.previewRows(root,{parts:[removable]});

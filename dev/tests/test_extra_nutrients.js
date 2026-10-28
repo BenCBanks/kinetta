@@ -21,6 +21,7 @@ assert(c.foodStorage({kcal:10,ref:{unknown_nutrients:['future_nutrient']}}).ref.
 // Render the actual final review: storage placeholders for unknown macros must
 // not become a reassuring zero, including mixed foods and a recipe portion.
 vm.runInContext(source.slice(source.indexOf('const MACROS'),source.indexOf('const EXTRA_NUTRIENTS')),c);
+vm.runInContext(fs.readFileSync('app/static/food-nutrition.js','utf8'),c);
 Object.assign(c,{readOwner:()=> 'fixture',newId:()=> 'fixture-review',json:(method,body)=>({method,body}),guessMeal:()=> 'lunch',MEAL_NAMES:{lunch:'Lunch'},svg:()=>'',homeCalories:Math.round,fmtAmount:()=> '1 serving',FoodThread:{source:()=> 'Your numbers'},guardFoodSheet(){},$$:()=>[]});
 vm.runInContext(fs.readFileSync('app/static/food-review.js','utf8')+'\nglobalThis.review=FoodReview;',c);
 async function finalReview(foods,portion=false){
