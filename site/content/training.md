@@ -112,7 +112,7 @@ Your previous numbers, beside every set.
 
 ## log-each-set-as-you-go-the-weights-and-reps-from-your--24
 
-Record exercises, weight and reps as you train. Compare with the previous session and follow each exercise’s history.
+Record exercises, weight and reps as you train. Compare with the previous session and follow each exercise’s history. When you finish, a summary shows your totals, any new records and each exercise beside last time.
 
 ## training-training-food-food-friends-friends-compare-co-25
 
@@ -136,7 +136,7 @@ Your pace as you go
 
 ## recording-live
 
-See pace over the last 30 seconds, with your average and last mile or km below. Rides and skiing show speed. “Say my time every mile/km” starts on; the iPhone app can speak with the phone locked.
+See pace over the last 30 seconds, with your average and last mile or km below. Rides and skiing show speed. “Say my time every mile/km” starts on; the iPhone app can speak with the phone locked. Finish opens a summary of distance, time, pace, splits and map, so you can name it before saving.
 
 ## recording-distance-heading
 

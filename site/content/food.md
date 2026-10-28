@@ -60,7 +60,7 @@ Scan it, snap it, or just say it.
 
 ## story-scan-20
 
-Scan a package. Its label is ready to log.
+Scan a package. Check its protein, carbs and fat against the box, then log it.
 
 ## story-snap-21
 
