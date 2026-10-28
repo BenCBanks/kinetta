@@ -31,7 +31,7 @@ const Segments = (() => {
     body.innerHTML = `<a class="primary wide" href="/segments/new">${svg('plus')}Create a segment</a>
       <p class="small muted">Segments are fixed stretches with times. Members can race the same course; joining the leaderboards is your choice.</p>
       <form class="searchbox" id="sg-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" value="${esc(term)}" placeholder="Search segments" aria-label="Search segments" maxlength="120" enterkeyhint="search"></form>
-      <div class="chips" role="group" aria-label="Show">${[['near', 'Near the map'], ['saved', 'Saved'], ['mine', 'Created by me']].map(([k, l]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filter === k}">${l}</button>`).join('')}
+      <div class="chips segment-filters" role="group" aria-label="Show">${[['near', 'Near the map'], ['saved', 'Saved'], ['mine', 'Created by me']].map(([k, l]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filter === k}">${l}</button>`).join('')}
         <select id="sg-sport" class="chip" aria-label="Sport"><option value="">All sports</option>${PLAN_SPORTS.map(([k, l]) => `<option value="${k}"${sport === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="seg-map" id="sg-map" ${filter === 'near' && !term ? '' : 'hidden'}></div><div id="sg-list">${skel(2)}</div>`;
     const reload = (o) => go(`/progress/segments?${new URLSearchParams({ f: filter, ...(term ? {q: term} : {}), ...(sport ? {sport} : {}), ...o})}`, {replace: true});

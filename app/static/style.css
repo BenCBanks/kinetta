@@ -59,7 +59,7 @@ textarea { min-height: 96px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: var(--tx3); opacity: 1; }
 input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .primary, .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-align: center; line-height: 1.2;
-  min-height: 42px; padding: 8px 18px; border-radius: 999px; font-weight: 700; font-size: 14.5px; letter-spacing: -.005em;
+  min-height: 44px; padding: 8px 18px; border-radius: 999px; font-weight: 700; font-size: 14.5px; letter-spacing: -.005em;
   transition: transform .1s ease, background-color .15s ease, opacity .15s; }
 .primary { border: 0; background: var(--btn); color: var(--onbtn); box-shadow: 0 6px 16px color-mix(in srgb, var(--btn) 22%, transparent); }
 .ghost { border: 0; background: var(--card2); color: var(--tx); }
@@ -68,7 +68,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .primary:active, .ghost:active { transform: scale(.97); }
 .primary:disabled, .ghost:disabled { opacity: .5; }
 .primary.wide, .ghost.wide { display: flex; width: 100%; margin-top: 12px; min-height: 50px; font-size: 15.5px; }
-.primary.sm, .ghost.sm { min-height: 32px; padding: 5px 12px; font-size: 13.5px; border-radius: 999px; }
+.primary.sm, .ghost.sm { min-height: 44px; padding: 5px 12px; font-size: 13.5px; border-radius: 999px; }
 .primary.sm svg { width: 16px; height: 16px; }
 .primary.danger-btn { background: var(--alert); color: var(--color-on-error); }
 .ghost.danger { color: var(--alert); }
@@ -124,14 +124,14 @@ details.fold-row[open] { padding-bottom: 12px; }
 .seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--segon); color: var(--accent); font-weight: 700;
   box-shadow: 0 1px 3px rgba(0,0,0,.14), 0 0 0 .5px rgba(0,0,0,.05); }
 .seg button:not([aria-pressed="true"]):not([aria-selected="true"]) { color: var(--tx3); }
-.seg.wide { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; } .seg.wide button { flex: 1 0 auto; min-height: 40px; }
-.seg.full { display: flex; width: 100%; } .seg.full button { flex: 1; min-height: 40px; }
+.seg.wide { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; } .seg.wide button { flex: 1 0 auto; min-height: 44px; }
+.seg.full { display: flex; width: 100%; } .seg.full button { flex: 1; min-height: 44px; }
 .shell > .seg.wide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; margin-bottom: 14px; }
 .shell > .seg.wide.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .shell > .seg.wide button { min-width: 0; }
 .seg.wide.vis3, .sheet .seg.wide.vis3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
 .seg.wide.trim4, .sheet .seg.wide.trim4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; }
-.seg.vis3 button, .seg.trim4 button { min-width: 0; min-height: 38px; white-space: normal; padding: 6px 4px; }
+.seg.vis3 button, .seg.trim4 button { min-width: 0; min-height: 44px; white-space: normal; padding: 6px 4px; }
 .card .seg.vis3, .card .seg.trim4 { margin: 4px 0 8px; }
 .sheet .seg.wide { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); overflow: visible; }
 .sheet .seg.wide button { min-width: 0; min-height: 36px; padding: 6px 4px; font-size: 13px; }
@@ -581,7 +581,7 @@ tr.muted td { color: var(--tx3); }
 .pred .pbest { display: block; margin-top: 6px; font-size: 12px; font-weight: 650; color: var(--tx3); } .pred .pr .pbest { color: var(--prog); }
 
 .rng { margin: 4px 0 12px; }
-.range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 12px; border: 0; border-radius: 999px;
+.range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 12px; border: 0; border-radius: 999px;
   background: var(--card2); box-shadow: var(--shadow); color: var(--tx); font-weight: 500; font-size: 14px; white-space: nowrap; }
 .range-btn svg { width: 16px; height: 16px; flex: none; color: var(--tx3); } .range-btn span { overflow: hidden; text-overflow: ellipsis; }
 
@@ -632,7 +632,7 @@ tr.muted td { color: var(--tx3); }
 /* Nutrition (2026-10-12 redesign): the row of small buttons (View, the day, ‹ ›) and the one summary card */
 .nbar { align-items: center; } .nbar .daypick span { overflow: hidden; text-overflow: ellipsis; }
 .nbar-arrows { display: flex; gap: 6px; margin-left: auto; flex: none; }
-.icon-btn.sm { width: 38px; height: 38px; }
+.icon-btn.sm { width: 44px; height: 44px; }
 .tcard .tc-note { margin: 8px 0 0; }
 .tc-macros { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .tcard .tc-macros .mrow b { font: 700 13px/1.2 var(--numf); letter-spacing: 0; } .tc-macros .mrow b i { font-style: normal; color: var(--tx3); font-weight: 500; }
@@ -648,8 +648,8 @@ tr.muted td { color: var(--tx3); }
 .tcard .tc-bal .brow b { font: 700 15px var(--numf); letter-spacing: 0; }
 a.ntile { color: inherit; text-decoration: none; }
 .quick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 12px; }
-.quick .ghost { min-height: 42px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); padding: 8px 16px; }
-.quick .primary { min-height: 42px; font-size: 15px; border-radius: 999px; } .quick .primary svg { width: 18px; height: 18px; }
+.quick .ghost { min-height: 44px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); padding: 8px 16px; }
+.quick .primary { min-height: 44px; font-size: 15px; border-radius: 999px; } .quick .primary svg { width: 18px; height: 18px; }
 .ring { position: relative; width: 96px; height: 96px; } .ring svg { width: 96px; height: 96px; }
 .ring .rb { fill: none; stroke: var(--card2); stroke-width: 10; } .ring .rf { fill: none; stroke: var(--prog); stroke-width: 10; stroke-linecap: round; }
 .ring > div { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; }   /* "LEFT" under the number, centred */
@@ -1034,7 +1034,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 #lb .share-line .linkbtn { padding: 0; min-height: 36px; }
 
 /* ---------- dish page, round four (2026-10-12): laid out like a chat ---------- */
-.top .primary.sm { min-height: 38px; padding: 0 16px; border-radius: 999px; font-size: 15px; }
+.top .primary.sm { min-height: 44px; padding: 0 16px; border-radius: 999px; font-size: 15px; }
 .shell .dish-name-in { font-size: 22px; min-height: 40px; margin: 0 0 4px; padding: 4px 8px; }
 .dish-sum { margin: 0 10px 14px; font-size: 14px; color: var(--tx2); line-height: 1.5; } .dish-sum b { color: var(--tx); font-weight: 750; }
 .ing-card { padding: 4px 14px !important; }
@@ -1845,7 +1845,7 @@ button.thread-food { cursor: pointer; }
 html:has(.food-thread) { --tab-h: 0px; }
 html:has(.food-thread) nav.tabs { display: none; }
 .thread-compose-row:focus-within { border-color: var(--accent); }
-.food-thread .thread-plus, .food-thread .thread-send { flex: none; width: 42px; height: 42px; min-width: 42px; min-height: 42px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.food-thread .thread-plus, .food-thread .thread-send { flex: none; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
 .thread-plus { background: var(--card2); color: var(--tx); transition: transform .15s ease; }
 .thread-plus.open svg { transform: rotate(45deg); }
 .thread-send svg, .thread-plus svg { width: 20px; height: 20px; }
@@ -2341,7 +2341,7 @@ button.thread-food:active { opacity: .7; }
 .kit-starters {display:flex;flex-wrap:wrap;gap:8px;}
 .kit-starters button {width:auto;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--tx);font-size:.9375rem;font-weight:550;text-align:left;white-space:normal;}
 .kit-fine {margin:12px 0 0;color:var(--tx3);font-size:.8125rem;}
-.kit-fine .linkbtn {font-size:inherit;min-height:0;padding:0;}
+.kit-fine .linkbtn {font-size:inherit;min-height:44px;padding:0 4px;}
 .kit-chat #thread-messages:empty {flex:0;padding:0;}
 .kit-compose-row {grid-template-columns:minmax(0,1fr) 44px;}
 #kit-text {font-size:16px;resize:none;max-height:140px;min-height:44px;}
@@ -2633,6 +2633,8 @@ nav.tabs { view-transition-name: tabs; }
 .routes-tabs a{min-width:0;text-align:center;overflow-wrap:anywhere;line-height:1.3;padding:8px 4px}
 
 /* Segment assistance declaration stays with the activity; it never changes the recorded workout. */
+.segment-filters { flex-wrap:wrap; overflow:visible; }
+.segment-filters .chip { min-width:0; max-width:100%; white-space:normal; }
 .segment-assistance { margin-block: var(--s4, 16px); }
 .segment-assistance summary { padding-block: 12px; cursor: pointer; }
 .segment-assistance form { padding-block: 12px; }
