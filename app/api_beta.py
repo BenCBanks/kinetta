@@ -25,6 +25,8 @@ def enabled():
 
 
 class BetaIn(BaseModel):
+    challenge_code:str|None=Field(None,max_length=60)
+    challenge_join:StrictBool=False
     card_code: str | None = Field(None,max_length=60)
     card_request: StrictBool = False
     name: str = Field(min_length=1, max_length=60)
@@ -57,11 +59,16 @@ def beta_request(body: BetaIn, request: Request):
             from . import cards
             try:origin=cards.active(c,body.card_code)['code']
             except HTTPException:pass
-        c.execute("""INSERT INTO beta_requests (name, email, phone, watch, note,card_code,card_request) VALUES (%s, %s, %s, %s, %s,%s,%s)
+        challenge=None
+        if body.challenge_code:
+            from . import challenges
+            try:challenge=challenges.accessible(c,body.challenge_code)['code']
+            except HTTPException:pass
+        c.execute("""INSERT INTO beta_requests (name, email, phone, watch, note,card_code,card_request,challenge_code,challenge_join) VALUES (%s, %s, %s, %s, %s,%s,%s,%s,%s)
                      ON CONFLICT (lower(email)) DO UPDATE SET name = EXCLUDED.name, phone = EXCLUDED.phone,
-                       watch = EXCLUDED.watch, note = EXCLUDED.note,card_code=EXCLUDED.card_code,card_request=EXCLUDED.card_request
+                       watch = EXCLUDED.watch, note = EXCLUDED.note,card_code=EXCLUDED.card_code,card_request=EXCLUDED.card_request,challenge_code=EXCLUDED.challenge_code,challenge_join=EXCLUDED.challenge_join
                      WHERE beta_requests.status = 'new'""",
-                  (body.name.strip(), email, body.phone, clean(body.watch), clean(body.note),origin,body.card_request if origin else False))
+                  (body.name.strip(), email, body.phone, clean(body.watch), clean(body.note),origin,body.card_request if origin else False,challenge,body.challenge_join if challenge else False))
     return {'ok': True}
 
 

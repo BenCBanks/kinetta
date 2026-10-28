@@ -4,6 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 async function device(info){
  const saved=new Map([['token','old-token'],['server','https://example.test']]),events=[],c={route(){},console,Date,Map,JSON,Promise,Error,setTimeout,clearTimeout,App:{me:{id:1},cache:new Map([['private','old']])},forgetKept:()=>events.push('forget'),MutationObserver:class{observe(){}},
   document:{documentElement:{},addEventListener(){}},window:{addEventListener(){},Capacitor:{isNativePlatform:()=>true,Plugins:{Preferences:{get:async({key})=>({value:saved.get(key)}),set:async({key,value})=>saved.set(key,value),remove:async({key})=>saved.delete(key)},...(info?{App:{getInfo:info}}:{})}}},json:(method,body)=>({method,body}),api:async()=>({password_change_required:true,change_token:'restricted-challenge'})};
+ c.readOwner=()=>JSON.stringify([c.n?.base,c.n?.token,c.App.me?.id]);
  vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/native.js','utf8')+'\nglobalThis.n=Native;',c);await c.n.ready;
  c.n.disconnectPush=async()=>events.push('push-stop');c.n.disconnectHealth=async()=>{events.push('health-stop');return []};c.n.stopActivityShare=async()=>events.push('share-stop');return {c,saved,events};
 }

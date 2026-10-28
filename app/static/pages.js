@@ -1351,6 +1351,7 @@ route(/^\/me$/, 'me', async (el) => {
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
     <div class="card list me-tools">${row('a', `href="${profileHref(me)}"`, 'user', 'c-brand', 'Your profile<small class="muted">Edit, share &amp; see your progress</small>')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
+  el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
   el.insertAdjacentHTML('beforeend','<div id="me-milestones"></div>');Milestones.mount($('#me-milestones',el),{row:true});
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });

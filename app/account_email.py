@@ -154,11 +154,13 @@ def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
                 with c.transaction(): join_by_link(c, r['user_id'], link)
             except HTTPException: pass
             c.execute('UPDATE profile SET friend_link = NULL WHERE user_id = %s', (r['user_id'],))
+    from . import challenges
+    with db.connect() as c:joined=challenges.consume_signup(c,r['user_id'])
     if r['current'] and r['current'].lower() != r['email'].lower():
         background.add_task(send, r['current'], 'Your Kinetta email was changed',
             f"Hi {r['name']},\n\nThe email on your Kinetta account ({r['login']}) is now {r['email']}. "
             "If that wasn't you, reply to this email and we'll help sort it out." + SIGNATURE)
-    return {'ok': True, 'email': r['email']}
+    return {'ok': True, 'email': r['email'],'challenge_joined':joined}
 
 
 # ---------- forgot password ----------

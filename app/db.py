@@ -1858,6 +1858,30 @@ MIGRATIONS = [
     CREATE TRIGGER milestone_profile AFTER UPDATE OF tz,units ON profile FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
     """,
 
+    # 83. Explicit small-group challenges; membership never grants raw activity/food access.
+    """CREATE TABLE challenges(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code text NOT NULL UNIQUE,kind text NOT NULL CHECK(kind IN ('distance','active_days','activities','food_days','protein_days')),
+      sports jsonb NOT NULL,target double precision NOT NULL CHECK(target>0 AND target<=100000),unit text NOT NULL,
+      start_day date NOT NULL,end_day date NOT NULL,zone text NOT NULL,ended_at timestamptz,
+      request_id text NOT NULL,request_body jsonb NOT NULL,created timestamptz NOT NULL DEFAULT now(),
+      checked_at timestamptz NOT NULL DEFAULT 'epoch',UNIQUE(user_id,request_id),CHECK(end_day>=start_day));
+    CREATE TABLE challenge_members(challenge_id uuid NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','left','removed')),
+      joined timestamptz NOT NULL DEFAULT now(),three_notice boolean NOT NULL DEFAULT false,finished_notice boolean NOT NULL DEFAULT false,
+      PRIMARY KEY(challenge_id,user_id));
+    CREATE INDEX challenge_members_owner ON challenge_members(user_id,status);
+    CREATE INDEX challenges_worker ON challenges(checked_at);
+    ALTER TABLE challenges ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON challenges FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT(id,user_id,kind,sports,target,unit,start_day,end_day,zone,ended_at,created) ON challenges TO fit_readers;
+    ALTER TABLE challenge_members ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON challenge_members FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON challenge_members TO fit_readers;
+    ALTER TABLE notifications ADD COLUMN challenge_id uuid REFERENCES challenges(id) ON DELETE CASCADE;
+    ALTER TABLE beta_requests ADD COLUMN challenge_code text;
+    ALTER TABLE beta_requests ADD COLUMN challenge_join boolean NOT NULL DEFAULT false;
+    """,
+
 ]
 
 
