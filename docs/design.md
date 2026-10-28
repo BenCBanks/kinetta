@@ -1305,3 +1305,5 @@ My Recipes → Create a recipe opens the recipe’s dedicated ingredient editor.
 Add food shows My Recipes, Take a photo, Scan a barcode and Search foods as the existing Kit-style suggestion bubbles above the composer, in addition to +. They wrap at narrow widths and hide with the software keyboard so the focused field remains visible. Closing the keyboard restores them without losing the draft. These are app actions and make no model call.
 
 Empty Add food entry keeps the keyboard closed so the quick-action bubbles are visible immediately. A retained unsent text draft can resume focus; deliberate tool links still open their selected tool.
+
+Chat suggestion bubbles pair the existing small blue pictograms with their text labels, including My Recipes, photo, barcode and food search. Contextual Kit suggestions use the same treatment. Add food uses Kit’s existing sparkle mark beside its empty-state heading, matching the Kit intro. These are presentation changes; suggestions retain their actions and questions, and icons do not enable AI or change consent.
