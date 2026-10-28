@@ -2,7 +2,8 @@
 
 Kinetta uses one operator setting for activity maps, feed previews, recording, segments, personal heatmaps,
 moderation maps and activity share pictures. The route and recording work independently of the background.
-A failed map shows a plain background and **Map unavailable** with Retry; a picture can still be shared without it.
+Missing tiles retain a plain background; **Map unavailable** with Retry appears when at least half the requested tiles fail. Tiles that loaded stay visible, and panning can load other tiles without Retry.
+A picture can still be shared without it.
 Map data, permission to use a service and the renderer's software licence are separate matters.
 
 ## Choose a source
@@ -24,7 +25,7 @@ or App Store approval**. Check its [usage policy](https://operations.osmfoundati
 identification/referrer, attribution, caching and appropriate load are required; availability is best effort and
 prefetch/bulk downloading is prohibited. The policy does not categorically ban every distributed app. A hosted or
 widely distributed install should use a permitted operator-controlled or contracted source before release.
-The personal default has no genuine dark tiles; it remains a light map in dark appearance, without CSS inversion.
+The personal default has no genuine dark tiles; it remains a light map in dark appearance, without CSS inversion. Routes use the darker action blue on a light-only raster background to retain contrast.
 Configured vector maps switch light/dark live with system appearance and the app's theme hook, retaining the view.
 
 ## Settings

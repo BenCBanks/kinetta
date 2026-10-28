@@ -28,6 +28,10 @@ class Maps(unittest.TestCase):
           {'KINETTA_MAP_TILES':'https://example.test;evil/{z}/{x}/{y}.png'}]
         for e in bad:
             with self.subTest(e=e),self.assertRaises(ValueError):maps.settings(e)
+    def test_kind_without_url_names_the_missing_setting(self):
+        for kind in ('raster','vector','pmtiles'):
+            with self.subTest(kind=kind),self.assertRaisesRegex(ValueError,'KINETTA_MAP_TILES is required'):
+                maps.settings({'KINETTA_MAP_KIND':kind})
     def test_off_does_not_fall_back_to_public_tiles(self):
         d=maps.settings({'KINETTA_MAP_TILES':'off'});self.assertEqual(d['kind'],'off');self.assertEqual(maps.origins(d),[])
 

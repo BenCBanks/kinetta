@@ -32,6 +32,7 @@ node dev/tests/test_map_contract.js
 
 node dev/tests/test_recaps.js
 node dev/tests/test_milestones.js
+node dev/tests/test_map_failure.js
 node dev/tests/test_route_drafts.js
 node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
@@ -210,5 +211,6 @@ echo "== stationary ride charts and HR sharing"
 docker compose -p "$P" exec -T app python - < dev/tests/stationary_charts_incontainer.py
 echo "== private milestones, silent imports and notification boundaries"
 docker compose -p "$P" exec -T app python - < dev/tests/milestones_incontainer.py
+
 
 echo "== all passed"
