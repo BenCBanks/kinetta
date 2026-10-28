@@ -55,7 +55,7 @@ class Signup(unittest.TestCase):
     def test_open_signup_confirm_and_restrictions(self):
         self.env(KINETTA_SIGNUP='open')
         new = client()
-        self.assertEqual(new.post('/api/signup', json=form('zz_test_su_new', age_ok=False)).status_code, 400, '16+ required')
+        self.assertEqual(new.post('/api/signup', json=form('zz_test_su_new', age_ok=False)).status_code, 400, '18+ required')
         r = new.post('/api/signup', json=form('zz_test_su_new')); self.assertEqual(r.status_code, 200, r.text)
         me = new.get('/api/me').json()
         self.assertTrue(me['needs_email_confirm']); self.assertEqual(me['pending_email'], 'zz_test_su_new@example.test'); self.assertIsNone(me['email'])

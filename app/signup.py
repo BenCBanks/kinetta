@@ -56,7 +56,7 @@ def signup_info():
 
 class SignupIn(NewAccountIn):
     email: str = Field(max_length=120)
-    age_ok: StrictBool = False        # "I'm 16 or older" (privacy policy)
+    age_ok: StrictBool = False        # "I'm 18 or older" (privacy policy)
     website: str | None = Field(None, max_length=200)     # hidden on the form: people leave it empty, bots fill it
     app: bool = False       # the iPhone app (#232 E): answer with the login token instead of setting a cookie
     friend_link: str | None = Field(None, max_length=40)    # a friend's invite link this signup came from (2026-10-25)
@@ -65,7 +65,7 @@ class SignupIn(NewAccountIn):
 @router.post('/api/signup')
 def signup(body: SignupIn, request: Request, response: Response, background: BackgroundTasks):
     email = account_email._clean_email(body.email)
-    if not body.age_ok: raise HTTPException(400, 'Kinetta is for people 16 or older')
+    if not body.age_ok: raise HTTPException(400, 'Kinetta is for people 18 or older')
     with db.connect() as c:
         if account_email.limited(c, 'signup-ip:' + auth.client_ip(request), 5, 60): raise HTTPException(429, 'Too many tries - wait an hour')
     if body.website: return {'ok': True}          # a bot: say nothing useful, make nothing

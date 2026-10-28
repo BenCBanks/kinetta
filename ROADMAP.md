@@ -14,7 +14,7 @@ Work in this order; each step is one or more reviewable PRs.
 | Step | Work | Issue | Gate before the next step |
 | --- | --- | --- | --- |
 | L1 | Email on accounts: add/confirm/change email, log in with username or email, **Forgot password** by email, sender shown as "Kinetta" | [#232](https://github.com/BenCBanks/kinetta/issues/232) A–C | A fictional account resets its password by email end to end |
-| L2 | **Sign up with email** (16+ confirmation, confirm address), operator signup mode and the 100-account cap, waitlist when full, Accounts N of 100 in admin | #232 D | Cap and race tests pass on a test copy |
+| L2 | **Sign up with email** (18+ confirmation, confirm address), operator signup mode and the 100-account cap, waitlist when full, Accounts N of 100 in admin | #232 D | Cap and race tests pass on a test copy |
 | L3 | Admin launch safety and core user management: database-backed login limits, MFA-off warning, operator checklist, account search, account page, send reset email, sign out everywhere, suspend/restore | [#233](https://github.com/BenCBanks/kinetta/issues/233) A–D | Admin can support a fictional account without database access |
 | L4 | First run and settings clean-up: Get started leads for new people (no empty charts), Settings only holds settings, one Notifications entry, simpler profile editing, Signed-in devices | #232 F, G, I and its #238 review comment | Fresh account walk-through at 390 px, light and dark |
 | L5 | iPhone app: create account, forgot password and the first-run steps natively; new TestFlight build | #232 E | Owner installs the build and signs up on a physical iPhone |

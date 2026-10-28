@@ -1179,7 +1179,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone on Kinetta</option><option value="friends">Approved friends</option><option value="me">Only me</option></select></label>
     <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
     ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
-    ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older and agree to the <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">privacy policy</a></span></label>
+    ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 18 or older and agree to the <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">privacy policy</a></span></label>
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>` : ''}
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
@@ -1206,7 +1206,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
   // fixing a field clears its message
   f.addEventListener('input', (e) => { const l = e.target.closest('label'); if (l?.nextElementSibling?.classList.contains('field-err')) { l.nextElementSibling.remove(); e.target.removeAttribute('aria-invalid'); } });
   // which field a server answer is about
-  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && pick ? 'login' : /\bname\b/i.test(m) ? 'name' : /16 or older/i.test(m) && signup ? 'age_ok' : null;
+  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && pick ? 'login' : /\bname\b/i.test(m) ? 'name' : /18 or older/i.test(m) && signup ? 'age_ok' : null;
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const b = $('button[type=submit]', f) || $('button', f);
@@ -1214,7 +1214,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     if (pick && !f.login.value.trim()) return fieldErr('login', 'Choose a username.');
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.value.trim())) return fieldErr('email', 'Enter your email address, like name@example.com.');
     if (f.password.value.length < 10) return fieldErr('password', `Use at least 10 characters for your password (you have ${f.password.value.length}).`);
-    if (signup && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 16 or older. Tick the box to continue.');
+    if (signup && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 18 or older. Tick the box to continue.');
     b.disabled = true; fieldErr(null, '');
     try { await send({name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
         ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim()}),
@@ -1275,7 +1275,7 @@ async function showJoin(token) {
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
-// "Create an account" (open signup, #232): email, username, password and a 16+ confirmation. When the server's account
+// "Create an account" (open signup, #232): email, username, password and a 18+ confirmation. When the server's account
 // cap is reached the waitlist takes over; the email link still has to be opened before others can see the person.
 async function showSignup(friendLink = store.get('kinetta.friendLink')) {
   let s = {}, inviter = null;
