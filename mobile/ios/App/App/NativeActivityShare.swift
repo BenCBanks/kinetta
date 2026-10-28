@@ -7,10 +7,31 @@ import UIKit
 class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInteractionControllerDelegate {
     let identifier = "KinettaActivitySharePlugin"
     let jsName = "KinettaActivityShare"
-    let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
-    ]
+    let pluginMethods: [CAPPluginMethod] = {
+        var methods = [
+            CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
+        ]
+        #if DEBUG
+        methods.append(CAPPluginMethod(name: "uiTestMetrics", returnType: CAPPluginReturnPromise))
+        #endif
+        return methods
+    }()
+    #if DEBUG
+    // The Simulator test copy writes only bounded fictional measurements to its own temporary directory.
+    // This method and its registration are absent from production Release builds.
+    @objc func uiTestMetrics(_ call: CAPPluginCall) {
+        guard let value = call.getString("value"), value.utf8.count <= 65536,
+              let data = value.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["fixture"] as? Bool == true else { call.reject("Invalid UI fixture measurements"); return }
+        do {
+            try data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("kinetta-ui-metrics.json"), options: .atomic)
+            call.resolve()
+        } catch { call.reject("UI fixture measurements could not be saved") }
+    }
+    #endif
+
     private var pending: CAPPluginCall?
     private var document: UIDocumentInteractionController?
     private var activity: UIActivityViewController?

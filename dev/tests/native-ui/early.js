@@ -18,7 +18,7 @@
       if(p==='/api/me')data=me;
       else if(p==='/api/setup')data={needed:false};
       else if(p==='/api/dishes/1')data=cfg.dish;
-      else if(p==='/api/food/thread')data={messages:[],before:null,has_more:false,preferences:prefs};
+      else if(p==='/api/food/thread'||p.startsWith('/api/food/thread/reviews/draft/'))data={messages:[],before:null,has_more:false,preferences:prefs};
       else if(p==='/api/food/thread/preferences')data=prefs;
       else if(p==='/api/food/day')data={day:'2026-10-28',entries:[],totals:nutrients,goal:null,targets:{},food_user:false,has_history:false,unknown_nutrients:{}};
       else if(p==='/api/friends')data={friends:[],incoming:[],outgoing:[]};
