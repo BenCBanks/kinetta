@@ -19,7 +19,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg import errors
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StrictBool, model_validator
 
 from . import activities, analysis, db, parsers
 from .auth import current_user
@@ -58,6 +58,7 @@ class WorkoutIn(BaseModel):
     avg_stride: float | None = Field(None, ge=0, le=5000)  # millimetres, like the FIT importer
     avg_vo: float | None = Field(None, ge=0, le=500)
     avg_gct: float | None = Field(None, ge=0, le=3000)
+    indoor: StrictBool | None = None                     # absent on older installed clients
     source: str | None = Field(None, max_length=100)      # the app or watch that recorded it, e.g. "Apple Watch"
     route: list[Point] = Field(default_factory=list, max_length=100_000)
     heart_rate: list[Beat] = Field(default_factory=list, max_length=100_000)
@@ -195,6 +196,8 @@ def enrich(uid, aid, w, parsed, meta):
             activities.set_geometry(c, aid, st)
             activities.match_route(c, uid, aid)
         details = {'imported': imported, 'route_points': sum(v is not None for v in st['lat']), 'heart_rate_points': sum(v is not None for v in st['hr'])}
+        indoor=w.indoor if w.indoor is not None else (a.get('health_details') or {}).get('indoor')
+        if indoor is not None:details['indoor']=indoor
         corrections.capture(c,raw_a,updates)
         updated = bool(updates or changed)
         updates.update(healthkit_id=w.id, health_details=json.dumps(details))

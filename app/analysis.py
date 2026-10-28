@@ -438,10 +438,12 @@ def power_curve(S):
     return out
 
 
-def clean_chart(chart):
+def clean_chart(chart, speed_available=True):
     """Older indoor recordings contain generated zero-speed lines; filter at read time too."""
     if not chart: return None
     chart = dict(chart)
+    if not speed_available:
+        chart.pop('speed',None);chart.pop('gap_speed',None)
     for key in ('speed', 'gap_speed', 'hr'):
         if not any(isinstance(v, (int, float)) and math.isfinite(v) and v > 0 for v in chart.get(key) or []):
             chart.pop(key, None)

@@ -26,7 +26,7 @@ from typing import Literal
 
 from . import db, notify, reactions
 from .api_account import _admin
-from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline
+from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline, SPEED_AVAILABLE_SQL
 from .auth import current_user
 from .activity_chart import sunday, weekly_distances, distance_days
 from .admin_auth import admin_user, audit
@@ -101,7 +101,7 @@ def _clean_details(v):
 def _select(extra=''):
     return f"""SELECT a.id, a.sport, a.sport_label, a.name, a.start_time, a.distance_m, a.moving_s, a.elapsed_s,
       a.gap_s_per_km, a.max_speed, a.avg_hr, a.max_hr, a.effort, a.ascent_m, a.descent_m, a.max_alt, a.min_alt, a.vam,
-      a.calories, a.description, a.device, {extra}
+      a.calories, a.description, a.device, {SPEED_AVAILABLE_SQL} AS speed_available, {extra}
       a.share_details AS a_details, p.share_details AS p_details, s.trim_m, u.login::text AS owner_login, u.name AS owner_name, u.photo_v AS owner_photo, {PHOTOS_SQL},
       CASE WHEN a.geom IS NULL THEN NULL
            WHEN s.trim_m = 0 THEN ST_AsGeoJSON(ST_Simplify(a.geom, %(tol)s))
@@ -126,6 +126,7 @@ def shared_activity(r):
     out = {k: r[k] for k in ALWAYS}
     for key, cols in FIELDS.items():
         if d[key]: out.update({k: r[k] for k in cols if k in r})
+    if d['pace']:out['speed_available']=r.get('speed_available',True)
     out['line'] = polyline(json.loads(r['g'])['coordinates']) if d['map'] and r['g'] else None
     out['ends_hidden'] = bool(out['line']) and r['trim_m'] > 0
     hr, el = d['heart_rate'], d['elevation']
@@ -135,7 +136,7 @@ def shared_activity(r):
         for k in ('splits_km', 'splits_mi'):
             if k in r: out[k] = _pick(r[k], sk)
         if 'laps' in r: out['laps'] = _pick(r['laps'], lk)
-    ch = analysis.clean_chart(r.get('chart'))
+    ch = analysis.clean_chart(r.get('chart'),speed_available=r.get('speed_available',True))
     if ch:   # chart series: only the shared ones; without pace, only the distance axis (distance + time = pace)
         keep = [k for k, on in (('speed', d['pace']), ('gap_speed', d['pace']), ('hr', hr), ('alt', el)) if on and ch.get(k)]
         if keep:

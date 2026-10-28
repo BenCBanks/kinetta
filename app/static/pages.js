@@ -10,7 +10,7 @@ function headline(a) {
   const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', dur(a.moving_s || a.elapsed_s));
   const third = a.distance_m ? stat('Time', dur(a.moving_s || a.elapsed_s)) :
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
-  return first + (a.distance_m ? stat(r.label, r.v, r.u) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
+  return first + (a.distance_m ? (r.label==='Time' ? (a.avg_hr?stat('Avg HR',Math.round(a.avg_hr),'bpm'):'') : stat(r.label,r.v,r.u)) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
 }
 // One card for every activity in a list (2026-10-11 redesign, Strava-style): who and when, the name, three numbers, the
 // map edge to edge, then cheers and comments. `who` adds the person (the Feed); without it the sport leads (Mine, Today).
@@ -41,7 +41,7 @@ function postCard(a, {who = false, compact = false} = {}) {
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
   if (a.distance_m) st.push(stat('Distance', U.dist(a.distance_m), U.du()));
-  if (a.distance_m && a.moving_s && a.shares.pace) { const r = rate(a); st.push(stat(r.label, r.v, r.u)); }
+  if (a.distance_m && a.moving_s && a.shares.pace) { const r = rate(a); if(r.label!=='Time')st.push(stat(r.label, r.v, r.u)); }
   st.push(stat('Time', dur(a.moving_s || a.elapsed_s)));
   if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
   return st.slice(0, 3).join('');
@@ -461,7 +461,7 @@ function sportStats(a) {
     add('Pool', a.pool_length_m ? `${Math.round(a.pool_length_m)} m` : null);
   }
   if (FOOT.includes(a.sport)) add('GAP', a.gap_s_per_km ? U.pace(a.gap_s_per_km) : null, U.pu());
-  if (['ride', 'ski', 'row'].includes(a.sport) || a.max_speed) add('Max speed', a.max_speed ? U.speed(a.max_speed) : null, U.su());
+  if (a.speed_available!==false && (['ride', 'ski', 'row'].includes(a.sport) || a.max_speed)) add('Max speed', a.max_speed ? U.speed(a.max_speed) : null, U.su());
   add('Elevation', a.ascent_m != null ? U.elev(a.ascent_m) : null, U.eu());
   if (['hike', 'ride', 'ski'].includes(a.sport)) { add('Climb rate', a.vam ? U.elev(a.vam) : null, U.eu() + '/h'); add('Highest', a.max_alt != null ? U.elev(a.max_alt) : null, U.eu()); }
   add('Avg HR', a.avg_hr ? Math.round(a.avg_hr) : null, 'bpm'); add('Max HR', a.max_hr ? Math.round(a.max_hr) : null, 'bpm');
@@ -494,7 +494,7 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
 const DTABS = [['overview', 'Overview'], ['splits', 'Splits'], ['charts', 'Charts'], ['efforts', 'Efforts']];
 function drawDetail(el, a) {
   const r = rate(a);
-  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m ? stat(r.label, r.v, r.u) : '');
+  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
@@ -805,7 +805,7 @@ async function routePicture(a, trim) {
   // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
   cells.push(['Time', dur(a.moving_s || a.elapsed_s), '']);
-  if (a.distance_m && a.moving_s) cells.push([r.label, r.v, r.u]);
+  if (a.distance_m && a.moving_s && r.label!=='Time') cells.push([r.label, r.v, r.u]);
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
   if (cells.length < 3 && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
   if (cells.length < 3 && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
