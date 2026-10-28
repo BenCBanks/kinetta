@@ -49,13 +49,13 @@ console.log('Food chat: Search tool label PASS');
 {
  const pages=fs.readFileSync('app/static/pages.js','utf8'),c={};vm.createContext(c);
  vm.runInContext(pages.match(/const ME_SHORTCUTS = \[[\s\S]*?\]\];/)[0]+'\nglobalThis.list=ME_SHORTCUTS;',c);
- const list=JSON.parse(JSON.stringify(c.list));assert.deepEqual(list.map(x=>x[2]),['Plan','Fitness','Records','Routes','Goals','Friends']);
+ const list=JSON.parse(JSON.stringify(c.list));assert.deepEqual(list.map(x=>x[2]),['Plan','Fitness','Records','Matched routes','Goals','Friends']);
  const patterns=[];for(const file of fs.readdirSync('app/static').filter(f=>f.endsWith('.js')))for(const m of fs.readFileSync('app/static/'+file,'utf8').matchAll(/^route\((\/.*?\/),/gm))patterns.push(vm.runInNewContext(m[1]));
  for(const [href] of list)assert(patterns.some(re=>re.test(href.split('?')[0])),href+' is a real page');
  assert(!/me-day-links/.test(pages),'the old Training plan row is replaced by the Plan shortcut');
  for(const [href] of list)assert(!['/me','/activity','/track','/progress','/food'].includes(href),href+' would repeat a tab');
  assert(!/row\('a', 'href="\/me\/(friends|goals)"'/.test(pages),'Friends and Goals are tiles, not list rows too');
- console.log('Me shortcuts: Plan, Fitness, Records, Routes, Goals, Friends, each a real page and none repeating a tab PASS');
+ console.log('Me shortcuts: Plan, Fitness, Records, Matched routes, Goals, Friends, each a real page and none repeating a tab PASS');
 }
 // Speed check (2026-10-18): reachable from Profile & settings, read-only (GET requests only), nothing stored.
 {
