@@ -33,7 +33,7 @@ function device(background = null, push = null) {
   return {ctx, n: ctx.client, saved, queries, sent, events};
 }
 (async () => {
-  for(const [server,path,allowed] of [['https://example.test','/routes/shared/42',true],['https://other.example.test','/routes/shared/42',false],['https://example.test','//elsewhere.test',false]]) {
+  for(const [server,path,allowed] of [['https://example.test','/routes/shared/42',false],['https://example.test','/add/fictional',true],['https://other.example.test','/routes/shared/42',false],['https://example.test','//elsewhere.test',false]]) {
     const opened=[],messages=[],linkPush={takePending:async()=>({url:path,server}),status:async()=>({allowed:false}),addListener(){}};
     const link=device(null,linkPush);await link.n.ready;link.n.base='https://example.test';link.n.token='fictional-native-session';link.ctx.go=p=>opened.push(p);link.ctx.toast=m=>messages.push(m);
     link.n.syncPush();await link.n.pushNavigationReady;assert.equal(opened.length,allowed?1:0,'shared link path/server allowlist');if(allowed)assert.equal(opened[0],path);

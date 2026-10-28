@@ -1,3 +1,5 @@
+> **Archived, 28 October 2026.** This feature is outside current product scope. The following describes historical implementation, not available behavior. Future reconsideration and provider/offline/device limitations are tracked in [#328](https://github.com/BenCBanks/kinetta/issues/328).
+
 # Share a planned route
 
 Open a route under **Track → Routes → My routes**, then **Share this route**. New routes start **Only me**, independently of your activity-sharing default. Choose **Approved friends** or **Everyone on this server**, a public name and an optional public description. Private notes are never prefilled into the public description. You may choose a shorter stretch before previewing.

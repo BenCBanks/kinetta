@@ -34,7 +34,7 @@ const Segments = (() => {
       <div class="chips" role="group" aria-label="Show">${[['near', 'Near the map'], ['saved', 'Saved'], ['mine', 'Created by me']].map(([k, l]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filter === k}">${l}</button>`).join('')}
         <select id="sg-sport" class="chip" aria-label="Sport"><option value="">All sports</option>${PLAN_SPORTS.map(([k, l]) => `<option value="${k}"${sport === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="seg-map" id="sg-map" ${filter === 'near' && !term ? '' : 'hidden'}></div><div id="sg-list">${skel(2)}</div>`;
-    const reload = (o) => go(`/routes?${new URLSearchParams({view: 'segments', f: filter, ...(term ? {q: term} : {}), ...(sport ? {sport} : {}), ...o})}`, {replace: true});
+    const reload = (o) => go(`/progress/segments?${new URLSearchParams({ f: filter, ...(term ? {q: term} : {}), ...(sport ? {sport} : {}), ...o})}`, {replace: true});
     $$('[data-f]', body).forEach((b) => b.onclick = () => reload({f: b.dataset.f}));
     $('#sg-sport', body).onchange = (e) => reload({sport: e.target.value});
     $('#sg-find', body).onsubmit = (e) => { e.preventDefault(); reload({q: e.currentTarget.elements.q.value.trim()}); };
@@ -270,7 +270,7 @@ const Segments = (() => {
         <label>Activity type<select name="assistance">${[['','Not declared'],['unassisted','Outdoors without motor assistance'],['assisted','Motor assisted'],['virtual','Virtual or indoors']].map(([v,label])=>`<option value="${v}"${(r.assistance||'')===v?' selected':''}>${label}</option>`).join('')}</select></label>
         <label class="check-row"><input name="confirmed" type="checkbox" required><span>I confirm this describes this activity.</span></label><button class="primary wide">Save declaration</button><p id="sa-status" class="small" role="status"></p></form></details>
       <label class="switch-row"><span><b>Keep off leaderboards</b><small>Times from this activity stay private, without changing who can see the activity.</small></span><input type="checkbox" role="switch" id="sa-ex"${r.excluded ? ' checked' : ''}></label>
-      <div class="list"><button class="row-link" id="sa-seg">${svg('flag')}<span class="grow">Make a segment from part of this</span>${svg('chev')}</button><a class="row-link" href="/routes/new?activity=${aid}">${svg('route')}<span class="grow">Plan a route from this</span>${svg('chev')}</a></div></div>`;
+      <div class="list"><button class="row-link" id="sa-seg">${svg('flag')}<span class="grow">Make a segment from part of this</span>${svg('chev')}</button></div></div>`;
     $('#sa-declare',box).onsubmit=async(e)=>{
       e.preventDefault();if(!live())return;const f=e.currentTarget,button=$('button',f),status=$('#sa-status',f);
       button.disabled=true;status.textContent='Saving declaration…';

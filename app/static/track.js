@@ -73,7 +73,6 @@ const Track = (() => {
     stopGPS(); if (write && session) persist(); update();
   }
   function sync() {
-    if(typeof RouteDownloads!=='undefined')RouteDownloads.attach();
     const next = accountKey();
     if (next !== key || owner && owner !== readOwner()) {
       if (session && !session.native) pause();
@@ -184,20 +183,9 @@ const Track = (() => {
       const showsAvg = !(idle ? null : TrackMath.current(samples, now));
       splits.textContent = session.distance > 10 && secs > 0 ? [showsAvg ? '' : `Average ${rateText(session, session.distance / secs)}`, n ? `${unitName(session)} ${n} in ${dur(last)}` : ''].filter(Boolean).join(' · ') : ''; }
     // plain Recording / Paused is what the dot shows; screen readers still hear it, sighted people see only news
-    updateRouteProgress();
     const status = $('#track-status'); if (status) { status.textContent = idle ? 'Auto-paused · starts again when you move' : message || (session.state === 'recording' ? 'Recording' : 'Paused'); status.classList.toggle('vh', !idle && !message); }
   }
-  let routeCourse=null,routeState={},routeRecording=null,routeLine=null,fitWhole=false;
-  function updateRouteProgress(){
-    const box=$('#track-route-progress');if(!box||!session?.routePlan||typeof RouteMath==='undefined')return;
-    const plan=session.routePlan;
-    try{
-      if(routeRecording!==session.id||routeLine!==plan.line){routeRecording=session.id;routeLine=plan.line;routeCourse=RouteMath.compile(RouteMath.decode(plan.line),plan.breaks||[]);routeState={};}
-      routeState=RouteMath.replay(routeCourse,session.points,session.start,routeState);
-      const current=RouteMath.fresh(routeState.last,Date.now()),label=$('#track-route-distance',box);
-      label.textContent=routeState.known&&current?`${routeState.partway?'First matched partway · ':''}${routeState.complete?'Route complete · keep recording until you finish':`${U.dist(routeState.m)} ${U.du()} along · ${U.dist(routeState.remaining)} ${U.du()} remaining`}`:'Route position uncertain · recording continues';
-    }catch(_){const label=$('#track-route-distance',box);if(label)label.textContent='Route position unavailable · recording continues';}
-  }
+  let fitWhole=false;
   function lines() { const by = new Map(); for (const p of session.points) { if (!by.has(p.segment)) by.set(p.segment, []); by.get(p.segment).push([p.lat, p.lon]); } return [...by.values()].filter((a) => a.length > 1); }
   function refreshMap() {
     if (mapTimer) return;
@@ -211,12 +199,12 @@ const Track = (() => {
           if (view && el.isConnected) { mapView = {...view, el, here: null}; mapView.map.on('dragstart', () => { follow = false;fitWhole=false; followButton(); });el.addEventListener('wheel',()=>{follow=false;fitWhole=false;followButton();},{passive:true});el.addEventListener('touchstart',e=>{if(e.touches.length>1){follow=false;fitWhole=false;followButton();}},{passive:true}); }
         }
         if (!mapView || !el.isConnected) return;
-        const {map, L, group} = mapView; group.clearLayers(); planOverlay(mapView, false);
+        const {map, L, group} = mapView; group.clearLayers();
         for (const pts of ln) L.polyline(pts, {color: col('--route'), weight: 4}).addTo(group);
         const last = session.points.at(-1);
         if (last) mapView.here = hereMarker(mapView, mapView.here, last.lat, last.lon, last.accuracy);
         if (follow && last) map.setView([last.lat, last.lon], Math.max(map.getZoom() || 0, 16), {animate: false});
-        else if(fitWhole){const all=[...ln.flat(),...(session.routePlan?RouteMath.decode(session.routePlan.line):[])];if(all.length)map.fitBounds(L.latLngBounds(all),{padding:[24,24],maxZoom:17,animate:false});fitWhole=false;}
+        else if(fitWhole){const all=ln.flat();if(all.length)map.fitBounds(L.latLngBounds(all),{padding:[24,24],maxZoom:17,animate:false});fitWhole=false;}
         const chip = $('#track-gps-live'); if (chip) { chip.textContent = last ? gpsText(last.accuracy) : 'Finding GPS…'; chip.hidden = false; }
         followButton();
       } catch (_) { message = 'Map unavailable. Your timer and GPS recording continue.'; update(); }
@@ -285,12 +273,11 @@ const Track = (() => {
     const review = session.state === 'review', paused = session.state !== 'recording';
     const top = el.parentElement?.querySelector(':scope > .top'); if (top) top.hidden = !review;   // the session header names it
     if (review) { follow = false; fitWhole = true; }   // the summary map shows the whole recording, not the last fix
-    el.innerHTML = review ? reviewHTML() : `<section class="track-session track-live ${session.routePlan?'has-route':''} ${display === 'stats' ? 'stats-expanded' : ''} ${paused ? 'is-paused' : 'is-recording'}"><div class="track-live-main"><div class="track-live-top"><h2><span class="rec-dot" aria-hidden="true"></span>${esc(session.label)}</h2>${session.gps && !review ? `<div class="seg" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</div>
+    el.innerHTML = review ? reviewHTML() : `<section class="track-session track-live ${display === 'stats' ? 'stats-expanded' : ''} ${paused ? 'is-paused' : 'is-recording'}"><div class="track-live-main"><div class="track-live-top"><h2><span class="rec-dot" aria-hidden="true"></span>${esc(session.label)}</h2>${session.gps && !review ? `<div class="seg" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</div>
       <p id="track-status" class="small muted" role="status"></p>
       ${session.intervals?'<section id="interval-live" class="card track-interval-live" aria-label="Current interval"></section>':''}
       <div class="track-hero"><b class="num" id="track-time"></b><small>Active time</small></div>
       ${session.gps ? `<div class="track-live-metrics"><div><b class="num" id="track-distance"></b><small>Distance · ${U.du()}</small></div><div><b class="num" id="track-pace"></b><small><span id="track-pace-label">${speedSport(session) ? 'Speed' : 'Pace'}</span> · ${speedSport(session) ? U.du() + '/h' : '/' + U.du()}</small></div></div><p class="small muted track-splits" id="track-splits"></p>` : ''}
-      ${session.routePlan?`<div class="track-plan-progress" id="track-route-progress" aria-label="Planned route progress"><b>${esc(session.routePlan.name)}</b><span id="track-route-distance" class="small muted"></span><small class="track-route-legend"><span>┄ Planned route</span><span>━ Recorded trail</span><span>● Your location</span></small></div>`:''}
       ${session.gps && display === 'map' ? '<div class="track-map-wrap"><div class="track-map live-record-map" id="track-map"></div><span class="gps-chip" id="track-gps-live" hidden></span><button type="button" class="map-chip" id="track-follow">Whole route</button></div>' : ''}
       ${`<div class="track-controls" role="group" aria-label="Recording controls">${paused ? `<span class="round-ctl round-ctl-discard"><button class="round-btn discard" id="track-discard" aria-label="Discard recording">${svg('trash')}</button><small>Discard</small></span><span class="round-ctl"><button class="round-btn go" id="track-pause" aria-label="Resume">${svg('play')}</button><small>Resume</small></span><span class="round-ctl"><button class="round-btn stop" id="track-finish" aria-label="Finish">${svg('stop')}</button><small>Finish</small></span>` : `<span class="round-ctl"><button class="round-btn" id="track-pause" aria-label="Pause">${svg('pause')}</button><small>Pause</small></span>`}</div></div><p class="small muted">${session.native ? 'Recording continues with the screen locked or another app open.' : 'Browser recording pauses when you leave this page. Use the iPhone app for background GPS.'}</p>${paused && session.gps && !session.native ? '<button class="ghost wide" id="track-timer">Continue without GPS</button>' : ''}`}
       ${paused ? '' : `<button class="linkbtn danger track-discard" id="track-discard"${saving ? ' disabled' : ''}>Discard recording</button>`}</section>`;
@@ -307,7 +294,7 @@ const Track = (() => {
       form.onsubmit = async (e) => {
         e.preventDefault(); if (saving||!live()) return; const name = form.elements.namedItem('activity_name').value.trim(); if (!name) { form.elements.namedItem('activity_name').setCustomValidity('Add an activity name'); form.elements.namedItem('activity_name').reportValidity(); return; } form.elements.namedItem('activity_name').setCustomValidity('');
         session.name = name; persist(); saving = true; const active = session, k = key;
-        const payload = {visibility:session.visibility||undefined,expected_sharing_default:session.visibility?undefined:form.elements.namedItem('visibility').value||undefined,client_id: session.id, sport: session.sport, sport_label: session.sportLabel || null, name, start: new Date(session.start).toISOString(), elapsed_s: session.native&&Number.isFinite(session.elapsedSeconds)?session.elapsedSeconds:(session.finishedAt - session.start) / 1000, moving_s: TrackMath.seconds(session), points: session.points,...(session.intervals?{intervals:globalThis.Intervals?Intervals.resultPayload(session.intervals):session.intervals}:{}),route_plan:typeof RouteDownloads!=='undefined'?RouteDownloads.metadata(session.routePlan):undefined};
+        const payload = {visibility:session.visibility||undefined,expected_sharing_default:session.visibility?undefined:form.elements.namedItem('visibility').value||undefined,client_id: session.id, sport: session.sport, sport_label: session.sportLabel || null, name, start: new Date(session.start).toISOString(), elapsed_s: session.native&&Number.isFinite(session.elapsedSeconds)?session.elapsedSeconds:(session.finishedAt - session.start) / 1000, moving_s: TrackMath.seconds(session), points: session.points,...(session.intervals?{intervals:globalThis.Intervals?Intervals.resultPayload(session.intervals):session.intervals}:{})};
         draw();
         try { if(active.intervals){if(!globalThis.Intervals)throw Error('Reload the app before saving private interval results.');await Intervals.verifySaveSupport();if(session?.id!==active.id||key!==k||!live())return;} const result = await api('/api/activities/track', json('POST', payload)); if (session?.id !== active.id || key !== k) return; if (session.native) { nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});await TrackNative.call('clear', {id:session.id,intervalResultSaved:!!active.intervals}); } store.del(k); session = null; invalidate('/api/'); toast(result.duplicate?'This activity was saved earlier. Check its sharing on the activity.':'Activity saved'); if(result.duplicate)go(`/activity/${result.id}`);else if (location.pathname === '/track') go(`/track?done=${result.id}`, {replace:true}); else sync(); }
         catch (x) { if (session?.id === active.id && key === k) { if(x.code==='sharing_changed'&&['me','friends','everyone'].includes(x.detail?.sharing_default)){App.me.share_default=x.detail.sharing_default;keep('/api/me',App.me);} draw(); const err = $('#track-save-error'); if (err) err.textContent = x.message + ' Your draft is kept. Retry when ready.'; } }
@@ -317,49 +304,6 @@ const Track = (() => {
     const audience=$('#track-save-form select[name=visibility]');if(audience)audience.onchange=()=>{session.visibility=audience.value;persist();};
     $('#track-discard').onclick = ()=>{if(live())discard();};
   }
-  // A planned route (#276 item 10): drawn under you on the ready and live maps. Choosing one never starts GPS, asks for
-  // location or changes the activity; it's only a line to follow by eye (turn-by-turn guidance is separate, #279).
-  function planOverlay(v, fitIt) {
-    if (!v || typeof PlanTrack === 'undefined') return;
-    const r=session?session.routePlan:PlanTrack.get(),colour=col('--tx2');
-    if(v.planLayer&&r?.line===v.planLine&&colour===v.planColour){if(fitIt)v.map.fitBounds(v.L.latLngBounds(RouteMath.decode(r.line)),{padding:[24,24],maxZoom:16});return;}
-    if(v.planLayer){v.planLayer.remove();v.planLayer=null;}if(!r?.line)return;v.planLine=r.line;v.planColour=colour;
-    const parts=typeof RouteDownloads!=='undefined'?RouteDownloads.sections(r):[decode(r.line)],pts=parts.flat(); if (pts.length < 2) return;
-    v.planLayer = v.L.layerGroup([...parts.flatMap(p=>[v.L.polyline(p,{color:col('--card'),weight:8,opacity:.8,interactive:false}),v.L.polyline(p,{color:col('--tx2'),weight:4,opacity:1,dashArray:'5 9',interactive:false})]),
-      v.L.marker(pts[0],{icon:endIcon(v.L,'start',loopEnds(pts[0],pts.at(-1))),interactive:false,keyboard:false}),v.L.marker(pts.at(-1),{icon:endIcon(v.L,'end',loopEnds(pts[0],pts.at(-1))),interactive:false,keyboard:false})]).addTo(v.map);
-    for(const part of parts){const len=Plan.length(part),n=Math.min(6,Math.max(2,Math.round(len/300)));
-      for(let k=1;k<n;k++){const section=Plan.slice(part,0,len*k/n),a=section.at(-2),b=section.at(-1);if(!a||!b)continue;
-        const angle=Plan.bearing(a,b).toFixed(0),icon=v.L.divIcon({className:'plan-arrow track-plan-arrow',iconSize:[16,16],iconAnchor:[8,8],html:`<span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><g transform="rotate(${angle} 8 8)"><path d="M8 14V2M3 7l5-5 5 5"/></g></svg></span>`});v.L.marker(b,{icon,interactive:false,keyboard:false}).addTo(v.planLayer);
-      }
-    }
-    if (fitIt) v.map.fitBounds(v.L.latLngBounds(pts), {padding: [24, 24], maxZoom: 16});
-  }
-  function routeRow(c, redraw,fix=null) {
-    const box = $('#track-route'); if (!box || typeof PlanTrack === 'undefined') return;
-    if (!c.gps) { box.innerHTML = ''; return; }
-    const account=readOwner(),live=()=>box.isConnected&&account===readOwner()&&!controlling;
-    const r = PlanTrack.get();
-    box.innerHTML = r ? `<div class="track-route-chip">${svg('route')}<a class="grow" href="${r.kind==='shared'?'/routes/shared/'+r.id:'/routes/plan/'+r.id+'?version='+r.version}"><b>${esc(r.name)}</b><small class="muted">${U.dist(r.distance_m)} ${U.du()} · planned route</small></a><button type="button" class="linkbtn" id="track-route-change">Change</button><button type="button" class="icon-btn" id="track-route-clear" aria-label="Don't use a route">${svg('close')}</button></div>`
-      : `<button type="button" class="track-prefs" id="track-route-change">${svg('route')}<span>Add a planned route</span>${svg('chev')}</button>`;
-    if(r&&typeof RouteDownloads!=='undefined'){
-      const note=document.createElement('p');note.className='small muted';note.textContent=(r.warnings?.length?r.warnings.join(' ')+' ':'')+'Route saved; offline basemap unavailable.'+(r.kind==='shared'?' Starting keeps this version until the workout is finished or discarded, even if the original is unshared.':'');
-      const distanceNote=document.createElement('p');distanceNote.className='small muted';distanceNote.id='track-route-start-distance';let course=null;try{course=RouteMath.compile(RouteMath.decode(r.line),r.breaks||[]);}catch(_){}
-      refreshReadyDistance=()=>{if(!distanceNote.isConnected)return;const distance=course?RouteMath.startDistance(course,fix):null;distanceNote.textContent=distance==null?'Distance to start needs a recent clear GPS fix.':`Straight-line distance to route start: ${U.dist(distance)} ${U.du()}.`;};box.append(distanceNote,note);refreshReadyDistance();
-      const review=document.createElement('button');review.type='button';review.className='linkbtn';review.textContent='Review route';review.onclick=()=>{if(!live())return;sheet(r.name,`<p>${esc(SPORT_NAMES[r.sport])} · version ${r.version} · ${U.dist(r.distance_m)} ${U.du()}</p><p>Follow the dashed line from its start to its finish. Route progress is separate from your recorded distance. A workout already started keeps this snapshot if the original changes or is unshared.</p>${(r.warnings||[]).map(w=>`<p>${esc(w)}</p>`).join('')}<button class="primary wide" data-close>Ready</button>`);};box.append(review);
-    }
-    $('#track-route-change', box).onclick = () => {if(live())chooseRoute(c, redraw);};
-    const x = $('#track-route-clear', box); if (x) x.onclick = () => { if(!live())return;PlanTrack.set(null); routeRow(c, redraw); redraw(); };
-  }
-  async function chooseRoute(c, redraw) {
-    const account=readOwner(),alive=()=>account===readOwner()&&!session&&!controlling;let rows=RouteDownloads.list().map(r=>({...r,downloaded:true})),offline=false;
-    try{if(navigator.onLine===false)offline=true;else{const online=await api('/api/planned-routes');for(const r of online)if(!rows.some(x=>x.kind==='owned'&&x.id===r.id&&x.version===r.version))rows.push({...r,kind:'owned'});}}
-    catch(e){if(!alive())return;if(e.offline||e.status>=500)offline=true;else{toast(e.message);return;}}
-    if(!alive())return;const sport=['run','walk','hike','ride'].includes(c.sport)?c.sport:'';rows.sort((a,b)=>(b.sport===sport)-(a.sport===sport));
-    sheet('Choose a route',`${offline?'<p class="small muted">Offline: completed route downloads are available. Uncached map tiles will be missing.</p>':''}${rows.length?`<div class="list card">${rows.map((r,i)=>`<button class="row-link track-route-choice" data-r="${i}">${r.line?miniRoute(r.line,r.sport):''}<span class="grow"><b>${esc(r.name)}</b><small class="muted">${esc(SPORT_NAMES[r.sport])} · ${U.dist(r.distance_m)} ${U.du()} · version ${r.version}<br>${r.downloaded?'Saved on this device':'Online route'}${r.kind==='shared'?' · shared original':''}</small></span>${svg('chev')}</button>`).join('')}</div>`:'<p>No route downloads yet. Save a route while connected to use it offline.</p>'}<a class="ghost wide" href="/routes/new">Plan a route</a><a class="ghost wide" href="/routes?view=shared">Browse shared routes</a>`,(body,close)=>{
-      $$('[data-r]',body).forEach(button=>button.onclick=async()=>{if(!alive()||!body.isConnected)return;button.disabled=true;const r=rows[+button.dataset.r];try{await RouteDownloads.choose(r.kind,r.id,{version:r.version,snapshot_key:r.snapshot_key,alive:()=>alive()&&body.isConnected});if(!alive()||!body.isConnected)return;close();routeRow(c,redraw);redraw();}catch(e){if(alive()&&body.isConnected)toast(e.message);}finally{if(button.isConnected)button.disabled=false;}});
-    });
-  }
-
   const OUTDOOR = [['run','Run'],['run','Trail run','Trail Running'],['ride','Ride'],['ride','Mountain bike','Mountain Biking'],['walk','Walk'],['hike','Hike'],['swim','Open-water swim','Open Water'],['row','Row on water'],['ski','Ski'],['other','Other outdoor activity']];
   // One-tap shortcuts for the most common choices (2026-10-18 UI pass); everything else stays in the All activities list.
   const TRACK_QUICK = [0, 2, 4, 5, OUTDOOR.length];   // Run, Ride, Walk, Hike, then Lifting (the first choice after OUTDOOR)
@@ -374,13 +318,13 @@ const Track = (() => {
     const done = new URLSearchParams(location.search).get('done');
     el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">Record runs, rides and walks with GPS in the Kinetta iPhone app${App.me?.iphone_app ? ` (<a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">get it through TestFlight</a>)` : ''}. Here you can time indoor workouts, log lifting and add past activities.</p>`}<div class="track-quick" role="group" aria-label="Common activities">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${quick.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 && outdoor.length ? '<optgroup label="Outdoor · GPS">' : i===outdoor.length ? `${outdoor.length ? '</optgroup>' : ''}<optgroup label="Indoor · timer and sets">` : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
-      <div class="track-go"><button class="round-btn start" id="track-start"><span>Start</span></button><small id="track-start-label"></small></div><div class="track-route" id="track-route"></div><div class="track-interval-ready" id="track-interval-ready"></div>
+      <div class="track-go"><button class="round-btn start" id="track-start"><span>Start</span></button><small id="track-start-label"></small></div><div class="track-interval-ready" id="track-interval-ready"></div>
       <p class="small danger" id="track-ready-error" role="alert"></p>
       <button type="button" class="track-prefs" id="track-options" hidden></button><p class="small muted" id="track-guidance"></p>
       </form>
       <div id="track-open-lift"></div><section class="track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">More ways to add</h2><div class="card list">${Native.on ? `<a class="row-link" href="/track/health">${svg('heart')}<span class="grow">Apple Health</span>${svg('chev')}</a>` : ''}<a class="row-link" href="/track/connections">${svg('watch')}<span class="grow">Connections<small class="muted gs-sub">${Native.on ? 'Garmin and Apple Health' : 'Garmin, Apple Health and other apps'}</small></span>${svg('chev')}</a><button class="row-link" id="track-past">${svg('calendar')}<span class="grow">Log a past activity</span>${svg('chev')}</button>${Native.on ? '' : `<a class="row-link" href="/track/import">${svg('upload')}<span class="grow">Import activity history</span>${svg('chev')}</a>`}</div></section>`;
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false,readyFollow=true;const readyOwner=readOwner(),readyLive=()=>renderRevision===drawRevision&&el.isConnected&&readyOwner===readOwner()&&!session;
-    const guide = () => { const c=choices[selected];globalThis.Intervals?.mount($('#track-interval-ready'),c);routeRow(c,()=>{if(view)planOverlay(view,!centred);},here?{lat:here[0],lon:here[1],accuracy:here[2],at:here[3]}:null);$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start-label').textContent=c.lift?'Lifting':c.label;$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS keeps recording with your screen locked.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'A timer for active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
+    const guide = () => { const c=choices[selected];globalThis.Intervals?.mount($('#track-interval-ready'),c);$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start-label').textContent=c.lift?'Lifting':c.label;$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS keeps recording with your screen locked.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'A timer for active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
     // Spoken splits and auto-pause (#234 item 4): on by default, auto-pause off for rides; remembered on this device
     // Recording settings live in a sheet (Ben, 2026-10-26: big checkboxes up top weren't friendly); one quiet line
     // under Start says what's on and opens it. Same saved choices as before, per device.
@@ -403,7 +347,7 @@ const Track = (() => {
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});guide();
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
     // (permission is remembered); a browser locates by itself only after the person has already allowed it.
-    const show=(lat,lon,accuracy,at)=>{if(!readyLive())return;located=true;here=[lat,lon,accuracy,at];routeRow(choices[selected],()=>{if(view)planOverlay(view,false);},{lat,lon,accuracy,at});if(!view||!$('#track-ready-map')?.isConnected)return;
+    const show=(lat,lon,accuracy,at)=>{if(!readyLive())return;located=true;here=[lat,lon,accuracy,at];if(!view||!$('#track-ready-map')?.isConnected)return;
       // street level, so the dot shows which side of the road you're on; later fixes keep it centred
       if(!centred&&readyFollow){view.map.setView([lat,lon],17);centred=true;}else if(readyFollow)view.map.panTo([lat,lon],{animate:true});
       dot=hereMarker(view,dot,lat,lon,accuracy);const chip=$('#track-gps-chip');if(chip){chip.textContent=gpsText(accuracy);chip.hidden=!chip.textContent;} };
@@ -430,7 +374,7 @@ const Track = (() => {
       if(!choices[selected].gps||loadingMap)return;
       if(view){requestAnimationFrame(()=>{if(el.isConnected)view.map.invalidateSize();});return;}
       loadingMap=true;
-      mapInto($('#track-ready-map'), [], {still:true}).then(v=>{if(!v)return;if(!readyLive()){v.map.remove();return;}view=v;view.map.on('dragstart',()=>{readyFollow=false;});planOverlay(view,!here);if(here)show(...here);})
+      mapInto($('#track-ready-map'), [], {still:true}).then(v=>{if(!v)return;if(!readyLive()){v.map.remove();return;}view=v;view.map.on('dragstart',()=>{readyFollow=false;});if(here)show(...here);})
         .catch(()=>{if(el.isConnected)$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';})
         .finally(()=>{loadingMap=false;});
     }
@@ -445,35 +389,32 @@ const Track = (() => {
   }
   async function begin(sport,label,sportLabel,gps) {
     if(session||controlling)return;
-    const o=gps?recordOptions(sport):{voice:false,autoPause:false,splitMetres:imp()?1609.344:1000},revision=readOwner(),button=$('#track-start'),hadRoute=gps&&typeof PlanTrack!=='undefined'&&!!PlanTrack.get();let problem=null;
+    const o=gps?recordOptions(sport):{voice:false,autoPause:false,splitMetres:imp()?1609.344:1000},revision=readOwner(),button=$('#track-start');
     const startError=$('#track-ready-error');if(startError)startError.textContent='';
     controlling=true;nativeRevision++;if(button){button.disabled=true;$('span',button).textContent='Starting…';}
     try{
       const intervalOptions=globalThis.Intervals?await Intervals.startOptions({sport,gps}):null;
       if(revision!==readOwner()||!button?.isConnected)return;
-      const routePlan=gps&&typeof RouteDownloads!=='undefined'?await RouteDownloads.beforeStart():null;
       if(revision!==readOwner()||!button?.isConnected)return;
       if(TrackNative.supported){
         if(nativeTask)await nativeTask.catch(()=>{});
-        if(routePlan){const status=await TrackNative.call('status',{since:0});if(status.routePlanSupport!==1)throw Error('Update the iPhone app before starting with a planned route. Your route is saved.');}
         if(revision!==readOwner())return;
-        adoptNative(await TrackNative.call('start',{id:crypto.randomUUID(),sport,label,sportLabel:sportLabel||null,gps,...o,...(intervalOptions||{}),...(routePlan?{routePlan}:{})}));
+        adoptNative(await TrackNative.call('start',{id:crypto.randomUUID(),sport,label,sportLabel:sportLabel||null,gps,...o,...(intervalOptions||{})}));
         if(revision===readOwner()){draw();sync();window.scrollTo(0,0);}return;
       }
-      const now=Date.now();session={id:crypto.randomUUID(),sport,label,sportLabel,gps,start:now,activeAt:now,checkpoint:now,activeMs:0,state:'paused',points:[],segment:0,distance:0,...o,splits:[],autoMs:0,lastMove:null,routePlan};
+      const now=Date.now();session={id:crypto.randomUUID(),sport,label,sportLabel,gps,start:now,activeAt:now,checkpoint:now,activeMs:0,state:'paused',points:[],segment:0,distance:0,...o,splits:[],autoMs:0,lastMove:null};
       if(!persist()){draw();return;}resume();window.scrollTo(0,0);
-    }catch(e){problem=e.message;if(revision===readOwner()){const error=$('#track-ready-error');if(error)error.textContent=e.message;}}
-    finally{controlling=false;if(problem&&hadRoute&&!session&&revision===readOwner()&&!PlanTrack.get()){draw();const error=$('#track-ready-error');if(error)error.textContent=problem+' The route is no longer selected.';}if(button?.isConnected){button.disabled=false;$('span',button).textContent='Start';}}
+    }catch(e){if(revision===readOwner()){const error=$('#track-ready-error');if(error)error.textContent=e.message;}}
+    finally{controlling=false;if(button?.isConnected){button.disabled=false;$('span',button).textContent='Start';}}
   }
 
   document.addEventListener('visibilitychange', () => { if (document.hidden && session?.state === 'recording' && !session.native) { message = 'Paused while Kinetta was in the background. Resume when ready.'; pause(); draw(); } });
-  window.addEventListener('kinetta:route-selection',()=>{if(!session&&!controlling&&location.pathname==='/track')draw();});
   window.addEventListener('pagehide', () => { if (session && !session.native) pause(); });
   setInterval(() => { if (!App.me || owner && readOwner() !== owner) { stopGPS(); if (session && !session.native) pause(); return; } if(!session)refreshReadyDistance?.(); if (session?.native) { if (!document.hidden && location.pathname === '/track') pullNative().catch((e)=>{message=e.message;update();});update();return; } if (session?.state === 'recording') { session.checkpoint = Date.now(); persist(false); update(); } }, 1000);
   return {get active() { return !!session; }, sync, draw, pause, pullNative, async leave() { if(TrackNative.supported) await TrackNative.detach();else await pause(); }, forgetDraft() { stopGPS(); if (key) store.del(key); session = null; }};
 })();
 route(/^\/track$/, 'track', async (el) => {
-  Track.sync(); el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts"><a class="linkbtn" href="/routes">${svg('route')}Routes</a>${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div></div><div id="track-content"></div>`;
+  Track.sync(); el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts">${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div></div><div id="track-content"></div>`;
   if (TrackNative.supported) { try { await Track.pullNative(); } catch(e) { toast(e.message); } }
   Track.draw();
 });

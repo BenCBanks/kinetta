@@ -156,7 +156,7 @@ const Native = (() => {
       let same=false;try{same=new URL(server).origin===new URL(N.base).origin;}catch(_){}
       if(!same){toast('This link belongs to another Kinetta server. Sign in there to open it.');return;}
     }
-    if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people)|food\/cook\/\d+|add\/[\w-]{1,40}|routes\/shared\/\d{1,18})$/.test(url)) go(url);
+    if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people)|food\/cook\/\d+|add\/[\w-]{1,40})$/.test(url)) go(url);
   };
   N.syncPush = () => {
     if (!push || !App.me || !N.token) return;

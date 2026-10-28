@@ -1,3 +1,5 @@
+> **Archived, 28 October 2026.** This feature is outside current product scope. The following describes historical implementation, not available behavior. Future reconsideration and provider/offline/device limitations are tracked in [#328](https://github.com/BenCBanks/kinetta/issues/328).
+
 # Planned routes
 
 Open **Track → Routes**, or **Track → Add a planned route**. Routes has My routes and Shared routes. Matched routes and Segments & times live under Progress → More, where you review completed efforts. Planned routes are editable plans, separate from completed activities, Matched routes and fixed competitive segments. Saving a plan adds no workout, distance total or leaderboard result. Routes start private. [Deliberate route sharing](route-sharing.md) adds protected recipient previews, discovery and independent copies; an activity's audience never publishes a plan automatically.

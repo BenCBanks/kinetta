@@ -1,8 +1,7 @@
 # Segments and leaderboards
 
-A segment is a fixed named course for Run, Walk, Hike or Ride. Create one from a map, a selected stretch of a planned route or your own activity. The final review shows the course, audience, similar segments and warnings, and requires acknowledgement that it cannot be edited. A segment can start **Only me** and later be published to **Everyone on this server**. Publishing is deliberate and one way. A copied link never grants access to a private segment.
-
-The name, description, path, endpoints, direction, sport and competition settings freeze at creation, enforced by a database trigger. Correcting a typo, moving a finish or changing sport requires a new ID and independent results. Editing a source route changes neither the segment nor someone else's recording. A private segment can be deleted by its creator. A published one uses the report/moderation lifecycle below.
+A segment is a fixed named course for Run, Walk, Hike or Ride. Create one from a map, a selected stretch of your own activity. The final review shows the course, audience, similar segments and warnings, and requires acknowledgement that it cannot be edited. A segment can start **Only me** and later be published to **Everyone on this server**. Publishing is deliberate and one way. A copied link never grants access to a private segment.
+The name, description, path, endpoints, direction, sport and competition settings freeze at creation, enforced by a database trigger. Correcting a typo, moving a finish or changing sport requires a new ID and independent results. A private segment can be deleted by its creator. A published one uses the report/moderation lifecycle below.
 
 Boards are **on at release**. Each member's participation starts **off** in Settings → Sharing → Segment leaderboards. Joining includes eligible historical activities. Leaving removes that member's public times on the next read while retaining private times. Admins can pause every board at once without changing members' choices.
 

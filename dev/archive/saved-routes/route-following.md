@@ -1,3 +1,5 @@
+> **Archived, 28 October 2026.** This feature is outside current product scope. The following describes historical implementation, not available behavior. Future reconsideration and provider/offline/device limitations are tracked in [#328](https://github.com/BenCBanks/kinetta/issues/328).
+
 # Follow a planned route
 
 In the iPhone app, open a route and choose **Use in Track**, or choose **Save and use in Track** after editing a plan. Track also offers **Add a planned route** and **Choose a route**. You can use your own route, a private copy, or a currently shared original that you can access. No segment or leaderboard enrollment is needed. Choosing a route does not start a recording or change your activity audience.

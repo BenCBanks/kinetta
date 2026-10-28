@@ -108,8 +108,4 @@ An active account is one that requested its signed-in profile (`/api/me`) that U
 
 Review segment reports, appeals and held times from this section. It shows derived timing and quality checks for open cases, without private GPS streams or unrelated history. Decisions need a reason and the current reviewed version. Pause or resume every board here, and retry jobs that stopped after five attempts. See the [segment moderator guide](segments.md#moderator-guide) for retirement, takedown, appeals and recovery.
 
-## Shared route reports
-
-Review an open case to see only the currently shared, protected route. Private originals and notes are unavailable. Dismiss or remove sharing with a reason, current material version and exact creator username; durable receipts prevent a lost-response retry from acting twice. Removal keeps the owner's private plan and deliberate copies while revoking the original. See [route sharing](route-sharing.md#report-and-moderate).
-
 Segment matching recovery: use **Segments & times → Rebuild matching results**, review a course and its generation, give a reason and explicitly confirm. Pending replacements are staged; current complete results remain visible until atomic activation. Cancel discards only the pending epoch. Privacy, assistance and moderation apply immediately, and cases retain their effort identities. Retry failed matching jobs resets at most 100 stopped jobs per request. Matcher upgrades require a reviewed per-course rebuild before new criteria can enter that board; see [segments.md](segments.md).

@@ -31,8 +31,7 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
 from . import api_intervals
 app.include_router(api_intervals.router)
 app.include_router(api_activities.router)
-app.include_router(api_routes_plan.router)
-app.include_router(route_sharing.router)
+app.include_router(api_routes_plan.active_router)  # Fixed-segment drawing and activity sections only.
 app.include_router(api_segments.router)
 app.include_router(api_lifts.router)
 app.include_router(api_food.router)
@@ -294,8 +293,7 @@ def app_links():
     if not team: raise HTTPException(404)
     app_id = f"{team}.{os.environ.get('KINETTA_APNS_TOPIC', 'com.kinetta.app')}"
     return JSONResponse({'applinks': {'details': [{'appIDs': [app_id], 'components': [
-        {'/': '/add/*', 'comment': 'friend invite links'},
-        {'/': '/routes/shared/*', 'comment': 'signed-in shared route links'}]}]}},
+        {'/': '/add/*', 'comment': 'friend invite links'}]}]}},
                         headers={'Cache-Control': 'public, max-age=3600'})
 
 
