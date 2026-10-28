@@ -25,6 +25,8 @@ def _url(value, template=False):
 
 def settings(env=None):
     e=os.environ if env is None else env
+    if e.get('KINETTA_MAP_KIND','').strip() and not e.get('KINETTA_MAP_TILES','').strip():
+        raise ValueError('KINETTA_MAP_TILES is required when KINETTA_MAP_KIND is set')
     url=e.get('KINETTA_MAP_TILES','').strip() or DEFAULT_TILES
     kind=e.get('KINETTA_MAP_KIND','').strip() or ('pmtiles' if url.endswith('.pmtiles') else 'raster')
     if kind not in ('pmtiles','vector','raster'):raise ValueError('KINETTA_MAP_KIND must be pmtiles, vector or raster')

@@ -27,6 +27,7 @@ const MapTiles=(()=>{
   const tileUrl=(c,z,x,y,isDark=false)=>(isDark&&c.dark_url?c.dark_url:c.url).replace('{z}',z).replace('{x}',x).replace('{y}',y);
   async function raster(c,z,x,y,isDark=false,signal){
     const controller=new AbortController(),abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});
+    if(signal?.aborted)abort();
     const timeout=setTimeout(abort,8000);let object;
     try{
       const response=await fetch(tileUrl(c,z,x,y,isDark),{credentials:'omit',mode:'cors',referrerPolicy:'strict-origin-when-cross-origin',signal:controller.signal});
@@ -37,13 +38,12 @@ const MapTiles=(()=>{
   }
   // Convert failures into empty geographic layers before the renderer sees them. This avoids per-tile error logging.
   function protect(instance,failed,loaded){
-    let unhealthy=false;
     for(const view of instance.views.values()){
       const source=view.tileCache.source,get=source.get.bind(source);
       source.get=async(...args)=>{
-        if(unhealthy)return new Map();let timer;
+        let timer;
         try{const rows=await Promise.race([get(...args),new Promise((_,no)=>timer=setTimeout(()=>no(Error('Map timeout')),8000))]);loaded();return rows;}
-        catch(e){if(e.name!=='AbortError'){unhealthy=true;failed();}return new Map();}
+        catch(e){if(e.name!=='AbortError'){failed();}return new Map();}
         finally{clearTimeout(timer);}
       };
     }
@@ -53,26 +53,35 @@ const MapTiles=(()=>{
     let layer=null,closed=false,version=0,failures=0,successes=0;
     const note=L.control({position:'bottomleft'});note.onAdd=()=>{const n=L.DomUtil.create('div','map-unavailable');n.hidden=true;n.setAttribute('role','status');n.textContent='Map unavailable ';const b=document.createElement('button');b.type='button';b.textContent='Retry';b.onclick=()=>draw();n.append(b);L.DomEvent.disableClickPropagation(n);return n;};note.addTo(map);
     const missing=()=>{const n=note.getContainer();if(n)n.hidden=false;};
-    const loaded=()=>{successes++;if(!failures){const n=note.getContainer();if(n)n.hidden=true;}};
+    const update=()=>{const n=note.getContainer();if(n)n.hidden=!(failures>0&&failures>=successes);};
+    const loaded=()=>{successes++;update();};
     async function draw(){
       const drawId=++version;failures=successes=0;
       if(layer){map.removeLayer(layer);layer=null;}
       try{
         const c=await config();if(closed||drawId!==version||!el.isConnected)return;
         if(c.kind==='off'){missing();return;}
-        let rasterFailed=false;const isDark=dark(),fail=()=>{if(drawId!==version||closed)return;failures++;missing();};
+        const onLoad=()=>{if(drawId===version&&!closed)loaded();};
+        const isDark=dark(),fail=()=>{if(drawId!==version||closed)return;failures++;update();};
+        // Light-only raster providers retain their actual palette. Use a dark blue route on that background.
+        map.fire('basemaptheme',{light:c.kind==='raster'&&(!isDark||!c.dark_url)});
         map.setMaxZoom(c.max_zoom);
         if(c.kind==='raster'){
           const Raster=L.GridLayer.extend({createTile(coords,done){
-            const canvas=document.createElement('canvas');canvas.width=canvas.height=256;if(rasterFailed){queueMicrotask(()=>done(null,canvas));return canvas;}
-            raster(c,coords.z,coords.x,coords.y,isDark).then(image=>{if(closed||drawId!==version)return;canvas.getContext('2d').drawImage(image,0,0,256,256);loaded();done(null,canvas);},()=>{if(closed||drawId!==version)return;rasterFailed=true;fail();done(null,canvas);});return canvas;
+            const canvas=document.createElement('canvas');canvas.width=canvas.height=256;
+            const controller=new AbortController();canvas.tileAbort=controller;
+            raster(c,coords.z,coords.x,coords.y,isDark,controller.signal).then(image=>{
+              if(closed||drawId!==version||controller.signal.aborted)return;
+              canvas.getContext('2d').drawImage(image,0,0,256,256);onLoad();done(null,canvas);
+            },error=>{if(closed||drawId!==version||controller.signal.aborted)return;fail();done(null,canvas);});return canvas;
           }});
           layer=new Raster({attribution:attribution(c),maxZoom:c.max_zoom});
+          layer.on('tileunload',event=>event.tile.tileAbort?.abort());
         }else{
           const P=await vector();if(closed||drawId!==version||!el.isConnected)return;
-          layer=protect(P.leafletLayer({url:c.url,...style(P,isDark),maxZoom:c.max_zoom,attribution:attribution(c)}),fail,loaded);
+          layer=protect(P.leafletLayer({url:c.url,...style(P,isDark),maxZoom:c.max_zoom,attribution:attribution(c)}),fail,onLoad);
         }
-        if(closed||drawId!==version)return;layer.addTo(map);
+        if(closed||drawId!==version)return;layer.on('loading',()=>{if(drawId===version){failures=successes=0;update();}});layer.addTo(map);
       }catch(_){if(!closed&&drawId===version)missing();}
     }
     const media=matchMedia('(prefers-color-scheme: dark)'),theme=()=>draw();media.addEventListener('change',theme);

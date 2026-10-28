@@ -28,6 +28,7 @@ echo "== native sync recovery (stand-in HealthKit, no health data)"
 node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js
 node dev/tests/test_map_contract.js
+node dev/tests/test_map_failure.js
 node dev/tests/test_route_drafts.js
 node dev/tests/test_route_sharing_ui.js
 node dev/tests/test_segment_assistance_ui.js
