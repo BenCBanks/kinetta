@@ -96,7 +96,7 @@ verification, merge and release status distinct, and follow the owner's current 
    GPS can include routes; Garmin may omit GPS. See `docs/apple-watch-routes.md`. The maintainer has no Mac, so builds and TestFlight uploads run on GitHub
    Actions macOS runners (for example with fastlane), with signing secrets he adds. Health data sent to an AI coach
    needs the person's explicit consent first. Android (Health Connect) comes after.
-4. **Social**: friends you approve, a sharing choice per activity (only me / friends / everyone; private by default),
+4. **Social**: friends you approve, a sharing choice per activity (only me / friends / everyone; new accounts default to everyone, chosen at signup and changeable any time),
    hidden map start and end around home, kudos and comments, a friends feed.
 
 Other routes for automatic uploads were ruled out: Strava's API terms forbid showing a person's Strava data to anyone
