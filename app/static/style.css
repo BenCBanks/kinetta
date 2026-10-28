@@ -2707,3 +2707,7 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
 .lift-review-records b { white-space: nowrap; }
 .lift-review-ex > div { display: grid; gap: 2px; padding: 9px 0; border-top: 1px solid var(--line); }
 .lift-review-ex > div small { font-size: .875rem; overflow-wrap: anywhere; }
+/* Discard right away (28 October 2026): while paused it sits under Resume and Finish, on screen; a lifting session has
+   Discard session under its sets and Delete this session on its summary. */
+.track-live-main .track-discard-now { align-self: center; min-height: 44px; margin: 2px 0 0; }
+#lf-discard, #lf-sum-del { display: block; margin: 14px auto 0; }

@@ -63,7 +63,9 @@ def confirmed(c, uid):
         raise HTTPException(403, 'Confirm your email first: open the link we sent you. Settings → Email can send it again.')
 
 
-CAN_SEE = f"""(a.user_id = %(viewer)s OR (NOT {blocked('a.user_id')} AND NOT {unconfirmed('a.user_id')} AND (a.visibility = 'everyone' OR (a.visibility = 'friends' AND EXISTS (
+# A lifting session still being logged (lift_open) is nobody else's business until it's finished: it can still be
+# discarded (28 October 2026, owner: people may not want to post it at all).
+CAN_SEE = f"""(a.user_id = %(viewer)s OR (NOT a.lift_open AND NOT {blocked('a.user_id')} AND NOT {unconfirmed('a.user_id')} AND (a.visibility = 'everyone' OR (a.visibility = 'friends' AND EXISTS (
     SELECT 1 FROM friendships f WHERE f.status = 'accepted'
       AND ((f.requester = a.user_id AND f.addressee = %(viewer)s) OR (f.addressee = a.user_id AND f.requester = %(viewer)s)))))))"""
 FRIEND_IDS = """SELECT CASE WHEN f.requester = %(viewer)s THEN f.addressee ELSE f.requester END FROM friendships f
@@ -230,7 +232,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
                   'sent' if relation['requester'] == user['id'] else 'incoming') if relation else None
         params = _params(user['id'], PREVIEW_TOL, person=person['id'], limit=limit + 1)
         visible = f'a.user_id = %(person)s AND {CAN_SEE}'
-        if as_friend and person['id'] == user['id']: visible += " AND a.visibility IN ('friends', 'everyone')"
+        if as_friend and person['id'] == user['id']: visible += " AND a.visibility IN ('friends', 'everyone') AND NOT a.lift_open"
         overview = c.execute(f"""SELECT count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
                                   coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s
                                   FROM activities a WHERE {visible}""", params).fetchone()

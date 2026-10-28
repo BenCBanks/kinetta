@@ -80,7 +80,8 @@ function liftLogger(el, aid, data) {
     ${S.open ? `<div class="lift-clock card"><span>Session <b class="num" id="lf-time">0:00</b></span><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>` : ''}
     <div id="lf-list"></div>
     <button class="primary wide lift-add" id="lf-add">${svg('plus')}Add exercise</button>
-    <p class="small muted center lift-foot">${S.open ? "Tick each set when you've done it. Only ticked sets are saved." : 'Every set with numbers in it is saved.'}</p>`;
+    <p class="small muted center lift-foot">${S.open ? "Tick each set when you've done it. Only ticked sets are saved." : 'Every set with numbers in it is saved.'}</p>
+    ${S.open ? '<button type="button" class="linkbtn danger track-discard" id="lf-discard">Discard session</button>' : ''}`;
   wireBack(el, `/activity/${aid}`);
   const list = $('#lf-list', el);
 
@@ -273,8 +274,25 @@ function liftLogger(el, aid, data) {
       <div class="btnrow"><button class="ghost" data-close>Keep going</button><button class="primary" id="ff-yes">Finish</button></div>`, (b, close) => { $('#ff-yes', b).onclick = () => { close(); finish(); }; });
     else finish();
   };
+  const dis = $('#lf-discard', el);
+  if (dis) dis.onclick = () => discardLift(aid, () => { clearTimeout(saveT); saveT = null; gone = true; });
   draw();
   if (store.get(key) && store.get(key).unsent) save();     // a copy from earlier that never reached the server
+}
+
+// ---------- discarding ----------
+// A session you don't want to keep goes completely, before or right after Finish (28 October 2026, owner: people may
+// not want to post it at all). Until Finish nobody else sees it; this removes it for good.
+function discardLift(aid, stop) {
+  sheet('Delete this session?', '<p>Its exercises and sets are deleted, and it won’t be posted. This can’t be undone.</p><button class="ghost wide" id="ld-keep">Keep it</button><button class="primary danger-btn wide" id="ld-del">Delete session</button>', (b, close) => {
+    $('#ld-keep', b).onclick = close;
+    $('#ld-del', b).onclick = async (e) => {
+      e.target.disabled = true; if (stop) stop();
+      try { await api(`/api/activities/${aid}`, {method: 'DELETE'}); }
+      catch (x) { if (x.status !== 404) { e.target.disabled = false; toast(x.message); return; } }   // already gone is fine
+      store.del('fit.lift:' + aid); invalidate('/api/'); App.cache.delete('feed:home'); close(); go('/track', {replace: true}); toast('Session deleted');
+    };
+  });
 }
 
 // ---------- after Finish ----------
@@ -321,7 +339,8 @@ async function liftSummary(el, aid, r) {
         ${e.last ? `<small class="muted">${esc(shortDay(e.last.start_time))}: ${esc(setsText(e.last.sets, e.kind))}</small>` : ''}</div>`).join('')}</div>` : ''}
       <label>Who can see this activity<select name="visibility">${Object.entries({me: 'Only me', friends: 'Approved friends', everyone: 'Everyone on Kinetta'}).map(([value, label]) => `<option value="${value}"${value === vis ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
       <button class="primary wide" id="lf-sum-done">Done</button><p class="small danger" id="lf-sum-error" role="alert"></p></form>
-      <button class="ghost wide" id="lf-carry">Carry on with this session</button></section>`;
+      <button class="ghost wide" id="lf-carry">Carry on with this session</button>
+      <button type="button" class="linkbtn danger track-discard" id="lf-sum-del">Delete this session</button></section>`;
   wireBack(el, '/track');
   const f = $('#lf-sum', el), err = $('#lf-sum-error', el), done = $('#lf-sum-done', el), carry = $('#lf-carry', el);
   f.onsubmit = async (ev) => {
@@ -333,6 +352,7 @@ async function liftSummary(el, aid, r) {
       invalidate('/api/'); App.cache.delete('feed:home'); go(`/track?done=${aid}`, {replace: true}); toast('Session saved');
     } catch (x) { done.disabled = carry.disabled = false; err.textContent = x.offline ? "Can't reach Kinetta. The session is saved; try again to keep the new title or sharing." : x.message; }
   };
+  $('#lf-sum-del', el).onclick = () => discardLift(aid);
   // finished by mistake: back into the logger, within the session's 4 hours (unticked sets were already left out)
   carry.onclick = async () => {
     done.disabled = carry.disabled = true;
