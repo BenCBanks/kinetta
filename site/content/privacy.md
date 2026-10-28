@@ -177,3 +177,7 @@ Free for personal use under the [PolyForm Noncommercial License](https://github.
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-57
 
 © 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.
+
+## map-backgrounds
+
+The operator chooses the service that supplies map backgrounds. Personal installations default to OpenStreetMap's public raster tiles; operators can instead configure their own archive or a permitted provider. That service receives your network address and the map area requested, without your Kinetta account identifier, activity times or health readings. Tile requests omit cookies and authentication. Hiding the start and end of a shared activity limits what other members see; it does not hide the area you view from the background-map service. Operators must disclose their actual provider and operational log retention when configuring a different source.
