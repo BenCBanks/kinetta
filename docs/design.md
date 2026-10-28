@@ -1297,3 +1297,9 @@ On the recording screen the title, numbers, map and round controls fill exactly 
 ### Kit is 18+ (28 October 2026)
 
 Kinetta accounts stay 16+, but Kit (every AI feature) is for people 18 or older, as the AI provider's terms require. Turning Kit on — the Turn on Kit sheet (also used by Me → AI features) and the welcome step — shows "Kit is for people 18 or older." and an "I'm 18 or older" checkbox; without it nothing is saved and the reason shows beside the button. The server records the confirmation once (`profile.ai_adult_at`, migration 79), refuses a Kit yes without it, and every AI permission check requires it, so people who turned Kit on before this rule are asked once, the next time they use Kit.
+
+### Deliberate recipe creation and food quick actions · owner, 28 October 2026
+
+My Recipes → Create a recipe opens the recipe’s dedicated ingredient editor. It never reuses a pending Add food draft or resolves ingredients through saved whole-recipe matches. The recipe name is first in creation/editing and in review. Ingredient changes save privately as the person builds; the screen says this explicitly. Save recipe leads to a clear review with Add to log off by default. Choosing logging opens the existing explicit meal/portion review; saving alone writes no food entry. Legacy `?save=1` links follow this same route. General Add food still supports intentionally saving its reviewed foods as a recipe; its recipe name moves above the foods when selected.
+
+Add food shows My Recipes, Take a photo, Scan a barcode and Search foods as the existing Kit-style suggestion bubbles above the composer, in addition to +. They wrap at narrow widths and hide with the software keyboard so the focused field remains visible. Closing the keyboard restores them without losing the draft. These are app actions and make no model call.

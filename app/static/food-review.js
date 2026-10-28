@@ -16,11 +16,11 @@ const FoodReview=(()=>{
     let review=prepared.review,kcal={};
     const chosen=Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal();
     sheet('Add to log',`<form class="form food-final-review" id="food-final-review">
+      <label id="review-recipe-name" hidden>Recipe name<input name="name" maxlength="80" autocomplete="off" placeholder="Name this recipe"></label>
       <div class="where review-where"><span class="muted">Adding to</span><span class="pill-sel"><select name="meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}"${k===chosen?' selected':''}>${n}</option>`).join('')}</select>${svg('chev')}</span><span class="muted">today</span></div>
       <div id="review-foods"></div><div class="review-total" id="review-totals"></div>
       <label class="switch-row"><span><b>Save as a recipe</b><small>Reuse it from My Recipes next time</small></span><input type="checkbox" role="switch" name="save_recipe"${saveRecipe?' checked':''}></label>
       <div id="review-recipe" hidden>
-        <label>Recipe name<input name="name" maxlength="80" autocomplete="off" placeholder="Name this recipe"></label>
         <label>How is the whole recipe measured?<select name="basis"><option value="">Choose servings or weight</option><option value="servings">By servings</option><option value="weight">By cooked weight</option></select></label>
         <label id="review-yield" hidden>Servings in the whole recipe<input name="servings" inputmode="decimal" placeholder="How many does it make?"></label>
         <label id="review-weight" hidden>Whole cooked weight (g)<input name="total_g" inputmode="decimal" placeholder="Enter the total cooked weight"></label>
@@ -53,7 +53,7 @@ const FoodReview=(()=>{
       };
       const draw=()=>{
         const recipe=save.checked,logging=!recipe||log.checked,basis=f.elements.basis.value,portion=recipe&&logging&&f.elements.amount_kind.value==='portion';
-        $('#review-recipe',body).hidden=!recipe;$('.review-where',body).hidden=!logging;
+        $('#review-recipe-name',body).hidden=!recipe;$('#review-recipe',body).hidden=!recipe;$('.review-where',body).hidden=!logging;
         $('#review-yield',body).hidden=basis!=='servings';$('#review-weight',body).hidden=basis!=='weight';
         $('#review-log-amount',body).hidden=!logging;
         $('#review-portion',body).hidden=!portion;$('#review-portion-label',body).textContent=basis==='weight'?'Grams you ate':'Servings you ate';
