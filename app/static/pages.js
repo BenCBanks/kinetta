@@ -264,8 +264,9 @@ async function meOverview(el) {
     <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
     <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => { const waiting = href === '/me/friends' && App.me.friend_requests;
       return `<a href="${href}"${waiting ? ` aria-label="${label}, ${App.me.friend_requests} waiting"` : ''}>${svg(ico)}<span>${label}</span>${waiting ? `<b class="badge alert">${App.me.friend_requests}</b>` : ''}</a>`; }).join('')}</nav>
-    <div id="t-recap"></div><div id="t-combined-week"></div><div id="t-friends"></div>
+    <button type="button" class="ghost wide" id="me-card">Share your Kinetta</button><div id="t-recap"></div><div id="t-combined-week"></div><div id="t-friends"></div>
     <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
+  $('#me-card',el).onclick=()=>KinettaCard.open();
   if(typeof Recaps!=='undefined')Recaps.offer($('#t-recap',el));
   // Your day appears only when the plan or food card (or a pending check-in) has something to show.
   const agenda = () => { const box = $('.me-agenda', el); if (box) box.hidden = !['#t-plan', '#t-food', '#t-checkin'].some(id => $(id, el)?.innerHTML.trim()); };

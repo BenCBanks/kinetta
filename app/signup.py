@@ -59,6 +59,8 @@ class SignupIn(NewAccountIn):
     age_ok: StrictBool = False        # "I'm 16 or older" (privacy policy)
     website: str | None = Field(None, max_length=200)     # hidden on the form: people leave it empty, bots fill it
     app: bool = False       # the iPhone app (#232 E): answer with the login token instead of setting a cookie
+    card_code: str | None = Field(None,max_length=60)
+    card_request: StrictBool = True
     friend_link: str | None = Field(None, max_length=40)    # a friend's invite link this signup came from (2026-10-25)
 
 

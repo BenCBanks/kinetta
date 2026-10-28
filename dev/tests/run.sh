@@ -191,4 +191,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_inconta
 docker compose -p "$P" exec -T app python - < dev/tests/activity_food_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
+echo "== public card privacy, signup and requests"
+docker compose -p "$P" exec -T app python - < dev/tests/cards_incontainer.py
+
 echo "== all passed"

@@ -10,13 +10,13 @@ const ShareArt=(()=>{
   }
   function lines(g,value,max,size=24){g.font=`500 ${size}px ${family()}`;const out=[];let line='';for(const word of String(value).split(' ')){if(g.measureText(line+' '+word).width>max&&line){out.push(line);line=word;}else line+=(line?' ':'')+word;}if(line)out.push(line);return out;}
   const blob=canvas=>new Promise((yes,no)=>canvas.toBlob(b=>b?yes(b):no(Error('Couldn’t draw this picture')),'image/png'));
-  async function deliver(picture,filename,live){
+  async function deliver(picture,filename,live,link=null){
     const file=new File([picture],filename,{type:'image/png'});if(!live())return false;
     if(Native.activityShareSupported){
       const data=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(Error('Couldn’t open this picture'));r.readAsDataURL(picture);});
-      if(!live())return false;const result=await Native.shareActivityPicture(data,'system');return result?.handedOff===true||result?.cancelled===false;
+      if(!live())return false;const result=await Native.shareActivityPicture(data,'system',link);return result?.handedOff===true||result?.cancelled===false;
     }
-    if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file]});return live();}
+    if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],...(link?{url:link}:{} )});return live();}
     const url=URL.createObjectURL(picture),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);toast('Picture saved');return true;
   }
   async function photo(url){return new Promise(ok=>{const i=new Image(),t=setTimeout(()=>ok(null),4000);i.onload=()=>{clearTimeout(t);ok(i);};i.onerror=()=>{clearTimeout(t);ok(null);};i.src=url;});}

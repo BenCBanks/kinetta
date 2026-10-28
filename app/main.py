@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool
+from . import cards
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts, garmin_connect
 import threading
 from .auth import current_user
@@ -297,6 +298,7 @@ def app_links():
     app_id = f"{team}.{os.environ.get('KINETTA_APNS_TOPIC', 'com.kinetta.app')}"
     return JSONResponse({'applinks': {'details': [{'appIDs': [app_id], 'components': [
         {'/': '/add/*', 'comment': 'friend invite links'},
+        {'/': '/card/*', 'comment': 'revocable public cards'},
         {'/': '/routes/shared/*', 'comment': 'signed-in shared route links'}]}]}},
                         headers={'Cache-Control': 'public, max-age=3600'})
 
@@ -307,7 +309,7 @@ def invite_page(code: str):
     import html
     with open(os.path.join(STATIC, 'index.html')) as f: page = f.read()
     try:
-        with db.connect() as c: name = api_social._link_owner(c, code)['name']
+        with db.connect() as c: name = '@'+api_social._link_owner(c, code)['login']
     except HTTPException: name = None
     if name:
         title, text = html.escape(f'Join {name} on Kinetta'), html.escape(f'{name} invited you to be friends on Kinetta and follow each other’s workouts.')
@@ -316,6 +318,8 @@ def invite_page(code: str):
                             f'<meta property="og:description" content="{text}">', 1)
     return Response(page, media_type='text/html', headers={'Cache-Control': 'no-cache'})
 
+
+app.include_router(cards.router)
 
 @app.get('/{path:path}')
 def page(path: str):
