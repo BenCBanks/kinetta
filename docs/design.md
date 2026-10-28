@@ -1307,3 +1307,7 @@ Anyone allowed to see a profile can see its accepted-friend count, excluding pen
 ### Food priority on Me · owner, 28 October 2026
 
 When the local day has logged food, Food today sits above the weekly activity chart and Latest activity is hidden. With no food today, Latest activity remains. Historical food or a goal alone does not promote an empty day. Resolve the food state before revealing chart position so late data cannot shift an exposed control. Keep the conditional plan/check-in panels and five tabs.
+
+## Deliberate progress recaps (28 October 2026)
+
+Progress offers one 4:5 picture for this/last week, this/last month and this year. Periods use the account timezone and Progress's Monday weeks and moving-time sums. Totals/calendar include all own activities; named highlights exclude Only me. Each section can be removed before sharing. Food and photo/username start off; food exposes only logged days and protein-goal days, never intake or body values. An eligible food-only month can be shared by explicitly enabling Food. A monthly Me offer appears only on days 1–7, after three activities or seven food-log days, and stays dismissed after Share or Dismiss on that account/device. Cancellation does not dismiss it. No weekly prompt or push is added. Images are drawn on the device, including offline after that period was viewed. Garmin-derived images carry visible Garmin/model attribution where supplied; no custom device nickname or real profile name is rendered.

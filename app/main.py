@@ -28,6 +28,8 @@ async def lifespan(app):
         recipe_stop.set();recipe_worker.join(timeout=3);segment_stop.set();segment_worker.join(timeout=3)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+from . import recaps
+app.include_router(recaps.router)
 from . import api_intervals
 app.include_router(api_intervals.router)
 app.include_router(map_config.router)
