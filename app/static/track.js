@@ -231,6 +231,43 @@ const Track = (() => {
       $('#tr-discard', b).onclick = async () => { if(!live())return;if (session.native) { const btn=$('#tr-discard',b);btn.disabled=true;try { nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});await TrackNative.call('clear',{id,discardIntervals:!!session.intervals}); } catch(e) { if(live()){toast(e.message);btn.disabled=false;}return; } }if(!live())return; stopGPS(); store.del(key); session = null; message = ''; close(); draw(); sync(); };
     });
   }
+  // Post-recording summary (27 October 2026, Ben): the title first, every number this recording has, splits, then a
+  // small map, sharing and Save. The live clock and big map belong to recording, not to reviewing.
+  function climb(points) {
+    // ups of more than 3 m from the last low point, within one section; few or poor altitudes give no figure at all
+    let gain = 0, ref = null, n = 0;
+    for (const p of points) {
+      if (!Number.isFinite(p.alt) || (Number.isFinite(p.valt) && p.valt > 15)) continue;
+      n++;
+      if (!ref || p.segment !== ref.segment) { ref = {alt: p.alt, segment: p.segment}; continue; }
+      if (p.alt > ref.alt + 3) { gain += p.alt - ref.alt; ref.alt = p.alt; } else if (p.alt < ref.alt - 3) ref.alt = p.alt;
+    }
+    return n >= 10 ? gain : null;
+  }
+  function reviewHTML() {
+    const active = TrackMath.seconds(session), elapsed = session.native && Number.isFinite(session.elapsedSeconds) ? session.elapsedSeconds : ((session.finishedAt || Date.now()) - session.start) / 1000;
+    const avg = session.gps && session.distance > 10 && active > 0 ? session.distance / active : null, gain = session.gps ? climb(session.points) : null, start = new Date(session.start);
+    const stat = (v, u, l) => `<div><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b><small>${esc(l)}</small></div>`;
+    const stats = [session.gps && stat(U.dist(session.distance, 2), U.du(), 'Distance'), stat(clock(active), '', 'Active time'),
+      avg && stat(rateText(session, avg), speedSport(session) ? U.su() : '/' + U.du(), speedSport(session) ? 'Avg speed' : 'Avg pace'),
+      elapsed - active >= 30 && stat(clock(elapsed), '', 'Total time'), gain != null && stat(U.elev(gain), U.eu(), 'Elevation gain')].filter(Boolean).join('');
+    const sp = session.splits || [], rows = sp.map((t, i) => [`${unitName(session)} ${i + 1}`, t - (i ? sp[i - 1] : 0)]);
+    const rest = session.distance - sp.length * (session.splitMetres || 0);
+    if (sp.length && session.splitMetres && rest > 50) rows.push([`Last ${U.dist(rest, 2)} ${U.du()}`, active - sp[sp.length - 1]]);
+    const when = `${start.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'})}, ${start.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}`;
+    return `<section class="track-session track-review"><form class="form" id="track-save-form">
+      <p class="track-review-when"><span class="rec-dot" aria-hidden="true"></span>${esc(session.label)} · ${esc(when)}</p>
+      <label class="track-title">Title<input name="activity_name" value="${esc(session.name || session.label)}" maxlength="200" autocomplete="off" enterkeyhint="done" required${saving ? ' disabled' : ''}></label>
+      <div class="card track-review-stats">${stats}</div>
+      ${session.intervals ? '<section id="interval-live" class="card track-interval-live" aria-label="Intervals"></section>' : ''}
+      ${rows.length > 1 ? `<div class="card track-review-splits"><h3>Splits</h3>${rows.map(([l, t]) => `<div><span>${esc(l)}</span><b class="num">${dur(t)}</b></div>`).join('')}</div>` : ''}
+      ${session.gps && session.points.length > 1 ? '<div class="track-review-map"><div class="track-map" id="track-map"></div></div>' : ''}
+      <label>Who can see this activity<select name="visibility"${saving ? ' disabled' : ''}>${!session.visibility && !App.me.share_default ? '<option value="">Use my saved sharing setting</option>' : ''}${Object.entries({me: 'Only me', friends: 'Approved friends', everyone: 'Everyone on Kinetta'}).map(([value, label]) => `<option value="${value}"${value === (session.visibility || App.me.share_default) ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
+      <p class="small muted">Shared maps hide the start and end using your privacy settings.${session.points.some((p) => p.segment !== session.points[0]?.segment) ? ' Your activity map keeps every recorded section; shared previews show the longest continuous section.' : ''}</p>
+      <button class="primary wide" id="track-save"${saving ? ' disabled' : ''}>${saving ? 'Saving…' : 'Save activity'}</button><p class="small danger" id="track-save-error" role="alert"></p></form>
+      <button class="ghost wide" id="track-continue"${saving ? ' disabled' : ''}>Continue recording</button>
+      <button class="linkbtn danger track-discard" id="track-discard"${saving ? ' disabled' : ''}>Discard recording</button></section>`;
+  }
   function draw() {
     const el = $('#track-content'); if (!el || !App.me) return;
     const renderRevision=++drawRevision;
@@ -238,14 +275,15 @@ const Track = (() => {
     const renderedId=session.id,renderedOwner=readOwner(),live=()=>session?.id===renderedId&&readOwner()===renderedOwner&&el.isConnected;
     const review = session.state === 'review', paused = session.state !== 'recording';
     const top = el.parentElement?.querySelector(':scope > .top'); if (top) top.hidden = !review;   // the session header names it
-    el.innerHTML = `<section class="track-session track-live ${session.routePlan?'has-route':''} ${display === 'stats' ? 'stats-expanded' : ''} ${paused ? 'is-paused' : 'is-recording'}"><div class="track-live-top"><h2><span class="rec-dot" aria-hidden="true"></span>${esc(session.label)}</h2>${session.gps && !review ? `<div class="seg" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</div>
+    if (review) { follow = false; fitWhole = true; }   // the summary map shows the whole recording, not the last fix
+    el.innerHTML = review ? reviewHTML() : `<section class="track-session track-live ${session.routePlan?'has-route':''} ${display === 'stats' ? 'stats-expanded' : ''} ${paused ? 'is-paused' : 'is-recording'}"><div class="track-live-top"><h2><span class="rec-dot" aria-hidden="true"></span>${esc(session.label)}</h2>${session.gps && !review ? `<div class="seg" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</div>
       <p id="track-status" class="small muted" role="status"></p>
       ${session.intervals?'<section id="interval-live" class="card track-interval-live" aria-label="Current interval"></section>':''}
       <div class="track-hero"><b class="num" id="track-time"></b><small>Active time</small></div>
       ${session.gps ? `<div class="track-live-metrics"><div><b class="num" id="track-distance"></b><small>Distance · ${U.du()}</small></div><div><b class="num" id="track-pace"></b><small><span id="track-pace-label">${speedSport(session) ? 'Speed' : 'Pace'}</span> · ${speedSport(session) ? U.du() + '/h' : '/' + U.du()}</small></div></div><p class="small muted track-splits" id="track-splits"></p>` : ''}
       ${session.routePlan?`<div class="track-plan-progress" id="track-route-progress" aria-label="Planned route progress"><b>${esc(session.routePlan.name)}</b><span id="track-route-distance" class="small muted"></span><small class="track-route-legend"><span>┄ Planned route</span><span>━ Recorded trail</span><span>● Your location</span></small></div>`:''}
       ${session.gps && display === 'map' ? '<div class="track-map-wrap"><div class="track-map live-record-map" id="track-map"></div><span class="gps-chip" id="track-gps-live" hidden></span><button type="button" class="map-chip" id="track-follow">Whole route</button></div>' : ''}
-      ${review ? `<form class="form" id="track-save-form"><label>Activity name<input name="activity_name" value="${esc(session.name || session.label)}" maxlength="200" required${saving?' disabled':''}></label><label>Who can see this activity<select name="visibility"${saving?' disabled':''}>${!session.visibility&&!App.me.share_default?'<option value="">Use my saved sharing setting</option>':''}${Object.entries({me:'Only me',friends:'Approved friends',everyone:'Everyone on Kinetta'}).map(([value,label])=>`<option value="${value}"${value===(session.visibility||App.me.share_default)?' selected':''}>${label}</option>`).join('')}</select></label><p class="small muted">Shared maps hide the start and end using your privacy settings.</p>${session.points.some((p) => p.segment !== session.points[0]?.segment) ? '<p class="small muted">Your activity map keeps every recorded section. Shared previews show the longest continuous section.</p>' : ''}<button class="primary wide" id="track-save"${saving ? ' disabled' : ''}>${saving ? 'Saving…' : 'Save activity'}</button><p class="small danger" id="track-save-error" role="alert"></p></form><button class="ghost wide" id="track-continue"${saving ? ' disabled' : ''}>Continue recording</button>` : `<div class="track-controls" role="group" aria-label="Recording controls">${paused ? `<span class="round-ctl"><button class="round-btn go" id="track-pause" aria-label="Resume">${svg('play')}</button><small>Resume</small></span><span class="round-ctl"><button class="round-btn stop" id="track-finish" aria-label="Finish">${svg('stop')}</button><small>Finish</small></span>` : `<span class="round-ctl"><button class="round-btn" id="track-pause" aria-label="Pause">${svg('pause')}</button><small>Pause</small></span>`}</div><p class="small muted">${session.native ? 'Recording continues with the screen locked or another app open.' : 'Browser recording pauses when you leave this page. Use the iPhone app for background GPS.'}</p>${paused && session.gps && !session.native ? '<button class="ghost wide" id="track-timer">Continue without GPS</button>' : ''}`}
+      ${`<div class="track-controls" role="group" aria-label="Recording controls">${paused ? `<span class="round-ctl"><button class="round-btn go" id="track-pause" aria-label="Resume">${svg('play')}</button><small>Resume</small></span><span class="round-ctl"><button class="round-btn stop" id="track-finish" aria-label="Finish">${svg('stop')}</button><small>Finish</small></span>` : `<span class="round-ctl"><button class="round-btn" id="track-pause" aria-label="Pause">${svg('pause')}</button><small>Pause</small></span>`}</div><p class="small muted">${session.native ? 'Recording continues with the screen locked or another app open.' : 'Browser recording pauses when you leave this page. Use the iPhone app for background GPS.'}</p>${paused && session.gps && !session.native ? '<button class="ghost wide" id="track-timer">Continue without GPS</button>' : ''}`}
       <button class="linkbtn danger track-discard" id="track-discard"${saving ? ' disabled' : ''}>Discard recording</button></section>`;
     $$('[data-display]', el).forEach((b) => b.onclick = () => { display = b.dataset.display; draw(); });
     const fb = $('#track-follow', el); if (fb) fb.onclick = () => { follow = !follow;fitWhole=!follow; refreshMap(); followButton(); };
