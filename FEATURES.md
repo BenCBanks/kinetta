@@ -258,3 +258,7 @@ Route following (#279 implementation): account/server-bound route-only downloads
 ## Run/walk interval review build (#274)
 
 Track holds private time/distance/mixed presets, exact repeat/final-recovery previews, immutable preloads and native interval controls. Guidance is spoken only; the vibration option was removed on 27 October 2026. The recorder owns clock/GPS progression and voice/system-vibration requests; one activity retains private planned/actual results with retry safety and account export/deletion. Browser authoring does not provide browser or indoor guidance. This implementation remains in review; signed locked/stationary/pocket delivery acceptance (#303/#305), merge, hosted deployment and TestFlight are separate gates. [Contract and capability matrix](docs/run-walk-intervals.md).
+
+## Progress recap pictures (#294)
+
+Progress → Share creates a reviewed 4:5 week/month/year picture with selectable totals, activity calendar, highlights, activity weeks, optional food consistency and optional username/photo. Source credit is retained. Eligible monthly Me offers are quiet and dismissible. Rendering/sharing is local; no sharing destination or recipient is stored. Implementation, browser/native compilation and physical iPhone sharing remain separate release states.

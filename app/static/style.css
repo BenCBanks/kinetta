@@ -2715,3 +2715,7 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
 .round-btn.discard svg { width: 24px; height: 24px; }
 @media (max-width: 360px) { .track-controls:has(.round-ctl-discard) { gap: 18px; } }
 #lf-discard, #lf-sum-del { display: block; margin: 14px auto 0; }
+
+/* Deliberate progress recap pictures (#294). */
+.recap-preview{margin:0 0 16px;min-height:100px;background:var(--card2);border-radius:var(--r2);overflow:hidden}.recap-preview img{display:block;width:100%;height:auto;aspect-ratio:4/5;object-fit:contain}.recap-preview.busy{opacity:.6}.recap-periods{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.recap-periods button{flex:1 1 29%;min-height:44px;white-space:normal}.recap-options{border:0;padding:0;margin:20px 0}.recap-options legend{font-weight:700;margin-bottom:8px}.recap-options .check{min-height:44px}.recap-actions{position:sticky;bottom:0;padding:12px 0;background:var(--card);z-index:1}.recap-offer{display:flex;align-items:center;gap:12px}.recap-offer>div:first-child{min-width:0;flex:1}.recap-offer h2{font-size:17px;margin:0}.recap-offer p{margin:4px 0 0}.recap-offer .acts{flex:none}#recap-description{line-height:1.5}
+@media(max-width:360px){.recap-offer{align-items:flex-start;flex-wrap:wrap}.recap-offer .acts{margin-left:auto}}

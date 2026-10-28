@@ -264,8 +264,9 @@ async function meOverview(el) {
     <section class="me-agenda" hidden><h2>Your day</h2><div id="t-plan"></div><div id="t-food"></div><div id="t-checkin"></div></section>
     <nav class="me-shortcuts" aria-label="Go to">${ME_SHORTCUTS.map(([href, ico, label]) => { const waiting = href === '/me/friends' && App.me.friend_requests;
       return `<a href="${href}"${waiting ? ` aria-label="${label}, ${App.me.friend_requests} waiting"` : ''}>${svg(ico)}<span>${label}</span>${waiting ? `<b class="badge alert">${App.me.friend_requests}</b>` : ''}</a>`; }).join('')}</nav>
-    <div id="t-combined-week"></div><div id="t-friends"></div>
+    <div id="t-recap"></div><div id="t-combined-week"></div><div id="t-friends"></div>
     <div id="t-setup"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
+  if(typeof Recaps!=='undefined')Recaps.offer($('#t-recap',el));
   // Your day appears only when the plan or food card (or a pending check-in) has something to show.
   const agenda = () => { const box = $('.me-agenda', el); if (box) box.hidden = !['#t-plan', '#t-food', '#t-checkin'].some(id => $(id, el)?.innerHTML.trim()); };
   tracked('plan', planCard($('#t-plan', el), {onReady: () => { agenda(); ready('plan'); }})).then(agenda).catch(() => {});
@@ -963,7 +964,7 @@ function progressSwitch(section) {
   return `<nav class="seg progress-focus" aria-label="Progress focus"><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a></nav>`;
 }
 // Kit sits at the far right of the Progress header like other pages; the header is redrawn per view, so add it each time.
-function wireProgressFocus(el) { if (typeof KitChat !== 'undefined') KitChat.entry(el, '/progress'); }
+function wireProgressFocus(el) { if (typeof KitChat !== 'undefined') KitChat.entry(el, '/progress'); if(typeof Recaps!=='undefined')Recaps.entry(el); }
 function nutritionHref(view, params = '') {
   return location.pathname === '/progress' ? `/progress?section=food&foodview=${view}${params ? '&' + params : ''}` : `/food?view=${view}${params ? '&' + params : ''}`;
 }
