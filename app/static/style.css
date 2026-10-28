@@ -1567,7 +1567,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .track-live { padding-top: 0; }
 .track-live-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .track-live-top h2 { font: 700 28px/1.2 var(--font-display); margin: 0; }
-.track-live > #track-status { text-align: left; min-height: 20px; }
+.track-live #track-status { text-align: left; min-height: 20px; }
 .gc-off { display:block; margin:20px 0 0; padding:8px 0; }
 .route-end { background: none; border: 0; }
 .route-end svg { display: block; width: 24px; height: 24px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
@@ -2659,3 +2659,27 @@ nav.tabs { view-transition-name: tabs; }
 html.native body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); z-index: 1500; pointer-events: none;
   background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim)::before { display: none; }
+/* Recording controls always above the tab bar (28 October 2026, Ben: Pause and Finish were cut off in the iPhone app).
+   Title, numbers, map and controls fill exactly the space between the status bar and the tab bar; the map takes what is
+   left rather than a fixed share of the screen, so a status line, a planned route or a short phone never pushes the
+   controls down. The note and Discard sit below, a scroll away. */
+.track-live-main { display: flex; flex-direction: column;
+  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - 10px - env(safe-area-inset-bottom, 0px) - var(--tab-h) - 28px); }
+.track-live-main .track-map-wrap { flex: 1 1 0; min-height: 100px; max-height: 420px; }
+.track-live-main .track-map-wrap .live-record-map { position: absolute; inset: 0; height: auto; }
+.track-live.has-route .track-live-main .track-map-wrap { min-height: 96px; }
+.track-live-main .track-controls { margin-top: 16px; }
+@media (max-height: 700px) { .track-live .track-hero { margin: 6px 0 2px; } .track-live .track-hero b { font-size: clamp(48px, 15vw, 64px); }
+  .track-live .track-live-metrics { margin: 6px 0 2px; } .track-live .track-controls .round-btn { width: 76px; height: 76px; }
+  .track-live.has-route .track-splits { display: none; } .track-live-main .track-controls { margin-top: 10px; }
+  .track-live-main .track-map-wrap, .track-live.has-route .track-live-main .track-map-wrap { min-height: 72px; } }
+@media (max-height: 820px) { .track-live .track-route-legend { display: none; } }
+/* Lifting summary after Finish (28 October 2026): the run summary's title and stat card, then records and exercises. */
+.lift-review .track-review-when svg { width: 18px; height: 18px; color: var(--accent); }
+.lift-review-records h3, .lift-review-ex h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
+.lift-review-records h3 svg { width: 20px; height: 20px; color: var(--accent); }
+.lift-review-records > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+.lift-review-records span { min-width: 0; font-weight: 650; } .lift-review-records span small { display: block; color: var(--tx2); font-size: .8125rem; font-weight: 600; }
+.lift-review-records b { white-space: nowrap; }
+.lift-review-ex > div { display: grid; gap: 2px; padding: 9px 0; border-top: 1px solid var(--line); }
+.lift-review-ex > div small { font-size: .875rem; overflow-wrap: anywhere; }
