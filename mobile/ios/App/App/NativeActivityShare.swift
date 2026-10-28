@@ -8,7 +8,7 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     let identifier = "KinettaActivitySharePlugin"
     let jsName = "KinettaActivityShare"
     let pluginMethods: [CAPPluginMethod] = {
-        var methods = [
+        var methods: [CAPPluginMethod] = [
             CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
         ]
