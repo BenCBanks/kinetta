@@ -82,7 +82,7 @@ class Challenges(unittest.TestCase):
   with db.connect() as c:
    row=c.execute('SELECT * FROM challenges WHERE code=%s',(q['code'],)).fetchone();self.assertEqual(C.progress(c,row,self.ids[0],later)['value'],1);self.assertEqual(C.progress(c,row,self.ids[1],later)['value'],1)
    c.execute("UPDATE challenges SET kind='activities' WHERE id=%s",(row['id'],));row=c.execute('SELECT * FROM challenges WHERE code=%s',(q['code'],)).fetchone();self.assertEqual(C.progress(c,row,self.ids[0],later)['value'],2);self.assertEqual(C.progress(c,row,self.ids[1],later)['value'],3)
-   c.execute("UPDATE profile SET tz='Invalid/Stored' WHERE user_id=%s",(self.ids[1],));self.assertEqual(C.progress(c,row,self.ids[1],later)['value'],3)
+   c.execute("UPDATE profile SET tz='Invalid/Stored' WHERE user_id=%s",(self.ids[1],));fallback=C.progress(c,row,self.ids[1],later);c.execute('UPDATE profile SET tz=%s WHERE user_id=%s',(db.DEFAULT_TZ,self.ids[1]));self.assertEqual(fallback,C.progress(c,row,self.ids[1],later))
  def test_completed_workout_crossing_midnight_counts_on_its_start_day(self):
   q,_=self.make('activities');aid=self.activity(at=dt.datetime(2026,11,4,4,55,tzinfo=dt.timezone.utc),seconds=1200)
   with db.connect() as c:
@@ -216,10 +216,10 @@ class Challenges(unittest.TestCase):
     return proxy.connection.execute(statement,params)
   with db.connect() as c:
    C.process(JoinedWhileWaiting(c),cid)
-   self.assertEqual(c.execute('SELECT checked_at FROM challenges WHERE id=%s',(cid,)).fetchone()['checked_at'].year,1970)
+   self.assertEqual(c.execute('SELECT checked_at FROM challenges WHERE id=%s',(cid,)).fetchone()['checked_at'].timestamp(),0)
   with db.connect() as c:
    C.process(c,cid)
-   self.assertGreater(c.execute('SELECT checked_at FROM challenges WHERE id=%s',(cid,)).fetchone()['checked_at'].year,1970)
+   self.assertGreater(c.execute('SELECT checked_at FROM challenges WHERE id=%s',(cid,)).fetchone()['checked_at'].timestamp(),0)
  def test_worker_and_account_erasure_do_not_invert_locks(self):
   q,_=self.make();self.join(q['code']);entered=threading.Event();release=threading.Event();finished=threading.Event();pids={};failures=[];original=C.zone_of
   def paused(*args):entered.set();self.assertTrue(release.wait(5));return original(*args)
