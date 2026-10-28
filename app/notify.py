@@ -15,9 +15,12 @@ from .dish_access import NOTICE_VISIBLE
 from . import apns, db, reactions
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
 
+# A stale or removed source cannot leave a pending private celebration in the bell or on a phone.
+NOTICE_VISIBLE += " AND (n.kind<>'milestone' OR EXISTS(SELECT 1 FROM milestones m JOIN milestone_state ms ON ms.user_id=m.user_id WHERE m.id=n.milestone_id AND m.user_id=n.user_id AND m.valid AND NOT m.silent AND ms.generation=ms.processed AND (m.activity_id IS NULL OR EXISTS(SELECT 1 FROM activities ma WHERE ma.id=m.activity_id AND ma.user_id=m.user_id))))"
+
 router = APIRouter(prefix='/api')
-KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'report')   # report: admins only, in the app only
-PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',)}
+KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone', 'report')   # report: admins only, in the app only
+PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',)}
 MAX_SUBS = 10           # devices per person
 AUTO_SOURCES = ('apple', 'healthkit', 'garmin', 'garmin_connect')   # workouts that arrive without the person doing anything
 
@@ -76,6 +79,7 @@ _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NUL
 
 
 def _words(r):
+    if r['kind']=='milestone':return 'A milestone is ready to review', '/me/milestones'
     who, act = r['name'], r['activity'] or 'activity'
     if r['kind'] == 'activity_ready':
         return f"Nice work! {act} saved — {_activity_summary(r)}", f"/activity/{r['activity_id']}"
@@ -143,7 +147,7 @@ def notifications_read(user=Depends(current_user)):
 
 # ---------- phone notifications (Web Push) ----------
 def _prefs(v):
-    return {k: bool((v or {}).get(k, True)) for k in PUSH_KINDS}
+    return {k: bool((v or {}).get(k, k!='milestones')) for k in PUSH_KINDS}
 
 
 # Older app copies get an explicit retirement response; no browser endpoint sends traffic.
@@ -199,6 +203,7 @@ class PrefsIn(BaseModel):
     comments: bool | None = None
     dishes: bool | None = None
     activities: bool | None = None
+    milestones: bool | None = None
 
 
 @router.put('/notifications/settings')
@@ -215,7 +220,7 @@ def _push_words(r):
     text,_=_words(r)
     titles={'friend_request':'Friend request','friend_accepted':'Friend request accepted',
             'cheer':'New reaction','comment':'New comment','dish_shared':'Meal shared',
-            'activity_ready':'Workout saved'}
+            'activity_ready':'Workout saved','milestone':'Milestone'}
     if r['kind']=='activity_ready':
         return 'Workout saved', f"{r['activity'] or 'Your workout'}\n{_activity_summary(r)}"
     if r['kind']=='comment':

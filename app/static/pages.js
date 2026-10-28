@@ -483,7 +483,8 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
     <div class="card d-ph" aria-hidden="true"><div class="sk line short"></div><div class="sk big"></div><div class="d-ph-stats"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div>${skel(1)}`;
   wireBack(el, '/activity');
   SocialData.prefetch(id);
-  await load(`/api/activities/${id}`, (a) => {drawDetail(el,a);if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}}, {maxAge:60000});
+  const milestoneOwner=readOwner(),milestoneOffers=Milestones.read({activity_id:id}).catch(()=>({items:[]}));let milestoneDraw=0;
+  await load(`/api/activities/${id}`, (a) => {const stamp=++milestoneDraw;milestoneOffers.then(data=>{if(!el.isConnected||readOwner()!==milestoneOwner||stamp!==milestoneDraw)return;drawDetail(el,a);Milestones.paint($('#d-milestones',el),data,{params:{activity_id:id}});if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}}).catch(e=>{if(el.isConnected&&readOwner()===milestoneOwner)showError(el,e);});}, {maxAge:60000});
 });
 
 // Sections (2026-10-12, Ben: "one huge long list"): the map, title and headline numbers stay on top; the rest is
@@ -520,7 +521,7 @@ function drawDetail(el, a) {
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}
-      <div class="hero">${hero}</div>${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div id="d-photos"></div><div class="cpile"></div></div>
+      <div id="d-milestones"></div><div class="hero">${hero}</div>${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div id="d-photos"></div><div class="cpile"></div></div>
     <div class="seg wide dtabs" role="tablist" aria-label="Sections"${DTABS.filter(([k]) => has(k)).length < 2 ? ' hidden' : ''}>${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
     ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
   let drawCharts = null;
@@ -1350,6 +1351,7 @@ route(/^\/me$/, 'me', async (el) => {
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
     <div class="card list me-tools">${row('a', `href="${profileHref(me)}"`, 'user', 'c-brand', 'Your profile<small class="muted">Edit, share &amp; see your progress</small>')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
+  el.insertAdjacentHTML('beforeend','<div id="me-milestones"></div>');Milestones.mount($('#me-milestones',el),{row:true});
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });
 route(/^\/me\/settings$/, 'me', async (el) => {

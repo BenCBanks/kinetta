@@ -1812,6 +1812,52 @@ MIGRATIONS = [
     CREATE POLICY own_rows ON signup_join_intents FOR SELECT TO fit_readers USING(user_id=fit_me());
     """,
 
+    # 82. Private once-only milestones and cheap coalesced import/edit work.
+    """CREATE TABLE milestone_state(user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      generation bigint NOT NULL DEFAULT 1,processed bigint NOT NULL DEFAULT 0,fresh boolean NOT NULL DEFAULT false,
+      baseline_at timestamptz NOT NULL DEFAULT now(),changed timestamptz NOT NULL DEFAULT now(),
+      next_check timestamptz NOT NULL DEFAULT now(),last_push_day date);
+    CREATE TABLE milestones(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code text NOT NULL,kind text NOT NULL,title text NOT NULL,rank integer NOT NULL,activity_id bigint,day date NOT NULL,
+      occurred timestamptz NOT NULL,details jsonb NOT NULL,garmin_source text,silent boolean NOT NULL DEFAULT false,
+      valid boolean NOT NULL DEFAULT true,seen_at timestamptz,shared_at timestamptz,created timestamptz NOT NULL DEFAULT now(),UNIQUE(user_id,code));
+    CREATE INDEX milestones_recent ON milestones(user_id,occurred DESC) WHERE valid AND NOT silent AND seen_at IS NULL;
+    ALTER TABLE milestone_state ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON milestone_state FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON milestone_state TO fit_readers;
+    ALTER TABLE milestones ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON milestones FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON milestones TO fit_readers;
+    ALTER TABLE notifications ADD COLUMN milestone_id uuid REFERENCES milestones(id) ON DELETE CASCADE;
+    INSERT INTO milestone_state(user_id) SELECT id FROM users;
+    CREATE FUNCTION milestone_dirty() RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE uid bigint; recent boolean := false; at_time timestamptz; food_day date; zone text; local_day date;
+    BEGIN
+      uid := CASE WHEN TG_OP='DELETE' THEN OLD.user_id ELSE NEW.user_id END;
+      IF NOT EXISTS(SELECT 1 FROM users WHERE id=uid) THEN RETURN NULL; END IF;
+      IF TG_OP<>'DELETE' THEN
+        IF TG_TABLE_NAME='activities' THEN at_time:=NEW.start_time;
+        ELSIF TG_TABLE_NAME='best_efforts' THEN SELECT start_time INTO at_time FROM activities WHERE id=NEW.activity_id AND user_id=uid;
+        ELSIF TG_TABLE_NAME='food_entries' THEN food_day:=NEW.day;
+        END IF;
+        recent := coalesce(at_time BETWEEN now()-interval '7 days' AND now(),false);
+        IF food_day IS NOT NULL THEN
+          SELECT coalesce(tz,'UTC') INTO zone FROM profile WHERE user_id=uid;
+          BEGIN local_day:=(now() AT TIME ZONE coalesce(zone,'UTC'))::date;
+          EXCEPTION WHEN invalid_parameter_value THEN local_day:=(now() AT TIME ZONE 'UTC')::date; END;
+          recent:=food_day BETWEEN local_day-7 AND local_day;
+        END IF;
+      END IF;
+      INSERT INTO milestone_state(user_id,fresh) VALUES(uid,recent)
+      ON CONFLICT(user_id) DO UPDATE SET generation=milestone_state.generation+1,fresh=milestone_state.fresh OR excluded.fresh,changed=now();
+      RETURN NULL;
+    END $$;
+    CREATE TRIGGER milestone_activity AFTER INSERT OR UPDATE OR DELETE ON activities FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
+    CREATE TRIGGER milestone_best AFTER INSERT OR UPDATE OR DELETE ON best_efforts FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
+    CREATE TRIGGER milestone_food AFTER INSERT OR UPDATE OR DELETE ON food_entries FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
+    CREATE TRIGGER milestone_profile AFTER UPDATE OF tz,units ON profile FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
+    """,
+
 ]
 
 
