@@ -33,7 +33,7 @@ const FoodNutrition=(()=>{
   }
   function portionFactor(e,serving){return e.unit==='serving'?e.amount:e.unit==='g'&&serving.g>0?e.amount/serving.g:null;}
   function html(e,source){
-    const b=basis(e),rows=[['kcal','Calories','kcal'],['fat_g','Fat','g'],['saturated_fat_g','Saturated fat','g'],['carbs_g','Carbohydrates','g'],['fiber_g','Fibre','g'],['sugar_g','Sugars','g'],['protein_g','Protein','g'],['sodium_mg','Sodium','mg']];
+    const b=basis(e),rows=[['kcal','Calories','kcal'],['fat_g','Fat','g'],['saturated_fat_g','Saturated fat','g'],['carbs_g','Carbohydrates','g'],['fiber_g','Fiber','g'],['sugar_g','Sugars','g'],['protein_g','Protein','g'],['sodium_mg','Sodium','mg']];
     const ref=e.ref||{},src=ref.origin_ref||ref;
     return `<div class="food-label"><p class="food-label-source">${e.brand?`<b>${esc(e.brand)}</b> · `:''}${esc(source)}</p>${src.package_size?`<p class="small muted">Package: ${esc(src.package_size)}</p>`:''}
       <table role="table"><caption class="vh">Nutrition for ${esc(e.name)}</caption><thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col">Nutrition</th><th role="columnheader" scope="col">${b.per100?'Per 100 g':'Per serving'}<small>${esc(b.label)}</small></th><th role="columnheader" scope="col">Chosen amount<small>${esc(fmtAmount(e))}</small></th></tr></thead><tbody role="rowgroup">${rows.filter(([k])=>['kcal','protein_g','carbs_g','fat_g'].includes(k)||nutrientKnown(e,k)||b.values[k]!=null).map(([k,label,unit])=>`<tr role="row"><th role="rowheader" scope="row">${label}</th><td role="cell" class="num">${nutrientNumber(b.values[k]??null,unit)}</td><td role="cell" class="num">${nutrientNumber(nutrientKnown(e,k)?e[k]:null,unit)}</td></tr>`).join('')}</tbody></table>
