@@ -613,6 +613,9 @@ def product_words(s):
 
 
 LEAD_IN = {'i', 'had', 'ate', 'of', 'the', 'a', 'an', 'my'}
+# Sizes describe the portion, not the food: "1 medium chicken breast" searches for chicken breast (28 October 2026,
+# a tester got no match at all because no database name contains "medium"). The portion keeps its words.
+SIZES = {'small', 'medium', 'large', 'big', 'jumbo', 'mini', 'extra', 'xl', 'sm', 'med', 'lg'}
 BASIC = {'raw', 'whole', 'plain', 'fresh', 'cooked', 'nf', 'regular', 'medium', 'large', 'prepared'}
 
 
@@ -630,6 +633,8 @@ def lookup(text):
     if remaining is None or re.search(r'-\s*\d', text): return out
     # Keep brand words such as 'Other', 'Simply' or 'Whole': only grammatical lead-ins go.
     said = ' '.join(t for t in remaining if isinstance(t, str) and t not in LEAD_IN)
+    plain_said = ' '.join(w for w in said.split() if w not in SIZES)
+    if plain_said: said = plain_said     # "a large" alone stays as it was
     words = set(product_words(said))
     if not words: return out
     out['query'] = query = ' '.join(product_words(said))[:80]

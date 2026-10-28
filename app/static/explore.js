@@ -61,6 +61,11 @@ function aiCan(feature) {
   const access = App.me?.ai_access?.[feature];
   return !!App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
 }
+// Kit could do this if the person turned it on (offer the Turn on Kit sheet instead of a dead end).
+function aiOffer(feature) {
+  const access = App.me?.ai_access?.[feature];
+  return !App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
+}
 // Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
 function kitChatOn() { return !!App.me?.kit_chat && aiCan('coach'); }
 route(/^\/me\/explore$/, 'me', async (el) => {

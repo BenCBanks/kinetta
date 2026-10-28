@@ -130,7 +130,7 @@ const FoodThread = (() => {
     for(const o of item.options||[])options.push([o.label,{part:part.index,portion:o.portion}]);
     for(const o of part.scale_options||[])options.push([o.label,{part:part.index,factor:o.factor}]);
     if(item.new_ok)options.push(['Something new',{part:part.index,new:true}]);
-    return `<div class="thread-choices">${options.map(([label,value])=>`<button type="button" class="ghost" data-choice="${esc(JSON.stringify(value))}">${esc(label)}</button>`).join('')}${aiCan('food')&&!part.drafts&&!item.kind&&['choose','quantity'].includes(part.status)?`<button type="button" class="ghost" data-estimate="${part.index}">Estimate calories with Kit</button>`:''}${part.entered_numbers?'':`<button type="button" class="linkbtn" data-portion="${part.index}">Change amount</button>`}<button type="button" class="linkbtn" data-manual="${part.index}">Enter nutrition</button></div>`;
+    return `<div class="thread-choices">${options.map(([label,value])=>`<button type="button" class="ghost" data-choice="${esc(JSON.stringify(value))}">${esc(label)}</button>`).join('')}${!part.drafts&&!item.kind&&['choose','quantity','unknown'].includes(part.status)?aiCan('food')?`<button type="button" class="ghost" data-estimate="${part.index}">Estimate calories with Kit</button>`:aiOffer('food')?`<button type="button" class="ghost" data-kit-on="${part.index}">Turn on Kit to estimate</button>`:'':''}${part.entered_numbers?'':`<button type="button" class="linkbtn" data-portion="${part.index}">Change amount</button>`}<button type="button" class="linkbtn" data-manual="${part.index}">Enter nutrition</button></div>`;
   }
   function changedNumbers(result,entries){
     if(!entries.length)return false;const keys=['kcal','protein_g','carbs_g','fat_g','fiber_g'];
@@ -383,6 +383,8 @@ const FoodThread = (() => {
     });
     $$('[data-reply]',node).forEach(b=>b.onclick=()=>{if(!$('#thread-text',ctx.el).value.trim())send(ctx,{body:b.dataset.reply});else status(ctx,'Send or clear your typed message first.');});
     $$('[data-estimate]',node).forEach(b=>b.onclick=()=>action(ctx,m.id,'resolve',{retry:true,allow_brand_estimate:true,part:+b.dataset.estimate}).catch(()=>{}));
+    // A food nobody could match while Kit was off (28 October 2026): turn it on (with its 18+ confirmation), then estimate.
+    $$('[data-kit-on]',node).forEach(b=>b.onclick=()=>aiSheet(()=>{if(active(ctx))action(ctx,m.id,'resolve',{retry:true,allow_brand_estimate:true,part:+b.dataset.kitOn}).catch(()=>{});}));
     $$('[data-portion]',node).forEach(b=>b.onclick=()=>portion(ctx,m,+b.dataset.portion));
     $$('[data-manual]',node).forEach(b=>b.onclick=()=>manual(ctx,m,+b.dataset.manual,r));
     const more=$('[data-more]',node);if(more)more.onclick=()=>sheet('Food message',`<button type="button" class="ghost wide" id="thread-correct">Correct in chat</button><button type="button" class="linkbtn danger" id="thread-delete">Delete message text</button><p>Deleting the message keeps saved food. Use Undo to remove its food.</p>`,(b,close)=>{

@@ -244,7 +244,7 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
             adult=vals.pop('ai_adult',None)
             if vals.get('ai_ok') and not adult and not c.execute('SELECT ai_adult_at FROM profile WHERE user_id=%s',(user['id'],)).fetchone()['ai_adult_at']:
                 raise HTTPException(400,'Kit is for people 18 or older. Confirm your age to turn it on.')
-            if adult:c.execute('UPDATE profile SET ai_adult_at=coalesce(ai_adult_at,now()) WHERE user_id=%s',(user['id'],))
+            if adult:c.execute("UPDATE profile SET ai_adult_at=coalesce(ai_adult_at,now()),ai_adult_by=CASE WHEN ai_adult_at IS NULL THEN 'self' ELSE ai_adult_by END WHERE user_id=%s",(user['id'],))
             if vals.get('health_ai_ok') is False:vals['health_weight_ai_ok']=False
             if vals.get('health_weight_ai_ok') and not vals.get('health_ai_ok',old.get('health_ai_ok')):raise HTTPException(400,'Allow Health data for AI before including Health weight')
             if 'weight_kg' in vals and vals['weight_kg']!=old.get('weight_kg'):vals['weight_health_derived']=False

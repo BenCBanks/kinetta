@@ -65,6 +65,8 @@ class Signup(unittest.TestCase):
         self.assertFalse(new.get('/api/me').json().get('ai_ok'))
         self.assertEqual(new.put('/api/profile', json={'ai_ok': True, 'ai_adult': True}).status_code, 200)
         self.assertTrue(new.get('/api/me').json()['ai_ok'])
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT ai_adult_by FROM profile p JOIN users u ON u.id = p.user_id WHERE u.login = 'zz_test_su_new'").fetchone()['ai_adult_by'], 'self', 'their own tick is recorded as theirs')
         new.put('/api/profile', json={'ai_ok': False}); self.assertEqual(new.put('/api/profile', json={'ai_ok': True}).status_code, 200, 'asked once')
         # a yes from before the age rule (existing Kit users) counts for nothing until they confirm
         with db.connect() as c:
