@@ -1,4 +1,5 @@
 """Fictional sources, actual SQL/HTTP and deterministic algorithm stand-ins; no devices/providers/models."""
+from contextlib import contextmanager
 import concurrent.futures
 import datetime as dt
 import json
@@ -173,7 +174,25 @@ class Integrity(unittest.TestCase):
             self.assertFalse(c.execute('SELECT 1 FROM segment_stage_scans WHERE segment_id=%s',(self.sid,)).fetchone())
             for i in range(105):c.execute("INSERT INTO segment_jobs(kind,ref,attempts) VALUES('activity',%s,5)",(-self.sid*1000-i,))
         try:
-            r=self.admin.post('/api/admin/segments/jobs/retry',json={});self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['retried'],100)
+            real_connect=db.connect
+            @contextmanager
+            def retry_plan():
+                with real_connect() as c:
+                    # Force a rescan-capable plan; default statistics made this regression intermittent.
+                    for name in ('enable_hashjoin','enable_mergejoin','enable_material','enable_sort','enable_hashagg'):
+                        c.execute(f'SET LOCAL {name}=off')
+                    c.execute("SET LOCAL statement_timeout='5s'")
+                    yield c
+            with db.connect() as held:
+                job=held.execute("SELECT id FROM segment_jobs WHERE kind='activity' AND ref=%s FOR UPDATE",(-self.sid*1000,)).fetchone()['id']
+                with patch.object(db,'connect',retry_plan):
+                    r=self.admin.post('/api/admin/segments/jobs/retry',json={})
+                self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['retried'],100)
+                self.assertEqual(held.execute('SELECT attempts FROM segment_jobs WHERE id=%s',(job,)).fetchone()['attempts'],5,'a worker-held row stays untouched')
+            with patch.object(db,'connect',retry_plan):
+                second=self.admin.post('/api/admin/segments/jobs/retry',json={})
+            self.assertEqual(second.status_code,200,second.text)
+            self.assertTrue(1<=second.json()['retried']<=100,'remaining failed jobs, including the released row, form a separate bounded batch')
         finally:
             with db.connect() as c:c.execute("DELETE FROM segment_jobs WHERE kind='activity' AND ref BETWEEN %s AND %s",(-self.sid*1000-104,-self.sid*1000))
 

@@ -755,8 +755,11 @@ def switch(body: SwitchIn, user=Depends(admin_user)):
 @router.post('/admin/segments/jobs/retry')
 def retry_jobs(user=Depends(admin_user)):
     with db.connect() as c:
-        n = c.execute('''UPDATE segment_jobs SET attempts=0,last_error=NULL WHERE id IN
-          (SELECT id FROM segment_jobs WHERE attempts>=5 ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 100) RETURNING id''').fetchall()
+        # A locking IN subquery can be rescanned and choose another batch during the UPDATE.
+        n = c.execute('''WITH chosen AS MATERIALIZED (
+          SELECT id FROM segment_jobs WHERE attempts>=5 ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 100
+        ) UPDATE segment_jobs AS j SET attempts=0,last_error=NULL FROM chosen
+          WHERE j.id=chosen.id RETURNING j.id''').fetchall()
         audit(c, user['id'], 'segment_jobs.retry', len(n))
     return {'retried': len(n)}
 

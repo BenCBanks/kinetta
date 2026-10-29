@@ -102,7 +102,7 @@ Do not stop at component PRs. PR344 is the combined review candidate; stacked co
 - Two code-review passes after the final profile/website additions, concrete findings repaired and targeted checks added. Recheck any subsequent code finding.
 - Complete final UI review in both themes,330/390px, short phones, larger text and desktop. Verify clear primary actions, reachable long content, keyboard/draft behavior, no clipping and valid native spacing evidence.
 - Exact-head CI, including both eight-case native jobs, passes; representative screenshots are reviewed and attached.
-- Reconcile all26 issues/labels/evidence, update the private overview/work log and keep remaining operator/device gates explicit.
+- Reconcile all27 issues/labels/evidence, update the private overview/work log and keep remaining operator/device gates explicit.
 
 PR344 records the current evidence, screenshots and remaining release steps.
 
@@ -126,3 +126,8 @@ Use [the approved requirements](profile-home-requirements.md) for the profile-fi
 The [feature-priority decision](feature-priorities.md) records the current official competitor evidence and how it informs app/website prominence. Website enrollment must resolve the configured signup/waitlist/invitation policy, retain origin links on temporary failures and ignore responses from an older view/account.
 
 Cold Me loading must keep the plan and chart untappable until their first placement is known, while logged food can lead as soon as it is ready. Optional native Health status must not delay history classification or shift primary navigation. Fresh setup offers one connection step; established optional reminders remain hideable. Incomplete enrollment replies must preserve invitations and offer Retry.
+
+
+## Bounded segment-job retry · #355
+
+Repeated full regression exposed a locking subquery choosing more than100 jobs under an adverse execution plan. Retry now materializes one locked candidate set before updating it, preserving administrator/CSRF/audit and skip-locked behavior. The actual SQL/HTTP regression forces that plan, retains the exact100 bound, checks a worker-held row and retries the remaining batch separately. This follow-up requires the final two whole-suite runs to include the repair. No production retry or provider activation is part of verification.
