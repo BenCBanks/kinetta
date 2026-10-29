@@ -1,6 +1,6 @@
 # Launch work and acceptance checklist · 28 October 2026
 
-This consolidates the owner’s requests and all 23 currently open issues. It is the working acceptance plan; it does not claim that an open PR is deployed. Keep [ROADMAP.md](../ROADMAP.md) as the ordered queue, and update this checklist as evidence arrives. P3 work is explicitly deferred. No merge, hosted deployment, billing activation or TestFlight release is authorized by this checklist.
+This consolidates the owner’s requests and all 24 currently open issues. It is the working acceptance plan; it does not claim that an open PR is deployed. Keep [ROADMAP.md](../ROADMAP.md) as the ordered queue, and update this checklist as evidence arrives. P3 work is explicitly deferred. No merge, hosted deployment, billing activation or TestFlight release is authorized by this checklist.
 
 ## Current state
 
@@ -24,6 +24,7 @@ This consolidates the owner’s requests and all 23 currently open issues. It is
 | [#296 milestones](https://github.com/BenCBanks/kinetta/issues/296) | P2 | [PR346](https://github.com/BenCBanks/kinetta/pull/346): full fresh regression suite with16 new API/SQL/privacy/concurrency groups, schema81→82 upgrade, eight browser configurations and CI passed. Visual review fixed banner sizing and recent-row icons. Combined and physical push/share acceptance remain. |
 | [#297 challenges](https://github.com/BenCBanks/kinetta/issues/297) | P2 | [PR348](https://github.com/BenCBanks/kinetta/pull/348): templates, explicit join/signup/waitlist continuation, aggregate privacy, local dates, limits, leave/remove/block/end, notifications, retention and UI/share/QR. Full fresh suite,21 API/SQL/privacy/concurrency groups, schema82→83 upgrade, eight challenge browser configurations and eight production form configurations passed. CI found two test assumptions about the server time zone; those assertions now use the actual configured zone and UTC timestamps. Final combined verification remains. |
 | [#293 sharing umbrella](https://github.com/BenCBanks/kinetta/issues/293) | P2 | Keep open until the four children and their shared privacy/source/explicit-sharing rules are accepted. |
+| [#352 admin age/Kit](https://github.com/BenCBanks/kinetta/issues/352) | P1 | Birth year and approximate age, visible operator permission/personal consent status, confirmed admin editing and backend access enforcement. Nine targeted API/privacy/retry/generation groups pass; final browser/upgrade/full validation remains. No production account changed. |
 | Original product/business analysis | Owner request | Delivered in the existing private owner reference: honest prospects, seven business/distribution avenues, strategy, risks, pricing hypotheses, unit economics and validation gates, checked against current official provider/store sources. Private content stays outside this repository. |
 | [#300 private overview](https://github.com/BenCBanks/kinetta/issues/300) | P2 | Maintain the owner-only overview throughout. The owner resolved the Garmin-AI wording: keep the existing separate-consent option. The remaining plain-language read-through needs the owner; private contents do not belong in this repository. |
 
@@ -97,10 +98,15 @@ Combined candidate a06d87e passed all CI and16 native layout cases: compact safe
 
 Do not stop at component PRs. PR344 is the combined review candidate; stacked component PRs are review aids and must not be merged independently.
 
-- [ ] Two complete fresh runs of the entire existing `dev/tests/run.sh` against final combined code, including the required schema80→84 upgrade. Earlier component/partial passes do not replace them. Exercise both UTC and America/New_York server time zones.
+- [ ] Two complete fresh runs of the entire existing `dev/tests/run.sh` against final combined code, including the required schema80→85 upgrade. Earlier component/partial passes do not replace them. Exercise both UTC and America/New_York server time zones.
 - [x] Two code-review passes, concrete findings repaired and targeted checks added. Recheck any subsequent code finding.
 - [ ] Complete final UI review in both themes,330/390px, short phones, larger text and desktop. Verify clear primary actions, reachable long content, keyboard/draft behavior, no clipping and valid native spacing evidence.
 - [ ] Exact-head CI, including both eight-case native jobs, passes; representative screenshots are reviewed and attached.
-- [ ] Reconcile all23 issues/labels/evidence, update the private overview/work log and keep remaining operator/device gates explicit.
+- [ ] Reconcile all24 issues/labels/evidence, update the private overview/work log and keep remaining operator/device gates explicit.
 
 Physical iPhone share sheets/camera/VoiceOver/locked-screen spoken intervals, actual hosted map coverage/cost, owner overview read-through, merge, deployment, TestFlight upload and Apple processing remain separate outcomes. No release or paid-provider activation is authorized by this checklist.
+
+
+## Admin age and Kit access · owner, 29 October
+
+Show age and Kit settings in Accounts and the private account detail. Use birth year with approximate age; allow clearing an unknown year. Administrator permission is distinct from the member’s consent and 18+ confirmation, product entitlements, provider configuration and reviewed release. Allowing access never creates consent. Blocking access and a known under-18 birth year prevent AI generation on the backend, including default-open installations; manual tools remain available. Confirm writes with the account username, preserve failed drafts, use durable retry receipts and audit the action without copying birth year or consent into the audit record. Existing operator permission defaults to allowed on upgrade. Check fresh schema85 and preservation/defaults from80, private export/erasure, API permissions and actual phone/desktop edit/retry flows before final acceptance. The two complete final regression runs must include this addition; earlier7bf8f38 evidence is superseded.

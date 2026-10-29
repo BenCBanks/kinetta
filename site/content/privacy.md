@@ -118,7 +118,7 @@ Services you connect yourself, such as Garmin Connect or Health Auto Export, als
 
 ## admin
 
-The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties. Ordinary account support shows status and counts, not your private workouts, routes, food, health records or conversations. An administrator reviewing a report can see its reported comment, current profile bio/photo, or the reported activity’s summary and attached photos. Review access and actions are recorded without copying that content into the audit log. If you make a data request, we keep its type, status, verification method and dates, linked to your account while it exists; correspondence and identity documents are not stored in this register.
+The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties. Ordinary account support shows status, counts, birth year/approximate age and Kit permission/consent status, without opening your private workouts, routes, food, other health records or conversations. An administrator can correct birth year and allow or block Kit access. Allowing access never supplies your own AI consent or permission to include Apple Health or Garmin data. An administrator reviewing a report can see its reported comment, current profile bio/photo, or the reported activity’s summary and attached photos. Review access and actions are recorded without copying that content into the audit log. If you make a data request, we keep its type, status, verification method and dates, linked to your account while it exists; correspondence and identity documents are not stored in this register.
 
 ## retention-heading
 
@@ -154,7 +154,7 @@ Children
 
 ## age
 
-Kinetta is not for anyone under 16. Kit, the optional AI assistant, is only for people 18 or older: you confirm your age when you turn it on, and Kit stays off without that confirmation. If you think a child has signed up, email us and we'll remove their information.
+Kinetta is not for anyone under 16. Kit, the optional AI assistant, is only for people 18 or older: you confirm your age when you turn it on, and Kit stays off without that confirmation. A recorded birth year indicating someone is under 18 also prevents AI use, even if an earlier confirmation exists. If you think a child has signed up, email us and we'll remove their information.
 
 ## contact-heading
 

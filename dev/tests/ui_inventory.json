@@ -490,5 +490,14 @@
     "logins",
     "usage",
     "audit"
+  ],
+  "admin_account_states": [
+    "list",
+    "detail",
+    "edit-validation",
+    "lost-acknowledgement-retry",
+    "blocked-confirmed",
+    "under18",
+    "clear-birth-year"
   ]
 }

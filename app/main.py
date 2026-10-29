@@ -77,12 +77,13 @@ app.include_router(recipe_import.router)
 app.include_router(admin_auth.router)
 app.include_router(api_admin.router)
 app.include_router(admin_usage.router)
-from . import admin_readiness, admin_passwords, admin_review, admin_support, admin_manage
+from . import admin_readiness, admin_passwords, admin_review, admin_support, admin_manage, admin_kit
 app.include_router(admin_readiness.router)
 app.include_router(admin_passwords.router)
 app.include_router(admin_review.router)
 app.include_router(admin_support.router)
 app.include_router(admin_manage.router)
+app.include_router(admin_kit.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -247,9 +248,13 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
     if vals:
         with db.connect() as c:
             c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
-            old=c.execute('SELECT tz,health_ai_ok,weight_kg,weight_health_derived,health_weight_read FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
+            old=c.execute('SELECT tz,health_ai_ok,weight_kg,weight_health_derived,health_weight_read,birth_year,ai_access_allowed FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
             # Kit is 18+: a yes needs the age confirmation, now or recorded earlier (sign-up itself is 16+)
             adult=vals.pop('ai_adult',None)
+            if vals.get('ai_ok') or adult:
+                from . import ai_access
+                reason=ai_access.restriction({**old,'birth_year':vals.get('birth_year',old.get('birth_year'))})
+                if reason:raise HTTPException(403,reason)
             if vals.get('ai_ok') and not adult and not c.execute('SELECT ai_adult_at FROM profile WHERE user_id=%s',(user['id'],)).fetchone()['ai_adult_at']:
                 raise HTTPException(400,'Kit is for people 18 or older. Confirm your age to turn it on.')
             if adult:c.execute("UPDATE profile SET ai_adult_at=coalesce(ai_adult_at,now()),ai_adult_by=CASE WHEN ai_adult_at IS NULL THEN 'self' ELSE ai_adult_by END WHERE user_id=%s",(user['id'],))

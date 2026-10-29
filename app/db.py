@@ -1887,6 +1887,9 @@ MIGRATIONS = [
     GRANT SELECT(user_id,kind,want_request,created) ON signup_join_intents TO fit_readers;
     """,
 
+    # 85. Operator Kit permission is separate from personal consent and product entitlements.
+    """ALTER TABLE profile ADD COLUMN ai_access_allowed boolean NOT NULL DEFAULT true;""",
+
 ]
 
 
