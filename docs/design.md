@@ -1282,6 +1282,13 @@ Owner asked for a more professional, launch-ready feel. Slow loads now show plac
 
 After owner phone review, Finish opens a summary rather than the live recording layout: sport and start time, a large Title field first, a stat card (distance, active time, average pace or speed, total time when pauses add 30 s or more, elevation gain when the iPhone recorded enough good altitudes; 3 m hysteresis; estimated calories using the same rule as the server's energy estimate with the profile weight, else 75 kg), splits per mile or km plus the last part, a small map fitted to the whole recording, then sharing, Save activity, Continue recording and Discard. In the iPhone app a soft page-coloured strip sits behind the status bar so scrolled content never runs under the clock and Dynamic Island (hidden while a sheet is open and on full-bleed map pages).
 
+Owner revision, 29 October: [GPS review requirements](tracking-review.md) supersede this ordering. Keep title and
+compact headline figures, then map/photos and measured charts; disclose dense details/splits/laps. Save stays
+reachable above tabs, with concise retained-draft errors. Live recording consistently shows the whole active-time
+average plus separate lap pace. Lap defaults to miles; the first manual press closes from activity start, then each
+press defines the next boundary without auto-mile resets. Expanded live maps retain recording controls and return
+without changing GPS/time. Preserve the existing interval controls and every privacy/durability rule.
+
 ### Lifting summary and recording controls (28 October 2026)
 
 After owner review, finishing a live lifting session opens a summary in the same style as the post-recording one: sport and start time, a large Title field, a stat card (duration, exercises, working sets, reps, volume, calories — the watch's number when merged, else the server's 5 MET estimate with the profile weight, else 75 kg), a New records card when any set beat an earlier best, each exercise with its sets and last time's, then sharing, Done (sends only a changed title or sharing) and Carry on with this session (reopens it within its 4 hours). The session is saved before the summary appears; leaving it keeps the default title and sharing. Editing an already finished session still returns straight to Track.

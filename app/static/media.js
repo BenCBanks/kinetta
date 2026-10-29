@@ -10,15 +10,15 @@ function activityMedia(a, {mapId = '', detail = false, full = false, openHref = 
     ${openHref ? `<a class="primary wide post-open" href="${esc(openHref)}">View activity ${svg('chev')}</a>` : ''}
     ${count > 1 ? `<div class="media-controls"><button type="button" class="icon-btn" data-media-step="-1" aria-label="Previous photo or map" disabled>${svg('back')}</button><span class="small muted num" data-media-position aria-live="polite">${a.line ? 'Map' : 'Photo 1'} · 1 of ${count}</span>${a.line && photos.length ? `<button class="linkbtn small" data-media-map>Map</button>` : ''}<button type="button" class="icon-btn" data-media-step="1" aria-label="Next photo or map">${svg('chev')}</button></div>` : ''}</div>`;
 }
-function wireMediaMapFull(box, mapObject, lines, still) {
+function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOnClose = true} = {}) {
   const btn = $('.map-full', box); if (!btn) return;
   const spot = document.createComment('map'), path = location.pathname + location.search;
   const token = 'map-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-  const routeLines = Array.isArray(lines) ? lines : [lines];
+  const routeLines = () => {const value=typeof lines==='function'?lines():lines;return Array.isArray(value)?value:[value];};
   let previousState, background = [], waitingBack = false, press = null, tap = false;
   const controls = 'button, a, input, select, .leaflet-control';
   const refit = () => {
-    const m = mapObject(), points = routeLines.flatMap(line => typeof line === 'string' ? decode(line) : line);
+    const m = mapObject(), points = routeLines().flatMap(line => typeof line === 'string' ? decode(line) : line);
     if (m) { m.map.invalidateSize({pan: false}); if (points.length) m.map.fitBounds(m.L.latLngBounds(points), {padding: [24, 24], animate: false}); }
   };
   const close = () => {
@@ -33,7 +33,7 @@ function wireMediaMapFull(box, mapObject, lines, still) {
     if (history.state?.kinettaMap === token) history.replaceState(previousState, '', location.href);
     if (!spot.isConnected) { box.remove(); return; }
     spot.replaceWith(box); btn.innerHTML = svg('expand'); btn.setAttribute('aria-label', 'Full-screen map');
-    refit(); btn.focus({preventScroll: true});
+    if(refitOnClose)refit();else mapObject()?.map.invalidateSize({pan:false});btn.focus({preventScroll: true});
   };
   const requestClose = () => {
     if (waitingBack) return;
@@ -67,7 +67,7 @@ function wireMediaMapFull(box, mapObject, lines, still) {
   // A deliberate tap opens the map. Dragging, a photo-rail swipe, a pinch and map controls keep their jobs.
   box.addEventListener('pointerdown', e => {
     tap = false; press = null;
-    if (!box.classList.contains('full') && e.isPrimary && e.button === 0 && !e.target.closest(controls))
+    if (!box.classList.contains('full') && e.isPrimary && e.button === 0 && !e.target.closest(controls) && (!tapArea || e.target.closest(tapArea)))
       press = {id: e.pointerId, x: e.clientX, y: e.clientY, at: Date.now(), track: box.closest('.media-track'), scroll: box.closest('.media-track')?.scrollLeft};
   }, {passive: true});
   box.addEventListener('pointermove', e => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) press = null; }, {passive: true});
@@ -77,6 +77,7 @@ function wireMediaMapFull(box, mapObject, lines, still) {
     press = null;
   }, {passive: true});
   box.addEventListener('click', e => { if (tap && !box.classList.contains('full') && !e.target.closest(controls)) { e.stopPropagation(); tap = false; open(); } });
+  return {close};
 }
 
 function wireActivityMedia(root) {

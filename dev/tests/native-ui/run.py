@@ -51,7 +51,7 @@ for device in preferred:
   installed=None;recovered=False
   for theme in ('light','dark'):
    sim('ui',udid,'appearance',theme)
-   for stage,root in [('recipe',16),('review',16),('food',16),('recipe',24),('food',24)]:
+   for stage,root in [('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24)]:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
     token=uuid.uuid4().hex;copy=a.output/'KinettaLayout.app'
@@ -79,7 +79,17 @@ for device in preferred:
     assert 'error' not in metrics,metrics
     assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
-    assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop']-10)<=4,metrics
+    if not stage.startswith('track-'):assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop']-10)<=4,metrics
+    if stage.startswith('track-'):
+     track=metrics['tracking']
+     if stage=='track-review':
+      assert track['save'] and track['save']['bottom']<=track['tabs']['y']+1,metrics
+      assert metrics['header']['y']>=metrics['safeTop'] and metrics['header']['y']<=metrics['safeTop']+14,metrics
+      assert track['photos'] and track['title'] and track['chart'],metrics
+     else:
+      assert track['controls'] and track['controls']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']-(0 if stage=='track-map' else 66),metrics
+      assert track['expanded']==(stage=='track-map'),metrics
+      if stage=='track-live':assert track['average'] and track['lap'] and track['lap']!='—',metrics
     if stage=='recipe':
      assert metrics['name'] and metrics['content']['y']>=metrics['header']['bottom']-1,metrics
      assert metrics['name']['y']<=metrics['header']['bottom']+30,metrics
@@ -93,5 +103,5 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-assert len(results)==10*len(preferred),'Every selected phone needs all ten layout cases'
+assert len(results)==20*len(preferred),'Every selected phone needs all twenty layout cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')

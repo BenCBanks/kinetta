@@ -1,7 +1,7 @@
 """Instrument a disposable unsigned Simulator bundle; never modify source or the original build."""
-import argparse,json,shutil
+import argparse,json,shutil,subprocess,uuid
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food'],required=True);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map'],required=True);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
 assert a.destination.suffix=='.app' and a.destination.resolve()!=a.source.resolve()
 if a.update:
@@ -12,6 +12,10 @@ else:
 public=a.destination/'public';index=public/'index.html';assert index.is_file()
 fixture=Path(__file__).parent
 config={'stage':a.stage,'root':a.root,'run':a.run}
+if a.stage.startswith('track-'):
+ config['recording']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',str(fixture.parents[1]/'demo/track_session.cjs')],text=True))
+ config['recording']['id']=str(uuid.UUID(a.run))
+ config['recording']['state']='review' if a.stage=='track-review' else 'recording'
 (public/'static/native-ui-early.js').write_text('globalThis.KinettaUIFixture='+json.dumps(config)+';\n'+(fixture/'early.js').read_text())
 (public/'static/native-ui-late.js').write_text((fixture/'late.js').read_text())
 if not a.update:

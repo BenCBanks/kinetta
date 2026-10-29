@@ -19,7 +19,11 @@ The combined [PR344](https://github.com/BenCBanks/kinetta/pull/344) contains the
 
 Owner follow-ups: the complete [lifting usability review](docs/lifting-review.md) and charts-first activity changes passed the original suite twice, browser review and both Simulator checks. Subsequently selected [#356](https://github.com/BenCBanks/kinetta/issues/356) adds optional planned-workout reminders and weekly private-summary alerts. [Research and requirements](docs/notification-followup.md) preceded implementation; its software checks are complete in PR357, with physical push delivery and release separate from PR344.
 
-Next after #356, by owner request: GPS tracking shows total average pace and separate lap pace, automatic one-mile laps with a manual Lap button, an expandable live map, and a redesigned pre-save review with pictures, charts, prominent Save and short retry copy. Keep recording durability, pauses, privacy and existing interval guidance; Default lap pace uses one-mile laps; pressing Lap switches to manual boundaries, first from activity start and then from each press. Research other trackers and write detailed acceptance before implementation.
+Now after #356, by owner request: [#358](https://github.com/BenCBanks/kinetta/issues/358) covers GPS total average pace,
+separate automatic-mile/manual lap pace, an expanded live map and a photo/chart-led pre-save review with reachable
+Save and short retry text. [Research and acceptance](docs/tracking-review.md) precede implementation. First manual
+Lap starts at activity start; later presses define boundaries without automatic-mile resets. Preserve recording
+durability, pauses, privacy and interval guidance. Priority P1; implementation/verification in progress.
 
 There is no current P0 incident. P0 means immediate security, privacy or data loss and takes precedence when one is found.
 

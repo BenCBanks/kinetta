@@ -6,7 +6,8 @@
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
-  history.replaceState(null,'',cfg.stage==='food'?'/food/describe':'/food/cook/1');
+  history.replaceState(null,'',cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
+  if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}
   const nutrients={kcal:450,protein_g:30,carbs_g:40,fat_g:19,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
   cfg.dish={id:1,name:'Fictional recipe',named:true,mine:true,items:[],known:nutrients,totals:nutrients,recipe_source:{},serving:'one',servings:1,serving_count:1,weight_g:null,items_g:null,weighed:false,shared_with:[],owner:{login:'zz_test_native',name:'Demo'}};
   const me={id:1,login:'zz_test_native',name:'Demo',tz:'UTC',units:'metric',created:'2020-01-01T12:00:00Z',notifications:0,friend_requests:0,share_default:'everyone',ai_ok:false,ai_features:{food:false,coach:false},health_ai_ok:false,garmin_ai_ok:false,needs_email_confirm:false,photo:null,kcal_target:null,food_user:false};

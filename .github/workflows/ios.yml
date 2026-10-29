@@ -147,7 +147,7 @@ jobs:
         device: [compact, pro]
     # Native iOS Simulator execution uses Apple Silicon; Intel remains the compile/archive runner.
     runs-on: macos-26
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1

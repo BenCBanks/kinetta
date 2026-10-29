@@ -1,4 +1,39 @@
 import Foundation
+
+// Manual laps are independent of automatic miles and interval steps; optional fields preserve old journals.
+do {
+    var lapState=TrackRecordingState(owner:"fictional-lap-account",id:UUID().uuidString,sport:"run",label:"Run",gps:true,start:0,activeAt:0,checkpoint:0)
+    lapState.autoPause=false
+    for i in 0...400 { _=lapState.accept(lat:Double(i)*6/111195.08,lon:0,accuracy:5,timestamp:Double(i)*2000,now:Double(i)*2000) }
+    assert(abs(lapState.mileLap!.distance-1609.344)<0.001)
+    assert(abs(lapState.mileLap!.seconds-1609.344/3)<0.01)
+    let first=UUID().uuidString
+    try lapState.markLap(id:first,at:800000)
+    assert(lapState.laps!.count==1 && lapState.laps![0].seconds==800)
+    assert(lapState.laps![0].distance==lapState.distance)
+    try lapState.markLap(id:first,at:810000)
+    assert(lapState.laps!.count==1)
+    do {try lapState.markLap(id:UUID().uuidString,at:800100);fatalError("rapid lap accepted")} catch {}
+    for i in 401...700 { _=lapState.accept(lat:Double(i)*6/111195.08,lon:0,accuracy:5,timestamp:Double(i)*2000,now:Double(i)*2000) }
+    try lapState.markLap(id:UUID().uuidString,at:1400000)
+    assert(lapState.laps![1].seconds-lapState.laps![0].seconds==600)
+    let roundTrip=try JSONDecoder().decode(TrackRecordingState.self,from:JSONEncoder().encode(lapState))
+    assert(roundTrip.laps!.count==2 && roundTrip.points.last!.active==1400)
+    let lapFolder=FileManager.default.temporaryDirectory.appendingPathComponent("track-laps-"+UUID().uuidString)
+    defer {try? FileManager.default.removeItem(at:lapFolder)}
+    let lapFiles=try TrackRecordingFiles(folder:lapFolder)
+    // Keep a manifest from just before the first mile, then append the newer durable fixes.
+    var checkpoint=roundTrip;checkpoint.points=Array(roundTrip.points.prefix(250));checkpoint.laps=nil;checkpoint.mileLap=nil
+    checkpoint.distance=0;try lapFiles.save(checkpoint,resetPoints:true)
+    for point in roundTrip.points {try lapFiles.append(point)}
+    let recovered=try lapFiles.load(owner:lapState.owner)!
+    assert(abs(recovered.mileLap!.distance-2*1609.344)<0.001 && abs(recovered.mileLap!.seconds-2*1609.344/3)<0.01)
+    try lapFiles.save(roundTrip)
+    let savedLaps=try lapFiles.load(owner:lapState.owner)!
+    assert(savedLaps.laps!.count==2 && savedLaps.laps![0].pointCount==401)
+    lapState.pause(at:1400000)
+    do {try lapState.markLap(id:UUID().uuidString,at:1500000);fatalError("paused lap accepted")} catch {}
+}
 func check(_ yes: Bool, _ why: String) { if !yes { fatalError(why) } }
 var s=TrackRecordingState(owner:"fictional-account",id:UUID().uuidString,sport:"run",label:"Run",gps:true,start:1000000,activeAt:1000000,checkpoint:1000000)
 check(s.accept(lat:0,lon:10,accuracy:5,timestamp:1001000,now:1001000) != nil,"first fix")

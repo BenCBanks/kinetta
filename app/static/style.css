@@ -2625,6 +2625,61 @@ nav.tabs { view-transition-name: tabs; }
 .track-review-splits div { display: flex; justify-content: space-between; padding: 9px 0; border-top: 1px solid var(--line); }
 .track-review-map .track-map { height: 190px; margin: 0 0 14px; }
 .track-review .track-discard { display: block; margin: 8px auto 0; }
+/* GPS review and lap controls (#358): one average, independent lap pace, and a reachable explicit save. */
+.track-live .track-live-metrics { grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr));gap:8px 0;container-type:inline-size;container-name:track-metrics; }
+.track-live .track-live-metrics b { font-size:clamp(1.35rem,7vw,1.9rem);white-space:normal;overflow-wrap:anywhere; }
+.track-live .track-live-metrics small { padding:0 4px;font-size:.75rem;line-height:1.4; }
+.track-live .track-controls .round-btn.lap { background:var(--card);color:var(--tx2);border:1px solid var(--line); }
+.track-live.is-recording #track-pause,.track-full-controls [data-track-pause] { background:var(--btn);color:var(--onbtn); }
+.track-live .track-controls .round-btn:disabled { opacity:.5; }
+.track-map-wrap .map-full { top:10px;right:10px; }
+.track-map-wrap #track-follow { top:auto;bottom:10px;right:auto;left:10px;min-height:44px; }
+.track-full-summary,.track-full-controls { display:none; }
+.track-map-wrap.full { position:fixed;inset:0;z-index:2000;max-height:none;height:auto;margin:0;border-radius:0; }
+.track-map-wrap.full .track-map { position:absolute;inset:0;height:100%;margin:0;border-radius:0; }
+.track-map-wrap.full .map-full { top:calc(env(safe-area-inset-top) + 12px);right:calc(env(safe-area-inset-right) + 12px); }
+.track-map-wrap.full :is(#track-follow,#track-gps-live) { display:none; }
+.track-map-wrap.full .track-full-summary { display:grid;gap:5px;position:absolute;z-index:1001;top:calc(env(safe-area-inset-top) + 12px);left:12px;max-width:calc(100% - 84px);padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card); }
+.track-full-summary b { font-size:1.25rem;overflow-wrap:anywhere; }
+.track-full-summary small { font-size:.8125rem;color:var(--tx2);line-height:1.45; }
+.track-map-wrap.full .track-full-controls { display:flex;justify-content:space-evenly;align-items:center;gap:12px;position:absolute;z-index:1001;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);padding:14px 8px;background:var(--card);border:1px solid var(--line);border-radius:18px; }
+.track-full-controls .round-btn { width:3.5rem;height:3.5rem;min-width:44px;min-height:44px; }
+.track-full-controls .round-ctl { flex:1;min-width:0;gap:6px; }
+.track-full-controls small { font-size:.8125rem;text-align:center;overflow-wrap:anywhere; }
+.track-map-wrap.full .leaflet-bottom { bottom:calc(env(safe-area-inset-bottom) + var(--map-controls-height,130px) + 26px); }
+.track-review-primary { margin:0 0 16px; }
+.track-review .track-title input { font-size:1rem;font-weight:600;min-height:48px; }
+.track-review .track-review-headlines { grid-template-columns:repeat(auto-fit,minmax(min(100%,5rem),1fr));gap:14px 10px;margin:20px 0; }
+.track-review-headlines b { font-size:1.5rem; }
+.track-review-headlines small { font-size:.75rem; }
+.track-review-map-wrap { position:relative;z-index:0;height:210px;margin:0 0 12px;border-radius:16px;overflow:hidden; }
+.track-review-map-wrap .track-map { height:100%;margin:0;border-radius:0; }
+.track-review-map-wrap.full { z-index:2000;height:auto; }
+.track-review-map-wrap.full .track-map { position:absolute;inset:0;height:100%; }
+.track-review-photos .ghost { display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--accent);background:var(--card);color:var(--accent); }
+.track-review-photos .ghost svg { width:20px;height:20px;flex:none; }
+.track-photo-list { display:flex;gap:10px;overflow-x:auto;margin:0 0 12px;padding:2px 0; }
+.track-photo-list figure { position:relative;flex:0 0 128px;height:96px;margin:0; }
+.track-photo-list img { width:100%;height:100%;object-fit:cover;border-radius:12px; }
+.track-photo-list button { position:absolute;top:2px;right:2px;background:var(--card);color:var(--tx); }
+.track-review-chart-card h2 { margin:0 0 14px; }
+.track-review-details summary { display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;list-style:none;cursor:pointer;font-weight:650;font-size:1rem; }
+.track-review-details summary::-webkit-details-marker { display:none; }
+.track-review-details summary svg { width:20px;height:20px;flex:none;color:var(--tx3); }
+.track-review-details[open] summary svg { transform:rotate(180deg); }
+.track-review-details .track-review-stats b { font-size:1.25rem; }
+.track-review-splits span { min-width:0;overflow-wrap:anywhere; }
+.track-review-splits b { flex:none; }
+.track-review-sharing p { margin:10px 0 0; }
+.track-review-dock { position:fixed;z-index:19;bottom:calc(var(--tab-h) + env(safe-area-inset-bottom));left:0;right:0;max-width:800px;margin:0 auto;padding:10px var(--space-5) 12px;background:var(--bg);border-top:1px solid var(--line); }
+.track-review-dock p { margin:0 0 8px;overflow-wrap:anywhere; }
+.track-review-dock p:empty { display:none; }
+.track-session.track-review { padding-bottom:calc(var(--track-dock-height,82px) + 16px); }
+.track-review .track-check-saved { display:flex;justify-content:center;text-decoration:none; }
+.keyboard-open .track-review-dock { display:none; }
+body:has(.track-review) .toast { bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + var(--track-review-dock-height,82px) + 12px); }
+@container track-metrics (max-width:16.5rem){.track-live-metrics>div:last-child{grid-column:1/-1;border-left:0;padding-top:4px}}
+@media(max-width:360px){.track-review-dock{padding-inline:16px}.track-review-map-wrap{height:185px}}
 /* iPhone app: the page runs under the status bar too; a soft page-coloured strip keeps scrolled content from sitting
    under the clock and Dynamic Island. Hidden while a sheet is open and on screens whose map runs to the top. */
 html.native body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); z-index: 1500; pointer-events: none;
@@ -2635,7 +2690,7 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
    left rather than a fixed share of the screen, so a status line or a short phone never pushes the
    controls down. The note and Discard sit below, a scroll away. */
 .track-live-main { display: flex; flex-direction: column;
-  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - 10px - env(safe-area-inset-bottom, 0px) - var(--tab-h) - 28px); }
+  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - 10px - env(safe-area-inset-bottom, 0px) - var(--tab-h) - 28px);container-type:inline-size;container-name:track-live; }
 .track-live-main .track-map-wrap { flex: 1 1 0; min-height: 100px; max-height: 420px; }
 .track-live-main .track-map-wrap .live-record-map { position: absolute; inset: 0; height: auto; }
 .track-live.has-route .track-live-main .track-map-wrap { min-height: 96px; }
@@ -2644,6 +2699,19 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
   .track-live .track-live-metrics { margin: 6px 0 2px; } .track-live .track-controls .round-btn { width: 76px; height: 76px; }
   .track-live.has-route .track-splits { display: none; } .track-live-main .track-controls { margin-top: 10px; }
   .track-live-main .track-map-wrap, .track-live.has-route .track-live-main .track-map-wrap { min-height: 72px; } }
+@media(max-height:700px){
+  .track-live .track-hero #track-time{font-size:clamp(2rem,8dvh,3.5rem);line-height:1.05}
+  .track-live.is-recording .track-controls .round-btn{width:60px;height:60px}
+  .track-live .track-map-wrap #track-gps-live{top:auto;bottom:10px}
+  .track-live .track-map-wrap #track-follow{left:auto;right:64px;top:10px;bottom:auto}
+  @container track-live (max-width:16.5rem){
+    .track-live-metrics{grid-template-columns:1fr;margin-block:4px;gap:4px;padding-block:0}
+    .track-live-metrics>div{display:flex;align-items:baseline;justify-content:center;gap:12px;border-left:0}
+    .track-live-metrics>div:last-child{padding-top:0}
+    .track-live-metrics b{font-size:1.25rem}
+    .track-splits{margin:4px 0 8px}
+  }
+}
 /* Lifting summary after Finish (28 October 2026): the run summary's title and stat card, then records and exercises. */
 .lift-review .track-review-when svg { width: 18px; height: 18px; color: var(--accent); }
 .lift-review-records h3, .lift-review-ex h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
