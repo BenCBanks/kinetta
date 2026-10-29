@@ -51,7 +51,7 @@ const MapTiles=(()=>{
   }
   async function mount(map,L,el){
     let layer=null,closed=false,version=0,failures=0,successes=0;
-    const note=L.control({position:'bottomleft'});note.onAdd=()=>{const n=L.DomUtil.create('div','map-unavailable');n.hidden=true;n.setAttribute('role','status');n.textContent='Map unavailable ';const b=document.createElement('button');b.type='button';b.textContent='Retry';b.onclick=()=>draw();n.append(b);L.DomEvent.disableClickPropagation(n);return n;};note.addTo(map);
+    const note=L.control({position:'bottomleft'});note.onAdd=()=>{const n=L.DomUtil.create('div','map-unavailable');n.hidden=true;n.setAttribute('role','status');const message=document.createElement('span');message.className='map-unavailable-message';message.textContent='Map unavailable ';n.append(message);const b=document.createElement('button');b.type='button';b.textContent='Retry map';b.onclick=()=>draw();n.append(b);L.DomEvent.disableClickPropagation(n);return n;};note.addTo(map);
     const missing=()=>{const n=note.getContainer();if(n)n.hidden=false;};
     const update=()=>{const n=note.getContainer();if(n)n.hidden=!(failures>0&&failures>=successes);};
     const loaded=()=>{successes++;update();};

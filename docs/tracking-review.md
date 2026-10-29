@@ -102,7 +102,7 @@ Final ten-layout real-control browser matrices pass on Playwright1.48 and1.63, i
 enlarged330px and desktop. They exercise manual laps, map tap versus pan, focus/Back/Escape, photo preparation/removal
 across navigation, local storage failure, charts, reload, old-server rejection, definite validation failure and an exact
 uncertain-save retry. The final visual pass keeps narrow-screen pace units together; this CSS-only correction and the
-additional map-gesture assertions passed both rendered matrices. No type was reduced.
+additional map-gesture assertions passed both rendered matrices. No body or input type was reduced.
 
 CI Tests, screenshots, iPhone compilation/archive, Foundation tests and both compact/Pro Simulator jobs pass for4e2a5b2.
 Forty actual Simulator captures cover recipe/food plus live/map/review at normal/enlarged sizes; the twenty changed GPS
@@ -114,3 +114,8 @@ Tests use fictional data and blocked device/write/provider calls. External map t
 fixtures; Map unavailable in that evidence is intentional. Physical GPS/camera/locked-screen/voice/VoiceOver acceptance,
 real map hosting and actual notification delivery remain separate. Merge, hosted deployment, Pages and the final signed
 iPhone upload are tracked independently in the linked PR and release records.
+
+Final map-failure follow-up: on short live maps, compact Retry map feedback fits beside attribution and below GPS,
+with44px actions. The full failure message stays available to screen readers. Real-control assertions check the
+warning stays inside its map without covering GPS. Map failure/contract/late-layer checks pass; this changes
+only map feedback presentation, not tile fetching, recording or save behavior.
