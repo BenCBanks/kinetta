@@ -699,7 +699,7 @@ a.ntile { color: inherit; text-decoration: none; }
 .meal-breakfast { --mc: var(--s4); } .meal-lunch { --mc: var(--s2); } .meal-dinner { --mc: var(--s1); } .meal-snacks { --mc: var(--s5); }
 .card.empty-meal { background: transparent; box-shadow: none; border: 2px dashed color-mix(in srgb, var(--tx3) 30%, transparent); }
 .empty-meal { padding: 4px 16px; }
-.empty-meal .meal-yesterday { min-height:44px; padding:6px 0; margin-bottom:4px; text-align:left; } .empty-meal > h2 { margin: 0; min-height: 48px; }
+.empty-meal > h2 { margin: 0; min-height: 48px; }
 .fe { display: flex; width: 100%; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; min-height: 52px; border: 0; border-top: 1px solid var(--line);
   background: none; text-align: left; border-radius: 0; color: inherit; }
 .fe:first-of-type { border-top: 0; } .fe:active { opacity: .6; }
@@ -2715,3 +2715,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 /* Deliberate progress recap pictures (#294). */
 .recap-preview{margin:0 0 16px;min-height:100px;background:var(--card2);border-radius:var(--r2);overflow:hidden}.recap-preview img{display:block;width:100%;height:auto;aspect-ratio:4/5;object-fit:contain}.recap-preview.busy{opacity:.6}.recap-periods{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.recap-periods button{flex:1 1 29%;min-height:44px;white-space:normal}.recap-options{border:0;padding:0;margin:20px 0}.recap-options legend{font-weight:700;margin-bottom:8px}.recap-options .check{min-height:44px}.recap-actions{position:sticky;bottom:0;padding:12px 0;background:var(--card);z-index:1}.recap-offer{display:flex;align-items:center;gap:12px}.recap-offer>div:first-child{min-width:0;flex:1}.recap-offer h2{font-size:17px;margin:0}.recap-offer p{margin:4px 0 0}.recap-offer .acts{flex:none}#recap-description{line-height:1.5}
 @media(max-width:360px){.recap-offer{align-items:flex-start;flex-wrap:wrap}.recap-offer .acts{margin-left:auto}}
+
+/* One quiet reuse action; meal cards keep Add as their only empty-state control. */
+.food-copy-action{display:flex;justify-content:center;margin:16px 0;}
+.food-copy-action .ghost{min-height:44px;max-width:100%;white-space:normal;background:var(--card);border:1px solid var(--line);font-weight:500;}
+.food-copy-action svg{width:18px;height:18px;flex:none;color:var(--tx3);}

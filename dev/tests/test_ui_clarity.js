@@ -23,9 +23,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  assert.doesNotMatch(box.innerHTML,/ff-dish/,'saving a recipe is offered at final review, without a competing entry action');
  // Only with no history, no entries and no goal; copy shortcuts only with history.
  assert.match(food,/const fresh = !D\.has_history && !D\.entries\.length && goal == null;/);
- assert.match(food,/D\.has_history \? `<button[^`]+data-yesterday-meal=/,'Same as yesterday returns for people with food history (owner, 26 Oct 2026)');
+ assert.match(food,/D\.has_history \? `<div class="food-copy-action"/,'One quiet Copy yesterday button is available with food history');
  assert.doesNotMatch(food,/data-usual-meal=/,'Usuals stays in Add food');
- assert.match(food,/D\.entries\.length \|\| !D\.has_history \? ''/);
+ assert.doesNotMatch(food,/data-yesterday-meal=/,'Empty meals do not repeat the copy action');
+ assert.equal((food.match(/id="fd-copy"/g)||[]).length,1,'Only one copy button is rendered');
  assert.doesNotMatch(food,/Reminders · optional|edit or create/,'no run-on link line');
  assert.match(food,/\['reminders', 'Meal reminders'/,'reminders moved into More');
  console.log('Nutrition: first-food steps act as labelled, copy shortcuts need history, one clear library link, reminders in More PASS');

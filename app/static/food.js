@@ -117,17 +117,23 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
     onFoodUser?.(true);
   }, {maxAge: 5000});
 }
+function chooseYesterday(day) {
+  const owner=readOwner();
+  sheet('Copy yesterday',`<p>Choose what to copy. You’ll review the foods before adding them.</p><div class="card list">${[['','All meals'],...Object.entries(MEAL_NAMES)].map(([key,label])=>`<button type="button" class="row-link" data-copy-meal="${key}"><span class="grow">${label}</span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>`,(b,close)=>{
+    guardFoodSheet(b,close,owner);$$('[data-copy-meal]',b).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;const meal=button.dataset.copyMeal||null;close();yesterdayMeal(day,meal);});
+  });
+}
 function yesterdayMeal(day, meal) {
   const owner = readOwner(), from = addDays(day, -1);
-  sheet('Same as yesterday', skel(1), (b, close) => {
+  sheet('Copy yesterday', skel(1), (b, close) => {
     const live = () => b.isConnected && readOwner() === owner;
     api(`/api/food/day?d=${from}`).then(D => {
       if (!live()) return;
-      const rows = D.entries.filter(e => e.meal === meal && !e.pending);
-      b.innerHTML = rows.length ? `<p>Add ${esc(MEAL_NAMES[meal].toLowerCase())} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">Log this meal</button><p class="small danger" id="ym-error" role="alert"></p>` : '<p>No foods were logged for this meal on the previous day.</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>';
+      const rows = D.entries.filter(e => (!meal || e.meal === meal) && !e.pending),label=meal?MEAL_NAMES[meal].toLowerCase():'all meals',logLabel=meal?'Log this meal':'Log these foods';
+      b.innerHTML = rows.length ? `<p>Add ${esc(label)} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${!meal?esc(MEAL_NAMES[e.meal])+': ':''}${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">${logLabel}</button><p class="small danger" id="ym-error" role="alert"></p>` : '<p>No foods were logged for this meal on the previous day.</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>';
       if (!rows.length) { $('#ym-usual', b).onclick = () => { if (!live()) return; close(); addSheet(day, meal); }; return; }
       // Keep the same upload identities when a response is lost and this preview is retried.
-      const items = rows.map(({name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,client_id:newId()}));
+      const items = rows.map(({meal:sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal:meal||sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,client_id:newId()}));
       let busy = false, done = false;
       $('#ym-save', b).onclick = async e => {
         if (!live() || busy || done) return;
@@ -140,7 +146,7 @@ function yesterdayMeal(day, meal) {
           toast(result.queued?'Meal saved on this phone · waiting to send':'Meal logged',result.undo);
         }
         catch(x) { if (live()) $('#ym-error', b).textContent = x.message + ' Your meal is ready to retry.'; }
-        finally { busy = false; if (live() && !done) { button.disabled = false; button.textContent = 'Log this meal'; } }
+        finally { busy = false; if (live() && !done) { button.disabled = false; button.textContent = logLabel; } }
       };
     }).catch(x => { if (live()) { b.innerHTML = '<p>The previous day could not load.</p><button class="primary wide" id="ym-retry">Try again</button>'; $('#ym-retry',b).onclick = () => { if (!live()) return; close(); yesterdayMeal(day,meal); }; } });
   });
@@ -269,16 +275,14 @@ function drawDay(el, D) {
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
-    if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2>
-      ${D.has_history ? `<button class="linkbtn meal-yesterday" data-yesterday-meal="${m}" aria-label="Same as yesterday for ${MEAL_NAMES[m].toLowerCase()}">Same as yesterday</button>` : ''}</section>`;
+    if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2></section>`;
     return `<section class="card meal meal-${m}"><h2>${MEAL_NAMES[m]}<span class="muted small num">${list.length ? r0(kc) + ' kcal' : ''}</span></h2>
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[m]}"><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button>`;
         // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       <div class="mealact"><button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button>${list.length ? `<button class="linkbtn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('edit')}Edit</button>` : ''}</div></section>`;
-  }).join('') + (D.entries.length || !D.has_history ? '' : `<p class="small muted center">Nothing logged ${dayLabel(D.day) === 'Today' ? 'yet today' : 'this day'}. <button class="linkbtn" id="fd-copy">Copy yesterday</button></p>`);
-  $$('[data-yesterday-meal]',el).forEach(b=>b.onclick=()=>yesterdayMeal(D.day,b.dataset.yesterdayMeal));
+  }).join('') + (D.has_history ? `<div class="food-copy-action"><button type="button" class="ghost" id="fd-copy">${svg('clock')}Copy yesterday</button></div>` : '');
   $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
   $$('[data-add]', el).forEach((b) => b.onclick = () => describeSheet(D.day, b.dataset.add));
   $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
@@ -288,7 +292,7 @@ function drawDay(el, D) {
     if (e.pending) { toast('Saved on this phone - it sends when you are back online'); return; }
     entrySheet(e, D.day);
   });
-  const cp = $('#fd-copy', el); if (cp) cp.onclick = () => copyDay(addDays(D.day, -1), D.day);
+  const cp = $('#fd-copy', el); if (cp) cp.onclick = () => chooseYesterday(D.day);
 }
 function servingAmount(e) {
   const label = e.ref?.serving?.label?.trim();
@@ -360,7 +364,7 @@ function mealMenu(D, meal) {
   sheet(`Edit ${MEAL_NAMES[meal].toLowerCase()}`, `<p class="small muted">${esc(dayLabel(D.day))} · ${list.length} food${list.length === 1 ? '' : 's'}. Edit an item’s amount or nutrition, or remove it below.</p>
     ${nutGrid(totals)}<div class="card list mm-list">${list.map(e => `<div class="logged-food"><button class="fe" data-me="${e.id}" aria-label="Edit ${esc(e.name)} in ${MEAL_NAMES[meal]}"><div><b>${esc(e.name)}</b><small class="muted">${esc(fmtAmount(e))} · Edit</small></div>
       <div class="r"><b class="num">${r0(e.kcal)}</b><small class="muted">kcal</small></div></button><button class="linkbtn danger remove-food" data-remove-food="${e.id}" aria-label="Remove ${esc(e.name)} from ${MEAL_NAMES[meal]}">${svg('trash')}Remove</button></div>`).join('')}</div>
-    <div class="btncol"><button class="ghost" id="mm-yesterday">Same as yesterday</button><button class="primary" id="mm-add">${svg('plus')}Add food to ${MEAL_NAMES[meal]}</button>
+    <div class="btncol"><button class="ghost" id="mm-yesterday">Copy yesterday’s ${MEAL_NAMES[meal].toLowerCase()}</button><button class="primary" id="mm-add">${svg('plus')}Add food to ${MEAL_NAMES[meal]}</button>
     ${D.day !== isoDay(new Date()) && list.length ? `<button class="ghost" id="mm-copy">Copy ${MEAL_NAMES[meal].toLowerCase()} to today</button>` : ''}
     <button class="ghost" id="mm-save"${list.length ? '' : ' disabled'}>Save these foods as a combination</button></div>`, (b, close) => {
     $$('[data-me]', b).forEach(x => x.onclick = () => { close(); entrySheet(list.find(e => String(e.id) === x.dataset.me), D.day); });
