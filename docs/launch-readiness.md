@@ -75,7 +75,7 @@ compatibility migrations/storage were retained.
 
 All13 PRs and current review comments were rechecked. Source1eb3df2 passed the entire original suite twice on fresh New York/UTC databases, the schema80→86 preservation upgrade and all GitHub checks. Final656 app layouts,56 website layouts/14 destinations, repeated recipe-recovery/sharing flows and eight crop interactions pass. All20 compact/Pro native captures from identical-native-tree7df4bb4 were inspected. PR344 records the exact code-only AI fingerprint trace, fixes and outstanding release gates.
 
-The subsequent [lifting review](lifting-review.md) repairs Finish/autosave, draft/account safety, copied-value precision, previous-value clipping, timing and discoverability. Its final whole-suite/browser evidence is pending; the prior1eb3df2 results do not stand in for these later changes. Additional configurable notification research is explicitly queued after all prior work; it has not started.
+The subsequent [lifting review](lifting-review.md) repairs Finish/autosave, draft/account safety, copied-value precision, previous-value clipping, timing and discoverability. Its final revision and whole-suite/browser evidence are recorded in PR344; the prior1eb3df2 results do not stand in for these later changes. Additional configurable notification research is explicitly queued after all prior work; it has not started.
 
 ## Required behavior
 
