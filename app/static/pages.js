@@ -479,15 +479,44 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
     const stamp=++milestoneDraw;drawDetail(el,a);
     // An optional celebration must not delay the workout, chart or food-energy summary.
     milestoneOffers.then(data=>{if(el.isConnected&&readOwner()===milestoneOwner&&stamp===milestoneDraw)Milestones.paint($('#d-milestones',el),data,{params:{activity_id:id}});}).catch(()=>{});
-    if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('.dtabs').before(box);workoutEnergy(box,id);}
+    if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('[data-pane="overview"]').prepend(box);workoutEnergy(box,id);}
   }, {maxAge:60000});
 });
 
 // Sections (2026-10-12, Ben: "one huge long list"): the map, title and headline numbers stay on top; the rest is
-// split into Overview | Splits | Charts | Efforts, each shown only when it has something. ?tab= opens one. Cheers and
+// Charts lead; Details, Splits and Efforts retain the deeper information. ?tab= opens one. Cheers and
 // comments are small icons by the title (comments open in a sheet; ?tab=comments opens it), sharing is in Edit, and
 // the share button sends a link or a picture (2026-10-12).
-const DTABS = [['overview', 'Overview'], ['splits', 'Splits'], ['charts', 'Charts'], ['efforts', 'Efforts']];
+const DTABS = [['charts', 'Charts'], ['overview', 'Details'], ['splits', 'Splits'], ['efforts', 'Efforts']];
+const activitySamples = (a) => {
+  const c = a.chart;
+  return !!(c && (c.t?.length >= 2 || c.d?.length >= 2) && ['speed','gap_speed','hr','alt','power','cad'].some(k => c[k]?.filter(v => v != null && Number.isFinite(v)).length >= 2));
+};
+function activityTabs(panes) {
+  const names = DTABS.filter(([key]) => panes[key]?.trim());
+  return `<div class="seg wide dtabs" role="tablist" aria-label="Activity sections"${names.length < 2 ? ' hidden' : ''}>${names.map(([key,name]) => `<button type="button" role="tab" id="activity-tab-${key}" aria-controls="activity-pane-${key}" data-dt="${key}">${name}</button>`).join('')}</div>`
+    + names.map(([key]) => `<section class="dpane" id="activity-pane-${key}" data-pane="${key}" role="tabpanel" aria-labelledby="activity-tab-${key}" hidden>${panes[key]}</section>`).join('');
+}
+function wireActivityTabs(el, onShow = () => {}) {
+  const buttons = $$('[data-dt]', el), first = buttons[0]?.dataset.dt;
+  const show = (key, remember = false) => {
+    if (!buttons.some(b => b.dataset.dt === key)) key = first;
+    buttons.forEach(b => { const active = b.dataset.dt === key; b.setAttribute('aria-selected', String(active)); b.tabIndex = active ? 0 : -1; });
+    $$('[data-pane]', el).forEach(p => p.hidden = p.dataset.pane !== key);
+    onShow(key);
+    if (remember) history.replaceState(history.state, '', location.pathname + (key === first ? '' : '?tab=' + key));
+  };
+  buttons.forEach((button,index) => {
+    button.onclick = () => show(button.dataset.dt, true);
+    button.onkeydown = event => {
+      const next = event.key === 'ArrowRight' ? (index + 1) % buttons.length : event.key === 'ArrowLeft' ? (index + buttons.length - 1) % buttons.length : event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : null;
+      if (next == null) return; event.preventDefault(); show(buttons[next].dataset.dt, true); buttons[next].focus();
+    };
+  });
+  const requested = new URLSearchParams(location.search).get('tab');
+  show(requested === 'comments' ? first : requested || first);
+}
+
 function drawDetail(el, a) {
   const r = rate(a);
   const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
@@ -495,7 +524,7 @@ function drawDetail(el, a) {
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
   const pane = {
-    overview: `${a.has_intervals?'<section class="card" id="activity-interval-history"></section>':''}${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
+    overview: `${a.power_curve && a.power_curve.length ? `<div class="card"><h2>Power curve</h2><table class="tbl">${a.power_curve.map(p => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}${a.has_intervals?'<section class="card" id="activity-interval-history"></section>':''}${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
@@ -503,13 +532,13 @@ function drawDetail(el, a) {
       ${a.line ? '<div id="d-segments"></div>' : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
       ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
-    charts: `${a.chart ? '<div class="card"><div id="d-charts"></div></div>' : ''}
+    charts: `${activitySamples(a) ? '<div class="card activity-chart-card"><div id="d-charts" class="activity-charts"></div></div>' : ''}
       ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
-      ${a.power_curve && a.power_curve.length ? `<div class="card"><h2>Power curve</h2><table class="tbl">${a.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}`,
+`,
     efforts: `${a.efforts && a.efforts.length ? `<div class="card"><h2>Best efforts</h2>${effortsTable(a)}</div>` : ''}
       ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}`,
   };
-  const has = (k) => k === 'overview' || pane[k].trim() !== '';
+  if (!pane.overview.trim()) pane.overview = '<div class="card empty">No additional details were recorded.</div>';
   // The return bar stays above media and remains available while the activity scrolls.
   const topBar = `<div class="top">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
   el.innerHTML = `${topBar}${a.line || a.photos?.length ? `<div class="map-head">${activityMedia(a, {mapId: 'd-map', detail: true, full: !!a.line})}</div>` : ''}
@@ -518,19 +547,9 @@ function drawDetail(el, a) {
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
       ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}
       <div id="d-milestones"></div><div class="hero">${hero}</div>${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div id="d-photos"></div><div class="cpile"></div></div>
-    <div class="seg wide dtabs" role="tablist" aria-label="Sections"${DTABS.filter(([k]) => has(k)).length < 2 ? ' hidden' : ''}>${DTABS.map(([k, n]) => `<button role="tab" data-dt="${k}"${has(k) ? '' : ' hidden'}>${n}</button>`).join('')}</div>
-    ${DTABS.map(([k]) => `<section class="dpane" data-pane="${k}" role="tabpanel" hidden>${pane[k]}</section>`).join('')}`;
+    ${activityTabs(pane)}`;
   let drawCharts = null;
-  const want = new URLSearchParams(location.search).get('tab');
-  const show = (k, remember) => {
-    const b = $(`[data-dt="${k}"]`, el); if (!b || b.hidden) k = 'overview';
-    $$('[data-dt]', el).forEach((x) => x.setAttribute('aria-selected', String(x.dataset.dt === k)));
-    $$('[data-pane]', el).forEach((x) => { x.hidden = x.dataset.pane !== k; });
-    if (k === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; }
-    if (remember) history.replaceState(null, '', location.pathname + (k === 'overview' ? '' : '?tab=' + k));
-  };
-  $$('[data-dt]', el).forEach((b) => b.onclick = () => show(b.dataset.dt, true));
-  show(want && want !== 'comments' ? want : 'overview');
+  wireActivityTabs(el, key => { if (key === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; } });
   wireBack(el, '/activity');
   $('#d-edit', el).onclick = () => editActivity(a);
   const segBox = $('#d-segments', el); if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
@@ -554,30 +573,31 @@ function drawDetail(el, a) {
     catch (e) { console.error('map', e); if (mapBox.isConnected) mapBox.insertAdjacentHTML('beforeend', '<p class="empty">Map unavailable right now</p>'); }
   });
   if (a.line) wireMediaMapFull(mapBox, () => mapObj, a.track_lines?.length ? a.track_lines : [a.line], !!a.photos?.length);
-  if (a.chart) {
+  if (activitySamples(a)) {
     const c = a.chart, x = c.d && (c.d[c.d.length - 1] > 100 || !c.t) ? c.d : c.t, byDist = x === c.d;
     const rows = [];
     const sp = c.speed && FOOT.includes(a.sport) && a.sport !== 'swim';
-    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s1'), invert: true, clip: true}
-                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s1'), clip: true});
-    if (c.gap_speed && sp) rows.push({name: 'Grade-adjusted pace', short: 'GAP', vals: c.gap_speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s5'), invert: true, clip: true, avg: a.gap_s_per_km});
-    if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s2'), avg: a.avg_hr});
+    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s5'), invert: true, clip: true}
+                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s5'), clip: true});
+    if (c.gap_speed && sp) rows.push({name: 'Grade-adjusted pace', short: 'GAP', vals: c.gap_speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s2'), invert: true, clip: true, avg: a.gap_s_per_km});
+    if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s1'), avg: a.avg_hr});
     if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--hike')});
     if (c.power) rows.push({name: 'Power', vals: c.power, fmt: (v) => Math.round(v), unit: 'W', color: col('--s4'), clip: true, avg: a.avg_power});
     if (c.cad) rows.push({name: 'Cadence', short: 'Cad', vals: c.cad, fmt: (v) => Math.round(v), unit: a.sport === 'ride' ? 'rpm' : 'spm', color: col('--s3'), clip: true, avg: a.avg_cad});
     const box = $('#d-charts', el);
-    const draw = () => chartStack(box, x, rows, {
+    const draw = () => { if (!box.isConnected) return; chartStack(box, x, rows, {
       xfmt: (v) => (byDist ? `${U.dist(v)} ${U.du()}` : dur(v)),
       onIndex: (i) => {   // move a dot along the map with the crosshair
-        if (!mapObj || !pts || !pts.length || !c.d) return;
+        if (!mapObj || !mapBox?.isConnected || !pts || !pts.length || !c.d) return;
         const frac = (c.d[i] - c.d[0]) / (c.d[c.d.length - 1] - c.d[0] || 1), p = pts[Math.min(pts.length - 1, Math.round(frac * (pts.length - 1)))];
-        if (!marker) marker = mapObj.L.circleMarker(p, {radius: 7, color: '#fff', weight: 2, fillColor: col('--s1'), fillOpacity: 1}).addTo(mapObj.map);
+        if (!marker) marker = mapObj.L.circleMarker(p, {radius: 7, color: '#fff', weight: 2, fillColor: col('--s5'), fillOpacity: 1}).addTo(mapObj.map);
         else marker.setLatLng(p);
-      }});
+      }}); };
     let w = 0;
     drawCharts = () => { w = box.clientWidth; draw(); };
     if (!$('[data-pane="charts"]', el).hidden) { requestAnimationFrame(drawCharts); drawCharts = null; }
-    new ResizeObserver(() => { if (w && box.clientWidth && Math.abs(box.clientWidth - w) > 20) { w = box.clientWidth; draw(); } }).observe(box);
+    const observer = new ResizeObserver(() => { if (box.isConnected && w && box.clientWidth && Math.abs(box.clientWidth - w) > 20) { w = box.clientWidth; draw(); } });
+    observer.observe(box); viewResources.set(box, () => observer.disconnect());
   }
 }
 function splitsTable(a, splits) {

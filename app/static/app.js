@@ -703,6 +703,8 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
     ? {zoomControl: false, attributionControl: true, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false,
        boxZoom: false, keyboard: false, tap: false, zoomSnap: 0.25}
     : {zoomControl: false, attributionControl: true, scrollWheelZoom: heat, tap: true});
+  // Leaflet1.9.4 leaves its zoom-end timer alive on remove; prevent it reading a destroyed map pane.
+  map.once('unload', () => { map._animatingZoom = false; });
   viewResources.set(el, Object.assign(() => map.remove(), {keepVisual:true})); // keep the map during a sheet's exit
   MapTiles.mount(map,L,el);
   const color = col('--route');   // Routes are blue for every sport.
@@ -743,49 +745,73 @@ function lazy(el, fn) {   // run fn when el scrolls into view
 
 // ---------- charts ----------
 // Stacked charts over one x axis (distance or time) with one crosshair + readout for all of them.
+let chartStackSerial = 0;
 function chartStack(box, x, rows, {xfmt, onIndex} = {}) {
-  const W = Math.max(300, box.clientWidth || 340), H = 92, padL = 34, padR = 6;
+  const W = Math.max(280, box.clientWidth || 340), H = 142, padL = 46, padR = 8, bottom = H - 24;
   const n = x.length; if (n < 2) { box.innerHTML = '<p class="muted">No samples recorded.</p>'; return; }
-  const X = (i) => padL + (x[i] - x[0]) / (x[n - 1] - x[0] || 1) * (W - padL - padR);
-  const readout = document.createElement('div'); readout.className = 'readout num'; readout.innerHTML = '<span></span>';
-  box.innerHTML = ''; box.append(readout);
-  const svgs = [];
+  const X = i => padL + (x[i] - x[0]) / (x[n - 1] - x[0] || 1) * (W - padL - padR);
+  const rangeText = `${xfmt(x[0])} – ${xfmt(x[n - 1])}`;
+  const readout = document.createElement('div'); readout.className = 'readout num';
+  readout.innerHTML = `<span>${esc(rangeText)}</span><button type="button" class="linkbtn small" aria-label="Reset chart inspection">Reset</button>`;
+  box.replaceChildren(readout);
+  const position = $('span', readout), resetButton = $('button', readout), svgs = [];
+  // Set through the DOM: inline style attributes are deliberately blocked by the app's CSP.
+  resetButton.style.visibility = 'hidden';
   for (const r of rows) {
-    const vals = r.vals.map((v) => (v == null || !isFinite(v) ? null : v));
-    const ok = vals.filter((v) => v != null); if (ok.length < 2) continue;
+    const vals = r.vals.map(v => v == null || !isFinite(v) ? null : v), ok = vals.filter(v => v != null);
+    if (ok.length < 2) continue;
     let lo = Math.min(...ok), hi = Math.max(...ok);
-    if (r.clip) { const s = [...ok].sort((a, b) => a - b); lo = s[Math.floor(s.length * .02)]; hi = s[Math.ceil(s.length * .98) - 1]; }
-    if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
-    const pad = (hi - lo) * .08; lo -= pad; hi += pad;
-    const Y = (v) => { const t = (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo); return 6 + (r.invert ? t : 1 - t) * (H - 12); };
-    let d = '', started = false;
-    vals.forEach((v, i) => { if (v == null) { started = false; return; } d += `${started ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; started = true; });
-    const firstI = vals.findIndex((v) => v != null), lastI = vals.length - 1 - [...vals].reverse().findIndex((v) => v != null);
-    const area = `${d}L${X(lastI).toFixed(1)},${H - 4}L${X(firstI).toFixed(1)},${H - 4}Z`;
-    const avg = r.avg != null ? r.avg : ok.reduce((a, b) => a + b, 0) / ok.length;
+    if (r.clip) { const sorted = [...ok].sort((a,b) => a-b); lo = sorted[Math.floor(sorted.length*.02)]; hi = sorted[Math.ceil(sorted.length*.98)-1]; }
+    if (hi-lo < 1e-9) { hi += 1; lo -= 1; }
+    const pad = (hi-lo)*.08; lo -= pad; hi += pad;
+    const Y = v => 8 + (r.invert ? (Math.min(hi,Math.max(lo,v))-lo)/(hi-lo) : 1-(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo))*(bottom-16);
+    const segments = []; let segment = [];
+    vals.forEach((v,i) => { if (v == null) { if (segment.length) segments.push(segment); segment = []; } else segment.push([i,v]); });
+    if (segment.length) segments.push(segment);
+    const paths = segments.map(points => points.map(([i,v],j) => `${j ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(''));
+    const area = paths.map((d,j) => `${d}L${X(segments[j].at(-1)[0]).toFixed(1)},${bottom}L${X(segments[j][0][0]).toFixed(1)},${bottom}Z`).join('');
+    const avg = r.avg != null ? r.avg : ok.reduce((a,b) => a+b,0)/ok.length, gradient = `activity-fill-${++chartStackSerial}`;
+    const averageText = `Avg <b>${esc(r.fmt(avg))}</b> ${esc(r.unit || '')}`;
     const wrap = document.createElement('div'); wrap.className = 'chartbox';
-    wrap.innerHTML = `<div class="lbl"><span>${esc(r.name)}</span><span>avg <b>${esc(r.fmt(avg))}</b> ${esc(r.unit || '')}</span></div>
-      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(r.name)} chart">
-        <line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke-dasharray="3 3"/>
-        <text class="yl" x="2" y="${(Y(r.invert ? lo : hi) + 4).toFixed(0)}">${esc(r.fmt(r.invert ? lo + pad : hi - pad))}</text>
-        <text class="yl" x="2" y="${(Y(r.invert ? hi : lo) - 2).toFixed(0)}">${esc(r.fmt(r.invert ? hi - pad : lo + pad))}</text>
-        <path class="area" d="${area}" fill="${r.color}"/><path class="ln" d="${d}" stroke="${r.color}"/>
-        <line class="xh" x1="0" x2="0" y1="0" y2="${H}" visibility="hidden"/></svg>`;
-    box.append(wrap); svgs.push({svg: $('svg', wrap), r, vals});
+    wrap.innerHTML = `<div class="lbl"><span>${esc(r.name)}</span><span data-chart-value>${averageText}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" tabindex="0" aria-label="${esc(r.name)} chart; use arrow keys to inspect">
+        <defs><linearGradient id="${gradient}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${r.color}" stop-opacity=".24"/><stop offset="1" stop-color="${r.color}" stop-opacity=".02"/></linearGradient></defs>
+        <line class="gl" x1="${padL}" x2="${W-padR}" y1="8" y2="8"/><line class="gl" x1="${padL}" x2="${W-padR}" y1="${bottom}" y2="${bottom}"/>
+        <line class="gl" x1="${padL}" x2="${W-padR}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke-dasharray="3 4"/>
+        <text class="yl" x="2" y="13">${esc(r.fmt(r.invert ? lo+pad : hi-pad))}</text>
+        <text class="yl" x="2" y="${bottom-2}">${esc(r.fmt(r.invert ? hi-pad : lo+pad))}</text>
+        <path class="sample-area" d="${area}" fill="url(#${gradient})"/><path class="ln" d="${paths.join('')}" stroke="${r.color}"/>
+        <text class="yl" x="${padL}" y="${H-4}">${esc(xfmt(x[0]))}</text><text class="yl" x="${W-padR}" y="${H-4}" text-anchor="end">${esc(xfmt(x[n-1]))}</text>
+        <line class="xh" x1="0" x2="0" y1="8" y2="${bottom}" visibility="hidden"/>
+        <circle class="chart-dot" r="4" fill="${r.color}" stroke="var(--card)" stroke-width="2" visibility="hidden"/></svg>`;
+    box.append(wrap); svgs.push({svg:$('svg',wrap), value:$('[data-chart-value]',wrap), r, vals, Y, averageText});
   }
-  const show = (i) => {
-    const px = X(i);
-    for (const s of svgs) { const l = $('.xh', s.svg); l.setAttribute('x1', px); l.setAttribute('x2', px); l.setAttribute('visibility', 'visible'); }
-    readout.innerHTML = `<span>${esc(xfmt(x[i]))}</span>` + svgs.map((s) => `<span>${esc(s.r.short || s.r.name)} <b>${s.vals[i] == null ? '–' : esc(s.r.fmt(s.vals[i]))}</b></span>`).join('');
-    if (onIndex) onIndex(i);
+  let selected = null;
+  const reset = () => {
+    selected = null; position.textContent = rangeText; resetButton.style.visibility = 'hidden';
+    svgs.forEach(s => { s.value.innerHTML = s.averageText; $$('.xh,.chart-dot',s.svg).forEach(el => el.setAttribute('visibility','hidden')); });
   };
-  const move = (e) => {
-    const sv = e.currentTarget, rect = sv.getBoundingClientRect(), px = (e.clientX - rect.left) / rect.width * W;
-    const t = x[0] + (px - padL) / (W - padL - padR) * (x[n - 1] - x[0]);
-    let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (x[m] < t) lo = m + 1; else hi = m; }
-    show(Math.max(0, Math.min(n - 1, lo)));
+  const show = i => {
+    selected = i; const px = X(i); position.textContent = xfmt(x[i]); resetButton.style.visibility = '';
+    for (const s of svgs) {
+      const line = $('.xh',s.svg); line.setAttribute('x1',px); line.setAttribute('x2',px); line.setAttribute('visibility','visible');
+      const dot = $('.chart-dot',s.svg), v = s.vals[i]; dot.setAttribute('visibility',v == null ? 'hidden' : 'visible');
+      if (v != null) { dot.setAttribute('cx',px); dot.setAttribute('cy',s.Y(v)); }
+      s.value.innerHTML = `<b>${v == null ? '–' : esc(s.r.fmt(v))}</b> ${esc(s.r.unit || '')}`;
+    }
+    onIndex?.(i);
   };
-  for (const s of svgs) { s.svg.addEventListener('pointerdown', move); s.svg.addEventListener('pointermove', move); }
+  const move = e => {
+    const rect = e.currentTarget.getBoundingClientRect(), px = (e.clientX-rect.left)/rect.width*W;
+    const t = x[0]+(px-padL)/(W-padL-padR)*(x[n-1]-x[0]);
+    let lo=0,hi=n-1; while(lo<hi) { const mid=(lo+hi)>>1; if(x[mid]<t)lo=mid+1;else hi=mid; }
+    show(Math.max(0,Math.min(n-1,lo)));
+  };
+  resetButton.onclick = reset;
+  for (const s of svgs) {
+    s.svg.addEventListener('pointerdown',move); s.svg.addEventListener('pointermove',move);
+    s.svg.addEventListener('keydown',e => { const i=e.key==='ArrowRight'?Math.min(n-1,(selected??-1)+1):e.key==='ArrowLeft'?Math.max(0,(selected??n)-1):e.key==='Home'?0:e.key==='End'?n-1:null; if(e.key==='Escape'){e.preventDefault();reset();}else if(i!=null){e.preventDefault();show(i);} });
+  }
 }
 
 // simple dot chart over dates with a trend line (matched routes, PR history, VO2max)

@@ -278,20 +278,25 @@ function drawShared(el, a) {
   const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) +
     (a.distance_m && sh.pace ? stat(r.label, r.v, r.u) : '');
   const splits = imp() ? a.splits_mi : a.splits_km;
+  const details = sportStats(a);
+  const panes = {
+    charts: `${activitySamples(a) ? '<div class="card activity-chart-card"><div id="s-charts" class="activity-charts"></div></div>' : ''}${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}`,
+    overview: details ? `<div class="card"><h2>Details</h2><div class="hero more">${details}</div></div>` : '<div class="card empty">No additional details were shared.</div>',
+    splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
+  };
   el.innerHTML = `<div class="top">${backBtn(mine ? 'Back' : 'Feed')}</div>
     ${mine ? '<div class="callout">This is what others see of your activity.</div>' : ''}
     <div class="d-title card"><div class="post-hd"><a class="post-person" href="${profileHref(a.owner)}">${avatar(a.owner)}<span class="ph-txt"><b>${esc(a.owner.name)}</b>
       <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span></a>${sportMark(a.sport)}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="s-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}</div>
+      <div class="hero">${hero}</div></div>
     ${activityMedia(a, {mapId: 's-map', detail: true, full: true})}
     ${a.ends_hidden ? '<p class="small muted map-note">The start and end of the route are hidden.</p>' : ''}
-    ${a.chart ? '<div class="card"><h2>Charts</h2><div id="s-charts"></div></div>' : ''}
-    ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
-    ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
-    ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
+    ${activityTabs(panes)}
     ${mine ? '' : `<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
+  let redrawCharts = null;
+  wireActivityTabs(el, key => { if (key === 'charts') redrawCharts?.(); });
   wireBack(el, mine ? `/activity/${a.id}` : '/activity');
   if (!mine) $('#s-rb', el).onclick = () => reportSheet(a.owner, {activity_id: a.id});
   if (a.line) {
@@ -307,15 +312,21 @@ function drawShared(el, a) {
   }
   wireTalk($('#s-soc', el), a.id, a.social, new URLSearchParams(location.search).get('tab') === 'comments');
   wireActivityMedia(el);
-  if (a.chart) requestAnimationFrame(() => sharedCharts($('#s-charts', el), a));
+  if (activitySamples(a)) {
+    const box = $('#s-charts', el); let width = 0;
+    redrawCharts = () => { if (!box.isConnected || !box.clientWidth) return; width = box.clientWidth; sharedCharts(box, a); };
+    if (!$('[data-pane="charts"]', el).hidden) requestAnimationFrame(redrawCharts);
+    const observer = new ResizeObserver(() => { if (box.isConnected && box.clientWidth && Math.abs(box.clientWidth - width) > 20) redrawCharts(); });
+    observer.observe(box); viewResources.set(box, () => observer.disconnect());
+  }
 }
 function sharedCharts(box, a) {
   const c = a.chart, x = c.d && (c.d[c.d.length - 1] > 100 || !c.t) ? c.d : c.t, byDist = x === c.d, rows = [];
   if (!x) { box.closest('.card').remove(); return; }
   const foot = FOOT.includes(a.sport) && a.sport !== 'swim';
-  if (c.speed) rows.push(foot ? {name: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s1'), invert: true, clip: true}
-                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s1'), clip: true});
-  if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s2'), avg: a.avg_hr});
+  if (c.speed) rows.push(foot ? {name: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s5'), invert: true, clip: true}
+                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s5'), clip: true});
+  if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s1'), avg: a.avg_hr});
   if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--hike')});
   chartStack(box, x, rows, {xfmt: (v) => (byDist ? `${U.dist(v)} ${U.du()}` : dur(v))});
 }

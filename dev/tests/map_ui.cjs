@@ -46,6 +46,12 @@ const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" heig
    await page.evaluate(()=>go('/activity/1'));await ready(page);await page.locator('.hero .stat').first().waitFor();
    const statOverflow=await page.locator('.hero .stat').evaluateAll(es=>es.flatMap(e=>{const cell=e.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(e.querySelector('b'));return [...range.getClientRects()].some(r=>r.left<cell.left-1||r.right>cell.right+1)?[e.innerText]:[];}));
    assert.deepEqual(statOverflow,[],'Activity values must fit their own cells, including enlarged text');
+   const zoomStarted=await page.evaluate(async()=>{
+    const box=document.createElement('div');box.className='map';Object.assign(box.style,{position:'fixed',top:'0',width:'300px',height:'240px'});document.body.append(box);
+    const view=await mapInto(box,[[[38,-100],[38.001,-100.001]]]);view.map.setView([38,-100],10,{animate:false});view.map.setZoom(11);
+    await new Promise(requestAnimationFrame);const started=!!view.map._animatingZoom;box.remove();cleanViews();return started;
+   });
+   assert(zoomStarted,'Exercise actual map disposal during an active zoom');await page.waitForTimeout(350);
    assert.deepEqual(errors,[]);await context.close();console.log(`Map layers, sheets and food composer: ${width}px/${root}px text ${theme} PASS`);
   }
  }finally{await browser.close();}

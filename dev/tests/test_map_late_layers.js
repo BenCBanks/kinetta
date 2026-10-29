@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('app/static/app.js','utf8');
 (async()=>{
- const events={},layers=[],layerEvents={};const map={on:(k,fn)=>{const prior=events[k];events[k]=prior?e=>{prior(e);fn(e);}:fn;},fitBounds(){},setView(){},attributionControl:{setPrefix(){}}};
+ const events={},layers=[],layerEvents={};const map={once:(k,fn)=>events[k]=fn,on:(k,fn)=>{const prior=events[k];events[k]=prior?e=>{prior(e);fn(e);}:fn;},fitBounds(){},setView(){},attributionControl:{setPrefix(){}}};
  const group={addTo(){return this;},on:(k,fn)=>layerEvents[k]=fn,setStyle:s=>layers.forEach(l=>l.setStyle(s)),eachLayer:fn=>layers.forEach(fn)};
  let last;const polyline=(points,style={})=>(last={style:{...style},setStyle(s){Object.assign(this.style,s);},setLatLngs(){},addTo(g){if(g===group){layers.push(this);layerEvents.layeradd?.({layer:this});}return this;}});
  const L={map:()=>map,latLngBounds:x=>x,featureGroup:()=>group,polyline};
@@ -16,5 +16,6 @@ const source=fs.readFileSync('app/static/app.js','utf8');
  Object.assign(c,{mapInto:async()=>result,Plan:{length:()=>100,slice:x=>x},sheet:(title,html,mount)=>mounted=mount({},()=>{}),$:s=>nodes[s],U:{dist:String,du:()=> 'km'},document:{activeElement:null}});
  const planner=fs.readFileSync('app/static/planner.js','utf8');vm.runInContext(planner.slice(planner.indexOf('function stretchSheet('),planner.indexOf('// Retired links')),c);
  c.stretchSheet('Fictional crop',[[1,2],[3,4]],{onUse(){}});await mounted;const selected=last;assert.equal(selected.style.color,'light-blue');events.basemaptheme({light:true});assert.equal(selected.style.color,'dark-blue');assert(layers.every(l=>l.style.color==='muted'),'Unselected crop context stays dim after a theme change');
+ map._animatingZoom=true;events.unload();assert.equal(map._animatingZoom,false,'Unloading cancels a pending Leaflet zoom-end callback');
  console.log('Map: existing and late route layers follow settled basemap contrast and later appearance changes PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

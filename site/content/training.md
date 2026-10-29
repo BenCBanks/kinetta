@@ -68,7 +68,7 @@ Your activities
 
 ## fit-gpx-and-tcx-files-strava-history-or-a-connected-so-13
 
-Review maps, splits, pace, heart rate and elevation when the source includes them.
+Start with clear charts for pace, heart rate and elevation when recorded. Details, splits and records are one tap away.
 
 ## progress-over-time-14
 

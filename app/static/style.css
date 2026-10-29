@@ -1285,7 +1285,6 @@ nav.tabs :is(a,button)[aria-current="page"]::after { content: ''; width: 24px; h
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .post { padding: 0; }
 .post .post-title { font-size: var(--text-app-card-title); }
-.post .stats3 .stat + .stat { border-left: 1px solid var(--line); padding-left: 10px; }
 .profile-bio { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 2px 18px; max-width: 60ch; color: var(--tx2); }
 /* your own profile, editable in place (social.js wireProfileEditing) */
 .pf-preview { display: grid; gap: 2px; margin: 4px 0 14px; padding: 10px 14px; border-radius: var(--r2); background: var(--accent2); color: var(--tx); font-size: 14px; }
@@ -2680,3 +2679,15 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .launch-retry{display:block;min-height:44px;padding:12px;color:var(--accent);visibility:hidden;animation:launch-retry 0s 8s forwards;}
 @keyframes launch-retry{to{visibility:visible;}}
 #tm-food{min-height:44px;padding:6px 0 6px 12px;}
+
+/* Activity charts lead with named series; dense recorded values live in Details. */
+.activity-charts .readout { margin: 0 0 8px; padding: 0; min-height: 44px; background: var(--card); box-shadow: none; justify-content: space-between; align-items: center; font-size: .8rem; }
+.activity-charts .readout .linkbtn { min-height: 44px; padding-inline: 8px; }
+.activity-charts .chartbox + .chartbox { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.activity-charts .lbl { gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 0 0 10px; font-size: .8rem; }
+.activity-charts .lbl > span:first-child { color: var(--tx); font-size: 1rem; font-weight: 650; }
+.activity-charts .lbl > span:last-child { margin-left: auto; }
+.activity-charts .ln { stroke-width: 2.25; }
+.activity-charts .yl { font-size: 11px; }
+.activity-charts svg:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.seg.dtabs button { min-height: 44px; }

@@ -12,6 +12,7 @@ const SHOTS = [
   ['profile', '/people/alex'],
   ['track', '/track'],
   ['activity', 'RUN', {summary: true}],
+  ['charts', 'RUN', {charts: true}],
   ['similar', 'RUN', {similar: true}],
   ['coach', 'COACH', {to: 'Kit'}],
   ['route', 'ROUTE'],
@@ -137,7 +138,7 @@ async function say(page, text) {
       const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
-      return {LATEST: '/activity/' + acts[0].id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
+      return {LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
         DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
         SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
@@ -159,6 +160,11 @@ async function say(page, text) {
         // Show real headline numbers alongside the remaining map, as after a short normal scroll.
         await page.locator('.d-title .hero').waitFor();
         await page.evaluate(()=>{const stats=document.querySelector('.d-title .hero'),tabs=document.querySelector('nav.tabs');window.scrollBy(0,Math.max(0,stats.getBoundingClientRect().bottom-tabs.getBoundingClientRect().top+16));});
+      }
+      if(opt.charts){
+        await page.locator('[data-dt=charts][aria-selected=true]').waitFor();
+        await page.locator('#d-charts .chartbox svg').first().waitFor();
+        await page.locator('.dtabs').evaluate(el=>window.scrollTo(0,scrollY+el.getBoundingClientRect().top-129));
       }
       if(opt.similar){
         await page.locator('[data-dt=efforts]').click();
