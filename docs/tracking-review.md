@@ -115,7 +115,6 @@ fixtures; Map unavailable in that evidence is intentional. Physical GPS/camera/l
 real map hosting and actual notification delivery remain separate. Merge, hosted deployment, Pages and the final signed
 iPhone upload are tracked independently in the linked PR and release records.
 
-Final map-failure follow-up: on short live maps, compact Retry map feedback fits beside attribution and below GPS,
-with44px actions. The full failure message stays available to screen readers. Real-control assertions check the
-warning stays inside its map without covering GPS. Map failure/contract/late-layer checks pass; this changes
+Final map-failure follow-up: on all live maps, compact Retry map feedback fits beside attribution and below GPS,
+with44px actions. The full failure message stays available to screen readers. Real-control assertions check all ten layouts: the warning stays inside its map without covering GPS. Map failure/contract/late-layer checks pass; this changes
 only map feedback presentation, not tile fetching, recording or save behavior.

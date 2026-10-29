@@ -2713,15 +2713,14 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
     .track-splits{margin:4px 0 8px}
   }
 }
-/* On a short live map, keep failed-tile feedback clear of GPS, Follow and Expand. Map chrome stays12px/44px. */
-@media(max-height:700px){
-  .track-live .track-map-wrap:not(.full):has(.map-unavailable:not([hidden])) #track-gps-live{top:0;bottom:auto;left:10px;min-height:24px;padding:2px 6px;font-size:12px}
-  .track-live .track-map-wrap:not(.full) .map-unavailable:not([hidden]){display:flex;align-items:center;max-width:none;padding:0 4px;font-size:12px;white-space:nowrap}
-  .track-live .track-map-wrap:not(.full) .map-unavailable-message{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-  .track-live .track-map-wrap:not(.full) .map-unavailable button{font-size:12px;padding:4px}
-  .track-live .track-map-wrap:not(.full) .leaflet-bottom.leaflet-left{bottom:0}
-  .track-live .track-map-wrap:not(.full) .leaflet-bottom.leaflet-left .leaflet-control{margin-bottom:0;margin-left:4px}
-}
+/* Live-map failure feedback stays separate from GPS, controls and attribution at every text size. */
+.track-live .track-map-wrap:not(.full) #track-follow{left:auto;right:64px;top:10px;bottom:auto}
+.track-live .track-map-wrap:not(.full):has(.map-unavailable:not([hidden])) #track-gps-live{top:0;bottom:auto;left:10px;min-height:24px;padding:2px 6px;font-size:12px}
+.track-live .track-map-wrap:not(.full) .map-unavailable:not([hidden]){display:flex;align-items:center;max-width:none;padding:0 4px;font-size:12px;white-space:nowrap}
+.track-live .track-map-wrap:not(.full) .map-unavailable-message{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.track-live .track-map-wrap:not(.full) .map-unavailable button{font-size:12px;padding:4px}
+.track-live .track-map-wrap:not(.full) .leaflet-bottom.leaflet-left{bottom:0}
+.track-live .track-map-wrap:not(.full) .leaflet-bottom.leaflet-left .leaflet-control{margin-bottom:0;margin-left:4px}
 /* Lifting summary after Finish (28 October 2026): the run summary's title and stat card, then records and exercises. */
 .lift-review .track-review-when svg { width: 18px; height: 18px; color: var(--accent); }
 .lift-review-records h3, .lift-review-ex h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }

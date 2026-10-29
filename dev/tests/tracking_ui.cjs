@@ -44,10 +44,10 @@ async function reviewFailures(page,setMode,setCapabilities,saves) {
    await until(p,()=>!!document.querySelector('#track-map .leaflet-pane'),'live map');
    assert((await p.locator('.track-live-metrics').innerText()).includes('Avg pace'));assert.notEqual(await p.locator('#track-lap-pace').innerText(),'—','new journal knows its current mile pace');
    const controls=await p.evaluate(()=>{const r=document.querySelector('#track-pause').closest('.track-controls').getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect();return {top:r.top,bottom:r.bottom,nav:nav.top};});assert(controls.top>=0 && controls.bottom<=controls.nav,'live controls and captions stay above tabs, including enlarged text');
-   if(size.height<=700){
+   {
     await until(p,()=>!!document.querySelector('#track-map .map-unavailable:not([hidden])'),'blocked basemap feedback');
-    const feedback=await p.evaluate(()=>{const box=document.querySelector('#track-map').getBoundingClientRect(),note=document.querySelector('#track-map .map-unavailable').getBoundingClientRect(),gps=document.querySelector('#track-gps-live').getBoundingClientRect();return {box:box.toJSON(),note:note.toJSON(),gps:gps.toJSON(),inside:note.top>=box.top && note.bottom<=box.bottom && note.left>=box.left && note.right<=box.right,overlap:Math.min(note.right,gps.right)>Math.max(note.left,gps.left)&&Math.min(note.bottom,gps.bottom)>Math.max(note.top,gps.top)};});
-    assert(feedback.inside && !feedback.overlap,'short offline map feedback fits without covering GPS '+JSON.stringify(feedback));
+    const feedback=await p.evaluate(()=>{const box=document.querySelector('#track-map').getBoundingClientRect(),note=document.querySelector('#track-map .map-unavailable').getBoundingClientRect(),gps=document.querySelector('#track-gps-live').getBoundingClientRect();const others=[...document.querySelectorAll('#track-map-wrap #track-follow,#track-map-wrap .map-full,#track-map .leaflet-control-attribution')].map(n=>n.getBoundingClientRect());return {box:box.toJSON(),note:note.toJSON(),gps:gps.toJSON(),inside:note.top>=box.top && note.bottom<=box.bottom && note.left>=box.left && note.right<=box.right,overlap:[gps,...others].some(r=>r.width>0&&r.height>0&&Math.min(note.right,r.right)>Math.max(note.left,r.left)&&Math.min(note.bottom,r.bottom)>Math.max(note.top,r.top))};});
+    assert(feedback.inside && !feedback.overlap,'offline map feedback fits without covering GPS '+JSON.stringify(feedback));
    }
    await snap('01-live');
    await p.locator('#track-map-wrap .map-full').click();assert(await p.locator('#track-map-wrap.full').isVisible());
