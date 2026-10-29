@@ -5,6 +5,10 @@ import io
 import json
 import os
 import secrets
+import threading
+import time
+from collections import OrderedDict
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter,Depends,HTTPException,Request,Response
 from fastapi.responses import HTMLResponse
 from PIL import Image,ImageDraw,ImageFont,ImageOps
@@ -16,6 +20,12 @@ router=APIRouter()
 STAT_KEYS=('distance_year','active_days_year','activities_year','activity_weeks','food_days_month')
 SPORTS={'run':'Running','ride':'Cycling','walk':'Walking','hike':'Hiking','swim':'Swimming','workout':'Workouts','row':'Rowing','ski':'Skiing','other':'Other activities'}
 HEADERS={'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer'}
+# Process-local, bounded work reuse; browsers still revalidate access on every request.
+_pictures=OrderedDict()
+_picture_lock=threading.Lock()
+_render_slots=threading.BoundedSemaphore(2)
+PICTURE_TTL=30
+PICTURE_LIMIT=32
 
 def optional_user(request):
     try:return current_user(request)
@@ -44,7 +54,7 @@ def payload(c,row,request=None):
     uid=row['user_id'];wanted=row['stats'];out={'username':row['login'],'sports':[],'stats':[],'garmin_sources':[],'allow_requests':row['allow_requests'],'url':url(row['code'],request)}
     year=recaps.facts(c,uid,'this_year') if wanted else None
     if row['sports']:
-        out['sports']=[r['sport'] for r in c.execute('SELECT DISTINCT sport FROM activities WHERE user_id=%s ORDER BY sport',(uid,)).fetchall() if r['sport'] in SPORTS]
+        out['sports']=[r['sport'] for r in c.execute('SELECT DISTINCT sport FROM activities WHERE user_id=%s AND NOT lift_open ORDER BY sport',(uid,)).fetchall() if r['sport'] in SPORTS]
     if wanted:
         profile=c.execute('SELECT units FROM profile WHERE user_id=%s',(uid,)).fetchone() or {};imperial=profile.get('units')=='imperial'
         for key in wanted:
@@ -98,7 +108,7 @@ def rotate(request:Request,user=Depends(current_user)):
 def preview(code:str,request:Request):
     viewer=optional_user(request)
     with db.connect() as c:
-        row=active(c,code,viewer['id'] if viewer else None);out=payload(c,row,request)
+        row=active(c,code,viewer['id'] if viewer else None);out=dict(cached_result(c,row,request,'payload'))
         if viewer:
             from .api_social import _pair
             pair=_pair(c,viewer['id'],row['user_id']);out['relationship']='self' if viewer['id']==row['user_id'] else ('friends' if pair and pair['status']=='accepted' else 'request_sent' if pair and pair['requester']==viewer['id'] else 'incoming' if pair else 'none')
@@ -217,16 +227,44 @@ def image(c,row,request):
     g.rounded_rectangle((72,1290,124,1320),radius=15,outline='#1F55D0',width=5);g.ellipse((107,1280,133,1306),fill='white');g.ellipse((113,1286,127,1300),fill='#1F55D0');text('Kinetta',146,1285,36)
     out=io.BytesIO();im.save(out,format='PNG');return out.getvalue()
 
+def cached_result(c,row,request,kind='picture'):
+    profile=c.execute('SELECT tz,units FROM profile WHERE user_id=%s',(row['user_id'],)).fetchone() or {}
+    state=c.execute('SELECT generation FROM milestone_state WHERE user_id=%s',(row['user_id'],)).fetchone()
+    zone=ZoneInfo(db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ)
+    key=(kind,row['code'],row['updated'],row['login'],row['photo_v'],profile.get('tz'),profile.get('units'),
+         state['generation'] if state else 0,dt.datetime.now(zone).date(),url(row['code'],request))
+    def get():
+        with _picture_lock:
+            for old in [k for k,v in _pictures.items() if v[0]<=time.monotonic()]:del _pictures[old]
+            item=_pictures.get(key)
+            if item:_pictures.move_to_end(key);return item[1]
+    found=get()
+    if found is not None:return found
+    if not _render_slots.acquire(timeout=1):
+        raise HTTPException(429,'The picture is busy. Try again in a moment.',headers={'Retry-After':'1'})
+    try:
+        found=get()
+        if found is not None:return found
+        picture=image(c,row,request) if kind=='picture' else payload(c,row,request)
+        with _picture_lock:
+            _pictures[key]=(time.monotonic()+PICTURE_TTL,picture);_pictures.move_to_end(key)
+            while len(_pictures)>PICTURE_LIMIT:_pictures.popitem(last=False)
+        return picture
+    finally:_render_slots.release()
+
 @router.get('/api/card/image.png')
 def own_image(request:Request,user=Depends(current_user)):
     with db.connect() as c:
         row=own(c,user['id']);row.update(c.execute('SELECT login::text AS login,photo_v FROM users WHERE id=%s',(user['id'],)).fetchone())
-        return Response(image(c,row,request),media_type='image/png',headers=HEADERS)
+        return Response(cached_result(c,row,request),media_type='image/png',headers=HEADERS)
 
 @router.get('/card/{code}/image.png')
 def card_image(code:str,request:Request):
     viewer=optional_user(request)
-    with db.connect() as c:return Response(image(c,active(c,code,viewer['id'] if viewer else None),request),media_type='image/png',headers=HEADERS)
+    with db.connect() as c:
+        # Revocation, rotation, suspension and blocks are checked even on cache hits.
+        row=active(c,code,viewer['id'] if viewer else None)
+        return Response(cached_result(c,row,request),media_type='image/png',headers=HEADERS)
 
 @router.get('/card/{code}/photo')
 def card_photo(code:str,request:Request):
@@ -243,7 +281,8 @@ def public_page(code:str,request:Request):
     viewer=optional_user(request)
     try:
         with db.connect() as c:
-            row=active(c,code,viewer['id'] if viewer else None);d=payload(c,row,request);state=signup.state(c)
+            row=active(c,code,viewer['id'] if viewer else None)
+            d={'username':row['login'],'url':url(row['code'],request),'allow_requests':row['allow_requests']};state=signup.state(c)
     except HTTPException as e:
         if e.status_code!=404:raise
         return HTMLResponse('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/static/theme.css"><link rel="stylesheet" href="/static/style.css"><main class="shell"><h1>This card is no longer active</h1><p>Ask for a new link.</p><a href="/">Open Kinetta</a></main></html>',status_code=404,headers=HEADERS)

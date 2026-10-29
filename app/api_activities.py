@@ -97,7 +97,7 @@ SPEED_AVAILABLE_SQL = """NOT (a.sport='ride' AND a.source<>'manual'
   AND (coalesce(a.health_details->>'indoor','false')='true'
     OR coalesce(a.sub_sport,'') IN ('indoor_cycling','virtual_activity')
     OR lower(regexp_replace(coalesce(a.sport_label,''),'[ _-]','','g')) IN ('indoorcycling','stationarycycling','stationarybike','virtualride')
-    OR ((a.source IN ('healthkit','apple') OR a.healthkit_id IS NOT NULL) AND a.geom IS NULL
+    OR ((a.source IN ('healthkit','apple') OR a.healthkit_id IS NOT NULL) AND NOT (coalesce(a.health_details,'{}'::jsonb) ? 'indoor') AND a.geom IS NULL
       AND coalesce(a.max_speed,0)<=0 AND NOT jsonb_path_exists(coalesce(a.chart,'{}'::jsonb),'$.speed[*] ? (@ > 0)'))))"""
 LIST_COLS = """a.id, a.sport, a.name, a.start_time, a.tz, a.distance_m, a.moving_s, a.elapsed_s, a.ascent_m, a.avg_hr,
                a.gap_s_per_km, a.effort, a.commute, a.route_id, a.description, a.avg_power, a.vo2max, a.sport_label,

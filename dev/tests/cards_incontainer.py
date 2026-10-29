@@ -151,6 +151,48 @@ class Cards(unittest.TestCase):
       with reader.transaction():reader.execute('SELECT code FROM '+table)
   finally:
    with db.connect() as c:c.execute('UPDATE users SET sql_role=NULL WHERE id=%s',(self.ids[0],));c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
+ def test_picture_cache_reuses_work_but_updates_and_revocation_are_immediate(self):
+  self.enable(stats=['activities_year']);path='/card/'+self.code+'/image.png';original=cards.image
+  with patch('app.cards.image',wraps=original) as render:
+   first=self.guest.get(path);self.assertEqual(first.status_code,200);self.assertEqual(self.guest.get(path).content,first.content);self.assertEqual(render.call_count,1)
+   with db.connect() as c:c.execute("INSERT INTO activities(user_id,sport,name,start_time,source) VALUES(%s,'walk','Fictional update',now(),'manual')",(self.ids[0],))
+   changed=self.guest.get(path);self.assertEqual(changed.status_code,200);self.assertNotEqual(changed.content,first.content);self.assertEqual(render.call_count,2)
+   self.enable(enabled=False);self.assertEqual(self.guest.get(path).status_code,404);self.assertEqual(render.call_count,2)
+   self.enable();self.assertEqual(self.guest.get(path).status_code,200)
+   with db.connect() as c:c.execute('UPDATE users SET suspended_at=now() WHERE id=%s',(self.ids[0],))
+   self.assertEqual(self.guest.get(path).status_code,404)
+ def test_cached_preview_keeps_relationships_separate_and_blocks_current(self):
+  self.enable();path='/api/cards/'+self.code;original=cards.payload
+  with patch('app.cards.payload',wraps=original) as render:
+   self.assertEqual(self.guest.get(path).status_code,200);self.assertEqual(self.clients[0].get(path).json()['relationship'],'self')
+   self.assertNotIn('relationship',self.guest.get(path).json());self.assertEqual(render.call_count,1)
+   self.assertEqual(self.clients[1].get('/card/'+self.code+'/image.png').status_code,200)
+   with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(self.ids[0],self.ids[1]))
+   self.assertEqual(self.clients[1].get(path).status_code,404);self.assertEqual(self.clients[1].get('/card/'+self.code+'/image.png').status_code,404)
+ def test_public_html_does_not_compute_stats_or_render_the_picture(self):
+  self.enable(stats=['distance_year','food_days_month'])
+  with patch('app.cards.payload',side_effect=AssertionError('HTML must not scan history')),patch('app.cards.image',side_effect=AssertionError('HTML must not render PNG')):
+   self.assertEqual(self.guest.get('/card/'+self.code).status_code,200)
+ def test_unfinished_lifting_is_excluded_from_card_totals_and_sports(self):
+  with db.connect() as c:c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,lift_open) VALUES(%s,'workout','Fictional unfinished set',now(),'manual',true)",(self.ids[0],))
+  preview=self.enable(stats=['activities_year'])['preview'];self.assertEqual(preview['stats'][0]['value'],1);self.assertEqual(preview['sports'],['run'])
+ def test_picture_cache_has_bounded_entries_and_render_concurrency(self):
+  import threading,time
+  from concurrent.futures import ThreadPoolExecutor
+  self.enable();path='/card/'+self.code+'/image.png';active=0;peak=0;lock=threading.Lock()
+  def render(*args):
+   nonlocal active,peak
+   with lock:active+=1;peak=max(active,peak)
+   time.sleep(.15)
+   with lock:active-=1
+   return b'fictional-png'
+  with patch('app.cards.image',side_effect=render) as renderer:
+   with ThreadPoolExecutor(max_workers=8) as pool:answers=list(pool.map(lambda _:TestClient(app).get(path),range(8)))
+   self.assertTrue(all(x.status_code==200 for x in answers));self.assertLessEqual(peak,2);self.assertLessEqual(renderer.call_count,2)
+  with patch('app.cards.PICTURE_LIMIT',2),patch('app.cards.image',return_value=b'fictional-png'):
+   for _ in range(3):
+    new=self.clients[0].post('/api/card/new').json()['url'];self.assertEqual(self.guest.get('/card/'+new.rsplit('/',1)[-1]+'/image.png').status_code,200)
+   self.assertLessEqual(len(cards._pictures),2)
  def test_codes_have_no_reader_grant_and_exports_exclude_codes(self):
   from app.api_mydata import TABLES
   with db.connect() as c:

@@ -49,6 +49,10 @@ class StationaryCharts(unittest.TestCase):
   _,aid,_=api_health.save(self.ids[0],api_health.WorkoutIn(**data));self.assertFalse(self.clients[0].get('/api/activities/'+str(aid)).json()['speed_available'])
   del data['indoor'];api_health.save(self.ids[0],api_health.WorkoutIn(**data))
   with db.connect() as c:self.assertIs(c.execute('SELECT health_details FROM activities WHERE id=%s',(aid,)).fetchone()['health_details']['indoor'],True)
+ def test_explicit_outdoor_health_without_a_route_is_not_stationary(self):
+  start=dt.datetime.now(UTC)-dt.timedelta(hours=2)
+  _,aid,_=api_health.save(self.ids[0],api_health.WorkoutIn(id=str(uuid.uuid4()),type='cycling',start=start,end=start+dt.timedelta(minutes=30),duration_s=1800,distance_m=10000,indoor=False))
+  self.assertTrue(self.clients[0].get('/api/activities/'+str(aid)).json()['speed_available'],'Explicit outdoor metadata overrides the legacy missing-route heuristic')
  def test_empty_samples_and_explicit_distance_are_preserved(self):
   self.assertIsNone(analysis.clean_chart({'t':[0,10],'d':[0,0],'speed':[0,None],'hr':[None,None]}));self.assertEqual(analysis.clean_chart({'t':[0,10],'speed':[0,5]})['speed'],[0,5])
   aid=self.ride(distance=10000);self.assertEqual(self.clients[0].get('/api/activities/'+str(aid)).json()['distance_m'],10000);self.assertEqual(self.share(aid,False)['distance_m'],10000)

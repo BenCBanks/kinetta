@@ -710,7 +710,10 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
   const all = lines.map((ln) => (typeof ln === 'string' ? decode(ln) : ln)).filter((p) => p.length > 1);
   if (all.length) map.fitBounds(L.latLngBounds(all.flat()), {padding: still ? [12, 12] : [18, 18]}); else map.setView([39.5, -98.5], 3);
   const group = L.featureGroup().addTo(map);
-  map.on('basemaptheme',event=>{group.setStyle({color:event.light?col('--color-action'):col('--route')});});
+  let routeColor=color;
+  map.on('basemaptheme',event=>{routeColor=event.light?col('--color-action'):col('--route');group.setStyle({color:routeColor});});
+  // Nearby segments and live recording add lines after the basemap has settled.
+  group.on('layeradd',event=>event.layer.setStyle?.({color:routeColor}));
   for (const pts of all) L.polyline(pts, heat ? {color, weight: 2, opacity: .35} : {color, weight: 4, opacity: .95}).addTo(group);
   if (!heat && ends && all.length) {      // the first section's start and the last section's finish
     const first = all[0], last = all[all.length - 1];

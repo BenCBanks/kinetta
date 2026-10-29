@@ -27,6 +27,7 @@ stay in the person's private export; external pictures cannot be recalled. Accou
 the state, offers and notifications. Read-only SQL access exposes only the owner's milestone rows.
 
 Migration 82 adds private state and offer tables, an optional notification reference and enqueue
-triggers. It keeps existing activity and food records. Its worker takes the account lock before the
-state row, matching account erasure. No live migration, deployment or push delivery is implied by
-passing local tests. Implementation is tracked in [#296](https://github.com/BenCBanks/kinetta/issues/296).
+triggers. It keeps existing activity and food records. Its worker takes the account lock first, matching
+account erasure, and claims work separately from the dirty state row so history scans do not block saves. A changed generation discards the scan and retries. Quiet history
+sleeps until data changes or an actual future entry becomes eligible. Push dispatch starts after commit. No live migration,
+deployment or push delivery is implied by passing local tests. Implementation is tracked in [#296](https://github.com/BenCBanks/kinetta/issues/296).

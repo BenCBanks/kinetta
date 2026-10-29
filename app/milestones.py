@@ -14,13 +14,14 @@ from .auth import current_user
 router=APIRouter(prefix='/api/milestones')
 FIRST_DISTANCES=((5000,'5K'),(10000,'10K'),(21097.5,'half marathon'),(42195,'marathon'))
 SPORTS={'run':'run','ride':'ride','walk':'walk','hike':'hike','swim':'swim','row':'rowing workout','ski':'ski workout','workout':'workout','other':'activity'}
+IDLE_CHECK=dt.datetime(9999,1,1,tzinfo=dt.timezone.utc)
 
 
 def candidates(c,uid,now,zone,units):
     """One background pass, coalesced across a batch of imports/edits. Only fixed facts leave this helper."""
     rows=c.execute('''SELECT id,sport,start_time,created,updated,distance_m,moving_s,elapsed_s,source,device
       FROM activities WHERE user_id=%s AND NOT lift_open ORDER BY start_time,id''',(uid,)).fetchall()
-    today=now.astimezone(zone).date();next_check=dt.datetime.combine(today+dt.timedelta(days=1),dt.time.min,zone)
+    today=now.astimezone(zone).date();next_check=IDLE_CHECK
     result={};eligible=[]
     def add(code,kind,title,rank,row,details):
         credit=recaps.garmin_source(row.get('source'),row.get('device'))
@@ -74,6 +75,8 @@ def candidates(c,uid,now,zone,units):
         priority=next(n for n,(distance,_) in enumerate(analysis.efforts_for(b['sport'])) if distance==b['distance_m'])
         add(f"best:{b['sport']}:{b['distance_m']:g}:{r['id']}",'best','New '+b['label']+' best',100+priority,r,{'sport':b['sport'],'distance_m':b['distance_m'],'seconds':b['elapsed_s'],'label':b['label']})
     food=c.execute('SELECT day,min(created) AS arrived FROM food_entries WHERE user_id=%s AND day<=%s GROUP BY day ORDER BY day',(uid,today)).fetchall()
+    future=c.execute('SELECT min(day) AS day FROM food_entries WHERE user_id=%s AND day>%s',(uid,today)).fetchone()['day']
+    if future:next_check=min(next_check,dt.datetime.combine(future,dt.time.min,zone))
     for priority,n in enumerate((7,30,100,365),1):
         if len(food)>=n:
             d=food[n-1];at=dt.datetime.combine(d['day'],dt.time.min,zone)
@@ -81,14 +84,19 @@ def candidates(c,uid,now,zone,units):
     return result,next_check
 
 
-def process(c,uid,now=None):
+def process(c,uid,now=None,*,push_ids=None):
     now=now or dt.datetime.now(dt.timezone.utc)
     # Erasure owns the account before personal rows. Never claim a state row before this account lock.
     if not c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE',(uid,)).fetchone():return False
-    state=c.execute('SELECT * FROM milestone_state WHERE user_id=%s FOR UPDATE SKIP LOCKED',(uid,)).fetchone()
+    # Serialize workers without holding the row that activity/food dirty triggers need.
+    if not c.execute("SELECT pg_try_advisory_xact_lock(hashtextextended('kinetta-milestones:'||%s::text,0)) AS claimed",(uid,)).fetchone()['claimed']:return False
+    state=c.execute('SELECT * FROM milestone_state WHERE user_id=%s',(uid,)).fetchone()
     if not state:return False
     p=c.execute('SELECT tz,units,notify FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
     zone=ZoneInfo(db.valid_tz(p.get('tz')) or db.DEFAULT_TZ);items,next_check=candidates(c,uid,now,zone,p.get('units') or 'imperial')
+    latest=c.execute('SELECT generation FROM milestone_state WHERE user_id=%s FOR UPDATE SKIP LOCKED',(uid,)).fetchone()
+    # A concurrent save stays dirty. Discard this scan rather than publish partial history.
+    if not latest or latest['generation']!=state['generation']:return False
     # Seen/share timestamps survive invalidation, backfill, edits and retries: offers never resurrect.
     c.execute('UPDATE milestones SET valid=false WHERE user_id=%s AND shared_at IS NULL',(uid,))
     new=[]
@@ -107,9 +115,18 @@ def process(c,uid,now=None):
         mid=max(new,key=lambda x:x[0])[1]
         nid=c.execute("INSERT INTO notifications(user_id,actor_id,kind,milestone_id) VALUES(%s,%s,'milestone',%s) RETURNING id",(uid,uid,mid)).fetchone()['id']
         c.execute('UPDATE milestone_state SET last_push_day=%s WHERE user_id=%s',(day,uid))
-        threading.Thread(target=notify._push_later,args=(nid,),daemon=True).start()
-    c.execute('UPDATE milestone_state SET processed=generation,fresh=false,next_check=%s WHERE user_id=%s',(next_check,uid))
+        if push_ids is not None:push_ids.append(nid)
+    c.execute('UPDATE milestone_state SET processed=%s,fresh=false,next_check=%s WHERE user_id=%s',(state['generation'],next_check,uid))
     return True
+
+
+def process_committed(uid,now=None):
+    from . import notify
+    push_ids=[]
+    with db.connect() as c:result=process(c,uid,now,push_ids=push_ids)
+    # Dispatch only after the transaction succeeds, however long its scan took.
+    for nid in push_ids:threading.Thread(target=notify._push_later,args=(nid,),daemon=True).start()
+    return result
 
 
 def start_worker():
@@ -120,7 +137,7 @@ def start_worker():
                 with db.connect() as c:ids=[r['user_id'] for r in c.execute('SELECT user_id FROM milestone_state WHERE generation>processed OR next_check<=now() ORDER BY changed LIMIT 20').fetchall()]
                 for uid in ids:
                     if stop.is_set():break
-                    with db.connect() as c:process(c,uid)
+                    process_committed(uid)
             except Exception as e:print('milestone worker:',type(e).__name__,flush=True)
     worker=threading.Thread(target=loop,daemon=True);worker.start();return stop,worker
 

@@ -111,6 +111,34 @@ class Challenges(unittest.TestCase):
   with db.connect() as c:
    cid=C.accessible(c,code)['id'];self.assertEqual(C.purge(c,self.now+dt.timedelta(days=89)),0);self.assertEqual(C.purge(c,self.now+dt.timedelta(days=91)),1);self.assertEqual(c.execute('SELECT count(*) AS n FROM challenge_members WHERE challenge_id=%s',(cid,)).fetchone()['n'],0)
   self.assertEqual(self.anon.get('/challenge/'+code).status_code,404)
+ def test_naturally_finished_totals_stay_live_without_rechecking_finished_notices(self):
+  q,_=self.make();food,_=self.make(kind='food_days');today=self.now.astimezone(C.ZoneInfo('America/New_York')).date();day=today-dt.timedelta(days=1)
+  with db.connect() as c:
+   cids=[C.accessible(c,x['code'])['id'] for x in (q,food)];c.execute("UPDATE challenges SET end_day=%s,checked_at='epoch' WHERE id=ANY(%s)",(day,cids))
+   for cid in cids:C.process(c,cid,self.now)
+   c.execute("UPDATE challenges SET checked_at='epoch' WHERE id=ANY(%s)",(cids,));self.assertTrue(set(cids).isdisjoint(C.pending_jobs(c)),'Completed finish notices must leave the worker queue')
+  self.assertTrue(self.get(q['code'])['self']['finished']);self.assertEqual(self.get(q['code'])['self']['value'],0)
+  aid=self.activity(at=dt.datetime.combine(day,dt.time(12),C.ZoneInfo('America/New_York')));fid=self.food(day=day)
+  self.assertEqual(self.get(q['code'])['self']['value'],10);self.assertEqual(self.get(food['code'])['self']['value'],1)
+  with db.connect() as c:c.execute('UPDATE activities SET distance_m=5000 WHERE id=%s',(aid,))
+  self.assertEqual(self.get(q['code'])['self']['value'],5)
+  with db.connect() as c:c.execute('DELETE FROM activities WHERE id=%s',(aid,));c.execute('DELETE FROM food_entries WHERE id=%s',(fid,))
+  self.assertEqual(self.get(q['code'])['self']['value'],0);self.assertEqual(self.get(food['code'])['self']['value'],0)
+ def test_worker_push_waits_for_commit_and_rollback_dispatches_nothing(self):
+  q,_=self.make();self.clients[0].put('/api/notifications/settings',json={'challenge_finished':True});seen=[]
+  with db.connect() as c:
+   cid=C.accessible(c,q['code'])['id'];c.execute('UPDATE challenges SET end_day=%s WHERE id=%s',(self.now.astimezone(C.ZoneInfo('America/New_York')).date()-dt.timedelta(days=1),cid))
+  class ImmediateThread:
+   def __init__(self,target,args,daemon):self.target=target;self.args=args
+   def start(self):self.target(*self.args)
+  def delivered(nid):
+   with db.connect() as c:seen.append(bool(c.execute('SELECT id FROM notifications WHERE id=%s',(nid,)).fetchone()))
+  original=C.process
+  def rolled_back(*args,**kw):original(*args,**kw);raise RuntimeError('Fictional commit failure')
+  with patch('app.challenges.threading.Thread',ImmediateThread),patch('app.notify._push_later',side_effect=delivered):
+   with patch('app.challenges.process',side_effect=rolled_back):
+    with self.assertRaises(RuntimeError):C.process_committed(cid,self.now)
+   self.assertEqual(seen,[]);C.process_committed(cid,self.now);self.assertEqual(seen,[True]);C.process_committed(cid,self.now);self.assertEqual(seen,[True])
  def test_notifications_are_opt_in_once_only_and_never_include_private_names(self):
   q,_=self.make();code=q['code'];self.join(code)
   with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM notifications WHERE challenge_id=(SELECT id FROM challenges WHERE code=%s)',(code,)).fetchone()['n'],0)

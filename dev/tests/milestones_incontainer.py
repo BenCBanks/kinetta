@@ -142,6 +142,50 @@ class Milestones(unittest.TestCase):
   with db.connect() as c:
    for table in ('users','milestone_state','milestones','activities','notifications'):
     key='id' if table=='users' else 'user_id';self.assertEqual(c.execute(f'SELECT count(*) AS n FROM {table} WHERE {key}=%s',(self.ids[0],)).fetchone()['n'],0)
+ def test_history_scan_does_not_block_saves_and_retries_a_changed_generation(self):
+  aid=self.activity();entered=threading.Event();release=threading.Event();saved=threading.Event();failures=[];results=[];original=M.candidates
+  def paused(*args):
+   result=original(*args);entered.set();self.assertTrue(release.wait(5));return result
+  def scan():
+   try:
+    with db.connect() as c:results.append(M.process(c,self.ids[0],self.now))
+   except Exception as e:failures.append(e)
+  def save():
+   try:
+    with db.connect() as c:
+     c.execute("SET statement_timeout='2s'");c.execute('UPDATE activities SET distance_m=2000,updated=now() WHERE id=%s',(aid,))
+    saved.set()
+   except Exception as e:failures.append(e)
+  with patch('app.milestones.candidates',side_effect=paused):
+   t=threading.Thread(target=scan);t.start();self.assertTrue(entered.wait(3));s=threading.Thread(target=save);s.start()
+   try:
+    self.assertTrue(saved.wait(2.5),'An activity save must commit while milestone history is still being scanned')
+    with db.connect() as c:self.assertFalse(M.process(c,self.ids[0],self.now),'A second worker skips the claimed account')
+   finally:release.set();t.join(6);s.join(6)
+  self.assertEqual(failures,[]);self.assertEqual(results,[False],'Changed history must remain pending rather than publish stale milestones')
+  with db.connect() as c:self.assertTrue(c.execute('SELECT generation>processed AS pending FROM milestone_state WHERE user_id=%s',(self.ids[0],)).fetchone()['pending'])
+  self.process();self.assertFalse(any(x['kind']=='first_distance' for x in self.items()))
+ def test_quiet_history_sleeps_until_a_real_future_entry_becomes_eligible(self):
+  self.activity();self.process()
+  with db.connect() as c:self.assertEqual(c.execute('SELECT next_check FROM milestone_state WHERE user_id=%s',(self.ids[0],)).fetchone()['next_check'],M.IDLE_CHECK)
+  today=self.now.astimezone(M.ZoneInfo('America/New_York')).date();future=today+dt.timedelta(days=2)
+  with db.connect() as c:c.execute("INSERT INTO food_entries(user_id,day,name,kcal) VALUES(%s,%s,'Fictional future meal',50)",(self.ids[0],future))
+  self.process()
+  with db.connect() as c:self.assertEqual(c.execute('SELECT next_check FROM milestone_state WHERE user_id=%s',(self.ids[0],)).fetchone()['next_check'],dt.datetime.combine(future,dt.time.min,M.ZoneInfo('America/New_York')))
+ def test_push_is_dispatched_only_after_a_successful_commit(self):
+  self.clients[0].put('/api/notifications/settings',json={'milestones':True});self.activity();seen=[]
+  class ImmediateThread:
+   def __init__(self,target,args,daemon):self.target=target;self.args=args
+   def start(self):self.target(*self.args)
+  def delivered(nid):
+   with db.connect() as c:seen.append(bool(c.execute('SELECT id FROM notifications WHERE id=%s',(nid,)).fetchone()))
+  original=M.process
+  def rolled_back(*args,**kw):original(*args,**kw);raise RuntimeError('Fictional commit failure')
+  with patch('app.milestones.threading.Thread',ImmediateThread),patch('app.notify._push_later',side_effect=delivered):
+   with patch('app.milestones.process',side_effect=rolled_back):
+    with self.assertRaises(RuntimeError):M.process_committed(self.ids[0],self.now)
+   self.assertEqual(seen,[],'A rolled-back notification must never reach push dispatch')
+   self.assertTrue(M.process_committed(self.ids[0],self.now));self.assertEqual(seen,[True],'Push can immediately read the committed notification')
  def test_calendar_year_uses_the_persons_local_day_across_dst(self):
   self.now=dt.datetime(2026,1,1,5,30,tzinfo=dt.timezone.utc)
   with db.connect() as c:

@@ -28,7 +28,10 @@ Garmin attribution. Private activities can count because joining explicitly shar
 Activities belong to the participant's own local start day, including DST changes. A workout crossing midnight
 counts after it completes. Earlier records inside the chosen period count even when they predate joining.
 The API recalculates from current records on each read; the open page refreshes every 30 seconds. Edits and
-deletions therefore update immediately in the API and normally within 30 seconds on screen.
+deletions therefore update immediately in the API and normally within 30 seconds on screen. Naturally finished
+challenges keep reflecting late imports, food entries and corrections throughout retention; results do not freeze.
+Once all eligible participants have received their finish notice, the notification worker stops checking that
+challenge. This does not stop live progress calculation.
 
 Joining closes at the end of the creator's period in the time zone saved when it was created. Each participant's
 counting period and finish picture use their own local dates. A creator can End early, which closes joining and

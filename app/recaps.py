@@ -43,7 +43,7 @@ def facts(c,uid,period,now=None):
     # Same date_trunc/week boundary, rows and moving-time sums as Progress /progress/volume.
     rows=c.execute('''SELECT id,sport,visibility,distance_m,moving_s,source,device,
                        (start_time AT TIME ZONE %s)::date AS day
-                     FROM activities WHERE user_id=%s AND start_time>=%s AND start_time<%s ORDER BY start_time,id''',(tz,uid,lo,hi)).fetchall()
+                     FROM activities WHERE user_id=%s AND NOT lift_open AND start_time>=%s AND start_time<%s ORDER BY start_time,id''',(tz,uid,lo,hi)).fetchall()
     days={};sports={};sources=set()
     for r in rows:
         day=days.setdefault(r['day'],{'day':r['day'],'activities':0,'distance_m':0,'time_s':0})
@@ -72,7 +72,7 @@ def facts(c,uid,period,now=None):
        FROM food_entries WHERE user_id=%s AND day>=%s AND day<%s GROUP BY day''',(uid,start,end)).fetchall()
     target=profile.get('protein_target')
     protein_days=sum(r['protein'] is not None and r['protein']>=target for r in food) if target and target>0 else None
-    weeks={r['week'] for r in c.execute("SELECT DISTINCT date_trunc('week',start_time AT TIME ZONE %s)::date AS week FROM activities WHERE user_id=%s AND start_time<%s",(tz,uid,hi)).fetchall()}
+    weeks={r['week'] for r in c.execute("SELECT DISTINCT date_trunc('week',start_time AT TIME ZONE %s)::date AS week FROM activities WHERE user_id=%s AND NOT lift_open AND start_time<%s",(tz,uid,hi)).fetchall()}
     at=min(today,end-dt.timedelta(days=1));week=at-dt.timedelta(days=at.weekday())
     if week not in weeks:week-=dt.timedelta(days=7)
     streak=0

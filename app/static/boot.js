@@ -11,11 +11,13 @@ globalThis.KinettaBoot=(()=>{
   // Styles may fail before this script runs. By DOM readiness, parser-blocking styles have settled.
   addEventListener('DOMContentLoaded',()=>{
     if(failed||(launching()&&[...document.querySelectorAll('link[rel="stylesheet"]')].some(link=>!link.sheet))){failed=true;showFailure();}
+    // Syntax failures and stalled startup still recover; incidental errors don't cancel a successful launch.
+    setTimeout(()=>{if(launching())showFailure();},20000);
   });
   addEventListener('error',event=>{
     // Dynamic maps/photos have their own recovery. This guard is only for the initial app assets.
     if(!launching()&&document.readyState!=='loading')return;
-    if(event.target?.tagName==='SCRIPT'||(event.target?.tagName==='LINK'&&event.target.rel==='stylesheet')||event.filename){failed=true;showFailure();}
+    if(event.target?.tagName==='SCRIPT'||(event.target?.tagName==='LINK'&&event.target.rel==='stylesheet')){failed=true;showFailure();}
   },true);
   return {get failed(){return failed;},showFailure};
 })();

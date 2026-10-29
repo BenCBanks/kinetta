@@ -147,7 +147,7 @@ const Recaps=(()=>{
           const fresh=reload||!data?await read(period):data;if(!live()||run!==version)return;data={...fresh,units:App.me?.units||fresh.units};
           if(!saved&&!defaultApplied){options.streak=data.streak_weeks>=2;const field=$('[data-recap-option="streak"]',b);field.checked=options.streak;}defaultApplied=true;
           const streakField=$('[data-recap-option="streak"]',b);streakField.checked=options.streak&&data.streak_weeks>=2;
-          const description=['Activity totals and calendar include all your activities.',options.food?'Food shows only logged days and protein-goal days.':'No food details.',options.identity?'Includes your username and photo if available.':'No photo or username.','No maps, places or body details.'];$('#recap-description',b).textContent=description.join(' ');
+          const description=['Totals and calendar include Only me workouts. Highlights use shared activities.',options.food?'Food shows only logged days and protein-goal days.':'No food details.',options.identity?'Includes your username and photo if available.':'No photo or username.','No maps, places or body details.'];$('#recap-description',b).textContent=description.join(' ');
           const result=await draw(data,options);if(!live()||run!==version)return;
           if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;picture=result.blob;
           const hasData=data.activities>0||options.food&&data.food.logged_days>0,hasSections=options.totals||options.calendar&&data.activities>0||options.highlights&&data.highlights.length>0||options.streak&&data.streak_weeks>=2||options.food||options.identity;

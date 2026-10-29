@@ -179,12 +179,13 @@ def create(body:Create,request:Request,user=Depends(current_user)):
         c.execute('INSERT INTO challenge_members(challenge_id,user_id) VALUES(%s,%s)',(row['id'],user['id']));row['creator']=user['login']
         return answer(c,row,user['id'],request)
 
-def send_notice(c,row,uid,kind,actor):
+def send_notice(c,row,uid,kind,actor,*,push_ids=None):
     setting={'challenge_join':'challenge_joins','challenge_reminder':'challenge_reminders','challenge_finished':'challenge_finished'}[kind]
     prefs=(c.execute('SELECT notify FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}).get('notify')
     if notify._prefs(prefs).get(setting):
         nid=c.execute('INSERT INTO notifications(user_id,actor_id,kind,challenge_id) VALUES(%s,%s,%s,%s) RETURNING id',(uid,actor,kind,row['id'])).fetchone()['id']
-        threading.Thread(target=notify._push_later,args=(nid,),daemon=True).start()
+        if push_ids is None:threading.Thread(target=notify._push_later,args=(nid,),daemon=True).start()
+        else:push_ids.append(nid)
 
 def join_challenge(c,uid,code):
     from .api_social import confirmed
@@ -256,7 +257,7 @@ def public_page(code:str,request:Request):
         else:action='<p>Kinetta is invite-only. Ask the server owner for an invitation, then reopen this challenge link.</p>'
         action+=f'<a class="ghost wide" href="/?challenge={esc(code)}">Already a member? Log in</a>'
     app=account_email.iphone_app();install=f'<a class="ghost wide" href="{esc(app)}">Get the iPhone app</a><p class="small muted">After installing, reopen this challenge link.</p>' if app else ''
-    body=f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>{name} · Kinetta</title><meta property="og:title" content="{name}"><meta property="og:description" content="A small, friendly challenge on Kinetta. Joining is your choice and never adds friends automatically."><link rel="stylesheet" href="/static/theme.css"><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/challenges.css?v=1"></head><body><main class="shell challenge-public"><p class="eyebrow">A Kinetta challenge</p><h1>{name}</h1><p>Started by {creator}</p><p>{data['start']} – {data['end']} · {data['participants']} participants</p><p>Only your username, permitted photo and challenge progress are visible to participants. Your workouts, food and protein target stay private. Joining does not add anyone as a friend.</p>{action}<p id="challenge-public-status" role="status"></p>{install}<a href="https://kinetta.app/privacy">Privacy policy</a></main><script src="/static/challenge-public.js?v=1" defer></script></body></html>'''
+    body=f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>{name} · Kinetta</title><meta property="og:title" content="{name}"><meta property="og:description" content="A small, friendly challenge on Kinetta. Joining is your choice and never adds friends automatically."><link rel="stylesheet" href="/static/theme.css"><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/challenges.css?v=1"></head><body><main class="shell challenge-public"><p class="eyebrow">A Kinetta challenge</p><h1>{name}</h1><p>Started by {creator}</p><p>{data['start']} – {data['end']} · {data['participants']} participants</p><p>Only your username, permitted photo and challenge progress are visible to participants. Only me workouts count toward progress; individual workouts, food entries and your protein target stay private. Joining does not add anyone as a friend.</p>{action}<p id="challenge-public-status" role="status"></p>{install}<a href="https://kinetta.app/privacy">Privacy policy</a></main><script src="/static/challenge-public.js?v=1" defer></script></body></html>'''
     return HTMLResponse(body,headers=HEADERS)
 
 class Remove(BaseModel):
@@ -298,7 +299,7 @@ def photo(code:str,username:str,user=Depends(current_user)):
         if not p or _blocked_pair(c,user['id'],p['id']):raise HTTPException(404)
         return Response(bytes(p['img']),media_type='image/jpeg',headers=HEADERS)
 
-def process(c,cid,now=None):
+def process(c,cid,now=None,*,push_ids=None):
     now=now or dt.datetime.now(UTC);initial=c.execute('SELECT user_id FROM challenges WHERE id=%s',(cid,)).fetchone()
     if not initial:return
     ids={initial['user_id']}|{r['user_id'] for r in c.execute("SELECT user_id FROM challenge_members WHERE challenge_id=%s AND status='active'",(cid,)).fetchall()}
@@ -314,11 +315,24 @@ def process(c,cid,now=None):
         if finished and not m['finished_notice']:
             c.execute('UPDATE challenge_members SET finished_notice=true WHERE challenge_id=%s AND user_id=%s',(cid,m['user_id']))
             c.execute("UPDATE notifications SET cancelled=true WHERE user_id=%s AND challenge_id=%s AND kind='challenge_reminder'",(m['user_id'],cid))
-            send_notice(c,row,m['user_id'],'challenge_finished',m['user_id'])
+            send_notice(c,row,m['user_id'],'challenge_finished',m['user_id'],push_ids=push_ids)
         elif not finished and left==3 and not m['three_notice']:
             c.execute('UPDATE challenge_members SET three_notice=true WHERE challenge_id=%s AND user_id=%s',(cid,m['user_id']))
-            send_notice(c,row,m['user_id'],'challenge_reminder',m['user_id'])
+            send_notice(c,row,m['user_id'],'challenge_reminder',m['user_id'],push_ids=push_ids)
     c.execute('UPDATE challenges SET checked_at=%s WHERE id=%s',(now,cid))
+
+def pending_jobs(c):
+    return [r['id'] for r in c.execute("""SELECT c.id FROM challenges c
+      WHERE c.checked_at<now()-interval '30 seconds' AND EXISTS(
+        SELECT 1 FROM challenge_members m JOIN users u ON u.id=m.user_id
+        WHERE m.challenge_id=c.id AND m.status='active' AND NOT m.finished_notice
+          AND NOT u.needs_email_confirm AND u.suspended_at IS NULL)
+      ORDER BY c.checked_at LIMIT 50""").fetchall()]
+
+def process_committed(cid,now=None):
+    push_ids=[]
+    with db.connect() as c:process(c,cid,now,push_ids=push_ids)
+    for nid in push_ids:threading.Thread(target=notify._push_later,args=(nid,),daemon=True).start()
 
 def purge(c,now=None):
     cutoff=(now or dt.datetime.now(UTC))-dt.timedelta(days=90)
@@ -347,10 +361,10 @@ def start_worker():
                         if intent['kind']=='card':cards.consume_signup(c,intent['user_id'])
                         else:consume_signup(c,intent['user_id'])
                 with db.connect() as c:
-                    ids=[r['id'] for r in c.execute("SELECT id FROM challenges WHERE checked_at<now()-interval '30 seconds' ORDER BY checked_at LIMIT 50").fetchall()]
+                    ids=pending_jobs(c)
                 for cid in ids:
                     if stop.is_set():break
-                    with db.connect() as c:process(c,cid)
+                    process_committed(cid)
                 with db.connect() as c:purge(c)
             except Exception as e:print('challenge worker:',type(e).__name__,flush=True)
     worker=threading.Thread(target=loop,daemon=True);worker.start();return stop,worker

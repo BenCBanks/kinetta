@@ -33,6 +33,7 @@ node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js
 node dev/tests/test_friend_management.js
 node dev/tests/test_map_contract.js
+node dev/tests/test_map_late_layers.js
 
 node dev/tests/test_recaps.js
 node dev/tests/test_milestones.js
@@ -47,6 +48,7 @@ node dev/tests/test_track.js
 node dev/tests/test_lift_summary.js
 node dev/tests/test_recipe_delete.js
 node dev/tests/test_recipe_creation.js
+node dev/tests/test_recipe_pending.js
 node dev/tests/test_recipe_title_retry.js
 node dev/tests/test_recipe_library_intent.js
 node dev/tests/test_navigation_animation.js

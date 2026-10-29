@@ -30,6 +30,12 @@ class Recaps(unittest.TestCase):
     def test_legacy_invalid_time_zone_uses_the_configured_default(self):
         with db.connect() as c:c.execute("UPDATE profile SET tz='Invalid/Fictional' WHERE user_id=%s",(self.ids[0],))
         self.assertEqual(self.facts()['tz'],db.DEFAULT_TZ)
+    def test_unfinished_lifting_does_not_count_as_a_completed_workout_or_week(self):
+        aid=self.activity('2026-11-03T12:00:00Z',sport='workout')
+        with db.connect() as c:c.execute('UPDATE activities SET lift_open=true WHERE id=%s',(aid,))
+        d=self.facts();self.assertEqual((d['activities'],d['active_days'],d['streak_weeks']),(0,0,0))
+        with db.connect() as c:c.execute('UPDATE activities SET lift_open=false WHERE id=%s',(aid,))
+        d=self.facts();self.assertEqual((d['activities'],d['active_days'],d['streak_weeks']),(1,1,1))
     def test_totals_match_progress_and_dst_local_dates(self):
         for start,distance in [('2026-11-01T03:30:00Z',1000),('2026-11-01T05:30:00Z',2000),('2026-11-01T06:30:00Z',3000),('2026-11-02T05:00:00Z',4000)]:self.activity(start,distance=distance)
         self.activity('2026-11-01T12:00:00Z',distance=99999,owner=1)
