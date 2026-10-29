@@ -109,6 +109,9 @@ def insert_activity_photo(c, aid, user_id, prepared):
 
 
 def lock_activity_photos(c, user_id):
+    # Erasure locks the account before its activities; match that order before any photo/activity lock.
+    if not c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE', (user_id,)).fetchone():
+        raise HTTPException(404, 'Account unavailable')
     # Serialize the person-wide limit as well as each activity's limit, including concurrent review/photo saves.
     c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', (f'activity-photos:{user_id}',))
 
