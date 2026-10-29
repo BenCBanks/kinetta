@@ -38,13 +38,13 @@ try:
         req(owner, 'PUT', f"/api/activities/{a['id']}/sharing", {'visibility': visibility})
     recent = profile(viewer, '?limit=1')['recent']
     assert recent['start'] == str(start) and recent['end'] == str(today)
-    assert recent['current'] == {'activities': 2, 'distance_m': 4000, 'time_s': 1200, 'active_days': 2}
+    assert recent['current'] == {'activities': 4, 'distance_m': 15000, 'time_s': 2400, 'active_days': 2}, 'totals include private and friends-only workouts'
     assert recent['previous'] == {'activities': 2, 'distance_m': 9000, 'time_s': 1200, 'active_days': 2}
     assert profile(viewer, '?limit=50')['recent'] == recent, 'pagination must not change progress'
     req(viewer, 'POST', '/api/friends', {'login': 'zz_test_progress_owner'})
     req(owner, 'POST', '/api/friends/zz_test_progress_view/accept')
     friend = profile(viewer)['recent']
-    assert friend['current']['activities'] == 3 and friend['current']['distance_m'] == 6000
+    assert friend == recent, 'friends see the same totals as other members'
     assert friend['current']['active_days'] == 2, 'same-day workouts count as one active day'
     assert profile(owner, '?as_friend=true')['recent'] == friend
     assert profile(owner)['recent']['current']['distance_m'] == 15000

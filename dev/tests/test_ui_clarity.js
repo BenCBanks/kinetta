@@ -49,11 +49,14 @@ console.log('Food chat: Search tool label PASS');
 // Profile-first Me keeps identity and private information visibly distinct (#353).
 {
  const pages=fs.readFileSync('app/static/pages.js','utf8');
- assert.match(pages,/View profile/);assert.match(pages,/Edit profile/);assert.match(pages,/Overview/);assert.match(pages,/Only you/);
+ const profile=fs.readFileSync('app/static/profile.js','utf8');
+ assert.match(pages,/MeCard\.header\(me\)/);assert.match(pages,/Your dashboard/);assert.match(profile,/Only you below this line/);assert.match(profile,/Hi, \$\{/);
+ assert.match(profile,/data-card-edit/);assert.match(profile,/aria-label="Share your profile"/);assert.match(profile,/Totals include all your workouts; private ones never show details/);
+ assert.doesNotMatch(pages,/me-edit-profile|>View profile</,'Me has no large View/Edit profile buttons');
  assert.doesNotMatch(pages,/ME_SHORTCUTS|whoseSeg|wireWhose|Latest activity|Friends recently/,'retired home/feed components have no live callers');
  assert.match(pages,/href="\/me\/activities"/,'the complete private history is reachable');
  assert.match(pages,/q.get\('view'\)==='mine'/,'existing history links retain a redirect');
- console.log('Me: visible shared profile, private Overview, separate complete history, no duplicated selectors/shortcut grid PASS');
+ console.log('Me: friends-view card with Edit/Share, private dashboard below the line, separate complete history, no duplicated selectors/shortcut grid PASS');
 }
 // Speed check (2026-10-18): reachable from Profile & settings, read-only (GET requests only), nothing stored.
 {

@@ -9,7 +9,7 @@ async function run({cached=false,food=true,failure=false,nativeSlow=false}={}){
  const el=node();el.closest=()=>page;
  const get=s=>{if(!nodes.has(s))nodes.set(s,node());return nodes.get(s);};
  const request=(key,paint,payload)=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.set(key,{paint,payload,resolve,reject});if(cached)paint(payload);return promise;};
- const ctx={console,Date,Promise,Set,$$:()=>[],friendCountText:()=> 'Friends',App:{me:{name:'Demo',food_user:food}},Native:{on:nativeSlow,healthOn:()=>new Promise(ok=>finishHealth=ok)},esc:String,svg:()=>'',avatar:()=>'',profileHref:()=>'/people/demo',bellBtn:()=>'',skel:()=>'<p>Loading</p>',skelFeed:()=>'<p>Loading</p>',skelChart:()=>'<p>Loading</p>',skelFood:()=>'<p>Loading</p>',kitChatOn:()=>true,sportMark:()=>'',SPORT_NAMES:{run:'Run'},getStarted:()=>'',goalRow:()=>'',dur:()=>'',when:()=>'',mileageChart:(box,data)=>charts.push(data),$:get,
+ const ctx={console,Date,Promise,Set,$$:()=>[],MeCard:{header:()=>'<section class="me-card">Your friends see this card.</section><div class="me-divider">Only you below this line</div>',mount(){}},friendCountText:()=> 'Friends',App:{me:{name:'Demo',food_user:food}},Native:{on:nativeSlow,healthOn:()=>new Promise(ok=>finishHealth=ok)},esc:String,svg:()=>'',avatar:()=>'',profileHref:()=>'/people/demo',bellBtn:()=>'',skel:()=>'<p>Loading</p>',skelFeed:()=>'<p>Loading</p>',skelChart:()=>'<p>Loading</p>',skelFood:()=>'<p>Loading</p>',kitChatOn:()=>true,sportMark:()=>'',SPORT_NAMES:{run:'Run'},getStarted:()=>'',goalRow:()=>'',dur:()=>'',when:()=>'',mileageChart:(box,data)=>charts.push(data),$:get,
  load:(key,paint)=>request(key,paint,{'/api/activities?limit=1':[], '/api/stats':{},'/api/goals':[], '/api/fitness?days=60':{days:[]},'/api/feed/friends?limit=3':[]}[key]),
  planCard:(box,opts)=>request('plan',()=>{box.innerHTML='';opts.onReady();}),
  todayFoodCard:(box,opts)=>request('food',()=>{box.innerHTML=food?'<p>Food today</p>':'';opts.onHistory(food);opts.onFoodUser(food);}),
@@ -27,7 +27,7 @@ async function run({cached=false,food=true,failure=false,nativeSlow=false}={}){
  assert(!('homeLoading'in page.dataset),'first data is sufficient; stale revalidation and unrelated reads do not block');
  assert(get('#t-loading').removed,'loading status removed when actions are exposed');
  assert(!el.innerHTML.includes('Latest activity'),'Latest activity is removed under the newer profile-first requirement');
- assert(el.innerHTML.includes('Overview')&&el.innerHTML.includes('Only you'),'the private boundary is visible');
+ assert(el.innerHTML.includes('Your dashboard')&&el.innerHTML.includes('Only you below this line'),'the private boundary is visible');
  assert.equal(get('#t-food').parentElement,food&&!failure?get('#t-food-lead'):get('.me-agenda'),'food moves above the chart only on a logged day');
  assert.equal(get('.me-agenda').hidden,!failure,'food-only day does not leave an empty Your day heading');
  assert(!('homeFoodLoading' in page.dataset),'training position is revealed after food classification');

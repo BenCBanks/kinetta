@@ -53,13 +53,13 @@ try:
         ids.append(result['id'])
         req(owner,'PUT',f"/api/activities/{result['id']}/sharing",{'visibility':('me','friends','everyone')[i%3]})
     stranger=req(viewer,'GET','/api/people/zz_test_layout_owner/profile')
-    assert stranger['layout']==layout and stranger['overview']['activities']==2
+    assert stranger['layout']==layout and stranger['overview']['activities']==7 and stranger['shared_count']==2
     assert stranger['overview']['active_days']==1
     req(viewer,'GET','/api/people/zz_test_layout_owner/profile?preview=friend',status=403)
     req(owner,'GET','/api/people/zz_test_layout_owner/profile?preview=invalid',status=422)
     friend=req(owner,'GET','/api/people/zz_test_layout_owner/profile?preview=friend')
     public=req(owner,'GET','/api/people/zz_test_layout_owner/profile?preview=member')
-    assert friend['overview']['activities']==4 and public['overview']['activities']==2
+    assert friend['shared_count']==4 and public['shared_count']==2 and friend['overview']==public['overview'], 'totals count every finished workout; only lists differ'
     assert public['overview']==stranger['overview'] and public['sports']==stranger['sports']
     assert {a['id'] for a in public['items']}=={a['id'] for a in stranger['items']}
     assert {a['id'] for a in friend['items']}.isdisjoint({ids[0],ids[3],ids[6]})

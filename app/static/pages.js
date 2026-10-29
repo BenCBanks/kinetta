@@ -218,6 +218,7 @@ function getStarted(healthConnected = false, hasHistory = false) {
   const ch = `<span class="chev">${svg('chev')}</span>`;
   const step = (href, ico, c, label, sub) => `<a class="row-link" href="${href}"><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}<small class="muted gs-sub">${sub}</small></span>${ch}</a>`;
   const ios = /iPhone|iPad/.test(navigator.userAgent), home = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  if (hasHistory) return setupChecklist(healthConnected);
   const rows = [
     App.me?.mail_ready && !App.me.email && !pendingEmail() && !App.me.needs_email_confirm ? step('/me/settings?email=add', 'mail', 'c-brand', 'Add your email', 'So you can reset your password if you forget it') : '',
     !hasHistory && !App.me?.photo && !App.me?.bio ? step('/welcome', 'user', 'c-green', 'Set up your profile', 'A photo and a line about you, who sees your activities, and friends') : '',
@@ -229,6 +230,25 @@ function getStarted(healthConnected = false, hasHistory = false) {
     ios && !home && !Native.on && !hasHistory ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
   ].filter(Boolean);
   return rows.length ? `<section class="setup-tips"><div class="setup-heading"><h2>${hasHistory?'Finish setup':'Get started'}</h2><button type="button" class="linkbtn" data-hide-setup>Hide tips</button></div><div class="card list">${rows.join('')}</div><p class="small muted">Optional. Restore in Settings.</p></section>` : '';
+}
+// After the first workouts, optional setup is one checklist: finished steps tick off instead of being asked again, and
+// the whole list hides (restore in Settings). Apple Health shows done once connected (owner, 29 October 2026).
+function setupChecklist(healthConnected) {
+  const me = App.me || {}, ch = `<span class="chev">${svg('chev')}</span>`;
+  const items = [
+    me.mail_ready && !me.needs_email_confirm ? ['/me/settings?email=add', 'Add your email', !!me.email || !!pendingEmail()] : null,
+    Native.on ? ['/track/health', 'Connect Apple Health', healthConnected] : null,
+    !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent) && me.iphone_app ? [me.iphone_app, 'Get the iPhone app', false, true] : null,
+    [profileHref(me), 'Add a profile photo', !!me.photo],
+    foodUser() ? ['/food/setup', 'Set a nutrition goal', !!me.kcal_target] : null,
+    ['/me/friends', 'Find friends', (me.friend_count || 0) > 0],
+  ].filter(Boolean);
+  const done = items.filter((i) => i[2]).length;
+  if (done === items.length) return '';
+  const row = ([href, label, ok, external]) => ok ? `<div class="row-link setup-done"><span class="setup-mark">${svg('check')}</span><span class="grow">${label}<span class="vh">, done</span></span></div>`
+    : `<a class="row-link" href="${esc(href)}"${external ? ' target="_blank" rel="noopener"' : ''}><span class="setup-mark todo"></span><span class="grow">${label}</span>${ch}</a>`;
+  return `<section class="setup-tips setup-check" aria-label="Finish setting up"><div class="setup-heading"><div><h2>Finish setting up</h2><p class="small muted">${done} of ${items.length} done · each one is optional</p></div><button type="button" class="ghost" data-hide-setup>Hide</button></div>
+    <div class="card list"><progress max="${items.length}" value="${done}" aria-label="Setup progress">${done} of ${items.length}</progress>${items.map(row).join('')}</div></section>`;
 }
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // A person's shared identity leads; the overview below it is private.
@@ -250,20 +270,17 @@ async function meOverview(el) {
     if (key === 'chart' && el.isConnected) $('#t-week', el).innerHTML = '<p class="small muted">Weekly activity could not load.</p>';
     throw error;
   }).finally(() => ready(key));
-  const me=App.me,bio=(me.bio||'').trim(),friends=Number.isInteger(me.friend_count)?friendCountText(me.friend_count):'Friends',pending=Number.isInteger(me.friend_requests)?me.friend_requests:0;
-  el.innerHTML=`<header class="me-profile-header"><div class="me-profile-main"><a class="me-profile-avatar" href="${profileHref(me)}" aria-label="View your shared profile">${avatar(me,'lg')}</a><div class="me-identity"><h1>${esc(me.name||me.login)}</h1></div><div class="me-profile-tools">${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div><span class="me-handle">@${esc(me.login)}</span></div>
-    ${bio?bio.length>90?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
-    <a class="me-friends-link" href="/me/friends">${svg('people')}<span data-friend-count>${friends}</span><span class="badge alert" data-friend-waiting${pending?'':' hidden'}>${pending} waiting</span>${svg('chev')}</a>
-    <div class="profile-actions"><a class="primary" href="${profileHref(me)}">View profile</a><button type="button" class="ghost" id="me-edit-profile">Edit profile</button></div></header>
-    <div class="me-overview-title"><div>${svg('lock')}<span><h2>Overview</h2><small>Only you</small></span></div><div id="t-review"></div></div>
-    <div id="t-required"></div><div id="t-start"></div><div id="t-food-lead" hidden></div>
+  const me=App.me;
+  el.innerHTML=`${MeCard.header(me)}
+    <div class="me-overview-title"><h2>Your dashboard</h2><div id="t-review"></div></div>
+    <div id="t-required"></div><div id="t-start"></div><div id="t-setup"></div><div id="t-food-lead" hidden></div>
     <div id="t-plan"></div>
     <section id="t-week" aria-label="Weekly activity"><div class="mileage-loading" aria-hidden="true">${skelChart()}</div></section>
     <div id="t-loading" role="status"><span class="vh">Loading your overview</span>${skel(1)}</div>
     <div id="t-content"><section class="me-agenda" hidden><div id="t-food"></div><div id="t-checkin"></div></section>
-    <div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-form"></div><div id="t-setup"></div></div>`;
+    <div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
+  MeCard.mount(el,{reload:()=>render()});
   const setup=$('#t-setup',el);
-  $('#me-edit-profile',el).onclick=()=>editProfile(App.me,()=>render());
   if(me.needs_email_confirm)$('#t-required',el).innerHTML=`<a class="card tap row-link" href="/me/settings?email=add"><span class="ri c-brand">${svg('mail')}</span><span class="grow"><b>Confirm your email</b><small class="muted">Your profile stays hidden until you confirm it.</small></span>${svg('chev')}</a>`;
   if(typeof Recaps!=='undefined')Recaps.offer($('#t-recap',el));
   // Food leads when logged; the remaining private panels reveal together after their first reads.
@@ -282,7 +299,7 @@ async function meOverview(el) {
     new Set([...$$('[data-hide-setup]',el),...$$('[data-hide-setup]',setup)]).forEach(button=>button.onclick=async()=>{
       if(button.disabled)return;const owner=readOwner();button.disabled=true;button.textContent='Hiding…';
       try{await api('/api/profile',json('PUT',{setup_hidden:true}));if(owner!==readOwner())return;App.me.setup_hidden=true;invalidate('/api/me');keep('/api/me',App.me);if(!el.isConnected)return;drawSetup();toast('Setup tips hidden. Restore them in Settings.');}
-      catch(x){if(owner===readOwner()&&button.isConnected){toast(x.message);button.disabled=false;button.textContent='Hide tips';}}
+      catch(x){if(owner===readOwner()&&button.isConnected){toast(x.message);button.disabled=false;button.textContent=button.closest('.setup-check')?'Hide':'Hide tips';}}
     });
   };
   tracked('food', todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
@@ -489,9 +506,10 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
 // comments are small icons by the title (comments open in a sheet; ?tab=comments opens it), sharing is in Edit, and
 // the share button sends a link or a picture (2026-10-12).
 const DTABS = [['charts', 'Charts'], ['overview', 'Details'], ['splits', 'Splits'], ['efforts', 'Efforts']];
-const activitySamples = (a) => {
+// Shared activities draw only pace/speed, heart rate and elevation, so they check just those series.
+const activitySamples = (a, series = ['speed','gap_speed','hr','alt','power','cad']) => {
   const c = a.chart;
-  return !!(c && (c.t?.length >= 2 || c.d?.length >= 2) && ['speed','gap_speed','hr','alt','power','cad'].some(k => c[k]?.filter(v => v != null && Number.isFinite(v)).length >= 2));
+  return !!(c && (c.t?.length >= 2 || c.d?.length >= 2) && series.some(k => c[k]?.filter(v => v != null && Number.isFinite(v)).length >= 2));
 };
 function activityTabs(panes) {
   const names = DTABS.filter(([key]) => panes[key]?.trim());
@@ -1367,12 +1385,10 @@ route(/^\/me$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', 'href="/me/activities"', 'activity', 'c-brand', 'Your activities')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
+    <div class="card list me-tools">${row('a', 'href="/me/activities"', 'activity', 'c-brand', 'All your activities<small class="muted">Every workout, including private ones</small>')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
   el.insertAdjacentHTML('beforeend','<div id="me-milestones"></div>');Milestones.mount($('#me-milestones',el),{row:true});
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
-  // Late optional connection status belongs below the stable navigation and insight actions.
-  const setup=$('#t-setup',el);if(setup)el.append(setup);
 });
 route(/^\/me\/settings$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;

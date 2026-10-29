@@ -3,17 +3,20 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const text=fs.readFileSync('app/static/pages.js','utf8');
 const fn=text.slice(text.indexOf('function getStarted('),text.indexOf('\nroute(',text.indexOf('function getStarted(')));
-const c={App:{me:{kcal_target:2000}},Native:{on:true},navigator:{userAgent:'iPhone'},window:{navigator:{}},matchMedia:()=>({matches:false}),svg:()=>''};
+const c={App:{me:{kcal_target:2000}},Native:{on:true},navigator:{userAgent:'iPhone'},window:{navigator:{}},matchMedia:()=>({matches:false}),svg:()=>'',esc:String,profileHref:()=>'/people/demo',pendingEmail:()=>false,foodUser:()=>!!c.App.me.kcal_target};
 vm.createContext(c);vm.runInContext(fn,c);
-assert.match(c.getStarted(false,true),/Connect Apple Health · optional/);
-assert.match(c.getStarted(false,true),/Bring in workouts and weight from Apple Health/);
-assert.equal(c.getStarted(true,true),'','No empty Finish setup card when every step is complete');
-c.Native.on=false;assert.equal(c.getStarted(false,true),'','Experienced Safari users get no Home Screen setup nag');c.navigator.userAgent='Desktop';assert.equal(c.getStarted(false,true),'');
-c.App.me.kcal_target=null;assert.equal(c.getStarted(false,true),'','Me never asks for a nutrition goal (activity-first, #164); goal setup lives in Nutrition');
+assert.match(c.getStarted(false,true),/Finish setting up/);assert.match(c.getStarted(false,true),/href="\/track\/health"[^]*Connect Apple Health/,'native app offers Health while it is not connected');
+assert.match(c.getStarted(true,true),/Connect Apple Health<span class="vh">, done/,'connected Health is ticked off, never asked again');
+assert.match(c.getStarted(true,true),/2 of 4 done/,'progress counts done and optional steps');
+c.App.me={kcal_target:2000,photo:'1',friend_count:2};assert.equal(c.getStarted(true,true),'','No checklist once every step is complete');
+c.App.me={kcal_target:null};c.Native.on=false;c.navigator.userAgent='Desktop';
+assert.doesNotMatch(c.getStarted(false,true),/Apple Health|nutrition goal/,'browsers get no Health step; non-food users no goal step');
+c.App.me.setup_hidden=true;assert.equal(c.getStarted(false,true),'','Hidden checklist stays hidden');c.App.me.setup_hidden=false;
+c.navigator.userAgent='iPhone';
 assert.match(c.getStarted(false,false),/Record an activity/);assert.doesNotMatch(c.getStarted(false,false),/Log something you ate|nutrition goal/);
 c.Native.on=true;assert.match(c.getStarted(false,false),/Bring in workouts/);assert.match(c.getStarted(false,false),/Apple Health or Garmin/);assert.equal((c.getStarted(false,false).match(/href="\/track\/connections"/g)||[]).length,1,'Fresh setup has one connection step');assert(!c.getStarted(false,false).includes('href="/track/health"'),'Fresh setup does not duplicate Apple Health');
 c.App.me.setup_hidden=true;assert.equal(c.getStarted(false,false),'','Optional setup dismissal survives missing Health and fresh history');c.App.me.setup_hidden=false;assert.match(c.getStarted(false,false),/Hide tips/);
-console.log('onboarding setup card: native optional Health, complete/empty, activity-first new-account cases passed');
+console.log('onboarding setup: checklist ticks off Health and finished steps, hides when complete or dismissed; activity-first new-account cases passed');
 
 // The real route renders without writes and its Not now path only navigates. Draft choices survive a visit away.
 const calls=[], nodes=new Map();let setup;

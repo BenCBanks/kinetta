@@ -256,18 +256,21 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         if preview:
             visible += " AND a.visibility IN ('friends','everyone') AND NOT a.lift_open" if preview=='friend' else " AND a.visibility='everyone' AND NOT a.lift_open"
             if hidden:visible+=' AND false'
+        # Totals count every finished workout, including Only me and friends-only ones; their details never appear
+        # (owner decision, 29 October 2026). Only the activity list below uses the audience filter.
+        totals = 'a.user_id = %(person)s AND NOT a.lift_open' + (' AND false' if hidden and (preview or not mine) else '')
         zone=db.valid_tz((c.execute('SELECT tz FROM profile WHERE user_id=%s',(user['id'],)).fetchone() or {}).get('tz')) or db.DEFAULT_TZ
         params['chart_zone']=zone
         overview = c.execute(f"""SELECT count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
                                   count(DISTINCT (a.start_time AT TIME ZONE %(chart_zone)s)::date) AS active_days,
                                   coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s
-                                  FROM activities a WHERE {visible}""", params).fetchone()
+                                  FROM activities a WHERE {totals}""", params).fetchone()
         sports = c.execute(f"""SELECT a.sport, count(*) AS activities, coalesce(sum(a.distance_m),0) AS distance_m,
                                 coalesce(sum(coalesce(a.moving_s,a.elapsed_s)),0) AS time_s
-                                FROM activities a WHERE {visible} GROUP BY a.sport ORDER BY count(*) DESC, a.sport""", params).fetchall()
-        # Use the identical visibility predicate, before pagination. Dates follow the viewer's settings.
+                                FROM activities a WHERE {totals} GROUP BY a.sport ORDER BY count(*) DESC, a.sport""", params).fetchall()
+        # Dates follow the viewer's settings; pagination never changes the totals.
         today = dt.datetime.now(ZoneInfo(zone)).date()
-        # Both periods reuse the feed's visibility rule, even for the owner's friend preview.
+        # Both periods use the same totals rule, so the owner's preview matches what others see.
         recent_start, recent_end = today - dt.timedelta(days=29), today + dt.timedelta(days=1)
         params.update(chart_zone=zone, recent_start=recent_start, recent_end=recent_end,
                       previous_start=recent_start - dt.timedelta(days=30))
@@ -276,7 +279,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
                     count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
                     coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s,
                     count(DISTINCT (a.start_time AT TIME ZONE %(chart_zone)s)::date) AS active_days
-                    FROM activities a WHERE {visible}
+                    FROM activities a WHERE {totals}
                     AND a.start_time AT TIME ZONE %(chart_zone)s >= %(previous_start)s
                     AND a.start_time AT TIME ZONE %(chart_zone)s < %(recent_end)s GROUP BY 1""", params).fetchall()
         empty_period = {'activities': 0, 'distance_m': 0, 'time_s': 0, 'active_days': 0}
@@ -287,13 +290,14 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         params.update(chart_zone=zone, chart_start=sunday(today) - dt.timedelta(weeks=6), chart_end=today + dt.timedelta(days=1))
         distances = c.execute(f"""SELECT (a.start_time AT TIME ZONE %(chart_zone)s)::date AS d,
                     a.sport, coalesce(sum(a.distance_m), 0) AS distance_m FROM activities a
-                    WHERE {visible} AND a.start_time AT TIME ZONE %(chart_zone)s >= %(chart_start)s
+                    WHERE {totals} AND a.start_time AT TIME ZONE %(chart_zone)s >= %(chart_start)s
                     AND a.start_time AT TIME ZONE %(chart_zone)s < %(chart_end)s GROUP BY 1,2""", params).fetchall()
         day_totals = distance_days(distances)
         by_day = {d: row['distance_m'] for d, row in day_totals.items()}
         mileage = {'today': today, 'weeks': weekly_distances(today, by_day, {d: row['by_sport'] for d, row in day_totals.items()}), 'days': [{'d': first_day + dt.timedelta(days=i),
                             'distance_m': by_day.get(first_day + dt.timedelta(days=i), 0),
                             'today': i == 13, 'by_sport': (day_totals.get(first_day + dt.timedelta(days=i)) or {}).get('by_sport', {})} for i in range(14)]}
+        shared_count = c.execute(f'SELECT count(*) AS n FROM activities a WHERE {visible}', params).fetchone()['n']
         query = _select() + ' WHERE ' + visible
         if before:
             query += ' AND (a.start_time < %(before)s OR (a.start_time = %(before)s AND a.id < %(before_id)s))'
@@ -302,7 +306,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
     items = [shared_activity(row) for row in rows[:limit]]
     last = rows[limit - 1] if len(rows) > limit else None
     return {'person': {k: person[k] for k in ('login', 'name', 'photo', 'created', 'bio')}, 'status': status,
-            'friend_count': friend_count, 'layout':layout, 'preview':preview, 'profile_hidden':bool(hidden), 'mileage': mileage, 'recent': recent, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
+            'friend_count': friend_count, 'layout':layout, 'preview':preview, 'profile_hidden':bool(hidden), 'mileage': mileage, 'recent': recent, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'shared_count': shared_count, 'items': items,
             'next': {'before': last['start_time'], 'before_id': last['id']} if last else None}
 
 
