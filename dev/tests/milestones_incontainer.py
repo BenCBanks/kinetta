@@ -26,7 +26,13 @@ class Milestones(unittest.TestCase):
   with db.connect() as c:return c.execute("INSERT INTO activities(user_id,sport,name,start_time,distance_m,moving_s,elapsed_s,source,device,visibility) VALUES(%s,%s,'PRIVATE WORKOUT TITLE',%s,%s,3600,3600,%s,%s,'me') RETURNING id",(uid or self.ids[0],sport,at,distance,source,device)).fetchone()['id']
  def process(self,uid=None):
   with patch('app.notify._push_later'):
-   with db.connect() as c:M.process(c,uid or self.ids[0],self.now)
+   until=time.monotonic()+5
+   while time.monotonic()<until:
+    with db.connect() as c:done=M.process(c,uid or self.ids[0],self.now)
+    if done:return
+    # The running app can already own this coalesced job; keep the real worker claim intact.
+    time.sleep(.02)
+   self.fail('Milestone work did not settle within five seconds')
  def items(self,**params):
   r=self.clients[0].get('/api/milestones',params=params);self.assertEqual(r.status_code,200,r.text);return r.json()['items']
  def test_fixed_firsts_priorities_private_warning_and_once_only(self):
@@ -85,7 +91,8 @@ class Milestones(unittest.TestCase):
   self.assertEqual(notify.push(nid,send=lambda device,payload:sent.append(payload) or True),1);self.assertEqual(sent[0]['url'],'/me/milestones');self.assertNotIn('PRIVATE',json.dumps(sent));self.assertEqual(sent[0]['title'],'Milestone')
   self.clients[0].put('/api/notifications/settings',json={'milestones':False});self.assertEqual(notify.push(nid,send=lambda *_:self.fail('Disabled push sent')),0)
  def test_activity_weeks_require_consecutive_weeks_but_are_never_food_streaks(self):
-  for weeks in (0,1,2,3):self.activity(days=weeks*7,distance=1000)
+  # Import history first, then record the current workout. Reverse arrival order correctly stays silent.
+  for weeks in (3,2,1,0):self.activity(days=weeks*7,distance=1000)
   self.process();items=[x for x in self.items() if x['kind']=='activity_weeks'];self.assertEqual(len(items),1);self.assertEqual(items[0]['details']['amount'],4)
   with db.connect() as c:c.execute("DELETE FROM activities WHERE user_id=%s AND start_time<%s AND start_time>%s",(self.ids[0],self.now-dt.timedelta(days=6),self.now-dt.timedelta(days=9)))
   self.process();self.assertFalse(any(x['kind']=='activity_weeks' for x in self.items()))
@@ -94,6 +101,13 @@ class Milestones(unittest.TestCase):
   aid=self.activity(distance=161000);self.process();items=self.items();year=[x for x in items if x['kind']=='year_distance'];self.assertEqual(year[0]['details']['unit'],'mi');self.assertIn('100 miles',year[0]['title'])
   with db.connect() as c:c.execute("INSERT INTO best_efforts(activity_id,user_id,sport,distance_m,label,elapsed_s,start_time) SELECT id,user_id,sport,123,'Custom private label',100,start_time FROM activities WHERE id=%s",(aid,))
   self.process();self.assertFalse(any(x['kind']=='best' for x in self.items()))
+ def test_old_history_arriving_after_a_current_workout_keeps_new_totals_silent(self):
+  self.activity(distance=1000);self.process()
+  for weeks in (3,2,1):self.activity(days=weeks*7,distance=1000)
+  self.process()
+  with db.connect() as c:
+   row=c.execute("SELECT valid,silent FROM milestones WHERE user_id=%s AND code='weeks:4'",(self.ids[0],)).fetchone();self.assertEqual(row,{'valid':True,'silent':True})
+  self.assertFalse(any(x['kind']=='activity_weeks' for x in self.items()),'Old imports must not create a new celebration after the current workout was already processed')
  def test_ownership_export_and_real_reader_rows(self):
   self.activity();self.activity(uid=self.ids[1]);self.process();self.process(self.ids[1]);offer=self.items()[0]
   self.assertEqual(self.clients[1].get('/api/milestones',params={'milestone_id':offer['id']}).json()['items'],[]);self.assertEqual(self.clients[1].post('/api/milestones/'+offer['id']+'/seen',json={'action':'dismiss'}).status_code,404)
