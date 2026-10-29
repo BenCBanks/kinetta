@@ -29,7 +29,7 @@ const tick=()=>new Promise(setImmediate);
  const outer=Object.fromEntries(['#pf-photo','#pf-share','#pf-edit-profile','#pf-name','#pf-bio'].map(k=>[k,{}]));
  const f={elements:{name:{value:'New name',focus(){}},bio:{value:'Draft bio',focus(){}}}},save={},error={},cancel={},photo={};let closed=false,reloaded=0,attempts=0;
  c.$=(sel,box)=>box===outer?outer[sel]:sel==='#pf-editor'?f:sel==='[type="submit"]'?save:sel==='.err'?error:sel==='[data-cancel]'?cancel:photo;
- c.sheet=(title,html,mount)=>mount({},()=>closed=true);c.profilePhotoSheet=()=>{};c.invalidate=()=>{};c.keep=()=>{};c.invalidateFeed=()=>{};c.toast=()=>{};c.App={me:{name:'Old name'}};c.json=(method,body)=>body;
+ let editorBox;c.sheet=(title,html,mount)=>{editorBox={isConnected:true};mount(editorBox,()=>{editorBox.isConnected=false;closed=true;});};c.profilePhotoSheet=()=>{};c.invalidate=()=>{};c.keep=()=>{};c.invalidateFeed=()=>{};c.toast=()=>{};c.App={me:{name:'Old name'}};c.json=(method,body)=>body;
  c.api=async(path,body)=>{assert.equal(path,'/api/account');assert.deepEqual(JSON.parse(JSON.stringify(body)),{name:'New name',bio:'Draft bio'});if(++attempts===1)throw new Error('Try again');return {name:'New name'};};
  vm.runInContext(source.slice(source.indexOf('function wireProfileEditing('),source.indexOf("route(/^\\/me\\/friends$/")),c);
  c.wireProfileEditing(outer,{name:'Old name',bio:''},()=>reloaded++);outer['#pf-edit-profile'].onclick();await f.onsubmit({preventDefault(){}});assert.equal(closed,false);assert.equal(error.textContent,'Try again');assert.equal(f.elements.bio.value,'Draft bio');assert.equal(save.disabled,false);await f.onsubmit({preventDefault(){}});assert(closed);assert.equal(c.App.me.name,'New name');assert.equal(c.App.me.bio,'Draft bio');assert.equal(reloaded,1);
@@ -41,6 +41,7 @@ const tick=()=>new Promise(setImmediate);
  let finish;c.api=()=>new Promise(resolve=>finish=resolve);const saving=f.onsubmit({preventDefault(){}});
  editorOwner='second';c.App.me={name:'Other account',bio:'Other bio'};finish({name:'Old response'});await saving;
  assert.equal(c.App.me.name,'Other account');assert.equal(c.App.me.bio,'Other bio');assert.equal(reloaded,1);assert(closed);
+ editorOwner='first';save.disabled=false;closed=false;c.editProfile({name:'Old name',bio:''},()=>reloaded++);const closedSave=f.onsubmit({preventDefault(){}});cancel.onclick();finish({name:'Saved after closing'});await closedSave;assert.equal(c.App.me.name,'Saved after closing','confirmed saves still reconcile own account state');assert.equal(reloaded,1,'a closed editor must not remount the newer view');
  // Friend-management confirmation/retry/account behavior is covered by test_friend_management.js.
  // Native share cancellation is quiet; unavailable sharing exposes a copyable authenticated link.
  let sharePayload,shareSheet=null,cardOpens=0,closedShares=0;

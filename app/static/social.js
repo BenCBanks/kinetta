@@ -730,7 +730,8 @@ function editProfile(p, reload) {
         if (owner !== readOwner()) { close(); return; }
         App.me.name = account.name; App.me.bio = bio;if(account.profile_layout)App.me.profile_layout=account.profile_layout;
         invalidate('/api/me'); invalidate('/api/people/'); invalidateFeed(); keep('/api/me', App.me);
-        close(); toast('Profile saved'); reload();
+        // The confirmed save still updates account state if its sheet was closed, without remounting a newer view.
+        if(b.isConnected){close();toast('Profile saved');reload();}
       } catch (x) { if (owner !== readOwner()) { close(); return; } $('.err', form).textContent = x.message; save.disabled = false; save.textContent = 'Save profile'; }
     };
   });
