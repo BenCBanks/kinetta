@@ -174,7 +174,11 @@
       "source": "app/static/pages.js",
       "pattern": "/^\\/activity\\/(\\d+)$/",
       "paths": [
-        "/activity/{activity}"
+        "/activity/{activity}",
+        "/activity/{activity}?tab=overview",
+        "/activity/{activity}?tab=charts",
+        "/activity/{activity}?tab=splits",
+        "/activity/{activity}?tab=efforts"
       ]
     },
     {
@@ -379,7 +383,10 @@
       "source": "app/static/social.js",
       "pattern": "/^\\/activity\\/friends\\/(\\d+)$/",
       "paths": [
-        "/activity/friends/{shared_activity}"
+        "/activity/friends/{shared_activity}",
+        "/activity/friends/{shared_activity}?tab=overview",
+        "/activity/friends/{shared_activity}?tab=charts",
+        "/activity/friends/{shared_activity}?tab=splits"
       ]
     },
     {
