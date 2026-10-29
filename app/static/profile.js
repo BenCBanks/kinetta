@@ -73,5 +73,99 @@ const ProfileLayout=(()=>{
     return {value:()=>structuredClone(value),changed:()=>changed};
   }
   const editorHtml=()=>`<details class="profile-layout"><summary>Profile content &amp; layout</summary><p class="small muted">Choose sections and order. Activity audiences stay the same.</p><fieldset><legend>Sections</legend><div data-layout-sections></div></fieldset><fieldset><legend>Statistics · choose up to 3</legend><div class="profile-choices" data-layout-stats></div></fieldset><fieldset><legend>Featured sports · up to 3</legend><p class="small muted">Leave clear to show all your sports.</p><div class="profile-choices" data-layout-sports></div></fieldset><button type="button" class="ghost wide" data-layout-reset>Restore default layout</button><p class="small muted" data-layout-status role="status" aria-live="polite"></p></details><button type="button" class="ghost wide" id="pf-preview-draft">Preview profile</button><section id="pf-draft" hidden></section>`;
-  return {defaults,normalize,numbers,content,mount,editor,editorHtml};
+  return {defaults,normalize,numbers,content,mount,editor,editorHtml,labels:{sections,stats},sports};
+})();
+
+// Me leads with the card friends see, then a private dashboard (owner-approved mockup, 29 October 2026). The card uses the
+// same server-filtered friend preview as the shared profile; Edit changes its sections in place.
+const MeCard=(()=>{
+  const firstName=me=>(me.name||'').trim().split(/\s+/)[0]||me.login;
+  const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
+  function header(me){
+    const bio=(me.bio||'').trim(),pending=Number.isInteger(me.friend_requests)?me.friend_requests:0;
+    return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools">${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
+    <section class="me-card" aria-label="Your profile card"><div class="me-card-banner"><button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button></div>
+      <div class="me-card-body"><div class="me-card-id"><a class="me-card-avatar" href="${profileHref(me)}" aria-label="View your shared profile">${avatar(me,'lg')}</a><div class="me-card-name"><h2>${esc(me.name||me.login)}</h2><span>@${esc(me.login)}</span></div></div>
+        ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
+        <a class="me-friends-link" href="/me/friends">${svg('people')}<span data-friend-count>${Number.isInteger(me.friend_count)?friendCountText(me.friend_count):'Friends'}</span><span class="badge alert" data-friend-waiting${pending?'':' hidden'}>${pending} waiting</span>${svg('chev')}</a>
+        <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
+        <p class="me-card-note">${svg('lock')}<span>Your friends see this card. Totals include all your workouts; private ones never show details. Food, body data and Kit are never shown.</span></p></div></section>
+    <div class="me-divider"><span>${svg('lock')}Only you below this line</span></div>`;
+  }
+  function weeks(r){
+    const rows=r.mileage?.weeks||[],top=Math.max(...rows.map(w=>w.distance_m||0));
+    if(!rows.length||!(top>0))return '';
+    const total=rows.reduce((n,w)=>n+(w.distance_m||0),0);
+    return `<div class="me-card-sec"><div class="me-card-label"><span>Distance · ${rows.length} weeks</span><small>${esc(U.dist(total))} ${esc(U.du())}</small></div>
+      <div class="me-card-bars" role="img" aria-label="${esc(`Weekly distance for the last ${rows.length} weeks: `+rows.map(w=>`${U.dist(w.distance_m||0)} ${U.du()}`).join(', '))}">${rows.map(w=>`<span class="${w.today?'now':''}" data-h="${Math.max(2,Math.round((w.distance_m||0)/top*10))}"></span>`).join('')}</div></div>`;
+  }
+  function sections(r,layout){
+    if(!r.overview?.activities&&!r.shared_count)return '<p class="small muted me-card-empty">Your totals appear here once you have workouts.</p>';
+    return layout.sections.map(key=>{
+      if(key==='recent'){const figures=ProfileLayout.numbers(r.recent.current,layout.stats);return figures?`<div class="me-card-sec"><div class="me-card-label"><span>Last 30 days</span><small>${esc(short(r.recent.start))} – ${esc(short(r.recent.end))}</small></div><div class="profile-stats">${figures}</div></div>`:'';}
+      if(key==='mileage')return weeks(r);
+      if(key==='totals'){const figures=ProfileLayout.numbers(r.overview,layout.stats);return figures?`<div class="me-card-sec"><div class="me-card-label"><span>All time</span></div><div class="profile-stats">${figures}</div></div>`:'';}
+      if(key==='sports'){
+        const rows=(layout.sports.length?layout.sports.map(s=>(r.sports||[]).find(x=>x.sport===s)).filter(Boolean):(r.sports||[])).slice(0,4);
+        return rows.length?`<div class="me-card-sec me-sport-chips">${rows.map(x=>`<span class="me-sport-chip"><i data-sport="${esc(x.sport)}"></i>${esc(SPORT_NAMES[x.sport]||x.sport)} · ${x.activities}</span>`).join('')}</div>`:'';
+      }
+      return `<a class="me-card-row" href="${profileHref(App.me)}"><span class="grow"><b>${r.shared_count??r.items.length} shared ${(r.shared_count??r.items.length)===1?'activity':'activities'}</b><small>Shared with friends or everyone</small></span>${svg('chev')}</a>`;
+    }).join('');
+  }
+  function mount(root,{reload}){
+    const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
+    let data=null,editing=false;
+    const bars=()=>$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px'); // CSP blocks inline style attributes
+    const draw=()=>{if(!live()||editing||!data)return;box.setAttribute('aria-busy','false');box.innerHTML=sections(data,ProfileLayout.normalize(App.me.profile_layout||data.layout));bars();};
+    const load=async()=>{
+      try{data=await api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');draw();}
+      catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);load();};}
+    };
+    const dim=on=>{
+      const page=root.parentElement;card.classList.toggle('editing',on);$('.me-card-banner',card).classList.toggle('hidden-tools',on);
+      [...$$(':scope>:not(.me-card):not(.me-top)',root),...[...page.children].filter(x=>x!==root)].forEach(x=>{x.inert=on;x.classList.toggle('me-dim',on);});
+    };
+    function edit(){
+      if(!live()||editing)return;editing=true;dim(true);
+      const start=ProfileLayout.normalize(App.me.profile_layout||data?.layout),value=structuredClone(start),{sections:names,stats}=ProfileLayout.labels;
+      let order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))];
+      const sports=[...new Set([...(data?.sports||[]).map(s=>s.sport),...value.sports])];
+      const chip=(group,id,label,on)=>`<button type="button" class="me-chip" data-${group}="${esc(id)}" aria-pressed="${on}">${esc(label)}</button>`;
+      const paint=focus=>{
+        box.innerHTML=`<div class="me-card-editor">${order.map((k,i)=>{const on=value.sections.includes(k);return `<div class="me-edit-row${on?'':' off'}"><span class="grow">${names[k]}</span><button type="button" class="me-chip" data-show="${k}" aria-pressed="${on}" aria-label="${on?'Hide':'Show'} ${names[k]}">${on?'Shown':'Hidden'}</button><button type="button" class="icon-btn" data-move="${k}" data-step="-1" aria-label="Move ${names[k]} up"${i?'':' disabled'}><span class="profile-up">${svg('down')}</span></button><button type="button" class="icon-btn" data-move="${k}" data-step="1" aria-label="Move ${names[k]} down"${i===order.length-1?' disabled':''}>${svg('down')}</button></div>`;}).join('')}
+          <h3>Headline numbers · up to 3</h3><div class="me-chips">${Object.entries(stats).map(([k,l])=>chip('stat',k,l,value.stats.includes(k))).join('')}</div>
+          ${sports.length?`<h3>Featured sports · up to 3</h3><p class="small muted">None chosen shows all your sports.</p><div class="me-chips">${sports.map(k=>chip('sport',k,SPORT_NAMES[k]||k,value.sports.includes(k))).join('')}</div>`:''}
+          <button type="button" class="ghost wide" data-card-identity>${svg('user')}Name, photo &amp; bio</button>
+          <p class="small muted" role="status" aria-live="polite" data-card-status></p>
+          <div class="me-card-actions"><button type="button" class="ghost" data-card-cancel>Cancel</button><button type="button" class="primary" data-card-save>Save card</button></div></div>`;
+        const status=$('[data-card-status]',box);
+        $$('[data-show]',box).forEach(b=>b.onclick=()=>{const k=b.dataset.show;value.sections=order.filter(x=>x===k?!value.sections.includes(k):value.sections.includes(x));paint({show:k});});
+        $$('[data-move]',box).forEach(b=>b.onclick=()=>{const i=order.indexOf(b.dataset.move),j=i+Number(b.dataset.step);if(j<0||j>=order.length)return;[order[i],order[j]]=[order[j],order[i]];value.sections=order.filter(x=>value.sections.includes(x));paint({move:b.dataset.move,step:b.dataset.step});});
+        const pick=(group,key,list,min)=>$$(`[data-${group}]`,box).forEach(b=>b.onclick=()=>{const k=b.dataset[group],on=value[key].includes(k);
+          if(on&&value[key].length<=min){status.textContent='Keep at least one number.';return;}
+          if(!on&&value[key].length>=3){status.textContent='Choose up to three.';return;}
+          value[key]=on?value[key].filter(x=>x!==k):[...value[key],k];paint({[group]:k});});
+        pick('stat','stats',stats,1);pick('sport','sports',null,0);
+        $('[data-card-identity]',box).onclick=()=>editProfile(App.me,reload);
+        $('[data-card-cancel]',box).onclick=()=>finish();
+        $('[data-card-save]',box).onclick=async e=>{
+          const button=e.currentTarget;if(button.disabled)return;button.disabled=true;button.textContent='Saving…';status.textContent='';
+          try{const r=await api('/api/account',json('PUT',{profile_layout:value}));if(owner!==readOwner())return;
+            App.me.profile_layout=r.profile_layout||value;invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);if(live()){finish();toast('Card saved');}}
+          catch(x){if(!live())return;button.disabled=false;button.textContent='Save card';status.textContent=x.message;}
+        };
+        if(focus){const [k,v]=Object.entries(focus).find(([key])=>key!=='step');const target=$(`[data-${k}="${v}"]${k==='move'?`[data-step="${focus.step}"]`:''}`,box);(target&&!target.disabled?target:$(`[data-show="${focus.move||v}"]`,box))?.focus({preventScroll:true});}
+      };
+      paint();$('[data-show]',box)?.focus({preventScroll:true});
+    }
+    function finish(){editing=false;dim(false);draw();if(!data)load();$('[data-card-edit]',card).focus({preventScroll:true});}
+    $('[data-card-edit]',card).onclick=edit;
+    $('[data-card-share]',card).onclick=()=>sheet('Share your profile',`<p class="small muted">Friends see the card on Me. Other members see only activities shared with everyone.</p><button type="button" class="primary wide" data-share-link>${svg('share')}Share profile link</button>${typeof KinettaCard==='undefined'?'':'<button type="button" class="ghost wide" data-share-card>Public card &amp; QR</button>'}<a class="ghost wide" href="${profileHref(App.me)}" data-close>View full profile</a>`,(b,close)=>{
+      $('[data-share-link]',b).onclick=()=>{close();shareProfile(App.me);};
+      const cardButton=$('[data-share-card]',b);if(cardButton)cardButton.onclick=()=>{close();KinettaCard.open();};
+    });
+    load();
+    return {edit};
+  }
+  return {header,mount,firstName};
 })();

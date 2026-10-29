@@ -273,6 +273,7 @@ route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
   wireBack(el, '/activity');
   await load(`/api/shared/${id}`, (a) => drawShared(el, a), {maxAge: 30000});
 });
+const SHARED_SERIES = ['speed','hr','alt'];
 function drawShared(el, a) {
   const mine = a.social.mine, sh = a.shares, r = rate(a);
   const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) +
@@ -280,7 +281,7 @@ function drawShared(el, a) {
   const splits = imp() ? a.splits_mi : a.splits_km;
   const details = sportStats(a);
   const panes = {
-    charts: `${activitySamples(a) ? '<div class="card activity-chart-card"><div id="s-charts" class="activity-charts"></div></div>' : ''}${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}`,
+    charts: `${activitySamples(a, SHARED_SERIES) ? '<div class="card activity-chart-card"><div id="s-charts" class="activity-charts"></div></div>' : ''}${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}`,
     overview: details ? `<div class="card"><h2>Details</h2><div class="hero more">${details}</div></div>` : '<div class="card empty">No additional details were shared.</div>',
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
   };
@@ -312,7 +313,7 @@ function drawShared(el, a) {
   }
   wireTalk($('#s-soc', el), a.id, a.social, new URLSearchParams(location.search).get('tab') === 'comments');
   wireActivityMedia(el);
-  if (activitySamples(a)) {
+  if (activitySamples(a, SHARED_SERIES)) {
     const box = $('#s-charts', el); let width = 0;
     redrawCharts = () => { if (!box.isConnected || !box.clientWidth) return; width = box.clientWidth; sharedCharts(box, a); };
     if (!$('[data-pane="charts"]', el).hidden) requestAnimationFrame(redrawCharts);
@@ -350,29 +351,36 @@ function socialChanged(aid) {
   invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); invalidateFeed();
 }
 // cheers and comments in a bottom sheet; onChange gets the new state so the icon underneath can follow
+const QUICK_REPLIES=['Nice work!','Great effort','Way to go'];
 function commentsSheet(aid, s, onChange) {
   cleanViews();
   const account=readOwner();if(s&&!SocialData.peek(aid))SocialData.remember(aid,s);const cached=SocialData.peek(aid);
   sheet('Comments', `<div class="social social-sheet"><div class="social-reactions"><span class="small muted">Reactions</span></div><div class="comments" aria-label="Comments" aria-busy="${!cached}">${cached?'':skel(2)}</div>
     <p class="social-read-status small muted" role="status"></p>
-    <form class="form c-form"><label class="vh" for="c-${aid}">Add a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="2" placeholder="Add a comment" required></textarea><button class="primary wide">Post comment</button></form></div>`,b=>{
-    const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box);
+    <div class="c-quick" aria-label="Quick replies">${QUICK_REPLIES.map(t=>`<button type="button" class="c-chip" data-quick>${esc(t)}</button>`).join('')}</div>
+    <form class="c-form"><span class="c-me" aria-hidden="true">${avatar(App.me)}</span><label class="vh" for="c-${aid}">Write a comment</label><textarea id="c-${aid}" name="text" maxlength="500" rows="1" placeholder="Write a comment…" required></textarea><button class="c-send" aria-label="Post comment" disabled>${svg('send')}</button></form></div>`,b=>{
+    const box=$('.social',b),f=$('.c-form',box),status=$('.social-read-status',box),list=$('.comments',box),send=$('.c-send',f),quick=$('.c-quick',box);
     const current=()=>box.isConnected&&account===readOwner();
-    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(current())SocialData.draft(aid,f.text.value);};
+    // The composer stays obvious: the send button wakes up with text, and quick replies only fill the box (never post).
+    box._sync=()=>{const empty=!f.text.value.trim();send.disabled=!!box._denied||send.dataset.posting==='1'||empty;quick.hidden=!empty||!!box._denied;
+      f.text.style.height='auto';f.text.style.height=Math.min(f.text.scrollHeight+2,132)+'px';};
+    box._owner=account;box._onChange=onChange;box._aid=aid;f.text.value=SocialData.draft(aid);f.text.oninput=()=>{if(!current())return;SocialData.draft(aid,f.text.value);box._sync();};
+    $$('[data-quick]',quick).forEach(b=>b.onclick=()=>{if(!current())return;f.text.value=b.textContent;SocialData.draft(aid,f.text.value);box._sync();f.text.focus();});
+    requestAnimationFrame(()=>{if(current())box._sync();});
     const update=(fresh,{posted=false}={})=>{if(!current()||!fresh)return;drawComments(box,aid,fresh,onChange);status.textContent=posted?'Comment posted.':'';if(posted)list.scrollTop=list.scrollHeight;onChange?.(fresh);};
     if(cached)drawComments(box,aid,cached,onChange);
-    viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();$('button',f).disabled=true;}}));
+    viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}}));
     const refresh=async()=>{try{const fresh=await SocialData.read(aid);update(fresh);}
-      catch(error){if(!current())return;if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();$('button',f).disabled=true;}
+      catch(error){if(!current())return;if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}
         list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
-    f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=$('button',f);if(!text||button.disabled)return;
-      let denied=false;button.disabled=true;button.textContent='Posting…';
+    f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
+      let denied=false;button.dataset.posting='1';button.setAttribute('aria-busy','true');box._sync();
       try{const fresh=await api(`/api/activities/${aid}/comments`,json('POST',{text}));if(account!==readOwner())return;
         SocialData.remember(aid,fresh);socialChanged(aid);
         if(f.text.value===raw){f.text.value='';if(SocialData.draft(aid)===raw)SocialData.draft(aid,'');}
         if(current())update(fresh,{posted:true});
       }catch(error){denied=[401,403,404].includes(error.status);if(account===readOwner()&&denied)SocialData.forget(aid);if(current())status.textContent=error.message;}
-      finally{if(current()){button.disabled=denied;button.textContent='Post comment';}}
+      finally{if(current()){if(denied)box._denied=true;delete button.dataset.posting;button.removeAttribute('aria-busy');box._sync();}}
     };
     refresh();
   });
@@ -395,8 +403,8 @@ function drawComments(box,aid,s,onChange){
     const report=$('[data-rep]',node);if(report)report.onclick=()=>{if(box._owner===readOwner())reportSheet(comment,{comment_id:comment.id},()=>after({...box._social,comments:box._social.comments.filter(c=>c.login!==comment.login)}));};
   }
   for(const node of [...list.children])if(!keep.has(node.dataset.commentId))node.remove();
-  if(!s.comments.length)list.innerHTML='<p class="small muted c-none">No comments yet.</p>';
-  const button=$('button',$('.c-form',box));if(button.textContent!=='Posting…')button.disabled=false;
+  if(!s.comments.length)list.innerHTML=`<div class="c-none"><span>${svg('comment')}</span><b>Start the conversation</b><p class="small muted">Only people who can see this activity can read its comments.</p></div>`;
+  box._sync?.();
 }
 
 // ---------- activity photos (2026-10-12, api_photos.py) ----------

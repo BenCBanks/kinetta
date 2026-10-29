@@ -45,7 +45,7 @@ try:
     assert 'track_lines' not in request(owner, 'GET', f'/api/activities/{aid}'), 'corrections cannot re-expose original route'
     request(owner, 'PATCH', f'/api/activities/{aid}', {'restore_summary': ['distance_m']})
     request(viewer, 'GET', f'/api/activities/{aid}', expected=404)
-    assert request(viewer, 'GET', '/api/people/zz_test_track_owner/profile')['overview']['activities'] == 2
+    assert request(viewer, 'GET', '/api/people/zz_test_track_owner/profile')['shared_count'] == 2
     # A retried recording cannot change the audience after its original save.
     request(owner,'POST','/api/activities/track',dict(body,visibility='me'))
     assert request(owner,'GET',f'/api/activities/{aid}')['visibility']=='everyone'

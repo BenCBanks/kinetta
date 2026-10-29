@@ -92,7 +92,7 @@ Joining a challenge is optional and does not make people friends. Participants s
 
 ## identity
 
-Other members can find you by name or username and see your profile and accepted-friend count. Your friends list is visible only to you; other people do not receive it or a mutual-friends list. Anyone who can see an activity can see its cheers and comments. Your food entries, weight, body details and private notes are never shared. Deliberately shared recap pictures and public cards may include only the food-consistency summaries you select. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
+Other members can find you by name or username and see your profile and accepted-friend count. Profile totals, sports and distance charts count all your finished workouts, including Only me and friends-only ones; only activities shared with that person are listed or can be opened. Your friends list is visible only to you; other people do not receive it or a mutual-friends list. Anyone who can see an activity can see its cheers and comments. Your food entries, weight, body details and private notes are never shared. Deliberately shared recap pictures and public cards may include only the food-consistency summaries you select. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
 
 ## ai-heading
 
