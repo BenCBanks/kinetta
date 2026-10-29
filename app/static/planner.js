@@ -81,7 +81,7 @@ const Planner = (() => {
       <div class="plan-map-wrap"><div class="plan-map" id="pl-map" role="application" aria-label="Route map. Tap to add a point; use Points for a list."></div>
         <button type="button" class="plan-total" id="pl-total" aria-live="polite" aria-label="Distance. Tap to switch miles and kilometres"></button>
         <div class="plan-side"><button type="button" class="icon-btn map-fab" id="pl-locate" aria-label="Locate me">${svg('locate')}</button><button type="button" class="icon-btn map-fab" id="pl-fit" aria-label="Fit route">${svg('fit')}</button></div>
-        <p class="plan-hint" id="pl-hint"></p></div>
+        </div><p class="plan-hint" id="pl-hint"></p>
       <div class="plan-alert" id="pl-alert" role="alert" hidden></div>
       <div class="plan-bar" role="toolbar" aria-label="Route tools">
         <button type="button" id="pl-undo" aria-label="Undo">${svg('undo')}<span>Undo</span></button>

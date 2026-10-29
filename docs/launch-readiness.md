@@ -131,3 +131,5 @@ Cold Me loading must keep the plan and chart untappable until their first placem
 ## Bounded segment-job retry · #355
 
 Repeated full regression exposed a locking subquery choosing more than100 jobs under an adverse execution plan. Retry now materializes one locked candidate set before updating it, preserving administrator/CSRF/audit and skip-locked behavior. The actual SQL/HTTP regression forces that plan, retains the exact100 bound, checks a worker-held row and retries the remaining batch separately. This follow-up requires the final two whole-suite runs to include the repair. No production retry or provider activation is part of verification.
+
+The final351/354 visual pass also checks loaded Segments maps against tab/sheet painting order, separates the drawing hint from provider attribution, and uses the Sky Blue link role on the privacy page. Successful fictional tiles and real browser hit checks are required; an unavailable map cannot establish correct layering.

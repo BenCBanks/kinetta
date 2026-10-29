@@ -2491,7 +2491,7 @@ nav.tabs { view-transition-name: tabs; }
 .plan-sports {display:flex;width:100%;margin-bottom:8px}
 .plan-sports button {flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:40px;padding:4px 6px}
 .plan-sports svg {width:17px;height:17px}
-.plan-map-wrap {position:relative;flex:1;min-height:360px;border-radius:var(--r3);overflow:hidden;background:var(--card2)}
+.plan-map-wrap {position:relative;z-index:0;flex:1;min-height:360px;border-radius:var(--r3);overflow:hidden;background:var(--card2)}
 .plan-map {position:absolute;inset:0}
 .plan-total {position:absolute;z-index:500;top:10px;left:50%;transform:translateX(-50%);min-height:40px;padding:6px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--tx);box-shadow:var(--lift);font-size:15px;white-space:nowrap}
 .plan-total b {font-size:1.2rem}
@@ -2499,7 +2499,7 @@ nav.tabs { view-transition-name: tabs; }
 .plan-total small {color:var(--tx3)}
 .plan-side {position:absolute;z-index:500;right:10px;top:60px;display:grid;gap:8px}
 .map-fab {width:44px;height:44px;background:var(--card);box-shadow:var(--lift);border:1px solid var(--line)}
-.plan-hint {position:absolute;z-index:500;left:50%;bottom:12px;transform:translateX(-50%);margin:0;padding:8px 14px;border-radius:999px;background:var(--toast-bg);color:var(--toast-tx);font-size:14px;white-space:nowrap;pointer-events:none}
+.planner-page > .plan-hint {align-self:center;max-width:100%;margin:8px 0 0;padding:8px 14px;border-radius:999px;background:var(--toast-bg);color:var(--toast-tx);font-size:14px;white-space:normal;text-align:center;pointer-events:none}
 .plan-hint[hidden] {display:none}
 .plan-alert {margin:8px 0 0;padding:10px 12px;border-radius:var(--r2);background:color-mix(in srgb,var(--alert) 9%,var(--card));border:1px solid color-mix(in srgb,var(--alert) 35%,transparent)}
 .plan-alert p {margin:0 0 6px} .plan-alert .btnrow {display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -2518,8 +2518,8 @@ nav.tabs { view-transition-name: tabs; }
 .plan-km span {display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--card);color:var(--tx);border:2px solid var(--route);font:700 11px/1 var(--numf)}
 .plan-arrow span {display:block;width:16px;height:16px;color:var(--route)} .plan-arrow svg {width:16px;height:16px;stroke-width:3}
 .plan-route .mini {flex:none;width:56px;height:56px} .plan-route>svg {flex:none;width:20px;height:20px} .plan-route .grow b {overflow-wrap:anywhere} .plan-route .mini svg {width:48px;height:48px}
-.plan-detail-map, .seg-course {height:280px;border-radius:var(--r3);overflow:hidden;margin:4px 0 12px;background:var(--card2)}
-.seg-map {height:260px;border-radius:var(--r3);overflow:hidden;margin:0 0 12px;background:var(--card2)}
+.plan-detail-map, .seg-course {position:relative;z-index:0;height:280px;border-radius:var(--r3);overflow:hidden;margin:4px 0 12px;background:var(--card2)}
+.seg-map {position:relative;z-index:0;height:260px;border-radius:var(--r3);overflow:hidden;margin:0 0 12px;background:var(--card2)}
 .seg-map[hidden] {display:none}
 .plan-warn {display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:var(--r2);background:color-mix(in srgb,var(--warn) 10%,var(--card));color:var(--tx)}
 .plan-warn svg {flex:none;width:18px;height:18px;color:var(--warn);margin-top:2px}
