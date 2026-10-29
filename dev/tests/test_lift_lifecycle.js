@@ -5,7 +5,7 @@ const source=fs.readFileSync('app/static/lift.js','utf8');
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 function harness({imperial=false}={}) {
   const elements=new Map(),timers=new Map(),disk=new Map(),requests=[],summaries=[],navigation=[],notices=[];
-  let owner='session-a',number=0,held=null,failFinish=false;
+  let owner='session-a',number=0,held=null,failFinish=false,failDelete=false;
   function node(id='') {return {id,isConnected:true,disabled:false,innerHTML:'',textContent:'',hidden:false,value:'',placeholder:'',dataset:{},classList:{toggle(){},add(){},remove(){}},setAttribute(){},focus(){},select(){},contains(){return false;},scrollIntoView(){},closest(){return null;},insertAdjacentHTML(){}};}
   const el=node('page'),list=node('lf-list'),card=node('card'),row=node('row');
   card.dataset.i='0';
@@ -15,16 +15,16 @@ function harness({imperial=false}={}) {
   elements.set('#lf-list',list);for(const id of ['#lf-save','#lf-time','#lf-restbox','#lf-rest','#lf-finish','#lf-done','#lf-add','#lf-discard','#ff-yes','#ld-keep','#ld-del'])elements.set(id,node(id));
   const $=(q,root)=>q==='[data-addset]'?add:q==='[data-exmenu]'?menu:elements.get(q)||null;
   const $$=(q,root)=>q==='.lift-ex'?[card]:q==='.lift-in'||q==='.lift-in[data-j="0"]'?[kg,reps]:q==='[data-tick]'?[tick]:q==='[data-prev]'?[prev]:q==='[data-set]'?[set]:q==='button,input'?[kg,reps,tick,prev,add,menu,elements.get('#lf-finish')]:[];
-  const ctx={console,Promise,Map,Date,JSON,Math,Number,String,Error,Set,location:{origin:'https://demo.invalid'},Native:{base:''},App:{me:{id:1},cache:new Map()},readOwner:()=>owner,store:{get:k=>disk.has(k)?JSON.parse(disk.get(k)):null,set:(k,v)=>disk.set(k,JSON.stringify(v)),del:k=>disk.delete(k)},
+  const ctx={console,Promise,Map,Date,JSON,Math,Number,String,Error,Set,location:{origin:'https://demo.invalid',pathname:'/track/lift/42',search:''},Native:{base:''},App:{me:{id:1},cache:new Map()},readOwner:()=>owner,store:{get:k=>disk.has(k)?JSON.parse(disk.get(k)):null,set:(k,v)=>disk.set(k,JSON.stringify(v)),del:k=>disk.delete(k)},
     $, $$, route(){},wireBack(){},backBtn(){return '';},svg(){return '';},esc:String,skel(){return '';},dur:String,fdate:()=>'',imp:()=>imperial,viewResources:new Map(),document:{activeElement:null,addEventListener(){},removeEventListener(){}},addEventListener(){},removeEventListener(){},localStorage:{getItem(){return null;}},
     setTimeout:f=>{timers.set(++number,f);return number;},clearTimeout:n=>timers.delete(n),setInterval:()=>++number,clearInterval(){},invalidate(){},toast:t=>notices.push(t),go:p=>navigation.push(p),json:(method,b)=>({method,body:JSON.stringify(b)}),
-    sheet:(title,html,mount)=>{ctx.dialog={title,html};mount(node(),()=>{});},pickSheet(){},
-    api:async(path,opts)=>{const body=opts.method==='DELETE'?{method:'DELETE'}:JSON.parse(opts.body);requests.push(body);if(held){const h=held;held=null;await h.promise;}if(body.method==='DELETE')return {ok:true};if(body.finish&&failFinish)throw Object.assign(Error('offline'),{offline:true});return {open:!body.finish,start_time:'2026-10-29T10:00:00Z',exercises:body.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s,pr:[]})),last:null}))};}};
+    sheet:(title,html,mount)=>{const body=node();ctx.dialog={title,html,body};mount(body,()=>{body.isConnected=false;});},pickSheet(){},
+    api:async(path,opts)=>{const body=opts.method==='DELETE'?{method:'DELETE'}:JSON.parse(opts.body);requests.push(body);if(held){const h=held;held=null;await h.promise;}if(body.method==='DELETE'){if(failDelete)throw Object.assign(Error('delete failed'),{status:503});return {ok:true};}if(body.finish&&failFinish)throw Object.assign(Error('offline'),{offline:true});return {open:!body.finish,start_time:'2026-10-29T10:00:00Z',exercises:body.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s,pr:[]})),last:null}))};}};
   vm.createContext(ctx);vm.runInContext(source,ctx);ctx.liftSummary=(el,aid,r)=>summaries.push(r);
   const data={open:true,start_time:'2026-10-29T10:00:00Z',exercises:[{exercise_id:7,name:'Bench',kind:'weight',sets:[{kg:null,reps:null,done:false}],last:{activity_id:3,start_time:'2026-10-20',sets:[{kg:60,reps:8}]}}]};
   ctx.liftLogger(el,42,data);
   return {ctx,el,kg,reps,tick,prev,requests,summaries,navigation,notices,disk,elements,timers,
-    hold(){let resolve;held={promise:new Promise(r=>resolve=r)};return resolve;},failFinish:v=>failFinish=v,changeOwner:()=>owner='session-b',
+    hold(){let resolve;held={promise:new Promise(r=>resolve=r)};return resolve;},failFinish:v=>failFinish=v,failDelete:v=>failDelete=v,changeOwner:()=>owner='session-b',
     draft:()=>[...disk.values()].map(JSON.parse)[0],flush(){for(const [id,fn]of [...timers]){timers.delete(id);fn();}},cleanup(){for(const fn of ctx.viewResources.values())fn();}};
 }
 (async()=>{
@@ -58,6 +58,19 @@ function harness({imperial=false}={}) {
     const h=harness(),release=h.hold();h.prev.onclick();h.tick.onclick();await turn();h.elements.get('#lf-discard').onclick();
     const deletion=h.elements.get('#ld-del').onclick({target:h.elements.get('#ld-del')});await turn();assert.equal(h.requests.length,1,'delete waits for pending PUT');release();await deletion;
     assert.equal(h.requests.at(-1).method,'DELETE');assert.equal(h.disk.size,0,'successful discard removes the scoped draft');assert.equal(h.navigation.at(-1),'/track');h.cleanup();
+  }
+  {
+    const h=harness();h.prev.onclick();h.tick.onclick();await turn();h.failDelete(true);const release=h.hold();h.elements.get('#lf-discard').onclick();
+    const deletion=h.elements.get('#ld-del').onclick({target:h.elements.get('#ld-del')});await turn();h.elements.get('#ld-keep').onclick();release();await deletion;
+    h.reps.value='9';h.reps.oninput();h.flush();await turn();assert.equal(h.requests.at(-1).exercises?.[0]?.sets?.[0]?.reps,9,'failed delete restores autosave even after its dialog is dismissed');h.cleanup();
+  }
+  {
+    const h=harness();h.prev.onclick();h.tick.onclick();await turn();h.failDelete(true);const release=h.hold();h.elements.get('#lf-discard').onclick();const deletion=h.elements.get('#ld-del').onclick({target:h.elements.get('#ld-del')});await turn();h.elements.get('#ld-keep').onclick();
+    h.reps.value='9';h.reps.oninput();h.el.isConnected=false;h.cleanup();release();await deletion;
+    assert.equal(h.draft().data.exercises[0].sets[0].reps,9,'edits during a pending deletion survive leaving when deletion fails');assert.equal(h.draft().unsent,true);h.cleanup();
+  }
+  {
+    const h=harness(),release=h.hold();h.elements.get('#lf-discard').onclick();const deletion=h.elements.get('#ld-del').onclick({target:h.elements.get('#ld-del')});await turn();h.ctx.location.pathname='/food';release();await deletion;assert.equal(h.navigation.length,0,'late deletion must not redirect another view');h.cleanup();
   }
   {
     const h=harness();h.ctx.store={get:()=>null,set(){},del(){}};h.prev.onclick();h.tick.onclick();await turn();assert.equal(h.elements.get('#lf-save').textContent,'Saved','successful network saves work when device storage is full');h.cleanup();

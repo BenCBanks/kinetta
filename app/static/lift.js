@@ -133,8 +133,10 @@ function liftLogger(el, aid, data) {
   };
   async function save(finish = false) {
     clearTimeout(saveT); saveT = null;
-    if (!owned() || stopped) return;
-    const revision = remember(), payload = {...body(finish), finish};
+    if (!owned()) return;
+    const revision = remember();
+    if (stopped) { status('Deleting…'); return; }
+    const payload = {...body(finish), finish};
     status('Saving…');
     try {
       const r = await queueLift(key, () => {
@@ -161,7 +163,7 @@ function liftLogger(el, aid, data) {
       if (finish) throw x;
     }
   }
-  const later = () => { if (!live() || stopped) return; status(''); clearTimeout(saveT); remember(); saveT = setTimeout(save, 700); };
+  const later = () => { if (!live()) return; clearTimeout(saveT); remember(); if (stopped) { status('Deleting…'); return; } status(''); saveT = setTimeout(save, 700); };
   const flush = () => { if (saveT && !stopped && owned()) save(); };
   const cleanup = () => {
     flush(); disposed = true; clearTimeout(saveT); clearInterval(clock);
@@ -323,7 +325,7 @@ function liftLogger(el, aid, data) {
     else finish();
   };
   const dis = $('#lf-discard', el);
-  if (dis) dis.onclick = () => discardLift(aid, () => { clearTimeout(saveT); saveT = null; stopped = true; return () => { stopped = false; save(); }; });
+  if (dis) dis.onclick = () => discardLift(aid, () => { clearTimeout(saveT); saveT = null; stopped = true; return () => { stopped = false; if (live()) save(); }; });
   draw();
   if (store.get(key) && store.get(key).unsent) save();     // a copy from earlier that never reached the server
 }
@@ -332,16 +334,16 @@ function liftLogger(el, aid, data) {
 // A session you don't want to keep goes completely, before or right after Finish (28 October 2026, owner: people may
 // not want to post it at all). Until Finish nobody else sees it; this removes it for good.
 function discardLift(aid, stop) {
-  const owner = readOwner(), key = liftKey(aid);
+  const owner = readOwner(), key = liftKey(aid), origin = location.pathname + location.search;
   sheet('Delete this session?', '<p>Its exercises and sets are deleted, and it won’t be posted. This can’t be undone.</p><button class="ghost wide" id="ld-keep">Keep it</button><button class="primary danger-btn wide" id="ld-del">Delete session</button>', (b, close) => {
     $('#ld-keep', b).onclick = close;
     $('#ld-del', b).onclick = async (e) => {
       if (owner !== readOwner()) return;
       e.target.disabled = true; const resume = stop?.();
       try { await queueLift(key, () => { if (owner !== readOwner()) throw Object.assign(Error('Account changed'), {stale: true}); return api(`/api/activities/${aid}`, {method: 'DELETE'}); }); }
-      catch (x) { if (x.status !== 404) { if (owner === readOwner() && b.isConnected) { resume?.(); e.target.disabled = false; toast(x.message); } return; } }   // already gone is fine
+      catch (x) { if (x.status !== 404) { if (owner === readOwner()) { resume?.(); if (b.isConnected) e.target.disabled = false; if (!x.stale) toast(x.message); } return; } }   // already gone is fine
       if (owner !== readOwner()) return;
-      store.del(key); invalidate('/api/'); App.cache.delete('feed:home'); close(); go('/track', {replace: true}); toast('Session deleted');
+      store.del(key); invalidate('/api/'); App.cache.delete('feed:home'); close(); if (location.pathname + location.search === origin) go('/track', {replace: true}); toast('Session deleted');
     };
   });
 }
