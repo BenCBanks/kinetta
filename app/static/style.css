@@ -1425,7 +1425,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .photo-selection{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:18px}.photo-selection img{width:100%;height:110px;object-fit:cover}.photo-selection button{min-height:44px;width:100%}
 /* Keep actions out of the loading layout until the conditional cards above them have their first result. */
 [data-home-food-loading] #t-food-lead, [data-home-food-loading] #t-week { display:none; }
-[data-home-loading] #t-content, [data-home-loading] > .me-tools, [data-home-loading] > .me-settings { display:none; }
+[data-home-loading] :is(#t-plan,#t-week,#t-content), [data-home-loading] > :is(.me-tools,.me-settings,#me-challenges,#me-milestones,#t-setup) { display:none; }
 .mileage-loading { min-block-size:24rem; }
 .mileage-loading > .card { min-block-size:21rem; margin:0; }
 #t-loading { min-block-size:16rem; }
@@ -2089,6 +2089,8 @@ html:has(.recipe-page) nav.tabs { display: none; }
 .recipe-title textarea { flex:1;min-width:0; }
 .recipe-title .icon-btn { flex:none;min-width:44px;min-height:44px; }
 .recipe-page #recipe-title-status { font-size:.85rem;margin:0 8px 12px; }
+.recipe-page #recipe-title-status:empty { display:none; }
+.recipe-page #recipe-title-status button { min-height:44px; }
 
 /* Quick logging and recipe creation have different jobs. */
 .food-ways .way span {display:flex;flex-direction:column;gap:5px;min-width:0;}

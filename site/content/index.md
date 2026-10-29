@@ -8,7 +8,7 @@ Your workouts and your food, *in one app.*
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Track runs, rides and lifting alongside your calories, macros and recipes. Then see what it all adds up to: whether you're getting fitter, when to take it easy, and how today compares with last time.
+Record your workouts, log your food and understand your progress in one private overview. Share the activities you choose.
 
 ## runs-rides-and-lifting-4
 
@@ -16,7 +16,7 @@ Runs, rides and lifting
 
 ## import-runs-and-rides-from-your-watch-files-or-connect-5
 
-Maps, pace and heart rate from your watch, plus fitness and freshness, race predictions and a coach you can ask about your own training.
+Record or import your workouts. Follow a plan, log lifting and see your progress over time.
 
 ## quick-food-logging-6
 
@@ -24,7 +24,7 @@ Quick food logging
 
 ## say-what-you-ate-in-your-own-words-snap-a-photo-or-sca-7
 
-Say what you ate in your own words, or search and scan. Workouts count toward your calories.
+Search, scan or describe your food. Save recipes, choose portions and follow your calories and macros.
 
 ## friends-kept-private-8
 
@@ -32,7 +32,7 @@ Share with friends
 
 ## photos-cheers-and-comments-with-route-starts-and-ends--9
 
-Cheers and comments from friends you approve. Shared maps hide where you start and end.
+One activity feed, a profile you control, and cheers from friends. Your food log and body data stay private.
 
 ## want-to-try-it-12
 
@@ -40,11 +40,11 @@ Want to *try it?*
 
 ## it-s-a-small-beta-for-now-ask-for-an-invite-13
 
-Kinetta is in beta. Sign up here, then get the iPhone app: install Apple's free TestFlight app, open the [Kinetta TestFlight link](https://testflight.apple.com/join/YAX1JnwB) on your iPhone, and log in. The iPhone app records with GPS and brings in Apple Health; your browser works for food, history and friends.
+Open enrollment to create an account or join the waitlist, depending on availability. Have an invitation? Use its link. For iPhone, install Apple’s free TestFlight app, then [get Kinetta](https://testflight.apple.com/join/YAX1JnwB) and log in with your account. Your browser works for food, history and friends too.
 
 ## beta-how-to
 
-In beta on iPhone through Apple's TestFlight: sign up, then [get the app](https://testflight.apple.com/join/YAX1JnwB).
+Web and iPhone beta. Account access comes first; the iPhone app uses [TestFlight](https://testflight.apple.com/join/YAX1JnwB).
 
 ## kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14
 

@@ -9,6 +9,7 @@ const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 const SHOTS = [
   ['today', '/me'],
   ['feed', '/activity'],
+  ['profile', '/people/alex'],
   ['track', '/track'],
   ['activity', 'RUN'],
   ['similar', 'RUN', {to: 'Similar efforts'}],
@@ -20,7 +21,7 @@ const SHOTS = [
   ['heatmap', '/progress/heatmap'],
   ['food', '/food'],
   ['explore', '/me/explore'],
-  ['meals', '/food/meals', {logDish: 'Chicken and veg traybake', portion: '380', directLibrary: true}],
+  ['meals', '/food/meals'],
   ['cook', 'DISH'],
   ['serve', '/food', {logDish: 'Chicken and veg traybake', portion: '380'}],
   ['friends', '/me/friends'],
@@ -148,11 +149,10 @@ async function say(page, text) {
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => !document.querySelector('.leaflet-container') || document.querySelector('.leaflet-tile-loaded'), null, {timeout: 8000}).catch(() => {});
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
-        if (opt.directLibrary) await page.click(`#meal-library .fe[data-dish]:has-text("${opt.logDish}")`);
-        else {
-          await page.evaluate(() => addSheet(isoDay(new Date()), 'dinner'));
-          await page.click('[data-t=saved]'); await page.click(`.sheet .fe[data-dish]:has-text("${opt.logDish}")`);
-        }
+        await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
+        await page.locator('#thread-text').waitFor();
+        await page.locator('[data-thread-quick="recipes"]').click();
+        await page.locator('.sheet .fe[data-dish]').filter({hasText:opt.logDish}).click();
         await page.fill('#dl input[name=g]', opt.portion);
       }
       if (opt.photo) {

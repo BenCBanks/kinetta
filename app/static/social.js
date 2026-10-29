@@ -170,6 +170,7 @@ const Social = {
     const n = Social.count(); let b = $('.tab-n', a);
     const un = (App.me && App.me.notifications) || 0;
     if (typeof Native !== 'undefined' && Native.setBadge) Native.setBadge(un);
+    $$('[data-friend-waiting]').forEach(node=>{const waiting=Number.isInteger(App.me?.friend_requests)?App.me.friend_requests:0;node.hidden=!waiting;node.textContent=`${waiting} waiting`;});
     if(Number.isInteger(App.me?.friend_count))$$('[data-friend-count]').forEach(node=>node.textContent=friendCountText(App.me.friend_count));
     $$('.bell-dot').forEach((d) => { d.hidden = !un; d.textContent = un > 9 ? '9+' : un || ''; });
     if (!n) { if (b) b.remove(); return; }
@@ -515,7 +516,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   const box=$('#person-profile',el),active=()=>box.isConnected&&owner===readOwner();
   const draw=r=>{
     if(!active())return;
-    if(own&&audience==='member'&&r.preview!=='member'){box.innerHTML='<p class="callout">This server needs an update to preview other members.</p><button type="button" class="ghost wide" id="pf-friend-fallback">Preview as friends</button>';$('#pf-friend-fallback',box).onclick=()=>{audience='friend';reload();};return;}
+    if(own&&audience==='member'&&r.preview!=='member'){box.innerHTML='<p class="callout">This server needs an update to preview other members.</p><button type="button" class="ghost wide" id="pf-friend-fallback">Preview as friends</button>';$('#pf-friend-fallback',box).onclick=()=>setAudience('friend');return;}
     r={...r,layout:ProfileLayout.normalize(r.layout)};
     const p=r.person,action=r.mine?'':r.status==='friends'?`<button type="button" class="ghost" data-person-manage>Friends ${svg('more')}</button>`:r.status==='sent'?'<button type="button" class="ghost" data-person-action="cancel">Request sent</button>':r.status==='incoming'?'<button type="button" class="primary" data-person-action="accept">Approve request</button>':'<button type="button" class="primary" data-person-action="add">Add friend</button>';
     box.innerHTML=`${r.mine?`<div class="pf-preview"><label>Preview as<select id="pf-audience"><option value="friend"${audience==='friend'?' selected':''}>Approved friends</option><option value="member"${audience==='member'?' selected':''}>Other members</option></select></label><p class="small muted">${audience==='friend'?'Activities shared with friends or everyone.':'Activities shared with everyone.'}</p></div>`:''}
@@ -527,7 +528,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
     ProfileLayout.mount(box,r);
     if(r.mine){
       wireProfileEditing(box,{...p,profile_layout:r.layout},reload);$('#pf-card',box).onclick=()=>KinettaCard.open();
-      $('#pf-audience',box).onchange=e=>{audience=e.target.value;const q=new URLSearchParams(location.search);q.set('preview',audience);history.replaceState(history.state,'',location.pathname+'?'+q);reload();};
+      $('#pf-audience',box).onchange=e=>setAudience(e.target.value);
     }
     const act=$('[data-person-action]',box);
     if(act)act.onclick=async()=>{
@@ -557,6 +558,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
     catch(x){if(active()&&version===revision)showError(box,x);}
     finally{if(active()&&version===revision)box.removeAttribute('aria-busy');}
   };
+  function setAudience(next){audience=next;const q=new URLSearchParams(location.search);q.set('preview',audience);history.replaceState(history.state,'',location.pathname+'?'+q);reload();}
   await load(path(),draw,{maxAge:0});
 });
 

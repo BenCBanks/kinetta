@@ -12,7 +12,7 @@ If you use separate apps for training and food, here’s what you can keep in Ki
 
 ## us-prices-from-strava-https-www-strava-com-subscribe-a-3
 
-Anyone can sign up for the beta while places last. Pricing has not been announced.
+Enrollment may offer signup, a waitlist or invitations. Hosted pricing has not been announced.
 
 ## like-strava-and-myfitnesspal-combined-4
 

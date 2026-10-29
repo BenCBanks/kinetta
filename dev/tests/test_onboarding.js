@@ -11,7 +11,7 @@ assert.equal(c.getStarted(true,true),'','No empty Finish setup card when every s
 c.Native.on=false;assert.equal(c.getStarted(false,true),'','Experienced Safari users get no Home Screen setup nag');c.navigator.userAgent='Desktop';assert.equal(c.getStarted(false,true),'');
 c.App.me.kcal_target=null;assert.equal(c.getStarted(false,true),'','Me never asks for a nutrition goal (activity-first, #164); goal setup lives in Nutrition');
 assert.match(c.getStarted(false,false),/Record an activity/);assert.doesNotMatch(c.getStarted(false,false),/Log something you ate|nutrition goal/);
-c.Native.on=true;assert.match(c.getStarted(false,false),/Connect Apple Health/);assert.match(c.getStarted(false,false),/Garmin Connect or Apple Health/);assert.match(c.getStarted(false,false),/Connect your watch/);
+c.Native.on=true;assert.match(c.getStarted(false,false),/Bring in workouts/);assert.match(c.getStarted(false,false),/Apple Health or Garmin/);assert.equal((c.getStarted(false,false).match(/href="\/track\/connections"/g)||[]).length,1,'Fresh setup has one connection step');assert(!c.getStarted(false,false).includes('href="/track/health"'),'Fresh setup does not duplicate Apple Health');
 c.App.me.setup_hidden=true;assert.equal(c.getStarted(false,false),'','Optional setup dismissal survives missing Health and fresh history');c.App.me.setup_hidden=false;assert.match(c.getStarted(false,false),/Hide tips/);
 console.log('onboarding setup card: native optional Health, complete/empty, activity-first new-account cases passed');
 

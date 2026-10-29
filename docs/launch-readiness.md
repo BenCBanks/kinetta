@@ -98,18 +98,20 @@ Combined candidate a06d87e passed all CI and16 native layout cases: compact safe
 
 Do not stop at component PRs. PR344 is the combined review candidate; stacked component PRs are review aids and must not be merged independently.
 
-- [ ] Two complete fresh runs of the entire existing `dev/tests/run.sh` against final combined code, including the required schema80→86 upgrade. Earlier component/partial passes do not replace them. Exercise both UTC and America/New_York server time zones.
-- [ ] Two code-review passes after the final profile/website additions, concrete findings repaired and targeted checks added. Recheck any subsequent code finding.
-- [ ] Complete final UI review in both themes,330/390px, short phones, larger text and desktop. Verify clear primary actions, reachable long content, keyboard/draft behavior, no clipping and valid native spacing evidence.
-- [ ] Exact-head CI, including both eight-case native jobs, passes; representative screenshots are reviewed and attached.
-- [ ] Reconcile all26 issues/labels/evidence, update the private overview/work log and keep remaining operator/device gates explicit.
+- Two complete fresh runs of the entire existing `dev/tests/run.sh` against final combined code, including the required schema80→86 upgrade. Earlier component/partial passes do not replace them. Exercise both UTC and America/New_York server time zones.
+- Two code-review passes after the final profile/website additions, concrete findings repaired and targeted checks added. Recheck any subsequent code finding.
+- Complete final UI review in both themes,330/390px, short phones, larger text and desktop. Verify clear primary actions, reachable long content, keyboard/draft behavior, no clipping and valid native spacing evidence.
+- Exact-head CI, including both eight-case native jobs, passes; representative screenshots are reviewed and attached.
+- Reconcile all26 issues/labels/evidence, update the private overview/work log and keep remaining operator/device gates explicit.
+
+PR344 records the current evidence, screenshots and remaining release steps.
 
 Physical iPhone share sheets/camera/VoiceOver/locked-screen spoken intervals, actual hosted map coverage/cost, owner overview read-through, merge, deployment, TestFlight upload and Apple processing remain separate outcomes. No release or paid-provider activation is authorized by this checklist.
 
 
 ## Admin age and Kit access · owner, 29 October
 
-Show age and Kit settings in Accounts and the private account detail. Use birth year with approximate age; allow clearing an unknown year. Administrator permission is distinct from the member’s consent and 18+ confirmation, product entitlements, provider configuration and reviewed release. Allowing access never creates consent. Blocking access and a known under-18 birth year prevent AI generation on the backend, including default-open installations; manual tools remain available. Confirm writes with the account username, preserve failed drafts, use durable retry receipts and audit the action without copying birth year or consent into the audit record. Existing operator permission defaults to allowed on upgrade. Check fresh schema85 and preservation/defaults from80, private export/erasure, API permissions and actual phone/desktop edit/retry flows before final acceptance. The two complete final regression runs must include this addition; earlier7bf8f38 evidence is superseded.
+Show age and Kit settings in Accounts and the private account detail. Use birth year with approximate age; allow clearing an unknown year. Administrator permission is distinct from the member’s consent and 18+ confirmation, product entitlements, provider configuration and reviewed release. Allowing access never creates consent. Blocking access and a known under-18 birth year prevent AI generation on the backend, including default-open installations; manual tools remain available. Confirm writes with the account username, preserve failed drafts, use durable retry receipts and audit the action without copying birth year or consent into the audit record. Existing operator permission defaults to allowed on upgrade. Check a fresh install including migration85 and preservation/defaults from80, private export/erasure, API permissions and actual phone/desktop edit/retry flows before final acceptance. The two complete final regression runs must include this addition; earlier7bf8f38 evidence is superseded.
 
 
 ## Website and feature priorities · owner,29 October
@@ -120,3 +122,7 @@ Include the public website in the launch review: current fictional screenshots, 
 ## Profile/home addition · owner,29 October
 
 Use [the approved requirements](profile-home-requirements.md) for the profile-first Me page, private Overview, combined Activity feed, separate history, customizable shared profile and persistent optional setup dismissal. Earlier baseline tests passed twice, but this addition requires fresh final-suite, upgrade, review and screenshot evidence. Pull-to-refresh preserves unchanged cards/maps. Website/enrollment work is tracked under #354 and remains part of the final combined gates.
+
+The [feature-priority decision](feature-priorities.md) records the current official competitor evidence and how it informs app/website prominence. Website enrollment must resolve the configured signup/waitlist/invitation policy, retain origin links on temporary failures and ignore responses from an older view/account.
+
+Cold Me loading must keep the plan and chart untappable until their first placement is known, while logged food can lead as soon as it is ready. Optional native Health status must not delay history classification or shift primary navigation. Fresh setup offers one connection step; established optional reminders remain hideable. Incomplete enrollment replies must preserve invitations and offer Retry.

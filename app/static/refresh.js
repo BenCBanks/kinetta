@@ -17,7 +17,7 @@ const PageRefresh=(()=>{
       spinner.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+IC.refresh+'</svg>';
       document.body.append(spinner);
     }
-    const view=document.getElementById?.('page'),glide=mode!=='drag';
+    const view=document.getElementById?.('page'),glide=mode!=='drag'&&!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     clearTimeout(settleT);pulled=distance>0;
     if(view){view.style.transition=glide?'transform .3s cubic-bezier(.2,.8,.2,1)':'none';view.style.transform=distance?`translate3d(0,${distance.toFixed(2)}px,0)`:'';}
     spinner.className='ptr'+(glide?' glide':'')+(mode==='hold'?' spinning':'');

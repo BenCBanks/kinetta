@@ -60,9 +60,9 @@ function drawDish(el, d) {
   const sums = has ? `<p class="dish-sum num"><b>${display.kcal==null?'Calories unknown':r0(display.kcal)+' kcal'}${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${display[k]==null?'Unknown '+nm.toLowerCase():r0(display[k])+' g '+nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
   el.innerHTML = `<div class="top">${backBtn(mine?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button> </div></div>
     <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
-    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button><button type="button" class="icon-btn danger" id="dk-delete" aria-label="Delete recipe" title="Delete recipe">${svg('trash')}</button></div><p id="recipe-title-status" class="small muted" role="status">Tap the pencil to rename. The title saves automatically.</p>`
+    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button><button type="button" class="icon-btn danger" id="dk-delete" aria-label="Delete recipe" title="Delete recipe">${svg('trash')}</button></div><p id="recipe-title-status" class="small muted" role="status"></p>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
-    ${mine?'<p class="small muted">Build your recipe from its ingredients. Your changes save as you go; nothing is added to your food log.</p>':''}
+    ${mine?'<p class="small muted">Changes save as you go. Logging is optional.</p>':''}
     ${sums}
     ${imported?recipeSourceCard(d):''}
     ${d.items.length ? `<div class="card ing-card"><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
@@ -116,7 +116,7 @@ function drawDish(el, d) {
       titleStatus.textContent='Saving title…';
       try{const fresh=await api(`/api/dishes/${d.id}`,json('PATCH',{name:v}));if(!active())return false;
         d=fresh;titleStatus.textContent='Title saved';App.cache.set(`/api/dishes/${d.id}`,{data:fresh,at:Date.now()});App.cache.delete('/api/dishes');return true;
-      }catch(x){if(active()){titleStatus.textContent='Title not saved. Tap Done to try again.';toast(x.message);}return false;}
+      }catch(x){if(active()){titleStatus.innerHTML='Title not saved. <button type="button" class="linkbtn" id="dk-title-retry">Retry</button>';const retry=$('#dk-title-retry',el);retry.onclick=()=>{if(retry.disabled||!active())return;retry.disabled=true;return saveName();};toast(x.message);}return false;}
     });
     return nameSave;
   };

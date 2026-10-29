@@ -1183,9 +1183,9 @@ function phoneDefaults() {
 // made from their name, which they can change any time like a gamertag. Without email set up (first run, or a server
 // with no mail service) they choose a username to log in with, as before.
 async function challengeOrigin(){
-  const code=store.get('kinetta.challengeLink');if(!code)return null;
-  try{const q=await api('/api/challenges/'+encodeURIComponent(code));if(q.joining_closed)return null;return {code:q.code,title:q.title,join_default:false};}
-  catch(_){store.del('kinetta.challengeLink');return null;}
+  const current=enrollmentView(),code=store.get('kinetta.challengeLink');if(!code)return null;
+  try{const q=await api('/api/challenges/'+encodeURIComponent(code));if(typeof q?.code!=='string'||typeof q?.title!=='string')throw Error('Challenge reply was incomplete.');if(q.joining_closed)return null;return {code:q.code,title:q.title,join_default:false};}
+  catch(x){if(current()&&[404,410].includes(x.status)){if(store.get('kinetta.challengeLink')===code)store.del('kinetta.challengeLink');return null;}throw x;}
 }
 function showNewAccount({title, intro, button, send, signup = false, email = signup, card = null,challenge=null}) {
   const pick = !email;
@@ -1270,44 +1270,77 @@ async function showGetApp() {
 // A friend's invite link opened without the app (2026-10-26). With the iPhone app installed, the link opens the app
 // itself; here: who sent it, the app first on an iPhone, then sign up or log in on the web.
 async function showInvite(code) {
-  let who = null, s = {};
-  try { [who, s] = await Promise.all([api('/api/friend-links/' + encodeURIComponent(code)), api('/api/signup').catch(() => ({}))]); } catch (x) { /* shown as expired */ }
+  const active=enrollmentView();enrollmentStatus('Join Kinetta','Loading invitation…');
+  let who=null,s={},unavailable=false;
+  try{[who,s]=await Promise.all([api('/api/friend-links/'+encodeURIComponent(code)).catch(x=>{throw Object.assign(x,{inviteLookup:true});}),enrollmentPolicy('/api/signup')]);}
+  catch(x){if(!active())return;if(!x.inviteLookup||![404,410].includes(x.status))return enrollmentStatus('Invitation couldn’t load','Your invitation link is kept. Try again.',()=>showInvite(code));unavailable=true;}
+  if(!active())return;
+  if(!unavailable&&(!who||typeof who.name!=='string'))return enrollmentStatus('Invitation couldn’t load','Your invitation link is kept. Try again.',()=>showInvite(code));
+  let waiting=false;
+  if(!unavailable&&!s.open){try{waiting=(await enrollmentPolicy('/api/beta')).open;}catch(x){if(active())enrollmentStatus('Enrollment couldn’t load','Your invitation link is kept. Try again.',()=>showInvite(code));return;}}
+  if(!active())return;
   const login = '<p class="small muted">Already on Kinetta? <a href="/" id="iv-login">Log in</a> and you’ll see the invite.</p>';
-  if (!who) {
-    store.del('kinetta.friendLink');
-    root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This invite link has expired</h1><p>Ask your friend to send a new one from Friends › Invite friends.</p><a class="ghost wide" href="/" id="iv-login">Go to log in</a></div></div>`;
+  if(unavailable){
+    if(store.get('kinetta.friendLink')===code)store.del('kinetta.friendLink');
+    root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This invite link isn’t available</h1><p>Ask your friend to send a new one from Friends › Invite friends.</p><a class="ghost wide" href="/" id="iv-login">Go to log in</a></div></div>`;
   } else {
     const phone = getAppFirst(), link = s.iphone_app;
     root.innerHTML = `<div class="login invite-landing"><div class="form">${BRAND}<h1>${esc(who.name)} invited you to Kinetta</h1>
-      <p>Follow each other’s runs, rides and walks, and keep your food log private. You’ll be friends as soon as you join.</p>
+      <p>Follow each other’s runs, rides and walks, and keep your food log private. Create an account and confirm your email to become friends.</p>
       ${phone && link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the iPhone app</a><p class="small muted">Kinetta is in beta through Apple’s TestFlight. After installing, open this invite link again and it opens in the app.</p>` : ''}
-      ${s.open ? `<a class="${phone && link ? 'ghost' : 'primary'} wide" href="/signup" id="iv-signup">Create an account${phone && link ? ' on the web' : ''}</a>` : ''}${login}</div></div>`;
+      ${s.open||waiting ? `<a class="${phone && link ? 'ghost' : 'primary'} wide" href="/signup" id="iv-signup">${s.open?'Create an account'+(phone&&link?' on the web':''):'Join the beta'}</a>` : ''}${login}</div></div>`;
     const su = $('#iv-signup', root); if (su) su.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(code); };
   }
   $('#iv-login', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
 }
 async function showJoin(token) {
+  const active=enrollmentView();enrollmentStatus('Join Kinetta','Loading invitation…');
   let info;
-  try { info = await api('/api/join/' + encodeURIComponent(token)); }
+  try { info = await api('/api/join/' + encodeURIComponent(token));if(!info||Array.isArray(info)||typeof info!=='object')throw Error('Invitation reply was incomplete.'); }
   catch (x) {
+    if(!active())return;
+    if(![404,410].includes(x.status))return enrollmentStatus('Invitation couldn’t load','Your invitation link is kept. Try again.',()=>showJoin(token));
     root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This link doesn't work</h1><p>${esc(x.message)}</p><a class="ghost" href="/">Go to log in</a></div></div>`;
     $('a', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
     return;
   }
+  if(!active())return;
   showNewAccount({title: 'Join Kinetta', button: 'Create my account', email: !!info.email,card:info.card,challenge:info.challenge,
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
 // "Create an account" (open signup, #232): email, username, password and a 16+ confirmation. When the server's account
 // cap is reached the waitlist takes over; the email link still has to be opened before others can see the person.
+async function enrollmentPolicy(path){const value=await api(path);if(typeof value?.open!=='boolean'||(path==='/api/signup'&&typeof value.full!=='boolean'))throw Error('Enrollment reply was incomplete.');return value;}
+function enrollmentView(){const owner=readOwner(),path=location.pathname+location.search;return()=>owner===readOwner()&&path===location.pathname+location.search;}
+function enrollmentStatus(title,message,retry=null) {
+  root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(message)}</p><div class="btncol">${retry?'<button type="button" class="primary wide" id="enrollment-retry">Try again</button>':''}<a class="${retry?'ghost':'primary'} wide" href="/" id="enrollment-login">Log in</a></div><p class="small"><a href="https://kinetta.app/">Back to the Kinetta website</a></p></div></div>`;
+  $('#enrollment-login',root).onclick=e=>{e.preventDefault();history.replaceState(null,'','/');showLogin();};
+  const button=$('#enrollment-retry',root);
+  if(button)button.onclick=()=>{if(button.disabled)return;button.disabled=true;button.textContent='Loading…';return retry();};
+}
 async function showSignup(friendLink = store.get('kinetta.friendLink')) {
-  let s = {}, inviter = null, card = null,challenge=await challengeOrigin();
+  const active=enrollmentView(),retry=()=>showSignup(friendLink);enrollmentStatus('Join Kinetta','Loading enrollment…');
+  let s={},inviter=null,card=null,challenge;
+  try{challenge=await challengeOrigin();}catch(x){if(active())enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);return;}
+  if(!active())return;
   const cardCode=store.get('kinetta.cardLink');
-  if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));}catch(_){store.del('kinetta.cardLink');}}
-  try { s = await api('/api/signup'); } catch (x) { /* treat as closed */ }
-  if (friendLink) { try { inviter = (await api('/api/friend-links/' + encodeURIComponent(friendLink))).name; } catch (x) { store.del('kinetta.friendLink'); friendLink = null; } }
+  if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));if(typeof card?.username!=='string')throw Error('Card reply was incomplete.');}catch(x){if(!active())return;if([404,410].includes(x.status)){if(store.get('kinetta.cardLink')===cardCode)store.del('kinetta.cardLink');}else return enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);}}
+  if(!active())return;
+  try { s = await enrollmentPolicy('/api/signup'); }
+  catch(x){if(active())enrollmentStatus('Signup couldn’t load','Check your connection, then try again.',retry);return;}
+  if(!active())return;
+  if(friendLink){try{inviter=(await api('/api/friend-links/'+encodeURIComponent(friendLink)))?.name;if(typeof inviter!=='string')throw Error('Invitation reply was incomplete.');}catch(x){if(!active())return;if([404,410].includes(x.status)){if(store.get('kinetta.friendLink')===friendLink)store.del('kinetta.friendLink');friendLink=null;}else return enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);}}
+  if(!active())return;
   if (s.full) { history.replaceState(null, '', '/beta'); return showBeta(true); }
-  if (!s.open) { history.replaceState(null, '', '/'); return showLogin(); }
+  if(!s.open){
+    let waiting;
+    try{waiting=(await enrollmentPolicy('/api/beta')).open;}
+    catch(x){if(active())enrollmentStatus('Enrollment couldn’t load','Check your connection, then try again.',retry);return;}
+    if(!active())return;
+    if(waiting){history.replaceState(null,'','/beta');return showBeta();}
+    return enrollmentStatus('Join Kinetta','Public signup is closed. Open your invitation link to create an account, or log in.');
+  }
   showNewAccount({title: 'Create your account', button: 'Create my account', signup: true, card,challenge,
     intro: (inviter ? `${esc(inviter)} invited you. You’ll be friends once you confirm your email. ` : '') + 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
     send: async (body) => {
@@ -1320,10 +1353,17 @@ async function showSignup(friendLink = store.get('kinetta.friendLink')) {
 }
 // "Join the beta" (public waitlist, only when the server has KINETTA_BETA_SIGNUP=1): no account yet, an admin invites them
 async function showBeta(full = false) {
-  const challenge=await challengeOrigin();let card=null;const cardCode=store.get('kinetta.cardLink');if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));}catch(_){store.del('kinetta.cardLink');}}
-  let open = false;
-  try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }
-  if (!open) { history.replaceState(null, '', '/'); return showLogin(); }
+  const active=enrollmentView(),retry=()=>showBeta(full);enrollmentStatus('Join the beta','Loading enrollment…');
+  let challenge,card=null;
+  try{challenge=await challengeOrigin();}catch(x){if(active())enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);return;}
+  if(!active())return;
+  const cardCode=store.get('kinetta.cardLink');if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));if(typeof card?.username!=='string')throw Error('Card reply was incomplete.');}catch(x){if(!active())return;if([404,410].includes(x.status)){if(store.get('kinetta.cardLink')===cardCode)store.del('kinetta.cardLink');}else return enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);}}
+  if(!active())return;
+  let open=false;
+  try { open = (await enrollmentPolicy('/api/beta')).open; }
+  catch(x){if(active())enrollmentStatus('Enrollment couldn’t load','Check your connection, then try again.',retry);return;}
+  if(!active())return;
+  if(!open)return enrollmentStatus('Beta enrollment is closed','Open your invitation link to create an account, or log in.');
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${full ? 'Kinetta is full for now' : 'Join the beta'}</h1><p>${full ? 'We’ve reached our limit for new accounts. Leave your details and we’ll email you when there’s room.' : "Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers. Tell us a little about you and we'll send you an invite link."}</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
@@ -1381,13 +1421,17 @@ function showForgot(prefill = '') {
   });
 }
 async function showReset(token) {
+  const active=enrollmentView();enrollmentStatus('Reset password','Checking your link…');
   let info;
-  try { info = await api('/api/password/reset/' + encodeURIComponent(token)); }
+  try { info = await api('/api/password/reset/' + encodeURIComponent(token));if(typeof info?.login!=='string')throw Error('Password reply was incomplete.'); }
   catch (x) {
+    if(!active())return;
+    if(![404,410].includes(x.status))return enrollmentStatus('Password reset couldn’t load','Your reset link is kept. Try again.',()=>showReset(token));
     root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This link doesn't work</h1><p>${esc(x.message)}</p><a class="primary wide" href="/forgot-password" id="r-again">Send a new link</a></div></div>`;
     $('#r-again', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showForgot(); };
     return;
   }
+  if(!active())return;
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>Choose a new password</h1><p>For your account <b>${esc(info.login)}</b>. You'll be signed out on your other phones and browsers.</p></div>
     <input name="login" autocomplete="username" value="${esc(info.login)}" hidden>
@@ -1401,15 +1445,17 @@ async function showReset(token) {
     const b = $('button', f), err = $('.err', f);
     if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; return; }
     b.disabled = true; err.textContent = '';
-    try { await api('/api/password/reset', json('POST', {token, password: f.password.value})); forgetKept(); backToLogin('Password changed. Log in with your new password.'); }
-    catch (x) { err.textContent = x.message; b.disabled = false; }
+    try { await api('/api/password/reset', json('POST', {token, password: f.password.value})); if(!active())return;forgetKept(); backToLogin('Password changed. Log in with your new password.'); }
+    catch (x) { if(active()){err.textContent = x.message; b.disabled = false;} }
   });
 }
 async function showConfirmEmail(token) {
+  const active=enrollmentView();
   root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Confirming your email…</h1></div></div>`;
   let title, text;
-  try { const r = await api('/api/account/email/confirm', json('POST', {token})); if(r.challenge_joined)store.set('kinetta.challengeLink',r.challenge_joined); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
+  try { const r = await api('/api/account/email/confirm', json('POST', {token})); if(!active())return;if(r.challenge_joined)store.set('kinetta.challengeLink',r.challenge_joined); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
   catch (x) { title = "This link doesn't work"; text = x.message; }
+  if(!active())return;
   // Email links open in the phone's browser. On an iPhone, offer the app itself (kinetta:// is registered by the app,
   // 27 October 2026): a same-site https link can't hand off from Safari to the app.
   const iphone = !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
