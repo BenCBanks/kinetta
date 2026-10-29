@@ -1,4 +1,4 @@
-// Loaded map layers must stay below navigation and sheets. Uses fictional tiles and the seeded demo account.
+// Loaded maps stay below navigation/sheets; headings and restored food drafts stay readable. Uses fictional tiles/demo data.
 // NODE_PATH=<existing Playwright install> KINETTA_URL=http://localhost:8798 node dev/tests/map_ui.cjs
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
@@ -37,6 +37,7 @@ const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" heig
    await page.evaluate(()=>go('/segments/new'));await page.locator('#pl-map .leaflet-tile-loaded').first().waitFor();await page.locator('#pl-hint').waitFor();
    const separate=await page.evaluate(()=>{const a=document.querySelector('#pl-hint').getBoundingClientRect(),b=document.querySelector('#pl-map .leaflet-control-attribution').getBoundingClientRect();return a.top>=b.bottom||a.bottom<=b.top;});
    assert(separate,'Drawing instruction overlaps map credit');
+   assert(await page.locator('.plan-title').evaluate(el=>{const text=el.firstChild;return [...el.textContent.matchAll(/\S+/g)].every(m=>{const range=document.createRange();range.setStart(text,m.index);range.setEnd(text,m.index+m[0].length);return range.getClientRects().length===1;});}),'A narrow heading splits a word across lines');
    const contrast=await page.locator('#pl-hint').evaluate(el=>{const s=getComputedStyle(el),lum=color=>color.match(/[\d.]+/g).slice(0,3).map(n=>+n/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0),a=lum(s.color),b=lum(s.backgroundColor);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05);});
    assert(contrast>=4.5,'Drawing instruction has unreadable contrast');
    await page.locator('#pl-more').click();const sheet=page.locator('.scrim').last();await sheet.waitFor();
