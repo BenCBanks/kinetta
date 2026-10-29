@@ -1312,10 +1312,10 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .pym-tile { position: relative; flex: 0 0 140px; scroll-snap-align: start; display: grid; justify-items: center; align-content: start; gap: 10px;
   padding: 16px 10px 12px; border: 1px solid var(--line); border-radius: var(--r3); background: var(--card); text-align: center; }
 .pym-who { display: grid; justify-items: center; gap: 3px; color: inherit; min-width: 0; width: 100%; text-decoration: none; }
-.pym-who b { font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pym-who b { font-size: 15px; max-width: 100%; overflow-wrap: anywhere; }
 .pym-who small { font-size: 12px; }
 .pym-tile .primary.sm, .pym-tile .badge { width: 100%; justify-content: center; }
-.pym-x { position: absolute; top: 2px; right: 2px; width: 32px; height: 32px; min-height: 32px; color: var(--muted); }
+.pym-x { position: absolute; top: 0; right: 0; width: 44px; height: 44px; min-height: 44px; color: var(--muted); }
 .pym-x svg { width: 16px; height: 16px; }
 #fr-invite { margin: 0 0 14px; }
 .add-friend b { font-size: 18px; }
@@ -2468,7 +2468,7 @@ button.thread-food:active { opacity: .7; }
 
 /* ---------- smoother loading (23 October 2026) ---------- */
 /* Launch: the Kinetta mark on the app background while it starts, instead of the word "Loading…". */
-.launch { min-height: 70dvh; display: grid; place-items: center; color: var(--color-brand); }
+.launch { min-height: 70dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; color: var(--color-brand); }
 .launch svg { width: 64px; height: auto; animation: launch-breathe 1.6s ease-in-out infinite; }
 @keyframes launch-breathe { 0%, 100% { opacity: .55; transform: scale(.96); } 50% { opacity: 1; transform: scale(1); } }
 /* Placeholders shaped like what's coming. */
@@ -2729,3 +2729,9 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .food-copy-action{display:flex;justify-content:center;margin:16px 0;}
 .food-copy-action .ghost{min-height:44px;max-width:100%;white-space:normal;background:var(--card);border:1px solid var(--line);font-weight:500;}
 .food-copy-action svg{width:18px;height:18px;flex:none;color:var(--tx3);}
+
+/* Loading recovery stays available even if a later script cannot download. */
+.launch-note{margin:0;color:var(--tx3);font-size:.875rem;text-align:center;}
+.launch-retry{display:block;min-height:44px;padding:12px;color:var(--accent);visibility:hidden;animation:launch-retry 0s 8s forwards;}
+@keyframes launch-retry{to{visibility:visible;}}
+#tm-food{min-height:44px;padding:6px 0 6px 12px;}

@@ -1,0 +1,470 @@
+{
+  "routes": [
+    {
+      "id": "cards-1",
+      "source": "app/static/cards.js",
+      "pattern": "/^\\/card\\/([A-Za-z0-9_-]{1,60})$/",
+      "paths": [
+        "/card/{card}"
+      ]
+    },
+    {
+      "id": "challenges-1",
+      "source": "app/static/challenges.js",
+      "pattern": "/^\\/me\\/challenges$/",
+      "paths": [
+        "/me/challenges"
+      ]
+    },
+    {
+      "id": "challenges-2",
+      "source": "app/static/challenges.js",
+      "pattern": "/^\\/(?:me\\/challenges|challenge)\\/([A-Za-z0-9_-]{1,60})$/",
+      "paths": [
+        "/me/challenges/{challenge}",
+        "/challenge/{challenge}"
+      ]
+    },
+    {
+      "id": "cook-1",
+      "source": "app/static/cook.js",
+      "pattern": "/^\\/food\\/cook\\/(\\d+)$/",
+      "paths": [
+        "/food/cook/{recipe}"
+      ]
+    },
+    {
+      "id": "explore-1",
+      "source": "app/static/explore.js",
+      "pattern": "/^\\/me\\/explore$/",
+      "paths": [
+        "/me/explore"
+      ]
+    },
+    {
+      "id": "food-1",
+      "source": "app/static/food.js",
+      "pattern": "/^\\/food$/",
+      "paths": [
+        "/food"
+      ]
+    },
+    {
+      "id": "food-2",
+      "source": "app/static/food.js",
+      "pattern": "/^\\/food\\/meals$/",
+      "paths": [
+        "/food/meals"
+      ]
+    },
+    {
+      "id": "food-3",
+      "source": "app/static/food.js",
+      "pattern": "/^\\/food\\/describe$/",
+      "paths": [
+        "/food/describe"
+      ]
+    },
+    {
+      "id": "food-4",
+      "source": "app/static/food.js",
+      "pattern": "/^\\/food\\/weight$/",
+      "paths": [
+        "/food/weight"
+      ]
+    },
+    {
+      "id": "food-5",
+      "source": "app/static/food.js",
+      "pattern": "/^\\/food\\/trends$/",
+      "paths": [
+        "/food/trends"
+      ]
+    },
+    {
+      "id": "food-6",
+      "source": "app/static/food.js",
+      "pattern": "/^\\/food\\/import$/",
+      "paths": [
+        "/food/import"
+      ]
+    },
+    {
+      "id": "kit-1",
+      "source": "app/static/kit.js",
+      "pattern": "/^\\/me\\/kit$/",
+      "paths": [
+        "/me/kit"
+      ]
+    },
+    {
+      "id": "lift-1",
+      "source": "app/static/lift.js",
+      "pattern": "/^\\/lift\\/(\\d+)$/",
+      "paths": [
+        "/lift/{lift}"
+      ]
+    },
+    {
+      "id": "lift-2",
+      "source": "app/static/lift.js",
+      "pattern": "/^\\/track\\/lift\\/(\\d+)$/",
+      "paths": [
+        "/track/lift/{lift}"
+      ]
+    },
+    {
+      "id": "lift-3",
+      "source": "app/static/lift.js",
+      "pattern": "/^\\/lift\\/ex\\/(\\d+)$/",
+      "paths": [
+        "/lift/ex/{exercise}"
+      ]
+    },
+    {
+      "id": "milestones-1",
+      "source": "app/static/milestones.js",
+      "pattern": "/^\\/me\\/milestones$/",
+      "paths": [
+        "/me/milestones"
+      ]
+    },
+    {
+      "id": "native-1",
+      "source": "app/static/native.js",
+      "pattern": "/^\\/me\\/health$/",
+      "paths": [
+        "/me/health"
+      ]
+    },
+    {
+      "id": "native-2",
+      "source": "app/static/native.js",
+      "pattern": "/^\\/track\\/health$/",
+      "paths": [
+        "/track/health"
+      ]
+    },
+    {
+      "id": "onboarding-1",
+      "source": "app/static/onboarding.js",
+      "pattern": "/^\\/food\\/setup$/",
+      "paths": [
+        "/food/setup"
+      ]
+    },
+    {
+      "id": "pages-1",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/today$/",
+      "paths": [
+        "/today"
+      ]
+    },
+    {
+      "id": "pages-2",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/activity$/",
+      "paths": [
+        "/activity"
+      ]
+    },
+    {
+      "id": "pages-3",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/activity\\/(\\d+)$/",
+      "paths": [
+        "/activity/{activity}"
+      ]
+    },
+    {
+      "id": "pages-4",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/route\\/(\\d+)$/",
+      "paths": [
+        "/route/{matched_route}"
+      ]
+    },
+    {
+      "id": "pages-5",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/progress$/",
+      "paths": [
+        "/progress"
+      ]
+    },
+    {
+      "id": "pages-6",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/progress\\/routes$/",
+      "paths": [
+        "/progress/routes"
+      ]
+    },
+    {
+      "id": "pages-7",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/progress\\/segments$/",
+      "paths": [
+        "/progress/segments"
+      ]
+    },
+    {
+      "id": "pages-8",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/progress\\/(trends|calendar|heatmap)$/",
+      "paths": [
+        "/progress/trends",
+        "/progress/calendar",
+        "/progress/heatmap"
+      ]
+    },
+    {
+      "id": "pages-9",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/records\\/(\\w+)\\/([\\d.]+)$/",
+      "paths": [
+        "/records/run/5000"
+      ]
+    },
+    {
+      "id": "pages-10",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me$/",
+      "paths": [
+        "/me"
+      ]
+    },
+    {
+      "id": "pages-11",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/settings$/",
+      "paths": [
+        "/me/settings"
+      ]
+    },
+    {
+      "id": "pages-12",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/people$/",
+      "paths": [
+        "/me/people"
+      ]
+    },
+    {
+      "id": "pages-13",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/import$/",
+      "paths": [
+        "/me/import"
+      ]
+    },
+    {
+      "id": "pages-14",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/track\\/import$/",
+      "paths": [
+        "/track/import"
+      ]
+    },
+    {
+      "id": "pages-15",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/connections$/",
+      "paths": [
+        "/me/connections"
+      ]
+    },
+    {
+      "id": "pages-16",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/track\\/connections$/",
+      "paths": [
+        "/track/connections"
+      ]
+    },
+    {
+      "id": "pages-17",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/gear$/",
+      "paths": [
+        "/me/gear"
+      ]
+    },
+    {
+      "id": "pages-18",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/goals$/",
+      "paths": [
+        "/me/goals"
+      ]
+    },
+    {
+      "id": "pages-19",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/devices$/",
+      "paths": [
+        "/me/devices"
+      ]
+    },
+    {
+      "id": "pages-20",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/speed$/",
+      "paths": [
+        "/me/speed"
+      ]
+    },
+    {
+      "id": "plan-1",
+      "source": "app/static/plan.js",
+      "pattern": "/^\\/plan$/",
+      "paths": [
+        "/plan"
+      ]
+    },
+    {
+      "id": "planner-1",
+      "source": "app/static/planner.js",
+      "pattern": "/^\\/routes(?:\\/.*)?$/",
+      "paths": [
+        "/routes",
+        "/routes?view=matched",
+        "/routes?view=segments",
+        "/routes/plan/1"
+      ]
+    },
+    {
+      "id": "recipe-import-1",
+      "source": "app/static/recipe-import.js",
+      "pattern": "/^\\/food\\/recipe-link$/",
+      "paths": [
+        "/food/recipe-link"
+      ]
+    },
+    {
+      "id": "segments-1",
+      "source": "app/static/segments.js",
+      "pattern": "/^\\/segments$/",
+      "paths": [
+        "/segments"
+      ]
+    },
+    {
+      "id": "segments-2",
+      "source": "app/static/segments.js",
+      "pattern": "/^\\/segments\\/review$/",
+      "paths": [
+        "/segments/review"
+      ]
+    },
+    {
+      "id": "segments-3",
+      "source": "app/static/segments.js",
+      "pattern": "/^\\/segments\\/new$/",
+      "paths": [
+        "/segments/new"
+      ]
+    },
+    {
+      "id": "segments-4",
+      "source": "app/static/segments.js",
+      "pattern": "/^\\/segments\\/(\\d+)$/",
+      "paths": [
+        "/segments/{segment}"
+      ]
+    },
+    {
+      "id": "social-1",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/activity\\/friends\\/(\\d+)$/",
+      "paths": [
+        "/activity/friends/{shared_activity}"
+      ]
+    },
+    {
+      "id": "social-2",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/people\\/([^/]+)$/",
+      "paths": [
+        "/people/alex",
+        "/people/{friend}"
+      ]
+    },
+    {
+      "id": "social-3",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/add\\/([\\w-]+)$/",
+      "paths": [
+        "/add/{friend_invite}"
+      ]
+    },
+    {
+      "id": "social-4",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/me\\/friends$/",
+      "paths": [
+        "/me/friends"
+      ]
+    },
+    {
+      "id": "social-5",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/me\\/sharing$/",
+      "paths": [
+        "/me/sharing"
+      ]
+    },
+    {
+      "id": "social-6",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/notifications$/",
+      "paths": [
+        "/notifications"
+      ]
+    },
+    {
+      "id": "social-7",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/me\\/notifications$/",
+      "paths": [
+        "/me/notifications"
+      ]
+    },
+    {
+      "id": "track-1",
+      "source": "app/static/track.js",
+      "pattern": "/^\\/track$/",
+      "paths": [
+        "/track"
+      ]
+    },
+    {
+      "id": "welcome-1",
+      "source": "app/static/welcome.js",
+      "pattern": "/^\\/welcome$/",
+      "paths": [
+        "/welcome"
+      ]
+    }
+  ],
+  "extra_views": [
+    "/food?view=overview",
+    "/food?view=energy",
+    "/food?view=macros",
+    "/food?view=weight",
+    "/food?view=needs",
+    "/food?view=weeks",
+    "/progress?section=training&view=fitness",
+    "/progress?section=training&view=records",
+    "/progress?section=training&view=lifting",
+    "/progress?section=food&view=overview",
+    "/progress?section=food&view=energy",
+    "/progress?section=food&view=macros",
+    "/progress?section=food&view=weight",
+    "/progress?section=food&view=needs",
+    "/progress?section=food&view=weeks",
+    "/food/describe?save=1",
+    "/track?type=walk"
+  ]
+}

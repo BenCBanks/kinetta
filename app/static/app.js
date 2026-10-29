@@ -1427,6 +1427,7 @@ async function showWelcome() {
     send: (body) => api('/api/setup', json('POST', body))});
 }
 async function start() {
+  if(globalThis.KinettaBoot?.failed){KinettaBoot.showFailure();return;}
   await Native.ready;
   const cardCode=location.pathname.match(/^\/card\/([A-Za-z0-9_-]{1,60})$/)?.[1]||new URLSearchParams(location.search).get('card');
   if(cardCode&&/^[A-Za-z0-9_-]{1,60}$/.test(cardCode)){store.set('kinetta.cardLink',cardCode);store.del('kinetta.challengeLink');store.del('kinetta.friendLink');}
