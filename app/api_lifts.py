@@ -294,7 +294,7 @@ def start(body: StartIn, user=Depends(current_user)):
     res, aid = activities.store(uid, parsed, meta, source='lift')
     if res != 'added': return {'id': aid, 'resumed': True}     # a workout already started this minute: log onto that one
     with db.connect() as c:
-        c.execute("UPDATE activities SET lift_open = true, name = %s WHERE id = %s AND user_id = %s", (_name(c, uid, now), aid, uid))
+        c.execute("UPDATE activities SET lift_open = true, name = %s, elapsed_s = 0, moving_s = 0 WHERE id = %s AND user_id = %s", (_name(c, uid, now), aid, uid))
         _copy_plan(c, uid, aid, plan)
     return {'id': aid, 'resumed': False}
 

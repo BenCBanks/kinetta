@@ -45,3 +45,6 @@ real mobile-network, physical iPhone, camera, VoiceOver, background-GPS, audio-r
 Keep concrete findings and verification in the combined PR. After repairs, run the entire original regression
 suite twice against the final combined code, repeat the two code-review lenses, and inspect the final captures
 and interactions. Merge, deployment, provider activation, signed upload and physical acceptance stay separate.
+
+
+The owner requested an additional complete [lifting flow review](lifting-review.md) after the PR/website rereview. Its pending final verification must be completed before starting the subsequently queued notification work.

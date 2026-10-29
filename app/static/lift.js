@@ -9,15 +9,14 @@ const fromW = (v) => { const x = parseFloat(String(v).replace(',', '.')); return
 const KINDS = [['weight', 'Weight × reps'], ['body', 'Bodyweight reps'], ['time', 'Timed hold']];
 // a bodyweight exercise (push-ups, pull-ups) is just reps; it gets a weight box only once it has weight on it (a vest or a
 // belt), from its ••• menu, or when last time had some (2026-10-13, Ben: an LB box made no sense for push-ups)
-const hasWeight = (e) => e.kind === 'weight' || (e.kind === 'body' && (e.addWeight || e.sets.some((s) => s.kg) || !!(e.last && e.last.sets.some((s) => s.kg))));
+const hasWeight = (e) => e.kind === 'weight' || (e.kind === 'body' && e.addWeight !== false && (e.addWeight || e.sets.some((s) => s.kg) || !!(e.last && e.last.sets.some((s) => s.kg))));
 const PR_NAMES = {heaviest: 'Heaviest', e1rm: 'Best 1RM', reps: 'Most reps', secs: 'Longest'};
 
 // "3 × 8 @ 135 lb", or "135 × 8, 145 × 6" when the sets differ; warm-ups and planned sets left out
 function setsText(sets, kind) {
   const real = (sets || []).filter((s) => s.done !== false && !s.warmup);
   if (!real.length) return '';
-  const one = (s) => (kind === 'time' || (s.secs && !s.reps) ? `${s.secs || 0} s` : kind === 'body' && !s.kg ? `${s.reps || 0}`
-    : `${toW(s.kg) || 0} × ${s.reps || 0}`) + (kind === 'body' && s.kg ? ` +${toW(s.kg)}` : '');
+  const one = (s) => kind === 'time' || (s.secs && !s.reps) ? `${s.secs || 0} s` : kind === 'body' ? `${s.reps || 0}${s.kg ? ` +${toW(s.kg)}` : ''}` : `${toW(s.kg) || 0} × ${s.reps || 0}`;
   const all = real.map(one);
   if (all.every((x) => x === all[0])) {
     const s = real[0];
@@ -30,27 +29,45 @@ function setsText(sets, kind) {
 const shortDay = (iso) => fdate(iso, {month: 'short', day: 'numeric', ...(new Date(iso).getFullYear() !== new Date().getFullYear() ? {year: 'numeric'} : {})});
 const volText = (kg) => (kg ? `${Math.round(imp() ? kg * LB : kg).toLocaleString()} ${wUnit()}` : '');
 
+// Serialize a session's writes even when navigation creates a second logger. A late acknowledgement must not
+// replace a newer phone draft; keys survive a new login but never cross accounts or chosen servers.
+const liftWrites = new Map(), liftDraftVersions = new Map();
+let liftRevision = 0;
+const liftKey = (aid) => 'fit.lift:' + JSON.stringify([Native.base || location.origin, App.me.id, String(aid)]);
+function queueLift(key, work) {
+  const next = (liftWrites.get(key) || Promise.resolve()).catch(() => {}).then(work);
+  liftWrites.set(key, next);
+  next.finally(() => { if (liftWrites.get(key) === next) liftWrites.delete(key); }).catch(() => {});
+  return next;
+}
+const liftCurrentDraft = (key, revision) => liftDraftVersions.get(key) === revision;
+
 // ---------- start a session ----------
 // The + on Today and Activity offers this first; a session already running is carried on instead of a new one.
 function startLiftSheet() {
   sheet('Start lifting', `<div id="sl-body">${skel(1)}</div>`, async (b, close) => {
-    let recent = [];
+    const owner = readOwner(), active = () => b.isConnected && !b.closest('.scrim')?.inert && owner === readOwner();
+    let recent = [], recentFailed = false;
     try {   // one row per routine: the latest session of each name
       const seen = new Set();
       recent = (await api('/api/lifts/sessions?limit=30')).filter((s) => s.exercises && s.exercises.length && !s.lift_open && !seen.has(s.name) && seen.add(s.name)).slice(0, 5);
-    } catch (e) { /* offline: an empty one still works */ }
+    } catch (e) { recentFailed = true; }
+    if (!active()) return;
     $('#sl-body', b).innerHTML = `<button class="primary wide" id="sl-new">${svg('workout')}Start an empty session</button>
+      ${recentFailed ? '<p class="small muted">Recent sessions couldn’t load.</p><button class="ghost wide" id="sl-retry">Try again</button>' : ''}
       ${recent.length ? `<h3 class="ghead">Or repeat one</h3><p class="small muted sl-hint">Its exercises come along, with that day's numbers in grey beside each set.</p>
       <div class="pick-list">${recent.map((s) => `<button type="button" class="row-link" data-copy="${s.id}"><span class="grow"><span>${esc(s.name)}</span>
         <small class="muted">${esc(shortDay(s.start_time))} · ${esc(s.exercises.slice(0, 3).join(', '))}${s.exercises.length > 3 ? ` +${s.exercises.length - 3}` : ''}</small></span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>` : ''}
       <button class="ghost wide" id="sl-past">Log one you did earlier</button>`;
-    const begin = async (btn, copy) => {
-      btn.disabled = true;
-      try { const r = await api('/api/lifts/start', json('POST', copy ? {copy_from: +copy} : {})); invalidate('/api/'); close(); go(`/track/lift/${r.id}`); }
-      catch (x) { toast(x.message); btn.disabled = false; }
+    const begin = async (copy) => {
+      if (!active()) return;
+      $$('button', b).forEach(x => x.disabled = true);
+      try { const r = await api('/api/lifts/start', json('POST', copy ? {copy_from: +copy} : {})); if (!active()) return; invalidate('/api/'); close(); go(`/track/lift/${r.id}`); }
+      catch (x) { if (active()) { toast(x.message); $$('button', b).forEach(x => x.disabled = false); } }
     };
-    $('#sl-new', b).onclick = (e) => begin(e.currentTarget);
-    $$('[data-copy]', b).forEach((x) => x.onclick = () => begin(x, x.dataset.copy));
+    const retry = $('#sl-retry', b); if (retry) retry.onclick = () => { close(); startLiftSheet(); };
+    $('#sl-new', b).onclick = () => begin();
+    $$('[data-copy]', b).forEach((x) => x.onclick = () => begin(x.dataset.copy));
     $('#sl-past', b).onclick = () => { close(); addActivitySheet(null, 'workout'); };
   });
 }
@@ -62,19 +79,23 @@ route(/^\/lift\/(\d+)$/, 'track', async (el, id) => go(`/track/lift/${id}`, {rep
 route(/^\/track\/lift\/(\d+)$/, 'track', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Track')}</div>${skel(2)}`;
   wireBack(el, '/track');
-  const key = 'fit.lift:' + id;
+  const owner = readOwner(), key = liftKey(id);
   let data;
   try { data = await api(`/api/activities/${id}/lifts`); }
-  catch (e) { const k = store.get(key); if (!k) return showError(el, e); data = k.data; }
+  catch (e) { if (!el.isConnected || owner !== readOwner()) return; const k = store.get(key); if (!e.offline || !k) return showError(el, e); data = k.data; }
+  if (!el.isConnected || owner !== readOwner()) return;
   const draft = store.get(key);
-  if (draft && draft.unsent) data = {...data, exercises: draft.data.exercises};
+  if (draft?.unsent) data = {...data, exercises: draft.data.exercises};
+  else if (draft) data.exercises.forEach(e => { const old = draft.data.exercises.find(x => x.exercise_id === e.exercise_id); if (old?.addWeight !== undefined) e.addWeight = old.addWeight; });
+  data.lastTick = draft?.lastTick || null;
   liftLogger(el, +id, data);
 });
 
 function liftLogger(el, aid, data) {
-  const key = 'fit.lift:' + aid;
-  const S = {ex: data.exercises.map((e) => ({...e, sets: e.sets.map((s) => ({...s}))})), open: data.open, start: data.start_time, lastTick: null};
-  let saveT = null, saving = false, again = false, gone = false;
+  const owner = readOwner(), key = liftKey(aid);
+  const S = {ex: data.exercises.map((e) => ({...e, sets: e.sets.map((s) => ({...s}))})), open: data.open, start: data.start_time, lastTick: data.lastTick || null};
+  let saveT = null, disposed = false, stopped = false, finishing = false, clock = null;
+  const owned = () => owner === readOwner(), live = () => owned() && !disposed && el.isConnected;
   el.innerHTML = `<div class="top">${backBtn('Track')}<div class="acts"><span class="lift-save small muted" id="lf-save" aria-live="polite"></span>
       ${S.open ? '<button class="primary sm" id="lf-finish">Finish</button>' : '<button class="primary sm" id="lf-done">Done</button>'}</div></div>
     ${S.open ? `<div class="lift-clock card"><span>Session <b class="num" id="lf-time">0:00</b></span><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>` : ''}
@@ -88,56 +109,75 @@ function liftLogger(el, aid, data) {
   // the session's time, and Rest: time since the last ticked set (shown once a set is ticked; nothing to set up)
   if (S.open) {
     const t0 = new Date(S.start).getTime(), tick = () => {
-      if (!list.isConnected) { clearInterval(iv); return; }   // left the page, or Finish replaced the logger with its summary
+      if (!list.isConnected || !owned()) { clearInterval(clock); return; }   // left the page, or Finish replaced the logger with its summary
       $('#lf-time', el).textContent = dur(Math.max(0, (Date.now() - t0) / 1000));
       $('#lf-restbox', el).hidden = !S.lastTick;
       if (S.lastTick) $('#lf-rest', el).textContent = dur((Date.now() - S.lastTick) / 1000);
     };
-    const iv = setInterval(tick, 1000); tick();
+    clock = setInterval(tick, 1000); tick();
   }
 
   const filled = (x) => x.reps != null || x.secs != null;
-  const body = () => ({exercises: S.ex.map((e) => ({exercise_id: e.exercise_id, sets: e.sets.map((s) => ({reps: s.reps ?? null, kg: s.kg ?? null, secs: s.secs ?? null, warmup: !!s.warmup, done: S.open ? !!s.done : filled(s)}))}))});
-  const status = (t) => { const s = $('#lf-save', el); if (s) s.textContent = t; };
+  const body = (finish) => {
+    const completed = finish && S.open;
+    const exercises = S.ex.map(e => ({exercise_id: e.exercise_id,
+      sets: e.sets.filter(s => !completed || s.done).map(s => ({reps: s.reps ?? null, kg: s.kg ?? null,
+        secs: s.secs ?? null, warmup: !!s.warmup, done: S.open ? !!s.done : filled(s)}))}));
+    return {exercises: exercises.filter(e => !completed || e.sets.length)};
+  };
+  const status = (t) => { const s = live() && $('#lf-save', el); if (s) s.textContent = t; };
+  const remember = () => {
+    const revision = ++liftRevision; liftDraftVersions.set(key, revision);
+    store.set(key, {unsent: true, revision, lastTick: S.lastTick, data: {...data, exercises: S.ex}});
+    return revision;
+  };
   async function save(finish = false) {
     clearTimeout(saveT); saveT = null;
-    store.set(key, {unsent: true, data: {exercises: S.ex}});
-    if (saving) { again = true; return; }
-    saving = true; status('Saving…');
+    if (!owned() || stopped) return;
+    const revision = remember(), payload = {...body(finish), finish};
+    status('Saving…');
     try {
-      const r = await api(`/api/activities/${aid}/lifts`, json('PUT', {...body(), finish}));
-      store.set(key, {unsent: false, data: r});
+      const r = await queueLift(key, () => {
+        if (!owned() || stopped) throw Object.assign(Error('The session changed.'), {stale: true});
+        return api(`/api/activities/${aid}/lifts`, json('PUT', payload));
+      });
+      if (!owned() || stopped) return;
       invalidate(`/api/activities/${aid}`); invalidate('/api/activities?'); invalidate('/api/lifts'); App.cache.delete('feed:home');
-      // records and last time come back from the server: shown without disturbing what's being typed
-      let moved = false;
-      r.exercises.forEach((e, i) => { const mine = S.ex[i]; if (mine && mine.exercise_id === e.exercise_id) {
-        moved = moved || (mine.last && mine.last.activity_id) !== (e.last && e.last.activity_id);
-        mine.last = e.last; mine.sessions_before = e.sessions_before;
-        mine.sets.forEach((s, j) => { s.pr = (e.sets[j] || {}).pr; }); } });
-      if (!again) { status('Saved'); if (moved && !list.contains(document.activeElement)) draw(); else marks(); }   // the server knows best which session came before
+      if (liftCurrentDraft(key, revision)) {
+        let changedHistory = false;
+        r.exercises.forEach(e => { const mine = S.ex.find(x => x.exercise_id === e.exercise_id); if (mine) {
+          changedHistory ||= mine.last?.activity_id !== e.last?.activity_id;
+          mine.last = e.last; mine.sessions_before = e.sessions_before;
+          mine.sets.forEach((s, j) => { s.pr = (e.sets[j] || {}).pr; });
+        } });
+        store.set(key, {unsent: false, revision, lastTick: S.lastTick, data: {...r, exercises: S.ex}});
+        status('Saved'); if (live()) { if (changedHistory && !list.contains(document.activeElement)) draw(); else marks(); }
+      }
       return r;
     } catch (x) {
-      status(x.offline ? 'Kept on this phone' : 'Not saved');
-      if (!x.offline) toast(x.message);
+      if (!owned() || x.stale) return;
+      if (liftCurrentDraft(key, revision)) status(x.offline && store.get(key)?.unsent ? 'Kept on this phone' : 'Not saved');
+      if (live() && !x.offline && !finish && liftCurrentDraft(key, revision)) toast(x.message);
       if (finish) throw x;
-    } finally {
-      saving = false;
-      if (again) { again = false; save(); }
     }
   }
-  const later = () => { status(''); clearTimeout(saveT); saveT = setTimeout(save, 700); store.set(key, {unsent: true, data: {exercises: S.ex}}); };
-  // leaving the page (or the app going to the background) sends what's waiting at once
-  const flush = () => { if (saveT && !gone) save(); };
+  const later = () => { if (!live() || stopped) return; status(''); clearTimeout(saveT); remember(); saveT = setTimeout(save, 700); };
+  const flush = () => { if (saveT && !stopped && owned()) save(); };
+  const cleanup = () => {
+    flush(); disposed = true; clearTimeout(saveT); clearInterval(clock);
+    removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', flush);
+  };
   addEventListener('pagehide', flush); document.addEventListener('visibilitychange', flush);
-  addEventListener('popstate', () => { flush(); gone = true; }, {once: true});
+  viewResources.set(list, cleanup);
 
   function draw() {
+    if (!live()) return;
     list.innerHTML = S.ex.length ? S.ex.map(exCard).join('') : `<div class="card empty"><b>No exercises yet</b>Add one. Your numbers from the previous session show beside each set.</div>`;
     wire();
   }
   // the columns: set number, the previous session's set (its date on top), the boxes, and the tick in a live session
   const cols = (e) => ['n', ...(e.last ? ['prev'] : []), ...(e.kind === 'time' ? ['secs'] : hasWeight(e) ? ['kg', 'reps'] : ['reps']), ...(S.open ? ['tick'] : [])];
-  const T = '\u2009×\u2009';   // thin spaces: "200 × 5" fits the narrow column
+  const T = ' × ';   // normal spaces allow a previous set to wrap without losing a number
   const prevText = (e, p) => (!p ? '' : e.kind === 'time' ? `${p.secs || 0} s` : p.kg && e.kind === 'body' ? `+${toW(p.kg)}${T}${p.reps || 0}` : p.kg ? `${toW(p.kg)}${T}${p.reps || 0}` : `${p.reps || 0}`);
   function exCard(e, i) {
     const c = cols(e), name = {n: 'Set', prev: e.last ? shortDay(e.last.start_time) : '', kg: e.kind === 'body' ? `+${wUnit()}` : wUnit(), reps: 'Reps', secs: 'Seconds', tick: ''};
@@ -192,18 +232,21 @@ function liftLogger(el, aid, data) {
       $$('[data-tick]', card).forEach((b) => b.onclick = () => {
         const j = +b.dataset.tick, s = e.sets[j], on = !s.done;
         if (on) {   // a blank box takes its grey number (the previous session's) when the set is ticked
-          for (const inp of $$(`.lift-in[data-j="${j}"]`, card)) if (inp.value.trim() === '' && inp.placeholder) { inp.value = inp.placeholder; inp.oninput(); }
+          for (const inp of $$(`.lift-in[data-j="${j}"]`, card)) if (inp.value.trim() === '' && inp.placeholder) {
+            const k = inp.dataset.k, previous = e.last?.sets[j] || e.sets[j - 1];
+            inp.value = inp.placeholder; s[k] = previous[k]; // keep authoritative kg rather than round-tripping displayed lb
+          }
           if (e.kind === 'time' ? !s.secs : !s.reps) { toast(e.kind === 'time' ? 'Type the seconds first' : 'Type the reps first'); $(`.lift-in[data-j="${j}"][data-k="${e.kind === 'time' ? 'secs' : 'reps'}"]`, card).focus(); return; }
           S.lastTick = Date.now();
         }
         s.done = on; b.setAttribute('aria-pressed', String(on)); b.closest('.lift-row').classList.toggle('done', on); save();
       });
       $$('[data-prev]', card).forEach((b) => b.onclick = () => {   // the previous session's set, copied into the boxes
-        const j = +b.dataset.prev, p = e.last.sets[j];
-        for (const inp of $$(`.lift-in[data-j="${j}"]`, card)) { const k = inp.dataset.k; inp.value = p[k] == null ? '' : k === 'kg' ? toW(p[k]) : p[k]; inp.oninput(); }
+        const j = +b.dataset.prev, p = e.last?.sets[j]; if (!p) return;
+        for (const inp of $$(`.lift-in[data-j="${j}"]`, card)) { const k = inp.dataset.k; inp.value = p[k] == null ? '' : k === 'kg' ? toW(p[k]) : p[k]; e.sets[j][k] = p[k]; }
+        later();
       });
       $('[data-addset]', card).onclick = () => {
-        const prev = e.sets[e.sets.length - 1];
         e.sets.push({reps: null, kg: null, secs: null, warmup: false, done: false});   // blank; the grey numbers show what to type
         draw(); later();
         const row = $$(`.lift-ex[data-i="${i}"] .lift-in[data-j="${e.sets.length - 1}"]`, list)[0]; if (row) row.focus({preventScroll: true});
@@ -213,16 +256,19 @@ function liftLogger(el, aid, data) {
     });
   }
   function setMenu(e, j) {
+    if (!live() || finishing) return;
     const s = e.sets[j];
     try { localStorage.setItem('fit.lift.hint', '1'); } catch (x) { /* no storage */ }
     pickSheet(`${e.name}: set ${j + 1}`, pickRows([['normal', 'Normal set', ''], ['wu', 'Warm-up', 'Never counts towards your records']], s.warmup ? 'wu' : 'normal')
       + '<div class="pick-list"><button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Delete this set</span></span></button></div>', (k) => {
+      if (!live() || finishing) return;
       if (k === 'normal' || k === 'wu') s.warmup = k === 'wu';
       if (k === 'del') e.sets.splice(j, 1);
       draw(); save();
     });
   }
   function exMenu(i) {
+    if (!live() || finishing) return;
     const e = S.ex[i];
     pickSheet(e.name, `<div class="pick-list">
       <button type="button" class="row-link" data-pk="note"><span class="grow"><span>${e.note ? 'Edit note' : 'Add a note for next time'}</span><small class="muted">${e.note ? esc(e.note) : 'e.g. seat on 4, narrow grip'}</small></span></button>
@@ -232,25 +278,28 @@ function liftLogger(el, aid, data) {
       ${i > 0 ? '<button type="button" class="row-link" data-pk="up"><span class="grow"><span>Move up</span></span></button>' : ''}
       ${i < S.ex.length - 1 ? '<button type="button" class="row-link" data-pk="down"><span class="grow"><span>Move down</span></span></button>' : ''}
       <button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Remove from this session</span></span></button></div>`, (k) => {
+      if (!live() || finishing) return;
       if (k === 'hist') { flush(); return go(`/lift/ex/${e.exercise_id}`); }
       if (k === 'note') return noteSheet(e, () => { draw(); });
-      if (k === 'wt') { e.addWeight = true; return draw(); }
+      if (k === 'wt') { e.addWeight = true; draw(); return later(); }
       if (k === 'nowt') { e.addWeight = false; e.sets.forEach((s) => { s.kg = null; }); }
       if (k === 'up' || k === 'down') { const t = k === 'up' ? i - 1 : i + 1; [S.ex[i], S.ex[t]] = [S.ex[t], S.ex[i]]; }
       if (k === 'del') {
         const gone = S.ex.splice(i, 1)[0];
-        toast(`${gone.name} removed`, () => { S.ex.splice(i, 0, gone); draw(); save(); });
+        toast(`${gone.name} removed`, () => { if (!live() || finishing) return; S.ex.splice(i, 0, gone); draw(); save(); });
       }
       draw(); save();
     });
   }
   $('#lf-add', el).onclick = () => exercisePicker(S.ex.map((e) => e.exercise_id), async (ex) => {
     // a new exercise gets as many blank sets as the previous session had, its numbers in grey
+    if (!live() || finishing) return;
     let last = null, before = 0;
     try {   // the latest session before this one (a session logged afterwards may be older than others)
       const h = await api(`/api/lifts/exercises/${ex.id}`), earlier = h.sessions.filter((x) => new Date(x.start_time) < new Date(S.start));
       last = earlier[0] || null; before = earlier.length;
     } catch (x) { /* offline: start blank */ }
+    if (!live() || finishing || S.ex.some(e => e.exercise_id === ex.id)) return;
     const sets = (last ? last.sets : [{}]).map((s) => ({reps: null, kg: null, secs: null, warmup: !!s.warmup, done: false}));
     S.ex.push({exercise_id: ex.id, name: ex.name, kind: ex.kind, muscle: ex.muscle, note: ex.note, last, sessions_before: before, sets});
     draw(); save();
@@ -258,24 +307,23 @@ function liftLogger(el, aid, data) {
   });
   const fin = $('#lf-finish', el) || $('#lf-done', el);
   fin.onclick = async () => {
+    if (finishing || !live()) return;
     const open = S.ex.reduce((n, e) => n + e.sets.filter((s) => !s.done).length, 0);
     const finish = async () => {
-      fin.disabled = true;
-      // planned sets nobody ticked are left out: they never happened
-      if (S.open) S.ex.forEach((e) => { e.sets = e.sets.filter((s) => s.done); });
-      S.ex = S.ex.filter((e) => e.sets.length || !S.open);
+      if (finishing || !live()) return;
+      finishing = true; $$('button,input', el).forEach(x => x.disabled = true);
       try {
-        const r = await save(true); store.del(key); gone = true;
+        const r = await save(true); if (!r || !live()) return; store.del(key); stopped = true; cleanup();
         if (S.open && r) liftSummary(el, aid, r); else { go(`/track?done=${aid}`, {replace: true}); toast(S.open ? 'Session saved' : 'Saved'); }
       }
-      catch (x) { fin.disabled = false; toast(x.offline ? "Can't reach Kinetta - your sets are kept on this phone. Try again when you're back online." : x.message); }
+      catch (x) { if (!live()) return; finishing = false; $$('button,input', el).forEach(x => x.disabled = false); toast(x.offline ? (store.get(key)?.unsent ? "Can't reach Kinetta - your sets are kept on this phone. Try again when you're back online." : "Can't reach Kinetta. Keep this screen open and try again.") : x.message); }
     };
     if (S.open && open) sheet('Finish the session?', `<p>${open} set${open > 1 ? 's are' : ' is'} not ticked off. ${open > 1 ? "They're" : "It's"} left out of the session.</p>
       <div class="btnrow"><button class="ghost" data-close>Keep going</button><button class="primary" id="ff-yes">Finish</button></div>`, (b, close) => { $('#ff-yes', b).onclick = () => { close(); finish(); }; });
     else finish();
   };
   const dis = $('#lf-discard', el);
-  if (dis) dis.onclick = () => discardLift(aid, () => { clearTimeout(saveT); saveT = null; gone = true; });
+  if (dis) dis.onclick = () => discardLift(aid, () => { clearTimeout(saveT); saveT = null; stopped = true; return () => { stopped = false; save(); }; });
   draw();
   if (store.get(key) && store.get(key).unsent) save();     // a copy from earlier that never reached the server
 }
@@ -284,13 +332,16 @@ function liftLogger(el, aid, data) {
 // A session you don't want to keep goes completely, before or right after Finish (28 October 2026, owner: people may
 // not want to post it at all). Until Finish nobody else sees it; this removes it for good.
 function discardLift(aid, stop) {
+  const owner = readOwner(), key = liftKey(aid);
   sheet('Delete this session?', '<p>Its exercises and sets are deleted, and it won’t be posted. This can’t be undone.</p><button class="ghost wide" id="ld-keep">Keep it</button><button class="primary danger-btn wide" id="ld-del">Delete session</button>', (b, close) => {
     $('#ld-keep', b).onclick = close;
     $('#ld-del', b).onclick = async (e) => {
-      e.target.disabled = true; if (stop) stop();
-      try { await api(`/api/activities/${aid}`, {method: 'DELETE'}); }
-      catch (x) { if (x.status !== 404) { e.target.disabled = false; toast(x.message); return; } }   // already gone is fine
-      store.del('fit.lift:' + aid); invalidate('/api/'); App.cache.delete('feed:home'); close(); go('/track', {replace: true}); toast('Session deleted');
+      if (owner !== readOwner()) return;
+      e.target.disabled = true; const resume = stop?.();
+      try { await queueLift(key, () => { if (owner !== readOwner()) throw Object.assign(Error('Account changed'), {stale: true}); return api(`/api/activities/${aid}`, {method: 'DELETE'}); }); }
+      catch (x) { if (x.status !== 404) { if (owner === readOwner() && b.isConnected) { resume?.(); e.target.disabled = false; toast(x.message); } return; } }   // already gone is fine
+      if (owner !== readOwner()) return;
+      store.del(key); invalidate('/api/'); App.cache.delete('feed:home'); close(); go('/track', {replace: true}); toast('Session deleted');
     };
   });
 }
@@ -315,10 +366,11 @@ const recordText = (r) => (r.what === 'secs' ? `${r.set.secs} s` : r.what === 'r
 // The session is already saved; this screen names it, shows what was done and sets who can see it, the way a recording's
 // summary does. Done sends only what changed.
 async function liftSummary(el, aid, r) {
+  const owner = readOwner(), active = () => el.isConnected && owner === readOwner();
   invalidate(`/api/activities/${aid}`);
   let a;
-  try { a = await api(`/api/activities/${aid}`); } catch (x) { go(`/track?done=${aid}`, {replace: true}); toast('Session saved'); return; }
-  if (!el.isConnected) return;
+  try { a = await api(`/api/activities/${aid}`); } catch (x) { if (!active()) return; go(`/track?done=${aid}`, {replace: true}); toast('Session saved'); return; }
+  if (!active()) return;
   const t = liftTotals(r.exercises), secs = a.elapsed_s || a.moving_s || 0, start = new Date(a.start_time);
   // the server's estimate for a workout without a watch number (energy.activity_kcal): 5 METs, profile weight else 75 kg
   const kcal = a.calories > 0 ? a.calories : 5 * (App.me?.weight_kg || 75) * (a.moving_s || secs) / 3600;
@@ -344,31 +396,32 @@ async function liftSummary(el, aid, r) {
   wireBack(el, '/track');
   const f = $('#lf-sum', el), err = $('#lf-sum-error', el), done = $('#lf-sum-done', el), carry = $('#lf-carry', el);
   f.onsubmit = async (ev) => {
-    ev.preventDefault(); done.disabled = carry.disabled = true; err.textContent = '';
+    ev.preventDefault(); if (!active()) return; done.disabled = carry.disabled = true; err.textContent = '';
     const name = f.activity_name.value.trim(), visibility = f.visibility.value;
     try {
       if (name && name !== a.name) await api(`/api/activities/${aid}`, json('PATCH', {name}));
       if (visibility !== a.visibility) { await api(`/api/activities/${aid}/sharing`, json('PUT', {visibility})); if (typeof socialChanged === 'function') socialChanged(aid); }
-      invalidate('/api/'); App.cache.delete('feed:home'); go(`/track?done=${aid}`, {replace: true}); toast('Session saved');
-    } catch (x) { done.disabled = carry.disabled = false; err.textContent = x.offline ? "Can't reach Kinetta. The session is saved; try again to keep the new title or sharing." : x.message; }
+      if (!active()) return; invalidate('/api/'); App.cache.delete('feed:home'); go(`/track?done=${aid}`, {replace: true}); toast('Session saved');
+    } catch (x) { if (!active()) return; done.disabled = carry.disabled = false; err.textContent = x.offline ? "Can't reach Kinetta. The session is saved; try again to keep the new title or sharing." : x.message; }
   };
   $('#lf-sum-del', el).onclick = () => discardLift(aid);
   // finished by mistake: back into the logger, within the session's 4 hours (unticked sets were already left out)
   carry.onclick = async () => {
-    done.disabled = carry.disabled = true;
-    try { await api(`/api/activities/${aid}/lifts/reopen`, json('POST', {})); invalidate('/api/'); liftLogger(el, aid, await api(`/api/activities/${aid}/lifts`)); }
-    catch (x) { done.disabled = carry.disabled = false; toast(x.message); }
+    if (!active()) return; done.disabled = carry.disabled = true;
+    try { await api(`/api/activities/${aid}/lifts/reopen`, json('POST', {})); invalidate('/api/'); const data = await api(`/api/activities/${aid}/lifts`); if (active()) liftLogger(el, aid, data); }
+    catch (x) { if (!active()) return; done.disabled = carry.disabled = false; toast(x.message); }
   };
 }
 
 const hintSeen = () => { try { return !!localStorage.getItem('fit.lift.hint'); } catch (x) { return true; } };
 
 function noteSheet(e, after) {
+  const owner = readOwner();
   sheet('Note for next time', `<form class="form" id="nt"><textarea name="note" maxlength="500" rows="3" placeholder="e.g. seat on 4, narrow grip">${esc(e.note || '')}</textarea>
     <p class="small muted">Shown under ${esc(e.name)} every time you log it.</p><div class="actions"><button class="primary">Save note</button></div></form>`, (b, close) => {
     $('#nt', b).onsubmit = async (ev) => {
-      ev.preventDefault(); const note = $('textarea', b).value.trim();
-      try { await api(`/api/lifts/exercises/${e.exercise_id || e.id}`, json('PATCH', {note})); e.note = note || null; invalidate('/api/lifts'); close(); after(); }
+      ev.preventDefault(); if (!b.isConnected || owner !== readOwner()) return; const note = $('textarea', b).value.trim();
+      try { await api(`/api/lifts/exercises/${e.exercise_id || e.id}`, json('PATCH', {note})); if (!b.isConnected || owner !== readOwner()) return; e.note = note || null; invalidate('/api/lifts'); close(); after(); }
       catch (x) { toast(x.message); }
     };
   });
@@ -379,12 +432,17 @@ function noteSheet(e, after) {
 function exercisePicker(skip, pick) {
   sheet('Add exercise', `<input type="search" id="xp-q" placeholder="Search or type a new one" autocomplete="off" enterkeyhint="done">
     <div id="xp-list">${skel(1)}</div>`, async (b, close) => {
-    let all;
-    try { all = await api('/api/lifts/exercises'); } catch (x) { $('#xp-list', b).innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
+    const owner = readOwner(), active = () => b.isConnected && !b.closest('.scrim')?.inert && owner === readOwner();
+    let all, choosing = false;
+    const fetchExercises = async () => {
+      try { const result = await api('/api/lifts/exercises'); if (active()) { all = result; draw(); } }
+      catch (x) { if (active()) { $('#xp-list', b).innerHTML = `<p class="err">${esc(x.message)}</p><button class="ghost wide" id="xp-retry">Try again</button>`; $('#xp-retry', b).onclick = fetchExercises; } }
+    };
     const q = $('#xp-q', b);
     const row = (x, mine) => `<button type="button" class="row-link" data-name="${esc(x.name)}"${mine ? ` data-id="${x.id}"` : ''}><span class="grow"><span>${esc(x.name)}</span>
       ${mine && x.last ? `<small class="muted">Last: ${esc(shortDay(x.last))}</small>` : ''}</span>${svg('plus', 'xp-plus')}</button>`;
     const draw = () => {
+      if (!active() || !all) return;
       const t = q.value.trim().toLowerCase(), hit = (x) => !t || x.name.toLowerCase().includes(t);
       const mine = all.mine.filter((x) => !skip.includes(x.id) && hit(x)), common = all.common.filter(hit);
       const groups = [...new Set(common.map((x) => x.muscle))];
@@ -397,13 +455,14 @@ function exercisePicker(skip, pick) {
       const nw = $('[data-new]', b); if (nw) nw.onclick = () => newKind(q.value.trim());
     };
     const choose = async (name, id, kind) => {
+      if (!active() || choosing) return; choosing = true;
       try {
         const ex = id ? all.mine.find((x) => x.id === +id) : await api('/api/lifts/exercises', json('POST', {name, kind}));
-        invalidate('/api/lifts'); close(); pick(ex);
-      } catch (x) { toast(x.message); }
+        if (!active()) return; invalidate('/api/lifts'); close(); pick(ex);
+      } catch (x) { if (active()) { choosing = false; toast(x.message); } }
     };
     const newKind = (name) => pickSheet(`How is ${name} measured?`, pickRows(KINDS.map(([k, n]) => [k, n, k === 'weight' ? 'Most lifts: a weight, lifted a number of times' : k === 'body' ? 'Push-ups, pull-ups: reps (you can add weight later)' : 'Planks and holds: seconds'])), (k) => choose(name, null, k));
-    q.oninput = draw; draw();
+    q.oninput = draw; fetchExercises();
   });
 }
 
@@ -415,8 +474,8 @@ async function pLifting(body) {
   const box = $('#lv-body', body); if (!box) return;
   const mine = ex.mine.filter((x) => x.sessions);
   if (!mine.length) {
-    box.innerHTML = `<div class="card empty"><b>No lifting yet</b>Start a session and log your sets: every exercise gets its own history and records here.
-      </div>`;
+    box.innerHTML = `<div class="card empty"><b>No lifting yet</b>Log your sets to build exercise history and records.</div><button class="primary wide" id="lv-start">Start lifting</button>`;
+    $('#lv-start', box).onclick = startLiftSheet;
     return;
   }
   const best = (x) => (x.kind === 'time' ? `${x.best_secs || 0} s` : x.kind === 'body' && !x.best_kg ? `${x.best_reps || 0} reps` : `${toW(x.best_kg)} ${wUnit()}`);
@@ -496,7 +555,7 @@ async function fillLiftCard(el, a) {
   try {
     const r = await api(`/api/activities/${a.id}/lifts`);
     if (!box.isConnected) return;
-    box.innerHTML = `<h2>Exercises</h2>
+    box.innerHTML = `<div class="lift-card-head"><h2>Exercises</h2><a class="linkbtn" href="/track/lift/${a.id}">Edit sets</a></div>
       ${r.exercises.map((e) => { const prs = e.sets.filter((s) => (s.pr || []).length).flatMap((s) => s.pr);
         return `<a class="row-link ls-row" href="/lift/ex/${e.exercise_id}"><span class="grow"><b>${esc(e.name)}</b><small class="num">${esc(setsText(e.sets, e.kind)) || '<span class="muted">nothing ticked</span>'}</small>
           ${e.last ? `<small class="muted">${esc(shortDay(e.last.start_time))}: ${esc(setsText(e.last.sets, e.kind))}</small>` : ''}</span>

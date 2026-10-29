@@ -1330,3 +1330,8 @@ Activity is one chronological self-and-approved-friends feed, with compact Find 
 Shared profile explicitly previews Approved friends or Other members for its owner. Actual viewers retain their real permissions. All summaries, charts and activities use the same backend audience filter and map/detail trimming. Content/layout customization covers section visibility/order, selected statistics and featured sports, alongside photo/name/bio. Layout choices do not change sharing permissions; food, body data and Kit stay private. Keep drafts through previews and failed saves. Older servers cannot silently show a friend projection as a nonfriend preview.
 
 Optional setup tips can be hidden and restored in Settings across devices, without changing Health or AI consent. Required account/email notices remain visible. Long text wraps or uses an explicit disclosure, with no silent truncation or reduced accessibility text.
+
+
+## Lifting follow-up · 29 October 2026
+
+Keep the set logger compact and explicit: previous-set values wrap, copied values preserve original kg, bodyweight uses reps until added weight is chosen, and seconds are labelled. Save/Finish must serialize; failed or cancelled Finish keeps planned rows. Restore rest timing across normal reloads, keep private drafts scoped to account and server, and never mark newer typing saved from an older response. The saved summary agrees with the session clock. Activity detail offers Edit sets and empty lifting Progress offers Start lifting. See [requirements and verification](lifting-review.md).

@@ -46,6 +46,7 @@ node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
 node dev/tests/test_track.js
 node dev/tests/test_lift_summary.js
+node dev/tests/test_lift_lifecycle.js
 node dev/tests/test_recipe_delete.js
 node dev/tests/test_recipe_creation.js
 node dev/tests/test_recipe_pending.js

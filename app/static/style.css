@@ -1128,12 +1128,12 @@ body.ph-open { overflow: hidden; }
 .cmsg.ai i { font-style: normal; color: var(--tx2); }
 
 /* ---------- Lifting (2026-10-13, lift.js) ---------- */
-.lift-clock { display: flex; gap: 22px; padding: 10px 16px; font-size: 13px; font-weight: 650; color: var(--tx3); text-transform: uppercase; letter-spacing: .05em; }
+.lift-clock { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 10px 16px; font-size: 13px; font-weight: 650; color: var(--tx3); text-transform: uppercase; letter-spacing: .05em; }
 .lift-clock b { font: 700 20px/1.15 var(--numf); letter-spacing: -.02em; color: var(--tx); text-transform: none; margin-left: 6px; }
 .lift-save { min-width: 0; white-space: nowrap; }
 .lift-ex { padding-bottom: 12px; }
 .lift-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 2px; }
-.lift-name { font-size: 18px; font-weight: 750; color: var(--tx); letter-spacing: -.015em; min-height: 40px; display: flex; align-items: center; }
+.lift-name { min-width: 0; overflow-wrap: anywhere; font-size: 18px; font-weight: 750; color: var(--tx); letter-spacing: -.015em; min-height: 40px; display: flex; align-items: center; }
 .lift-hd .icon-btn { background: var(--card2); box-shadow: none; flex: none; }
 .lift-note { margin: 0 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--card2); color: var(--tx2); }
 /* one row per set (2026-10-13): set number | the previous session's set | boxes | tick; a done set's row turns green */
@@ -1146,7 +1146,7 @@ body.ph-open { overflow: hidden; }
 .lift-row.lh { padding-top: 0; padding-bottom: 0; }
 .lift-row.lh span { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--tx3); text-align: center; white-space: nowrap; overflow: hidden; }
 .lift-row.lh .lh-n { text-align: left; }
-.lift-prev { height: 44px; border: 0; border-radius: 12px; background: none; color: var(--tx3); font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0; letter-spacing: -.01em; }
+.lift-prev { min-height: 44px; height: auto; border: 0; border-radius: 12px; background: none; color: var(--tx3); font-size: 13.5px; font-weight: 600; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; padding: 4px 0; letter-spacing: -.01em; }
 button.lift-prev:active { background: var(--card2); }
 .lift-prev.none { display: grid; place-items: center; }
 .lift-hint { margin: 8px 0 0; }
@@ -1168,6 +1168,8 @@ button.lift-prev:active { background: var(--card2); }
 .lift-foot { margin: 12px 0 0; }
 .lift-now { display: flex; align-items: center; gap: 12px; } .lift-now .grow { flex: 1; display: grid; }
 .post-lifts { margin: 10px 0 0; font-size: 13.5px; color: var(--tx2); white-space: normal; overflow-wrap: anywhere; }
+.lift-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.lift-card-head h2 { margin: 0; }
 .ls-row .grow small { font-size: 14px; } .ls-row .grow small.num { color: var(--tx); }
 .lv-best { display: grid; text-align: right; flex: none; } .lv-best b { font: 700 17px var(--numf); }
 .lv-names { white-space: normal; overflow-wrap: anywhere; }

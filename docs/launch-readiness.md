@@ -39,7 +39,7 @@ P3 [#275](https://github.com/BenCBanks/kinetta/issues/275), [#273](https://githu
 [#328](https://github.com/BenCBanks/kinetta/issues/328) remain deferred. The earlier food-macro #319 was completed
 separately in PR322. There is no current P0 incident.
 
-## Completed software verification
+## Earlier completed software verification
 
 App candidate **bc8e58e** includes the guide/navigation and native-runner follow-ups. Later website wording and
 acceptance-document updates do not change its app, server, migrations, native wrapper, test suite or fixtures. Concrete CI links and reviewed captures are in PR344.
@@ -71,6 +71,12 @@ An additional read-only semantic-name check across 82 views found no unnamed foc
 from physical VoiceOver acceptance. Old home/selector/shortcut renderers and their unused styles were removed;
 compatibility migrations/storage were retained.
 
+## Subsequent PR rereview and lifting audit
+
+All13 PRs and current review comments were rechecked. Source1eb3df2 passed the entire original suite twice on fresh New York/UTC databases, the schema80→86 preservation upgrade and all GitHub checks. Final656 app layouts,56 website layouts/14 destinations, repeated recipe-recovery/sharing flows and eight crop interactions pass. All20 compact/Pro native captures from identical-native-tree7df4bb4 were inspected. PR344 records the exact code-only AI fingerprint trace, fixes and outstanding release gates.
+
+The subsequent [lifting review](lifting-review.md) repairs Finish/autosave, draft/account safety, copied-value precision, previous-value clipping, timing and discoverability. Its final whole-suite/browser evidence is pending; the prior1eb3df2 results do not stand in for these later changes. Additional configurable notification research is explicitly queued after all prior work; it has not started.
+
 ## Required behavior
 
 ### Recipe creation and editing
@@ -78,7 +84,7 @@ compatibility migrations/storage were retained.
 - My Recipes → Create a recipe opens a fresh ingredient editor. A pending Add food conversation is retained separately; it must never become the recipe’s ingredients implicitly.
 - Recipe name appears above ingredients/nutrition in creation, editing and review. Long names wrap and remain editable.
 - A saved whole recipe must not replace milk, espresso or sugar supplied as individual new ingredients. Known source quantities remain authoritative; unknown weights/nutrients are not invented. Remembered shots require a known per-shot weight.
-- Save recipe is a clear action. Changes saving as the person builds must be disclosed accurately. No food entry is written when Add to log is off; it starts off for deliberate creation.
+- Save recipe cannot proceed with a pending request, unresolved ingredient match/clarification or unsent ingredient; cancelling an ingredient fences late replies. Save recipe is a clear action. Changes saving as the person builds must be disclosed accurately. No food entry is written when Add to log is off; it starts off for deliberate creation.
 - Add to log explicitly leads to meal/portion review. Cancellation, retry, lost acknowledgements and account changes cannot duplicate or misdirect a food write.
 - Visible trash opens an app confirmation that says existing logged portions remain. Reader views cannot delete another person’s recipe.
 - Add food retains its own logging purpose and optional recipe saving. My Recipes, Take a photo, Scan a barcode and Search foods use Kit’s existing suggestion-bubble style; + remains available. Quick actions make no model call merely by appearing.
@@ -102,10 +108,10 @@ compatibility migrations/storage were retained.
 
 ### Sharing features
 
-- Recaps: local week/month/year totals match Progress; empty/lifting/unknown cases are honest; Food and identity are opt-in; no body or location data; private activity highlights are not named; Garmin attribution remains visible. Cancelled sharing does not dismiss an offer.
-- Cards: off by default, username-only, selected photo/sports/up-to-two stats, revocable random links and accurate previews. Opening a card never auto-friends. Requests are pending, limited and owner-approved; signup confirmation, blocked/unconfirmed/suspended/deleted owners and disabled/rotated links are enforced. Do not bypass server signup/waitlist settings.
+- Recaps: local week/month/year totals include private-workout aggregates and match Progress; empty/lifting/unknown cases are honest; Food and identity are opt-in; no body or location data; private activity highlights are not named; Garmin attribution remains visible. Cancelled sharing does not dismiss an offer.
+- Cards: off by default, username-only, selected photo/sports/up-to-two stats with explicit private-aggregate disclosure, revocable random links and accurate previews. Opening a card never auto-friends. Requests are pending, limited and owner-approved; signup confirmation, blocked/unconfirmed/suspended/deleted owners and disabled/rotated links are enforced. Do not bypass server signup/waitlist settings.
 - Milestones: fixed first/best/total thresholds, cumulative food days rather than food streaks, at most one visible banner, once-only records, silent older imports, edits/deletion invalidation, private-activity reminder and off-default notification settings.
-- Challenges: fixed templates and generated names, explicit joining without friendship, only username/photo/aggregate progress shared, private food/protein targets, per-participant local dates, limits, immediate leave/remove/block behavior, end/finish pictures and90-day cleanup.
+- Challenges: fixed templates and generated names, explicit joining without friendship, only username/photo/aggregate progress shared, private food/protein targets, per-participant local dates, live totals after natural completion (late imports/entries/edits/deletions), no repeated completed-notice worker jobs, limits, immediate leave/remove/block behavior, end/finish pictures and90-day cleanup.
 - Reuse the reviewed child issues for detailed behavior. Do not replace their acceptance criteria with this shorter summary.
 
 ## Remaining acceptance and release steps

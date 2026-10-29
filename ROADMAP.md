@@ -17,6 +17,8 @@ The selected P1 launch repairs also include [recipe layout/deletion #332](https:
 
 The combined [PR344](https://github.com/BenCBanks/kinetta/pull/344) contains the selected app and sharing implementations. Twenty implementation issues are in review; the complete original suite passed twice on the combined app candidate, with final UI and native evidence. Component PRs are draft review aids; use the combined PR for current verification and remaining release gates. Unmerged code is not a hosted release. The [feature-priority decision](docs/feature-priorities.md) records current official competitor overlap and which everyday workflows should lead in the app and website.
 
+Owner follow-up: the deeper [lifting usability review](docs/lifting-review.md) follows the all-PR/website rereview. Additional configurable push-notification research, requirements and implementation stay queued until all earlier tasks are complete; no new notification selection has begun.
+
 There is no current P0 incident. P0 means immediate security, privacy or data loss and takes precedence when one is found.
 
 ## Next — shareable Kinetta

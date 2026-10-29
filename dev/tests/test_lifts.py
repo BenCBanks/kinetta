@@ -60,6 +60,7 @@ ck(any(x['id'] == two['id'] and x['lifts'] for x in feed), 'feed summary')
 # start now: a live session; a second tap resumes it; repeating copies sets as planned
 s, live = a.post('/api/lifts/start', {'copy_from': two['id']}); ck(s == 200 and not live['resumed'], f'start {live}')
 ck(a.post('/api/lifts/start', {})[1] == {'id': live['id'], 'resumed': True}, 'second start resumes')
+ck(a.get(f"/api/activities/{live['id']}")[1]['elapsed_s'] == 0, 'new live lifting starts at zero, not a fabricated minute')
 s, L = a.get(f"/api/activities/{live['id']}/lifts")
 ck(L['open'] and [e['name'] for e in L['exercises']] == ['Bench press', 'Plank'] and not any(x['done'] for e in L['exercises'] for x in e['sets']), 'copied as plan')
 ck(len(L['exercises'][0]['sets']) == 3, 'copied only the done sets')
@@ -69,6 +70,9 @@ ck(any(x['id'] == live['id'] and x['lift_open'] for x in a.get('/api/lifts/sessi
 sets = L['exercises'][0]['sets']; sets[1]['done'] = True
 s, r = a.put(f"/api/activities/{live['id']}/lifts", {'exercises': [{'exercise_id': bench['id'], 'sets': sets}], 'finish': True})
 ck(s == 200 and not r['open'], 'finish closes it')
+quick = a.get(f"/api/activities/{live['id']}")[1]
+actual = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(quick['start_time'])).total_seconds()
+ck(abs(quick['elapsed_s'] - actual) < 5, 'quick Finish duration follows its clock, not a one-minute minimum')
 ck(a.get(f"/api/activities/{live['id']}")[1]['name'].endswith('Lift'), 'named "... Lift"')
 
 # added by hand afterwards (2026-10-13 form): the kind is kept; lifting gets "… Lift" and can repeat a past session's sets
