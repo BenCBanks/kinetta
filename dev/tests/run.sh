@@ -47,6 +47,7 @@ node dev/tests/test_temporary_login.js
 node dev/tests/test_track.js
 node dev/tests/test_lift_summary.js
 node dev/tests/test_lift_lifecycle.js
+node --check dev/tests/lift_ui.cjs # rendered checks run in the screenshot workflow
 node dev/tests/test_recipe_delete.js
 node dev/tests/test_recipe_creation.js
 node dev/tests/test_recipe_pending.js

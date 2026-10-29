@@ -55,6 +55,7 @@ jobs:
           npx playwright install --with-deps chromium
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/screenshots/take.js" /tmp/png
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/map_ui.cjs"
+          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/lift_ui.cjs"
           pip install pillow==11.0.0
           python3 "$GITHUB_WORKSPACE/dev/screenshots/to_webp.py" /tmp/png "$GITHUB_WORKSPACE/site/assets/shots"
       - name: Commit them

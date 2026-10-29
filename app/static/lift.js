@@ -198,7 +198,7 @@ function liftLogger(el, aid, data) {
     const box = (k, mode, label) => `<input class="lift-in" data-j="${j}" data-k="${k}" inputmode="${mode}" enterkeyhint="next" autocomplete="off" value="${esc(v(k))}" placeholder="${esc(ph(k))}" aria-label="Set ${j + 1} ${label}">`;
     const cell = {
       n: `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}${s.warmup ? ', warm-up' : ''}: warm-up or delete">${s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length}</button>`,
-      prev: p ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}">${esc(prevText(e, p))}</button>` : '<span class="lift-prev none">–</span>',
+      prev: p ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}"><span class="lift-prev-label">${esc(shortDay(e.last.start_time))}:</span><span>${esc(prevText(e, p))}</span></button>` : '<span class="lift-prev none">–</span>',
       kg: box('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()), reps: box('reps', 'numeric', 'reps'), secs: box('secs', 'numeric', 'seconds'),
       tick: `<button type="button" class="lift-tick" data-tick="${j}" aria-pressed="${!!s.done}" aria-label="Set ${j + 1} done">${svg('check')}</button>`,
     };
@@ -393,6 +393,7 @@ async function liftSummary(el, aid, r) {
       <button class="primary wide" id="lf-sum-done">Done</button><p class="small danger" id="lf-sum-error" role="alert"></p></form>
       <button class="ghost wide" id="lf-carry">Carry on with this session</button>
       <button type="button" class="linkbtn danger track-discard" id="lf-sum-del">Delete this session</button></section>`;
+  window.scrollTo(0, 0); // Finish starts at the title and totals, even after logging near the bottom.
   wireBack(el, '/track');
   const f = $('#lf-sum', el), err = $('#lf-sum-error', el), done = $('#lf-sum-done', el), carry = $('#lf-carry', el);
   f.onsubmit = async (ev) => {
@@ -408,7 +409,7 @@ async function liftSummary(el, aid, r) {
   // finished by mistake: back into the logger, within the session's 4 hours (unticked sets were already left out)
   carry.onclick = async () => {
     if (!active()) return; done.disabled = carry.disabled = true;
-    try { await api(`/api/activities/${aid}/lifts/reopen`, json('POST', {})); invalidate('/api/'); const data = await api(`/api/activities/${aid}/lifts`); if (active()) liftLogger(el, aid, data); }
+    try { await api(`/api/activities/${aid}/lifts/reopen`, json('POST', {})); invalidate('/api/'); const data = await api(`/api/activities/${aid}/lifts`); if (active()) { window.scrollTo(0, 0); liftLogger(el, aid, data); } }
     catch (x) { if (!active()) return; done.disabled = carry.disabled = false; toast(x.message); }
   };
 }
