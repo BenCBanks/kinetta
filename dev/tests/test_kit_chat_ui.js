@@ -11,7 +11,7 @@ const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
  const g={App:{me:{ai_ok:true,coach:true,ai_access:{coach:{available:true,entitled:true}}}}};vm.createContext(g);vm.runInContext(gate,g);
  assert.equal(g.kitChatOn(),false,'no Kit chat until the server reports kit_chat');g.App.me.kit_chat=true;assert.equal(g.kitChatOn(),true);g.App.me.ai_ok=false;assert.equal(g.kitChatOn(),false,'consent off hides Kit chat');
  let made=0;const e={kitChatOn:()=>false,href:s=>'/me/kit?from='+s,document:{createElement(){made++;return {setAttribute(){}}}},svg:()=>''};vm.createContext(e);vm.runInContext(source.slice(source.indexOf('  function entry(el,path){'),source.indexOf('  return {mount,')).replace('function entry','globalThis.entry=function'),e);
- const page={querySelector:s=>s==='.top'?{querySelector:()=>null,append(){}}:null};e.entry(page,'/food');assert.equal(made,0,'gated Kit adds no tab-home entry');e.kitChatOn=()=>true;e.entry(page,'/food');assert.equal(made,1);
+ const page={querySelector:s=>s==='.top'?{querySelector:()=>null,append(){}}:null};e.entry(page,'/food');assert.equal(made,0,'gated Kit adds no tab-home entry');e.kitChatOn=()=>true;e.entry(page,'/food');assert.equal(made,1);e.entry(page,'/me');assert.equal(made,1,'Me owns one compact Kit entry; no duplicate invitation');
  for(const [file,needle] of [['app/static/pages.js',"kitChatOn() ? go(KitChat.href('activity'"],['app/static/food.js','if (kitChatOn()) { box.innerHTML'],['app/static/plan.js',"kitChatOn() ? '<a class=\"ghost\" href=\"/me/kit?from=plan\">"],['app/static/thread.js',"!kitChatOn()||!(r.offer_kit"]])
    assert(fs.readFileSync(file,'utf8').includes(needle),file+' gates its Kit chat entry');}
 (async()=>{

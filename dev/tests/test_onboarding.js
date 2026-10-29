@@ -12,6 +12,7 @@ c.Native.on=false;assert.equal(c.getStarted(false,true),'','Experienced Safari u
 c.App.me.kcal_target=null;assert.equal(c.getStarted(false,true),'','Me never asks for a nutrition goal (activity-first, #164); goal setup lives in Nutrition');
 assert.match(c.getStarted(false,false),/Record an activity/);assert.doesNotMatch(c.getStarted(false,false),/Log something you ate|nutrition goal/);
 c.Native.on=true;assert.match(c.getStarted(false,false),/Connect Apple Health/);assert.match(c.getStarted(false,false),/Garmin Connect or Apple Health/);assert.match(c.getStarted(false,false),/Connect your watch/);
+c.App.me.setup_hidden=true;assert.equal(c.getStarted(false,false),'','Optional setup dismissal survives missing Health and fresh history');c.App.me.setup_hidden=false;assert.match(c.getStarted(false,false),/Hide tips/);
 console.log('onboarding setup card: native optional Health, complete/empty, activity-first new-account cases passed');
 
 // The real route renders without writes and its Not now path only navigates. Draft choices survive a visit away.

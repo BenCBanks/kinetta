@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const s=fs.readFileSync('app/static/social.js','utf8'),source=s.slice(s.indexOf('const friendCountText'),s.indexOf('// These numbers are calculated'));
+const s=fs.readFileSync('app/static/social.js','utf8'),source=s.slice(s.indexOf('const friendCountText'),s.indexOf('function shareProfile('));
 function fixture(){
  const nodes=new Map(),node=sel=>{if(!nodes.has(sel))nodes.set(sel,{disabled:false,textContent:'',isConnected:true});return nodes.get(sel);};
  let owner='one',body={isConnected:true},closeCount=0,calls=[],changed=[];

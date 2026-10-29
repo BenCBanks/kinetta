@@ -17,6 +17,7 @@ from psycopg import errors, sql
 from . import db, auth
 from .auth import current_user
 from .admin_auth import admin_user, audit
+from .profile_layout import ProfileLayout
 
 router = APIRouter()
 DATA = os.environ.get('FIT_DATA', '/data')
@@ -39,6 +40,7 @@ class AccountIn(BaseModel):
     bio: str | None = Field(None, max_length=280)
     name: str | None = Field(None, max_length=60)
     login: str | None = Field(None, max_length=30)
+    profile_layout: ProfileLayout | None = None
 
 
 @router.put('/api/account')
@@ -46,15 +48,21 @@ def set_account(body: AccountIn, user=Depends(current_user)):
     vals = {}
     if body.name is not None: vals['name'] = _clean_name(body.name)
     if body.login is not None: vals['login'] = _clean_login(body.login)
-    if vals or body.bio is not None:
+    layout=body.profile_layout.model_dump() if body.profile_layout is not None else None
+    if vals or body.bio is not None or layout is not None:
         try:
             with db.connect() as c:
+                if not c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],)).fetchone():
+                    raise HTTPException(404,'Account not found.')
                 if body.bio is not None:
                     c.execute('UPDATE profile SET bio = %s WHERE user_id = %s', (body.bio.strip(), user['id']))
+                if layout is not None:
+                    import json
+                    c.execute('UPDATE profile SET profile_layout=%s::jsonb WHERE user_id=%s',(json.dumps(layout),user['id']))
                 if vals: c.execute(f"UPDATE users SET {', '.join(f'{k} = %s' for k in vals)} WHERE id = %s", (*vals.values(), user['id']))
         except errors.UniqueViolation:
             raise HTTPException(409, 'That username is taken')
-    return {'ok': True, **vals}
+    return {'ok': True, **vals, **({'profile_layout':layout} if layout is not None else {})}
 
 
 class PasswordIn(BaseModel):

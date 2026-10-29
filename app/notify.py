@@ -139,9 +139,9 @@ def notifications(user=Depends(current_user)):
 @router.get('/notifications/count')
 def notifications_count(user=Depends(current_user)):
     """For the number on the Me tab (checked at most once a minute)."""
-    from .api_social import waiting
+    from .api_social import waiting, _friend_rows
     with db.connect() as c:
-        return {'unread': unread(c, user['id']), 'friend_requests': waiting(c, user['id'])}
+        return {'unread': unread(c, user['id']), 'friend_requests': waiting(c, user['id']), 'friend_count':sum(r['status']=='accepted' for r in _friend_rows(c,user['id']))}
 
 
 @router.post('/notifications/read')

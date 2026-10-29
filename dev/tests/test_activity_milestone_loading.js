@@ -6,7 +6,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
  let finish,owner='fictional-first',drawn=0,painted=0;
  const c={readOwner:()=>owner,Milestones:{read:()=>new Promise(resolve=>finish=resolve),paint:()=>painted++},load:async(path,draw)=>draw({owner:true}),drawDetail:()=>drawn++,$:()=>({})};
  vm.createContext(c);vm.runInContext('this.detail=async(el,id)=>{'+source.slice(start,end)+'};',c);
- const shortcuts=source.slice(source.indexOf('const ME_SHORTCUTS ='),source.indexOf(';',source.indexOf('const ME_SHORTCUTS ='))+1);vm.runInContext(shortcuts+'this.shortcuts=ME_SHORTCUTS;',c);assert(!c.shortcuts.some(([href])=>href.startsWith('/routes')),'The home shortcuts cannot expose the retired route library');assert(c.shortcuts.some(([href])=>href==='/progress/routes'),'Completed matched-route comparisons remain reachable');
+ assert(!source.includes('ME_SHORTCUTS'),'Retired home tile data is removed');assert(fs.readFileSync('app/static/explore.js','utf8').includes('/progress/routes'),'Completed matched-route comparisons remain in Explore');
  await c.detail({isConnected:true},42);assert.equal(drawn,1,'A pending celebration cannot delay the actual workout');assert.equal(painted,0);
  finish({items:[]});await new Promise(resolve=>setImmediate(resolve));assert.equal(painted,1);
  await c.detail({isConnected:true},43);owner='fictional-second';finish({items:[{}]});await new Promise(resolve=>setImmediate(resolve));assert.equal(painted,1,'A late celebration cannot enter a new account');

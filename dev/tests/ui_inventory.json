@@ -446,6 +446,15 @@
       "paths": [
         "/welcome"
       ]
+    },
+    {
+      "id": "pages-private-history",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/activities$/",
+      "paths": [
+        "/me/activities",
+        "/me/activities?sport=run&q=Morning"
+      ]
     }
   ],
   "extra_views": [

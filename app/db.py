@@ -1890,6 +1890,12 @@ MIGRATIONS = [
     # 85. Operator Kit permission is separate from personal consent and product entitlements.
     """ALTER TABLE profile ADD COLUMN ai_access_allowed boolean NOT NULL DEFAULT true;""",
 
+    # 86. Home guidance and shared-profile presentation, separate from sharing permissions.
+    """ALTER TABLE profile ADD COLUMN setup_hidden boolean NOT NULL DEFAULT false;
+    ALTER TABLE profile ADD COLUMN profile_layout jsonb NOT NULL DEFAULT
+      '{"sections":["recent","mileage","totals","sports","activities"],"stats":["activities","distance","time"],"sports":[]}'::jsonb;
+    ALTER TABLE profile ADD CONSTRAINT profile_layout_object CHECK(jsonb_typeof(profile_layout)='object');""",
+
 ]
 
 

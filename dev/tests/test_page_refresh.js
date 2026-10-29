@@ -17,6 +17,7 @@ assert(!fs.readFileSync('app/static/refresh.js','utf8').includes("document.creat
  start();move(30,250);handlers.touchcancel();handlers.touchend();assert.equal(rendered,1,'cancelled gestures never refresh');
  const task=c.refresh.run();c.refresh.failed(Error('offline'));finish();await task;assert(toasts.at(-1).includes('saved view'));
  const before=toasts.length;let finishRead;const reading=new Promise(ok=>finishRead=ok).finally(()=>c.pendingReads.clear());c.pendingReads.set(JSON.stringify([owner,'/api/home-card']),reading);const cards=c.refresh.run();finish();await new Promise(setImmediate);assert.equal(notices[1].textContent,'Refreshing','home-card reads finish before reporting Up to date');finishRead({});await cards;assert.equal(notices[1].textContent,'Up to date');assert.equal(toasts.length,before);
+ let inplace=0,doneInplace;page.refresh=()=>{inplace++;return new Promise(ok=>doneInplace=ok)};const beforeInplace=rendered,refreshing=c.refresh.run();assert.equal(inplace,1);assert.equal(rendered,beforeInplace,'an in-place page hook keeps existing cards and maps');doneInplace();await refreshing;delete page.refresh;
  const previous=toasts.length,late=c.refresh.run();owner='two';finish();await late;assert.equal(toasts.length,previous,'late refresh feedback cannot appear on another account');
  // The activity title/numbers occupy a large link; allow vertical pulls there.
  let selector='';touchTarget={...target,closest:s=>{selector=s;return null;}};

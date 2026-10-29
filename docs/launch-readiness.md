@@ -98,11 +98,11 @@ Combined candidate a06d87e passed all CI and16 native layout cases: compact safe
 
 Do not stop at component PRs. PR344 is the combined review candidate; stacked component PRs are review aids and must not be merged independently.
 
-- [ ] Two complete fresh runs of the entire existing `dev/tests/run.sh` against final combined code, including the required schema80→85 upgrade. Earlier component/partial passes do not replace them. Exercise both UTC and America/New_York server time zones.
-- [x] Two code-review passes, concrete findings repaired and targeted checks added. Recheck any subsequent code finding.
+- [ ] Two complete fresh runs of the entire existing `dev/tests/run.sh` against final combined code, including the required schema80→86 upgrade. Earlier component/partial passes do not replace them. Exercise both UTC and America/New_York server time zones.
+- [ ] Two code-review passes after the final profile/website additions, concrete findings repaired and targeted checks added. Recheck any subsequent code finding.
 - [ ] Complete final UI review in both themes,330/390px, short phones, larger text and desktop. Verify clear primary actions, reachable long content, keyboard/draft behavior, no clipping and valid native spacing evidence.
 - [ ] Exact-head CI, including both eight-case native jobs, passes; representative screenshots are reviewed and attached.
-- [ ] Reconcile all24 issues/labels/evidence, update the private overview/work log and keep remaining operator/device gates explicit.
+- [ ] Reconcile all26 issues/labels/evidence, update the private overview/work log and keep remaining operator/device gates explicit.
 
 Physical iPhone share sheets/camera/VoiceOver/locked-screen spoken intervals, actual hosted map coverage/cost, owner overview read-through, merge, deployment, TestFlight upload and Apple processing remain separate outcomes. No release or paid-provider activation is authorized by this checklist.
 
@@ -110,3 +110,13 @@ Physical iPhone share sheets/camera/VoiceOver/locked-screen spoken intervals, ac
 ## Admin age and Kit access · owner, 29 October
 
 Show age and Kit settings in Accounts and the private account detail. Use birth year with approximate age; allow clearing an unknown year. Administrator permission is distinct from the member’s consent and 18+ confirmation, product entitlements, provider configuration and reviewed release. Allowing access never creates consent. Blocking access and a known under-18 birth year prevent AI generation on the backend, including default-open installations; manual tools remain available. Confirm writes with the account username, preserve failed drafts, use durable retry receipts and audit the action without copying birth year or consent into the audit record. Existing operator permission defaults to allowed on upgrade. Check fresh schema85 and preservation/defaults from80, private export/erasure, API permissions and actual phone/desktop edit/retry flows before final acceptance. The two complete final regression runs must include this addition; earlier7bf8f38 evidence is superseded.
+
+
+## Website and feature priorities · owner,29 October
+
+Include the public website in the launch review: current fictional screenshots, accurate feature coverage and clear enrollment/invitation/waitlist paths. Use current official competitor sources to identify Kinetta’s strongest feature priorities and decide which app and website actions lead. Preserve the approved profile/private Overview design and existing server enrollment policy. Check every site destination, responsive layout, light/dark appearance and real signup/confirmation/invite continuation with stand-in delivery. Preparing the source, publishing the site and opening enrollment are separate outcomes.
+
+
+## Profile/home addition · owner,29 October
+
+Use [the approved requirements](profile-home-requirements.md) for the profile-first Me page, private Overview, combined Activity feed, separate history, customizable shared profile and persistent optional setup dismissal. Earlier baseline tests passed twice, but this addition requires fresh final-suite, upgrade, review and screenshot evidence. Pull-to-refresh preserves unchanged cards/maps. Website/enrollment work is tracked under #354 and remains part of the final combined gates.

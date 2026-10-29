@@ -47,5 +47,7 @@ vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const FEED_N'
  owner='saved';epoch=0;ctx.App.cache.clear();saved.clear();
  ctx.readOnce=async path=>path.startsWith('/api/feed/')?rows.slice(90,105).map(r=>({...r,owner:{login:'fictional-friend'}})):rows.slice(0,15);
  await ctx.feed({});ctx.App.cache.clear();draws=0;await ctx.feed({});assert.equal(draws,1,'unchanged saved opening view renders once, without a metadata-only rebuild');
+ // Shared timestamps cross both readers; cursor identity must reach both APIs.
+ owner='ties';epoch=0;ctx.App.cache.clear();saved.clear();const tied=Array.from({length:40},(_,i)=>({id:40-i,start_time:'2026-10-20T12:00:00Z',...(i%2?{owner:{login:'friend'}}:{})}));ctx.readOnce=async path=>{const q=new URL('https://example.test'+path).searchParams,isFriend=path.startsWith('/api/feed/');return tied.filter(row=>!!row.owner===isFriend&&(!q.has('before_id')||row.id<+q.get('before_id'))).slice(0,+q.get('limit'));};await ctx.feed({});await more.onclick();await more.onclick();assert.deepEqual(JSON.parse(JSON.stringify(ctx.App.cache.get('feed:home').data.rows.map(row=>row.id))),tied.map(row=>row.id),'same-start activities are never skipped across merged pages');
  console.log('Feed: first load2 requests, warm return0, unchanged refresh1 render, late account response ignored; saved copy shows at once; warm-up fills once and ignores account changes');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -5,11 +5,6 @@ const source=fs.readFileSync('app/static/social.js','utf8');
 const tick=()=>new Promise(setImmediate);
 (async()=>{
  let editorOwner='first';const c={readOwner:()=>editorOwner,esc:String,stat:(k,v,u='')=>`[${k}:${v}${u}]`,U:{dist:n=>(n/1000).toFixed(1),du:()=> 'km'},dur:n=>n+' seconds',fdate:d=>d};vm.createContext(c);
- vm.runInContext(source.slice(source.indexOf('function profileProgress('),source.indexOf('function shareProfile(')),c);
- const recent={start:'2026-09-21',end:'2026-10-20',current:{activities:3,distance_m:5000,time_s:3600,active_days:2},previous:{activities:1}};
- let html=c.profileProgress(recent,true);assert(html.includes('[Distance:5.0km]'));assert(html.includes('2 active days'));assert(html.includes('1 workout in the previous 30 days'));assert(html.includes('shared with friends or everyone'));
- html=c.profileProgress({...recent,current:{activities:2,distance_m:0,time_s:1800,active_days:1}},false);assert(!html.includes('[Distance:'));assert(html.includes('[Active days:1]'));assert(html.includes('shared with you'));
- html=c.profileProgress({...recent,current:{activities:0}},true);assert(html.includes('Your shared workouts will build'));assert(!html.includes('[Workouts:0]'));
  // Your own profile belongs to Me; other people's profiles remain in Activity.
  c.App={me:{login:'alex'},cache:new Map()};vm.runInContext(source.slice(source.indexOf('const profileTab'),source.indexOf('route(/^\\/people'))+'\nglobalThis.tab=profileTab;',c);
  assert.equal(c.tab('ALEX'),'me');assert.equal(c.tab('jordan'),'activity');
@@ -48,11 +43,18 @@ const tick=()=>new Promise(setImmediate);
  assert.equal(c.App.me.name,'Other account');assert.equal(c.App.me.bio,'Other bio');assert.equal(reloaded,1);assert(closed);
  // Friend-management confirmation/retry/account behavior is covered by test_friend_management.js.
  // Native share cancellation is quiet; unavailable sharing exposes a copyable authenticated link.
- let sharePayload,shareSheet=null;const copyInput={select(){}},copyButton={},copyStatus={};
- c.appBase=()=> 'https://example.test';c.navigator={share:payload=>{sharePayload=payload;return Promise.reject({name:'AbortError'});},clipboard:{writeText:async url=>assert.equal(url,'https://example.test/people/alex')}};
- c.sheet=(title,html,mount)=>{shareSheet={title,html};mount({});};c.$=sel=>sel==='input'?copyInput:sel==='#pf-copy'?copyButton:copyStatus;
+ let sharePayload,shareSheet=null,cardOpens=0,closedShares=0;
+ const copyInput={select(){this.selected=true;},selected:false};
+ c.appBase=()=> 'https://example.test';c.navigator={share:payload=>{sharePayload=payload;return Promise.reject({name:'AbortError'});},clipboard:{writeText:async()=>{}}};
+ // Only controls actually present in the rendered sheet exist. Unknown selectors return null.
+ c.sheet=(title,html,mount)=>{const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{textContent:'',disabled:false}]));const box={nodes,isConnected:true};shareSheet={title,html,box};mount(box,()=>{box.isConnected=false;closedShares++;});};
+ c.$=(sel,box)=>sel==='input'?copyInput:box?.nodes[sel]||null;c.KinettaCard={open:()=>cardOpens++};
  vm.runInContext(source.slice(source.indexOf('function shareProfile('),source.indexOf('// One editor saves')),c);
  c.shareProfile({login:'alex',name:'Alex'});await tick();assert.equal(sharePayload.url,'https://example.test/people/alex');assert.equal(shareSheet,null);
- c.navigator.share=undefined;c.shareProfile({login:'alex',name:'Alex'});assert(shareSheet.html.includes('sharing choices still apply'));await copyButton.onclick();assert.equal(copyStatus.textContent,'Link copied');
- console.log('Social profiles: visible progress/no-distance/empty, own tab, immediate friend matching, reordered/failed/detached search, clear and atomic editor retry PASS');
+ c.navigator.share=undefined;c.shareProfile({login:'alex',name:'Alex'});assert(shareSheet.html.includes('sharing choices still apply'));await shareSheet.box.nodes['#pf-copy'].onclick();assert.equal(shareSheet.box.nodes['#pf-copy-status'].textContent,'Link copied');
+ c.navigator.clipboard.writeText=async()=>{throw Error('Clipboard denied')};await shareSheet.box.nodes['#pf-copy'].onclick();assert(copyInput.selected);assert(shareSheet.box.nodes['#pf-copy-status'].textContent.includes('Select and copy'));
+ c.api=async()=>({url:'/add/fictional-invitation'});await c.inviteFriends();assert.equal(typeof shareSheet.box.nodes['#iv-public-card'].onclick,'function','The advertised card action must work');shareSheet.box.nodes['#iv-public-card'].onclick();assert.equal(cardOpens,1);assert.equal(closedShares,1);
+ let resolveInvite;c.api=()=>new Promise(resolve=>resolveInvite=resolve);shareSheet=null;const oldInvite=c.inviteFriends();editorOwner='third';resolveInvite({url:'/add/old-account-link'});await oldInvite;assert.equal(shareSheet,null,'An old account’s delayed invite link cannot appear after login changes');
+ c.navigator.share=()=>new Promise((_,reject)=>{c.rejectShare=reject});c.shareProfile({login:'alex',name:'Alex'});editorOwner='fourth';c.rejectShare({name:'Unavailable'});await tick();assert.equal(shareSheet,null,'A late native share failure cannot reopen an old account’s sheet');
+ console.log('Social profiles: own tab, friend matching, reordered/failed/detached search, atomic editor retry, working share/copy/invite controls and account fences PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

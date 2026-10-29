@@ -59,6 +59,11 @@ const json = (method, body) => ({method, body: JSON.stringify(body)});
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
 function screenHit(path) {
   let hit = App.cache.get(path);
+  // Reuse an older phone's opening history after the query shrinks; account/server checks still apply.
+  if(!hit&&path==='/api/activities?limit=1'){
+    const old=App.cache.get('/api/activities?limit=3'),saved=old?.data||kept('/api/activities?limit=3');
+    if(Array.isArray(saved)){hit={data:saved.slice(0,1),at:old?.at||0};App.cache.set(path,hit);}
+  }
   // Today and Nutrition ask for the same day with different URLs. Match the returned date, never guess it.
   if(!hit&&/^\/api\/food\/day\?d=\d{4}-\d{2}-\d{2}$/.test(path)){
     const today=App.cache.get('/api/food/day');if(today?.data.day===path.slice(-10)){hit=today;App.cache.set(path,hit);}
@@ -101,7 +106,7 @@ function refreshMe(me) {
 
 // ---------- offline: kept screens + a send queue for food and weight (2026-10-10) ----------
 const KEEP = [/^\/api\/recaps\?/,/^\/api\/friends$/,/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/plans\/current$/,
-  /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=3$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
+  /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=(?:1|3)$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
   /^\/api\/progress\/volume\?period=week$/, /^feed:home$/, /^\/api\/feed\/friends\?limit=3$/];   // 2026-10-16: Activity and Progress open from the saved copy too; 2026-10-18: all of Me
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
@@ -249,6 +254,7 @@ function invalidateFeed({keepData=false}={}) {
   const hit=App.cache.get('feed:home');if(keepData&&hit)hit.at=0;else App.cache.delete('feed:home');
 }
 const invalidate = (prefix, {health=true,keepData=false}={}) => {
+  if(prefix.startsWith('/api/friends')&&typeof Social!=='undefined')Social.at=0;
   if(health && prefix.replace(/\/$/,'')==='/api/food') Native.queueNutritionSync?.();
   if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) invalidateFeed({keepData});
   const paths = new Set([...App.cache.keys(), ...[...pendingReads.keys()].map((k) => JSON.parse(k)[1])]);
@@ -266,7 +272,7 @@ const prefetch = (path) => {
 function warmDestination(href){
   if(!App.me||!navigator.onLine)return;
   if(href==='/activity'){if(typeof warmFeed==='function')warmFeed();return;}
-  const paths=href==='/me'?['/api/stats','/api/activities?limit=3','/api/plans/current','/api/food/day']:
+  const paths=href==='/me'?['/api/stats','/api/activities?limit=1','/api/plans/current','/api/food/day']:
     href==='/food'?['/api/food/day?d='+isoDay(new Date())]:href==='/plan'?['/api/plans/current']:[];
   paths.forEach(prefetch);
 }

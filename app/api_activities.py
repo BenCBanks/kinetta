@@ -105,7 +105,7 @@ LIST_COLS = """a.id, a.sport, a.name, a.start_time, a.tz, a.distance_m, a.moving
 
 
 @router.get('/activities')
-def feed(before: str | None = None, sport: str | None = None, q: str | None = None, limit: int = 20,
+def feed(before: dt.datetime | None = None, before_id: int | None = None, sport: str | None = None, q: str | None = None, limit: int = 20,
          user=Depends(current_user)):
     limit = max(1, min(limit, 100))
     sql = f"""SELECT {LIST_COLS}, ST_AsGeoJSON(ST_Simplify(a.geom, %s)) AS g,
@@ -118,10 +118,11 @@ def feed(before: str | None = None, sport: str | None = None, q: str | None = No
                  (SELECT count(*) FROM comments cm WHERE cm.activity_id = a.id) AS comments, {PHOTOS_SQL}, {LIFTS_SQL}
               FROM activities a WHERE a.user_id = %s"""
     args = [PREVIEW_TOL, user['id']]
-    if before: sql += ' AND a.start_time < %s'; args.append(before)
+    if before:
+        sql += ' AND (a.start_time < %s OR (a.start_time = %s AND a.id < %s))'; args.extend([before,before,before_id or 0])
     if sport in SPORTS: sql += ' AND a.sport = %s'; args.append(sport)
     if q: sql += ' AND (a.name ILIKE %s OR a.description ILIKE %s)'; args += [f'%{q}%'] * 2
-    sql += ' ORDER BY a.start_time DESC LIMIT %s'; args.append(limit)
+    sql += ' ORDER BY a.start_time DESC, a.id DESC LIMIT %s'; args.append(limit)
     with db.connect() as c:
         rows = c.execute(sql, args).fetchall()
     for r in rows:

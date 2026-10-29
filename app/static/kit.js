@@ -2,7 +2,7 @@
 'use strict';
 const KitChat = (() => {
   const screens={me:['Me','/me'],nutrition:['Nutrition','/food'],activity:['Activity','/activity'],progress:['Progress','/progress'],plan:['Plan','/plan'],strength:['Track','/track'],track:['Track','/track']};
-  const actions={food:['Add food','/food?add=1'],nutrition:['Nutrition','/food'],record:['Record a workout','/track'],activities:['Your activities','/activity?view=mine'],plan:['Training plan','/plan'],progress:['Progress','/progress'],strength:['Record strength','/track'],recipes:['Recipes & foods','/food/meals'],goals:['Goals & profile','/me'],connections:['Connections','/me/connections']};
+  const actions={food:['Add food','/food?add=1'],nutrition:['Nutrition','/food'],record:['Record a workout','/track'],activities:['Your activities','/me/activities'],plan:['Training plan','/plan'],progress:['Progress','/progress'],strength:['Record strength','/track'],recipes:['Recipes & foods','/food/meals'],goals:['Goals & profile','/me'],connections:['Connections','/me/connections']};
   const starters={
     me:[['Review my progress','What stands out in my recent training and nutrition, and what should I focus on next?'],['Plan my next step','Given my goals and recent activity, what would be a useful next step?'],['Help me use Kinetta','What can I do in Kinetta to track my fitness and nutrition?']],
     nutrition:[['Look at my food today','Review my logged food today. What is known, what is missing, and what could I focus on?'],['What could I eat next?','Using my saved foods and remaining targets today, suggest a meal I can review before logging.'],['Talk about my diet','Help me think through a sustainable diet for my goals. Ask me what you need to know.']],
@@ -201,13 +201,7 @@ const KitChat = (() => {
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
     if(!screen||!kitChatOn())return;
     const heading=el.querySelector('.top');if(!heading)return;
-    if(path==='/me'){
-      if(el.querySelector('.kit-invitation'))return;
-      heading.querySelector('.kit-help')?.remove();
-      const link=document.createElement('a');link.className='kit-invitation';link.href=href('me');
-      link.innerHTML=`<span class="kit-invitation-mark" aria-hidden="true">${svg('sparkle')}</span><span><b>Ask Kit</b><small>Your training & nutrition assistant</small></span>${svg('chev')}`;
-      heading.after(link);return;
-    }
+    if(path==='/me')return; // Me owns the compact Kit pill inside its private Overview.
     if(el.querySelector('.kit-help'))return;
     const link=document.createElement('a');link.className='icon-btn kit-help';link.href=href(screen);link.setAttribute('aria-label','Ask Kit');link.innerHTML=svg('sparkle');
     (heading.querySelector('.acts')||heading).append(link);

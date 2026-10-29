@@ -1,0 +1,69 @@
+/* Profile-first Me and audience-aware profiles (#353), using the shared Sky Blue tokens. */
+.me-profile-header { padding:0 0 4px; }
+.me-profile-main { display:grid; grid-template-columns:auto minmax(0,1fr) auto; column-gap:12px; row-gap:0; align-items:center; }
+.me-profile-avatar { display:grid; place-items:center; grid-row:1 / 3; }
+.me-profile-avatar .av { width:3.5rem; height:3.5rem; font-size:1.5rem; }
+.me-identity { min-width:0; }
+.me-identity h1 { font-size:1.5rem; line-height:1.15; margin:0 0 3px; overflow-wrap:anywhere; }
+.me-handle { grid-column:2 / -1; font-size:.8125rem; color:var(--tx3); overflow-wrap:anywhere; }
+.me-profile-tools { grid-column:3; grid-row:1; display:flex; align-items:center; align-self:start; }
+.me-profile-bio { margin:10px 0 0; font-size:.9375rem; line-height:1.4; color:var(--tx2); white-space:pre-wrap; overflow-wrap:anywhere; }
+.me-about summary { min-height:44px; display:flex; align-items:center; color:var(--accent); cursor:pointer; }
+.me-about p { margin:0 0 8px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.me-friends-link { display:flex; align-items:center; gap:7px; min-height:44px; font-size:.875rem; color:var(--tx); flex-wrap:wrap; }
+.me-friends-link svg,.profile-friends svg { width:18px; height:18px; flex:none; }
+.me-friends-link svg:last-child { color:var(--accent); width:14px; }
+.me-profile-header .profile-actions { margin:0; gap:10px; }
+.me-profile-header .profile-actions>:is(a,button) { font-size:.875rem; padding:10px 12px; }
+.me-overview-title { display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid var(--line); margin:16px 0 12px; padding-top:16px; }
+.me-overview-title>div:first-child { display:flex; align-items:center; gap:10px; min-width:0; }
+.me-overview-title>div>svg { width:22px; height:22px; flex:none; }
+.me-overview-title h2 { margin:0; font-size:1.25rem; }
+.me-overview-title small { font-size:.8125rem; color:var(--tx3); }
+.kit-pill { display:flex; align-items:center; justify-content:center; gap:6px; min-height:44px; padding:8px 12px; border-radius:999px; color:var(--accent); background:var(--accent2); font-size:.875rem; font-weight:650; white-space:normal; }
+.kit-pill svg { width:20px; height:20px; flex:none; }
+#t-review:empty,#t-plan:empty,#t-required:empty,#t-start:empty { display:none; }
+.mileage-progress { display:flex; align-items:center; justify-content:center; gap:6px; min-height:44px; font-weight:600; font-size:.875rem; margin-top:8px; }
+.mileage-progress svg { width:16px; height:16px; }
+.setup-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:18px 0 8px; }
+.setup-heading h2 { margin:0; font-size:1.125rem; }
+.setup-heading button { min-height:44px; }
+.setup-tips>.small { margin-top:-4px; }
+.profile-page-title { flex:1; text-align:center; font-size:.9375rem; font-weight:650; }
+.pf-preview { background:var(--card2); padding:12px; }
+.pf-preview label { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:.875rem; font-weight:600; }
+.pf-preview select { flex:1 1 12rem; width:100%; min-width:0; font-size:16px; }
+.pf-preview p { margin:6px 0 0; }
+.profile-private-note { display:flex; gap:7px; align-items:center; margin:0 0 20px; }
+.profile-private-note svg { width:16px; height:16px; flex:none; }
+.profile-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); gap:14px; margin:14px 0 4px; }
+.profile-stats .stat { min-width:0; overflow-wrap:anywhere; }
+.profile-stats .stat b { font-size:var(--text-app-stat); }
+.profile-layout { margin:18px 0; border-block:1px solid var(--line); }
+.profile-layout summary { min-height:48px; display:flex; align-items:center; cursor:pointer; color:var(--accent); font-weight:650; }
+.profile-layout fieldset { min-width:0; margin:16px 0; padding:0; border:0; }
+.profile-layout legend { font-weight:650; margin:0 0 8px; font-size:.875rem; }
+.profile-layout-row { display:flex; gap:8px; align-items:center; border-bottom:1px solid var(--line); }
+.profile-layout-row label { flex:1; min-width:0; display:flex; align-items:center; gap:10px; min-height:48px; margin:0; overflow-wrap:anywhere; }
+.profile-layout-row>div { display:flex; flex:none; }
+.profile-layout input[type=checkbox],#m-setup-tips { width:22px; height:22px; min-height:0; padding:0; flex:none; margin:0; }
+.profile-up { display:grid; place-items:center; transform:rotate(180deg); }
+.profile-choices { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr)); gap:4px 12px; }
+.profile-choice { display:flex; align-items:center; gap:10px; min-height:44px; margin:0; font-size:.9375rem; overflow-wrap:anywhere; }
+#pf-draft { margin:18px 0; padding-top:16px; border-top:1px solid var(--line); }
+#pf-draft h3 { font-size:1.125rem; }
+#pf-draft select { display:block; width:100%; margin:6px 0 16px; }
+.feed-discovery { display:flex; align-items:center; gap:8px; min-height:44px; margin:0 0 12px; color:var(--tx2); font-size:.875rem; }
+.feed-discovery svg { width:20px; height:20px; flex:none; }
+.feed-discovery svg:last-child { margin-left:auto; width:16px; }
+.feed-list .post-title { font-size:1.2rem; }
+.feed-list .post-profile { padding-top:16px; padding-bottom:2px; }
+.feed-list .post-link { padding-bottom:14px; }
+.feed-list .activity-media { --media-height:210px; }
+@media(min-width:900px) { .feed-list .activity-media { --media-height:260px; } }
+@media(max-width:360px) { .me-profile-main { column-gap:8px; } .me-profile-avatar .av { width:3rem; height:3rem; } .me-identity h1 { font-size:1.375rem; } }
+
+.activity-filters { flex-wrap:wrap; overflow:visible; }
+
+.public-profile { flex-wrap:wrap; }
+.public-profile>div { flex:1 1 11rem; }

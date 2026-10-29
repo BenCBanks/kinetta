@@ -19,10 +19,10 @@ from zoneinfo import ZoneInfo
 
 from . import analysis
 
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
 from pydantic import BaseModel, Field
-from typing import Literal
 
 from . import db, notify, reactions
 from .api_account import _admin
@@ -231,30 +231,41 @@ def people_search(q: str = Query('', max_length=60), user=Depends(current_user))
 
 @router.get('/people/{login}/profile')
 def public_profile(login: str, before: dt.datetime | None = None, before_id: int | None = None,
-                   limit: int = Query(20, ge=1, le=50), as_friend: bool = False, user=Depends(current_user)):
+                   limit: int = Query(20, ge=1, le=50), as_friend: bool = False, preview:Literal['friend','member']|None=None, user=Depends(current_user)):
     """An authenticated profile directory, never a bypass around activity visibility or blocking.
     as_friend (your own profile only): what a friend sees - your activities shared with friends or everyone."""
     with db.connect() as c:
         person = c.execute("""SELECT id, login::text AS login, name, photo_v AS photo, created, (needs_email_confirm OR suspended_at IS NOT NULL) AS needs_email_confirm
                               FROM users WHERE login = %s AND pw_hash IS NOT NULL""", (login.lower(),)).fetchone()
-        if not person or _blocked_pair(c, user['id'], person['id']) or (person.pop('needs_email_confirm') and person['id'] != user['id']):
-            raise HTTPException(404, 'Not found')
-        person['bio'] = (c.execute('SELECT bio FROM profile WHERE user_id = %s', (person['id'],)).fetchone() or {}).get('bio', '')
+        if not person or _blocked_pair(c, user['id'], person['id']):raise HTTPException(404,'Not found')
+        hidden=person.pop('needs_email_confirm')
+        mine=person['id']==user['id']
+        if hidden and not mine:raise HTTPException(404,'Not found')
+        if preview and not mine:raise HTTPException(403,'Preview your own profile only.')
+        preview=preview or ('friend' if as_friend and mine else None)
+        presentation=c.execute('SELECT bio,profile_layout FROM profile WHERE user_id=%s',(person['id'],)).fetchone() or {}
+        person['bio']=presentation.get('bio') or ''
+        from .profile_layout import normalize
+        layout=normalize(presentation.get('profile_layout'))
         friend_count = sum(r['status'] == 'accepted' for r in _friend_rows(c, person['id']))
         relation = _pair(c, user['id'], person['id'])
         status = ('friends' if relation['status'] == 'accepted' else
                   'sent' if relation['requester'] == user['id'] else 'incoming') if relation else None
         params = _params(user['id'], PREVIEW_TOL, person=person['id'], limit=limit + 1)
         visible = f'a.user_id = %(person)s AND {CAN_SEE}'
-        if as_friend and person['id'] == user['id']: visible += " AND a.visibility IN ('friends', 'everyone') AND NOT a.lift_open"
+        if preview:
+            visible += " AND a.visibility IN ('friends','everyone') AND NOT a.lift_open" if preview=='friend' else " AND a.visibility='everyone' AND NOT a.lift_open"
+            if hidden:visible+=' AND false'
+        zone=db.valid_tz((c.execute('SELECT tz FROM profile WHERE user_id=%s',(user['id'],)).fetchone() or {}).get('tz')) or db.DEFAULT_TZ
+        params['chart_zone']=zone
         overview = c.execute(f"""SELECT count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
+                                  count(DISTINCT (a.start_time AT TIME ZONE %(chart_zone)s)::date) AS active_days,
                                   coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s
                                   FROM activities a WHERE {visible}""", params).fetchone()
         sports = c.execute(f"""SELECT a.sport, count(*) AS activities, coalesce(sum(a.distance_m),0) AS distance_m,
                                 coalesce(sum(coalesce(a.moving_s,a.elapsed_s)),0) AS time_s
                                 FROM activities a WHERE {visible} GROUP BY a.sport ORDER BY count(*) DESC, a.sport""", params).fetchall()
         # Use the identical visibility predicate, before pagination. Dates follow the viewer's settings.
-        zone = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
         today = dt.datetime.now(ZoneInfo(zone)).date()
         # Both periods reuse the feed's visibility rule, even for the owner's friend preview.
         recent_start, recent_end = today - dt.timedelta(days=29), today + dt.timedelta(days=1)
@@ -291,7 +302,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
     items = [shared_activity(row) for row in rows[:limit]]
     last = rows[limit - 1] if len(rows) > limit else None
     return {'person': {k: person[k] for k in ('login', 'name', 'photo', 'created', 'bio')}, 'status': status,
-            'friend_count': friend_count, 'mileage': mileage, 'recent': recent, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
+            'friend_count': friend_count, 'layout':layout, 'preview':preview, 'profile_hidden':bool(hidden), 'mileage': mileage, 'recent': recent, 'mine': person['id'] == user['id'], 'overview': overview, 'sports': sports, 'items': items,
             'next': {'before': last['start_time'], 'before_id': last['id']} if last else None}
 
 
@@ -512,14 +523,16 @@ def set_activity_sharing(aid: int, body: ActivitySharingIn, user=Depends(current
 
 # ---------- seeing others' activities ----------
 @router.get('/feed/friends')
-def friends_feed(before: dt.datetime | None = None, limit: int = 25, user=Depends(current_user)):   # a bad date is refused (422)
+def friends_feed(before: dt.datetime | None = None, before_id: int | None = None, limit: int = 25, user=Depends(current_user)):
     """Friends' activities they share with friends or everyone, newest first (page on with ?before=<start_time>)."""
     limit = max(1, min(limit, FEED_MAX))
     q = _select() + f' WHERE a.user_id IN ({FRIEND_IDS}) AND {CAN_SEE}'
     args = _params(user['id'], PREVIEW_TOL, limit=limit)
-    if before: q += ' AND a.start_time < %(before)s'; args['before'] = before
+    if before:
+        q += ' AND (a.start_time < %(before)s OR (a.start_time = %(before)s AND a.id < %(before_id)s))'
+        args.update(before=before,before_id=before_id or 0)
     with db.connect() as c:
-        rows = c.execute(q + ' ORDER BY a.start_time DESC LIMIT %(limit)s', args).fetchall()
+        rows = c.execute(q + ' ORDER BY a.start_time DESC, a.id DESC LIMIT %(limit)s', args).fetchall()
     return [shared_activity(r) for r in rows]
 
 
