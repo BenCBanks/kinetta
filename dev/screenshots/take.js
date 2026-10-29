@@ -162,7 +162,10 @@ async function say(page, text) {
       }
       if(opt.similar){
         await page.locator('[data-dt=efforts]').click();
-        await page.getByRole('heading',{name:'Similar efforts',exact:true}).scrollIntoViewIfNeeded();
+        const heading=page.getByRole('heading',{name:'Similar efforts',exact:true});
+        await heading.evaluate(h=>window.scrollTo({top:h.getBoundingClientRect().top+scrollY-130,behavior:'instant'}));
+        await page.waitForTimeout(100);
+        if(!await heading.evaluate(h=>h.getBoundingClientRect().top<400&&h.getBoundingClientRect().top>100))throw Error('Similar efforts heading must be visible above the tab bar.');
       }
       if (opt.photo) {
         // The real activity always opens on its map. This feature example shows the next slide after a swipe.
