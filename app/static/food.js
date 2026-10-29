@@ -130,7 +130,7 @@ function yesterdayMeal(day, meal) {
     api(`/api/food/day?d=${from}`).then(D => {
       if (!live()) return;
       const rows = D.entries.filter(e => (!meal || e.meal === meal) && !e.pending),label=meal?MEAL_NAMES[meal].toLowerCase():'all meals',logLabel=meal?'Log this meal':'Log these foods';
-      b.innerHTML = rows.length ? `<p>Add ${esc(label)} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${!meal?esc(MEAL_NAMES[e.meal])+': ':''}${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">${logLabel}</button><p class="small danger" id="ym-error" role="alert"></p>` : '<p>No foods were logged for this meal on the previous day.</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>';
+      b.innerHTML = rows.length ? `<p>Add ${esc(label)} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${!meal?esc(MEAL_NAMES[e.meal])+': ':''}${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">${logLabel}</button><p class="small danger" id="ym-error" role="alert"></p>` : `<p>${meal?'No foods were logged for this meal yesterday.':'No food was logged yesterday.'}</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>`;
       if (!rows.length) { $('#ym-usual', b).onclick = () => { if (!live()) return; close(); addSheet(day, meal); }; return; }
       // Keep the same upload identities when a response is lost and this preview is retried.
       const items = rows.map(({meal:sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal:meal||sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,client_id:newId()}));
@@ -143,7 +143,7 @@ function yesterdayMeal(day, meal) {
           const result = await addEntries(items);
           if (readOwner() !== owner) return;
           done = true; close(); Native.haptic('light');
-          toast(result.queued?'Meal saved on this phone · waiting to send':'Meal logged',result.undo);
+          toast(result.queued?'Food saved on this phone · waiting to send':meal?'Meal logged':'Foods logged',result.undo);
         }
         catch(x) { if (live()) $('#ym-error', b).textContent = x.message + ' Your meal is ready to retry.'; }
         finally { busy = false; if (live() && !done) { button.disabled = false; button.textContent = logLabel; } }
