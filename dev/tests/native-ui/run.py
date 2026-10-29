@@ -50,7 +50,7 @@ for device in preferred:
   installed=None
   for theme in ('light','dark'):
    sim('ui',udid,'appearance',theme)
-   for stage,root in [('recipe',16),('review',16),('food',16),('recipe',24)]:
+   for stage,root in [('recipe',16),('review',16),('food',16),('recipe',24),('food',24)]:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
     token=uuid.uuid4().hex;copy=a.output/'KinettaLayout.app'
@@ -80,10 +80,13 @@ for device in preferred:
      assert metrics['name']['y']<=metrics['header']['bottom']+30,metrics
      assert metrics['composer']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
     if stage=='review':assert metrics['review'],metrics
+    if stage=='food':
+     assert metrics['field'] and metrics['field']['scrollHeight']<=metrics['field']['clientHeight']+1,metrics
+     assert metrics['composer']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
     results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2))
  finally:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-assert len(results)==8*len(preferred),'Every selected phone needs all eight layout cases'
+assert len(results)==10*len(preferred),'Every selected phone needs all ten layout cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')
