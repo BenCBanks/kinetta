@@ -12,4 +12,5 @@ for row in inventory['routes']:
     for path in row['paths']:
         concrete=re.sub(r'\{[^}]+\}','1',path).split('?')[0]
         assert pattern.fullmatch(concrete),(row['id'],path)
+assert all('foodview=' in path for path in inventory['extra_views'] if path.startswith('/progress?section=food')), 'Food Progress views use their dedicated selector'
 print(f"UI acceptance inventory: all {len(actual)} registered route definitions have explicit cases")

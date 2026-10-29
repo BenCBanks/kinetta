@@ -173,7 +173,7 @@ details.fold-row[open] { padding-bottom: 12px; }
 .top .acts { display: flex; flex-wrap: wrap; max-width: 100%; margin-left: auto; gap: 8px; }
 .top .sub { color: var(--tx3); font-size: 13px; margin-top: 2px; }
 .top .eyebrow { margin-bottom: 2px; }
-.shell h1 { font-size: 30px; font-weight: 700; letter-spacing: -.035em; line-height: 1.1; }
+.shell h1 { min-width:0; max-width:100%; overflow-wrap:anywhere; font-size: 30px; font-weight: 700; letter-spacing: -.035em; line-height: 1.1; }
 .shell > h1 { margin: 0 2px 14px; }
 .shell > p { margin: 0 2px 14px; color: var(--tx2); }
 .back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 14px 0 6px; border: 0; border-radius: 999px; background: var(--card);
@@ -222,6 +222,8 @@ nav.tabs :is(a,button):active { transform: scale(.94); }
 .row-link:first-child, .card > h2 + .row-link { border-top: 0; }
 button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; }
 .row-link:active { opacity: .6; }
+.row-link > svg { flex: none; width: 20px; height: 20px; }
+.row-link .grow > * { min-width: 0; overflow-wrap: anywhere; }
 .gs-sub { display: block; font-size: 13px; margin-top: 2px; }   /* Today > Get started: one line under each step */
 .row-link > :first-child { min-width: 0; }
 .row-link .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .row-link .grow small { font-size: 13px; }
@@ -581,7 +583,7 @@ tr.muted td { color: var(--tx3); }
 .pred div.pr { background: var(--prog2); } .pred div.pr b { color: var(--prog); }
 .pred .pbest { display: block; margin-top: 6px; font-size: 12px; font-weight: 650; color: var(--tx3); } .pred .pr .pbest { color: var(--prog); }
 .pred .prediction-source{display:block;margin-top:6px;line-height:1.5;overflow-wrap:anywhere;}
-.prediction-note{margin:16px 0 4px;}
+.card p.prediction-note{margin:16px 0 4px;}
 .prediction-method{margin-top:4px;}
 .prediction-method summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;font-size:.875rem;color:var(--tx2);list-style:none;}
 .prediction-method summary::-webkit-details-marker{display:none;}
@@ -1471,7 +1473,8 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 /* Me shortcuts (2026-10-18): one tap to each main area, small round icons like the food chat's + menu. */
 .me-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr)); gap: 8px; margin: 16px 0; }
 .me-shortcuts a { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 56px; padding: 8px 4px; border: 1px solid var(--line);
-  border-radius: 18px; background: var(--card); color: var(--tx); font-size: .85rem; font-weight: 600; text-align: center; white-space: nowrap; }
+  border-radius: 18px; background: var(--card); color: var(--tx); font-size: .85rem; font-weight: 600; text-align: center; white-space: normal; min-width:0; line-height:1.35; }
+.me-shortcuts a>span{max-width:100%;overflow-wrap:anywhere;}
 .me-shortcuts a svg { width: 20px; height: 20px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
 .me-shortcuts a:active { transform: scale(.96); }
 .me-shortcuts a { position: relative; }

@@ -590,39 +590,41 @@ async function tUsuals(body, where, close) {
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 // Saved Dishes (2026-10-12; was two tabs, Mine and Meals): your dishes, dishes friends shared, saved meals and your own
-// foods in one list. Each opens a sheet to say how much before it's logged (dishes: dishLogSheet in cook.js).
-async function tSaved(body, where, close) {
+// foods in one list. My Recipes opens editing; Add food opens portion review (dishLogSheet in cook.js).
+async function tSaved(body, where, close, {manage=false}={}) {
+  const owner=readOwner(),valid=()=>body.isConnected&&owner===readOwner();
   body.innerHTML = skel(1);
   try {
-    const [dishes, meals, foods] = await Promise.all([api('/api/dishes').catch(() => []), api('/api/food/meals'), api('/api/food/foods')]);
+    const [dishes, meals, foods] = await Promise.all([api('/api/dishes'), api('/api/food/meals'), api('/api/food/foods')]);
+    if(!valid())return;
     const mine = dishes.filter((d) => d.mine !== false), theirs = dishes.filter((d) => d.mine === false);
     const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
       <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
     const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
       (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal), d.serving === 'one' ? 'kcal a serving' : 'kcal total');
-    body.innerHTML = `<p class="small muted">Tap a recipe to log a portion. Use Edit to change its ingredients, weight or nutrition for next time.</p><div class="btncol recipe-library-actions"><button class="ghost wide" id="tm-link">Recipe from a link</button><button class="linkbtn" id="tm-dish">+ Create a Recipe</button></div>
-      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="Edit ${esc(d.name)}">${svg('edit')} Edit</button></div>`).join('')}</div>` : '<p class="small muted">No saved recipes yet. Create one below, with or without Kit.</p>'}
+    body.innerHTML = `<p class="small muted">${manage?'Open a recipe to edit it, or choose Log portion.':'Choose a recipe to log a portion. Edit changes the saved recipe.'}</p><div class="btncol recipe-library-actions"><button class="${manage?'primary':'ghost'} wide" id="tm-dish">Create recipe</button><button class="ghost wide" id="tm-link">Recipe from a link</button></div>
+      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.name)}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
       ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
       <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button></div>
 `;
-    const again = () => tSaved(body, where, close);
+    const again = () => {if(valid())return tSaved(body, where, close, {manage});};
     $('#tm-describe', body).onclick = () => { const w = where(); close(); describeSheet(w.day, w.meal); };
     $$('[data-edit-food]', body).forEach(x => x.onclick = () => foodEditor(foods[+x.dataset.editFood], again));
     $('#tm-food', body).onclick = () => foodEditor(null, again);
     $('#tm-link', body).onclick = () => { close(); go('/food/recipe-link'); };
     $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
-    $$('[data-edit-meal]', body).forEach((b) => b.onclick = () => { close(); go('/food/cook/' + b.dataset.editMeal); });
+    $$('[data-edit-meal]', body).forEach((b) => b.onclick = () => { const dish=dishes.find(d=>String(d.id)===b.dataset.editMeal);if(manage)dishLogSheet(dish,where(),()=>{});else{close();go('/food/cook/'+b.dataset.editMeal);} });
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
-    $$('[data-dish]', body).forEach((x) => x.onclick = () => dishLogSheet(dishes[+x.dataset.dish], where(), (editing) => close()));
+    $$('[data-dish]', body).forEach((x) => x.onclick = () => { const dish=dishes[+x.dataset.dish];if(manage)go('/food/cook/'+dish.id);else dishLogSheet(dish,where(),()=>close()); });
     $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet(meals[+x.dataset.meal], where(), close, again));
-  } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+  } catch (x) { if(valid()){body.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="ghost wide" id="tm-retry">Try again</button>`;$('#tm-retry',body).onclick=()=>tSaved(body,where,close,{manage});} }
 }
 route(/^\/food\/meals$/, 'food', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>My Recipes</h1><div id="meal-library"></div>`;
   wireBack(el, '/food');
-  await tSaved($('#meal-library', el), () => ({day: isoDay(new Date()), meal: guessMeal()}), () => {});
+  await tSaved($('#meal-library', el), () => ({day: isoDay(new Date()), meal: guessMeal()}), () => {}, {manage:true});
 });
 // How much of a saved meal: grams (when every food in it is in grams) or servings. A saved meal is 1 serving as saved
 // ("½" or "2" scale every food in it).

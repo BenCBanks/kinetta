@@ -45,6 +45,7 @@ node dev/tests/test_track.js
 node dev/tests/test_lift_summary.js
 node dev/tests/test_recipe_delete.js
 node dev/tests/test_recipe_creation.js
+node dev/tests/test_recipe_library_intent.js
 node dev/tests/test_navigation_animation.js
 node dev/tests/test_notification_rows.js
 node dev/tests/test_track_native.js

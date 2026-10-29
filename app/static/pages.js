@@ -1581,7 +1581,8 @@ function passwordSheet() {
   });
 }
 route(/^\/me\/people$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Administration moved</h1><p>Use the separate browser portal at /admin. Your personal settings stay here in Me.</p>`;
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Admin tools</h1><p>${App.me.is_admin?'Manage this Kinetta in the separate browser portal. Your personal settings stay here in Me.':'These tools are for the person who runs this Kinetta.'}</p>${App.me.is_admin?`<a class="primary wide" href="${esc((Native.base||location.origin)+'/admin')}" target="_blank" rel="noopener">Open admin tools</a>`:''}`;
+  wireBack(el,'/me');
 });
 // admin: set a new password for someone (forgotten), or remove them and all their data (2026-10-10)
 route(/^\/me\/import$/, 'track', async () => go('/track/import', {replace:true}));

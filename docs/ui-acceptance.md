@@ -1,10 +1,10 @@
 # Screen, interaction and loading acceptance
 
 This expands the launch checklist for [#351](https://github.com/BenCBanks/kinetta/issues/351). The executable
-[inventory](../dev/tests/ui_inventory.json) covers every55 registered client route definitions and79 explicit
+[inventory](../dev/tests/ui_inventory.json) covers all 55 registered client route definitions and 80 explicit
 route/view cases. `test_ui_inventory.py` fails when a route is added without a case. Dynamic cases use fictional
 activities, friends, recipes, exercises, segments, cards and challenges; a missing-resource page cannot count as
-the successful resource view. Old addresses are checked as redirects.
+the successful resource view. Old addresses are checked as redirects. Eight signed-out entry states and all 11 administration sections are listed separately; these are rendered outside the registered client routes.
 
 ## What must be reviewed
 
@@ -20,11 +20,11 @@ the successful resource view. Old addresses are checked as redirects.
 | Social and sharing | Search/filter/manage friends, long names and carousel reachability, profile permissions, feed filters, card/QR/rotation/revocation, recaps, milestone receipt retry, challenge joins/leaves/removal/end/finish |
 | Boundaries | Unsupported browser/native capabilities, stale account/server responses, offline cached reads, failed/empty APIs and meaningful retry; no live device/provider actions |
 
-Run normal phone text separately from enlarged accessibility stress captures. The baseline uses the app's16px
-root; its measured body text is15px. A24px-root stress capture intentionally enlarges rem-based text and is not
-the baseline appearance. Check330/390px, a short phone, desktop and both themes. Long content must remain reachable;
+Run normal phone text separately from enlarged accessibility stress captures. The baseline uses the app's 16px
+root; its measured body text is 15px. A 24px-root stress capture intentionally enlarges rem-based text and is not
+the baseline appearance. Check 330/390px, a short phone, desktop and both themes. Long content must remain reachable;
 ordinary labels wrap. Horizontal suggestion cards need an explicit scroll-to-last-card check, not only a page-width
-test. Dense chart/calendar points retain their permitted compact grid; practical buttons have44px touch targets.
+test. Dense chart/calendar points retain their permitted compact grid; practical buttons have 44px touch targets.
 
 ## Loading and speed evidence
 

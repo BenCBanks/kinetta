@@ -458,13 +458,37 @@
     "/progress?section=training&view=fitness",
     "/progress?section=training&view=records",
     "/progress?section=training&view=lifting",
-    "/progress?section=food&view=overview",
-    "/progress?section=food&view=energy",
-    "/progress?section=food&view=macros",
-    "/progress?section=food&view=weight",
-    "/progress?section=food&view=needs",
-    "/progress?section=food&view=weeks",
+    "/progress?section=food&foodview=overview",
+    "/progress?section=food&foodview=energy",
+    "/progress?section=food&foodview=macros",
+    "/progress?section=food&foodview=weight",
+    "/progress?section=food&foodview=needs",
+    "/progress?section=food&foodview=weeks",
     "/food/describe?save=1",
-    "/track?type=walk"
+    "/track?type=walk",
+    "/progress?section=food&foodview=calendar"
+  ],
+  "entry_states": [
+    "login",
+    "forgot-validation",
+    "forgot-sent",
+    "signup-closed",
+    "beta-closed",
+    "reset-invalid",
+    "confirm-invalid",
+    "invitation-invalid"
+  ],
+  "admin_views": [
+    "overview",
+    "readiness",
+    "requests",
+    "people",
+    "beta",
+    "invites",
+    "reports",
+    "segments",
+    "logins",
+    "usage",
+    "audit"
   ]
 }
