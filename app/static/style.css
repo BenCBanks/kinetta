@@ -580,6 +580,15 @@ tr.muted td { color: var(--tx3); }
 /* green = faster than your best ever at that distance (2026-10-13); the line under it says so */
 .pred div.pr { background: var(--prog2); } .pred div.pr b { color: var(--prog); }
 .pred .pbest { display: block; margin-top: 6px; font-size: 12px; font-weight: 650; color: var(--tx3); } .pred .pr .pbest { color: var(--prog); }
+.pred .prediction-source{display:block;margin-top:6px;line-height:1.5;overflow-wrap:anywhere;}
+.prediction-note{margin:16px 0 4px;}
+.prediction-method{margin-top:4px;}
+.prediction-method summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;font-size:.875rem;color:var(--tx2);list-style:none;}
+.prediction-method summary::-webkit-details-marker{display:none;}
+.prediction-method summary::after{content:'›';font-size:1.25em;transform:rotate(90deg);transition:transform .15s;}
+.prediction-method[open] summary::after{transform:rotate(-90deg);}
+.prediction-method p{margin:8px 0 12px;line-height:1.6;}
+
 
 .rng { margin: 4px 0 12px; }
 .range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 12px; border: 0; border-radius: 999px;

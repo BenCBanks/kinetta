@@ -63,6 +63,7 @@ node dev/tests/test_interval_client.js
 node dev/tests/test_combined_week_ui.js
 node dev/tests/test_mileage_chart.js
 node dev/tests/test_fitness_chart_controls.js
+node dev/tests/test_prediction_help.js
 python3 dev/tests/test_activity_chart.py
 
 node dev/tests/test_workout_sync_status.js
