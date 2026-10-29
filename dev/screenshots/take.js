@@ -11,8 +11,8 @@ const SHOTS = [
   ['feed', '/activity'],
   ['profile', '/people/alex'],
   ['track', '/track'],
-  ['activity', 'RUN'],
-  ['similar', 'RUN', {to: 'Similar efforts'}],
+  ['activity', 'RUN', {summary: true}],
+  ['similar', 'RUN', {similar: true}],
   ['coach', 'COACH', {to: 'Kit'}],
   ['route', 'ROUTE'],
   ['progress', '/progress'],
@@ -154,6 +154,15 @@ async function say(page, text) {
         await page.locator('[data-thread-quick="recipes"]').click();
         await page.locator('.sheet .fe[data-dish]').filter({hasText:opt.logDish}).click();
         await page.fill('#dl input[name=g]', opt.portion);
+      }
+      if(opt.summary){
+        // Show real headline numbers alongside the remaining map, as after a short normal scroll.
+        await page.locator('.d-title .hero').waitFor();
+        await page.evaluate(()=>{const stats=document.querySelector('.d-title .hero'),tabs=document.querySelector('nav.tabs');window.scrollBy(0,Math.max(0,stats.getBoundingClientRect().bottom-tabs.getBoundingClientRect().top+16));});
+      }
+      if(opt.similar){
+        await page.locator('[data-dt=efforts]').click();
+        await page.getByRole('heading',{name:'Similar efforts',exact:true}).scrollIntoViewIfNeeded();
       }
       if (opt.photo) {
         // The real activity always opens on its map. This feature example shows the next slide after a swipe.
