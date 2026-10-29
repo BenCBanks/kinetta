@@ -791,6 +791,7 @@ class KinettaBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(KinettaPushPlugin())
         bridge?.registerPluginInstance(KinettaTrackPlugin())
         bridge?.registerPluginInstance(KinettaHapticsPlugin())
+        bridge?.registerPluginInstance(KinettaDisplayPreferencesPlugin())
         bridge?.registerPluginInstance(KinettaWebSignInPlugin())
         bridge?.registerPluginInstance(KinettaActivitySharePlugin())
         webView?.scrollView.keyboardDismissMode = .interactive
