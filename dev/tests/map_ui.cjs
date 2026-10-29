@@ -3,6 +3,8 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
+// Older Chromium rejects waitForFunction's internal eval under the app's CSP. Direct function calls preserve that policy.
+async function ready(page){for(let i=0;i<150;i++){if(await page.evaluate(()=>App.pageReady&&!document.querySelector('#page[data-home-loading]')))return;await page.waitForTimeout(100);}throw Error('Page did not become ready');}
 const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path fill="#4a7586" d="M0 0h256v256H0z"/><path stroke="#fff" d="m0 30 256 180"/></svg>');
 (async()=>{
  const browser=await chromium.launch();
@@ -18,15 +20,20 @@ const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" heig
    await context.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
    await context.route('**/api/map-config',r=>r.fulfill({json:{kind:'raster',url:base+'/qa-map/{z}/{x}/{y}.png',dark_url:'',max_zoom:19,attribution:'Fictional test tiles',attribution_url:'',personal_default:false}}));
    await context.route('**/qa-map/**',r=>r.fulfill({contentType:'image/svg+xml',body:tile}));
-   await page.goto(base+'/me');await page.waitForFunction(()=>App.pageReady&&!document.querySelector('#page[data-home-loading]'));
+   await page.goto(base+'/me');await ready(page);
    // Warm navigation matters: the initial entry animation can temporarily isolate otherwise escaping map panes.
-   await page.evaluate(()=>go('/progress/segments'));await page.waitForFunction(()=>App.pageReady);await page.locator('#sg-map .leaflet-tile-loaded').first().waitFor();await page.waitForTimeout(650);
+   await page.evaluate(()=>go('/progress/segments'));await ready(page);await page.locator('#sg-map .leaflet-tile-loaded').first().waitFor();await page.waitForTimeout(650);
    await page.evaluate(()=>{const r=document.querySelector('#sg-map').getBoundingClientRect();scrollTo(0,scrollY+r.top-(innerHeight-180));});
    // Make transparent renderer layers participate in hit testing to verify their actual paint order.
    await page.locator('#sg-map canvas,#sg-map img').evaluateAll(nodes=>nodes.forEach(n=>n.style.setProperty('pointer-events','auto','important')));
    const hits=await page.locator('nav.tabs a').evaluateAll(links=>links.map(a=>{const r=a.getBoundingClientRect();return{name:a.textContent,above:a.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))};}));
    assert(hits.every(x=>x.above),'Loaded map paints over navigation: '+JSON.stringify(hits));
-   await page.locator('nav.tabs a[href="/food"]').click();await page.waitForURL('**/food');await page.waitForFunction(()=>App.pageReady);
+   await page.locator('nav.tabs a[href="/food"]').click();await page.waitForURL('**/food');await ready(page);
+   await page.evaluate(()=>go('/food/describe'));const field=page.locator('#thread-text');await field.waitFor();await page.waitForTimeout(100);
+   assert(await field.evaluate(el=>el.scrollHeight<=el.clientHeight+1),'Empty food placeholder is clipped');
+   const draft='Oats and yogurt\nSave this draft.';await field.fill(draft);await page.evaluate(()=>go('/me'));await ready(page);await page.evaluate(()=>go('/food/describe'));await field.waitFor();await page.waitForTimeout(100);
+   assert.equal(await field.inputValue(),draft);assert(await field.evaluate(el=>el.scrollHeight<=el.clientHeight+1),'Restored food draft is clipped');
+   await field.fill('');
    await page.evaluate(()=>go('/segments/new'));await page.locator('#pl-map .leaflet-tile-loaded').first().waitFor();await page.locator('#pl-hint').waitFor();
    const separate=await page.evaluate(()=>{const a=document.querySelector('#pl-hint').getBoundingClientRect(),b=document.querySelector('#pl-map .leaflet-control-attribution').getBoundingClientRect();return a.top>=b.bottom||a.bottom<=b.top;});
    assert(separate,'Drawing instruction overlaps map credit');
@@ -34,7 +41,7 @@ const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" heig
    assert(contrast>=4.5,'Drawing instruction has unreadable contrast');
    await page.locator('#pl-more').click();const sheet=page.locator('.scrim').last();await sheet.waitFor();
    assert(await sheet.evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height-30));}),'Map paints over the open tools sheet');
-   assert.deepEqual(errors,[]);await context.close();console.log(`Loaded map navigation, hint and sheet: ${width}px/${root}px text ${theme} PASS`);
+   assert.deepEqual(errors,[]);await context.close();console.log(`Map layers, sheets and food composer: ${width}px/${root}px text ${theme} PASS`);
   }
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

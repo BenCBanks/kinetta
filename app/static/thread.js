@@ -3,7 +3,7 @@
 'use strict';
 // Keep a texting conversation at the latest message through keyboard/composer
 // resizes, unless the person deliberately scrolls back to read older messages.
-function foodChatViewport({list,composer,field,send,active}) {
+function foodChatViewport({list,composer,field,send,active,resizeField=()=>{}}) {
   let following=true,frame,touchY=null;
   const events=new AbortController(),options={passive:true,signal:events.signal};
   const pin=(force=false)=>{
@@ -20,13 +20,15 @@ function foodChatViewport({list,composer,field,send,active}) {
   list.addEventListener('keydown',e=>{if(['PageUp','Home','ArrowUp'].includes(e.key))following=false;},{signal:events.signal});
   // Re-pin as the keyboard starts moving and once the chat's height animation ends, so the newest message is never
   // left behind the strip or composer (owner screenshot, 20 Oct 2026).
-  for(const event of ['resize','keyboardWillShow','keyboardDidShow','keyboardWillHide','keyboardDidHide'])addEventListener(event,()=>pin(),options);
+  const resized=()=>{if(active()){resizeField();pin();}};
+  for(const event of ['resize','keyboardWillShow','keyboardDidShow','keyboardWillHide','keyboardDidHide'])addEventListener(event,resized,options);
   document.addEventListener?.('transitionend',e=>{if(e.target===list.closest?.('.shell'))pin();},options);
-  window.visualViewport?.addEventListener('resize',()=>pin(),options);
+  window.visualViewport?.addEventListener('resize',resized,options);
   window.visualViewport?.addEventListener('scroll',()=>pin(),options);
-  const observer=typeof ResizeObserver==='function'?new ResizeObserver(()=>pin()):null;
+  const observer=typeof ResizeObserver==='function'?new ResizeObserver(resized):null;
   observer?.observe(list);observer?.observe(composer);
-  return {pin,dispose(){events.abort();observer?.disconnect();cancelAnimationFrame(frame);}};
+  resized();
+  return {pin,resize:resized,dispose(){events.abort();observer?.disconnect();cancelAnimationFrame(frame);}};
 }
 
 // Finished photo previews live only in this WebView's memory, scoped to the account.
@@ -421,7 +423,7 @@ const FoodThread = (() => {
     const id=uuid(),job={id,previews,body:text,itemize,at:new Date().toISOString(),media,barcode,images,review_only:true,draft_id:ctx.draftId,phase:'process',context:context||latestContext(ctx)||id,day:isoDay(new Date()),...(ctx.meal?{meal:ctx.meal}:{})};
     const button=$('#thread-send',ctx.el);if(button.disabled)return;button.disabled=true;
     try{if(consumesDraft){finishNativeDraft(ctx);saveDraft(ctx,'');}await ThreadDB.put(ctx.owner,job.id,job);if(ctx.draftId!==draftId){await ThreadDB.remove(ctx.owner,job.id);return;}if(!active(ctx))return;if(previews)photos.put(ctx.owner,job.id,ctx.draftId,previews);ctx.visibleClients.add(job.id);
-      if(consumesDraft){field.value='';field.style.height='';store.del(draftKey(ctx.owner));}ctx.context=null;ctx.reviewForm=null;store.del(contextKey(ctx.owner));
+      if(consumesDraft){field.value='';ctx.chatView?.resize();store.del(draftKey(ctx.owner));}ctx.context=null;ctx.reviewForm=null;store.del(contextKey(ctx.owner));
       ctx.jobs=await ThreadDB.list(ctx.owner);ctx.follow=true;draw(ctx);status(ctx,'');Native.haptic();flush(ctx);
     }catch(e){status(ctx,e.message);}finally{if(active(ctx))button.disabled=false;}
   }
@@ -444,7 +446,7 @@ const FoodThread = (() => {
     try{await api('/api/food/thread/clear',json('POST',{confirm:true}));
       privacyEpoch++;photos.clear(ctx.owner);await ThreadDB.erase(ctx.owner);store.del(cacheKey(ctx.owner));store.del(contextKey(ctx.owner));store.del(draftKey(ctx.owner));
       ctx.messages=[];ctx.jobs=[];ctx.visibleClients=new Set();ctx.context=null;ctx.reviewForm=null;ctx.draftId=uuid();ctx.epoch++;
-      store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});$('#thread-text',ctx.el).value='';draw(ctx);done();toast('Chat cleared');}
+      store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});$('#thread-text',ctx.el).value='';ctx.chatView?.resize();draw(ctx);done();toast('Chat cleared');}
     catch(e){toast(e.message);}};});
   }
   function page(el,{day,meal}={}){
@@ -467,10 +469,16 @@ const FoodThread = (() => {
     });
     const field=$('#thread-text',el);field.value=String(store.get(draftKey(owner))||'');
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
-    const grow=()=>{field.style.height='auto';field.style.height=Math.min(field.scrollHeight,160)+'px';};
+    let fitKey='';
+    const grow=()=>{
+      // Keyboard animation resizes the list repeatedly; refit only when text, type size or width changes.
+      const style=getComputedStyle(field),key=JSON.stringify([field.clientWidth,style.fontSize,style.lineHeight,field.value,field.placeholder]);
+      if(key===fitKey)return;fitKey=key;
+      field.style.height='auto';field.style.height=Math.min(field.scrollHeight,160)+'px';
+    };
     field.addEventListener('input',grow);
     field.oninput=()=>{if(!field.value.trim()){ctx.context=null;store.del(contextKey(owner));}else if(!ctx.context){ctx.context=latestContext(ctx);if(ctx.context)store.set(contextKey(owner),ctx.context);}primary(ctx);try{saveDraft(ctx,field.value);}catch(e){status(ctx,'Draft storage is full. Keep this screen open until you send.');}};
-    ctx.chatView=foodChatViewport({list:$('#thread-messages',el),composer:$('#thread-composer',el),field,send:$('#thread-send',el),active:()=>active(ctx)});
+    ctx.chatView=foodChatViewport({list:$('#thread-messages',el),composer:$('#thread-composer',el),field,send:$('#thread-send',el),active:()=>active(ctx),resizeField:grow});
     field.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();$('#thread-composer',el).requestSubmit();}});
     $('#thread-composer',el).onsubmit=e=>{e.preventDefault();send(ctx);};
     $('#thread-settings',el).onclick=()=>preferences(ctx);
