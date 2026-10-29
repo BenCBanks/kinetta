@@ -86,7 +86,7 @@ route(/^\/me\/explore$/, 'me', async (el) => {
     const words = $('input', el).value.toLowerCase().trim().split(/\s+/).filter(Boolean);
     const rows = catalog.filter((f) => (category === 'All' || f[0] === category) && words.every((w) => f.join(' ').toLowerCase().includes(w)));
     $('#guide-count', el).textContent = `${rows.length} feature${rows.length === 1 ? '' : 's'}`;
-    $('#guide-results', el).innerHTML = rows.length ? rows.map(([group,title,desc,href,how,,feature]) => `<article class="card feature-guide-card"><details><summary><span><small class="eyebrow">${esc(group)}${feature && !aiCan(feature) ? ' · optional AI' : ''}</small><b>${esc(title)}</b></span></summary><p>${esc(desc)}</p><p>${esc(how)}</p><a class="guide-open" href="${href}">Open ${esc(title)} ${svg('chev')}</a></details></article>`).join('') : '<div class="card empty">No features match. Try a shorter search or choose All.</div>';
+    $('#guide-results', el).innerHTML = rows.length ? rows.map(([group,title,desc,href,how,,feature]) => `<article class="card feature-guide-card"><details><summary><span><small class="eyebrow">${esc(group)}${feature && group !== 'Optional AI' && !aiCan(feature) ? ' · optional AI' : ''}</small><b>${esc(title)}</b></span></summary><p>${esc(desc)}</p><p>${esc(how)}</p><a class="guide-open" href="${href}">Open ${esc(title)} ${svg('chev')}</a></details></article>`).join('') : '<div class="card empty">No features match. Try a shorter search or choose All.</div>';
   };
   $('form', el).onsubmit = (e) => { e.preventDefault(); $('input', el).blur(); };
   $('input', el).oninput = draw;
