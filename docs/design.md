@@ -1339,6 +1339,16 @@ Shared profile explicitly previews Approved friends or Other members for its own
 Optional setup tips can be hidden and restored in Settings across devices, without changing Health or AI consent. Required account/email notices remain visible. Long text wraps or uses an explicit disclosure, with no silent truncation or reduced accessibility text.
 
 
+## Me card, private dashboard and comments · 29 October 2026 (owner-approved mockup)
+
+Supersedes the Me header in "Profile-first Me" above. Me opens with **Hi, <first name>** (falls back to the @username), the bell and Settings. The profile card is shown exactly as approved friends see it, from the server's friend preview: banner, photo, name, handle, bio, friend count and the layout's sections (last 30 days, a compact weekly distance chart, all-time totals, featured-sport chips, shared-activity count). It has one plain privacy line. Edit and Share are small translucent pills in the banner, never full-width buttons. Edit customizes sections, headline numbers and featured sports in place, with Cancel/Save. Everything below is dimmed and inert while editing. Name, photo and bio remain one tap inside Edit. Share offers the profile link, Public card & QR and View full profile. The full profile is also one tap on the photo. There is no Friends/Everyone switch on Me; the other-members preview stays on the full profile.
+
+A dark "Only you below this line" divider introduces **Your dashboard**. After first history, optional setup is one "Finish setting up · X of N done" checklist. Finished steps are ticked off rather than asked again (Apple Health included). Hide removes it, and Settings restores it. The new-account Get started list is unchanged.
+
+Profile totals, sports and distance charts count every finished workout, including Only me and friends-only ones. The listed activities and their count follow each audience.
+
+The comments sheet uses an outlined white composer with the viewer's avatar and a round send button that is inactive until text exists. The empty state is "Start the conversation". Quick replies only fill the box.
+
 ## Lifting follow-up · 29 October 2026
 
 Keep the set logger compact and explicit: previous-set values wrap, copied values preserve original kg, bodyweight uses reps until added weight is chosen, and seconds are labelled. Save/Finish must serialize; failed or cancelled Finish keeps planned rows. Restore rest timing across normal reloads, keep private drafts scoped to account and server, and never mark newer typing saved from an older response. Keep supported numeric values visible; on the narrowest phones a dated previous-set line may sit below the weighted row. Enlarge summary cells with text size rather than overlapping numbers. Finish opens at the title and the saved summary agrees with the session clock. Activity detail offers Edit sets and empty lifting Progress offers Start lifting. See [requirements and verification](lifting-review.md).

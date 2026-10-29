@@ -41,15 +41,15 @@ A profile that feels like you.
 
 ## profile-copy
 
-Choose your photo, bio, featured sports and statistics. Show the sections you want, in your own order. Preview exactly what approved friends or other members can see. Profiles require a Kinetta login.
+Your profile card sits at the top of Me, exactly as your friends see it. Edit it in place: choose your photo, bio, headline statistics and featured sports, and show the sections you want in your own order. Totals count all your workouts, while private ones never show their details. Open your full profile to preview what other members see. Profiles require a Kinetta login.
 
 ## private-overview-heading
 
-Your overview stays private.
+Your dashboard stays private.
 
 ## private-overview-copy
 
-Me brings your training, food and progress together. View profile opens your shared profile; food logs, body data and Kit conversations stay private.
+Below your card, a clear line marks where your private dashboard begins: your training, food and progress together. Food logs, body data and Kit conversations stay private, and optional setup is one checklist you can hide.
 
 ## motivation-heading
 

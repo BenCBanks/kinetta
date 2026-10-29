@@ -8,7 +8,7 @@ The owner approved the prominent profile direction, with **Overview** for person
 
 | Surface | Contents and access |
 | --- | --- |
-| Me | Profile photo/name/handle/bio, friend count, View profile and Edit profile. Then Overview / Only you, Kit, conditional food and plan, weekly activity and private insights. |
+| Me | Superseded 29 October (owner-approved mockup): "Hi, first name", then the profile card exactly as friends see it, with small Edit (in place) and Share pills; "Only you below this line"; Your dashboard with one optional setup checklist, conditional food and plan, weekly activity and private insights. See design.md. |
 | Shared profile | Explicit owner preview for approved friends or other members; audience-filtered identity, progress, charts and workouts. Other people see their real permitted projection. |
 | Activity | One chronological feed containing the person's activities and approved friends' permitted activities. No Friends feed/My activities selector. Compact discovery leaves workouts prominent. |
 | Your activities | Complete private history with search, sport filters and pagination, clearly accessible from Me. Old My activities URLs redirect here. |
