@@ -43,10 +43,10 @@ console.log('PASS recorder distance filter: 1 km run, 3-minute stand-still, walk
   r.autoPause = false; assert(Math.abs(m.seconds(r, 500000) - (500 - 47)) < 0.01, 'off: nothing more left out');
   r.autoPause = true; const p = {...r, lastMove: 420000}; m.settle(p, 470000); p.activeMs += 470000; p.state = 'paused';
   assert(Math.abs(m.seconds(p, 999999) - (470 - 47 - 35)) < 0.01, 'manual pause during a stop keeps the idle stretch out');
-  assert.equal(m.current([{t: 0, d: 0}, {t: 20000, d: 60}], 20000), 3, 'current speed over the last samples');
-  assert.equal(m.current([{t: 0, d: 0}, {t: 20000, d: 5}], 20000), null, 'too little movement: no pace');
+  assert.equal(m.average({state:'paused',activeMs:1000000,distance:3000},99999999),3,'whole-activity average uses active time, independent of the recent pace or wall time');
+  assert.equal(m.average({state:'paused',activeMs:1000000,distance:5},99999999),null,'too little measured movement remains unknown');
 }
-console.log('PASS recorder auto-pause (15 s, no jump, manual pause), splits and current pace');
+console.log('PASS recorder auto-pause (15 s, no jump, manual pause), splits and whole-activity average');
 
 // The owner's lap contract: automatic miles until the first press, then start/press-to-press boundaries.
 {

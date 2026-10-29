@@ -59,6 +59,7 @@ const TrackMath = {
   // On a manual pause the idle stretch so far is kept out; Resume counts as movement.
   settle(s, at) { s.autoMs = (s.autoMs || 0) + this.idle(s, at); s.lastMove = null; },
   seconds(s, now = Date.now()) { if(s.native&&Number.isFinite(s.activeSeconds)){const delta=typeof performance!=='undefined'&&Number.isFinite(s._snapshotClock)?Math.max(0,(performance.now()-s._snapshotClock)/1000):0;return s.activeSeconds+(s.state==='recording'&&!s.autoPausedNow?delta:0);}return Math.max(0, s.activeMs + (s.state === 'recording' ? Math.max(0, now - s.activeAt) : 0) - (s.autoMs || 0) - this.idle(s, now)) / 1000; },
+  average(s, now = Date.now()) {const seconds=this.seconds(s,now);return s.distance>10 && seconds>0?s.distance/seconds:null;},
   MILE: 1609.344,
   lap(s, now = Date.now()) {
     const manual = s.laps?.length > 0, index = Math.floor(s.distance / this.MILE);
@@ -74,13 +75,6 @@ const TrackMath = {
     if (!s.gps || s.state !== 'recording' || seconds - (previous?.seconds || 0) < 1 || (s.laps?.length || 0) >= 1000) return false;
     (s.laps ||= []).push({id, seconds, distance: s.distance, elapsed: Math.max(seconds, (now - s.start) / 1000),pointCount:s.points.length});
     return true;
-  },
-  // Pace or speed over the last ~30 s of samples [{t, d}] the screen keeps; null when too little movement to say.
-  current(samples, now) {
-    const recent = samples.filter((x) => now - x.t <= 30000);
-    if (recent.length < 2) return null;
-    const a = recent[0], b = recent[recent.length - 1], metres = b.d - a.d, secs = (b.t - a.t) / 1000;
-    return metres >= 10 && secs >= 5 ? metres / secs : null;     // metres per second
   },
 };
 const Track = (() => {
@@ -204,7 +198,7 @@ const Track = (() => {
     const time = $('#track-time'); if (time) time.textContent = clock(TrackMath.seconds(session));
     const d = $('#track-distance'); if (d) d.textContent = U.dist(session.distance, 2);
     const now = Date.now(), secs = TrackMath.seconds(session, now), idle = TrackMath.autoPaused(session, now),lap=TrackMath.lap(session,now);
-    const average = session.distance > 10 && secs > 0 ? rateText(session,session.distance/secs) : '—';
+    const averageSpeed=TrackMath.average(session,now),average=averageSpeed?rateText(session,averageSpeed):'—';
     const lapRate = lap.distance>=10 && lap.seconds>0 ? rateText(session,lap.distance/lap.seconds) : '—';
     const pace=$('#track-pace');if(pace)pace.textContent=average;
     const lp=$('#track-lap-pace');if(lp)lp.textContent=lapRate;
@@ -276,8 +270,7 @@ const Track = (() => {
       };
     });
   }
-  // Post-recording summary (27 October 2026, Ben): the title first, every number this recording has, splits, then a
-  // small map, sharing and Save. The live clock and big map belong to recording, not to reviewing.
+  // The pre-save review leads with title, headline figures and media/charts; details and splits stay available below.
   function climb(points) {
     // ups of more than 3 m from the last low point, within one section; few or poor altitudes give no figure at all
     let gain = 0, ref = null, n = 0;
