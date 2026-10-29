@@ -42,6 +42,10 @@ const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" heig
    assert(contrast>=4.5,'Drawing instruction has unreadable contrast');
    await page.locator('#pl-more').click();const sheet=page.locator('.scrim').last();await sheet.waitFor();
    assert(await sheet.evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height-30));}),'Map paints over the open tools sheet');
+   await sheet.getByRole('button',{name:'Close',exact:true}).click();await sheet.waitFor({state:'detached'});
+   await page.evaluate(()=>go('/activity/1'));await ready(page);await page.locator('.hero .stat').first().waitFor();
+   const statOverflow=await page.locator('.hero .stat').evaluateAll(es=>es.flatMap(e=>{const cell=e.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(e.querySelector('b'));return [...range.getClientRects()].some(r=>r.left<cell.left-1||r.right>cell.right+1)?[e.innerText]:[];}));
+   assert.deepEqual(statOverflow,[],'Activity values must fit their own cells, including enlarged text');
    assert.deepEqual(errors,[]);await context.close();console.log(`Map layers, sheets and food composer: ${width}px/${root}px text ${theme} PASS`);
   }
  }finally{await browser.close();}

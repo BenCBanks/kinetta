@@ -439,8 +439,8 @@ button.pf:active, a.pf:active { background: var(--card2); }
 body.map-open { overflow: hidden; }
 body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Back closes it */
 .map-head .map.full .map-full { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); bottom: auto; left: auto; }
-.hero { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
-.hero .stat b { font-size: 28px; }
+.hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr)); gap: 14px 10px; }
+.hero .stat b { font-size: 28px; overflow-wrap: anywhere; }
 .hero.more { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .hero.more .stat b { font-size: 18px; }
 .insight { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }

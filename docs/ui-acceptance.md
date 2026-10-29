@@ -23,7 +23,7 @@ the successful resource view. Old addresses are checked as redirects. Eight sign
 Run normal phone text separately from enlarged accessibility stress captures. The baseline uses the app's 16px
 root; its measured body text is 15px. A 24px-root stress capture intentionally enlarges rem-based text and is not
 the baseline appearance. Check 330/390px, a short phone, desktop and both themes. Long content must remain reachable;
-ordinary labels wrap. Horizontal suggestion cards need an explicit scroll-to-last-card check, not only a page-width
+ordinary labels wrap. Check figures inside their own statistic cells as well as the page edges: narrow/enlarged activity totals must reflow without colliding. Horizontal suggestion cards need an explicit scroll-to-last-card check, not only a page-width
 test. Dense chart/calendar points retain their permitted compact grid; practical buttons have 44px touch targets.
 
 ## Loading and speed evidence
