@@ -17,3 +17,9 @@ text. Each phone now has twenty required captures. The live data comes only from
 native GPS controls are explicitly blocked. The actual WebView still provides its layout/safe areas and renders
 the current production map, chart, local-review storage and controls. Assertions include recording-control and Save
 placement above the real tab bar. These captures prove layout, not real Core Location accuracy or camera selection.
+
+The floating navigation checks use the actual capsule bounds rather than a fixed tab-height assumption. All five
+labels and 44px targets must fit; recording controls, their captions and Save must remain above it. Recipe/food
+threads and the expanded map must still hide it. Every fixture also requires a response from the real read-only
+UIKit display-preference bridge. Browser checks separately cover opaque accessibility/unsupported-blur fallbacks;
+physical iPhone settings changes and rendering performance remain device acceptance work.

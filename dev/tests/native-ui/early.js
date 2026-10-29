@@ -1,4 +1,4 @@
-/* Injected into a disposable Simulator app copy only. Fictional records; no network/provider/device reads. */
+/* Injected into a disposable Simulator app copy only. Fictional records; no network/provider/Health/GPS reads. Read-only display preferences use UIKit. */
 'use strict';
 (() => {
   const cfg=globalThis.KinettaUIFixture,errors=[],requests=[];
