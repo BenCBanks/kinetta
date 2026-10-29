@@ -1056,7 +1056,7 @@ async function pushCard(box, r) {
   };
 }
 
-async function personalNotificationCard(box){
+async function personalNotificationCard(box,message=''){
   if(!box)return;
   const owner=readOwner();
   // A native permission refresh must not replace controls during their pending write.
@@ -1064,7 +1064,7 @@ async function personalNotificationCard(box){
   const generation=Symbol();box.personalGeneration=generation;
   const valid=()=>box.isConnected&&owner===readOwner()&&box.personalGeneration===generation;
   const times=[['07:00','7 am'],['08:00','8 am'],['12:00','Noon'],['18:00','6 pm'],['20:00','8 pm']];
-  const draw=(state,error='')=>{
+  const draw=(state,error=message)=>{
     if(!valid())return;
     const unavailable=!state.push_ready||!state.device_ready;
     box.innerHTML=`<section class="card personal-notifications"><h2>Training & progress</h2><p class="small muted">Optional · ${esc(state.tz)}</p>
@@ -1079,16 +1079,17 @@ async function personalNotificationCard(box){
       const key=input.dataset.personal,value=input.type==='checkbox'?input.checked:input.value;
       const focused=globalThis.document?.activeElement===input;
       const restoreFocus=()=>{const field=$(`[data-personal="${key}"]`,box);if(focused&&field&&!field.disabled)field.focus({preventScroll:true});};
+      let failure='';
       box.personalSaving=owner;
       $$('[data-personal]',box).forEach(field=>field.disabled=true);
       $('[data-personal-status]',box).textContent='Saving…';
       try{
         const fresh=await api('/api/notifications/personal',json('PUT',{[key]:value,confirmed:value===true}));
-        if(!valid())return;draw(fresh);restoreFocus();Native.haptic('light');
-      }catch(error){if(valid()){draw(state,error.message||'This setting could not be saved.');restoreFocus();}}
+        if(!valid())return;draw(fresh,'');restoreFocus();Native.haptic('light');
+      }catch(error){failure=error.message||'This setting could not be saved.';if(valid()){draw(state,failure);restoreFocus();}}
       finally{
         if(box.personalSaving===owner)box.personalSaving=null;
-        if(valid()&&box.personalRefresh){box.personalRefresh=false;await personalNotificationCard(box);}
+        if(valid()&&box.personalRefresh){box.personalRefresh=false;await personalNotificationCard(box,failure);}
       }
     });
   };
