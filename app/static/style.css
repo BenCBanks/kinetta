@@ -227,7 +227,7 @@ button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0
 .gs-sub { display: block; font-size: 13px; margin-top: 2px; }   /* Today > Get started: one line under each step */
 .row-link > :first-child { min-width: 0; }
 .row-link .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .row-link .grow small { font-size: 13px; }
-.row-link .val { display: block; flex: 0 1 auto; color: var(--tx3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.row-link .val { display: block; flex: 0 1 auto; color: var(--tx3); min-width: 0; white-space: normal; overflow-wrap: anywhere; font-size: 15px; }
 .row-link .val .badge { vertical-align: middle; }
 /* a row with a value: the label keeps its one line and the value shortens with "…" (2026-10-13: "Body & heart rate" wrapped) */
 .row-link:has(> .val) > .grow { min-width: max-content; }
@@ -292,14 +292,14 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .person { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); min-height: 60px; }
 .person:first-child { border-top: 0; }
 .person.req { flex-wrap: wrap; row-gap: 8px; } .person.req .btnrow { flex: 1 0 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding-left: 0; } .person.req .btnrow > * { min-width: 0; min-height: 44px; padding: 8px 6px; white-space: normal; }
-.person .grow { flex: 1; min-width: 0; display: grid; } .person b, .person small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .person small { font-size: 13px; }
+.person .grow { flex: 1; min-width: 0; display: grid; } .person b, .person small { white-space: normal; overflow-wrap: anywhere; } .person small { font-size: 13px; }
 .searchbox { position: relative; margin-bottom: 12px; }
 .searchbox input { padding-left: 44px; border-radius: 999px; background: var(--card); border-color: var(--color-outline); box-shadow: var(--shadow); min-height: 44px; }
 .searchbox .sb-ico { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--tx3); display: flex; pointer-events: none; }
 .searchbox .sb-ico svg { width: 18px; height: 18px; }
 #f-sform { margin-bottom: 12px; } #f-sform input { border-radius: 999px; }
 .profile { display: flex; align-items: center; gap: 14px; margin: 6px 2px 18px; min-height: 64px; }
-.profile > div { min-width: 0; } .profile h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile > div { min-width: 0; } .profile h1 { white-space: normal; overflow-wrap: anywhere; }
 .profile .sub { color: var(--tx3); font-size: 14px; margin-top: 2px; }
 #logout { margin-top: 18px; color: var(--alert); background: var(--card); box-shadow: var(--shadow); }
 
@@ -381,8 +381,8 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .post-link { display: block; padding: 14px 16px 12px; color: inherit; }
 .post-link:active { background: color-mix(in srgb, var(--card2) 50%, transparent); }
 .post-hd { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 10px; }
-.ph-txt { flex: 1; min-width: 0; display: grid; } .ph-txt b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ph-txt small { color: var(--tx3); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-txt { flex: 1; min-width: 0; display: grid; } .ph-txt b { font-size: 15px; white-space: normal; overflow-wrap: anywhere; }
+.ph-txt small { color: var(--tx3); font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
 .post-hd .av + .ph-txt + .sp { width: 30px; height: 30px; border-radius: 9px; } .post-hd .av + .ph-txt + .sp svg { width: 17px; height: 17px; }
 .post-title { font-size: 19px; font-weight: 700; letter-spacing: -.02em; line-height: 1.25; margin: 0 0 12px;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
@@ -672,7 +672,8 @@ a.ntile { color: inherit; text-decoration: none; }
 .mrow b { text-align: right; } .mrow .track { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--tx3) 14%, transparent); overflow: hidden; } .mrow .bar { height: 10px; border-radius: 999px; }
 .mrow.mealrow { grid-template-columns: 84px minmax(12px, 1fr) 44px; font-size: 14px; margin: 6px 0; }
 .mrow.topf { grid-template-columns: minmax(0, 1.4fr) minmax(12px, 1fr) auto; font-size: 14px; margin: 8px 0; }
-.topf > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .topf b i { font-style: normal; color: var(--tx3); font-size: 12px; font-weight: 500; }
+.topf > span { white-space: normal; overflow-wrap: anywhere; } .topf b i { font-style: normal; color: var(--tx3); font-size: 12px; font-weight: 500; }
+@media(max-width:600px){.mrow.topf{grid-template-columns:minmax(12px,1fr) auto;gap:4px 12px;margin:12px 0}.topf>span{grid-column:1/-1}}
 .bar.m-protein_g, .sw.m-protein_g, .split i.m-protein_g { background: var(--s1); }
 .bar.m-carbs_g, .sw.m-carbs_g, .split i.m-carbs_g { background: var(--s4); }
 .bar.m-fat_g, .sw.m-fat_g, .split i.m-fat_g { background: var(--s2); }
@@ -715,8 +716,8 @@ a.ntile { color: inherit; text-decoration: none; }
   background: none; text-align: left; border-radius: 0; color: inherit; }
 .fe:first-of-type { border-top: 0; } .fe:active { opacity: .6; }
 .fe > div:first-child { min-width: 0; flex: 1; }
-.fe b { overflow: hidden; font-weight: 600; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.fe small { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx3); }
+.fe b { font-weight: 600; display: block; overflow-wrap: anywhere; }
+.fe small { display: block; font-size: 12px; white-space: normal; overflow-wrap: anywhere; color: var(--tx3); }
 .fe .r { text-align: right; flex: none; } .fe .r b { font-family: var(--numf); } .fe .r small { display: block; }
 .fe.pending { opacity: .6; }
 .mealact { display: flex; justify-content: space-between; margin-top: 0; } .mealact .linkbtn { min-height: 44px; }
@@ -1166,10 +1167,10 @@ button.lift-prev:active { background: var(--card2); }
 .lift-add { min-height: 48px; margin-top: 4px; }
 .lift-foot { margin: 12px 0 0; }
 .lift-now { display: flex; align-items: center; gap: 12px; } .lift-now .grow { flex: 1; display: grid; }
-.post-lifts { margin: 10px 0 0; font-size: 13.5px; color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.post-lifts { margin: 10px 0 0; font-size: 13.5px; color: var(--tx2); white-space: normal; overflow-wrap: anywhere; }
 .ls-row .grow small { font-size: 14px; } .ls-row .grow small.num { color: var(--tx); }
 .lv-best { display: grid; text-align: right; flex: none; } .lv-best b { font: 700 17px var(--numf); }
-.lv-names { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-names { white-space: normal; overflow-wrap: anywhere; }
 .lx-head h1 { font-size: 26px; letter-spacing: -.02em; margin: 2px 0 4px; }
 .lx-note { display: block; width: 100%; text-align: left; margin-top: 12px; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--card2); color: var(--tx2); font-size: 14px; }
 .lx-note.empty-note { color: var(--accent); font-weight: 600; }
@@ -1282,7 +1283,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .pf-preview { display: grid; gap: 2px; margin: 4px 0 14px; padding: 10px 14px; border-radius: var(--r2); background: var(--accent2); color: var(--tx); font-size: 14px; }
 .pf-preview span { color: var(--tx2); }
 .pf-edit { display: flex; align-items: center; gap: 8px; min-height: 44px; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; }
-.pf-edit h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-edit h1 { margin: 0; white-space: normal; overflow-wrap: anywhere; }
 .pf-pen { flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); color: var(--accent); }
 .pf-pen svg { width: 15px; height: 15px; }
 .pf-edit.pf-bio { width: 100%; align-items: flex-start; justify-content: space-between; margin: 0 0 18px; }
@@ -1663,7 +1664,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 /* Feed cards: only the photo and the name open the profile; anywhere else on the card opens the activity. */
 .post-av { flex: none; display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 50%; color: inherit; }
 .post-av:active { transform: scale(.92); }
-.post-name { justify-self: start; max-width: 100%; color: var(--tx); font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-name { justify-self: start; max-width: 100%; color: var(--tx); font-size: 15px; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
 .post-name:active { opacity: .6; }
 .post[data-href] { cursor: pointer; transition: transform .14s cubic-bezier(.2, .8, .2, 1); }
 .post.press { transform: scale(.985); }
@@ -2563,7 +2564,7 @@ nav.tabs { view-transition-name: tabs; }
    dashed and listed, a connection with no path is red and dashed, and the distance says "updating" while it changes. */
 .planner-page {display:flex;flex-direction:column;min-height:calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom,0px));padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 8px)}
 .plan-top {margin-bottom:6px}
-.plan-top .plan-title {font-size:1.15rem;margin:0;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-top .plan-title {font-size:1.15rem;margin:0;flex:1;min-width:0;text-align:center;white-space:normal;overflow-wrap:anywhere}
 .plan-sports {display:flex;width:100%;margin-bottom:8px}
 .plan-sports button {flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:40px;padding:4px 6px}
 .plan-sports svg {width:17px;height:17px}
