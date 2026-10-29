@@ -41,8 +41,8 @@ separately in PR322. There is no current P0 incident.
 
 ## Completed software verification
 
-App candidate **87a349f** includes all repairs below. Later documentation-only changes do not change its app,
-server, migrations, native wrapper or fixtures. Concrete CI links and reviewed captures are in PR344.
+App candidate **bc8e58e** includes the guide/navigation and native-runner follow-ups. Later website wording and
+acceptance-document updates do not change its app, server, migrations, native wrapper, test suite or fixtures. Concrete CI links and reviewed captures are in PR344.
 
 - The entire original `dev/tests/run.sh` passed **twice**, on independent fresh databases in America/New_York and UTC.
   Syntax, generated content/design/contrast, API/SQL/RLS/concurrency, native state, AI/push stand-ins and synthetic
@@ -60,12 +60,16 @@ server, migrations, native wrapper or fixtures. Concrete CI links and reviewed c
   and positive stable safe areas, including enlarged food-field fitting. TestFlight/beta jobs were skipped.
 - Website checks cover **56 page/width/theme combinations**, 14 local destinations, gallery/lightbox/keyboard,
   feature search/empty states and reduced motion. All **54 fictional phone frames** and 44 full-page review strips
-  were inspected. Successful fictional map tiles are labelled as substitutes, not actual hosted coverage.
+  were inspected. The final shared-guide instructions/counts passed two eight-configuration browser runs, including
+  actual app destinations. The obsolete duplicate template catalog was removed; all 59 entries still come from the
+  app catalog. Successful fictional map tiles are labelled as substitutes, not actual hosted coverage.
 
 Final visual findings have meaningful regressions: loaded map layers stay below tabs/sheets and credits do not
 cover drawing instructions; restored/empty food composers fit after entry and resizing; narrow enlarged headings
 keep words intact. The old source fails the corresponding browser assertions. Polling preserves production CSP.
-Old home/selector/shortcut renderers and their unused styles were removed; compatibility migrations/storage were retained.
+An additional read-only semantic-name check across 82 views found no unnamed focusable controls; this is separate
+from physical VoiceOver acceptance. Old home/selector/shortcut renderers and their unused styles were removed;
+compatibility migrations/storage were retained.
 
 ## Required behavior
 
