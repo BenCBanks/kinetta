@@ -29,7 +29,7 @@ p { margin: 0; }
 .eyebrow { font: 500 13px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--ink3); }
 
 /* header: logo, the page tabs, Join the beta. Same markup on every page (copy it when adding a page). On a phone the
-   tabs get their own row and scroll sideways, so every page is one tap away without a menu. */
+   tabs wrap on their own row, so labels stay visible without a menu. */
 header.top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 header.top .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 24px; padding-block: 12px; }
@@ -43,8 +43,8 @@ nav.tabs a[aria-current="page"] { color: var(--brand); background: color-mix(in 
 .btn.sm { min-height: 44px; padding: 0 18px; font-size: 15px; }
 @media (max-width: 960px) {
   header.top .wrap { grid-template-columns: minmax(0, 1fr) auto; padding-block: 10px 0; }
-  nav.tabs { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; margin-inline: -20px; padding: 0 14px 8px; }
-  nav.tabs a { padding: 7px 12px; font-size: 14.5px; }
+  nav.tabs { grid-column: 1 / -1; grid-row: 2; flex-wrap:wrap; justify-content:center; overflow:visible; margin-inline:0; padding:0 0 8px; }
+  nav.tabs a { padding:7px 8px; font-size:14.5px; }
 }
 
 /* the top of every page except Home: what this page is about, in one line */
@@ -155,7 +155,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .shot figure { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 /* 2026-10-13: iPhone-sized shots (786 x 1704) with the status bar and Dynamic Island; the frame's corners follow the phone's */
 .shot .frame { border-radius: 16% / 8.6%; padding: 2.4%; background: var(--ink); }
-.shot .frame img { border-radius: 13.8% / 7.6%; aspect-ratio: 786 / 1420; object-fit: cover; object-position: top; width: 100%; height: auto; }
+.shot .frame img { border-radius: 13.8% / 7.6%; aspect-ratio: 786 / 1704; object-fit: cover; object-position: top; width: 100%; height: auto; }
 .shot h3 { font-size: 19px; }
 .shot figcaption p { color: var(--ink2); font-size: 15.5px; margin-top: 6px; }
 @media (max-width: 900px) {
@@ -173,7 +173,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .spot .pair { justify-content: center; }
 .spot .pair .credit { grid-column: 1 / -1; margin: 0; font-size: 12.5px; color: var(--ink2); text-align: center; }   /* photo credits under the phones */
 .frame { border-radius: 16% / 8.6%; padding: 2.4%; background: var(--ink); min-width: 0; }
-.frame img { border-radius: 13.8% / 7.6%; width: 100%; height: auto; aspect-ratio: 786 / 1420; object-fit: cover; object-position: top; }
+.frame img { border-radius: 13.8% / 7.6%; width: 100%; height: auto; aspect-ratio: 786 / 1704; object-fit: cover; object-position: top; }
 .spot h3 { font-size: clamp(26px, 3vw, 34px); margin-top: 14px; }
 .spot p { color: var(--ink2); font-size: 18px; margin-top: 14px; max-width: 44ch; }
 .spot ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink2); }
@@ -183,7 +183,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 @media (max-width: 860px) { .spot { grid-template-columns: 1fr; gap: 32px; }
   .spot .pair { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(300px, 80vw); justify-content: start; overflow-x: auto;
     scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; }
-  .spot .pair > .frame { scroll-snap-align: start; grid-row: 1; } .spot .pair .credit { grid-row: 2; grid-column: 1 / span 2; text-align: left; } }
+  .spot .pair > .frame { scroll-snap-align: start; grid-row: 1; } .spot .pair .credit { grid-row:2;grid-column:1 / span 2;text-align:left;max-width:calc(100vw - 40px); } }
 .pcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 22px; }
 /* four shots: two by two, so each is about as wide as a real phone and its text is readable (2026-10-13, Ben) */
 .pcards.four { grid-template-columns: repeat(2, minmax(0, 340px)); justify-content: center; gap: 48px 72px; }
@@ -335,8 +335,8 @@ html { scroll-padding-top: 130px; }
 .final p.more-links { max-width: none; }
 .more-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 12px; margin: 18px 0 28px; font-size: 15px; }
 .more-links a { color: var(--brand); font-weight: 600; } .more-links span { color: var(--ink3); }
-.spot .pair.solo { grid-template-columns: minmax(0, 300px); }
-@media (max-width: 860px) { .spot .pair.solo { grid-auto-columns: min(300px, 80vw); justify-content: center; } }
+.spot .pair.solo { grid-template-columns:minmax(0,min(100%,300px)); }
+@media (max-width: 860px) { .spot .pair.solo { grid-auto-flow:row; justify-content:center; } }
 .steps.compact { gap: 18px; } .steps.compact .step { padding: 18px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); gap: 6px; }
 .steps.compact .step h3 { font-size: 19px; } .steps.compact .step p { font-size: 15.5px; }
 @media (max-width: 560px) { .more-links { flex-direction: column; align-items: center; } .more-links span { display: none; } }
@@ -357,7 +357,6 @@ html { scroll-padding-top: 130px; }
 .track-toggle svg { width: 16px; height: 16px; fill: currentColor; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .track-toggle[hidden] { display: none; }
 
-/* Beta (2026-10-24): a tiny label under the header's Sign up button, and how to get the iPhone app under the hero buttons */
-header.top .signup { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.beta-tag { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; line-height: 1; color: var(--ink2); opacity: .75; }
+/* Beta entry and the short installation note below the hero actions. */
+header.top .signup { display:flex;align-items:center; }
 .beta-note { margin-top: 14px; font-size: .95rem; opacity: .85; }
