@@ -95,7 +95,7 @@ details.fold-row[open] { padding-bottom: 12px; }
 .opt-text textarea { min-height: 72px; }
 .opt-add { justify-self: start; gap: 6px; display: inline-flex; align-items: center; }
 .card p.corrected-note { margin: 4px 0 14px; }   /* "You edited these numbers", above the big numbers */
-.form .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.form .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 10px; }
 /* drop-downs with a chevron (2026-10-13, Add an activity) */
 .selbox { position: relative; display: block; min-width: 0; }
 .selbox select { appearance: none; -webkit-appearance: none; padding-right: 34px; color: var(--tx); text-overflow: ellipsis; }

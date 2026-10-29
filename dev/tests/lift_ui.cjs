@@ -35,6 +35,11 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    await p.waitForTimeout(350);
    const overlap=await p.locator('.track-review-stats > div').evaluateAll(es=>es.flatMap((e,i)=>{const a=e.getBoundingClientRect(),b=e.querySelector('b').getBoundingClientRect();return b.right>a.right+1||b.left<a.left-1||e.querySelector('b').scrollWidth>e.querySelector('b').clientWidth+1?[i]:[];}));
    assert.deepEqual(overlap,[],'Enlarged summary numbers must fit their own cell');
+   // The paired day/time fields use the same responsive form layout as other app sheets.
+   await p.evaluate(()=>addActivitySheet(null,'workout'));await p.locator('#ma').waitFor();
+   const yesterday=await p.locator('#ma select[name=day] option').nth(1).getAttribute('value');await p.locator('#ma select[name=day]').selectOption(yesterday);
+   const clippedChoices=await p.locator('#ma .two select').evaluateAll(es=>es.flatMap(e=>{const s=getComputedStyle(e),g=document.createElement('canvas').getContext('2d');g.font=s.font;const text=e.selectedOptions[0].text,space=e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight),needed=g.measureText(text).width;return needed>space+1?[{text,space,needed}]:[];}));
+   assert.deepEqual(clippedChoices,[],'Day and time choices must remain readable when enlarged');
    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)));assert.deepEqual(errors,[]);await c.close();console.log(`Lifting writes/values/summary: ${size.width}px/${size.root}px ${theme} PASS`);
   }
  }finally{await browser.close();}
