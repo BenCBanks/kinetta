@@ -1,6 +1,7 @@
 """Run native layout evidence on isolated Simulator devices. Fixtures and artifacts contain no real data."""
 import argparse,json,os,platform,re,subprocess,time,uuid
 from pathlib import Path
+from lifecycle import stop_for_fixture
 p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
@@ -47,14 +48,15 @@ for device in preferred:
   print('Booting native UI device: '+device['name'],flush=True)
   # A fresh hosted runner must initialize the iOS runtime; this can exceed three minutes.
   sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100')
-  installed=None
+  installed=None;recovered=False
   for theme in ('light','dark'):
    sim('ui',udid,'appearance',theme)
    for stage,root in [('recipe',16),('review',16),('food',16),('recipe',24),('food',24)]:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
     token=uuid.uuid4().hex;copy=a.output/'KinettaLayout.app'
-    sim('terminate',udid,'com.kinetta.app',check=False,timeout=20)
+    if installed:recovered=stop_for_fixture(sim,udid,theme,recovered)
+    diagnostics['terminationRecovery']=recovered;(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     destination=installed or copy
     run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []))
     if not installed:
@@ -67,10 +69,13 @@ for device in preferred:
       if candidate.get('run')==token:metrics=candidate;break
      except (OSError,ValueError):pass
      time.sleep(.2)
-    assert metrics, f'No native metrics: {device["name"]} {theme} {stage}'
     filename=device['name'].replace(' ','-').replace('(','').replace(')','')+'-'+theme+'-'+stage+'-'+str(root)
+    if not metrics:
+     sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)
+     (a.output/(filename+'-missing-metrics.json')).write_text(json.dumps({**diagnostics,'error':'No metrics for current fixture run'},indent=2))
+    assert metrics, f'No native metrics: {device["name"]} {theme} {stage}'
     sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'.png')))
-    metrics.update(device=device['name'],runtime=runtime['name']);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
+    metrics.update(device=device['name'],runtime=runtime['name'],terminationRecovery=recovered);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
     assert 'error' not in metrics,metrics
     assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics

@@ -26,6 +26,7 @@ python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
 for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
 echo "== native sync recovery (stand-in HealthKit, no health data)"
+python3 dev/tests/test_native_ui_lifecycle.py
 node dev/tests/test_boot.js
 node dev/tests/test_enrollment_entry.js
 node dev/tests/test_admin_logins.js
