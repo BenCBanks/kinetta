@@ -5,14 +5,79 @@ import io
 from pathlib import Path
 import shutil
 import uuid
+import threading
+import time
 from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from PIL import Image
-from app import api_photos, auth, activities, db
+from app import api_photos, api_account, auth, activities, db
 from app.main import app
+
+def photo_erasure_lock_order(prepared):
+    """A photo holding its activity must finish before erasure can take the account; never invert their locks."""
+    with db.connect() as c:
+        uid = c.execute("INSERT INTO users(login,name) VALUES(%s,'Fictional photo lock') RETURNING id", ('zz_test_photolock_' + uuid.uuid4().hex[:12],)).fetchone()['id']
+        c.execute('INSERT INTO profile(user_id) VALUES(%s)', (uid,))
+        aid = c.execute("INSERT INTO activities(user_id,sport,name,start_time,source) VALUES(%s,'run','Fictional lock test',now(),'manual') RETURNING id", (uid,)).fetchone()['id']
+    ready, release, entered = (threading.Event(), threading.Event(), threading.Event())
+    pid = []
+
+    def upload():
+        with db.connect() as c:
+            c.execute("SET statement_timeout='8s'")
+            api_photos.lock_activity_photos(c, uid)
+            c.execute('SELECT id FROM activities WHERE id=%s FOR UPDATE', (aid,))
+            ready.set()
+            assert release.wait(6)
+            api_photos.insert_activity_photo(c, aid, uid, prepared)
+
+    def erase():
+        assert ready.wait(5)
+        with db.connect() as c:
+            c.execute("SET statement_timeout='8s'")
+            pid.append(c.execute('SELECT pg_backend_pid() AS pid').fetchone()['pid'])
+            entered.set()
+            c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
+            api_account.erase(c, {'id': uid, 'sql_role': None})
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            photo_future = pool.submit(upload)
+            erase_future = pool.submit(erase)
+            assert entered.wait(5)
+            blocked = False
+            try:
+                for _ in range(200):
+                    with db.connect() as c:
+                        r = c.execute('SELECT wait_event_type FROM pg_stat_activity WHERE pid=%s', (pid[0],)).fetchone()
+                    if r and r['wait_event_type'] == 'Lock':
+                        blocked = True
+                        break
+                    time.sleep(0.02)
+            finally:
+                release.set()
+            assert blocked, 'erasure reaches the competing database lock'
+            errors = []
+            for future in [photo_future, erase_future]:
+                try:
+                    future.result(timeout=10)
+                except Exception as e:
+                    errors.append(type(e).__name__)
+            assert not errors, errors
+            with db.connect() as c:
+                try:
+                    api_photos.lock_activity_photos(c, uid)
+                except HTTPException as e:
+                    assert e.status_code == 404
+                else:
+                    raise AssertionError('An erased account cannot acquire photo write access')
+    finally:
+        release.set()
+        with db.connect() as c:
+            c.execute('DELETE FROM users WHERE id=%s', (uid,))
+
 
 uid = None
 client = None
@@ -72,6 +137,8 @@ try:
         assert c.execute('SELECT count(*) AS n FROM activities WHERE user_id=%s', (uid,)).fetchone()['n'] == 2
         assert c.execute('SELECT count(*) AS n FROM track_recording_receipts WHERE user_id=%s', (uid,)).fetchone()['n'] == 2
     assert len(list(folder.glob('*.json'))) == 2
+    photo_erasure_lock_order(api_photos.prepare_activity_photo(api_photos.PhotoIn(image=image)))
+    print('PASS concurrent photo upload and account erasure follow account-first locking')
     print('PASS mid-save rollback, raw-file cleanup, exact retry, photo metadata stripping and no duplicate pixels')
 finally:
     if client: client.close()
