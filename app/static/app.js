@@ -721,10 +721,10 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
     L.marker(first[0], {icon: endIcon(L, 'start', loop), interactive: false, keyboard: false, title: 'Start'}).addTo(map);
     L.marker(last[last.length - 1], {icon: endIcon(L, 'end', loop), interactive: false, keyboard: false, title: 'Finish'}).addTo(map);
   }
-  if (still) { map.attributionControl.setPrefix(false); return {map, L, group}; }
+  if (still) { map.attributionControl.setPrefix(false); return {map, L, group,routeColor:()=>routeColor}; }
   map.attributionControl.setPrefix(false);      // no "Leaflet" credit; phones pinch to zoom, so +/- only with a mouse (2026-10-12)
   if (!matchMedia('(pointer: coarse)').matches) L.control.zoom({position: 'bottomright'}).addTo(map);
-  return {map, L, group};
+  return {map, L, group,routeColor:()=>routeColor};
 }
 function feedMaps(box) {   // Strava-style map on each feed card, built when it scrolls near the screen
   for (const el of box.querySelectorAll('.fmap:not([data-on])')) {

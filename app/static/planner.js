@@ -477,7 +477,14 @@ function stretchSheet(title, line, {unitLabel = '', onUse, note = ''}) {
     <p class="small muted" id="st-sum"></p>${note}<button class="primary wide" id="st-use">Use this stretch</button>`, async (b, close) => {
     const A = $('#st-a', b), B = $('#st-b', b);
     let v = null, part = null;
-    try { v = await mapInto($('#st-map', b), [line], {ends: false}); if (v) part = v.L.polyline([], {color: col('--route'), weight: 6}).addTo(v.map); v?.group.eachLayer((l) => l.setStyle?.({color: col('--tx3'), weight: 3, opacity: .6})); } catch (_) { /* the sliders still work */ }
+    try {
+      v=await mapInto($('#st-map',b),[line],{ends:false});
+      if(v){
+        part=v.L.polyline([],{color:v.routeColor(),weight:6}).addTo(v.map);
+        v.map.on('basemaptheme',()=>{part.setStyle({color:v.routeColor()});v.group.setStyle({color:col('--tx3')});});
+        v.group.eachLayer(l=>l.setStyle?.({color:col('--tx3'),weight:3,opacity:.6}));
+      }
+    } catch (_) { /* the sliders still work */ }
     const draw = () => {
       let a = +A.value, z = +B.value; if (z - a < step) { if (document.activeElement === A) A.value = a = z - step; else B.value = z = a + step; }
       $('#st-a-v', b).textContent = `${U.dist(a)} ${U.du()}`; $('#st-b-v', b).textContent = `${U.dist(z)} ${U.du()}`;
