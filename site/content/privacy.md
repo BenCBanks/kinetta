@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 28, 2026
+Last updated October 29, 2026
 
 ## intro
 
