@@ -53,6 +53,7 @@ jobs:
         run: |
           mkdir -p /tmp/shots-tool /tmp/png && cd /tmp/shots-tool && npm init -y >/dev/null && npm install playwright@1.48.2
           npx playwright install --with-deps chromium
+          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/boot_ui.cjs"
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/screenshots/take.js" /tmp/png
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/map_ui.cjs"
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/lift_ui.cjs"
