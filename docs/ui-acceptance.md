@@ -13,7 +13,7 @@ the successful resource view. Old addresses are checked as redirects. Eight sign
 | Startup and entry | Cold/warm opening; failed required script and Reload; delayed API; login/logout; invitation/signup/waitlist; confirmation/reset errors; first-use welcome |
 | Stable five tabs | Me → Activity → Track → Progress → Nutrition and back; correct selected tab; responsive shell; scroll restoration; interrupted/reordered reads |
 | Me and settings | Conditional food-first home, empty home, profile, friends/challenges/milestones, gear/goals, account/body/privacy/AI/notification/device sheets; cancel and validation |
-| Activity and recording | Own/shared detail, overview/splits/charts/efforts, missing GPS/speed/HR sharing, photos/maps/failure retry, recording start/pause/resume/finish/discard and interval controls |
+| Activity and recording | Own/shared detail, charts/details/splits/efforts, missing GPS/speed/HR sharing, photos/maps/failure retry, recording start/pause/resume/finish/discard and interval controls |
 | Progress | Mileage period/sport/date changes, records/history, fitness/chart gestures/reset, collapsed/expanded prediction help, lifting/exercise history, calendar, matched routes, personal heatmap and segments |
 | Nutrition | All log/progress views, date changes, clear empty meals, one yesterday-copy action, meal/all-meal preview/cancel/confirm, saved foods, imports and nutrient forms |
 | Recipes and food entry | Fresh creation independent of Add food, name first, ingredient/known-total flows, save with logging off/on, clear deletion, imports, visible quick actions/Kit icons, search/manual/photo/barcode entry and keyboard/drafts |
@@ -47,4 +47,4 @@ suite twice against the final combined code, repeat the two code-review lenses, 
 and interactions. Merge, deployment, provider activation, signed upload and physical acceptance stay separate.
 
 
-The owner requested an additional complete [lifting flow review](lifting-review.md) after the PR/website rereview. Its pending final verification must be completed before starting the subsequently queued notification work.
+The owner requested an additional complete [lifting flow review](lifting-review.md) after the PR/website rereview. The final combined code ae1c0ad passed the original suite twice; the expanded712-case inventory and targeted final controls/privacy/touch checks passed, and their changed captures were inspected. Both current Simulator checks passed; all20 native captures were inspected. The subsequently queued notification work can now follow the completed software review.
