@@ -988,7 +988,7 @@ route(/^\/notifications$/, null, async (el) => {
   }, {maxAge: 0});
 });
 route(/^\/me\/notifications$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Notifications</h1><div id="nt-push">${skel(1)}</div><div id="nt-email"></div>`;
+  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Notifications</h1><div id="nt-push">${skel(1)}</div><div id="nt-personal"></div><div id="nt-email"></div>`;
   wireBack(el, '/me/settings');
   // Email when your account is signed in to from a new device (#232 I); only with a confirmed email.
   if (App.me.email && App.me.email_confirmed) api('/api/account/signin-email').then((r) => {
@@ -1010,6 +1010,7 @@ route(/^\/me\/notifications$/, 'me', async (el) => {
 });
 async function pushCard(box, r) {
   if (!box) return;
+  personalNotificationCard($('#nt-personal',box.parentElement));
   if (!Native.on) {
     box.innerHTML = '<div class="card"><h2>iPhone notifications</h2><p>Open Kinetta’s native iPhone app to turn on phone notifications. Your notification history stays available here.</p></div><div id="np-meal-reminders"></div>';
     mealReminderCard($('#np-meal-reminders',box));
@@ -1053,6 +1054,50 @@ async function pushCard(box, r) {
     catch (x) { e.target.checked = !v; error.textContent = x.message; }
     finally { e.target.disabled = false; }
   };
+}
+
+async function personalNotificationCard(box,message=''){
+  if(!box)return;
+  const owner=readOwner();
+  // A native permission refresh must not replace controls during their pending write.
+  if(box.personalSaving===owner){box.personalRefresh=true;return;}
+  const generation=Symbol();box.personalGeneration=generation;
+  const valid=()=>box.isConnected&&owner===readOwner()&&box.personalGeneration===generation;
+  const times=[['07:00','7 am'],['08:00','8 am'],['12:00','Noon'],['18:00','6 pm'],['20:00','8 pm']];
+  const draw=(state,error=message)=>{
+    if(!valid())return;
+    const unavailable=!state.push_ready||!state.device_ready;
+    box.innerHTML=`<section class="card personal-notifications"><h2>Training & progress</h2><p class="small muted">Optional · ${esc(state.tz)}</p>
+      <div class="personal-notice-choice"><label class="check"><input type="checkbox" data-personal="plan"${state.plan?' checked':''}${unavailable&&!state.plan?' disabled':''}> <span>Planned workouts<small>Only when a workout is still due.</small></span></label>
+      <label class="personal-notice-time">Reminder time<select data-personal="plan_time">${times.map(([k,v])=>`<option value="${k}"${state.plan_time===k?' selected':''}>${v}</option>`).join('')}</select></label></div>
+      <div class="personal-notice-choice"><label class="check"><input type="checkbox" data-personal="weekly"${state.weekly?' checked':''}${unavailable&&!state.weekly?' disabled':''}> <span>Weekly summary<small>Monday at 9 am.</small></span></label></div>
+      ${unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':Native.on?'Turn on iPhone notifications above.':'Turn on notifications in the Kinetta iPhone app first.'}</p>`:''}
+      <details class="reminder-how"><summary>Delivery details</summary><p>New choices start at the next scheduled time. A weekly summary needs a workout or food logged in the last seven completed days. iOS may delay or suppress alerts. Delivered alerts cannot be recalled.</p></details>
+      <p class="small${error?' err':''}" role="status" data-personal-status>${esc(error)}</p></section>`;
+    $$('[data-personal]',box).forEach(input=>input.onchange=async()=>{
+      if(!valid()||input.disabled)return;
+      const key=input.dataset.personal,value=input.type==='checkbox'?input.checked:input.value;
+      const focused=globalThis.document?.activeElement===input;
+      const restoreFocus=()=>{const field=$(`[data-personal="${key}"]`,box);if(focused&&field&&!field.disabled)field.focus({preventScroll:true});};
+      let failure='';
+      box.personalSaving=owner;
+      $$('[data-personal]',box).forEach(field=>field.disabled=true);
+      $('[data-personal-status]',box).textContent='Saving…';
+      try{
+        const fresh=await api('/api/notifications/personal',json('PUT',{[key]:value,confirmed:value===true}));
+        if(!valid())return;draw(fresh,'');restoreFocus();Native.haptic('light');
+      }catch(error){failure=error.message||'This setting could not be saved.';if(valid()){draw(state,failure);restoreFocus();}}
+      finally{
+        if(box.personalSaving===owner)box.personalSaving=null;
+        if(valid()&&box.personalRefresh){box.personalRefresh=false;await personalNotificationCard(box,failure);}
+      }
+    });
+  };
+  const loadSettings=async()=>{
+    try{const state=await api('/api/notifications/personal');if(valid())draw(state);}
+    catch(error){if(valid()){box.innerHTML='<section class="card"><h2>Training & progress</h2><p>Notification settings could not load.</p><button class="ghost wide">Retry</button></section>';$('button',box).onclick=loadSettings;}}
+  };
+  box.innerHTML=skel(1);await loadSettings();
 }
 
 async function mealReminderCard(box){

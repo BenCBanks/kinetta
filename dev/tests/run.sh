@@ -56,6 +56,8 @@ node dev/tests/test_recipe_title_retry.js
 node dev/tests/test_recipe_library_intent.js
 node dev/tests/test_navigation_animation.js
 node dev/tests/test_notification_rows.js
+node dev/tests/test_personal_notifications_ui.js
+node --check dev/tests/personal_notifications_ui.cjs
 node dev/tests/test_track_native.js
 node dev/tests/test_recording_sharing.js
 node dev/tests/test_activity_sharing.js
@@ -215,6 +217,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/shared_recipes_incontain
 docker compose -p "$P" exec -T app python - < dev/tests/health_weights_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_nutrition_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_reminders_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/personal_notifications_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_numbers_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_incontainer.py
 

@@ -170,6 +170,7 @@ function combinedWeek(box) {
   load('/api/activity-food',data=>{
     if(!box.isConnected||owner!==readOwner())return;const w=data.week;
     box.innerHTML=combinedWeekHtml(w);
+    if(new URLSearchParams(location.search).get('review')==='week')$('details',box).open=true;
   }).catch(()=>{if(box.isConnected&&owner===readOwner()){if(!box.innerHTML)box.innerHTML='<p class="small muted">Your week could not load.</p>';const b=document.createElement('button');b.className='linkbtn combined-week-retry';b.textContent='Retry weekly summary';b.onclick=()=>{b.remove();combinedWeek(box);};box.append(b);}});
 }
 function workoutEnergy(box,aid) {
@@ -994,7 +995,7 @@ function pHead(el, view, filters) {
     <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav>${v && !PVIEWS.slice(0,3).some(([k])=>k===view)?`<h2 class="progress-view-title">${esc(v[1])}</h2>`:''}<div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skelChart()}</div>`;
   wireProgressFocus(el);
   if(v&&!PVIEWS.slice(0,3).some(([k])=>k===view)){const more=$('#p-view',el);more.classList.add('current-view');more.setAttribute('aria-label',`More progress views · current view: ${v[1]}`);}
-  if (foodUser()) combinedWeek($('#p-combined-week',el));
+  if (foodUser() || new URLSearchParams(location.search).get('review')==='week') combinedWeek($('#p-combined-week',el));
   $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
     if (k === 'plan') return go('/plan');
     const keep = new URLSearchParams(); const s = new URLSearchParams(location.search).get('sport'); if (s) keep.set('sport', s);

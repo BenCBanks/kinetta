@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool
-from . import cards,milestones,challenges
+from . import cards,milestones,challenges,personal_notifications
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts, garmin_connect
 import threading
 from .auth import current_user
@@ -26,8 +26,10 @@ async def lifespan(app):
     segment_stop,segment_worker=segments.start_worker()      # segment times from new GPS activities and new segments (#278)
     milestone_stop,milestone_worker=milestones.start_worker()
     challenge_stop,challenge_worker=challenges.start_worker()
+    personal_stop,personal_worker=personal_notifications.start_worker()
     try:yield
     finally:
+        personal_stop.set();personal_worker.join(timeout=3)
         challenge_stop.set();challenge_worker.join(timeout=3)
         milestone_stop.set();milestone_worker.join(timeout=3)
         recipe_stop.set();recipe_worker.join(timeout=3);segment_stop.set();segment_worker.join(timeout=3)
@@ -35,6 +37,7 @@ async def lifespan(app):
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 from . import recaps
 app.include_router(recaps.router)
+app.include_router(personal_notifications.router)
 from . import api_intervals
 app.include_router(api_intervals.router)
 app.include_router(map_config.router)

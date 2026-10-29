@@ -1,7 +1,7 @@
 # Screen, interaction and loading acceptance
 
 This expands the launch checklist for [#351](https://github.com/BenCBanks/kinetta/issues/351). The executable
-[inventory](../dev/tests/ui_inventory.json) covers all 56 registered client route definitions and 89 explicit
+[inventory](../dev/tests/ui_inventory.json) covers all 56 registered client route definitions and 90 explicit
 route/view cases. `test_ui_inventory.py` fails when a route is added without a case. Dynamic cases use fictional
 activities, friends, recipes, exercises, segments, cards and challenges; a missing-resource page cannot count as
 the successful resource view. Old addresses are checked as redirects. Eight signed-out entry states and all 11 administration sections are listed separately; these are rendered outside the registered client routes.
