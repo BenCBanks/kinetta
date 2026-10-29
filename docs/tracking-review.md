@@ -1,8 +1,8 @@
 # GPS recording and save review
 
 Selected October 29, 2026, [#358](https://github.com/BenCBanks/kinetta/issues/358). This follows the completed software
-review in PR344 and optional notification work in PR357. Implementation and verification are in progress; nothing
-in this document establishes deployment or physical-iPhone acceptance.
+review in PR344 and optional notification work in PR357. Software is implemented in PR359; the verification record below distinguishes automated checks from deployment and
+physical-iPhone acceptance.
 
 ## Requirements
 
@@ -86,3 +86,31 @@ real-control browser matrices at normal/narrow/enlarged/desktop sizes in light/d
 keyboard/draft/photo failure checks. Run the entire original suite twice on final code, fresh install and applicable
 preservation upgrade, two source/UI passes and native CI. Inspect final screenshots directly against both concepts.
 Physical GPS, camera picker, locked-screen/audio and VoiceOver remain explicitly separate acceptance evidence.
+
+## Software verification · October 29
+
+Core code **4e2a5b2** passed the entire original `dev/tests/run.sh` twice on independent fresh New York/UTC
+installations. The cumulative **schema80→87 preservation upgrade** retained fictional accounts, activities, food,
+recipes, weights, birth year/consent and explicit notification choices. GPS adds no migration or model-facing change.
+
+Two source-review lenses cover arithmetic/durable native journals and authenticated atomic saves, then account/navigation
+races, photo storage, acknowledgement loss, rollback/quota concurrency and lifecycle/UI behavior. Authenticated tests
+include six simultaneous first saves, repeated receipts, image sanitization, privacy, validation, deletion tombstones,
+a failed second photo rolling back the whole save and independent recordings competing for the photo limit.
+
+Final ten-layout real-control browser matrices pass on Playwright1.48 and1.63, in both themes at390px, short330px,
+enlarged330px and desktop. They exercise manual laps, map tap versus pan, focus/Back/Escape, photo preparation/removal
+across navigation, local storage failure, charts, reload, old-server rejection, definite validation failure and an exact
+uncertain-save retry. The final visual pass keeps narrow-screen pace units together; this CSS-only correction and the
+additional map-gesture assertions passed both rendered matrices. No type was reduced.
+
+CI Tests, screenshots, iPhone compilation/archive, Foundation tests and both compact/Pro Simulator jobs pass for4e2a5b2.
+Forty actual Simulator captures cover recipe/food plus live/map/review at normal/enlarged sizes; the twenty changed GPS
+captures were inspected against the private concepts. Final phone browser captures and both themes were also reviewed.
+The website passes56 responsive/theme pages and14 local destinations; its training copy now describes average/lap pace,
+expanded maps and photo/chart review. The shared59-feature guide and262 contrast pairs pass.
+
+Tests use fictional data and blocked device/write/provider calls. External map tiles are blocked in browser/native
+fixtures; Map unavailable in that evidence is intentional. Physical GPS/camera/locked-screen/voice/VoiceOver acceptance,
+real map hosting and actual notification delivery remain separate. Merge, hosted deployment, Pages and the final signed
+iPhone upload are tracked independently in the linked PR and release records.

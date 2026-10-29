@@ -136,7 +136,7 @@ Your pace as you go
 
 ## recording-live
 
-See pace over the last 30 seconds, with your average and last mile or km below. Rides and skiing show speed. “Say my time every mile/km” starts on; the iPhone app can speak with the phone locked. Finish opens a summary of distance, time, pace, splits and map, so you can name it before saving.
+See your whole-activity average and separate lap pace. Laps default to miles until you mark your own. Rides and skiing show speed. Expand the map while recording, then review charts and add photos before saving. Spoken mile/km updates can continue with the iPhone locked.
 
 ## recording-distance-heading
 

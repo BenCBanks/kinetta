@@ -52,6 +52,11 @@ async function reviewFailures(page,setMode,setCapabilities,saves) {
    assert.equal(first.laps.length,1);assert.equal(first.laps[0].distance,first.distance,'first manual lap starts at activity start');assert(first.laps[0].distance>1609.344);
    await snap('02-map-manual');await p.keyboard.press('Escape');assert.equal(await p.locator('#track-map-wrap.full').count(),0);assert.equal(await p.locator(':focus').getAttribute('aria-label'),'Full-screen map');
    await p.locator('#track-map-wrap .map-full').click();await p.goBack();await until(p,()=>!document.querySelector('#track-map-wrap.full'),'map Back');assert.equal(new URL(p.url()).pathname,'/track');
+   if(size.width===390 && theme==='light'){
+    const map=await p.locator('#track-map').boundingBox(),x=map.x+map.width*.75,y=map.y+map.height*.5;
+    await p.mouse.click(x,y);assert.equal(await p.locator('#track-map-wrap.full').count(),1,'a deliberate map tap expands it');await p.keyboard.press('Tab');assert(await p.locator(':focus').evaluate(n=>!!n.closest('#track-map-wrap')),'keyboard focus stays in the map');await p.keyboard.press('Escape');
+    await p.mouse.move(x,y);await p.mouse.down();await p.mouse.move(x-32,y-16,{steps:5});await p.mouse.up();assert.equal(await p.locator('#track-map-wrap.full').count(),0,'panning does not become an expand tap');
+   }
    await p.locator('#track-pause').click();await p.locator('#track-finish').click();await until(p,()=>!!document.querySelector('#track-photos-add:not(:disabled)'),'review/photo storage');
    assert.equal(await p.locator('.top h1').innerText(),'Review activity');assert(await p.locator('#track-review-charts .chartbox').count()>=1);
    await p.locator('input[name=activity_name]').fill('Fictional weekend run');const mapBeforePhoto=await p.locator('#track-map').elementHandle();
