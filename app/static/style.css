@@ -330,6 +330,14 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .meal-reminders dl>div {display:flex;flex-wrap:wrap;justify-content:space-between;gap:.3rem;padding:.5rem 0;border-bottom:1px solid var(--line)}
 .meal-reminders dd {margin:0}
 .meal-reminders .check {min-height:44px}
+.personal-notifications h2 {font-size:1.2rem}
+.personal-notifications .check {min-height:44px;align-items:center}
+.personal-notifications .check span {min-width:0;overflow-wrap:anywhere}
+.personal-notifications .check small {display:block;font-size:.85rem;line-height:1.45;color:var(--muted);font-weight:400}
+.personal-notice-choice {padding:.75rem 0;border-bottom:1px solid var(--line)}
+.personal-notice-time {display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.9rem}
+.personal-notice-time select {flex:1 1 8rem;min-width:0;max-width:100%;min-height:44px;font-size:1rem}
+.personal-notifications [data-personal-status]:empty {display:none}
 .reminder-how summary {font-size:1rem;min-height:44px;display:flex;align-items:center;cursor:pointer}
 
 /* ---------- sheet (bottom dialog) ---------- */

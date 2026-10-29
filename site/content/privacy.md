@@ -140,7 +140,9 @@ Your choices
 
 ## choices
 
-In Me → Settings you can change your details, sharing, AI and notification settings. You can edit or delete any activity, food entry or weigh-in to correct it. Me → Settings lets you download everything, including original activity files, or delete your account. Deleting your account removes your data and files right away, except for the backups described above.
+In Me → Settings you can change your details, sharing, AI and notification settings. Optional planned-workout reminders and weekly-summary alerts start off. They use generic text without personal measurements, food details or location, and make no AI call. Turn either off under Notifications. Limited attempt records prevent duplicates; regular cleanup removes these records after 90 days. They are included in your data export and deleted with your account. Your phone may delay or suppress alerts, and an alert already delivered cannot be recalled.
+
+You can edit or delete any activity, food entry or weigh-in to correct it. Me → Settings lets you download everything, including original activity files, or delete your account. Deleting your account removes your data and files right away, except for the backups described above.
 
 ## security-heading
 

@@ -1,0 +1,21 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('app/static/social.js','utf8');let owner='a',requests=[],fields=[],status={},retry={};
+const context={readOwner:()=>owner,api:(path,options)=>new Promise((resolve,reject)=>requests.push({path,options,resolve,reject})),esc:String,skel:()=>'',Native:{on:false,haptic(){}},json:(method,body)=>({method,body}),$:selector=>selector==='button'?retry:status,$$:()=>fields};
+vm.createContext(context);vm.runInContext(source.slice(source.indexOf('async function personalNotificationCard'),source.indexOf('async function mealReminderCard')),context);
+const state={plan:false,weekly:false,plan_time:'08:00',tz:'UTC',device_ready:true,push_ready:true};
+const resetFields=()=>{fields=['plan','weekly','plan_time'].map(key=>({dataset:{personal:key},type:key==='plan_time'?'select-one':'checkbox',value:state.plan_time,checked:false,disabled:false}));status={textContent:''};};
+const watchdog=setTimeout(()=>{console.error('Personal notification handlers did not finish');process.exit(1);},5000);
+(async()=>{
+ const box={isConnected:true,innerHTML:''};resetFields();let p=context.personalNotificationCard(box);requests.shift().resolve(state);await p;assert(!requests.length);assert(box.innerHTML.includes('Training & progress'));
+ fields[0].checked=true;p=fields[0].onchange();assert(fields.every(f=>f.disabled));const save=requests.shift();assert.equal(save.options.body.plan,true);assert.equal(save.options.body.confirmed,true);await fields[1].onchange();assert.equal(requests.length,0);resetFields();save.resolve({...state,plan:true});await p;
+ fields[2].value='18:00';p=fields[2].onchange();const time=requests.shift();assert.equal(time.options.body.plan_time,'18:00');assert.equal(time.options.body.confirmed,false);time.reject(Error('Fictional offline'));resetFields();await p;assert(box.innerHTML.includes('Fictional offline'));assert(box.innerHTML.includes('value="08:00" selected'));
+ resetFields();p=context.personalNotificationCard(box);requests.shift().resolve({...state,plan:true,device_ready:false,push_ready:false});await p;assert(box.innerHTML.includes('data-personal="plan" checked>'),'Enabled choice can be turned off without delivery setup');assert(box.innerHTML.includes('data-personal="weekly" disabled'));
+ p=context.personalNotificationCard(box);const old=requests.shift();owner='b';const before=box.innerHTML;old.resolve(state);await p;assert.equal(box.innerHTML,before);await fields[0].onchange();assert(!requests.length);
+ owner='a';const detached={isConnected:true,innerHTML:''};p=context.personalNotificationCard(detached);const pending=requests.shift();detached.isConnected=false;pending.resolve(state);await p;assert.equal(detached.innerHTML,'');
+ resetFields();p=context.personalNotificationCard(box);requests.shift().reject(Error('Fictional read failure'));await p;assert(box.innerHTML.includes('Retry'));p=retry.onclick();requests.shift().resolve(state);await p;assert(box.innerHTML.includes('Weekly summary'));
+ // The later read owns the view, even if an older native permission refresh returns last.
+ const first=context.personalNotificationCard(box),r1=requests.shift(),second=context.personalNotificationCard(box),r2=requests.shift();r2.resolve({...state,plan:true});await second;r1.resolve(state);await first;assert(box.innerHTML.includes('data-personal="plan" checked'));
+ fields[0].checked=false;p=fields[0].onchange();const inFlight=requests.shift(),refresh=context.personalNotificationCard(box);assert(!requests.length,'Native refresh waits behind a pending save');await refresh;resetFields();inFlight.resolve(state);await new Promise(setImmediate);requests.shift().resolve({...state,device_ready:false});await p;assert(box.innerHTML.includes('iPhone app first'));
+ console.log('Personal notification UI: explicit opt-in, serialized controls/time, failed-save restoration, unavailable setup/off, account/detached/old-read fencing and Retry PASS');
+})().then(()=>clearTimeout(watchdog)).catch(e=>{clearTimeout(watchdog);console.error(e);process.exitCode=1});

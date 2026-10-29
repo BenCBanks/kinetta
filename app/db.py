@@ -1896,6 +1896,17 @@ MIGRATIONS = [
       '{"sections":["recent","mileage","totals","sports","activities"],"stats":["activities","distance","time"],"sports":[]}'::jsonb;
     ALTER TABLE profile ADD CONSTRAINT profile_layout_object CHECK(jsonb_typeof(profile_layout)='object');""",
 
+    # 87. Once-only, private opt-in plan and weekly-summary alert attempts; no message payloads.
+    """CREATE TABLE personal_notification_attempts (
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK(kind IN ('plan','weekly')), period date NOT NULL,
+      attempted_at timestamptz NOT NULL DEFAULT now(), delivered int NOT NULL DEFAULT 0 CHECK(delivered>=0),
+      PRIMARY KEY(user_id,kind,period));
+    CREATE INDEX personal_notification_retention ON personal_notification_attempts(attempted_at);
+    ALTER TABLE personal_notification_attempts ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON personal_notification_attempts FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE POLICY all_rows ON personal_notification_attempts FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON personal_notification_attempts TO fit_readers;""",
 ]
 
 
