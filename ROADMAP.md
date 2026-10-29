@@ -15,14 +15,14 @@ are separate. This queue does not authorize merging, deployment, provider spendi
 
 The selected P1 launch repairs also include [recipe layout/deletion #332](https://github.com/BenCBanks/kinetta/issues/332), [stationary charts #333](https://github.com/BenCBanks/kinetta/issues/333), [account deletion locks #335](https://github.com/BenCBanks/kinetta/issues/335), [bounded admin retries #355](https://github.com/BenCBanks/kinetta/issues/355), [food-first home #340](https://github.com/BenCBanks/kinetta/issues/340), [deliberate recipe creation #341](https://github.com/BenCBanks/kinetta/issues/341), [native private photos #347](https://github.com/BenCBanks/kinetta/issues/347), [quiet yesterday copying #349](https://github.com/BenCBanks/kinetta/issues/349), [prediction help #350](https://github.com/BenCBanks/kinetta/issues/350), [every-screen responsiveness/functionality review #351](https://github.com/BenCBanks/kinetta/issues/351), [profile-first Me and unified Activity #353](https://github.com/BenCBanks/kinetta/issues/353) and [website/enrollment/feature priorities #354](https://github.com/BenCBanks/kinetta/issues/354). Their complete requirements and verification gates are in [launch readiness](docs/launch-readiness.md).
 
-The combined [PR344](https://github.com/BenCBanks/kinetta/pull/344) contains the selected app and sharing implementations. Component PRs are review aids; use the combined PR for current verification and remaining release gates. Unmerged code is not a hosted release. The [feature-priority decision](docs/feature-priorities.md) records current official competitor overlap and which everyday workflows should lead in the app and website.
+The combined [PR344](https://github.com/BenCBanks/kinetta/pull/344) contains the selected app and sharing implementations. Twenty implementation issues are in review; the complete original suite passed twice on the combined app candidate, with final UI and native evidence. Component PRs are draft review aids; use the combined PR for current verification and remaining release gates. Unmerged code is not a hosted release. The [feature-priority decision](docs/feature-priorities.md) records current official competitor overlap and which everyday workflows should lead in the app and website.
 
 There is no current P0 incident. P0 means immediate security, privacy or data loss and takes precedence when one is found.
 
 ## Next — shareable Kinetta
 
-Build the children of [#293](https://github.com/BenCBanks/kinetta/issues/293) in this order. All are P2 — planned and
-explicitly selected by the owner; a dependency label does not undo that selection.
+The children of [#293](https://github.com/BenCBanks/kinetta/issues/293) were implemented in this dependency order and
+are now integrated for review. All retain P2 priority; implementation does not establish merge or release.
 
 1. [#294](https://github.com/BenCBanks/kinetta/issues/294): week/month/year recap pictures and the quiet monthly offer.
 2. [#295](https://github.com/BenCBanks/kinetta/issues/295): revocable username-only Kinetta cards, QR and an explicit pending friend-request join flow. Depends on #294.

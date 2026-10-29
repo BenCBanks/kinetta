@@ -1,7 +1,7 @@
 # Screen, interaction and loading acceptance
 
 This expands the launch checklist for [#351](https://github.com/BenCBanks/kinetta/issues/351). The executable
-[inventory](../dev/tests/ui_inventory.json) covers all 55 registered client route definitions and 80 explicit
+[inventory](../dev/tests/ui_inventory.json) covers all 56 registered client route definitions and 82 explicit
 route/view cases. `test_ui_inventory.py` fails when a route is added without a case. Dynamic cases use fictional
 activities, friends, recipes, exercises, segments, cards and challenges; a missing-resource page cannot count as
 the successful resource view. Old addresses are checked as redirects. Eight signed-out entry states and all 11 administration sections are listed separately; these are rendered outside the registered client routes.
@@ -17,7 +17,7 @@ the successful resource view. Old addresses are checked as redirects. Eight sign
 | Progress | Mileage period/sport/date changes, records/history, fitness/chart gestures/reset, collapsed/expanded prediction help, lifting/exercise history, calendar, matched routes, personal heatmap and segments |
 | Nutrition | All log/progress views, date changes, clear empty meals, one yesterday-copy action, meal/all-meal preview/cancel/confirm, saved foods, imports and nutrient forms |
 | Recipes and food entry | Fresh creation independent of Add food, name first, ingredient/known-total flows, save with logging off/on, clear deletion, imports, visible quick actions/Kit icons, search/manual/photo/barcode entry and keyboard/drafts |
-| Social and sharing | Search/filter/manage friends, long names and carousel reachability, profile permissions, feed filters, card/QR/rotation/revocation, recaps, milestone receipt retry, challenge joins/leaves/removal/end/finish |
+| Social and sharing | Search/filter/manage friends, long names and carousel reachability, profile permissions, unified feed and separate private history, card/QR/rotation/revocation, recaps, milestone receipt retry, challenge joins/leaves/removal/end/finish |
 | Boundaries | Unsupported browser/native capabilities, stale account/server responses, offline cached reads, failed/empty APIs and meaningful retry; no live device/provider actions |
 
 Run normal phone text separately from enlarged accessibility stress captures. The baseline uses the app's 16px
