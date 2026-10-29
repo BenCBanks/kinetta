@@ -9,7 +9,7 @@ c.adoptNative({session:{id:'another',state:'review',pointOffset:0,points:[]}});a
 console.log('Recording sharing: native status keeps the reviewed audience/name only for the same recording PASS');
 // Render the production audience field with an older cached /me response.
 const fieldStart=source.indexOf('<label>Who can see this activity<select'),fieldEnd=source.indexOf('</select></label>',fieldStart)+'</select></label>'.length,field=source.slice(fieldStart,fieldEnd);
-const preview=(session,profile,saving=false)=>vm.runInNewContext('`'+field+'`',{session,App:{me:profile},saving,Object});
+const preview=(session,profile,saving=false,reviewDraft=null)=>vm.runInNewContext('`'+field+'`',{session,App:{me:profile},saving,reviewDraft,Object});
 assert(preview({},{}).includes('<option value="">Use my saved sharing setting</option>'),'unknown cached preference is resolved on the server, never assumed public');
 assert(preview({},{share_default:'me'}).includes('<option value="me" selected>'));
 assert(preview({visibility:'friends'},{share_default:'everyone'}).includes('<option value="friends" selected>'));
@@ -19,3 +19,5 @@ console.log('Recording review: stale-cache fallback, known private default, expl
 const expected=source.match(/expected_sharing_default:([^,]+),client_id/)[1];
 assert.equal(vm.runInNewContext(expected,{session:{},form:{elements:{namedItem:()=>({value:'me'})}},App:{me:{share_default:'everyone'}}}),'me','confirmation binds the visible private choice even if the profile refreshed in the background');
 assert.equal(vm.runInNewContext(expected,{session:{visibility:'friends'},form:{elements:{namedItem:()=>({value:'friends'})}}}),undefined,'an explicit audience override is independent of the default');
+
+assert(preview({},{share_default:'everyone'},false,{request:{expected_sharing_default:'me'}}).includes('<option value="me" selected>'),'an uncertain save keeps showing the audience originally confirmed even after the profile changes');

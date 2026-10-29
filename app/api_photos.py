@@ -89,19 +89,36 @@ def profile_photo(login: str, user=Depends(current_user)):
 
 
 # ---------- activity photos ----------
-@router.post('/activities/{aid}/photos')
-def add_activity_photo(aid: int, body: PhotoIn, user=Depends(current_user)):
+def prepare_activity_photo(body: PhotoIn):
+    """Decode/orient/re-encode before opening a database transaction. No original metadata is retained."""
     im = _open(body)
     full, thumb = _scaled(im, FULL_PX), _scaled(im, THUMB_PX)
+    return (_jpeg(full), _jpeg(thumb, 78), *full.size)
+
+
+def insert_activity_photo(c, aid, user_id, prepared):
+    """The caller holds the per-person photo lock and owns the encompassing transaction."""
+    if not c.execute('SELECT 1 FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, user_id)).fetchone():
+        raise HTTPException(404, 'Not found')
+    if c.execute('SELECT count(*) AS n FROM activity_photos WHERE activity_id = %s', (aid,)).fetchone()['n'] >= PER_ACTIVITY:
+        raise HTTPException(400, f'An activity can have up to {PER_ACTIVITY} photos')
+    if c.execute('SELECT count(*) AS n FROM activity_photos WHERE user_id = %s', (user_id,)).fetchone()['n'] >= PER_PERSON:
+        raise HTTPException(400, f'You have {PER_PERSON} activity photos, the most Kinetta keeps. Remove some first.')
+    return c.execute("""INSERT INTO activity_photos (activity_id, user_id, img, thumb, w, h) VALUES (%s, %s, %s, %s, %s, %s)
+                     RETURNING id, w, h""", (aid, user_id, *prepared)).fetchone()
+
+
+def lock_activity_photos(c, user_id):
+    # Serialize the person-wide limit as well as each activity's limit, including concurrent review/photo saves.
+    c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', (f'activity-photos:{user_id}',))
+
+
+@router.post('/activities/{aid}/photos')
+def add_activity_photo(aid: int, body: PhotoIn, user=Depends(current_user)):
+    prepared = prepare_activity_photo(body)
     with db.connect() as c:
-        if not c.execute('SELECT 1 FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, user['id'])).fetchone():
-            raise HTTPException(404, 'Not found')
-        if c.execute('SELECT count(*) AS n FROM activity_photos WHERE activity_id = %s', (aid,)).fetchone()['n'] >= PER_ACTIVITY:
-            raise HTTPException(400, f'An activity can have up to {PER_ACTIVITY} photos')
-        if c.execute('SELECT count(*) AS n FROM activity_photos WHERE user_id = %s', (user['id'],)).fetchone()['n'] >= PER_PERSON:
-            raise HTTPException(400, f'You have {PER_PERSON} activity photos, the most Kinetta keeps. Remove some first.')
-        r = c.execute("""INSERT INTO activity_photos (activity_id, user_id, img, thumb, w, h) VALUES (%s, %s, %s, %s, %s, %s)
-                         RETURNING id, w, h""", (aid, user['id'], _jpeg(full), _jpeg(thumb, 78), *full.size)).fetchone()
+        lock_activity_photos(c, user['id'])
+        r = insert_activity_photo(c, aid, user['id'], prepared)
     return r
 
 

@@ -1,6 +1,6 @@
 # Kinetta roadmap
 
-Reviewed October 29, 2026 against all 27 open issues and their comments. [FEATURES.md](FEATURES.md) describes built behavior;
+Reviewed October 29, 2026 against the original 27-issue launch queue, subsequent follow-ups and all open PR discussions. [FEATURES.md](FEATURES.md) describes built behavior;
 [the requirements guide](docs/requirements.md) describes acceptance. Priority, readiness, dependencies and release status
 are separate. This queue does not authorize merging, deployment, provider spending or physical-device actions.
 
@@ -15,18 +15,22 @@ are separate. This queue does not authorize merging, deployment, provider spendi
 
 The selected P1 launch repairs also include [recipe layout/deletion #332](https://github.com/BenCBanks/kinetta/issues/332), [stationary charts #333](https://github.com/BenCBanks/kinetta/issues/333), [account deletion locks #335](https://github.com/BenCBanks/kinetta/issues/335), [bounded admin retries #355](https://github.com/BenCBanks/kinetta/issues/355), [food-first home #340](https://github.com/BenCBanks/kinetta/issues/340), [deliberate recipe creation #341](https://github.com/BenCBanks/kinetta/issues/341), [native private photos #347](https://github.com/BenCBanks/kinetta/issues/347), [quiet yesterday copying #349](https://github.com/BenCBanks/kinetta/issues/349), [prediction help #350](https://github.com/BenCBanks/kinetta/issues/350), [every-screen responsiveness/functionality review #351](https://github.com/BenCBanks/kinetta/issues/351), [profile-first Me and unified Activity #353](https://github.com/BenCBanks/kinetta/issues/353) and [website/enrollment/feature priorities #354](https://github.com/BenCBanks/kinetta/issues/354). Their complete requirements and verification gates are in [launch readiness](docs/launch-readiness.md).
 
-The combined [PR344](https://github.com/BenCBanks/kinetta/pull/344) contains the selected app and sharing implementations. Twenty implementation issues are in review; the complete original suite passed twice on the combined app candidate, with final UI and native evidence. Component PRs are draft review aids; use the combined PR for current verification and remaining release gates. Unmerged code is not a hosted release. The [feature-priority decision](docs/feature-priorities.md) records current official competitor overlap and which everyday workflows should lead in the app and website.
+The combined [PR344](https://github.com/BenCBanks/kinetta/pull/344) delivers the selected app and sharing implementations and is merged. The complete original suite passed twice on the combined app, with final UI and native evidence. The twelve component drafts are superseded by that reviewed implementation. Merge, hosted deployment, iPhone distribution and physical acceptance remain separate records. The [feature-priority decision](docs/feature-priorities.md) records current official competitor overlap and which everyday workflows should lead in the app and website.
 
-Owner follow-ups: the complete [lifting usability review](docs/lifting-review.md) and charts-first activity changes passed the original suite twice, browser review and both Simulator checks. Subsequently selected [#356](https://github.com/BenCBanks/kinetta/issues/356) adds optional planned-workout reminders and weekly private-summary alerts. [Research and requirements](docs/notification-followup.md) preceded implementation; its software checks are complete in PR357, with physical push delivery and release separate from PR344.
+Owner follow-ups: the complete [lifting usability review](docs/lifting-review.md) and charts-first activity changes passed the original suite twice, browser review and both Simulator checks. Subsequently selected [#356](https://github.com/BenCBanks/kinetta/issues/356) adds optional planned-workout reminders and weekly private-summary alerts. [Research and requirements](docs/notification-followup.md) preceded implementation; its software checks are complete and PR357 is merged, with physical push delivery and release recorded separately.
 
-Next after #356, by owner request: GPS tracking shows total average pace and separate lap pace, automatic one-mile laps with a manual Lap button, an expandable live map, and a redesigned pre-save review with pictures, charts, prominent Save and short retry copy. Keep recording durability, pauses, privacy and existing interval guidance; Default lap pace uses one-mile laps; pressing Lap switches to manual boundaries, first from activity start and then from each press. Research other trackers and write detailed acceptance before implementation.
+Now after #356, by owner request: [#358](https://github.com/BenCBanks/kinetta/issues/358) covers GPS total average pace,
+separate automatic-mile/manual lap pace, an expanded live map and a photo/chart-led pre-save review with reachable
+Save and short retry text. [Research and acceptance](docs/tracking-review.md) precede implementation. First manual
+Lap starts at activity start; later presses define boundaries without automatic-mile resets. Preserve recording
+durability, pauses, privacy and interval guidance. Priority P1; software implemented in [PR359](https://github.com/BenCBanks/kinetta/pull/359), with verification and remaining physical-device limits recorded in the requirements document.
 
 There is no current P0 incident. P0 means immediate security, privacy or data loss and takes precedence when one is found.
 
 ## Next — shareable Kinetta
 
 The children of [#293](https://github.com/BenCBanks/kinetta/issues/293) were implemented in this dependency order and
-are now integrated for review. All retain P2 priority; implementation does not establish merge or release.
+are integrated in merged PR344. All retain P2 priority; physical sharing, QR, push and join acceptance remain separate from software verification.
 
 1. [#294](https://github.com/BenCBanks/kinetta/issues/294): week/month/year recap pictures and the quiet monthly offer.
 2. [#295](https://github.com/BenCBanks/kinetta/issues/295): revocable username-only Kinetta cards, QR and an explicit pending friend-request join flow. Depends on #294.

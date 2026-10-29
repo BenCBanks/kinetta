@@ -11,3 +11,9 @@ Execution uses a separate Apple Silicon `macos-26` job, consuming the unsigned u
 CI gives the compact phone and Pro phone separate fresh Apple Silicon runners, with `--device compact` / `--device pro`. Each runs all ten light/dark/editor/review/quick-action/larger-text cases, including food-composer placeholder fit at normal and enlarged text. Both jobs remain required. This avoids sequential Simulator resource/startup contention: the combined run passed all eight SE cases, then failed to boot the Pro. The SE evidence is valid for its covered cases; it is not a substitute for Pro acceptance.
 
 A timed-out app-termination command cannot proceed to changing the installed fixture files. The runner permits one checked shutdown/boot of its own disposable device, restores appearance/status-bar overrides, and records that recovery in the artifacts. Repeated termination stalls or failed recovery stop the job. Missing metrics and layout assertions are never retried to obtain a pass; missing-metrics failures retain an additional screenshot/phase record. The lifecycle unit checks run in the original regression suite; actual native execution remains required.
+
+The GPS review adds ten cases per phone: live, expanded-map and review in both themes, plus live/review with enlarged
+text. Each phone now has twenty required captures. The live data comes only from the existing fictional demo route;
+native GPS controls are explicitly blocked. The actual WebView still provides its layout/safe areas and renders
+the current production map, chart, local-review storage and controls. Assertions include recording-control and Save
+placement above the real tab bar. These captures prove layout, not real Core Location accuracy or camera selection.

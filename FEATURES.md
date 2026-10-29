@@ -36,7 +36,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 ## Each activity
 - [x] Map of the route, start/finish
 - [x] Charts: pace (and GAP), heart rate, elevation, cadence, power — with a crosshair and readout on touch
-- [x] Splits per mile/km (pace, GAP, HR, elevation change), laps from the watch
+- [x] Splits per mile/km (pace, GAP, HR, elevation change), watch laps and explicitly marked phone laps
 - [x] Moving vs elapsed time, elevation gain, calories, temperature
 - [x] Heart-rate zones (time in each), effort score (TRIMP), aerobic decoupling (did HR drift?)
 - [x] Effective VO2max estimate for runs with HR
@@ -121,7 +121,7 @@ Status key: [x] built · [~] partly · [ ] planned. Keep this list current when 
 - [x] Pause/resume, review and audience choice before save, retry without duplicates and account-scoped recoverable drafts.
 - [x] Native background location engine, protected point journal, account guards and WebView recovery.
 - [x] Apple SDK builds; physical-iPhone background/locked-screen GPS acceptance remains pending.
-- [x] Shared web/native/server GPS distance filter; live pace over 30 seconds, average and last mile/km.
+- [x] Shared web/native/server GPS distance filter; whole-activity average and separate automatic-mile/manual lap pace, with native durable boundaries.
 - [x] Spoken mile/km splits initially on; native locked-screen audio configured. Physical locked-pocket acceptance pending.
 - [x] Auto-pause after 15 seconds still with no backwards clock jump; initially on for run/walk/hike, off for rides, voice remembered per device/account, auto-pause also per sport. Lock Screen Live Activity remains planned.
 - [x] Owner activity detail renders all recorded route sections; shared map previews retain the trimmed longest section.
@@ -266,3 +266,7 @@ Progress → Share creates a reviewed 4:5 week/month/year picture with selectabl
 ## Opt-in Kinetta cards (#295)
 
 Me → Share your Kinetta creates an off-default, revocable username-only card and link. Choose a photo, sport icons and up to two fixed activity/food-consistency stats; private names, individual food/activity details and locations stay out. Share the exact picture and link, copy it or show a bright, awake QR code. Requests stay pending for approval; signup, waitlist invitations and email confirmation retain the deliberate choice. Turning off/rotating the card immediately stops its public surfaces. Physical iPhone sharing, QR scanning and installation handoff remain separate acceptance checks.
+
+### GPS activity review (#358, draft PR359)
+
+Whole-active-time average pace/speed stays visible alongside independent lap pace. The first manual Lap closes from activity start; later presses define the next laps without automatic-mile resets. Expanded live maps retain controls. Before Save, review the title, headline figures, map/photos and measured charts, with details/splits/laps folded below. Photos and the exact confirmed request stay in account/server-bound local storage; explicit Save commits activity and sanitized photos together. Retry cannot duplicate the workout/photos or change the originally confirmed audience. Final regression/native verification is in progress; merge, deployment and physical GPS/camera acceptance remain separate.

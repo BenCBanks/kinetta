@@ -7,7 +7,7 @@ Choose an activity at the top of Track. Outdoor options include runs, trail runs
 hiking, open-water swimming, rowing, skiing and other outdoor activities. Indoor options use a timer; lifting opens
 exercise, set, rep, weight and rest controls. The last selected activity is remembered on this device for the account.
 
-Choosing an outdoor activity shows where you are straight away (tap **Locate me** to re-centre), then **Start** begins. The recorder shows distance, active time and pace over the last 30 seconds (speed for rides and skiing), with average and last mile/km underneath. **Map/Stats** changes the display. **Pause** reveals **Resume** and **Finish**; Finish opens the editable
+Choosing an outdoor activity shows where you are straight away (tap **Locate me** to re-centre), then **Start** begins. The recorder shows distance, active time, whole-activity average pace and separate lap pace (speed for rides and skiing). Manual and automatic pauses are excluded from the average. **Map/Stats** changes the display. **Pause** reveals **Resume** and **Finish**; Finish opens the editable
 review. **Save activity** uses the audience shown in the review: your saved sharing choice unless you change it before saving. If that saved default changed elsewhere, you must review it again. Retrying an already-saved recording returns the same activity without changing its audience. Older app builds that send no audience information still save privately. Recording
 and saving stay in Track; View activity opens the finished result when you choose it. The “More ways to add” list includes past
 activity entry, watch connections and Apple Health, plus activity files in the browser.
@@ -22,8 +22,7 @@ This needs an installed iPhone build containing the recorder. GPS recording is o
 before that change can still be finished and saved.
 
 **Long activities and gaps.** A recording can hold 72,000 GPS points (about 360 km at the iPhone's 5 m spacing). Every
-section of a recording is kept: splits, charts and best efforts cover the whole session, never counting distance or time
-across a gap, and a best effort never spans two sections. Feed and shared maps still show the longest single section.
+section of a recording is kept: splits, charts and best efforts cover its recorded sections without joining GPS gaps. A best effort never spans two sections. GPS loss alone does not stop the active clock when auto-pause is off. Feed and shared maps still show the longest single section.
 **Elevation.** The iPhone records altitude with each point when its vertical accuracy is within 25 m, so phone hikes and
 rides get climb, an elevation chart and grade-adjusted pace like imported ones.
 
@@ -53,8 +52,13 @@ Garmin Connect or a file), Kinetta keeps one activity. The two count as the same
 one overlaps the other, whatever sport each calls it and however far apart they started. If the phone saves first, the watch copy enriches it with available heart rate; an edited title and existing sharing choice stay. If the watch arrives first, saving the phone recording returns that activity, using the audience reviewed on the phone. An automatically generated title may be replaced by an incoming title. A short workout inside a
 much longer one (a run during a long hike) stays separate, and two phone recordings are never merged with each other.
 
-**While you record.** The big number is your pace (or, for rides and skiing, speed) over the last 30 seconds; your
-average and the time of your last mile or km sit underneath. Two choices on the Track screen, remembered on this device for your account (auto-pause separately for each sport):
+**Lap pace.** Before you press Lap, it uses consecutive one-mile laps, including when displayed pace/distance units are metric. The first Lap press closes a lap from activity start; each later press closes the previous manual lap and starts another. Automatic miles no longer reset manual laps. Ordinary mile/km splits stay separate. Pauses do not add lap time. Manual laps and the final partial lap remain in review and the saved activity. Older native builds need an update to mark laps.
+
+**Map and review.** Tap the live map or its expand button for the full-screen view. Lap and Pause stay available; Close, Escape or Back returns without stopping recording. Finish opens Review activity: title, compact headline figures, map and locally selected photos, then measured charts. Details & splits holds the other figures and laps. Save stays reachable above the tabs while scrolling; Continue recording and Discard remain available before submission.
+
+Photos stay on this device until explicit Save, with a maximum of ten and a combined upload limit. Activity and photos save together; saved photos lose embedded metadata. A failed/uncertain acknowledgement keeps the exact confirmed request, including its audience and images, until Retry resolves it. Editing and Continue are unavailable during that uncertainty; View my activities lets you check. No photograph, lap or GPS sample goes to AI. The new review requires a matching updated server.
+
+**Recording preferences.** Two choices on the Track screen are remembered on this device for your account (auto-pause separately for each sport):
 - **Say my time every mile/km** (on by default; miles or km follow your units): "2 miles. Time 18 minutes 40 seconds.
   Last mile 9 minutes 5 seconds." The iPhone app speaks even with the phone locked in a pocket, lowering your music
   while it talks; a browser speaks only while its page is open.
@@ -70,3 +74,5 @@ build with the Apple SDK and verify on an iPhone: first permission/denial, preci
 app switching, pause/resume, network loss, storage failure, logout/account switch and interrupted recovery. Compare
 the exported route and elapsed/distance totals with the actual trip; check battery usage and accessibility too.
 Spoken splits and auto-pause are implemented as described above, with locked-pocket audio and real-stop acceptance still pending. Navigation/Beacon and Lock Screen Live Activities remain separate work. Apple Health nutrition writing is a separate, optional connection setting; saved phone workouts are not written back to Health.
+
+The October29 GPS review is in draft PR359. [Requirements and research](tracking-review.md) distinguish implementation, automated/browser/native layout evidence and physical-device acceptance.

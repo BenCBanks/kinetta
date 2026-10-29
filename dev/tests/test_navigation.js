@@ -23,7 +23,7 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  let owner='one';const c={App:{me:{id:1}},Native:{base},location:{origin:base},readOwner:()=>owner,TrackNative:{supported:false},
  store:{get:k=>data.get(k),del:k=>data.delete(k)},localStorage:{setItem:(k,v)=>data.set(k,JSON.parse(v))},
  navigator:{},document:{addEventListener(){}},window:{addEventListener(){}},setInterval(){},route(){},$:()=>null};
- vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/track.js','utf8')+'\nglobalThis.recorder=Track;',c);
+ vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/track-review.js','utf8'),c);vm.runInContext(fs.readFileSync('app/static/track.js','utf8')+'\nglobalThis.recorder=Track;',c);
  c.recorder.sync();assert(c.recorder.active,'paused draft is available from the Track tab');
  c.App.me={id:2};owner='two';c.recorder.sync();assert(!c.recorder.active,'another account does not inherit the draft');
  c.App.me={id:1};owner='one';c.recorder.sync();assert(c.recorder.active,'returning account restores its draft');

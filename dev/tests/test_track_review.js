@@ -1,0 +1,21 @@
+// Production preview arithmetic, including pauses/poor GPS. No browser, device or API writes.
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const track=fs.readFileSync('app/static/track.js','utf8');
+const math=vm.runInNewContext(track.slice(track.indexOf('const TrackMath'),track.indexOf('const Track ='))+'\nTrackMath;');
+const preview=vm.runInNewContext(fs.readFileSync('app/static/track-review.js','utf8')+'\nTrackReviewMath;');
+const points=[];
+for(let i=0;i<300;i++)points.push({lat:i*6/111195.08,lon:10,t:i*2,active:i*2,segment:0,accuracy:5,alt:100+i/20,valt:5});
+for(let i=300;i<600;i++)points.push({lat:i*6/111195.08,lon:10,t:i*2+120,active:i*2,segment:1,accuracy:5,alt:100+i/20,valt:5});
+let data=preview.samples({points},math);
+assert(data.t.length<=401,'long previews have a bounded chart size');
+assert(data.speed.some(v=>v>2.99 && v<3.01),'pace comes from accepted distance and active samples');
+const gap=data.t.findIndex(t=>t>=720);assert.equal(data.speed[gap],null);assert.equal(data.alt[gap],null,'neither chart joins across a paused section');
+assert(data.speed.slice(gap+1).some(v=>v>2.99 && v<3.01),'paused wall time is not a slow-pace sample after resuming');
+data=preview.samples({points:points.map(p=>({...p,accuracy:60,valt:100}))},math);
+assert(data.speed.every(v=>v===null));assert(data.alt.every(v=>v===null),'bad signal/altitude cannot become a fake chart');
+data=preview.samples({points:points.map(p=>({...p,lat:0,lon:10}))},math);assert(data.speed.every(v=>v===null),'a stationary trace has no pace');
+const maximum=Array.from({length:72000},(_,i)=>({lat:i*.00001,lon:10,t:i,active:i,segment:Math.floor(i/1000),accuracy:5}));
+assert(preview.samples({points:maximum},math).t.length<=401,'maximum-length journals stay bounded');
+assert.equal(preview.samples({points:[]},math).t.length,0);
+console.log('PASS GPS preview measured pace, pause gaps, signal quality, stationary unknowns and bounded maximum journal');

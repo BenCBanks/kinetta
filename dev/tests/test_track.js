@@ -43,7 +43,27 @@ console.log('PASS recorder distance filter: 1 km run, 3-minute stand-still, walk
   r.autoPause = false; assert(Math.abs(m.seconds(r, 500000) - (500 - 47)) < 0.01, 'off: nothing more left out');
   r.autoPause = true; const p = {...r, lastMove: 420000}; m.settle(p, 470000); p.activeMs += 470000; p.state = 'paused';
   assert(Math.abs(m.seconds(p, 999999) - (470 - 47 - 35)) < 0.01, 'manual pause during a stop keeps the idle stretch out');
-  assert.equal(m.current([{t: 0, d: 0}, {t: 20000, d: 60}], 20000), 3, 'current speed over the last samples');
-  assert.equal(m.current([{t: 0, d: 0}, {t: 20000, d: 5}], 20000), null, 'too little movement: no pace');
+  assert.equal(m.average({state:'paused',activeMs:1000000,distance:3000},99999999),3,'whole-activity average uses active time, independent of the recent pace or wall time');
+  assert.equal(m.average({state:'paused',activeMs:1000000,distance:5},99999999),null,'too little measured movement remains unknown');
 }
-console.log('PASS recorder auto-pause (15 s, no jump, manual pause), splits and current pace');
+console.log('PASS recorder auto-pause (15 s, no jump, manual pause), splits and whole-activity average');
+
+// The owner's lap contract: automatic miles until the first press, then start/press-to-press boundaries.
+{
+  const r = {start:0,activeAt:0,activeMs:0,state:'recording',sport:'run',gps:true,segment:0,points:[],distance:0,autoPause:false};
+  for(let i=0;i<=400;i++)m.accept(r,{coords:{latitude:i*6/111195.08,longitude:0,accuracy:5},timestamp:i*2000},i*2000);
+  const auto=m.lap(r,800000);
+  assert.equal(auto.number,2);assert.equal(auto.manual,false);assert(Math.abs(auto.distance-(r.distance-m.MILE))<.001);
+  assert(Math.abs(auto.seconds-auto.distance/3)<.01,'automatic boundary interpolates active time at exactly one mile');
+  assert(m.markLap(r,'mark-one',800000));assert.equal(r.laps[0].distance,r.distance);assert.equal(r.laps[0].seconds,800,'first manual lap covers the whole activity, not only the current automatic mile');
+  assert(!m.markLap(r,'mark-one',810000),'same bridge mark cannot duplicate the lap');
+  assert(!m.markLap(r,'double-tap',800100),'rapid accidental taps do not create a zero-length lap');
+  r.distance+=2000;r.mileLap={distance:2*m.MILE,seconds:1000};
+  const manual=m.lap(r,1400000);assert.equal(manual.manual,true);assert.equal(manual.number,2);assert(Math.abs(manual.distance-2000)<.000001);assert.equal(manual.seconds,600,'crossing automatic miles cannot reset a manual lap');
+  assert(m.markLap(r,'mark-two',1400000));r.state='paused';r.activeMs=1400000;
+  assert.equal(m.lap(r,9999999).seconds,0,'a paused lap does not acquire wall time');assert(!m.markLap(r,'paused',9999999));
+  const old={...r,state:'recording',activeMs:0,laps:undefined,mileLap:undefined,distance:2000};
+  assert.equal(m.lap(old,800000).seconds,null,'legacy journal without a mile boundary never invents lap time');
+  const recovered=JSON.parse(JSON.stringify(r));assert.equal(recovered.laps.length,2);assert.equal(m.lap(recovered,9999999).distance,0);
+}
+console.log('PASS automatic mile interpolation, first whole-activity/manual laps, duplicate marks, pauses and legacy unknowns');

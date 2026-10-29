@@ -7,7 +7,7 @@ import os
 import re
 import shutil
 import secrets
-from typing import Literal
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
@@ -304,6 +304,15 @@ class RecordingPlanIn(BaseModel):
     distance_m:float=Field(gt=0,le=500000)
 
 
+class TrackLapIn(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False, extra='forbid')
+    id: str = Field(pattern=r'^[a-f0-9-]{36}$')
+    seconds: float = Field(ge=1, le=172800)
+    distance: float = Field(ge=0, le=2_000_000)
+    elapsed: float = Field(ge=1, le=172800)
+    pointCount: int = Field(ge=0, le=72000)
+
+
 class TrackIn(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     client_id: str = Field(pattern=r'^[a-f0-9-]{36}$')
@@ -318,6 +327,15 @@ class TrackIn(BaseModel):
     expected_sharing_default: str | None = Field(None, pattern='^(me|friends|everyone)$')
     route_plan: RecordingPlanIn | None = None
     intervals: dict | None = None
+    review_version: Literal[1] | None = None
+    laps: list[TrackLapIn] = Field(default_factory=list, max_length=1000)
+    photos: list[Annotated[str, Field(min_length=10, max_length=12_000_000)]] = Field(default_factory=list, max_length=10)
+
+
+@router.get('/track/capabilities')
+def track_capabilities(user=Depends(current_user)):
+    # A new native bundle must not let an older server silently ignore its photos or manual laps.
+    return {'atomic_review': 1}
 
 
 def _spread(points, run, counted):
@@ -366,6 +384,30 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         segments.setdefault(point.segment, []).append(point)
         run.append(distance); counted.append(step is not None)
         previous = point
+    if (body.laps or body.photos) and body.review_version != 1:
+        raise HTTPException(422, 'Update Kinetta before saving this activity review. Your draft is kept.')
+    if sum(len(image) for image in body.photos) > 8_000_000:
+        raise HTTPException(422, 'These photos are too large together. Remove one and try again.')
+    laps, ids, lap_seconds, lap_distance, lap_elapsed, lap_points = [], set(), 0.0, 0.0, 0.0, 0
+    for lap in body.laps:
+        # A mark binds to the fixes received at the press, so later batched fixes cannot move its boundary.
+        measured = run[lap.pointCount - 1] if 0 < lap.pointCount <= len(points) else 0
+        if (lap.id in ids or lap.seconds - lap_seconds < .999 or lap.distance < lap_distance or
+                lap.elapsed < lap_elapsed or lap.elapsed - lap_elapsed + .05 < lap.seconds - lap_seconds or
+                lap.seconds > body.moving_s + .05 or lap.elapsed > body.elapsed_s + .05 or lap.distance > distance + .5 or
+                lap.pointCount < lap_points or lap.pointCount > len(points) or abs(lap.distance - measured) > .5 or
+                lap.pointCount and points[lap.pointCount - 1].t > lap.elapsed + 1):
+            raise HTTPException(422, 'Lap boundaries do not match this recording.')
+        ids.add(lap.id)
+        laps.append({'distance_m': max(0, lap.distance - lap_distance), 'moving_s': lap.seconds - lap_seconds,
+                     'elapsed_s': lap.elapsed - lap_elapsed, 'trigger': 'manual'})
+        lap_seconds, lap_distance, lap_elapsed = lap.seconds, lap.distance, lap.elapsed
+        lap_points = lap.pointCount
+    if laps and body.moving_s - lap_seconds >= 1:
+        laps.append({'distance_m': max(0, distance - lap_distance), 'moving_s': body.moving_s - lap_seconds,
+                     'elapsed_s': max(body.moving_s - lap_seconds, body.elapsed_s - lap_elapsed), 'trigger': 'session_end'})
+    from .api_photos import PhotoIn, prepare_activity_photo, insert_activity_photo, lock_activity_photos
+    prepared_photos = [prepare_activity_photo(PhotoIn(image=image)) for image in body.photos]
     interval_result=None
     if body.intervals is not None:
         from . import intervals
@@ -385,7 +427,7 @@ def save_track(body: TrackIn, user=Depends(current_user)):
                        section=[p.segment for p in points])
         if all(a is None for a in streams['alt']): streams['alt'] = []
     parsed = {'sport': body.sport, 'start': start, 'sub_sport': None, 'device': 'Kinetta foreground recorder',
-              'laps': [], 'streams': streams, 'session': {},
+              'laps': laps, 'streams': streams, 'session': {},
               'geometry': {'lat': [p.lat for p in longest], 'lon': [p.lon for p in longest]}}
     meta = {'sport': body.sport, 'sport_label': body.sport_label, 'name': body.name.strip() or 'Activity',
             'source_id': body.client_id, 'elapsed_s': body.elapsed_s, 'moving_s': body.moving_s, 'distance_m': distance}
@@ -395,6 +437,7 @@ def save_track(body: TrackIn, user=Depends(current_user)):
     # for a second connection. The activity and acknowledgement identity commit together.
     with db.connect() as c:
         c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"track:{user['id']}:{body.client_id}",))
+        if prepared_photos: lock_activity_photos(c, user['id'])
         if not c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE',(user['id'],)).fetchone():raise HTTPException(404,'Account unavailable')
         from psycopg.types.json import Jsonb
         import hashlib
@@ -426,19 +469,33 @@ def save_track(body: TrackIn, user=Depends(current_user)):
             audience=(profile or {}).get('share_default') or 'everyone'
             if audience!=body.expected_sharing_default:
                 raise HTTPException(409,{'code':'sharing_changed','message':'Your sharing setting changed. Review the audience before saving.','sharing_default':audience})
-        raw = body.model_dump_json().encode()
-        _, aid = activities.store(user['id'], parsed, meta, raw=raw, ext='.json', source='track', connection=c)
-        if body.visibility is not None:
-            c.execute('UPDATE activities SET visibility=%s WHERE user_id=%s AND id=%s',(body.visibility,user['id'],aid))
-        if body.route_plan:
-            p=body.route_plan
-            # A previously authorized, pinned route can finish offline after its original was revoked/deleted.
-            # This is private user-supplied history. Never refetch hidden geometry or use it for measured totals.
-            c.execute('''INSERT INTO activity_route_plans(activity_id,user_id,source_kind,route_id,version,snapshot_key,name,distance_m)
-              VALUES(%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(activity_id) DO NOTHING''',(aid,user['id'],p.source_kind,p.route_id,p.version,p.snapshot_key,p.name,p.distance_m))
-        c.execute('INSERT INTO track_recording_receipts(user_id,client_id,activity_id) VALUES(%s,%s,%s)',(user['id'],body.client_id,aid))
-        if interval_result is not None:
-            c.execute('INSERT INTO activity_intervals(user_id,recording_id,activity_id,payload,request_hash) VALUES(%s,%s,%s,%s,%s)',(user['id'],recording_id,aid,Jsonb(interval_result),digest))
+        # Pictures have their own sanitized database rows/export. Do not duplicate their pixels in the raw GPS file.
+        raw = body.model_dump_json(exclude={'photos'}).encode()
+        raw_path=os.path.join(activities.DATA,'files',str(user['id']),hashlib.sha256(raw).hexdigest()+'.json')
+        already_present=os.path.exists(raw_path)
+        try:
+            _, aid = activities.store(user['id'], parsed, meta, raw=raw, ext='.json', source='track', connection=c)
+            if laps:
+                # A watch/phone duplicate can keep the richer watch stream, while retaining explicitly marked phone laps.
+                c.execute('UPDATE activities SET laps=%s WHERE id=%s AND user_id=%s', (Jsonb(laps), aid, user['id']))
+            for photo in prepared_photos: insert_activity_photo(c, aid, user['id'], photo)
+            if body.visibility is not None:
+                c.execute('UPDATE activities SET visibility=%s WHERE user_id=%s AND id=%s',(body.visibility,user['id'],aid))
+            if body.route_plan:
+                p=body.route_plan
+                # A previously authorized, pinned route can finish offline after its original was revoked/deleted.
+                # This is private user-supplied history. Never refetch hidden geometry or use it for measured totals.
+                c.execute('''INSERT INTO activity_route_plans(activity_id,user_id,source_kind,route_id,version,snapshot_key,name,distance_m)
+                  VALUES(%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(activity_id) DO NOTHING''',(aid,user['id'],p.source_kind,p.route_id,p.version,p.snapshot_key,p.name,p.distance_m))
+            c.execute('INSERT INTO track_recording_receipts(user_id,client_id,activity_id) VALUES(%s,%s,%s)',(user['id'],body.client_id,aid))
+            if interval_result is not None:
+                c.execute('INSERT INTO activity_intervals(user_id,recording_id,activity_id,payload,request_hash) VALUES(%s,%s,%s,%s,%s)',(user['id'],recording_id,aid,Jsonb(interval_result),digest))
+        except Exception:
+            # Keep cleanup inside the recording lock: another retry cannot begin using this new file yet.
+            if not already_present:
+                try:os.unlink(raw_path)
+                except OSError:pass
+            raise
     return {'id': aid, 'duplicate': False}
 
 

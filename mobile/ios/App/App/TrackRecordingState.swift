@@ -30,6 +30,19 @@ struct TrackFix: Codable {
     var segment: Int
     var alt: Double? = nil         // metres above sea level (#234 item 5); missing in older journals
     var valt: Double? = nil        // its vertical accuracy
+    var active: Double? = nil      // active seconds at this fix, for honest pre-save charts
+}
+
+struct TrackLap: Codable {
+    var id: String
+    var seconds: Double
+    var distance: Double
+    var elapsed: Double
+    var pointCount: Int
+}
+struct TrackMileLap: Codable {
+    var distance: Double
+    var seconds: Double
 }
 
 // A previously authorized route is pinned with the recording, including its offline line and credits.
@@ -125,7 +138,23 @@ struct TrackRecordingState: Codable {
     var splits: [Double]?          // active seconds when each full mile or km was reached
     var autoMs: Double?            // time left out by auto-pause
     var lastMove: Double?          // when you last moved (ms)
+    var laps: [TrackLap]?          // cumulative manual boundaries; nil in older journals
+    var mileLap: TrackMileLap?     // latest automatic mile, independent of spoken mile/km splits
+    var distanceSeconds: Double?
     static let autoAfter: Double = 15000
+    static let mile: Double = 1609.344
+
+    mutating func markLap(id: String, at now: Double) throws {
+        if laps?.contains(where:{$0.id==id}) == true { return } // a lost bridge acknowledgement is safe to retry
+        let active=seconds(at:now)
+        guard UUID(uuidString:id) != nil,gps,state=="recording",active-(laps?.last?.seconds ?? 0)>=1,
+              (laps?.count ?? 0)<1000 else {
+            throw NSError(domain:"KinettaTrack",code:1,userInfo:[NSLocalizedDescriptionKey:"Record a little longer before marking a lap."])
+        }
+        var marked=laps ?? []
+        marked.append(TrackLap(id:id,seconds:active,distance:distance,elapsed:max(active,(now-start)/1000),pointCount:points.count))
+        laps=marked;checkpoint=now
+    }
 
     mutating func advanceIntervals(at now: Double, accepted: IntervalSample? = nil, cues: Bool = true) {
         let elapsed=seconds(at:now),previous=intervals?.time ?? 0
@@ -199,7 +228,21 @@ struct TrackRecordingState: Codable {
         }
         if anchor?.segment != point.segment { anchor = nil }     // a new section never adds distance across the gap
         // moving again after a stop: a counted step, or the first fix of a new section (no GPS arrives while you stand still)
-        if let m = Self.step(from: anchor, to: point) { distance += m; if m > 0 || !points.isEmpty { moved(at: timestamp) }; anchor = point }
+        let before=distance
+        if let m = Self.step(from: anchor, to: point) {
+            distance += m; if m > 0 || !points.isEmpty { moved(at: timestamp) }
+            point.active=seconds(at:timestamp)
+            if m>0 {
+                let boundary=floor(distance/Self.mile)*Self.mile,active=point.active!
+                if boundary>before {
+                    let from=distanceSeconds ?? (before==0 ? 0:active)
+                    mileLap=TrackMileLap(distance:boundary,seconds:from+(active-from)*(boundary-before)/m)
+                }
+            }
+            distanceSeconds=point.active
+            anchor=point
+        }
+        if point.active==nil { point.active=seconds(at:timestamp) }
         if let unit = splitMetres, unit > 0 {
             var done = splits ?? []
             while distance >= Double(done.count + 1) * unit { done.append(seconds(at: timestamp)) }
@@ -313,6 +356,22 @@ final class TrackRecordingFiles {
         }
         // Journal commits can be newer than the manifest; rebuild distance and segment counters from durable fixes.
         (state.distance, state.anchor) = TrackRecordingState.distance(of: state.points)
+        // A journal append can cross a mile before its manifest commits. Recover that boundary from durable samples.
+        var total=0.0,anchor:TrackFix?=nil,previousActive:Double?=0,rebuilt:TrackMileLap?=nil
+        for point in state.points {
+            if anchor?.segment != point.segment {anchor=nil}
+            if let step=TrackRecordingState.step(from:anchor,to:point) {
+                let before=total;total+=step
+                let boundary=floor(total/TrackRecordingState.mile)*TrackRecordingState.mile
+                if step>0,boundary>before,let active=point.active,let previousActive {
+                    rebuilt=TrackMileLap(distance:boundary,seconds:previousActive+(active-previousActive)*(boundary-before)/step)
+                }
+                previousActive=point.active;anchor=point
+            }
+        }
+        if let rebuilt {state.mileLap=rebuilt}
+        if let mile=state.mileLap,abs(mile.distance-floor(state.distance/TrackRecordingState.mile)*TrackRecordingState.mile)>0.01 {state.mileLap=nil}
+        state.distanceSeconds=previousActive
         if let last=state.points.last { state.segment=max(state.segment,last.segment) }
         return state
     }

@@ -179,14 +179,23 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         next.intervals?.end(at:elapsed,reason:"finished")
         next.state="review";next.finishedAt=self.instant;try files?.save(next);session=next;message="Ready to save"
     }
+    func lap(account: String, id: String, mark: String) throws {
+        try check(account,id:id)
+        guard var next=session,let files else {throw fail("Recording storage is unavailable.")}
+        try next.markLap(id:mark,at:self.instant)
+        // Never acknowledge a manual boundary until the atomic native manifest contains it.
+        try files.save(next);session=next;message=""
+    }
     func clear(account: String, id: String, intervalResultSaved: Bool = false, discardIntervals: Bool = false) throws {
+        try check(account)
+        guard session != nil else {return} // clearing after a lost acknowledgement is idempotent
         try check(account,id:id)
         guard session?.intervals==nil || intervalResultSaved || discardIntervals else {throw fail("Update the app before clearing private interval results. Your recording draft is kept.")}
         manager.stopUpdatingLocation();stopIntervalTimer();NativeTrackVoice.shared.cancel();try files?.clear();session=nil;message=""
     }
     func snapshot(account: String, id: String?, since: Int) throws -> [String:Any] {
         try check(account)
-        guard let session=session else { return ["session":NSNull(),"message":message,"routePlanSupport":1] }
+        guard let session=session else { return ["session":NSNull(),"message":message,"routePlanSupport":1,"lapSupport":1] }
         let offset=id==session.id && since<=session.points.count ? max(0,since) : 0
         var partial=session;partial.points=Array(session.points.dropFirst(offset))
         var result=try JSONSerialization.jsonObject(with:JSONEncoder().encode(partial)) as! [String:Any]
@@ -195,7 +204,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         result["activeSeconds"]=session.seconds(at:self.instant)
         result["elapsedSeconds"]=max(session.seconds(at:self.instant),((session.finishedAt ?? self.instant)-session.start)/1000)
         result["autoPausedNow"]=session.autoPaused(at:self.instant)
-        return ["session":result,"message":message,"routePlanSupport":1]
+        return ["session":result,"message":message,"routePlanSupport":1,"lapSupport":1]
     }
     private func startIntervalTimer() {
         stopIntervalTimer()
@@ -405,7 +414,7 @@ final class NativeTrackLocator: NSObject, CLLocationManagerDelegate {
 class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
     let identifier="KinettaTrackPlugin"
     let jsName="KinettaTrack"
-    let pluginMethods: [CAPPluginMethod] = ["attach","start","status","pause","resume","finish","clear","detach","erase","locate","intervalCapabilities","intervalTest","intervalSkip","intervalEnd","intervalAlerts"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
+    let pluginMethods: [CAPPluginMethod] = ["attach","start","status","pause","resume","finish","lap","clear","detach","erase","locate","intervalCapabilities","intervalTest","intervalSkip","intervalEnd","intervalAlerts"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
     // Only a position for the preview map: nothing is stored or sent to the server.
     @objc func locate(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
@@ -440,6 +449,7 @@ class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func status(_ call: CAPPluginCall) { reply(call) { r,owner in try r.check(owner) } }
     @objc func pause(_ call: CAPPluginCall) { reply(call) { r,owner in try r.pause(account:owner,id:call.getString("id") ?? "") } }
     @objc func finish(_ call: CAPPluginCall) { reply(call) { r,owner in try r.finish(account:owner,id:call.getString("id") ?? "") } }
+    @objc func lap(_ call: CAPPluginCall) { reply(call) { r,owner in try r.lap(account:owner,id:call.getString("id") ?? "",mark:call.getString("mark") ?? "") } }
     @objc func clear(_ call: CAPPluginCall) { reply(call) { r,owner in try r.clear(account:owner,id:call.getString("id") ?? "",intervalResultSaved:call.getBool("intervalResultSaved") ?? false,discardIntervals:call.getBool("discardIntervals") ?? false) } }
     @objc func erase(_ call: CAPPluginCall) {
         DispatchQueue.main.async {do {try NativeTrackRecorder.shared.erase(account:call.getString("owner") ?? "");call.resolve()} catch {call.reject(error.localizedDescription)}}

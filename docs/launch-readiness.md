@@ -1,10 +1,9 @@
 # Launch work and acceptance checklist · 29 October 2026
 
-All 27 open issues and their comments have been reviewed. Twenty implementation issues are **in review** in
-[combined PR344](https://github.com/BenCBanks/kinetta/pull/344); five P3 issues remain deferred. Physical-device
+The original 27-issue launch queue and all subsequent PR discussions have been reviewed. The twenty implementation
+items are integrated in merged [combined PR344](https://github.com/BenCBanks/kinetta/pull/344); five P3 issues remain deferred. Physical-device
 acceptance (#305), owner overview acceptance (#300), and real map hosting/coverage/cost remain open gates.
-No issue is closed merely because its code passes. Component PRs are draft review aids and must not be merged
-independently. This checklist does not authorize merge, deployment, enrollment changes, billing or TestFlight.
+No physical acceptance gate is closed merely because its code passes. The twelve component drafts are superseded by PR344. This checklist does not authorize merge, deployment, enrollment changes, billing or TestFlight.
 
 ## Current implementation
 
@@ -30,7 +29,7 @@ independently. This checklist does not authorize merge, deployment, enrollment c
 | [#295 public cards](https://github.com/BenCBanks/kinetta/issues/295) | P2 | Off-default revocable username-only cards/QR with explicit pending requests, accurate preview and policy-respecting signup/confirmation/waitlist continuation. Exported QR pictures decode. |
 | [#296 milestones](https://github.com/BenCBanks/kinetta/issues/296) | P2 | Fixed once-only firsts/bests/totals, silent historical imports, withdrawal after edits/deletion, cumulative food days, optional notifications initially off. |
 | [#297 challenges](https://github.com/BenCBanks/kinetta/issues/297) | P2 | Fixed templates, explicit join without friendship, aggregate progress/private targets, participant-local dates, limits, leave/remove/block/end and 90-day cleanup. |
-| [#293 sharing parent](https://github.com/BenCBanks/kinetta/issues/293) | P2 | All four children integrated; parent remains open through review and acceptance. |
+| [#293 sharing parent](https://github.com/BenCBanks/kinetta/issues/293) | P2 | All four children integrated; parent remains open through physical sharing/QR/push/join acceptance. |
 | [#305 intervals](https://github.com/BenCBanks/kinetta/issues/305) | P1 | Existing software is covered. [Signed physical-device matrix](interval-acceptance.md) remains required for locked/background/offline/audio/GPS/battery behavior. |
 | [#300 private overview](https://github.com/BenCBanks/kinetta/issues/300) | P2 | Maintained owner reference and business/opportunity assessment delivered privately. Separate Garmin-AI consent retained by owner decision; plain-language owner read-through remains. |
 
@@ -122,8 +121,8 @@ those results. Real hosted USA coverage, optional UK cost, retention/disclosure,
 performance remain operator decisions. The private overview still needs the owner's plain-language read-through.
 
 Review, merge, deployment, website publication, enrollment policy, TestFlight upload and Apple processing are distinct
-steps. No live consent/sharing setting or account was changed. PR344 is the combined review path; component PRs are
-review aids. Keep [ROADMAP.md](../ROADMAP.md), [UI acceptance](ui-acceptance.md), [profile requirements](profile-home-requirements.md)
+steps. No live consent/sharing setting or account was changed by the software tests. PR344 is merged; its component drafts are
+superseded. Keep [ROADMAP.md](../ROADMAP.md), [UI acceptance](ui-acceptance.md), [profile requirements](profile-home-requirements.md)
 and the private owner overview aligned when any gate changes.
 
 ## Activity charts first — owner follow-up
