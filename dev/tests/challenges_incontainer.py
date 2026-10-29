@@ -139,6 +139,20 @@ class Challenges(unittest.TestCase):
    with patch('app.challenges.process',side_effect=rolled_back):
     with self.assertRaises(RuntimeError):C.process_committed(cid,self.now)
    self.assertEqual(seen,[]);C.process_committed(cid,self.now);self.assertEqual(seen,[True]);C.process_committed(cid,self.now);self.assertEqual(seen,[True])
+ def test_join_push_waits_for_the_group_answer_to_commit(self):
+  from starlette.requests import Request
+  q,_=self.make();self.clients[0].put('/api/notifications/settings',json={'challenge_joins':True});seen=[]
+  request=Request({'type':'http','method':'POST','path':'/','server':('testserver',80),'scheme':'http','headers':[]})
+  class ImmediateThread:
+   def __init__(self,target,args,daemon):self.target=target;self.args=args
+   def start(self):self.target(*self.args)
+  def delivered(nid):
+   with db.connect() as c:seen.append(bool(c.execute('SELECT id FROM notifications WHERE id=%s',(nid,)).fetchone()))
+  with patch('app.challenges.threading.Thread',ImmediateThread),patch('app.notify._push_later',side_effect=delivered):
+   with patch('app.challenges.answer',side_effect=RuntimeError('Fictional failed group answer')):
+    with self.assertRaises(RuntimeError):C.join(q['code'],request,{'id':self.ids[1]})
+   self.assertEqual(seen,[],'A failed group response rolls back membership and dispatches no push')
+   result=C.join(q['code'],request,{'id':self.ids[1]});self.assertTrue(result['member']);self.assertEqual(seen,[True])
  def test_notifications_are_opt_in_once_only_and_never_include_private_names(self):
   q,_=self.make();code=q['code'];self.join(code)
   with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM notifications WHERE challenge_id=(SELECT id FROM challenges WHERE code=%s)',(code,)).fetchone()['n'],0)

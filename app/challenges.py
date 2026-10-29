@@ -187,7 +187,7 @@ def send_notice(c,row,uid,kind,actor,*,push_ids=None):
         if push_ids is None:threading.Thread(target=notify._push_later,args=(nid,),daemon=True).start()
         else:push_ids.append(nid)
 
-def join_challenge(c,uid,code):
+def join_challenge(c,uid,code,*,push_ids=None):
     from .api_social import confirmed
     initial=accessible(c,code,uid);account_locks(c,[uid,initial['user_id']]);confirmed_for_challenge(c,uid);row=accessible(c,code,uid,True)
     if member(c,row['id'],uid):return row
@@ -198,12 +198,16 @@ def join_challenge(c,uid,code):
     if active_count(c,uid)>=5:raise HTTPException(409,'You can take part in up to five active or upcoming challenges')
     protein_ok(c,uid,row['kind'])
     c.execute("INSERT INTO challenge_members(challenge_id,user_id) VALUES(%s,%s) ON CONFLICT(challenge_id,user_id) DO UPDATE SET status='active',joined=now()",(row['id'],uid))
-    if not prior:send_notice(c,row,row['user_id'],'challenge_join',uid)
+    if not prior:send_notice(c,row,row['user_id'],'challenge_join',uid,push_ids=push_ids)
     return row
 
 @router.post('/api/challenges/{code}/join')
 def join(code:str,request:Request,user=Depends(current_user)):
-    with db.connect() as c:return answer(c,join_challenge(c,user['id'],code),user['id'],request)
+    push_ids=[]
+    with db.connect() as c:result=answer(c,join_challenge(c,user['id'],code,push_ids=push_ids),user['id'],request)
+    # Building a large group's progress can outlast the push retry window.
+    for nid in push_ids:threading.Thread(target=notify._push_later,args=(nid,),daemon=True).start()
+    return result
 
 def consume_signup(c,uid):
     # Run after account/email confirmation commits, before locking an intent row. Confirmation
