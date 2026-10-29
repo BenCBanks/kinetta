@@ -15,9 +15,14 @@ from .dish_access import NOTICE_VISIBLE
 from . import apns, db, reactions
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
 
+# A stale or removed source cannot leave a pending private celebration in the bell or on a phone.
+NOTICE_VISIBLE += " AND (n.kind<>'milestone' OR EXISTS(SELECT 1 FROM milestones m JOIN milestone_state ms ON ms.user_id=m.user_id WHERE m.id=n.milestone_id AND m.user_id=n.user_id AND m.valid AND NOT m.silent AND ms.generation=ms.processed AND (m.activity_id IS NULL OR EXISTS(SELECT 1 FROM activities ma WHERE ma.id=m.activity_id AND ma.user_id=m.user_id))))"
+
+NOTICE_VISIBLE += " AND (n.challenge_id IS NULL OR EXISTS(SELECT 1 FROM challenges cq JOIN users cu ON cu.id=cq.user_id JOIN challenge_members cv ON cv.challenge_id=cq.id AND cv.user_id=n.user_id AND cv.status='active' JOIN challenge_members ca ON ca.challenge_id=cq.id AND ca.user_id=n.actor_id AND ca.status='active' WHERE cq.id=n.challenge_id AND NOT cu.needs_email_confirm AND cu.suspended_at IS NULL))"
+
 router = APIRouter(prefix='/api')
-KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'report')   # report: admins only, in the app only
-PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',)}
+KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'report')   # report: admins only, in the app only
+PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',),'challenge_joins':('challenge_join',),'challenge_reminders':('challenge_reminder',),'challenge_finished':('challenge_finished',)}
 MAX_SUBS = 10           # devices per person
 AUTO_SOURCES = ('apple', 'healthkit', 'garmin', 'garmin_connect')   # workouts that arrive without the person doing anything
 
@@ -69,13 +74,17 @@ def drop(c, user_id, kind, actor_id):
 
 
 # ---------- reading: the words are made here ----------
-_LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,
+_LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,
              u.login::text AS login, u.name, u.photo_v AS photo, a.name AS activity, a.distance_m, a.moving_s, a.elapsed_s, a.sport, a.sport_label, p.units, d.name AS dish, cm.text AS comment
            FROM notifications n JOIN users u ON u.id = n.actor_id LEFT JOIN profile p ON p.user_id = n.user_id
-           LEFT JOIN activities a ON a.id = n.activity_id LEFT JOIN dishes d ON d.id = n.dish_id LEFT JOIN comments cm ON cm.id = n.comment_id"""
+           LEFT JOIN activities a ON a.id = n.activity_id LEFT JOIN dishes d ON d.id = n.dish_id LEFT JOIN comments cm ON cm.id = n.comment_id LEFT JOIN challenges q ON q.id=n.challenge_id"""
 
 
 def _words(r):
+    if r['kind']=='milestone':return 'A milestone is ready to review', '/me/milestones'
+    if r['kind'].startswith('challenge_'):
+        text={'challenge_join':'@'+r['login']+' joined your challenge','challenge_reminder':'Three days left in your challenge','challenge_finished':'Your challenge finish picture is ready'}[r['kind']]
+        return text,'/me/challenges/'+r['challenge_code']
     who, act = r['name'], r['activity'] or 'activity'
     if r['kind'] == 'activity_ready':
         return f"Nice work! {act} saved — {_activity_summary(r)}", f"/activity/{r['activity_id']}"
@@ -109,6 +118,7 @@ def _activity_summary(r):
 
 def _item(r):
     text, link = _words(r)
+    if r['kind'].startswith('challenge_'):r={**r,'name':'@'+r['login']}
     return {'id': r['id'], 'kind': r['kind'], 'text': text, 'link': link, 'created': r['created'], 'read': r['read'],
             'who': {'login': r['login'], 'name': r['name'], 'photo': r['photo']}}
 
@@ -129,9 +139,9 @@ def notifications(user=Depends(current_user)):
 @router.get('/notifications/count')
 def notifications_count(user=Depends(current_user)):
     """For the number on the Me tab (checked at most once a minute)."""
-    from .api_social import waiting
+    from .api_social import waiting, _friend_rows
     with db.connect() as c:
-        return {'unread': unread(c, user['id']), 'friend_requests': waiting(c, user['id'])}
+        return {'unread': unread(c, user['id']), 'friend_requests': waiting(c, user['id']), 'friend_count':sum(r['status']=='accepted' for r in _friend_rows(c,user['id']))}
 
 
 @router.post('/notifications/read')
@@ -143,7 +153,7 @@ def notifications_read(user=Depends(current_user)):
 
 # ---------- phone notifications (Web Push) ----------
 def _prefs(v):
-    return {k: bool((v or {}).get(k, True)) for k in PUSH_KINDS}
+    return {k: bool((v or {}).get(k, k not in ('milestones','challenge_joins','challenge_reminders','challenge_finished'))) for k in PUSH_KINDS}
 
 
 # Older app copies get an explicit retirement response; no browser endpoint sends traffic.
@@ -199,6 +209,10 @@ class PrefsIn(BaseModel):
     comments: bool | None = None
     dishes: bool | None = None
     activities: bool | None = None
+    milestones: bool | None = None
+    challenge_joins: bool | None = None
+    challenge_reminders: bool | None = None
+    challenge_finished: bool | None = None
 
 
 @router.put('/notifications/settings')
@@ -215,7 +229,7 @@ def _push_words(r):
     text,_=_words(r)
     titles={'friend_request':'Friend request','friend_accepted':'Friend request accepted',
             'cheer':'New reaction','comment':'New comment','dish_shared':'Meal shared',
-            'activity_ready':'Workout saved'}
+            'activity_ready':'Workout saved','milestone':'Milestone'}
     if r['kind']=='activity_ready':
         return 'Workout saved', f"{r['activity'] or 'Your workout'}\n{_activity_summary(r)}"
     if r['kind']=='comment':

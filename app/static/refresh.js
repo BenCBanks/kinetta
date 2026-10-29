@@ -17,7 +17,7 @@ const PageRefresh=(()=>{
       spinner.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+IC.refresh+'</svg>';
       document.body.append(spinner);
     }
-    const view=document.getElementById?.('page'),glide=mode!=='drag';
+    const view=document.getElementById?.('page'),glide=mode!=='drag'&&!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     clearTimeout(settleT);pulled=distance>0;
     if(view){view.style.transition=glide?'transform .3s cubic-bezier(.2,.8,.2,1)':'none';view.style.transform=distance?`translate3d(0,${distance.toFixed(2)}px,0)`:'';}
     spinner.className='ptr'+(glide?' glide':'')+(mode==='hold'?' spinning':'');
@@ -43,7 +43,7 @@ const PageRefresh=(()=>{
     invalidate('/api/',{health:false,keepData:true});
     if(typeof Social!=='undefined')Social.at=0;
     if(typeof SocialData!=='undefined')SocialData.invalidate();
-    try{const work=render();pose(HOLD,'hold');await work;
+    try{const view=document.getElementById?.('page');const work=typeof view?.refresh==='function'?view.refresh():render();pose(HOLD,'hold');await work;
       // Some home cards start their own reads after the route's first render.
       // Keep the spinner until those reads (and their dependent reads) settle.
       for(let pass=0;pass<5&&owner===readOwner()&&key===pageKey();pass++){
@@ -60,7 +60,7 @@ const PageRefresh=(()=>{
   }
   // The title and numbers are one large link. A vertical pull there should work
   // just like a pull on the surrounding card; ordinary taps still open it.
-  const excluded=target=>!!target.closest('input,textarea,select,button,a:not(.post-link):not(.tfood-details):not(.latest-activity-link),[contenteditable],.leaflet-container,.media-gallery,.activity-media,.chart,.scrim,.ph-view');
+  const excluded=target=>!!target.closest('input,textarea,select,button,a:not(.post-link):not(.tfood-details),[contenteditable],.leaflet-container,.media-gallery,.activity-media,.chart,.scrim,.ph-view');
   const reset=()=>{start=null;if(!busy&&pulled)pose(0,'rest');};
   document.addEventListener('touchstart',event=>{
     suppressClickUntil=0;

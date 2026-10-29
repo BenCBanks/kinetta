@@ -47,7 +47,7 @@ class FriendLinks(unittest.TestCase):
         link = ann.get('/api/friends/link').json(); code = link['url'].rsplit('/', 1)[1]
         self.assertTrue(link['url'].startswith('https://example.test/add/'))
         self.assertEqual(ann.get('/api/friends/link').json()['url'], link['url'], 'the same link until it is replaced')
-        self.assertEqual(client().get('/api/friend-links/' + code).json(), {'name': 'Ann'}, 'signed-out preview: the name only')
+        self.assertEqual(client().get('/api/friend-links/' + code).json(), {'name': '@zz_test_fl_ann'}, 'signed-out preview: username only')
         self.assertEqual(ann.post('/api/friend-links/' + code, json={}).status_code, 400, 'not your own link')
         r = bo.post('/api/friend-links/' + code, json={}).json(); self.assertEqual((r['status'], r['new']), ('friends', True))
         self.assertIn('zz_test_fl_bo', self.friends(ann)); self.assertFalse(bo.post('/api/friend-links/' + code, json={}).json()['new'])
@@ -87,11 +87,13 @@ class FriendLinks(unittest.TestCase):
             self.assertEqual(r.status_code, 200); self.assertEqual(r.headers['content-type'], 'application/json')
             self.assertEqual(r.json()['applinks']['details'][0], {'appIDs': ['TEAMFICT01.com.kinetta.app'], 'components': [
                 {'/': '/add/*', 'comment': 'friend invite links'},
-                {'/': '/routes/shared/*', 'comment': 'signed-in shared route links'}]})
+                {'/': '/card/*', 'comment': 'revocable public cards'},
+                {'/': '/challenge/*', 'comment': 'explicit challenge previews'},
+                ]})
         ann = self.person('zz_test_fl_ann'); code = ann.get('/api/friends/link').json()['url'].rsplit('/', 1)[1]
         with db.connect() as d: d.execute("UPDATE users SET name = 'Ann <b>&' WHERE login = 'zz_test_fl_ann'")
         page = client().get('/add/' + code).text
-        self.assertIn('<meta property="og:title" content="Join Ann &lt;b&gt;&amp; on Kinetta">', page, 'named and escaped')
+        self.assertIn('<meta property="og:title" content="Join @zz_test_fl_ann on Kinetta">', page, 'public preview uses the username'); self.assertNotIn('Ann &lt;b&gt;&amp;',page,'real names stay private')
         self.assertIn('<meta property="og:title" content="Kinetta">', client().get('/add/no-such-code').text, 'unknown links get the plain page')
 
     def test_people_you_may_know(self):

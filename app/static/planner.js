@@ -1,7 +1,4 @@
-// Route planner (#276, 2026-10-26): tap points on the map, see the distance as you go, save, use it in Track.
-// Like On The Go Map: the map is the workspace; snapping to paths, Undo/Redo, loop, out-and-back and reverse sit in one
-// bar. No segment, leaderboard or completed activity is involved. The server re-measures everything on Save.
-// The same editor draws segment courses (segments.js passes mode 'segment'; Save becomes Review).
+// Map editor and geometry tools for fixed segments.
 'use strict';
 Object.assign(IC, {
   up: '<path d="M7 14l5-5 5 5"/>',
@@ -47,24 +44,16 @@ const Plan = {
   bearing(a, b) { const r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; },
 };
 
-// The route someone chose for Track (#276 item 10): the exact version, kept on this device for this account.
+// Remove retired route snapshots together with this account’s segment drafts.
 const planDraftKey = key => App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null;
-const PlanTrack = {
-  key: () => App.me ? `kinetta.trackRoute:${serverKey()}:${App.me.id}` : null,
-  get() { const k=PlanTrack.key(),r=k?store.get(k):null;if(!r||typeof RouteDownloads==='undefined')return r;try{return RouteDownloads.clean({...r,kind:r.kind||'owned'});}catch(_){return null;} },
-  set(r) { const k=PlanTrack.key();if(!k)return;if(!r){store.del(k);return;}if(typeof RouteDownloads==='undefined'){store.set(k,r);return;}const complete=RouteDownloads.save(r);try{localStorage.setItem(k,JSON.stringify(complete));}catch(_){throw Error('The route download is kept, but this device could not select it. Free some storage and retry.');}return complete; },
-  eraseDevice() {
-    if (!App.me) return;
-    const prefix = planDraftKey('');
-    for (const k of Object.keys(localStorage)) if (k.startsWith(prefix)) localStorage.removeItem(k);
-    store.del(PlanTrack.key());
-    sessionStorage.removeItem(`kinetta.segmentReview:${serverKey()}:${App.me.id}`);
-    if (typeof RouteShare !== 'undefined') RouteShare.eraseDevice();
-    if (typeof RouteDownloads !== 'undefined') RouteDownloads.eraseDevice();
-    if (typeof Segments !== 'undefined') Segments.pending = null;
-  },
-  from(r) { return typeof RouteDownloads!=='undefined'?RouteDownloads.fromOwned(r):{id: r.id, version: r.loaded_version || r.version, name: r.name, sport: r.sport, distance_m: r.distance_m, line: r.full_line || r.line}; },
-};
+// Erase device drafts only for this signed-in account/server. Legacy geometry stays in account exports.
+function clearSegmentDrafts() {
+  if(!App.me)return;
+  const prefix=planDraftKey(''),server=serverKey(),id=App.me.id;
+  for(const k of Object.keys(localStorage))if(k.startsWith(prefix)||k===`kinetta.trackRoute:${server}:${id}`||k===`kinetta.routeDownloads:${JSON.stringify([Native.base||location.origin,id])}`)localStorage.removeItem(k);
+  sessionStorage.removeItem(`kinetta.segmentReview:${server}:${id}`);
+  if(typeof Segments!=='undefined')Segments.pending=null;
+}
 
 // ---------- the map editor ----------
 const Planner = (() => {
@@ -80,19 +69,19 @@ const Planner = (() => {
 
   function open(el, opts) {
     clearTimeout(saveT); clearTimeout(elevT); busy = false; view = layers = null;
-    S = {mode: opts.mode || 'route', key: opts.key, sport: opts.sport || store.get('kinetta.planSport') || 'run', waypoints: [], legs: [],
+    S = {mode: 'segment', key: opts.key, sport: opts.sport || store.get('kinetta.planSport') || 'run', waypoints: [], legs: [],
          name: '', description: '', routeId: opts.routeId || null, baseVersion: opts.baseVersion || null, clientId: crypto.randomUUID(), title: opts.title};
     S.owner = readOwner();
     undo = []; redo = []; elev = null; autosave = 'idle'; localUnits = null;
     if (opts.plan) load(opts.plan);
     el.classList.add('planner-page');
-    el.innerHTML = `<div class="top plan-top">${backBtn(opts.back || 'Routes')}<h1 class="plan-title">${esc(opts.title)}</h1>
+    el.innerHTML = `<div class="top plan-top">${backBtn(opts.back || 'Segments')}<h1 class="plan-title">${esc(opts.title)}</h1>
         <button type="button" class="icon-btn" id="pl-search" aria-label="Search for a place">${svg('search')}</button></div>
       <div class="plan-sports seg" role="group" aria-label="Sport">${PLAN_SPORTS.map(([k, l]) => `<button type="button" data-sport="${k}" aria-pressed="${S.sport === k}">${svg(k)}${l}</button>`).join('')}</div>
       <div class="plan-map-wrap"><div class="plan-map" id="pl-map" role="application" aria-label="Route map. Tap to add a point; use Points for a list."></div>
         <button type="button" class="plan-total" id="pl-total" aria-live="polite" aria-label="Distance. Tap to switch miles and kilometres"></button>
         <div class="plan-side"><button type="button" class="icon-btn map-fab" id="pl-locate" aria-label="Locate me">${svg('locate')}</button><button type="button" class="icon-btn map-fab" id="pl-fit" aria-label="Fit route">${svg('fit')}</button></div>
-        <p class="plan-hint" id="pl-hint"></p></div>
+        </div><p class="plan-hint" id="pl-hint"></p>
       <div class="plan-alert" id="pl-alert" role="alert" hidden></div>
       <div class="plan-bar" role="toolbar" aria-label="Route tools">
         <button type="button" id="pl-undo" aria-label="Undo">${svg('undo')}<span>Undo</span></button>
@@ -103,14 +92,14 @@ const Planner = (() => {
       <button type="button" class="plan-elev" id="pl-elev" hidden></button>
       <p class="small muted plan-status" id="pl-status" role="status"></p>
       <p class="small muted">Online paths and heights send map points through this server to its map services (default: Valhalla/FOSSGIS). <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors · ODbL</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fix the map</a></p>`;
-    wireBack(el, opts.backHref || '/routes');
+    wireBack(el, opts.backHref || '/progress/segments');
     $$('[data-sport]', el).forEach((b) => b.onclick = () => { if (S.sport === b.dataset.sport) return; remember(); S.sport = b.dataset.sport; store.set('kinetta.planSport', S.sport);
       $$('[data-sport]', el).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       S.legs.forEach((l) => { if (l.mode === 'path') { l.state = 'pending'; l.rev++; } }); changed(); });   // a ride follows different paths from a walk
     $('#pl-undo', el).onclick = () => { if (!undo.length) return; redo.push(snapshot()); restore(undo.pop()); changed(); };
     $('#pl-redo', el).onclick = () => { if (!redo.length) return; undo.push(snapshot()); restore(redo.pop()); changed(); };
     $('#pl-more', el).onclick = more;
-    $('#pl-save', el).onclick = () => opts.onSave ? opts.onSave(api_state()) : saveSheet(opts);
+    $('#pl-save', el).onclick = () => opts.onSave(api_state());
     $('#pl-search', el).onclick = search;
     $('#pl-total', el).onclick = () => { localUnits = units() === 'mi' ? 'km' : 'mi'; drawTotal(); drawMarks(); };
     $('#pl-locate', el).onclick = locate;
@@ -392,28 +381,10 @@ const Planner = (() => {
       <button class="row-link" data-loop${two ? '' : ' disabled'}>${svg('route')}<span class="grow">Back to start<small class="muted">Close the loop</small></span></button>
       <button class="row-link" data-oab${two ? '' : ' disabled'}>${svg('redo')}<span class="grow">Out and back<small class="muted">Return the same way</small></span></button>
       <button class="row-link" data-rev${two ? '' : ' disabled'}>${svg('undo')}<span class="grow">Reverse<small class="muted">Plans the paths again in the other direction</small></span></button>
-      ${S.mode === 'route' ? `<button class="row-link" data-gpx>${svg('upload')}<span class="grow">Import a GPX file</span></button>` : ''}
       <button class="row-link danger" data-clear${S.waypoints.length ? '' : ' disabled'}>${svg('trash')}<span class="grow">Clear route</span></button></div>`, (b, close) => {
       const act = (sel, fn) => { const x = $(sel, b); if (x) x.onclick = () => { close(); fn(); }; };
-      act('[data-points]', pointsSheet); act('[data-loop]', loop); act('[data-oab]', outAndBack); act('[data-rev]', reverse); act('[data-gpx]', importGpx); act('[data-clear]', clear);
+      act('[data-points]', pointsSheet); act('[data-loop]', loop); act('[data-oab]', outAndBack); act('[data-rev]', reverse); act('[data-clear]', clear);
     });
-  }
-  function importGpx() {
-    const f = document.createElement('input'); f.type = 'file'; f.accept = '.gpx,application/gpx+xml,application/xml,text/xml';
-    f.onchange = async () => {
-      const file = f.files[0]; if (!file) return;
-      if (file.size > 5 * 1024 * 1024) { toast('GPX files can be up to 5 MB'); return; }
-      try {
-        const r = await api('/api/planned-routes/import', json('POST', {gpx: await file.text()}));
-        const use = (t) => { const replace = () => { remember(); load({waypoints: t.waypoints, legs: t.legs}); if (!S.name) S.name = t.name; changed(); fit(); toast('Finding mapped paths from the imported track. Review the result before saving.'); };
-          if (S.waypoints.length) sheet('Replace your route?', '<p>The imported route replaces what’s on the map. You can Undo afterwards.</p><button class="primary wide" data-ok>Replace</button><button class="ghost wide" data-no>Cancel</button>', (b, close) => { $('[data-no]', b).onclick = close; $('[data-ok]', b).onclick = () => { close(); replace(); }; });
-          else replace(); };
-        if (r.tracks.length === 1) use(r.tracks[0]);
-        else sheet('Choose a track', `<p class="small muted">This file has ${r.tracks.length} separate tracks. They aren’t joined, because that would invent a connection between them.</p><div class="list card">${r.tracks.map((t, i) => `<button class="row-link" data-t="${i}"><span class="grow">${esc(t.name)}<small class="muted">${U.dist(t.distance_m)} ${U.du()}</small></span>${svg('chev')}</button>`).join('')}</div>`,
-          (b, close) => $$('[data-t]', b).forEach((x) => x.onclick = () => { close(); use(r.tracks[+x.dataset.t]); }));
-      } catch (e) { toast(e.message + ' Your route is unchanged.'); }
-    };
-    f.click();
   }
   async function search() {
     sheet('Find a place', `<form class="searchbox" id="pl-q" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Park, street or town" aria-label="Place" maxlength="120" enterkeyhint="search" autocomplete="off"></form>
@@ -482,56 +453,6 @@ const Planner = (() => {
     if(state!==S||state.owner!==readOwner())return;
     try { await api('/api/route-drafts/'+draftKey,{method:'DELETE'}); } catch (_) { /* cleared on the next save */ }
   }
-  function saveSheet(opts) {
-    if(S.legs.some(l=>l.state!=='ok'||l.mode!=='path')){toast('Find every mapped path before saving. Your draft is kept.');return;}
-    const st = api_state(), state=S;
-    sheet(S.routeId ? 'Save changes' : 'Save route', `<form class="form" id="pl-save-form">
-        <label>Name<input name="name" maxlength="120" required value="${esc(S.name || '')}" placeholder="Morning loop"></label>
-        <label>Notes <small class="muted">(optional, only you see them)</small><textarea name="description" maxlength="2000" rows="2">${esc(S.description || '')}</textarea></label>
-        <p class="small muted">${PLAN_SPORTS.find(([k]) => k === S.sport)[1]} · ${fmt(st.distance_m)} ${units()} · follows mapped paths. Saved routes are private to you.</p>
-        <button class="primary wide" data-use>${svg('track')}Save and use in Track</button><button class="ghost wide" data-only>Save</button>
-        <p class="small danger" id="pl-save-err" role="alert"></p></form>`, (b, close) => {
-      const form = $('#pl-save-form', b), err = $('#pl-save-err', b), live=()=>state===S&&state.owner===readOwner()&&b.isConnected;
-      form.elements.name.oninput = () => { S.name = form.elements.name.value; keepDraft(); };
-      form.elements.description.oninput = () => { S.description = form.elements.description.value; keepDraft(); };
-      const go_ = async (useIt, btn) => {
-        if(!live())return;
-        const name = form.elements.name.value.trim(); if (!name) { form.elements.name.reportValidity(); return; }
-        $$('button', form).forEach((x) => x.disabled = true); btn.textContent = 'Saving…'; err.textContent = '';
-        const body = {client_id: S.clientId, name, description: form.elements.description.value.trim() || null, sport: S.sport, waypoints: st.waypoints, legs: st.legs,
-                      source: opts.source || 'drawn', base_version: S.baseVersion};
-        try {
-          const r = S.routeId ? await api('/api/planned-routes/' + S.routeId, json('PUT', body)) : await api('/api/planned-routes', json('POST', body));
-          if(!live())return;
-          S.routeId=r.id;S.baseVersion=r.version;keepDraft();
-          if(useIt)PlanTrack.set(PlanTrack.from({...r,full_line:Plan.enc(st.line)}));
-          await forget(); if(!live())return; invalidate('/api/planned-routes'); close();
-          if (useIt) { toast('Route ready in Track'); go('/track'); }
-          else { toast('Route saved'); go(`/routes/plan/${r.id}`, {replace: true}); }
-        } catch (x) {
-          if(!live())return;
-          $$('button', form).forEach((y) => y.disabled = false); btn.textContent = useIt ? 'Save and use in Track' : 'Save';
-          if(x.code==='paths_changed'||x.code==='paths_required'){close();S.legs.forEach(l=>{l.state='pending';l.rev++;});changed();toast(x.message);return;}
-          if (x.code === 'route_changed') { close(); conflict(opts, body); return; }
-          err.textContent = x.message + ' Your route is kept; try again.';
-        }
-      };
-      $('[data-use]', b).onclick = (e) => { e.preventDefault(); go_(true, e.currentTarget); };
-      $('[data-only]', b).onclick = (e) => { e.preventDefault(); go_(false, e.currentTarget); };
-    });
-  }
-  function conflict(opts, body) {   // changed on another device: never overwrite silently
-    sheet('Changed on another device', '<p>This route was saved somewhere else since you opened it. Load that version, or keep your edits as a separate copy.</p><button class="primary wide" data-copy>Save mine as a copy</button><button class="ghost wide" data-reload>Load the other version</button>', (b, close) => {
-      $('[data-reload]', b).onclick = async () => { close(); await forget(); render(); };
-      $('[data-copy]', b).onclick = async () => {
-        try { const r = await api('/api/planned-routes', json('POST', {...body, client_id: crypto.randomUUID(), name: body.name.slice(0, 113) + ' (copy)', base_version: null, source: 'copy'}));
-          await forget(); close(); invalidate('/api/planned-routes'); toast('Saved as a copy'); go(`/routes/plan/${r.id}`, {replace: true}); }
-        catch (x) { toast(x.message); }
-      };
-    });
-  }
-  // A server can switch path routing off (KINETTA_ROUTING_URL=off). No new path can then be found or saved, so say so
-  // plainly instead of opening an editor whose Retry can never work. Offline, the editor opens as before.
   let paths = null;
   async function pathsOff() {
     if (paths === null) try { paths = (await api('/api/plan/services')).paths; } catch (_) { return false; }
@@ -539,17 +460,15 @@ const Planner = (() => {
   }
   async function unavailable(el, opts) {
     if (!(await pathsOff())) return false;
-    el.innerHTML = `<div class="top plan-top">${backBtn(opts.back || 'Routes')}<h1 class="plan-title">${esc(opts.title)}</h1><span></span></div>
-      <div class="card empty"><b>Route planning is off for now</b>${opts.mode === 'segment'
-        ? 'Drawing on the map isn’t available yet. You can still make a segment from part of one of your own activities.'
-        : 'Finding mapped paths isn’t available yet. Your saved and shared routes still work in Track.'}</div>`;
-    wireBack(el, opts.backHref || '/routes');
+    el.innerHTML = `<div class="top plan-top">${backBtn(opts.back || 'Segments')}<h1 class="plan-title">${esc(opts.title)}</h1><span></span></div>
+      <div class="card empty"><b>Map drawing is off for now</b>You can still make a segment from part of one of your own activities.</div>`;
+    wireBack(el, opts.backHref || '/progress/segments');
     return true;
   }
   return {open, profile, pathsOff, unavailable};
 })();
 
-// "Choose a stretch": two handles along a line (an activity section or a saved route), with the result on a map.
+// "Choose a stretch": two handles along a line (a recorded activity section), with the result on a map.
 function stretchSheet(title, line, {unitLabel = '', onUse, note = ''}) {
   const pts = decode(line), len = Plan.length(pts), step = Math.max(5, Math.round(len / 400));
   sheet(title, `<div class="stretch-map" id="st-map"></div>
@@ -558,7 +477,14 @@ function stretchSheet(title, line, {unitLabel = '', onUse, note = ''}) {
     <p class="small muted" id="st-sum"></p>${note}<button class="primary wide" id="st-use">Use this stretch</button>`, async (b, close) => {
     const A = $('#st-a', b), B = $('#st-b', b);
     let v = null, part = null;
-    try { v = await mapInto($('#st-map', b), [line], {ends: false}); if (v) part = v.L.polyline([], {color: col('--route'), weight: 6}).addTo(v.map); v?.group.eachLayer((l) => l.setStyle?.({color: col('--tx3'), weight: 3, opacity: .6})); } catch (_) { /* the sliders still work */ }
+    try {
+      v=await mapInto($('#st-map',b),[line],{ends:false});
+      if(v){
+        part=v.L.polyline([],{color:v.routeColor(),weight:6}).addTo(v.map);
+        v.map.on('basemaptheme',()=>{part.setStyle({color:v.routeColor()});v.group.setStyle({color:col('--tx3')});});
+        v.group.eachLayer(l=>l.setStyle?.({color:col('--tx3'),weight:3,opacity:.6}));
+      }
+    } catch (_) { /* the sliders still work */ }
     const draw = () => {
       let a = +A.value, z = +B.value; if (z - a < step) { if (document.activeElement === A) A.value = a = z - step; else B.value = z = a + step; }
       $('#st-a-v', b).textContent = `${U.dist(a)} ${U.du()}`; $('#st-b-v', b).textContent = `${U.dist(z)} ${U.du()}`;
@@ -570,113 +496,8 @@ function stretchSheet(title, line, {unitLabel = '', onUse, note = ''}) {
   });
 }
 
-// ---------- pages ----------
-const routesTabs = (on) => `<div class="seg routes-tabs" role="tablist" aria-label="Routes">${[['planned','My routes','/routes'],['shared','Shared routes','/routes?view=shared']].map(([k,l,h])=>`<a role="tab" href="${h}" aria-selected="${on===k}" data-replace>${l}</a>`).join('')}</div>`;
-
-route(/^\/routes$/, 'track', async (el) => {
-  const q=new URLSearchParams(location.search),view=q.get('view')||'planned';
-  if(view==='matched')return go('/progress/routes',{replace:true});
-  if(view==='segments')return go('/progress/segments',{replace:true});
-  el.innerHTML=`<div class="top">${backBtn('Track')}</div><h1>Routes</h1><p class="small muted">Plan a route, then choose it before you start recording.</p>${routesTabs(view)}<div id="rt-body"></div>`;
-  wireBack(el,'/track');
-  $$('[data-replace]',el).forEach(a=>a.onclick=e=>{e.preventDefault();go(a.getAttribute('href'),{replace:true});});
-  const body=$('#rt-body',el);
-  if(view==='shared')return RouteShare.browse(body);
-  const sport = q.get('sport') || '', term = q.get('q') || '';
-  const off = await Planner.pathsOff();
-  body.innerHTML = `${off ? '<p class="small muted">Planning new routes is off for now. Saved and shared routes still work.</p>' : `<a class="primary wide" href="/routes/new">${svg('plus')}Plan a route</a>`}
-    <form class="searchbox" id="rt-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" value="${esc(term)}" placeholder="Search your routes" aria-label="Search your routes" maxlength="120" enterkeyhint="search"></form>
-    <div class="chips" role="group" aria-label="Sport">${[['', 'All'], ...PLAN_SPORTS].map(([k, l]) => `<button type="button" class="chip" data-s="${k}" aria-pressed="${sport === k}">${l}</button>`).join('')}</div><div id="rt-list">${skel(2)}</div>`;
-  const reload = (s, t) => go(`/routes?${new URLSearchParams({...(s ? {sport: s} : {}), ...(t ? {q: t} : {})})}`, {replace: true});
-  $$('[data-s]', body).forEach((b) => b.onclick = () => reload(b.dataset.s, term));
-  $('#rt-find', body).onsubmit = (e) => { e.preventDefault(); reload(sport, e.currentTarget.elements.q.value.trim()); };
-  await load(`/api/planned-routes?${new URLSearchParams({q: term, sport})}`, (rows) => {
-    const box = $('#rt-list', body); if (!box) return;
-    box.innerHTML = rows.length ? `<div class="card list">${rows.map((r) => `<a class="row-link plan-route" href="/routes/plan/${r.id}">${r.line ? miniRoute(r.line, r.sport) : ''}<span class="grow"><b>${esc(r.name)}</b>
-        <small class="muted">${esc(SPORT_NAMES[r.sport])} · ${U.dist(r.distance_m)} ${U.du()}${r.ascent_m != null ? ` · ↑ ${U.elev(r.ascent_m)} ${U.eu()}` : ''}</small></span>${svg('chev')}</a>`).join('')}</div>`
-      : term || sport ? '<div class="card empty"><b>No routes match</b>Try another name or sport.</div>'
-      : off ? '<div class="card empty"><b>No saved routes yet</b>Routes people share with you appear under Shared routes.</div>'
-      : '<div class="card empty"><b>Plan where you’ll go next</b>Tap points on the map, see the distance as you go, and save it. Then load it in Track before you start.</div>';
-  });
-});
-
-route(/^\/routes\/new$/, 'track', async (el) => {
-  const q = new URLSearchParams(location.search), aid = q.get('activity');
-  if (await Planner.unavailable(el, {title: 'New route', back: 'Routes', backHref: '/routes'})) return;
-  const ed = Planner.open(el, {title: 'New route', key: 'new', back: 'Routes', backHref: '/routes', source: aid ? 'activity' : 'drawn'});
-  if (aid && /^\d+$/.test(aid)) fromActivity(+aid, async (d) => {
-    const s = ed.state(); Object.assign(s, {waypoints: d.waypoints.map((w) => [+w[0], +w[1]]), legs: d.legs.map((l) => ({mode:'path',pts:decode(l.line),rev:0,state:'pending',dist:null})), sport: d.sport});
-    await ed.persist(); history.replaceState(null, '', '/routes/new'); setTimeout(() => render(), 0);
-  });
-});
-
-async function fromActivity(aid, done) {   // copy positions from your own activity: a section and a stretch you choose
-  let r; try { r = await api(`/api/activities/${aid}/sections`); } catch (e) { toast(e.message); return; }
-  if (!r.sections.length) { toast('This activity has no GPS route to copy.'); return; }
-  const pick = (i) => stretchSheet('Choose the part to use', r.sections[i].line, {note: '<p class="small muted">Only the path is copied: no times, heart rate, notes or sharing settings.</p>',
-    onUse: async (a, z, close) => { const d = await api('/api/planned-routes/from-activity', json('POST', {activity_id: aid, section: i, start_m: a, end_m: z})); close(); done(d); }});
-  if (r.sections.length === 1) return pick(0);
-  sheet('Choose a section', `<p class="small muted">This recording has gaps, so it’s in ${r.sections.length} sections. They’re kept apart, so no connection is made up.</p><div class="list card">${r.sections.map((s, i) => `<button class="row-link" data-s="${i}">${miniRoute(s.line, r.sport)}<span class="grow">Section ${i + 1}<small class="muted">${U.dist(s.distance_m)} ${U.du()}</small></span>${svg('chev')}</button>`).join('')}</div>`,
-    (b, close) => $$('[data-s]', b).forEach((x) => x.onclick = () => { close(); pick(+x.dataset.s); }));
-}
-
-route(/^\/routes\/plan\/(\d+)\/edit$/, 'track', async (el, id) => {
-  el.innerHTML = skel(1);
-  if (await Planner.unavailable(el, {title: 'Edit route', back: 'Route', backHref: `/routes/plan/${id}`})) return;
-  let r; try { r = await api(`/api/planned-routes/${id}`); } catch (e) { showError(el, e); return; }
-  const key = `route-${id}`;
-  let plan = {...r, baseVersion: r.version, routeId: r.id, clientId: crypto.randomUUID()};
-  try {   // an unsaved edit of this route on this account wins over the saved copy (it remembers which version it started from)
-    const d = (await api('/api/route-drafts/' + key)).data || store.get(planDraftKey(key));
-    if (d?.waypoints?.length && d.baseVersion === r.version) plan = d;
-  } catch (_) { /* the saved route */ }
-  Planner.open(el, {title: 'Edit route', key, plan, routeId: r.id, baseVersion: r.version, back: 'Route', backHref: `/routes/plan/${id}`});
-});
-
-route(/^\/routes\/plan\/(\d+)$/, 'track', async (el, id) => {
-  const shareOwner=readOwner();
-  el.innerHTML = `<div class="top">${backBtn('Routes')}<span></span></div><div id="rp-body">${skel(2)}</div>`;
-  wireBack(el, '/routes');
-  await load(`/api/planned-routes/${id}`, (r) => {
-    const body = $('#rp-body', el); if (!body) return;
-    const full = Plan.enc(Plan.line(r.legs.map((l) => ({line: l.line}))));
-    const chosen = PlanTrack.get()?.id === r.id&&PlanTrack.get()?.kind!=='shared';
-    body.innerHTML = `<h1>${esc(r.name)}</h1><p class="muted">${esc(SPORT_NAMES[r.sport])} · Planned route · private to you</p>
-      <div class="plan-detail-map" id="rp-map"></div>
-      <div class="bigstat">${stat('Distance', `${U.dist(r.distance_m)} ${U.du()}`)}${stat('Climb', r.ascent_m != null ? `${U.elev(r.ascent_m)} ${U.eu()}` : 'Unknown')}${stat('Descent', r.descent_m != null ? `${U.elev(r.descent_m)} ${U.eu()}` : 'Unknown')}</div>
-      ${r.warnings?.length ? `<p class="plan-warn" role="note">${svg('alert')}${esc(r.warnings.map((w) => w.text).join(' '))}</p>` : ''}
-      ${r.description ? `<p class="plan-notes">${esc(r.description)}</p>` : ''}
-      ${r.elevation ? '<div class="card"><h2>Elevation</h2><div id="rp-profile"></div><p class="small muted">Approximate heights from satellite data.</p></div>' : ''}
-      <button class="primary wide" id="rp-use">${svg('track')}${chosen ? 'In Track now · open Track' : 'Use in Track'}</button>
-      <div id="route-device-tools"></div><div class="card list">
-        <a class="row-link" href="/routes/plan/${r.id}/edit">${svg('edit')}<span class="grow">Edit route</span>${svg('chev')}</a>
-        <button class="row-link" id="rp-rename">${svg('edit')}<span class="grow">Rename</span>${svg('chev')}</button>
-        <button class="row-link" id="rp-copy">${svg('plus')}<span class="grow">Duplicate<small class="muted">An independent copy</small></span>${svg('chev')}</button>
-        <button class="row-link" id="rp-gpx">${svg('upload')}<span class="grow">Export GPX</span>${svg('chev')}</button>
-        <button class="row-link" id="rp-share">${svg('share')}<span class="grow">Share this route<small class="muted">Review exactly what recipients receive</small></span>${svg('chev')}</button>
-        <button class="row-link" id="rp-seg">${svg('flag')}<span class="grow">Make a segment from part of it<small class="muted">A fixed, named course with times</small></span>${svg('chev')}</button>
-        <button class="row-link danger" id="rp-del">${svg('trash')}<span class="grow">Delete route</span></button></div>
-      <p class="small muted">Version ${r.version} · updated ${esc(fdate(r.updated, {month: 'short', day: 'numeric', year: 'numeric'}))}. Saving a route never adds an activity, totals or leaderboard times.</p>`;
-    mapInto($('#rp-map', body), [full], {sport: r.sport}).catch(() => {});
-    if (r.elevation) Planner.profile($('#rp-profile', body), r.elevation);
-    RouteDownloads.tools($('#route-device-tools',body),RouteDownloads.fromOwned({...r,full_line:full}));
-    $('#rp-use',body).onclick=async e=>{const button=e.currentTarget,alive=()=>body.isConnected&&shareOwner===readOwner();if(!alive())return;button.disabled=true;
-      try{await RouteDownloads.choose('owned',r.id,{version:r.loaded_version||r.version,alive});if(alive())go('/track');}catch(x){if(alive())toast(x.message);}finally{if(alive())button.disabled=false;}};
-    $('#rp-share', body).onclick = () => { if (body.isConnected && shareOwner === readOwner()) RouteShare.owner(r); };
-    $('#rp-rename', body).onclick = () => sheet('Rename route', `<form class="form" id="rn"><label>Name<input name="name" maxlength="120" required value="${esc(r.name)}"></label><label>Notes<textarea name="d" maxlength="2000" rows="2">${esc(r.description || '')}</textarea></label><button class="primary wide">Save</button></form>`, (b, close) => {
-      $('#rn', b).onsubmit = async (e) => { e.preventDefault(); try { await api(`/api/planned-routes/${id}`, json('PATCH', {name: e.target.elements.name.value, description: e.target.elements.d.value || null})); close(); invalidate('/api/planned-routes'); render(); } catch (x) { toast(x.message); } }; });
-    $('#rp-copy', body).onclick = async () => { try { const c = await api(`/api/planned-routes/${id}/duplicate`, json('POST', {client_id: crypto.randomUUID()})); invalidate('/api/planned-routes'); toast('Copy saved'); go(`/routes/plan/${c.id}`); } catch (x) { toast(x.message); } };
-    $('#rp-gpx', body).onclick = () => sheet('Export GPX', `<p>The file holds this route’s name and its ${decode(full).length.toLocaleString()} map points. No times, account, device or sharing details.</p>
-        <label class="switch-row"><span><b>Include notes</b><small>Your private notes on this route go in the file too.</small></span><input type="checkbox" role="switch" id="gx-d"></label><button class="primary wide" id="gx-go">Download GPX</button>`, (b, close) => {
-      $('#gx-go', b).onclick = async () => { try {
-        if (Native.on) { const ticket = await api(`/api/planned-routes/${id}/gpx-link`, json('POST', {description: $('#gx-d', b).checked})); window.open(Native.base + ticket.path, '_blank'); close(); toast('Opening Safari to download your route'); return; }
-        const res = await fetch(`${Native.base || ''}/api/planned-routes/${id}/gpx?description=${$('#gx-d', b).checked}`, {credentials: 'include', headers: Native.headers?.() || {}});
-        if (!res.ok) throw new Error('Couldn’t make the file. Try again.'); const url = URL.createObjectURL(await res.blob()); const a = document.createElement('a'); a.href = url; a.download = `${r.name.replace(/[^\w .-]+/g, '').trim() || 'route'}.gpx`; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000); close(); }
-        catch (x) { toast(x.message); } }; });
-    $('#rp-seg', body).onclick = () => stretchSheet('Choose the segment', full, {note: '<p class="small muted">Next you name it and review it. Once created, a segment can’t be changed, and editing this route never changes it.</p>',
-      onUse: async (a, z, close) => { close(); Segments.review({sport: r.sport, line: Plan.enc(Plan.slice(decode(full), a, z)), source: 'route'}); }});
-    $('#rp-del', body).onclick = () => sheet('Delete this route?', '<p>This deletes the route and its earlier versions. Activities you recorded with it, copies, and segments made from it stay.</p><button class="primary danger-btn wide" data-del>Delete route</button><button class="ghost wide" data-keep>Keep it</button>', (b, close) => {
-      $('[data-keep]', b).onclick = close;
-      $('[data-del]', b).onclick = async () => { try { await api(`/api/planned-routes/${id}`, {method: 'DELETE'}); RouteDownloads.remove('owned',r.id);RouteDownloads.remove('shared',r.id);if (PlanTrack.get()?.id === r.id) PlanTrack.set(null); close(); invalidate('/api/planned-routes'); toast('Route deleted'); go('/routes', {replace: true}); } catch (x) { toast(x.message); } }; });
-  });
+// Retired links return to active destinations, including old matched-route/segment bookmarks.
+route(/^\/routes(?:\/.*)?$/, 'track', () => {
+  const view=new URLSearchParams(location.search).get('view');
+  go(view==='matched'?'/progress/routes':view==='segments'?'/progress/segments':'/track',{replace:true});
 });

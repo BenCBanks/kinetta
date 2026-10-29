@@ -8,7 +8,7 @@ Keep up with *your friends’ workouts.*
 
 ## find-friends-by-name-see-their-runs-send-them-cheers-2
 
-Find people you know, approve friend requests and see the workouts they choose to share. Add a photo, send cheers or leave a comment.
+Build your profile, find people you know and see your activities together. Send cheers or leave a comment.
 
 ## see-who-s-out-there-today-3
 
@@ -33,3 +33,28 @@ Free for personal use under the [PolyForm Noncommercial License](https://github.
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-8
 
 © 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.
+
+
+## profile-heading
+
+A profile that feels like you.
+
+## profile-copy
+
+Choose your photo, bio, featured sports and statistics. Show the sections you want, in your own order. Preview exactly what approved friends or other members can see. Profiles require a Kinetta login.
+
+## private-overview-heading
+
+Your overview stays private.
+
+## private-overview-copy
+
+Me brings your training, food and progress together. View profile opens your shared profile; food logs, body data and Kit conversations stay private.
+
+## motivation-heading
+
+A little momentum, together.
+
+## motivation-copy
+
+Review a milestone, share a recap or invite people to a small challenge. Joining a challenge is separate from becoming friends. You choose when to share. An optional public card and QR code help people find you; cards start off and friend requests need your approval.

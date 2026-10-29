@@ -13,10 +13,15 @@ Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'});
 const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 
-// New recipes share food entry; the optional recipe choice appears only at final review.
+// Deliberate recipe creation opens its own ingredient editor and keeps food-chat drafts separate.
 async function newDish(btn,where=null){
-  if(typeof FoodThread!=='undefined'&&FoodThread.collecting())return FoodThread.review({saveRecipe:true});
-  go('/food/describe?save=1'+(where?.meal?'&meal='+encodeURIComponent(where.meal):''));
+  const owner=readOwner();if(btn?.disabled)return;if(btn)btn.disabled=true;
+  try{
+    // The ingredient editor never resolves a new recipe through saved meal matches.
+    const d=await api('/api/dishes',json('POST',{}));
+    if(owner!==readOwner())return;App.cache.delete('/api/dishes');go('/food/cook/'+d.id);
+  }catch(e){if(owner===readOwner())toast(e.message);}
+  finally{if(btn?.isConnected&&owner===readOwner())btn.disabled=false;}
 }
 
 route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
@@ -52,29 +57,29 @@ function drawDish(el, d) {
   const bySv = d.serving === 'one';
   const source=d.recipe_source||{}, imported=!!source.import_id, display=imported?d.per_serving:t;
   el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
-  const sums = has ? `<p class="dish-sum num"><b>${r0(display.kcal)} kcal${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${r0(display[k])} g ${nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn(imported?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Meal options">${svg('more')}</button>${mine ? '<button class="primary sm" id="dk-done">Done</button>' : ''}</div></div>
+  const sums = has ? `<p class="dish-sum num"><b>${display.kcal==null?'Calories unknown':r0(display.kcal)+' kcal'}${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${display[k]==null?'Unknown '+nm.toLowerCase():r0(display[k])+' g '+nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
+  el.innerHTML = `<div class="top">${backBtn(mine?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button> </div></div>
     <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
-    ${mine?'<p class="small muted">Add ingredients, then choose whether to log a portion. This recipe is saved for reuse.</p>':''}
-    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button></div><p id="recipe-title-status" class="small muted" role="status">Tap the pencil to rename. The title saves automatically.</p>`
+    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button><button type="button" class="icon-btn danger" id="dk-delete" aria-label="Delete recipe" title="Delete recipe">${svg('trash')}</button></div><p id="recipe-title-status" class="small muted" role="status"></p>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
+    ${mine?'<p class="small muted">Changes save as you go. Logging is optional.</p>':''}
     ${sums}
     ${imported?recipeSourceCard(d):''}
     ${d.items.length ? `<div class="card ing-card"><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
     ${mine && has ? `<div class="card serve measure"><div class="seg wide m-seg" role="group" aria-label="How it's measured">
         <button type="button" data-sv="one" aria-pressed="${bySv}">By servings</button><button type="button" data-sv="portion" aria-pressed="${!bySv}">By weight</button></div>
-      ${bySv ? `<form class="m-row" id="dk-yield"><label class="m-lab" for="dk-servings">Servings in the whole recipe</label><input id="dk-servings" name="count" type="text" inputmode="decimal" value="${esc(d.serving_count)}" aria-label="Servings in the whole recipe"></form><p class="small muted m-note">Nutrition is divided by this number. Choose how many you ate at the end.</p>`
+      ${bySv ? `<form class="m-row" id="dk-yield"><label class="m-lab" for="dk-servings">Servings in the whole recipe</label><input id="dk-servings" name="count" type="text" inputmode="decimal" value="${esc(d.serving_count)}" aria-label="Servings in the whole recipe"></form><p class="small muted m-note">Nutrition per serving uses this number.</p>`
         : `<form class="m-row" id="dk-weigh"><label class="m-lab" for="dk-w">Total weight</label><span class="gfield"><input id="dk-w" name="g" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5"
-          value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole meal in grams"><span>g</span></span></form>
+          value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole recipe in grams"><span>g</span></span></form>
           ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
     ${mine&&(has||shared.length)?`<button type="button" class="card tap share-row" id="dk-share">${shared.length?`<span class="avs">${shared.map(p=>avatar(p)).join('')}</span>`:''}<span class="grow"><b>${shared.length?'Shared with '+esc(shared.map(p=>p.name.split(' ')[0]).join(', ')):'Share with…'}</b><small class="muted">${shared.length?'Change who can see this recipe':'Optional · private until you choose a friend'}</small></span>${svg('chev')}</button>`:''}
-    ${mine ? `${chatLog(d)}<div id="dk-match"></div></div>
+    ${mine ? `${chatLog(d)}<div id="dk-match">${CHATS.get(d.id)?.some(m=>m.clarification)?'<p class="small muted">Finish the ingredient above, or cancel it.</p><button type="button" class="linkbtn" id="dk-cancel-clarification">Cancel ingredient</button>':''}</div></div><button type="button" class="primary wide recipe-save" id="dk-done"${has?'':' disabled'}>Save recipe</button>
       <form class="composer" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
         <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'e.g. 100 g oats' : 'Search ingredients…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="${aiCan('food')?'send':'search'}" maxlength="600" required>
         <button class="icon-btn send" aria-label="${aiCan('food')?'Add ingredient':'Search ingredients'}">${svg('send')}</button></form>
       <input type="file" accept="image/*" multiple id="dk-label-file" hidden>`
       : has ? `</div><div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `</div><p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
-  wireBack(el, imported?'/food/meals':'/food');
+  wireBack(el, mine?'/food/meals':'/food');
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set)) : sharedMenu(d));
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
@@ -82,16 +87,23 @@ function drawDish(el, d) {
   const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&aiCan('coach') ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
   if (!mine) return;
   $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Leave this unmatched line out of the recipe nutrition? If you added it separately, its nutrition will be included.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
+  $('#dk-delete',el).onclick=()=>deleteRecipe(d);
   $('#dk-help', el).onclick = () => sheet('How recipes work', cookSteps(d));
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
+  const cancelClarification=$('#dk-cancel-clarification',el);
+  if(cancelClarification)cancelClarification.onclick=()=>{const log=CHATS.get(d.id)||[];if(log.some(m=>m.wait))return;for(const m of log)delete m.clarification;$('#dk-match',el).replaceChildren();$('#dk-t',el).focus();};
   labelButton(el, d, set);
   $('#dk-plus', el).onclick = () => plusMenu(el, d, set);
   const sh = $('#dk-share', el); if (sh) sh.onclick = () => shareDishSheet(d, set);
   // Finish saves the name, then offers an explicit meal-and-portion review.
   $('#dk-done', el).onclick = async () => {
     const button=$('#dk-done',el);if(button.disabled)return;button.disabled=true;
+    if(CHATS.get(d.id)?.some(m=>m.wait)){toast('Wait for the ingredient to finish before saving.');button.disabled=false;return;}
+    if($('#dk-match',el)?.hasChildNodes()){toast('Add or cancel the ingredient below before saving.');button.disabled=false;$('#dk-match',el).scrollIntoView({block:'nearest'});return;}
+    if($('#dk-t',el)?.value.trim()){toast('Send or clear the ingredient text before saving your recipe.');button.disabled=false;$('#dk-t',el).focus();return;}
     if(!await measureSave||!await saveName()||!active()){if(active())button.disabled=false;return;}
+    if(CHATS.get(d.id)?.some(m=>m.wait)||$('#dk-match',el)?.hasChildNodes()||$('#dk-t',el)?.value.trim()){toast('Finish or cancel the ingredient before saving.');button.disabled=false;return;}
     if (!has && !$('#dk-name', el).value.trim()) { api(`/api/dishes/${d.id}`, {method: 'DELETE'}).catch(() => {}); App.cache.delete('/api/dishes'); }
     else if (has) { if(!d.named){toast('What would you like to call this food or recipe?');$('#dk-name',el).focus();button.disabled=false;return;}finishDish(d);button.disabled=false;return; }
     go(imported?'/food/meals':'/food', {replace: true});
@@ -109,7 +121,7 @@ function drawDish(el, d) {
       titleStatus.textContent='Saving title…';
       try{const fresh=await api(`/api/dishes/${d.id}`,json('PATCH',{name:v}));if(!active())return false;
         d=fresh;titleStatus.textContent='Title saved';App.cache.set(`/api/dishes/${d.id}`,{data:fresh,at:Date.now()});App.cache.delete('/api/dishes');return true;
-      }catch(x){if(active()){titleStatus.textContent='Title not saved. Tap Done to try again.';toast(x.message);}return false;}
+      }catch(x){if(active()){titleStatus.innerHTML='Title not saved. <button type="button" class="linkbtn" id="dk-title-retry">Retry</button>';const retry=$('#dk-title-retry',el);retry.onclick=()=>{if(retry.disabled||!active())return;retry.disabled=true;return saveName();};toast(x.message);}return false;}
     });
     return nameSave;
   };
@@ -142,10 +154,19 @@ function manualDishFood(d,set){
   });
 }
 function finishDish(d){
-  sheet('Log a portion today?', `<p>${esc(d.name)} is saved in My Recipes. Would you like to log some today?</p><div class="actions"><button type="button" class="ghost" id="df-later">Not now</button><button type="button" class="primary" id="df-log">Choose meal and amount</button></div>`,(b,close)=>{
-    const owner=readOwner();guardFoodSheet(b,close,owner);
-    $('#df-later',b).onclick=()=>{close();go('/food/meals',{replace:true});};
-    $('#df-log',b).onclick=()=>{close();dishLogSheet(d,{day:isoDay(new Date()),meal:null},editing=>{if(!editing)go('/food?d='+isoDay(new Date()),{replace:true});},{chooseMeal:true});};
+  const owner=readOwner();
+  sheet('Save recipe',`<form class="form" id="recipe-finish"><label>Recipe name<input name="title" value="${esc(d.name)}" maxlength="80" required autocomplete="off"></label><p>Your recipe is saved in My Recipes for reuse.</p><p class="small muted">${d.items.length} ingredient${d.items.length===1?'':'s'} · ${d.totals.kcal==null?'Calories unknown':r0(d.totals.kcal)+' kcal in the whole recipe'}</p><label class="switch-row"><span><b>Add to log</b><small>Optional · choose a meal and portion next</small></span><input type="checkbox" role="switch" name="log_today"></label><p class="small danger" role="alert" id="recipe-finish-error" hidden></p><button type="submit" class="primary wide" id="recipe-finish-save">Save recipe</button></form>`,(b,close)=>{
+    guardFoodSheet(b,close,owner);const form=$('#recipe-finish',b),button=$('#recipe-finish-save',b),error=$('#recipe-finish-error',b),live=()=>b.isConnected&&owner===readOwner();
+    form.elements.log_today.onchange=()=>button.textContent=form.elements.log_today.checked?'Save and choose a portion':'Save recipe';
+    form.onsubmit=async e=>{
+      e.preventDefault();if(!live()||button.disabled)return;const name=form.elements.title.value.trim();if(!name){error.textContent='Name your recipe first.';error.hidden=false;return;}button.disabled=true;error.hidden=true;
+      try{
+        const fresh=name!==d.name?await api('/api/dishes/'+d.id,json('PATCH',{name})):d;
+        if(!live())return;App.cache.delete('/api/dishes');App.cache.delete('/api/dishes/'+d.id);const logging=form.elements.log_today.checked;close();
+        if(logging)dishLogSheet(fresh,{day:isoDay(new Date()),meal:null},editing=>{if(!editing)go('/food/meals',{replace:true});},{chooseMeal:true});
+        else{go('/food/meals',{replace:true});toast('Recipe saved · nothing added to your log');}
+      }catch(x){if(live()){error.textContent=x.message;error.hidden=false;button.disabled=false;}}
+    };
   });
 }
 
@@ -414,18 +435,31 @@ function chatLog(d) {
 }
 function chatBox(el, d, set) {
   const f = $('#dk-add', el), log = CHATS.get(d.id) || [];
+  const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner()&&$('#dk-add',el)===f;
   CHATS.set(d.id, log);
-  const redraw = (fresh) => { const t = $('#dk-add input', el); const v = t ? t.value : ''; set(fresh); const n = $('#dk-add input', el); if (n) { n.value = v; n.focus(); } };
+  const redraw = (fresh) => { if(!live())return;const v=f.t.value;set(fresh);const n=$('#dk-add input',el);if(n){n.value=v;n.focus();} };
   const send = async (text) => {
+    if(!live())return;
+    if(log.some(m=>m.wait)){toast('Wait for the current ingredient to finish.');return;}
     const me = {who: 'me', text}, wait = {who: 'ai', wait: true};
     log.push(me, wait); $('#dk-chat', el).outerHTML = chatLog(d); f.t.value = ''; $('#dk-match', el).innerHTML = '';
     let r;
     try { r = await api(`/api/dishes/${d.id}/say`, json('POST', {text,previous:log.filter(x=>x.clarification).at(-1)?.clarification||null})); }
-    catch (x) { log.splice(log.indexOf(wait), 1, {who: 'ai', text: x.message}); redraw(d); return; }
+    catch (x) {
+      log.splice(log.indexOf(wait),1,{who:'ai',text:x.message});
+      if(el.isConnected&&owner===readOwner()){const input=$('#dk-t',el);if(input&&!input.value)input.value=text;const chat=$('#dk-chat',el);if(chat)chat.outerHTML=chatLog(d);}
+      redraw(d);return;
+    }
+    if(!live()){
+      log.splice(log.indexOf(wait),1);
+      // A measurement redraw may have replaced the form while the ingredient was saved.
+      if(el.isConnected&&owner===readOwner())try{set(await api(`/api/dishes/${d.id}`));}catch(_){}
+      return;
+    }
     if (r.fallback) {          // nothing remembered and no AI: pick it from the food search
       log.splice(log.indexOf(me), 2); redraw(d);
       searchFlow(el, d, set, r.query||text);
-      if (r.needs_ok && !App.me.ai_ok) aiSheet(() => { $('#dk-match', el).innerHTML = ''; send(text); });
+      if (r.needs_ok && !App.me.ai_ok) aiSheet(() => {if(!el.isConnected||owner!==readOwner())return;$('#dk-match',el).innerHTML='';const next=$('#dk-add',el);next.t.value=text;next.requestSubmit();});
       return;
     }
     for(const row of log)delete row.clarification;
@@ -449,29 +483,32 @@ let searchSeq = 0;
 async function searchFlow(el, d, set, text) {
   const box = $('#dk-match', el);
   if (!text) { toast('Type the food first, like 2 apples'); $('#dk-add input', el).focus(); return; }
-  const my = ++searchSeq; box.innerHTML = '<p class="small muted">Looking it up…</p>';
+  const my=++searchSeq,owner=readOwner();let busy=false;
+  const live=()=>my===searchSeq&&owner===readOwner()&&el.isConnected&&$('#dk-match',el)===box;
+  const show=html=>{box.innerHTML=html+'<button type="button" class="linkbtn" id="dk-cancel-match">Cancel ingredient</button>';$('#dk-cancel-match',box).onclick=()=>{if(busy)return;searchSeq++;box.replaceChildren();$('#dk-t',el)?.focus();};};
+  show('<p class="small muted">Looking it up…</p>');
   box.scrollIntoView({block:'nearest'});
-  let p; try { p = await api('/api/dishes/parse', json('POST', {text})); } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
-  if (my !== searchSeq) return;
+  let p; try { p = await api('/api/dishes/parse', json('POST', {text})); } catch (x) { if(live())show(`<p class="err">${esc(x.message)}</p>`); return; }
+  if (!live()) return;
   const q = p.search || p.query || text, g0 = p.grams || p.guess_g;
-  box.innerHTML = `<div class="match"><label>${esc(q)}${p.guess_g && !p.grams ? `<small class="muted">Usually about ${gfmt(p.guess_g)}: change it if you weighed it</small>` : ''}<span class="gfield"><input name="mg" inputmode="decimal" value="${g0 ? Math.round(g0 * 10) / 10 : ''}"
+  show(`<div class="match"><label>${esc(q)}${p.guess_g && !p.grams ? `<small class="muted">Usually about ${gfmt(p.guess_g)}: change it if you weighed it</small>` : ''}<span class="gfield"><input name="mg" inputmode="decimal" value="${g0 ? Math.round(g0 * 10) / 10 : ''}"
       placeholder="${p.amount ? `${esc(p.amount)} ${esc(p.unit || '')} in grams?` : 'Grams'}" aria-label="How many grams"><span>g</span></span></label>
     <div class="mres" aria-live="polite"><p class="small muted">Searching…</p></div>
-    <button type="button" class="linkbtn" id="dk-type">Type the calories instead</button></div>`;
+    <button type="button" class="linkbtn" id="dk-type">Type the calories instead</button></div>`);
   box.scrollIntoView({block:'nearest'});
   const gIn = $('[name=mg]', box), res = $('.mres', box);
   const grams = () => { const g = +gIn.value.replace(',', '.'); if (!(g > 0)) { toast('How many grams? Type the weight first'); gIn.focus(); return null; } return g; };
-  let busy = false;
   const add = async (body) => {
-    if (busy) return false; busy = true;
-    try { const fresh = await api(`/api/dishes/${d.id}/items`, json('POST', body)); toast(`Added ${body.name}`); set(fresh); const n = $('#dk-add input'); if (n) n.focus(); return true; }
+    if (busy||!live()) return false; busy = true;$('#dk-cancel-match',box).disabled=true;
+    try { const fresh = await api(`/api/dishes/${d.id}/items`, json('POST', body)); if(!live())return false;for(const m of CHATS.get(d.id)||[])delete m.clarification;toast(`Added ${body.name}`); set(fresh); const n = $('#dk-add input',el); if (n) n.focus(); return true; }
     catch (x) { toast(x.message); return false; }
-    finally { busy = false; }
+    finally { busy = false;if(live())$('#dk-cancel-match',box).disabled=false; }
   };
   $('#dk-type', box).onclick = () => typeSheet(q, gIn.value, add);
   if (!g0) gIn.focus();
   const foods = [];
   const draw = (groups) => {
+    if(!live())return;
     foods.length = 0; let html = '';
     for (const [title, list] of groups) {
       const ok = list.filter((x) => x.per100 && x.per100.kcal != null); if (!ok.length) continue;
@@ -485,13 +522,13 @@ async function searchFlow(el, d, set, text) {
     });
   };
   try {
-    const local = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=mine`); if (my !== searchSeq) return;
+    const local = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=mine`); if (!live()) return;
     const recent = local.recent.filter((r) => r.unit === 'g' && r.amount > 0).map((r) => ({name: r.name, brand: r.brand, source: r.source,
       per100: Object.fromEntries(FOOD_NUTRIENTS.map((k) => [k, r[k] == null ? null : r[k] / r.amount * 100]))}));
     draw([['Yours', local.mine.concat(recent)]]);
-    const ext = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=usda,off`); if (my !== searchSeq) return;
+    const ext = await api(`/api/food/search?q=${encodeURIComponent(q)}&sources=usda,off`); if (!live()) return;
     draw([['Yours', local.mine.concat(recent)], ['USDA', ext.usda], ['Open Food Facts', ext.off]]);
-  } catch (x) { if (my === searchSeq) res.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+  } catch (x) { if (live()) res.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 function typeSheet(name, grams, done) {
   sheet('Manually add a food', `<form class="form" id="ty"><label>Food name<input name="name" value="${esc(name)}" maxlength="120" required></label>
@@ -563,13 +600,34 @@ function knownSheet(d, set) {
 function dishMenu(d, set, search, known) {
   sheet(d.name, `<div class="btncol"><button class="ghost" id="dm-search">Search the food database</button>
     <button class="ghost" id="dm-known">${d.known.kcal != null ? 'Change the total you typed in' : 'I already know the total'}</button>
-    <button class="ghost danger" id="dm-del">Delete meal</button></div>
+    <button class="ghost danger" id="dm-del">${svg('trash')}Delete recipe</button></div>
     <p class="small muted">What you've logged from it stays in your food log.</p>`, (b, close) => {
     $('#dm-search', b).onclick = () => { close(); search(); };
     $('#dm-known', b).onclick = () => { close(); known(); };
-    $('#dm-del', b).onclick = async () => {
-      if (!confirm(`Delete ${d.name}?`)) return;
-      try { await api(`/api/dishes/${d.id}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); toast('Meal deleted'); } catch (x) { toast(x.message); }
+    $('#dm-del', b).onclick = () => { close(); deleteRecipe(d); };
+  });
+}
+
+// Keep deletion separate from ingredient removal and preserve the person's logged portions.
+function deleteRecipe(d) {
+  const owner=readOwner();
+  sheet('Delete recipe?',`<p>Delete <b>${esc(d.name)}</b> from My Recipes? Friends you shared it with will lose access.</p><p>Portions already logged stay in each person’s food log.</p><p class="small danger" id="recipe-delete-error" role="alert" hidden></p><div class="actions"><button type="button" class="ghost" id="recipe-delete-cancel">Cancel</button><button type="button" class="primary danger" id="recipe-delete-confirm">Delete recipe</button></div>`,(b,close)=>{
+    guardFoodSheet(b,close,owner);
+    const cancel=$('#recipe-delete-cancel',b),button=$('#recipe-delete-confirm',b),error=$('#recipe-delete-error',b);
+    cancel.onclick=close;
+    button.onclick=async()=>{
+      if(button.disabled||!b.isConnected||readOwner()!==owner)return;
+      button.disabled=cancel.disabled=true;error.hidden=true;
+      try {
+        await api(`/api/dishes/${d.id}`,{method:'DELETE'});
+        if(!b.isConnected||readOwner()!==owner)return;
+        App.cache.delete('/api/dishes');App.cache.delete(`/api/dishes/${d.id}`);close();go('/food/meals',{replace:true});toast('Recipe deleted');
+      } catch(x) {
+        if(!b.isConnected||readOwner()!==owner)return;
+        // A lost acknowledgement is safe to retry: a missing recipe has already been deleted.
+        if(x.status===404){App.cache.delete('/api/dishes');App.cache.delete(`/api/dishes/${d.id}`);close();go('/food/meals',{replace:true});toast('Recipe deleted');return;}
+        error.textContent=x.message;error.hidden=false;button.disabled=cancel.disabled=false;
+      }
     };
   });
 }

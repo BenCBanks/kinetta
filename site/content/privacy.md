@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 28, 2026
+Last updated October 29, 2026
 
 ## intro
 
@@ -78,21 +78,21 @@ New accounts share new activities with everyone on Kinetta. You can change this 
 
 Shared maps hide where a route starts and ends, but the rest of the route and its time can still hint at where you live or your routine. We strip location data from photos you upload.
 
-## sharing-routes
-
-**Planned routes.** New route plans are private. If you choose to share one, Kinetta publishes the exact recipient preview with a public name/description and protected map; private notes, hidden endpoints, activity times and health measurements are excluded. Original access follows current audience, friendship, block and account rules. Deliberate private copies, exports and screenshots cannot be recalled. Deleting the creator removes the original and its source links from other people’s copies; those independent copies belong to their new owners. Route reports let administrators review only the currently shared stretch, with private moderation records. Sharing previews, publications and copy receipts are included in the owner’s export and account deletion. Route-only downloads stay on the device for the selected account and server; map tiles are not downloaded. Reusable shared-original caches are removed when a revocation is learned or the account changes. A workout already started retains its authorized route snapshot until it finishes or is discarded. Its plan identity/version is saved privately with the activity and included in export/deletion, without publishing the plan through activity sharing.
-
 ## sharing-segments
 
 **Segments and leaderboards.** A segment you create starts private to you. If you publish it, its name, description and path are visible to everyone on this Kinetta server, and publishing can't be undone. Leaderboards are opt-in: you appear only after you turn on Me → Settings → Sharing & privacy → Segment leaderboards, and then only with your best time from activities shared with Everyone, with a visible map and an outdoor, unassisted declaration. Garmin Connect activities are never shown on public boards. Turning leaderboards off removes your public times; you still see your own times privately.
 
 ## sharing-pictures
 
-The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
+**Public Kinetta cards.** Cards start off. If you turn yours on, anyone with its random link can see your username and only the photo, sports and up to two fixed summary stats you choose. Selected sports and totals include Only me workouts. No real name, individual activity, food entry, map, place, weight or bio appears. Food summary stats show days with food logged, never what you ate or calories. Turning the card off or making a new link stops the old page and image immediately; pictures already saved by other people cannot be recalled. Opening a card does not make anyone a friend. Requests need approval, and card signups retain the person's request choice through email confirmation. Kinetta stores joined/pending counts, not a tracking history of page views.
+
+Recap totals and calendars also include Only me workouts. Individual activity highlights use shared activities. You review the picture before sharing.
+
+Joining a challenge is optional and does not make people friends. Participants see only usernames, permitted profile photos and aggregate challenge progress. Only me workouts count toward progress, without revealing their individual details. Finished totals continue to reflect late entries, edits and deletions. Food challenges share logging-day or protein-goal-day counts, never meals, intake amounts or personal targets. Leaving or removal hides the participant immediately; blocking hides people from each other. Challenge data is deleted 90 days after the final local end or an early stop. Milestone offers stay private and use only fixed activity achievements or cumulative food-logging days. Photo and username start off in milestone pictures. Sharing or dismissing marks an offer seen; old imports stay silent. Optional milestone notifications start off and send at most one a day. The Share button makes a picture of your own activity (map, time and pace) that you send wherever you like. It hides the start and end unless you turn that off. Once you send it, it's out of Kinetta's hands. Nobody can make a picture of someone else's activity.
 
 ## identity
 
-Other members can find you by name or username and see your profile, and anyone who can see an activity can see its cheers and comments. Your food log, weight, body details and private notes are never shared. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
+Other members can find you by name or username and see your profile and accepted-friend count. Your friends list is visible only to you; other people do not receive it or a mutual-friends list. Anyone who can see an activity can see its cheers and comments. Your food entries, weight, body details and private notes are never shared. Deliberately shared recap pictures and public cards may include only the food-consistency summaries you select. Run/walk presets and per-step interval results stay private even when you share the activity. Recipes are shared only with the people you send them to.
 
 ## ai-heading
 
@@ -112,7 +112,7 @@ Other services we use
 
 ## providers
 
-Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. When you plan a route online, the routing and elevation services configured by the operator (by default Valhalla/FOSSGIS) receive the map points through Kinetta’s server. Place search sends your typed query and map area to the configured geocoder (by default Nominatim), only when you press Search. These services see the server’s address and may log requests; Kinetta sends no account, workout times or health measurements. Do not include private information in place searches. Route planning and place search are switched off on the hosted beta for now, so nothing is sent to these services until they are turned back on. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends confirmation and password-reset links, account safety notices, and replies to beta requests, which may include an invite link.
+Kinetta runs on its own server in the United States, not a cloud hosting company. **Cloudflare** carries traffic to the app, encrypted, including data from connected services like Garmin. **OpenStreetMap** supplies map images to your device. When you draw a segment on a map, the routing and elevation services configured by the operator (by default Valhalla/FOSSGIS) receive the map points through Kinetta’s server. Place search sends your typed query and map area to the configured geocoder (by default Nominatim), only when you press Search. These services see the server’s address and may log requests; Kinetta sends no account, workout times or health measurements. Do not include private information in place searches. Segment map drawing and place search are switched off on the hosted beta for now, so nothing is sent to these services until they are turned back on. **USDA FoodData Central** and **Open Food Facts** receive food searches and barcodes, never your account details. **Recipe websites** receive a request for the page when you import a link, also without account details. **Apple** delivers iPhone notifications if you turn them on. **An email service** sends confirmation and password-reset links, account safety notices, and replies to beta requests, which may include an invite link.
 
 ## providers-connected
 
@@ -120,7 +120,7 @@ Services you connect yourself, such as Garmin Connect or Health Auto Export, als
 
 ## admin
 
-The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties. Ordinary account support shows status and counts, not your private workouts, routes, food, health records or conversations. An administrator reviewing a report can see its reported comment, current profile bio/photo, or the reported activity’s summary and attached photos. Review access and actions are recorded without copying that content into the audit log. If you make a data request, we keep its type, status, verification method and dates, linked to your account while it exists; correspondence and identity documents are not stored in this register.
+The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties. Ordinary account support shows status, counts, birth year/approximate age and Kit permission/consent status, without opening your private workouts, routes, food, other health records or conversations. An administrator can correct birth year and allow or block Kit access. Allowing access never supplies your own AI consent or permission to include Apple Health or Garmin data. An administrator reviewing a report can see its reported comment, current profile bio/photo, or the reported activity’s summary and attached photos. Review access and actions are recorded without copying that content into the audit log. If you make a data request, we keep its type, status, verification method and dates, linked to your account while it exists; correspondence and identity documents are not stored in this register.
 
 ## retention-heading
 
@@ -156,7 +156,7 @@ Children
 
 ## age
 
-Kinetta is not for anyone under 16. Kit, the optional AI assistant, is only for people 18 or older: you confirm your age when you turn it on, and Kit stays off without that confirmation. If you think a child has signed up, email us and we'll remove their information.
+Kinetta is not for anyone under 16. Kit, the optional AI assistant, is only for people 18 or older: you confirm your age when you turn it on, and Kit stays off without that confirmation. A recorded birth year indicating someone is under 18 also prevents AI use, even if an earlier confirmation exists. If you think a child has signed up, email us and we'll remove their information.
 
 ## contact-heading
 
@@ -177,3 +177,7 @@ Free for personal use under the [PolyForm Noncommercial License](https://github.
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-57
 
 © 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.
+
+## map-backgrounds
+
+Map images currently come from OpenStreetMap’s public tile servers. They receive your network address and the map area you view, without your Kinetta account details, activity times, health readings or cookies. Hiding the start and end of a shared activity limits what other members see; it does not hide the area you view from the map-image service. We will update this policy when the hosted service changes its map provider. People running their own Kinetta installation should check their operator’s provider and privacy policy.

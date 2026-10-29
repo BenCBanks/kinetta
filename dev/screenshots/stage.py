@@ -46,6 +46,7 @@ def later(gpx, minutes):   # the same made-up route, a little later in the day
 
 
 alex = person('alex', 'blue kettle morning run')
+alex('PUT','/api/account',{'name':'Alex Rivera','bio':'Runs, rides and good food.'})
 for login, name in (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera')):
     try: alex('POST', '/api/admin/people', {'login': login, 'name': name, 'password': PW})
     except urllib.error.HTTPError as e:

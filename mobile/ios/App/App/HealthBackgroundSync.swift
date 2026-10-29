@@ -460,6 +460,9 @@ final class HealthBackgroundSync: NSObject, URLSessionTaskDelegate {
             "duration_s": workout.duration, "source": String(workout.sourceRevision.source.name.prefix(100)),
             "distance_m": workout.totalDistance?.doubleValue(for: .meter()) ?? 0,
             "calories": workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) ?? 0]
+        if let indoor = workout.metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber {
+            payload["indoor"] = indoor.boolValue
+        }
         if #available(iOS 16.0, *) {
             func metric(_ id: HKQuantityTypeIdentifier, _ key: String, _ unit: HKUnit, maximum: Bool = false, sum: Bool = false) {
                 guard let type = HKObjectType.quantityType(forIdentifier: id), let stats = workout.statistics(for: type) else { return }

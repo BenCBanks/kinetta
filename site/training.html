@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="assets/theme.css?v=9">
-<link rel="stylesheet" href="assets/site.css?v=19">
+<link rel="stylesheet" href="assets/site.css?v=20">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -43,7 +43,7 @@
   <div class="wrap">
     <a class="logo" href="./" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="132" height="21"></picture></a>
     <nav class="tabs" aria-label="Pages"><a href="training" aria-current="page">Training</a><a href="food">Food</a><a href="friends">Friends</a><a href="compare">Compare</a><a href="privacy">Privacy</a></nav>
-    <span class="signup"><a class="btn solid sm" href="https://login.kinetta.app/signup">Sign up</a><small class="beta-tag">Beta</small></span>
+    <span class="signup"><a class="btn solid sm" href="https://login.kinetta.app/signup">Join beta</a></span>
   </div>
 </header>
 
@@ -71,7 +71,7 @@
       <div class="steps compact">
         <div class="step"><h3>Fitter, or just tired?</h3><p>Fitness and freshness turn every workout into a running picture of your training load. You'll see when you're building, when you're due an easy day, and when a week jumped too fast.</p></div>
         <div class="step"><h3>Faster on your favorite loop?</h3><p>Run a route again and Kinetta lines it up against every earlier effort: your pace, your heart rate, and whether you're getting more pace for each heartbeat.</p></div>
-        <div class="step"><h3>Ask Kit</h3><p>Ask about your training or your food in plain words, like “How have my runs gone this month?” Kit answers from your own records and shows the numbers it used. It won't make numbers up, and any plan change waits for your OK.</p></div>
+        <div class="step"><h3>Ask Kit</h3><p>Ask Kit about your records, with supporting numbers you can check. It’s optional, available to eligible accounts, and asks before making changes.</p></div>
       </div>
     </div>
   </section>
@@ -81,7 +81,7 @@
       <div class="steps compact">
         <div class="step"><h3>Apple Health on iPhone</h3><p>In the Kinetta iPhone app, workouts sync from Apple Health, including Apple Watch routes. The app is in Apple's TestFlight beta: <a href="https://testflight.apple.com/join/YAX1JnwB">get the iPhone app</a>.</p></div>
         <div class="step"><h3>Watch files and Strava history</h3><p>Upload FIT, GPX or TCX files, or your whole Strava export.</p></div>
-        <div class="step"><h3>Connected sources</h3><p>Garmin Connect or Health Auto Export bring in new workouts automatically.</p></div>
+        <div class="step"><h3>Connected sources</h3><p>Garmin Connect or Health Auto Export can bring in new workouts automatically when your server supports the source.</p></div>
       </div>
       <div class="works" aria-labelledby="works-h">
         <h3 id="works-h">Works with the watch you already wear.</h3>
@@ -96,8 +96,8 @@
       <div class="head"><span class="eyebrow">Each workout</span><h2 id="what-h">Maps, splits, heart rate and records.</h2></div>
       <div class="shots three">
         <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="A recorded run with a route map, distance, moving time and pace" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Your activities</h3><p>Review maps, splits, pace, heart rate and elevation when the source includes them.</p></figcaption>
+          <div class="frame"><picture><source srcset="assets/shots/dark-charts.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-charts.webp" alt="Activity charts for pace and heart rate, with Details one tap away; fictional demo data" loading="lazy" width="786" height="1704"></picture></div>
+          <figcaption><h3>Your activities</h3><p>Start with clear charts for pace, heart rate and elevation when recorded. Details, splits and records are one tap away.</p></figcaption>
         </figure></div>
         <div class="shot"><figure>
           <div class="frame"><picture><source srcset="assets/shots/dark-progress.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-progress.webp" alt="Weekly running miles over the last months as bars, with the average week as a dashed line" loading="lazy" width="786" height="1704"></picture></div>
@@ -150,7 +150,7 @@
       </div>
       <div class="pcards">
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-coach.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-coach.webp" alt="An optional AI training note based on a recorded run and earlier efforts" loading="lazy" width="786" height="1704"></picture></div>
-          <h4>Optional training reviews</h4><p>Kit writes a short review of your week every Sunday, and you can ask it questions any time. It's optional and only reads the history you allow.</p></div>
+          <h4>Optional training reviews</h4><p>Optional weekly reviews and answers about your records, when Kit is available for your account. You choose which history it may use.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-fitness.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-fitness.webp" alt="Estimated race times alongside recorded bests, with a running fitness estimate" loading="lazy" width="786" height="1704"></picture></div>
           <h4>Race predictions and fitness</h4><p>Estimated 5K to marathon times next to your best efforts, from a running fitness score that updates as you train.</p></div>
         <div class="pcard"><div class="frame"><picture><source srcset="assets/shots/dark-heatmap.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-heatmap.webp" alt="A personal heatmap of every route run, ridden or walked around Charlotte" loading="lazy" width="786" height="1704"></picture></div>
@@ -162,7 +162,7 @@
   <section class="band next" aria-label="Next">
     <div class="wrap">
       <a class="on" href="food"><small>Next: Food</small><span>Quick food logging ›</span></a>
-      <a class="btn solid" href="https://login.kinetta.app/signup">Sign up</a>
+      <a class="btn solid" href="https://login.kinetta.app/signup">Join beta</a>
     </div>
   </section>
 </main>

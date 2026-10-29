@@ -23,7 +23,7 @@ console.log('PASS recording controls sized above the tab bar');
 // Discard right away (28 October 2026): a lifting session can be deleted before or after Finish; a paused recording shows
 // Discard under its controls, on screen.
 assert(/id="lf-discard">Discard session/.test(lift) && /id="lf-sum-del">Delete this session/.test(lift), 'lifting: discard and delete');
-assert(/function discardLift[\s\S]{0,700}method: 'DELETE'[\s\S]{0,200}store\.del\('fit\.lift:'/.test(lift), 'deletes the activity and the phone copy');
+assert(/function discardLift[\s\S]*queueLift\(key,[\s\S]*method: 'DELETE'[\s\S]*store\.del\(key\)/.test(lift), 'deletes the activity and its account-scoped phone copy after queued writes');
 assert(/\$\{paused \? `<span class="round-ctl round-ctl-discard"><button class="round-btn discard" id="track-discard" aria-label="Discard recording">/.test(track), 'paused: Discard in the controls row');
 assert(/\$\{paused \? '' : `<button class="linkbtn danger track-discard" id="track-discard"/.test(track), 'one Discard at a time');
 console.log('PASS discard a lifting session or a paused recording right away');

@@ -1,9 +1,9 @@
-"""Operator-only portal APIs. No personal health records or provider credentials returned."""
+"""Operator-only support APIs: age/Kit metadata, never private activity/food content or provider credentials."""
 import datetime as dt, hashlib, json, os, secrets, uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Literal
-from . import db, auth, api_account, api_social, admin_mail
+from . import db, auth, api_account, api_social, admin_mail, admin_kit
 from .admin_auth import admin_user, audit, seal, mfa_required
 
 router=APIRouter(prefix='/api/admin')
@@ -19,7 +19,7 @@ def overview(user=Depends(admin_user)):
 
 
 # ---------- finding and supporting people (#233, 2026-10-24) ----------
-# Support information only: never routes, workouts, food, weight, body details, messages or photos.
+# Support information includes the owner-approved age/Kit fields, never private workouts, food, weight, messages or photos.
 STATUS="CASE WHEN u.suspended_at IS NOT NULL THEN 'suspended' WHEN u.needs_email_confirm THEN 'unconfirmed' ELSE 'active' END"
 PAGE=50
 
@@ -47,9 +47,11 @@ def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',s
         total=c.execute(f'SELECT count(*) AS n FROM users u WHERE {w}',args).fetchone()['n']
         rows=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
             u.is_admin,u.created,{STATUS} AS status,EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled,
+            p.birth_year,p.ai_access_allowed,p.ai_ok,p.ai_adult_at IS NOT NULL AS ai_adult_confirmed,p.ai_adult_by,
             (SELECT max(day) FROM admin_account_days d WHERE d.user_id=u.id) AS last_active,
             (SELECT count(*) FROM reports r WHERE r.person=u.id AND r.status='open') AS open_reports
-            FROM users u WHERE {w} ORDER BY {order} LIMIT %(limit)s OFFSET %(offset)s""",args).fetchall()
+            FROM users u LEFT JOIN profile p ON p.user_id=u.id WHERE {w} ORDER BY {order} LIMIT %(limit)s OFFSET %(offset)s""",args).fetchall()
+        for row in rows:admin_kit.account_status(row)
     return {'total':total,'page':page,'pages':max(1,-(-total//PAGE)),'rows':rows}
 
 
@@ -65,15 +67,24 @@ def device(agent):
 def _person(c,uid):
     p=c.execute(f"""SELECT u.id,u.login::text AS login,u.name,u.email::text AS email,u.email_verified_at IS NOT NULL AS email_confirmed,
         u.is_admin,u.created,{STATUS} AS status,u.suspended_at,u.suspended_reason,u.password_change_expires,
-        EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled FROM users u WHERE u.id=%s""",(uid,)).fetchone()
+        EXISTS(SELECT 1 FROM admin_mfa m WHERE m.user_id=u.id) AS mfa_enabled,
+        p.birth_year,p.ai_access_allowed,p.ai_ok,p.ai_adult_at IS NOT NULL AS ai_adult_confirmed,p.ai_adult_by
+        FROM users u LEFT JOIN profile p ON p.user_id=u.id WHERE u.id=%s""",(uid,)).fetchone()
     if not p:raise HTTPException(404,'Account not found.')
-    return p
+    return admin_kit.account_status(p)
 
 
 @router.get('/people/{uid}')
 def person(uid:int,user=Depends(admin_user)):
     with db.connect() as c:
         p=_person(c,uid)
+        from . import ai_access, ai_release, coach
+        p['kit']['features']=ai_access.capabilities(uid,c)
+        p['kit']['provider_available']=coach.enabled()
+        p['kit']['server_enabled']=coach.ai_budget.enabled()
+        p['kit']['release_available']=ai_release.enabled('kit')
+        p['kit']['ready']=bool(p['kit']['status']=='on' and p['status']=='active' and p['kit']['features']['coach']['entitled']
+                              and p['kit']['provider_available'] and p['kit']['server_enabled'] and p['kit']['release_available'])
         p['last_active']=c.execute('SELECT max(day) AS d FROM admin_account_days WHERE user_id=%s',(uid,)).fetchone()['d']
         p['active_days_30']=c.execute("SELECT count(*) AS n FROM admin_account_days WHERE user_id=%s AND day>current_date-30",(uid,)).fetchone()['n']
         p['devices']=[{'device':device(r['agent']),'signed_in':r['created'],'last_used':r['last_seen'],'app_version':r['app_version']} for r in

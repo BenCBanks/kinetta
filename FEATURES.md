@@ -248,13 +248,20 @@ Activity sharing: one 4:5 picture for texts, Instagram and anything else, openin
 - Training-day nutrition guidance and automatic calorie adjustments are parked in `dev/deferred/training-food/`; see issue #236. The usual target and explicit day goals remain.
 
 
-## Planned routes and fixed segments (#272; implementation branch)
+## Fixed segments and matched efforts
 
-Track-based path-only map editor and private route library, editable versions, GPX/activity guide points replanned on mapped paths, GPX export and a saved-version Track overlay; immutable named segments, private matched times, opt-in public best-time boards and browser admin reports/appeals/holds with a global pause. See [routes](docs/routes.md) and [segments](docs/segments.md) for supported behavior, provider terms and acceptance gaps. Deliberate route sharing adds protected recipient previews, Shared route discovery, independent private copies, scoped reports and signed-in same-server links; see [route sharing](docs/route-sharing.md). Generation-based rebuilds are implemented in the integrity follow-up. Physical-iPhone/provider checks remain separate; implementation is not release acceptance.
+Immutable named segments, private matched times, opt-in public best-time boards and browser admin reports/appeals/holds with a global pause. See [segments](docs/segments.md). Generation-based rebuilds and integrity checks are implemented. Physical-iPhone/provider checks remain separate from implementation.
 
-Segment integrity includes explicit per-activity outdoor/unassisted declarations, immediate source-revision withdrawal, and admin-controlled staged per-course rebuilds with atomic activation, current moderation and appeal preservation. Unverified uploads remain unverified; physical-device and provider release checks remain separate.
-
-Route following (#279 implementation): account/server-bound route-only downloads, protected shared originals, pinned native journal snapshots, conservative direction/along/remaining matching, offline overlay, independent measured totals and private exported recording-plan history. See [route following](docs/route-following.md). Browser callbacks are stand-ins; signed-device/provider acceptance and future interval-preset integration remain open.
 ## Run/walk interval review build (#274)
 
 Track holds private time/distance/mixed presets, exact repeat/final-recovery previews, immutable preloads and native interval controls. Guidance is spoken only; the vibration option was removed on 27 October 2026. The recorder owns clock/GPS progression and voice/system-vibration requests; one activity retains private planned/actual results with retry safety and account export/deletion. Browser authoring does not provide browser or indoor guidance. This implementation remains in review; signed locked/stationary/pocket delivery acceptance (#303/#305), merge, hosted deployment and TestFlight are separate gates. [Contract and capability matrix](docs/run-walk-intervals.md).
+
+Recipe creation uses its own ingredient editor with naming first, a Save recipe review and optional logging off by default. It does not reuse an Add food conversation or match ingredients to saved whole recipes. Add food has visible Kit-style recipe/photo/barcode/search quick actions.
+
+## Progress recap pictures (#294)
+
+Progress → Share creates a reviewed 4:5 week/month/year picture with selectable totals, activity calendar, highlights, activity weeks, optional food consistency and optional username/photo. Source credit is retained. Eligible monthly Me offers are quiet and dismissible. Rendering/sharing is local; no sharing destination or recipient is stored. Implementation, browser/native compilation and physical iPhone sharing remain separate release states.
+
+## Opt-in Kinetta cards (#295)
+
+Me → Share your Kinetta creates an off-default, revocable username-only card and link. Choose a photo, sport icons and up to two fixed activity/food-consistency stats; private names, individual food/activity details and locations stay out. Share the exact picture and link, copy it or show a bright, awake QR code. Requests stay pending for approval; signup, waitlist invitations and email confirmation retain the deliberate choice. Turning off/rotating the card immediately stops its public surfaces. Physical iPhone sharing, QR scanning and installation handoff remain separate acceptance checks.

@@ -59,6 +59,11 @@ const json = (method, body) => ({method, body: JSON.stringify(body)});
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
 function screenHit(path) {
   let hit = App.cache.get(path);
+  // Reuse an older phone's opening history after the query shrinks; account/server checks still apply.
+  if(!hit&&path==='/api/activities?limit=1'){
+    const old=App.cache.get('/api/activities?limit=3'),saved=old?.data||kept('/api/activities?limit=3');
+    if(Array.isArray(saved)){hit={data:saved.slice(0,1),at:old?.at||0};App.cache.set(path,hit);}
+  }
   // Today and Nutrition ask for the same day with different URLs. Match the returned date, never guess it.
   if(!hit&&/^\/api\/food\/day\?d=\d{4}-\d{2}-\d{2}$/.test(path)){
     const today=App.cache.get('/api/food/day');if(today?.data.day===path.slice(-10)){hit=today;App.cache.set(path,hit);}
@@ -94,14 +99,14 @@ async function load(path, render, {maxAge = 15000} = {}) {
 function refreshMe(me) {
   const previous = App.me, same = previous && previous.id === me.id;
   if (same && readSessions.has(previous)) readSessions.set(me, readSessions.get(previous));
-  if (!same) { App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {}); App.cache.clear(); forgetKept(); }
+  if (!same) { Native.clearPictures?.();App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {}); App.cache.clear(); forgetKept(); }
   App.me = me; keep('/api/me', me);
   if (!same) render();
 }
 
 // ---------- offline: kept screens + a send queue for food and weight (2026-10-10) ----------
-const KEEP = [/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/plans\/current$/,
-  /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=3$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
+const KEEP = [/^\/api\/recaps\?/,/^\/api\/friends$/,/^\/api\/me$/, /^\/api\/food\/day/, /^\/api\/food\/(recent|usual|foods|meals)$/, /^\/api\/food\/weights\?days=90$/, /^\/api\/plans\/current$/,
+  /^\/api\/stats$/, /^\/api\/goals$/, /^\/api\/activities\?limit=(?:1|3)$/, /^\/api\/fitness\?days=60$/, /^\/api\/coach\/week$/,
   /^\/api\/progress\/volume\?period=week$/, /^feed:home$/, /^\/api\/feed\/friends\?limit=3$/];   // 2026-10-16: Activity and Progress open from the saved copy too; 2026-10-18: all of Me
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
@@ -249,6 +254,7 @@ function invalidateFeed({keepData=false}={}) {
   const hit=App.cache.get('feed:home');if(keepData&&hit)hit.at=0;else App.cache.delete('feed:home');
 }
 const invalidate = (prefix, {health=true,keepData=false}={}) => {
+  if(prefix.startsWith('/api/friends')&&typeof Social!=='undefined')Social.at=0;
   if(health && prefix.replace(/\/$/,'')==='/api/food') Native.queueNutritionSync?.();
   if (['/api/activities', '/api/shared', '/api/feed', '/api/people'].some((p) => p.startsWith(prefix) || prefix.startsWith(p))) invalidateFeed({keepData});
   const paths = new Set([...App.cache.keys(), ...[...pendingReads.keys()].map((k) => JSON.parse(k)[1])]);
@@ -266,7 +272,7 @@ const prefetch = (path) => {
 function warmDestination(href){
   if(!App.me||!navigator.onLine)return;
   if(href==='/activity'){if(typeof warmFeed==='function')warmFeed();return;}
-  const paths=href==='/me'?['/api/stats','/api/activities?limit=3','/api/plans/current','/api/food/day']:
+  const paths=href==='/me'?['/api/stats','/api/activities?limit=1','/api/plans/current','/api/food/day']:
     href==='/food'?['/api/food/day?d='+isoDay(new Date())]:href==='/plan'?['/api/plans/current']:[];
   paths.forEach(prefetch);
 }
@@ -318,7 +324,7 @@ const SPORT_NAMES = {run: 'Run', ride: 'Ride', walk: 'Walk', hike: 'Hike', swim:
 const FOOT = ['run', 'walk', 'hike'];
 // the headline number per sport: pace for foot sports, speed for rides/skis, /100 for swims
 function rate(a) {
-  if (!a.distance_m || !a.moving_s) return {label: 'Time', v: dur(a.moving_s || a.elapsed_s), u: ''};
+  if (!a.distance_m || !a.moving_s || a.speed_available === false) return {label: 'Time', v: dur(a.moving_s || a.elapsed_s), u: ''};
   const spk = a.moving_s / a.distance_m * 1000;
   if (a.sport === 'swim') return {label: 'Pace', v: U.swim(spk), u: U.swu()};
   if (FOOT.includes(a.sport)) return {label: 'Pace', v: U.pace(spk), u: U.pu()};
@@ -509,7 +515,10 @@ function slide(kind, from) {
   document.documentElement.dataset.nav = kind;
   let done;
   const t = document.startViewTransition(() => { done = render(); });
-  t.finished.finally(() => { delete document.documentElement.dataset.nav; });
+  // Resizing for a keyboard can cancel the animation after navigation succeeded.
+  const clear = () => { delete document.documentElement.dataset.nav; };
+  t.finished.then(clear, clear);
+  t.ready?.catch(() => {});
   return t.updateCallbackDone.then(() => done);
 }
 // Photos and profile pictures fade in once they've loaded instead of popping (already-loaded ones show at once).
@@ -694,14 +703,19 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
     ? {zoomControl: false, attributionControl: true, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false,
        boxZoom: false, keyboard: false, tap: false, zoomSnap: 0.25}
     : {zoomControl: false, attributionControl: true, scrollWheelZoom: heat, tap: true});
+  // Leaflet1.9.4 leaves its zoom-end timer alive on remove; prevent it reading a destroyed map pane.
+  map.once('unload', () => { map._animatingZoom = false; });
   viewResources.set(el, Object.assign(() => map.remove(), {keepVisual:true})); // keep the map during a sheet's exit
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
-    attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
-  const color = col('--route');   // routes are blue whatever the sport (Ben, 2026-10-23); the dark map is inverted, so dark mode uses the lighter blue
+  MapTiles.mount(map,L,el);
+  const color = col('--route');   // Routes are blue for every sport.
   // set the view BEFORE drawing (Leaflet can't clip lines on a map without a view)
   const all = lines.map((ln) => (typeof ln === 'string' ? decode(ln) : ln)).filter((p) => p.length > 1);
   if (all.length) map.fitBounds(L.latLngBounds(all.flat()), {padding: still ? [12, 12] : [18, 18]}); else map.setView([39.5, -98.5], 3);
   const group = L.featureGroup().addTo(map);
+  let routeColor=color;
+  map.on('basemaptheme',event=>{routeColor=event.light?col('--color-action'):col('--route');group.setStyle({color:routeColor});});
+  // Nearby segments and live recording add lines after the basemap has settled.
+  group.on('layeradd',event=>event.layer.setStyle?.({color:routeColor}));
   for (const pts of all) L.polyline(pts, heat ? {color, weight: 2, opacity: .35} : {color, weight: 4, opacity: .95}).addTo(group);
   if (!heat && ends && all.length) {      // the first section's start and the last section's finish
     const first = all[0], last = all[all.length - 1];
@@ -709,10 +723,10 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
     L.marker(first[0], {icon: endIcon(L, 'start', loop), interactive: false, keyboard: false, title: 'Start'}).addTo(map);
     L.marker(last[last.length - 1], {icon: endIcon(L, 'end', loop), interactive: false, keyboard: false, title: 'Finish'}).addTo(map);
   }
-  if (still) { map.attributionControl.setPrefix(false); return {map, L, group}; }
+  if (still) { map.attributionControl.setPrefix(false); return {map, L, group,routeColor:()=>routeColor}; }
   map.attributionControl.setPrefix(false);      // no "Leaflet" credit; phones pinch to zoom, so +/- only with a mouse (2026-10-12)
   if (!matchMedia('(pointer: coarse)').matches) L.control.zoom({position: 'bottomright'}).addTo(map);
-  return {map, L, group};
+  return {map, L, group,routeColor:()=>routeColor};
 }
 function feedMaps(box) {   // Strava-style map on each feed card, built when it scrolls near the screen
   for (const el of box.querySelectorAll('.fmap:not([data-on])')) {
@@ -731,49 +745,73 @@ function lazy(el, fn) {   // run fn when el scrolls into view
 
 // ---------- charts ----------
 // Stacked charts over one x axis (distance or time) with one crosshair + readout for all of them.
+let chartStackSerial = 0;
 function chartStack(box, x, rows, {xfmt, onIndex} = {}) {
-  const W = Math.max(300, box.clientWidth || 340), H = 92, padL = 34, padR = 6;
+  const W = Math.max(280, box.clientWidth || 340), H = 142, padL = 46, padR = 8, bottom = H - 24;
   const n = x.length; if (n < 2) { box.innerHTML = '<p class="muted">No samples recorded.</p>'; return; }
-  const X = (i) => padL + (x[i] - x[0]) / (x[n - 1] - x[0] || 1) * (W - padL - padR);
-  const readout = document.createElement('div'); readout.className = 'readout num'; readout.innerHTML = '<span></span>';
-  box.innerHTML = ''; box.append(readout);
-  const svgs = [];
+  const X = i => padL + (x[i] - x[0]) / (x[n - 1] - x[0] || 1) * (W - padL - padR);
+  const rangeText = `${xfmt(x[0])} – ${xfmt(x[n - 1])}`;
+  const readout = document.createElement('div'); readout.className = 'readout num';
+  readout.innerHTML = `<span>${esc(rangeText)}</span><button type="button" class="linkbtn small" aria-label="Reset chart inspection">Reset</button>`;
+  box.replaceChildren(readout);
+  const position = $('span', readout), resetButton = $('button', readout), svgs = [];
+  // Set through the DOM: inline style attributes are deliberately blocked by the app's CSP.
+  resetButton.style.visibility = 'hidden';
   for (const r of rows) {
-    const vals = r.vals.map((v) => (v == null || !isFinite(v) ? null : v));
-    const ok = vals.filter((v) => v != null); if (ok.length < 2) continue;
+    const vals = r.vals.map(v => v == null || !isFinite(v) ? null : v), ok = vals.filter(v => v != null);
+    if (ok.length < 2) continue;
     let lo = Math.min(...ok), hi = Math.max(...ok);
-    if (r.clip) { const s = [...ok].sort((a, b) => a - b); lo = s[Math.floor(s.length * .02)]; hi = s[Math.ceil(s.length * .98) - 1]; }
-    if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
-    const pad = (hi - lo) * .08; lo -= pad; hi += pad;
-    const Y = (v) => { const t = (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo); return 6 + (r.invert ? t : 1 - t) * (H - 12); };
-    let d = '', started = false;
-    vals.forEach((v, i) => { if (v == null) { started = false; return; } d += `${started ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; started = true; });
-    const firstI = vals.findIndex((v) => v != null), lastI = vals.length - 1 - [...vals].reverse().findIndex((v) => v != null);
-    const area = `${d}L${X(lastI).toFixed(1)},${H - 4}L${X(firstI).toFixed(1)},${H - 4}Z`;
-    const avg = r.avg != null ? r.avg : ok.reduce((a, b) => a + b, 0) / ok.length;
+    if (r.clip) { const sorted = [...ok].sort((a,b) => a-b); lo = sorted[Math.floor(sorted.length*.02)]; hi = sorted[Math.ceil(sorted.length*.98)-1]; }
+    if (hi-lo < 1e-9) { hi += 1; lo -= 1; }
+    const pad = (hi-lo)*.08; lo -= pad; hi += pad;
+    const Y = v => 8 + (r.invert ? (Math.min(hi,Math.max(lo,v))-lo)/(hi-lo) : 1-(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo))*(bottom-16);
+    const segments = []; let segment = [];
+    vals.forEach((v,i) => { if (v == null) { if (segment.length) segments.push(segment); segment = []; } else segment.push([i,v]); });
+    if (segment.length) segments.push(segment);
+    const paths = segments.map(points => points.map(([i,v],j) => `${j ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(''));
+    const area = paths.map((d,j) => `${d}L${X(segments[j].at(-1)[0]).toFixed(1)},${bottom}L${X(segments[j][0][0]).toFixed(1)},${bottom}Z`).join('');
+    const avg = r.avg != null ? r.avg : ok.reduce((a,b) => a+b,0)/ok.length, gradient = `activity-fill-${++chartStackSerial}`;
+    const averageText = `Avg <b>${esc(r.fmt(avg))}</b> ${esc(r.unit || '')}`;
     const wrap = document.createElement('div'); wrap.className = 'chartbox';
-    wrap.innerHTML = `<div class="lbl"><span>${esc(r.name)}</span><span>avg <b>${esc(r.fmt(avg))}</b> ${esc(r.unit || '')}</span></div>
-      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(r.name)} chart">
-        <line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke-dasharray="3 3"/>
-        <text class="yl" x="2" y="${(Y(r.invert ? lo : hi) + 4).toFixed(0)}">${esc(r.fmt(r.invert ? lo + pad : hi - pad))}</text>
-        <text class="yl" x="2" y="${(Y(r.invert ? hi : lo) - 2).toFixed(0)}">${esc(r.fmt(r.invert ? hi - pad : lo + pad))}</text>
-        <path class="area" d="${area}" fill="${r.color}"/><path class="ln" d="${d}" stroke="${r.color}"/>
-        <line class="xh" x1="0" x2="0" y1="0" y2="${H}" visibility="hidden"/></svg>`;
-    box.append(wrap); svgs.push({svg: $('svg', wrap), r, vals});
+    wrap.innerHTML = `<div class="lbl"><span>${esc(r.name)}</span><span data-chart-value>${averageText}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" tabindex="0" aria-label="${esc(r.name)} chart; use arrow keys to inspect">
+        <defs><linearGradient id="${gradient}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${r.color}" stop-opacity=".24"/><stop offset="1" stop-color="${r.color}" stop-opacity=".02"/></linearGradient></defs>
+        <line class="gl" x1="${padL}" x2="${W-padR}" y1="8" y2="8"/><line class="gl" x1="${padL}" x2="${W-padR}" y1="${bottom}" y2="${bottom}"/>
+        <line class="gl" x1="${padL}" x2="${W-padR}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke-dasharray="3 4"/>
+        <text class="yl" x="2" y="13">${esc(r.fmt(r.invert ? lo+pad : hi-pad))}</text>
+        <text class="yl" x="2" y="${bottom-2}">${esc(r.fmt(r.invert ? hi-pad : lo+pad))}</text>
+        <path class="sample-area" d="${area}" fill="url(#${gradient})"/><path class="ln" d="${paths.join('')}" stroke="${r.color}"/>
+        <text class="yl" x="${padL}" y="${H-4}">${esc(xfmt(x[0]))}</text><text class="yl" x="${W-padR}" y="${H-4}" text-anchor="end">${esc(xfmt(x[n-1]))}</text>
+        <line class="xh" x1="0" x2="0" y1="8" y2="${bottom}" visibility="hidden"/>
+        <circle class="chart-dot" r="4" fill="${r.color}" stroke="var(--card)" stroke-width="2" visibility="hidden"/></svg>`;
+    box.append(wrap); svgs.push({svg:$('svg',wrap), value:$('[data-chart-value]',wrap), r, vals, Y, averageText});
   }
-  const show = (i) => {
-    const px = X(i);
-    for (const s of svgs) { const l = $('.xh', s.svg); l.setAttribute('x1', px); l.setAttribute('x2', px); l.setAttribute('visibility', 'visible'); }
-    readout.innerHTML = `<span>${esc(xfmt(x[i]))}</span>` + svgs.map((s) => `<span>${esc(s.r.short || s.r.name)} <b>${s.vals[i] == null ? '–' : esc(s.r.fmt(s.vals[i]))}</b></span>`).join('');
-    if (onIndex) onIndex(i);
+  let selected = null;
+  const reset = () => {
+    selected = null; position.textContent = rangeText; resetButton.style.visibility = 'hidden';
+    svgs.forEach(s => { s.value.innerHTML = s.averageText; $$('.xh,.chart-dot',s.svg).forEach(el => el.setAttribute('visibility','hidden')); });
   };
-  const move = (e) => {
-    const sv = e.currentTarget, rect = sv.getBoundingClientRect(), px = (e.clientX - rect.left) / rect.width * W;
-    const t = x[0] + (px - padL) / (W - padL - padR) * (x[n - 1] - x[0]);
-    let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (x[m] < t) lo = m + 1; else hi = m; }
-    show(Math.max(0, Math.min(n - 1, lo)));
+  const show = i => {
+    selected = i; const px = X(i); position.textContent = xfmt(x[i]); resetButton.style.visibility = '';
+    for (const s of svgs) {
+      const line = $('.xh',s.svg); line.setAttribute('x1',px); line.setAttribute('x2',px); line.setAttribute('visibility','visible');
+      const dot = $('.chart-dot',s.svg), v = s.vals[i]; dot.setAttribute('visibility',v == null ? 'hidden' : 'visible');
+      if (v != null) { dot.setAttribute('cx',px); dot.setAttribute('cy',s.Y(v)); }
+      s.value.innerHTML = `<b>${v == null ? '–' : esc(s.r.fmt(v))}</b> ${esc(s.r.unit || '')}`;
+    }
+    onIndex?.(i);
   };
-  for (const s of svgs) { s.svg.addEventListener('pointerdown', move); s.svg.addEventListener('pointermove', move); }
+  const move = e => {
+    const rect = e.currentTarget.getBoundingClientRect(), px = (e.clientX-rect.left)/rect.width*W;
+    const t = x[0]+(px-padL)/(W-padL-padR)*(x[n-1]-x[0]);
+    let lo=0,hi=n-1; while(lo<hi) { const mid=(lo+hi)>>1; if(x[mid]<t)lo=mid+1;else hi=mid; }
+    show(Math.max(0,Math.min(n-1,lo)));
+  };
+  resetButton.onclick = reset;
+  for (const s of svgs) {
+    s.svg.addEventListener('pointerdown',move); s.svg.addEventListener('pointermove',move);
+    s.svg.addEventListener('keydown',e => { const i=e.key==='ArrowRight'?Math.min(n-1,(selected??-1)+1):e.key==='ArrowLeft'?Math.max(0,(selected??n)-1):e.key==='Home'?0:e.key==='End'?n-1:null; if(e.key==='Escape'){e.preventDefault();reset();}else if(i!=null){e.preventDefault();show(i);} });
+  }
 }
 
 // simple dot chart over dates with a trend line (matched routes, PR history, VO2max)
@@ -1173,7 +1211,12 @@ function phoneDefaults() {
 // Email-first (2026-10-24, Ben): when the server can send email, people give their email (their login) and get a username
 // made from their name, which they can change any time like a gamertag. Without email set up (first run, or a server
 // with no mail service) they choose a username to log in with, as before.
-function showNewAccount({title, intro, button, send, signup = false, email = signup}) {
+async function challengeOrigin(){
+  const current=enrollmentView(),code=store.get('kinetta.challengeLink');if(!code)return null;
+  try{const q=await api('/api/challenges/'+encodeURIComponent(code));if(typeof q?.code!=='string'||typeof q?.title!=='string')throw Error('Challenge reply was incomplete.');if(q.joining_closed)return null;return {code:q.code,title:q.title,join_default:false};}
+  catch(x){if(current()&&[404,410].includes(x.status)){if(store.get('kinetta.challengeLink')===code)store.del('kinetta.challengeLink');return null;}throw x;}
+}
+function showNewAccount({title, intro, button, send, signup = false, email = signup, card = null,challenge=null}) {
   const pick = !email;
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
@@ -1188,6 +1231,8 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
     ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older and agree to the <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">privacy policy</a></span></label>
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>` : ''}
+    ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"${challenge.join_default?' checked':''}><span>Join ${esc(challenge.title)} ${email?'after I confirm my email':'when I create my account'}. Only my username, permitted photo and progress are shared.</span></label>`:''}
+    ${card?.allow_requests?`<label class="check"><input type="checkbox" name="card_request"${card.request_default===false?'':' checked'}><span>Send @${esc(card.username)} a friend request ${email?'after I confirm my email':'when I create my account'}</span></label>`:''}
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
@@ -1225,7 +1270,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     b.disabled = true; fieldErr(null, '');
     try { await send({name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
         ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim()}),
-        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {})});
+        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})});
       // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
       if (getAppFirst()) { store.set('kinetta.getApp', '1'); history.replaceState(null, '', '/'); return showGetApp(); }
       history.replaceState(null, '', '/welcome'); await start(); }
@@ -1254,45 +1299,81 @@ async function showGetApp() {
 // A friend's invite link opened without the app (2026-10-26). With the iPhone app installed, the link opens the app
 // itself; here: who sent it, the app first on an iPhone, then sign up or log in on the web.
 async function showInvite(code) {
-  let who = null, s = {};
-  try { [who, s] = await Promise.all([api('/api/friend-links/' + encodeURIComponent(code)), api('/api/signup').catch(() => ({}))]); } catch (x) { /* shown as expired */ }
+  const active=enrollmentView();enrollmentStatus('Join Kinetta','Loading invitation…');
+  let who=null,s={},unavailable=false;
+  try{[who,s]=await Promise.all([api('/api/friend-links/'+encodeURIComponent(code)).catch(x=>{throw Object.assign(x,{inviteLookup:true});}),enrollmentPolicy('/api/signup')]);}
+  catch(x){if(!active())return;if(!x.inviteLookup||![404,410].includes(x.status))return enrollmentStatus('Invitation couldn’t load','Your invitation link is kept. Try again.',()=>showInvite(code));unavailable=true;}
+  if(!active())return;
+  if(!unavailable&&(!who||typeof who.name!=='string'))return enrollmentStatus('Invitation couldn’t load','Your invitation link is kept. Try again.',()=>showInvite(code));
+  let waiting=false;
+  if(!unavailable&&!s.open){try{waiting=(await enrollmentPolicy('/api/beta')).open;}catch(x){if(active())enrollmentStatus('Enrollment couldn’t load','Your invitation link is kept. Try again.',()=>showInvite(code));return;}}
+  if(!active())return;
   const login = '<p class="small muted">Already on Kinetta? <a href="/" id="iv-login">Log in</a> and you’ll see the invite.</p>';
-  if (!who) {
-    store.del('kinetta.friendLink');
-    root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This invite link has expired</h1><p>Ask your friend to send a new one from Friends › Invite friends.</p><a class="ghost wide" href="/" id="iv-login">Go to log in</a></div></div>`;
+  if(unavailable){
+    if(store.get('kinetta.friendLink')===code)store.del('kinetta.friendLink');
+    root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This invite link isn’t available</h1><p>Ask your friend to send a new one from Friends › Invite friends.</p><a class="ghost wide" href="/" id="iv-login">Go to log in</a></div></div>`;
   } else {
     const phone = getAppFirst(), link = s.iphone_app;
     root.innerHTML = `<div class="login invite-landing"><div class="form">${BRAND}<h1>${esc(who.name)} invited you to Kinetta</h1>
-      <p>Follow each other’s runs, rides and walks, and keep your food log private. You’ll be friends as soon as you join.</p>
+      <p>Follow each other’s runs, rides and walks, and keep your food log private. Create an account and confirm your email to become friends.</p>
       ${phone && link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the iPhone app</a><p class="small muted">Kinetta is in beta through Apple’s TestFlight. After installing, open this invite link again and it opens in the app.</p>` : ''}
-      ${s.open ? `<a class="${phone && link ? 'ghost' : 'primary'} wide" href="/signup" id="iv-signup">Create an account${phone && link ? ' on the web' : ''}</a>` : ''}${login}</div></div>`;
+      ${s.open||waiting ? `<a class="${phone && link ? 'ghost' : 'primary'} wide" href="/signup" id="iv-signup">${s.open?'Create an account'+(phone&&link?' on the web':''):'Join the beta'}</a>` : ''}${login}</div></div>`;
     const su = $('#iv-signup', root); if (su) su.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(code); };
   }
   $('#iv-login', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
 }
 async function showJoin(token) {
+  const active=enrollmentView();enrollmentStatus('Join Kinetta','Loading invitation…');
   let info;
-  try { info = await api('/api/join/' + encodeURIComponent(token)); }
+  try { info = await api('/api/join/' + encodeURIComponent(token));if(!info||Array.isArray(info)||typeof info!=='object')throw Error('Invitation reply was incomplete.'); }
   catch (x) {
+    if(!active())return;
+    if(![404,410].includes(x.status))return enrollmentStatus('Invitation couldn’t load','Your invitation link is kept. Try again.',()=>showJoin(token));
     root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This link doesn't work</h1><p>${esc(x.message)}</p><a class="ghost" href="/">Go to log in</a></div></div>`;
     $('a', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
     return;
   }
-  showNewAccount({title: 'Join Kinetta', button: 'Create my account', email: !!info.email,
+  if(!active())return;
+  showNewAccount({title: 'Join Kinetta', button: 'Create my account', email: !!info.email,card:info.card,challenge:info.challenge,
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
 }
 // "Create an account" (open signup, #232): email, username, password and a 16+ confirmation. When the server's account
 // cap is reached the waitlist takes over; the email link still has to be opened before others can see the person.
+async function enrollmentPolicy(path){const value=await api(path);if(typeof value?.open!=='boolean'||(path==='/api/signup'&&typeof value.full!=='boolean'))throw Error('Enrollment reply was incomplete.');return value;}
+function enrollmentView(){const owner=readOwner(),path=location.pathname+location.search;return()=>owner===readOwner()&&path===location.pathname+location.search;}
+function enrollmentStatus(title,message,retry=null) {
+  root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(message)}</p><div class="btncol">${retry?'<button type="button" class="primary wide" id="enrollment-retry">Try again</button>':''}<a class="${retry?'ghost':'primary'} wide" href="/" id="enrollment-login">Log in</a></div><p class="small"><a href="https://kinetta.app/">Back to the Kinetta website</a></p></div></div>`;
+  $('#enrollment-login',root).onclick=e=>{e.preventDefault();history.replaceState(null,'','/');showLogin();};
+  const button=$('#enrollment-retry',root);
+  if(button)button.onclick=()=>{if(button.disabled)return;button.disabled=true;button.textContent='Loading…';return retry();};
+}
 async function showSignup(friendLink = store.get('kinetta.friendLink')) {
-  let s = {}, inviter = null;
-  try { s = await api('/api/signup'); } catch (x) { /* treat as closed */ }
-  if (friendLink) { try { inviter = (await api('/api/friend-links/' + encodeURIComponent(friendLink))).name; } catch (x) { store.del('kinetta.friendLink'); friendLink = null; } }
+  const active=enrollmentView(),retry=()=>showSignup(friendLink);enrollmentStatus('Join Kinetta','Loading enrollment…');
+  let s={},inviter=null,card=null,challenge;
+  try{challenge=await challengeOrigin();}catch(x){if(active())enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);return;}
+  if(!active())return;
+  const cardCode=store.get('kinetta.cardLink');
+  if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));if(typeof card?.username!=='string')throw Error('Card reply was incomplete.');}catch(x){if(!active())return;if([404,410].includes(x.status)){if(store.get('kinetta.cardLink')===cardCode)store.del('kinetta.cardLink');}else return enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);}}
+  if(!active())return;
+  try { s = await enrollmentPolicy('/api/signup'); }
+  catch(x){if(active())enrollmentStatus('Signup couldn’t load','Check your connection, then try again.',retry);return;}
+  if(!active())return;
+  if(friendLink){try{inviter=(await api('/api/friend-links/'+encodeURIComponent(friendLink)))?.name;if(typeof inviter!=='string')throw Error('Invitation reply was incomplete.');}catch(x){if(!active())return;if([404,410].includes(x.status)){if(store.get('kinetta.friendLink')===friendLink)store.del('kinetta.friendLink');friendLink=null;}else return enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);}}
+  if(!active())return;
   if (s.full) { history.replaceState(null, '', '/beta'); return showBeta(true); }
-  if (!s.open) { history.replaceState(null, '', '/'); return showLogin(); }
-  showNewAccount({title: 'Create your account', button: 'Create my account', signup: true,
+  if(!s.open){
+    let waiting;
+    try{waiting=(await enrollmentPolicy('/api/beta')).open;}
+    catch(x){if(active())enrollmentStatus('Enrollment couldn’t load','Check your connection, then try again.',retry);return;}
+    if(!active())return;
+    if(waiting){history.replaceState(null,'','/beta');return showBeta();}
+    return enrollmentStatus('Join Kinetta','Public signup is closed. Open your invitation link to create an account, or log in.');
+  }
+  showNewAccount({title: 'Create your account', button: 'Create my account', signup: true, card,challenge,
     intro: (inviter ? `${esc(inviter)} invited you. You’ll be friends once you confirm your email. ` : '') + 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
     send: async (body) => {
+      if(card)body={...body,card_code:cardCode};
       if (friendLink) body = {...body, friend_link: friendLink};
       try { if (Native.on) await Native.signup(body); else await api('/api/signup', json('POST', body)); if (friendLink) store.del('kinetta.friendLink'); }
       catch (x) { if (x.status === 409 && x.code === 'full') { history.replaceState(null, '', '/beta'); showBeta(true); return new Promise(() => {}); } throw x; }
@@ -1301,9 +1382,17 @@ async function showSignup(friendLink = store.get('kinetta.friendLink')) {
 }
 // "Join the beta" (public waitlist, only when the server has KINETTA_BETA_SIGNUP=1): no account yet, an admin invites them
 async function showBeta(full = false) {
-  let open = false;
-  try { open = (await api('/api/beta')).open; } catch (x) { /* treat as closed */ }
-  if (!open) { history.replaceState(null, '', '/'); return showLogin(); }
+  const active=enrollmentView(),retry=()=>showBeta(full);enrollmentStatus('Join the beta','Loading enrollment…');
+  let challenge,card=null;
+  try{challenge=await challengeOrigin();}catch(x){if(active())enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);return;}
+  if(!active())return;
+  const cardCode=store.get('kinetta.cardLink');if(cardCode){try{card=await api('/api/cards/'+encodeURIComponent(cardCode));if(typeof card?.username!=='string')throw Error('Card reply was incomplete.');}catch(x){if(!active())return;if([404,410].includes(x.status)){if(store.get('kinetta.cardLink')===cardCode)store.del('kinetta.cardLink');}else return enrollmentStatus('Invitation couldn’t load','Your invitation is kept. Try again.',retry);}}
+  if(!active())return;
+  let open=false;
+  try { open = (await enrollmentPolicy('/api/beta')).open; }
+  catch(x){if(active())enrollmentStatus('Enrollment couldn’t load','Check your connection, then try again.',retry);return;}
+  if(!active())return;
+  if(!open)return enrollmentStatus('Beta enrollment is closed','Open your invitation link to create an account, or log in.');
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${full ? 'Kinetta is full for now' : 'Join the beta'}</h1><p>${full ? 'We’ve reached our limit for new accounts. Leave your details and we’ll email you when there’s room.' : "Kinetta puts your workouts and your food log in one private app. We're inviting a small group of testers. Tell us a little about you and we'll send you an invite link."}</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
@@ -1311,6 +1400,8 @@ async function showBeta(full = false) {
     <label>Your phone<select name="phone" required><option value="">Choose…</option><option value="iphone">iPhone</option><option value="android">Android</option><option value="other">Something else</option></select></label>
     <label>Your watch or tracker (optional)<input name="watch" maxlength="60" placeholder="e.g. Garmin Forerunner, Apple Watch, none"></label>
     <label>Anything we should know? (optional)<textarea name="note" maxlength="300" rows="3"></textarea></label>
+    ${card?.allow_requests?`<label class="check"><input type="checkbox" name="card_request" checked><span>Send @${esc(card.username)} a friend request after I join and confirm my email</span></label>`:''}
+    ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"><span>Join ${esc(challenge.title)} after I receive an invitation, create my account and confirm my email.</span></label>`:''}
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
     <p class="small muted">We use your email only to send your invite. <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
     <p class="err" role="alert"></p>
@@ -1325,7 +1416,7 @@ async function showBeta(full = false) {
     if (!f.phone.value) { err.textContent = 'Choose your phone.'; f.phone.focus(); return; }
     b.disabled = true; err.textContent = '';
     try {
-      await api('/api/beta', json('POST', {name: f.name.value, email: f.email.value, phone: f.phone.value, watch: f.watch.value, note: f.note.value, website: f.website.value}));
+      await api('/api/beta', json('POST', {name: f.name.value, email: f.email.value, phone: f.phone.value, watch: f.watch.value, note: f.note.value, website: f.website.value,...(card?{card_code:cardCode,card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})}));
       root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Thanks, ${esc(f.name.value.trim().split(/\s+/)[0])}!</h1>
         <p>You're on the list. We'll email your invite link to ${esc(f.email.value.trim())} when there's a spot.</p>${Native.on ? '<a class="primary wide" href="/" id="b-done">Back to log in</a>' : '<a class="primary wide" href="https://kinetta.app/">Back to the Kinetta website</a>'}</div></div>`;
       const done = $('#b-done', root); if (done) done.onclick = (ev) => { ev.preventDefault(); backToLogin(); };
@@ -1359,13 +1450,17 @@ function showForgot(prefill = '') {
   });
 }
 async function showReset(token) {
+  const active=enrollmentView();enrollmentStatus('Reset password','Checking your link…');
   let info;
-  try { info = await api('/api/password/reset/' + encodeURIComponent(token)); }
+  try { info = await api('/api/password/reset/' + encodeURIComponent(token));if(typeof info?.login!=='string')throw Error('Password reply was incomplete.'); }
   catch (x) {
+    if(!active())return;
+    if(![404,410].includes(x.status))return enrollmentStatus('Password reset couldn’t load','Your reset link is kept. Try again.',()=>showReset(token));
     root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This link doesn't work</h1><p>${esc(x.message)}</p><a class="primary wide" href="/forgot-password" id="r-again">Send a new link</a></div></div>`;
     $('#r-again', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showForgot(); };
     return;
   }
+  if(!active())return;
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>Choose a new password</h1><p>For your account <b>${esc(info.login)}</b>. You'll be signed out on your other phones and browsers.</p></div>
     <input name="login" autocomplete="username" value="${esc(info.login)}" hidden>
@@ -1379,15 +1474,17 @@ async function showReset(token) {
     const b = $('button', f), err = $('.err', f);
     if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; return; }
     b.disabled = true; err.textContent = '';
-    try { await api('/api/password/reset', json('POST', {token, password: f.password.value})); forgetKept(); backToLogin('Password changed. Log in with your new password.'); }
-    catch (x) { err.textContent = x.message; b.disabled = false; }
+    try { await api('/api/password/reset', json('POST', {token, password: f.password.value})); if(!active())return;forgetKept(); backToLogin('Password changed. Log in with your new password.'); }
+    catch (x) { if(active()){err.textContent = x.message; b.disabled = false;} }
   });
 }
 async function showConfirmEmail(token) {
+  const active=enrollmentView();
   root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Confirming your email…</h1></div></div>`;
   let title, text;
-  try { const r = await api('/api/account/email/confirm', json('POST', {token})); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
+  try { const r = await api('/api/account/email/confirm', json('POST', {token})); if(!active())return;if(r.challenge_joined)store.set('kinetta.challengeLink',r.challenge_joined); title = 'Email confirmed'; text = `You can now log in with ${r.email} and reset your password by email if you ever forget it.`; }
   catch (x) { title = "This link doesn't work"; text = x.message; }
+  if(!active())return;
   // Email links open in the phone's browser. On an iPhone, offer the app itself (kinetta:// is registered by the app,
   // 27 October 2026): a same-site https link can't hand off from Safari to the app.
   const iphone = !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -1411,7 +1508,12 @@ async function showWelcome() {
     send: (body) => api('/api/setup', json('POST', body))});
 }
 async function start() {
+  if(globalThis.KinettaBoot?.failed){KinettaBoot.showFailure();return;}
   await Native.ready;
+  const cardCode=location.pathname.match(/^\/card\/([A-Za-z0-9_-]{1,60})$/)?.[1]||new URLSearchParams(location.search).get('card');
+  if(cardCode&&/^[A-Za-z0-9_-]{1,60}$/.test(cardCode)){store.set('kinetta.cardLink',cardCode);store.del('kinetta.challengeLink');store.del('kinetta.friendLink');}
+  const challengeCode=location.pathname.match(/^\/challenge\/([A-Za-z0-9_-]{1,60})$/)?.[1]||new URLSearchParams(location.search).get('challenge');
+  if(challengeCode&&/^[A-Za-z0-9_-]{1,60}$/.test(challengeCode)){store.set('kinetta.challengeLink',challengeCode);store.del('kinetta.cardLink');store.del('kinetta.friendLink');}
   // emailed links work whether or not this browser is logged in
   const link = location.pathname.match(/^\/(reset-password|confirm-email)\/([\w-]+)$/);
   if (link) return link[1] === 'reset-password' ? showReset(link[2]) : showConfirmEmail(link[2]);
@@ -1423,11 +1525,16 @@ async function start() {
     // logged in after opening a friend's invite link: show who it's from and let them say yes
     const friendLink = store.get('kinetta.friendLink');
     if (friendLink) { store.del('kinetta.friendLink'); if (location.pathname === '/me') history.replaceState(null, '', '/add/' + friendLink); }
+    const cardLink=store.get('kinetta.cardLink');
+    if(cardLink){store.del('kinetta.cardLink');if(location.pathname==='/me')history.replaceState(null,'','/card/'+encodeURIComponent(cardLink));}
+    const challengeLink=store.get('kinetta.challengeLink');
+    if(challengeLink){store.del('kinetta.challengeLink');if(['/me','/welcome'].includes(location.pathname))history.replaceState(null,'','/me/challenges/'+encodeURIComponent(challengeLink));}
     // The first time a new account opens the iPhone app, the welcome steps lead, with Apple Health (2026-10-24)
     const seen = 'kinetta.welcomed:' + readOwner();
     if (Native.on && !store.get(seen) && App.me?.created && Date.now() - new Date(App.me.created) < 14 * 864e5 && location.pathname === '/me') history.replaceState(null, '', '/welcome');
     if (Native.on) store.set(seen, 1);
-    Native.resumeFoodEntry?.();render(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
+    Native.resumeFoodEntry?.();render();
+    if(typeof Challenges!=='undefined')Challenges.resumeSignup(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
   const saved = kept('/api/me');

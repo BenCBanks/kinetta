@@ -32,7 +32,7 @@ Connected sources
 
 ## set-up-intervals-icu-or-health-auto-export-from-me-wat-8
 
-Garmin Connect or Health Auto Export bring in new workouts automatically.
+Garmin Connect or Health Auto Export can bring in new workouts automatically when your server supports the source.
 
 ## apple-health-on-iphone-9
 
@@ -68,7 +68,7 @@ Your activities
 
 ## fit-gpx-and-tcx-files-strava-history-or-a-connected-so-13
 
-Review maps, splits, pace, heart rate and elevation when the source includes them.
+Start with clear charts for pace, heart rate and elevation when recorded. Details, splits and records are one tap away.
 
 ## progress-over-time-14
 
@@ -96,7 +96,7 @@ Kinetta groups repeated GPS routes so you can compare pace and heart rate across
 
 ## your-optional-ai-coach-a-note-on-every-workout-a-revie-20
 
-Kit writes a short review of your week every Sunday, and you can ask it questions any time. It's optional and only reads the history you allow.
+Optional weekly reviews and answers about your records, when Kit is available for your account. You choose which history it may use.
 
 ## predicted-5k-to-marathon-times-next-to-your-best-green-21
 
@@ -184,4 +184,4 @@ Ask Kit
 
 ## insights-kit
 
-Ask about your training or your food in plain words, like “How have my runs gone this month?” Kit answers from your own records and shows the numbers it used. It won't make numbers up, and any plan change waits for your OK.
+Ask Kit about your records, with supporting numbers you can check. It’s optional, available to eligible accounts, and asks before making changes.

@@ -9,9 +9,11 @@ const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 const SHOTS = [
   ['today', '/me'],
   ['feed', '/activity'],
+  ['profile', '/people/alex'],
   ['track', '/track'],
-  ['activity', 'RUN'],
-  ['similar', 'RUN', {to: 'Similar efforts'}],
+  ['activity', 'RUN', {summary: true}],
+  ['charts', 'RUN', {charts: true}],
+  ['similar', 'RUN', {similar: true}],
   ['coach', 'COACH', {to: 'Kit'}],
   ['route', 'ROUTE'],
   ['progress', '/progress'],
@@ -20,7 +22,7 @@ const SHOTS = [
   ['heatmap', '/progress/heatmap'],
   ['food', '/food'],
   ['explore', '/me/explore'],
-  ['meals', '/food/meals', {logDish: 'Chicken and veg traybake', portion: '380', directLibrary: true}],
+  ['meals', '/food/meals'],
   ['cook', 'DISH'],
   ['serve', '/food', {logDish: 'Chicken and veg traybake', portion: '380'}],
   ['friends', '/me/friends'],
@@ -136,7 +138,7 @@ async function say(page, text) {
       const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
-      return {LATEST: '/activity/' + acts[0].id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
+      return {LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
         DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
         SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
@@ -148,12 +150,28 @@ async function say(page, text) {
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => !document.querySelector('.leaflet-container') || document.querySelector('.leaflet-tile-loaded'), null, {timeout: 8000}).catch(() => {});
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
-        if (opt.directLibrary) await page.click(`#meal-library .fe[data-dish]:has-text("${opt.logDish}")`);
-        else {
-          await page.evaluate(() => addSheet(isoDay(new Date()), 'dinner'));
-          await page.click('[data-t=saved]'); await page.click(`.sheet .fe[data-dish]:has-text("${opt.logDish}")`);
-        }
+        await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
+        await page.locator('#thread-text').waitFor();
+        await page.locator('[data-thread-quick="recipes"]').click();
+        await page.locator('.sheet .fe[data-dish]').filter({hasText:opt.logDish}).click();
         await page.fill('#dl input[name=g]', opt.portion);
+      }
+      if(opt.summary){
+        // Show real headline numbers alongside the remaining map, as after a short normal scroll.
+        await page.locator('.d-title .hero').waitFor();
+        await page.evaluate(()=>{const stats=document.querySelector('.d-title .hero'),tabs=document.querySelector('nav.tabs');window.scrollBy(0,Math.max(0,stats.getBoundingClientRect().bottom-tabs.getBoundingClientRect().top+16));});
+      }
+      if(opt.charts){
+        await page.locator('[data-dt=charts][aria-selected=true]').waitFor();
+        await page.locator('#d-charts .chartbox svg').first().waitFor();
+        await page.locator('.dtabs').evaluate(el=>window.scrollTo(0,scrollY+el.getBoundingClientRect().top-129));
+      }
+      if(opt.similar){
+        await page.locator('[data-dt=efforts]').click();
+        const heading=page.getByRole('heading',{name:'Similar efforts',exact:true});
+        await heading.evaluate(h=>window.scrollTo({top:h.getBoundingClientRect().top+scrollY-130,behavior:'instant'}));
+        await page.waitForTimeout(100);
+        if(!await heading.evaluate(h=>h.getBoundingClientRect().top<400&&h.getBoundingClientRect().top>100))throw Error('Similar efforts heading must be visible above the tab bar.');
       }
       if (opt.photo) {
         // The real activity always opens on its map. This feature example shows the next slide after a swipe.

@@ -12,11 +12,12 @@ import secrets
 import unicodedata
 import shutil
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from psycopg import errors, sql
 from . import db, auth
 from .auth import current_user
 from .admin_auth import admin_user, audit
+from .profile_layout import ProfileLayout
 
 router = APIRouter()
 DATA = os.environ.get('FIT_DATA', '/data')
@@ -39,6 +40,7 @@ class AccountIn(BaseModel):
     bio: str | None = Field(None, max_length=280)
     name: str | None = Field(None, max_length=60)
     login: str | None = Field(None, max_length=30)
+    profile_layout: ProfileLayout | None = None
 
 
 @router.put('/api/account')
@@ -46,15 +48,21 @@ def set_account(body: AccountIn, user=Depends(current_user)):
     vals = {}
     if body.name is not None: vals['name'] = _clean_name(body.name)
     if body.login is not None: vals['login'] = _clean_login(body.login)
-    if vals or body.bio is not None:
+    layout=body.profile_layout.model_dump() if body.profile_layout is not None else None
+    if vals or body.bio is not None or layout is not None:
         try:
             with db.connect() as c:
+                if not c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],)).fetchone():
+                    raise HTTPException(404,'Account not found.')
                 if body.bio is not None:
                     c.execute('UPDATE profile SET bio = %s WHERE user_id = %s', (body.bio.strip(), user['id']))
+                if layout is not None:
+                    import json
+                    c.execute('UPDATE profile SET profile_layout=%s::jsonb WHERE user_id=%s',(json.dumps(layout),user['id']))
                 if vals: c.execute(f"UPDATE users SET {', '.join(f'{k} = %s' for k in vals)} WHERE id = %s", (*vals.values(), user['id']))
         except errors.UniqueViolation:
             raise HTTPException(409, 'That username is taken')
-    return {'ok': True, **vals}
+    return {'ok': True, **vals, **({'profile_layout':layout} if layout is not None else {})}
 
 
 class PasswordIn(BaseModel):
@@ -164,6 +172,9 @@ def remove_person(login: str, body: RemoveIn, user=Depends(admin_user)):
 
 def erase(c, t):
     """Delete a person and every row of theirs (all personal tables cascade from users), plus their beta request."""
+    # Matchers lock accounts before segment rows. Take the exclusive account lock
+    # first too, so their foreign-key/key-share locks cannot deadlock with erasure.
+    c.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (t['id'],))
     c.execute("""DELETE FROM beta_requests WHERE invite_id IN (SELECT id FROM invites WHERE used_by = %s)""", (t['id'],))
     # A verified deletion request completes in the same transaction as the deletion; the account link is then cleared.
     for r in c.execute("UPDATE admin_data_requests SET status='completed',completed_at=now() WHERE user_id=%s AND kind='deletion' AND status='verified' RETURNING id", (t['id'],)).fetchall():
@@ -193,6 +204,10 @@ INVITE_DAYS = 7
 
 
 class NewAccountIn(BaseModel):
+    challenge_code:str|None=Field(None,max_length=60)
+    challenge_join:StrictBool=False
+    card_code: str | None = Field(None,max_length=60)
+    card_request: StrictBool = False
     name: str = Field(max_length=60)
     login: str | None = Field(None, max_length=30)      # optional: made from the name, and changeable any time
     password: str = Field(min_length=8, max_length=200)
@@ -230,6 +245,8 @@ def _create(c, body, is_admin=False):
             tried.add(login); login = suggest_login(c, name, tried)     # someone took the same suggestion at that moment
     # Kit (AI features) stays off until the person says yes; the welcome steps ask (owner, 2026-10-26).
     c.execute('INSERT INTO profile (user_id, tz, units, share_default) VALUES (%s, %s, %s, %s)', (uid, tz, body.units or 'imperial',body.share_default))
+    if body.card_code:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,%s)",(uid,body.card_code,body.card_request))
+    if body.challenge_code and body.challenge_join:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'challenge',%s,true)",(uid,body.challenge_code))
     return uid
 
 
@@ -285,7 +302,11 @@ def cancel_invite(invite_id: int, user=Depends(admin_user)):
 
 
 def _open_invite(c, token, lock=False):
-    r = c.execute(f"""SELECT i.id, i.note, u.name AS inviter FROM invites i LEFT JOIN users u ON u.id = i.created_by
+    r = c.execute(f"""SELECT i.id, i.note, '@'||u.login::text AS inviter,
+                      (SELECT card_code FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_card,
+                      (SELECT card_request FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_request,
+                      (SELECT challenge_code FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_challenge,
+                      (SELECT challenge_join FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_challenge_join FROM invites i LEFT JOIN users u ON u.id = i.created_by
                       WHERE i.token_hash = %s AND i.used_at IS NULL AND i.expires > now(){' FOR UPDATE OF i' if lock else ''}""",
                   (_hash(token or ''),)).fetchone()
     if not r: raise HTTPException(404, 'This invite link has expired or was already used. Ask for a new one.')
@@ -298,7 +319,21 @@ def invite_info(token: str):
     from . import account_email
     with db.connect() as c:
         r = _open_invite(c, token)
-    return {'inviter': r['inviter'], 'note': r['note'], 'email': account_email.mail_ready()}
+    card=None
+    if r.get('origin_card'):
+        from . import cards
+        try:
+            with db.connect() as c:
+                origin=cards.active(c,r['origin_card']);card={'code':r['origin_card'],'username':origin['login'],'allow_requests':origin['allow_requests'],'request_default':bool(r['origin_request'])}
+        except HTTPException:pass
+    challenge=None
+    if r.get('origin_challenge'):
+        from . import challenges
+        try:
+            with db.connect() as c:
+                origin=challenges.accessible(c,r['origin_challenge']);challenge={'code':origin['code'],'title':challenges.title(origin),'join_default':bool(r['origin_challenge_join'])}
+        except HTTPException:pass
+    return {'inviter':r['inviter'],'email':account_email.mail_ready(),'card':card,'challenge':challenge}
 
 
 class JoinIn(NewAccountIn):
@@ -320,10 +355,14 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
     with db.connect() as c:
         inv = _open_invite(c, body.token, lock=True)
         uid = _create(c, body)
+        if not body.card_code and inv.get('origin_card'):c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,false)",(uid,inv['origin_card']))
         c.execute('UPDATE invites SET used_by = %s, used_at = now() WHERE id = %s', (uid, inv['id']))
         if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email, welcome=True)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
+    from . import cards,challenges
+    with db.connect() as c:cards.consume_signup(c,uid)
+    with db.connect() as c:challenges.consume_signup(c,uid)
     auth.set_cookie(request, response, token)
     return {'ok': True, 'login': login}
 

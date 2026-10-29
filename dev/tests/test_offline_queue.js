@@ -31,6 +31,13 @@ function client(storage=new Map()) {
  for(const failure of [{status:401},{status:409,code:'account_changed'}]) {
   c=client();c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[],label:'Food'});c.api=async()=>{throw Object.assign(Error('Sign in again'),failure)};await c.ui.Q.flush();assert.equal(c.ui.Q.mine()[0].error,null);let sent=0;c.api=async()=>{sent++;return {}};await c.ui.Q.flush();assert.equal(sent,1);assert.equal(c.ui.Q.mine().length,0);
  }
+ for(const native of [false,true]){
+  c=client();c.Native.on=native;let attempts=0;c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[{name:'Fictional retained food'}],label:'Food'});
+  c.fetch=async()=>({ok:false,status:403,json:async()=>({detail:'Kit access is blocked by the administrator.'})});
+  await assert.rejects(c.ui.api('/api/food/photo'),e=>e.status===403);assert(c.ui.App.me,'A 403 cannot log out the account');
+  c.api=async()=>{attempts++;throw Object.assign(Error('Access denied'),{status:403})};await c.ui.Q.flush();await c.ui.Q.flush();
+  assert.equal(attempts,1,'A denied queued write waits for explicit retry');assert.equal(c.ui.Q.mine()[0].body[0].name,'Fictional retained food');assert.equal(c.ui.Q.mine()[0].error,'Access denied');
+ }
  c=client();c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[],label:'Committed food'});c.api=async()=>({messages:[{}]});c.FoodThread={accept:async()=>{throw Error('Fictional render/quota failure')}};await c.ui.Q.flush();assert.equal(c.ui.Q.all().length,0,'post-commit drawing errors do not requeue saved food');
  c=client();let redraws=0;c.PageRefresh={available:()=>false};c.render=()=>redraws++;c.ui.Q.add({path:'/api/food/entries',method:'POST',body:[],label:'Queued food'});c.api=async()=>({});await c.ui.Q.flush();assert.equal(redraws,0,'background queue delivery preserves an active chat or editor');
  assert([...storage.values()].every(v=>!v.includes('fictional-never-store')),'credentials never persist in owner keys');

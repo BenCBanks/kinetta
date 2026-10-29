@@ -1,4 +1,5 @@
 """Fictional sources, actual SQL/HTTP and deterministic algorithm stand-ins; no devices/providers/models."""
+from contextlib import contextmanager
 import concurrent.futures
 import datetime as dt
 import json
@@ -173,7 +174,25 @@ class Integrity(unittest.TestCase):
             self.assertFalse(c.execute('SELECT 1 FROM segment_stage_scans WHERE segment_id=%s',(self.sid,)).fetchone())
             for i in range(105):c.execute("INSERT INTO segment_jobs(kind,ref,attempts) VALUES('activity',%s,5)",(-self.sid*1000-i,))
         try:
-            r=self.admin.post('/api/admin/segments/jobs/retry',json={});self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['retried'],100)
+            real_connect=db.connect
+            @contextmanager
+            def retry_plan():
+                with real_connect() as c:
+                    # Force a rescan-capable plan; default statistics made this regression intermittent.
+                    for name in ('enable_hashjoin','enable_mergejoin','enable_material','enable_sort','enable_hashagg'):
+                        c.execute(f'SET LOCAL {name}=off')
+                    c.execute("SET LOCAL statement_timeout='5s'")
+                    yield c
+            with db.connect() as held:
+                job=held.execute("SELECT id FROM segment_jobs WHERE kind='activity' AND ref=%s FOR UPDATE",(-self.sid*1000,)).fetchone()['id']
+                with patch.object(db,'connect',retry_plan):
+                    r=self.admin.post('/api/admin/segments/jobs/retry',json={})
+                self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['retried'],100)
+                self.assertEqual(held.execute('SELECT attempts FROM segment_jobs WHERE id=%s',(job,)).fetchone()['attempts'],5,'a worker-held row stays untouched')
+            with patch.object(db,'connect',retry_plan):
+                second=self.admin.post('/api/admin/segments/jobs/retry',json={})
+            self.assertEqual(second.status_code,200,second.text)
+            self.assertTrue(1<=second.json()['retried']<=100,'remaining failed jobs, including the released row, form a separate bounded batch')
         finally:
             with db.connect() as c:c.execute("DELETE FROM segment_jobs WHERE kind='activity' AND ref BETWEEN %s AND %s",(-self.sid*1000-104,-self.sid*1000))
 
@@ -240,6 +259,36 @@ class Integrity(unittest.TestCase):
                 f=pool.submit(update);self.assertTrue(started.wait(2));self.assertFalse(finished.wait(.1))
             f.result(timeout=5)
         self.assertTrue(finished.is_set())
+
+    def test_account_erasure_waits_before_taking_segment_rows(self):
+        from app.api_account import erase
+        uid=self.ids['owner'];locked=threading.Event();release=threading.Event();erasing=threading.Event();pid=[]
+        with db.connect() as c:c.execute("UPDATE segment_jobs SET attempts=5 WHERE kind='segment' AND ref=%s",(self.sid,))
+        def matching():
+            with db.connect() as c:
+                segments.lock_people(c,[uid]);locked.set()
+                if not release.wait(4):raise RuntimeError('Test worker was not released')
+                c.execute('SELECT id FROM segments WHERE id=%s FOR UPDATE',(self.sid,)).fetchall()
+        def deleting():
+            with db.connect() as c:
+                c.execute("SET LOCAL lock_timeout='4s'");pid.append(c.info.backend_pid);erasing.set();erase(c,{'id':uid,'sql_role':None})
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            worker=pool.submit(matching);self.assertTrue(locked.wait(2));deletion=pool.submit(deleting)
+            try:
+                self.assertTrue(erasing.wait(2));waiting=False
+                import time
+                for _ in range(100):
+                    with db.connect() as c:waiting=bool(c.execute("SELECT 1 FROM pg_stat_activity WHERE pid=%s AND wait_event_type='Lock'",(pid[0],)).fetchone())
+                    if waiting:break
+                    time.sleep(.01)
+                self.assertTrue(waiting,'erasure waits for the matching account lock')
+                # This fails deterministically with the old segment-before-account order.
+                with db.connect() as c:
+                    row=c.execute('SELECT status FROM segments WHERE id=%s FOR UPDATE NOWAIT',(self.sid,)).fetchone()
+                    self.assertEqual(row['status'],'active')
+            finally:release.set()
+            worker.result(timeout=5);deletion.result(timeout=5)
+        with db.connect() as c:self.assertIsNone(c.execute('SELECT id FROM users WHERE id=%s',(uid,)).fetchone())
 
     def test_admin_bounds_stale_control_and_readers(self):
         self.activity()

@@ -1,0 +1,18 @@
+.milestone-banner {font-size:1rem;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin-block:12px;}
+.milestone-copy {flex:1 1 140px;min-width:0;overflow-wrap:anywhere;}
+.milestone-copy b {display:block;}
+.milestone-more {padding-left:0;}
+.milestone-actions {display:flex;align-items:center;gap:8px;}
+.milestone-actions button {min-height:44px;font-size:1rem;}
+.milestone-error {flex-basis:100%;margin:0;color:var(--alert);}
+.milestone-preview {width:100%;max-width:min(280px,32dvh);margin:8px auto 16px;}
+.milestone-preview img {display:block;width:100%;height:auto;border-radius:var(--r2);}
+.milestone-private {font-size:1rem;padding:12px;border:1px solid var(--line);border-radius:var(--r2);line-height:1.5;}
+.milestone-share-actions {flex:none;padding:8px 0 0;background:var(--bg);}
+.scrim:has(#milestone-picture) .sheet {display:flex;flex-direction:column;overflow:hidden;}
+.scrim:has(#milestone-picture) .sheet>header,.scrim:has(#milestone-picture) .grab {flex:none;}
+.scrim:has(#milestone-picture) .sbody {display:flex;flex-direction:column;flex:1;min-height:0;}
+.milestone-body {flex:1;min-height:0;overflow-y:auto;padding-bottom:8px;}
+@media(max-width:360px){.milestone-actions {flex:1 1 100%;justify-content:center;}.milestone-share {flex:1;}}
+
+#me-milestones .row-link>svg,.milestone-list .row-link>svg {width:20px;height:20px;flex:none;}

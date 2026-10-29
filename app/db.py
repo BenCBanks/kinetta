@@ -1790,6 +1790,112 @@ MIGRATIONS = [
     UPDATE profile SET ai_adult_by = 'self' WHERE ai_adult_at IS NOT NULL;
     """,
 
+    # 81. Revocable public cards: codes and signup intents have no SQL-reader grant.
+    """ALTER TABLE beta_requests ADD COLUMN card_code text;
+    ALTER TABLE beta_requests ADD COLUMN card_request boolean NOT NULL DEFAULT false;
+    CREATE TABLE public_cards(user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      code text NOT NULL UNIQUE,enabled boolean NOT NULL DEFAULT false,photo boolean NOT NULL DEFAULT false,
+      sports boolean NOT NULL DEFAULT true,stats jsonb NOT NULL DEFAULT '[]',allow_requests boolean NOT NULL DEFAULT true,
+      created timestamptz NOT NULL DEFAULT now(),updated timestamptz NOT NULL DEFAULT now());
+    ALTER TABLE public_cards ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON public_cards FOR SELECT TO fit_readers USING(user_id=fit_me());
+    CREATE TABLE card_connections(user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      member_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,joined boolean NOT NULL DEFAULT false,
+      created timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,member_id));
+    ALTER TABLE card_connections ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON card_connections FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON card_connections TO fit_readers;
+    CREATE TABLE signup_join_intents(user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK(kind IN ('card','challenge')),code text NOT NULL,want_request boolean NOT NULL DEFAULT true,
+      created timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,kind));
+    ALTER TABLE signup_join_intents ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON signup_join_intents FOR SELECT TO fit_readers USING(user_id=fit_me());
+    """,
+
+    # 82. Private once-only milestones and cheap coalesced import/edit work.
+    """CREATE TABLE milestone_state(user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      generation bigint NOT NULL DEFAULT 1,processed bigint NOT NULL DEFAULT 0,fresh boolean NOT NULL DEFAULT false,
+      baseline_at timestamptz NOT NULL DEFAULT now(),changed timestamptz NOT NULL DEFAULT now(),
+      next_check timestamptz NOT NULL DEFAULT now(),last_push_day date);
+    CREATE TABLE milestones(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code text NOT NULL,kind text NOT NULL,title text NOT NULL,rank integer NOT NULL,activity_id bigint,day date NOT NULL,
+      occurred timestamptz NOT NULL,details jsonb NOT NULL,garmin_source text,silent boolean NOT NULL DEFAULT false,
+      valid boolean NOT NULL DEFAULT true,seen_at timestamptz,shared_at timestamptz,created timestamptz NOT NULL DEFAULT now(),UNIQUE(user_id,code));
+    CREATE INDEX milestones_recent ON milestones(user_id,occurred DESC) WHERE valid AND NOT silent AND seen_at IS NULL;
+    ALTER TABLE milestone_state ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON milestone_state FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON milestone_state TO fit_readers;
+    ALTER TABLE milestones ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON milestones FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON milestones TO fit_readers;
+    ALTER TABLE notifications ADD COLUMN milestone_id uuid REFERENCES milestones(id) ON DELETE CASCADE;
+    INSERT INTO milestone_state(user_id) SELECT id FROM users;
+    CREATE FUNCTION milestone_dirty() RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE uid bigint; recent boolean := false; at_time timestamptz; food_day date; zone text; local_day date;
+    BEGIN
+      uid := CASE WHEN TG_OP='DELETE' THEN OLD.user_id ELSE NEW.user_id END;
+      IF NOT EXISTS(SELECT 1 FROM users WHERE id=uid) THEN RETURN NULL; END IF;
+      IF TG_OP<>'DELETE' THEN
+        IF TG_TABLE_NAME='activities' THEN at_time:=NEW.start_time;
+        ELSIF TG_TABLE_NAME='best_efforts' THEN SELECT start_time INTO at_time FROM activities WHERE id=NEW.activity_id AND user_id=uid;
+        ELSIF TG_TABLE_NAME='food_entries' THEN food_day:=NEW.day;
+        END IF;
+        recent := coalesce(at_time BETWEEN now()-interval '7 days' AND now(),false);
+        IF food_day IS NOT NULL THEN
+          SELECT coalesce(tz,'UTC') INTO zone FROM profile WHERE user_id=uid;
+          BEGIN local_day:=(now() AT TIME ZONE coalesce(zone,'UTC'))::date;
+          EXCEPTION WHEN invalid_parameter_value THEN local_day:=(now() AT TIME ZONE 'UTC')::date; END;
+          recent:=food_day BETWEEN local_day-7 AND local_day;
+        END IF;
+      END IF;
+      INSERT INTO milestone_state(user_id,fresh) VALUES(uid,recent)
+      ON CONFLICT(user_id) DO UPDATE SET generation=milestone_state.generation+1,fresh=milestone_state.fresh OR excluded.fresh,changed=now();
+      RETURN NULL;
+    END $$;
+    CREATE TRIGGER milestone_activity AFTER INSERT OR UPDATE OR DELETE ON activities FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
+    CREATE TRIGGER milestone_best AFTER INSERT OR UPDATE OR DELETE ON best_efforts FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
+    CREATE TRIGGER milestone_food AFTER INSERT OR UPDATE OR DELETE ON food_entries FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
+    CREATE TRIGGER milestone_profile AFTER UPDATE OF tz,units ON profile FOR EACH ROW EXECUTE FUNCTION milestone_dirty();
+    """,
+
+    # 83. Explicit small-group challenges; membership never grants raw activity/food access.
+    """CREATE TABLE challenges(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code text NOT NULL UNIQUE,kind text NOT NULL CHECK(kind IN ('distance','active_days','activities','food_days','protein_days')),
+      sports jsonb NOT NULL,target double precision NOT NULL CHECK(target>0 AND target<=100000),unit text NOT NULL,
+      start_day date NOT NULL,end_day date NOT NULL,zone text NOT NULL,ended_at timestamptz,
+      request_id text NOT NULL,request_body jsonb NOT NULL,created timestamptz NOT NULL DEFAULT now(),
+      checked_at timestamptz NOT NULL DEFAULT 'epoch',UNIQUE(user_id,request_id),CHECK(end_day>=start_day));
+    CREATE TABLE challenge_members(challenge_id uuid NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','left','removed')),
+      joined timestamptz NOT NULL DEFAULT now(),three_notice boolean NOT NULL DEFAULT false,finished_notice boolean NOT NULL DEFAULT false,
+      PRIMARY KEY(challenge_id,user_id));
+    CREATE INDEX challenge_members_owner ON challenge_members(user_id,status);
+    CREATE INDEX challenges_worker ON challenges(checked_at);
+    ALTER TABLE challenges ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON challenges FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT(id,user_id,kind,sports,target,unit,start_day,end_day,zone,ended_at,created) ON challenges TO fit_readers;
+    ALTER TABLE challenge_members ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON challenge_members FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON challenge_members TO fit_readers;
+    ALTER TABLE notifications ADD COLUMN challenge_id uuid REFERENCES challenges(id) ON DELETE CASCADE;
+    ALTER TABLE beta_requests ADD COLUMN challenge_code text;
+    ALTER TABLE beta_requests ADD COLUMN challenge_join boolean NOT NULL DEFAULT false;
+    """,
+
+    # 84. SQL readers may inspect their own non-secret card/intent metadata, never invitation codes.
+    """GRANT SELECT(user_id,enabled,photo,sports,stats,allow_requests,created,updated) ON public_cards TO fit_readers;
+    GRANT SELECT(user_id,kind,want_request,created) ON signup_join_intents TO fit_readers;
+    """,
+
+    # 85. Operator Kit permission is separate from personal consent and product entitlements.
+    """ALTER TABLE profile ADD COLUMN ai_access_allowed boolean NOT NULL DEFAULT true;""",
+
+    # 86. Home guidance and shared-profile presentation, separate from sharing permissions.
+    """ALTER TABLE profile ADD COLUMN setup_hidden boolean NOT NULL DEFAULT false;
+    ALTER TABLE profile ADD COLUMN profile_layout jsonb NOT NULL DEFAULT
+      '{"sections":["recent","mileage","totals","sports","activities"],"stats":["activities","distance","time"],"sports":[]}'::jsonb;
+    ALTER TABLE profile ADD CONSTRAINT profile_layout_object CHECK(jsonb_typeof(profile_layout)='object');""",
+
 ]
 
 

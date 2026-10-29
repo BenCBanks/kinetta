@@ -49,7 +49,7 @@ globalThis.Intervals=(()=>{
   if(f.cool)blocks.push({id:ids.cb,repeat:1,steps:[step(ids.cool,'walk','cooldown',f.cool)]});
   return{schema:1,name:(f.name.trim()||autoName(f)).slice(0,120),description:'',blocks};
  }
- // Pre-start entry below Start, styled like "Add a planned route": only for Run/Walk, or while intervals are loaded so they can be removed.
+ // Pre-start entry below Start, a secondary action: only for Run/Walk, or while intervals are loaded so they can be removed.
  let lastChoice=null;
  function entryHTML(){const p=selected(),stale=!p&&get('selected');return`<button type="button" class="track-prefs" id="interval-open">${svg('clock')}<span>${p?'Intervals: '+esc(p.definition.name):stale?'Intervals: reload needed':'Add run/walk intervals'}</span>${svg('chev')}</button>${p?`<p class="small muted track-interval-summary">${esc(total(p))}</p>`:''}`;}
  function mount(el,c=lastChoice){if(!el)return;lastChoice=c;if(c&&!(c.gps&&['run','walk'].includes(c.sport))&&!get('selected')){el.innerHTML='';return;}el.innerHTML=entryHTML();$('#interval-open',el).onclick=()=>library(()=>mount(el));}

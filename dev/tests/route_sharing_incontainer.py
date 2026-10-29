@@ -17,6 +17,19 @@ from psycopg import errors
 from app import auth,db,admin_auth,api_routes_plan as plans,route_geo,route_sharing as sharing
 from app.main import app
 
+# Dormant saved-route compatibility fixture; production does not mount these endpoints.
+from copy import copy
+from app import api_routes_plan as _legacy_plans, route_sharing as _legacy_sharing
+app = copy(app)
+from fastapi import APIRouter
+app.router = APIRouter(routes=list(app.router.routes))
+app.middleware_stack = None
+_fallback = app.router.routes.pop()
+app.include_router(_legacy_plans.router)
+app.include_router(_legacy_sharing.router)
+app.router.routes.append(_fallback)
+
+
 PW='fictional route test password'
 LAT,LON=45.30,10.20
 def north(m):return [LAT+m/110540,LON]

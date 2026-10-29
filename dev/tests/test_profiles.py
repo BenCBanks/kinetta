@@ -3,6 +3,7 @@ import datetime as dt
 import json
 from kc import Client, PW, person
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 n = 0
 
@@ -41,7 +42,8 @@ try:
     check(request(owner, 'GET', '/api/me')['bio'] == bio, 'bio edits cannot change another profile')
     request(owner, 'PUT', '/api/profile', {'bio': 'x' * 281}, expected=422)
     rows = request(viewer, 'GET', '/api/people/search?q=')
-    check(any(row['login'] == 'zz_test_profile_owner' for row in rows), 'default discovery includes discoverable account')
+    check(len(rows)<=20 and all(row['login']!='zz_test_profile_viewer' for row in rows),'default discovery is bounded and excludes the viewer')
+    check(any(row['login']=='zz_test_profile_owner' for row in request(viewer,'GET','/api/people/search?q=zz_test_profile_owner')),'specific discovery finds the profile even in a larger directory')
     check(all(set(row) == {'login', 'name', 'photo', 'status'} for row in rows), 'directory contains identity/relationship only')
     request(viewer, 'GET', '/api/people/search?q=' + 'a' * 61, expected=422)
     profile = request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile?limit=1')
@@ -49,7 +51,7 @@ try:
     check(sum(r['distance_m'] for r in profile['mileage']['days']) == 2000, 'distance chart excludes private and friends-only activities')
     check(len(profile['mileage']['days']) == 14, 'chart zero-fills fixed periods')
     check(profile['sports'] == [{'sport': 'run', 'activities': 2, 'distance_m': 2000, 'time_s': 1200}], 'sport summaries use visible workouts only')
-    check(profile['overview'] == {'activities': 2, 'distance_m': 2000, 'time_s': 1200}, 'overview excludes private and friends-only workouts')
+    check(profile['overview'] == {'activities': 2, 'distance_m': 2000, 'time_s': 1200, 'active_days': len({(start+dt.timedelta(hours=i)).astimezone(ZoneInfo(request(viewer,'GET','/api/me')['tz'])).date() for i in (2,3)})}, 'overview excludes private and friends-only workouts')
     check(profile['items'][0]['id'] == ids[-1] and profile['next'], 'newest shared activity and cursor')
     next_page = request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile?limit=1&' + urlencode(profile['next']))
     check([row['id'] for row in next_page['items']] == [ids[-2]] and next_page['next'] is None, 'profile pagination does not duplicate or skip')

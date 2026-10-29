@@ -15,6 +15,7 @@ P="${KINETTA_PROJECT:-kinettatest}"
 echo "== shared design tokens and contrast"
 python3 dev/design/build_tokens.py --check
 python3 dev/tests/test_design_manifest.py
+python3 dev/tests/test_ui_inventory.py
 python3 dev/design/build_content.py
 python3 dev/tests/test_website_content.py
 python3 dev/tests/ai_fingerprints.py
@@ -25,21 +26,44 @@ python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
 for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 
 echo "== native sync recovery (stand-in HealthKit, no health data)"
+python3 dev/tests/test_native_ui_lifecycle.py
+node dev/tests/test_boot.js
+node dev/tests/test_enrollment_entry.js
 node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js
+node dev/tests/test_friend_management.js
+node dev/tests/test_map_contract.js
+node dev/tests/test_map_late_layers.js
+
+node dev/tests/test_recaps.js
+node dev/tests/test_milestones.js
+node dev/tests/test_activity_milestone_loading.js
+node dev/tests/test_map_failure.js
+node dev/tests/test_challenges.js
+node dev/tests/test_join_context.js
 node dev/tests/test_route_drafts.js
-node dev/tests/test_route_sharing_ui.js
 node dev/tests/test_segment_assistance_ui.js
 node dev/tests/test_temporary_login.js
-node dev/tests/test_route_following.js
 node dev/tests/test_track.js
 node dev/tests/test_lift_summary.js
+node dev/tests/test_lift_lifecycle.js
+node --check dev/tests/lift_ui.cjs # rendered checks run in the screenshot workflow
+node --check dev/tests/activity_ui.cjs
+node dev/tests/test_recipe_delete.js
+node dev/tests/test_recipe_creation.js
+node dev/tests/test_recipe_pending.js
+node dev/tests/test_recipe_title_retry.js
+node dev/tests/test_recipe_library_intent.js
+node dev/tests/test_navigation_animation.js
 node dev/tests/test_notification_rows.js
 node dev/tests/test_track_native.js
 node dev/tests/test_recording_sharing.js
 node dev/tests/test_activity_sharing.js
+node dev/tests/test_stationary_summary.js
 node dev/tests/test_map_fullscreen.js
 node dev/tests/test_native_sync.js
+node dev/tests/test_native_pictures.js
+node dev/tests/test_share_photo.js
 node dev/tests/test_push_invitation.js
 node dev/tests/test_kit_chat_ui.js
 node dev/tests/test_kit_memory_ui.js
@@ -50,6 +74,7 @@ node dev/tests/test_interval_client.js
 node dev/tests/test_combined_week_ui.js
 node dev/tests/test_mileage_chart.js
 node dev/tests/test_fitness_chart_controls.js
+node dev/tests/test_prediction_help.js
 python3 dev/tests/test_activity_chart.py
 
 node dev/tests/test_workout_sync_status.js
@@ -61,6 +86,7 @@ node dev/tests/test_semantic_colours.js
 node dev/tests/test_card_taps.js
 node dev/tests/test_ui_state.js
 node dev/tests/test_social_profiles_ui.js
+node dev/tests/test_profile_layout.js
 node dev/tests/test_onboarding.js
 node dev/tests/test_welcome.js
 node dev/tests/test_home_food.js
@@ -111,10 +137,15 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_progress test_chart_weeks test_track test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
+for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_layout test_profile_progress test_chart_weeks test_track test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"
+docker compose -p "$P" exec -T app python - < dev/tests/friend_count_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/retired_routes_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/map_config_incontainer.py
+
+docker compose -p "$P" exec -T app python - < dev/tests/recaps_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/intervals_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/cook_clarification_incontainer.py
@@ -142,6 +173,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
 
 echo "== admin launch tools (fictional accounts, stand-in mail)"
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_launch.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_admin_kit.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_request_log.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_devices.py
 docker compose -p "$P" exec -T app python - < dev/tests/admin_usage_incontainer.py
@@ -189,4 +221,18 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_upload_undo_inconta
 docker compose -p "$P" exec -T app python - < dev/tests/activity_food_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weight_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_regressions_incontainer.py
+echo "== separate recipe creation and explicit portions"
+docker compose -p "$P" exec -T app python - < dev/tests/recipe_creation_incontainer.py
+echo "== public card privacy, signup and requests"
+docker compose -p "$P" exec -T app python - < dev/tests/cards_incontainer.py
+
+
+echo "== stationary ride charts and HR sharing"
+docker compose -p "$P" exec -T app python - < dev/tests/stationary_charts_incontainer.py
+echo "== private milestones, silent imports and notification boundaries"
+docker compose -p "$P" exec -T app python - < dev/tests/milestones_incontainer.py
+
+echo "== aggregate challenge privacy and lifecycle"
+docker compose -p "$P" exec -T app python - < dev/tests/challenges_incontainer.py
+
 echo "== all passed"

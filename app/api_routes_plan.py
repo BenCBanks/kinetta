@@ -28,7 +28,8 @@ from pydantic import BaseModel, Field
 from . import db, route_geo, route_providers
 from .auth import current_user
 
-router = APIRouter(prefix='/api')
+router = APIRouter(prefix='/api')  # Retained storage contracts, not mounted in the current product.
+active_router = APIRouter(prefix='/api')
 _downloads, _download_lock = {}, threading.Lock()
 SPORT = Literal['run', 'walk', 'hike', 'ride']
 GPX_MAX = 5 * 1024 * 1024
@@ -46,7 +47,7 @@ class PathIn(BaseModel):
     points: list[list[float]] = Field(min_length=2, max_length=26)
 
 
-@router.post('/plan/path')
+@active_router.post('/plan/path')
 def plan_path(body: PathIn, user=Depends(current_user)):
     """Follow streets and trails between consecutive points (one leg per pair). A leg with no path comes back ok:false;
     the phone keeps the draft for moving points or retrying. It never substitutes a straight line."""
@@ -67,7 +68,7 @@ def _line(s):
     return pts
 
 
-@router.post('/plan/elevation')
+@active_router.post('/plan/elevation')
 def plan_elevation(body: LineIn, user=Depends(current_user)):
     pts = _line(body.line)
     if route_geo.length(pts) > route_geo.MAX_DISTANCE_M: raise HTTPException(400, 'Routes can be up to 500 km')
@@ -75,14 +76,14 @@ def plan_elevation(body: LineIn, user=Depends(current_user)):
     except route_providers.Unavailable as e: _unavailable(e)
 
 
-@router.get('/plan/search')
+@active_router.get('/plan/search')
 def plan_search(q: str = Query(min_length=2, max_length=120), lat: float | None = None, lon: float | None = None, user=Depends(current_user)):
     near = [lat, lon] if lat is not None and lon is not None else None
     try: return {'places': route_providers.search(user['id'], q, near)}
     except route_providers.Unavailable as e: _unavailable(e)
 
 
-@router.get('/plan/services')
+@active_router.get('/plan/services')
 def plan_services(user=Depends(current_user)):
     return route_providers.status()
 
@@ -321,14 +322,14 @@ class DraftIn(BaseModel):
     data: dict
 
 
-@router.get('/route-drafts/{key}')
+@active_router.get('/route-drafts/{key}')
 def get_draft(key: str = Path(pattern='^[a-z0-9:-]{1,80}$'), user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute('SELECT data, updated FROM route_drafts WHERE user_id = %s AND draft_key = %s', (user['id'], key)).fetchone()
     return r or {'data': None, 'updated': None}
 
 
-@router.put('/route-drafts/{key}')
+@active_router.put('/route-drafts/{key}')
 def put_draft(body: DraftIn, key: str = Path(pattern='^[a-z0-9:-]{1,80}$'), user=Depends(current_user)):
     raw = json.dumps(body.data)
     if len(raw) > 1_500_000: raise HTTPException(413, 'This draft is too big to autosave')
@@ -339,7 +340,7 @@ def put_draft(body: DraftIn, key: str = Path(pattern='^[a-z0-9:-]{1,80}$'), user
     return {'updated': r['updated']}
 
 
-@router.delete('/route-drafts/{key}')
+@active_router.delete('/route-drafts/{key}')
 def delete_draft(key: str = Path(pattern='^[a-z0-9:-]{1,80}$'), user=Depends(current_user)):
     with db.connect() as c:
         c.execute('DELETE FROM route_drafts WHERE user_id = %s AND draft_key = %s', (user['id'], key))
@@ -455,7 +456,7 @@ def gpx_download(key: str):
 
 
 # ---------- from your own activity ----------
-@router.get('/activities/{aid}/sections')
+@active_router.get('/activities/{aid}/sections')
 def activity_sections(aid: int, user=Depends(current_user)):
     """The GPS sections of your own activity, split wherever the recording had a gap (gaps are never joined up)."""
     with db.connect() as c:

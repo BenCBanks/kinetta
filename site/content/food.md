@@ -64,7 +64,7 @@ Scan a package. Check its protein, carbs and fat against the box, then log it.
 
 ## story-snap-21
 
-Snap your plate. Each food gets an estimate.
+Snap your plate. Review an editable meal estimate.
 
 ## story-say-22
 
@@ -85,3 +85,12 @@ Free for personal use under the [PolyForm Noncommercial License](https://github.
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-18
 
 © 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.
+
+
+## recipe-purpose-heading
+
+Save a recipe. Log it when you eat.
+
+## recipe-purpose-copy
+
+Name it first, add ingredients and save the whole recipe. Logging is optional. When you’re ready, choose the servings or weight you ate. Editing a recipe and adding food to your day each have their own clear flow.

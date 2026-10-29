@@ -90,13 +90,22 @@ def imports(user=Depends(current_user)):
 # the photos on an activity (api_photos.py): [{id, w, h}], oldest first
 PHOTOS_SQL = """(SELECT coalesce(jsonb_agg(jsonb_build_object('id', ph.id, 'w', ph.w, 'h', ph.h) ORDER BY ph.id), '[]'::jsonb)
                  FROM activity_photos ph WHERE ph.activity_id = a.id) AS photos"""
+# Older Health uploads did not identify indoor workouts. Require measured speed/GPS for
+# those records; missing GPS alone never classifies an ordinary file import as stationary.
+SPEED_AVAILABLE_SQL = """NOT (a.sport='ride' AND a.source<>'manual'
+  AND NOT a.summary_overrides ?| array['distance_m','moving_s','elapsed_s','max_speed']
+  AND (coalesce(a.health_details->>'indoor','false')='true'
+    OR coalesce(a.sub_sport,'') IN ('indoor_cycling','virtual_activity')
+    OR lower(regexp_replace(coalesce(a.sport_label,''),'[ _-]','','g')) IN ('indoorcycling','stationarycycling','stationarybike','virtualride')
+    OR ((a.source IN ('healthkit','apple') OR a.healthkit_id IS NOT NULL) AND NOT (coalesce(a.health_details,'{}'::jsonb) ? 'indoor') AND a.geom IS NULL
+      AND coalesce(a.max_speed,0)<=0 AND NOT jsonb_path_exists(coalesce(a.chart,'{}'::jsonb),'$.speed[*] ? (@ > 0)'))))"""
 LIST_COLS = """a.id, a.sport, a.name, a.start_time, a.tz, a.distance_m, a.moving_s, a.elapsed_s, a.ascent_m, a.avg_hr,
                a.gap_s_per_km, a.effort, a.commute, a.route_id, a.description, a.avg_power, a.vo2max, a.sport_label,
-               a.norm_power, a.vam, a.steps, a.swolf, a.lengths, a.pool_length_m"""
+               a.norm_power, a.vam, a.steps, a.swolf, a.lengths, a.pool_length_m""" + ", " + SPEED_AVAILABLE_SQL + " AS speed_available"
 
 
 @router.get('/activities')
-def feed(before: str | None = None, sport: str | None = None, q: str | None = None, limit: int = 20,
+def feed(before: dt.datetime | None = None, before_id: int | None = None, sport: str | None = None, q: str | None = None, limit: int = 20,
          user=Depends(current_user)):
     limit = max(1, min(limit, 100))
     sql = f"""SELECT {LIST_COLS}, ST_AsGeoJSON(ST_Simplify(a.geom, %s)) AS g,
@@ -109,10 +118,11 @@ def feed(before: str | None = None, sport: str | None = None, q: str | None = No
                  (SELECT count(*) FROM comments cm WHERE cm.activity_id = a.id) AS comments, {PHOTOS_SQL}, {LIFTS_SQL}
               FROM activities a WHERE a.user_id = %s"""
     args = [PREVIEW_TOL, user['id']]
-    if before: sql += ' AND a.start_time < %s'; args.append(before)
+    if before:
+        sql += ' AND (a.start_time < %s OR (a.start_time = %s AND a.id < %s))'; args.extend([before,before,before_id or 0])
     if sport in SPORTS: sql += ' AND a.sport = %s'; args.append(sport)
     if q: sql += ' AND (a.name ILIKE %s OR a.description ILIKE %s)'; args += [f'%{q}%'] * 2
-    sql += ' ORDER BY a.start_time DESC LIMIT %s'; args.append(limit)
+    sql += ' ORDER BY a.start_time DESC, a.id DESC LIMIT %s'; args.append(limit)
     with db.connect() as c:
         rows = c.execute(sql, args).fetchall()
     for r in rows:
@@ -134,7 +144,7 @@ def _rank_efforts(c, uid, aid):
 @router.get('/activities/{aid}')
 def detail(aid: int, user=Depends(current_user)):
     with db.connect() as c:
-        a = c.execute(f"""SELECT a.*, g.name AS gear_name, r.name AS route_name,
+        a = c.execute(f"""SELECT a.*, {SPEED_AVAILABLE_SQL} AS speed_available, g.name AS gear_name, r.name AS route_name,
                            (SELECT count(*) FROM activities x WHERE x.route_id = a.route_id) AS route_count, {PHOTOS_SQL}, {LIFTS_SQL}
                          FROM activities a LEFT JOIN gear g ON g.id = a.gear_id LEFT JOIN routes r ON r.id = a.route_id
                          WHERE a.id = %s AND a.user_id = %s""", (aid, user['id'])).fetchone()
@@ -152,6 +162,7 @@ def detail(aid: int, user=Depends(current_user)):
             except (OSError, ValueError, TypeError, KeyError):
                 pass
         for k in ('geom', 'start_pt', 'end_pt', 'file_path', 'file_sha256', 'user_id'): a.pop(k, None)
+        a['chart'] = analysis.clean_chart(a.get('chart'),speed_available=a['speed_available'])
         a['line'] = _line(c, aid, DETAIL_TOL)
         a['efforts'] = _rank_efforts(c, user['id'], aid)
         a['similar'] = _similar(c, user['id'], aid, 6)

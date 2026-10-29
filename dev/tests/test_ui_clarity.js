@@ -23,9 +23,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  assert.doesNotMatch(box.innerHTML,/ff-dish/,'saving a recipe is offered at final review, without a competing entry action');
  // Only with no history, no entries and no goal; copy shortcuts only with history.
  assert.match(food,/const fresh = !D\.has_history && !D\.entries\.length && goal == null;/);
- assert.match(food,/D\.has_history \? `<button[^`]+data-yesterday-meal=/,'Same as yesterday returns for people with food history (owner, 26 Oct 2026)');
+ assert.match(food,/D\.has_history \? `<div class="food-copy-action"/,'One quiet Copy yesterday button is available with food history');
  assert.doesNotMatch(food,/data-usual-meal=/,'Usuals stays in Add food');
- assert.match(food,/D\.entries\.length \|\| !D\.has_history \? ''/);
+ assert.doesNotMatch(food,/data-yesterday-meal=/,'Empty meals do not repeat the copy action');
+ assert.equal((food.match(/id="fd-copy"/g)||[]).length,1,'Only one copy button is rendered');
  assert.doesNotMatch(food,/Reminders · optional|edit or create/,'no run-on link line');
  assert.match(food,/\['reminders', 'Meal reminders'/,'reminders moved into More');
  console.log('Nutrition: first-food steps act as labelled, copy shortcuts need history, one clear library link, reminders in More PASS');
@@ -45,17 +46,14 @@ console.log('Food chat: Search tool label PASS');
  assert.match(thread,/data-more aria-label="More options for this message"/);assert.match(thread,/class="thread-food" data-entry=/,'tap a logged food to edit it');
  console.log('Food chat: one bar (+, text, send), every tool in the + menu, labelled ⋯ controls, tap-to-edit foods PASS');
 }
-// Me shortcuts (2026-10-18): six labelled icons, each to a registered page.
+// Profile-first Me keeps identity and private information visibly distinct (#353).
 {
- const pages=fs.readFileSync('app/static/pages.js','utf8'),c={};vm.createContext(c);
- vm.runInContext(pages.match(/const ME_SHORTCUTS = \[[\s\S]*?\]\];/)[0]+'\nglobalThis.list=ME_SHORTCUTS;',c);
- const list=JSON.parse(JSON.stringify(c.list));assert.deepEqual(list.map(x=>x[2]),['Plan','Fitness','Records','Routes','Goals','Friends']);
- const patterns=[];for(const file of fs.readdirSync('app/static').filter(f=>f.endsWith('.js')))for(const m of fs.readFileSync('app/static/'+file,'utf8').matchAll(/^route\((\/.*?\/),/gm))patterns.push(vm.runInNewContext(m[1]));
- for(const [href] of list)assert(patterns.some(re=>re.test(href.split('?')[0])),href+' is a real page');
- assert(!/me-day-links/.test(pages),'the old Training plan row is replaced by the Plan shortcut');
- for(const [href] of list)assert(!['/me','/activity','/track','/progress','/food'].includes(href),href+' would repeat a tab');
- assert(!/row\('a', 'href="\/me\/(friends|goals)"'/.test(pages),'Friends and Goals are tiles, not list rows too');
- console.log('Me shortcuts: Plan, Fitness, Records, Routes, Goals, Friends, each a real page and none repeating a tab PASS');
+ const pages=fs.readFileSync('app/static/pages.js','utf8');
+ assert.match(pages,/View profile/);assert.match(pages,/Edit profile/);assert.match(pages,/Overview/);assert.match(pages,/Only you/);
+ assert.doesNotMatch(pages,/ME_SHORTCUTS|whoseSeg|wireWhose|Latest activity|Friends recently/,'retired home/feed components have no live callers');
+ assert.match(pages,/href="\/me\/activities"/,'the complete private history is reachable');
+ assert.match(pages,/q.get\('view'\)==='mine'/,'existing history links retain a redirect');
+ console.log('Me: visible shared profile, private Overview, separate complete history, no duplicated selectors/shortcut grid PASS');
 }
 // Speed check (2026-10-18): reachable from Profile & settings, read-only (GET requests only), nothing stored.
 {

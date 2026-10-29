@@ -170,6 +170,8 @@ const Social = {
     const n = Social.count(); let b = $('.tab-n', a);
     const un = (App.me && App.me.notifications) || 0;
     if (typeof Native !== 'undefined' && Native.setBadge) Native.setBadge(un);
+    $$('[data-friend-waiting]').forEach(node=>{const waiting=Number.isInteger(App.me?.friend_requests)?App.me.friend_requests:0;node.hidden=!waiting;node.textContent=`${waiting} waiting`;});
+    if(Number.isInteger(App.me?.friend_count))$$('[data-friend-count]').forEach(node=>node.textContent=friendCountText(App.me.friend_count));
     $$('.bell-dot').forEach((d) => { d.hidden = !un; d.textContent = un > 9 ? '9+' : un || ''; });
     if (!n) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('span'); b.className = 'tab-n'; a.append(b); }
@@ -182,23 +184,19 @@ const Social = {
     if (Social.owner !== account) { Social.owner = account; Social.at = 0; }
     if (Date.now() - Social.at < 60000) return;
     Social.at = Date.now();
-    api('/api/notifications/count').then((r) => { if (account !== readOwner() || !App.me) return; App.me.notifications = r.unread; App.me.friend_requests = r.friend_requests; Social.badge(); }).catch(() => {});
+    api('/api/notifications/count').then((r) => { if (account !== readOwner() || !App.me) return; App.me.notifications = r.unread; App.me.friend_requests = r.friend_requests;if(Number.isInteger(r.friend_count))App.me.friend_count=r.friend_count; Social.badge(); }).catch(() => {});
   },
   set(n) { if (App.me && n != null) { App.me.friend_requests = n; Social.badge(); } },
 };
 
 // ---------- Activity tab: the Feed (yours and your friends', newest first) ----------
-// Two lists merged by start time. Each page asks both for the next N before the oldest card shown, keeps the newest N,
-// and the rest comes again on the next page, so nothing is skipped or shown twice.
+// Both readers use the same (time, id) cursor, including activities starting at exactly the same time.
 const FEED_N = 15;
 async function feedPage(before,size=FEED_N) {
-  const b = before ? '&before=' + encodeURIComponent(before) : '';
-  const [mine, theirs] = await Promise.all([readOnce(`/api/activities?limit=${size}${b}`), readOnce(`/api/feed/friends?limit=${size}${b}`)]);
-  const all = mine.concat(theirs).sort((x, y) => new Date(y.start_time) - new Date(x.start_time));
-  // the next page asks for "older than the last card", so activities sharing the last card's start time all go on this page
-  let n = Math.min(size, all.length);
-  while (n && n < all.length && +new Date(all[n].start_time) === +new Date(all[n - 1].start_time)) n++;
-  return {rows: all.slice(0, n), more: all.length > n || mine.length === size || theirs.length === size, friends: all.slice(0,n).filter(a=>a.owner).length};
+  const b=before?'&before='+encodeURIComponent(typeof before==='string'?before:before.start_time)+(before.id?'&before_id='+before.id:''):'';
+  const [mine,theirs]=await Promise.all([readOnce(`/api/activities?limit=${size}${b}`),readOnce(`/api/feed/friends?limit=${size}${b}`)]);
+  const all=mine.concat(theirs).sort((x,y)=>new Date(y.start_time)-new Date(x.start_time)||y.id-x.id),rows=all.slice(0,size);
+  return {rows,more:all.length>size||mine.length===size||theirs.length===size,friends:rows.filter(a=>a.owner).length};
 }
 // Persist only a small opening view; deeper browsing stays in this account's memory cache.
 function keepFeed(pg){
@@ -212,55 +210,61 @@ function warmFeed() {
   feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg); } }).catch(() => {});
 }
 async function homeFeed(el) {
-  el.innerHTML = `${actTop(false, true)}${whoseSeg('')}<div id="ff-people"></div>
-    <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
-  wireWhose(el);
-  const list = $('#ff-list', el), more = $('#ff-more', el);
-  feedPeople($('#ff-people', el));
-  let items = [];
-  const draw = (pg) => {
-    items = pg.rows;
-    list.innerHTML = items.length ? items.map((a) => postCard(a, {who: true})).join('') : `<div class="card empty"><b>Nothing here yet</b>
-      Your activities and the ones your friends share show up here.${startCta()}<div class="btncol"><a class="ghost" href="/me/friends">Find your friends</a><button type="button" class="ghost" data-invite-empty>Invite friends</button></div></div>`;
-    const inv = list.querySelector?.('[data-invite-empty]'); if (inv) inv.onclick = inviteFriends;
-    more.hidden = !pg.more; feedMaps(list); wireCheers(list);
-  };
-  let hit = App.cache.get('feed:home');
-  if (!hit) { const k = kept('feed:home'); if (k) { hit = {data: k, at: 0}; App.cache.set('feed:home', hit); } }   // saved on this phone: show at once
-  if (hit) draw(hit.data);
-  const account = readOwner(), epoch = readEpoch('feed:home');
-  // A fresh cached feed already contains the current cards/maps. Avoid fetching and rebuilding it.
-  const fresh = hit && Date.now() - hit.at < 15000;
-  let pageRevision=0;
+  el.innerHTML=`${actTop(false,true)}<a class="feed-discovery" href="/me/friends?find=1">${svg('people')}<span>Find friends</span>${svg('chev')}</a>
+    <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
+  const list=$('#ff-list',el),more=$('#ff-more',el),account=readOwner();
+  let items=[],shown=null,pageRevision=0;
   const active=()=>account===readOwner()&&list.isConnected;
-  const current=()=>active()&&epoch===readEpoch('feed:home')&&pageRevision===0;
-  more.onclick = async () => {
-    if(more.disabled||!active()||!items.length)return;
-    const revision=readEpoch('feed:home');pageRevision++;
-    more.disabled = true; more.textContent = 'Loading…';
-    try {
-      const pg = await feedPage(items[items.length - 1].start_time);
-      if(!active()||revision!==readEpoch('feed:home'))return;
-      items = items.concat(pg.rows);
-      App.cache.set('feed:home',{data:{rows:items,more:pg.more,friends:items.filter(a=>a.owner).length},at:App.cache.get('feed:home')?.at||0});
-      list.insertAdjacentHTML('beforeend', pg.rows.map((a) => postCard(a, {who: true})).join('')); more.hidden = !pg.more; feedMaps(list); wireCheers(list);
-    } catch (x) { if(active()&&revision===readEpoch('feed:home'))toast(x.message); }
-    finally { more.disabled = false; more.textContent = 'Show more'; }
+  const draw=pg=>{
+    if(!active())return;
+    const signature=JSON.stringify(pg),previous=items;items=pg.rows;
+    if(signature===shown)return;
+    shown=signature;
+    if(items.length&&previous.length&&list.querySelectorAll){
+      // Keep unchanged cards and their maps alive. Only new or changed records replace nodes.
+      const nodes=new Map([...list.querySelectorAll(':scope > .post')].map(node=>[node.dataset.href,node]));
+      const old=new Map(previous.map(a=>[a.id,JSON.stringify(a)])),retained=new Set();let cursor=list.firstElementChild;
+      for(const a of items){
+        const href=(a.owner?'/activity/friends/':'/activity/')+a.id;
+        let node=old.get(a.id)===JSON.stringify(a)?nodes.get(href):null;
+        if(!node){const template=document.createElement('template');template.innerHTML=postCard(a,{who:true});node=template.content.firstElementChild;}
+        if(node===cursor)cursor=cursor.nextElementSibling;else list.insertBefore(node,cursor);
+        retained.add(node);
+      }
+      for(const node of [...list.children])if(!retained.has(node))node.remove();
+    }else list.innerHTML=items.length?items.map(a=>postCard(a,{who:true})).join(''):`<div class="card empty"><b>Nothing here yet</b>Your activities and your friends’ shared activities appear here.<div class="btncol"><a class="ghost" href="/me/friends">Find friends</a><button type="button" class="ghost" data-invite-empty>Invite friends</button></div></div>`;
+    const invite=list.querySelector?.('[data-invite-empty]');if(invite)invite.onclick=inviteFriends;
+    more.hidden=!pg.more;feedMaps(list);wireCheers(list);if(typeof cleanViews!=='undefined')cleanViews();
   };
-  try { if (!fresh) {
-    // Revalidate the depth already browsed, so a detail visit never drops loaded pages.
-    const count=Math.max(FEED_N,hit?.data.rows.length||0);
+  let hit=App.cache.get('feed:home');
+  if(!hit){const k=kept('feed:home');if(k){hit={data:k,at:0};App.cache.set('feed:home',hit);}}
+  if(hit)draw(hit.data);
+  const revalidate=async()=>{
+    if(!active())return;
+    const version=++pageRevision,epoch=readEpoch('feed:home'),count=Math.max(FEED_N,items.length);
+    const current=()=>active()&&version===pageRevision&&epoch===readEpoch('feed:home');
     let pg=await feedPage(undefined,Math.min(50,count));
     while(current()&&pg.more&&pg.rows.length<count){
-      const next=await feedPage(pg.rows.at(-1).start_time,Math.min(50,count-pg.rows.length));
+      const next=await feedPage(pg.rows.at(-1),Math.min(50,count-pg.rows.length));
       pg={rows:pg.rows.concat(next.rows),more:next.more&&!!next.rows.length,friends:pg.friends+next.friends};
     }
     if(!current())return;
-    App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg);
-    if(!hit||JSON.stringify(hit.data)!==JSON.stringify(pg))draw(pg);
-  } }
-  catch (x) { if (!hit) throw x; if(typeof PageRefresh!=='undefined')PageRefresh.failed(x); }
-
+    App.cache.set('feed:home',{data:pg,at:Date.now()});keepFeed(pg);draw(pg);
+  };
+  // Pull-to-refresh uses this read-only hook instead of replacing the entire page.
+  el.refresh=revalidate;
+  more.onclick=async()=>{
+    if(more.disabled||!active()||!items.length)return;
+    const epoch=readEpoch('feed:home');pageRevision++;more.disabled=true;more.textContent='Loading…';
+    try{
+      const pg=await feedPage(items.at(-1));if(!active()||epoch!==readEpoch('feed:home'))return;
+      const joined={rows:items.concat(pg.rows),more:pg.more,friends:items.filter(a=>a.owner).length+pg.friends};
+      App.cache.set('feed:home',{data:joined,at:App.cache.get('feed:home')?.at||0});draw(joined);
+    }catch(x){if(active()&&epoch===readEpoch('feed:home'))toast(x.message);}
+    finally{more.disabled=false;more.textContent='Show more';}
+  };
+  try{if(!hit||Date.now()-hit.at>=15000)await revalidate();}
+  catch(x){if(!hit)throw x;if(typeof PageRefresh!=='undefined')PageRefresh.failed(x);}
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
@@ -272,22 +276,27 @@ route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
 function drawShared(el, a) {
   const mine = a.social.mine, sh = a.shares, r = rate(a);
   const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) +
-    (a.distance_m && sh.pace ? stat(r.label, r.v, r.u) : '');
+    (a.distance_m && sh.pace && r.label !== 'Time' ? stat(r.label, r.v, r.u) : '');
   const splits = imp() ? a.splits_mi : a.splits_km;
+  const details = sportStats(a);
+  const panes = {
+    charts: `${activitySamples(a) ? '<div class="card activity-chart-card"><div id="s-charts" class="activity-charts"></div></div>' : ''}${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}`,
+    overview: details ? `<div class="card"><h2>Details</h2><div class="hero more">${details}</div></div>` : '<div class="card empty">No additional details were shared.</div>',
+    splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
+  };
   el.innerHTML = `<div class="top">${backBtn(mine ? 'Back' : 'Feed')}</div>
     ${mine ? '<div class="callout">This is what others see of your activity.</div>' : ''}
     <div class="d-title card"><div class="post-hd"><a class="post-person" href="${profileHref(a.owner)}">${avatar(a.owner)}<span class="ph-txt"><b>${esc(a.owner.name)}</b>
       <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span></a>${sportMark(a.sport)}</div>
       <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="s-soc"></span></div>
       ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      <div class="hero">${hero}</div>${sportStats(a) ? `<div class="hero more">${sportStats(a)}</div>` : ''}</div>
+      <div class="hero">${hero}</div></div>
     ${activityMedia(a, {mapId: 's-map', detail: true, full: true})}
     ${a.ends_hidden ? '<p class="small muted map-note">The start and end of the route are hidden.</p>' : ''}
-    ${a.chart ? '<div class="card"><h2>Charts</h2><div id="s-charts"></div></div>' : ''}
-    ${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
-    ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}
-    ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
+    ${activityTabs(panes)}
     ${mine ? '' : `<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
+  let redrawCharts = null;
+  wireActivityTabs(el, key => { if (key === 'charts') redrawCharts?.(); });
   wireBack(el, mine ? `/activity/${a.id}` : '/activity');
   if (!mine) $('#s-rb', el).onclick = () => reportSheet(a.owner, {activity_id: a.id});
   if (a.line) {
@@ -303,15 +312,21 @@ function drawShared(el, a) {
   }
   wireTalk($('#s-soc', el), a.id, a.social, new URLSearchParams(location.search).get('tab') === 'comments');
   wireActivityMedia(el);
-  if (a.chart) requestAnimationFrame(() => sharedCharts($('#s-charts', el), a));
+  if (activitySamples(a)) {
+    const box = $('#s-charts', el); let width = 0;
+    redrawCharts = () => { if (!box.isConnected || !box.clientWidth) return; width = box.clientWidth; sharedCharts(box, a); };
+    if (!$('[data-pane="charts"]', el).hidden) requestAnimationFrame(redrawCharts);
+    const observer = new ResizeObserver(() => { if (box.isConnected && box.clientWidth && Math.abs(box.clientWidth - width) > 20) redrawCharts(); });
+    observer.observe(box); viewResources.set(box, () => observer.disconnect());
+  }
 }
 function sharedCharts(box, a) {
-  const c = a.chart, x = c.d && c.d[c.d.length - 1] > 100 ? c.d : c.t, byDist = x === c.d, rows = [];
+  const c = a.chart, x = c.d && (c.d[c.d.length - 1] > 100 || !c.t) ? c.d : c.t, byDist = x === c.d, rows = [];
   if (!x) { box.closest('.card').remove(); return; }
   const foot = FOOT.includes(a.sport) && a.sport !== 'swim';
-  if (c.speed) rows.push(foot ? {name: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s1'), invert: true, clip: true}
-                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s1'), clip: true});
-  if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s2'), avg: a.avg_hr});
+  if (c.speed) rows.push(foot ? {name: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s5'), invert: true, clip: true}
+                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s5'), clip: true});
+  if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s1'), avg: a.avg_hr});
   if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--hike')});
   chartStack(box, x, rows, {xfmt: (v) => (byDist ? `${U.dist(v)} ${U.du()}` : dur(v))});
 }
@@ -503,104 +518,98 @@ function shareFields(box, aid, s) {
 // ---------- Me > Friends: search by name or username, requests, your friends ----------
 const profileTab = (login) => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity';
 route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
-  login = decodeURIComponent(login);
-  const own = !!App.me && login.toLowerCase() === App.me.login.toLowerCase();
-  el.innerHTML = `<div class="top">${backBtn(own ? 'Me' : 'People')}<a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a></div><div id="person-profile">${skel(2)}</div>`;
-  wireBack(el, own ? '/me' : '/me/friends');
-  const box = $('#person-profile', el);
-  const path0 = '/api/people/' + encodeURIComponent(login) + '/profile' + (own ? '?as_friend=true' : '');
-  const draw = (r) => {
-    const p = r.person;
-    // nothing shared yet: no empty 0.0 mi charts or zero totals, just the next step (#232 G)
-    const empty = !r.overview?.activities;
-    // Your own profile is shown the way friends see it, with your name, bio and photo editable in place (2026-10-16, Ben)
-    const action = r.mine ? '' :
-      r.status === 'friends' ? `<button type="button" class="ghost" data-person-manage>Friends ${svg('more')}</button>` :
-      r.status === 'sent' ? '<button class="ghost" data-person-action="cancel">Request sent</button>' :
-      r.status === 'incoming' ? '<button class="primary" data-person-action="accept">Approve request</button>' : '<button class="primary" data-person-action="add">Add friend</button>';
-    box.innerHTML = `${r.mine ? '<div class="pf-preview"><b>Your profile, as friends see it</b><span>Only shared workouts appear here. You choose what to show.</span></div>' : ''}
-      <div class="profile public-profile">${r.mine ? `<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p, 'lg')}<span class="av-cam">${svg('camera')}</span></button>` : avatar(p, 'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div><small class="muted">Joined ${esc(fdate(p.created, {month: 'long', year: 'numeric'}))}</small></div></div>
-      ${p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}<div class="profile-actions">${r.mine ? '<button type="button" class="primary" id="pf-edit-profile">Edit profile</button><button type="button" class="ghost" id="pf-share">Share profile</button>' : action + '<button class="ghost" data-person-report>Report or block</button>'}</div>
-      ${r.mine ? '<div class="profile-tools"><a href="/me/settings">Settings</a></div>' : ''}
-      ${empty ? '' : profileProgress(r.recent, r.mine)}
-      ${empty ? '' : `<section class="card profile-mileage" id="profile-mileage" aria-label="Shared distance chart"></section><div class="card"><h2>All-time shared progress</h2><div class="hero">${stat('Activities', r.overview.activities)}${stat('Distance', U.dist(r.overview.distance_m), U.du())}${r.overview.time_s >= 3600 ? stat('Time', (r.overview.time_s / 3600).toLocaleString([], {maximumFractionDigits: 1}), 'h') : stat('Time', dur(r.overview.time_s, true))}</div>
-        <div class="sport-overview">${(r.sports || []).map((s) => `<div class="row"><b>${esc(SPORT_NAMES[s.sport] || s.sport)}</b><span class="num">${s.activities} activities · ${s.distance_m ? U.dist(s.distance_m) + ' ' + U.du() : dur(s.time_s, true)}</span></div>`).join('')}</div><p class="small muted">${r.mine ? 'Activities set to “Only me” are left out here, as they are for everyone else.' : 'Only activities this person shares with you are included.'}</p></div>`}
-      <h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length ? r.items.map((a) => postCard(a)).join('') : `<div class="card empty"><b>No shared activities yet</b>${r.mine ? 'Choose a workout and use Sharing to add it to your profile.<a class="ghost wide" href="/activity?view=mine">Choose a workout</a>' : 'This person has not shared any activities you can see.'}</div>`}</div>
-      <button class="ghost wide" id="person-more"${r.next ? '' : ' hidden'}>Show more</button>`;
-    if (!empty) mileageChart($('#profile-mileage', box), r.mileage || {});
-    feedMaps(box); wireCheers(box);
-    if (r.mine) wireProfileEditing(box, p, reload);
-    const act = $('[data-person-action]', box);
-    if (act) act.onclick = async () => {
-      act.disabled = true;
-      try {
-        const path = '/api/friends/' + encodeURIComponent(p.login);
-        if (act.dataset.personAction === 'cancel') await api(path, {method: 'DELETE'});
-        else if (act.dataset.personAction === 'accept') await api(path + '/accept', json('POST', {}));
-        else await api('/api/friends', json('POST', {login: p.login}));
-        invalidate('/api/friends'); invalidate('/api/people/'); invalidateFeed();
-        if (box.isConnected) draw(await api(path0));
-      } catch (x) { toast(x.message); act.disabled = false; }
+  login=decodeURIComponent(login);
+  const own=!!App.me&&login.toLowerCase()===App.me.login.toLowerCase(),owner=readOwner();
+  let audience=new URLSearchParams(location.search).get('preview')==='member'?'member':'friend',revision=0;
+  const path=()=>'/api/people/'+encodeURIComponent(login)+'/profile'+(own?'?as_friend=true&preview='+audience:'');
+  el.innerHTML=`<div class="top">${backBtn(own?'Me':'People')}<span class="profile-page-title">Shared profile</span><a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a></div><div id="person-profile">${skel(2)}</div>`;
+  wireBack(el,own?'/me':'/me/friends');
+  const box=$('#person-profile',el),active=()=>box.isConnected&&owner===readOwner();
+  const draw=r=>{
+    if(!active())return;
+    if(own&&audience==='member'&&r.preview!=='member'){box.innerHTML='<p class="callout">This server needs an update to preview other members.</p><button type="button" class="ghost wide" id="pf-friend-fallback">Preview as friends</button>';$('#pf-friend-fallback',box).onclick=()=>setAudience('friend');return;}
+    r={...r,layout:ProfileLayout.normalize(r.layout)};
+    const p=r.person,action=r.mine?'':r.status==='friends'?`<button type="button" class="ghost" data-person-manage>Friends ${svg('more')}</button>`:r.status==='sent'?'<button type="button" class="ghost" data-person-action="cancel">Request sent</button>':r.status==='incoming'?'<button type="button" class="primary" data-person-action="accept">Approve request</button>':'<button type="button" class="primary" data-person-action="add">Add friend</button>';
+    box.innerHTML=`${r.mine?`<div class="pf-preview"><label>Preview as<select id="pf-audience"><option value="friend"${audience==='friend'?' selected':''}>Approved friends</option><option value="member"${audience==='member'?' selected':''}>Other members</option></select></label><p class="small muted">${audience==='friend'?'Activities shared with friends or everyone.':'Activities shared with everyone.'}</p></div>`:''}
+      ${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}
+      <div class="profile public-profile">${r.mine?`<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p,'lg')}<span class="av-cam">${svg('camera')}</span></button>`:avatar(p,'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div>${r.mine?`<a class="profile-friends" href="/me/friends">${Number.isInteger(r.friend_count)?friendCountText(r.friend_count):'Friends'} ${svg('chev')}</a>`:Number.isInteger(r.friend_count)?`<span class="profile-friends">${friendCountText(r.friend_count)}</span>`:''}</div></div>
+      ${p.bio?`<p class="profile-bio">${esc(p.bio)}</p>`:''}<div class="profile-actions">${r.mine?'<button type="button" class="primary" id="pf-edit-profile">Edit profile</button><button type="button" class="ghost" id="pf-share">Share profile</button>':action+'<button type="button" class="ghost" data-person-report>Report or block</button>'}</div>
+      ${r.mine?'<div class="profile-tools"><button type="button" class="linkbtn" id="pf-card">Public card &amp; QR</button></div><p class="small muted profile-private-note">'+svg('lock')+'Food, body data and Kit stay private.</p>':''}
+      ${ProfileLayout.content(r)}${r.mine&&!r.layout.sections.length?'<p class="small muted">Your profile shows your identity only. Add sections in Edit profile.</p>':''}`;
+    ProfileLayout.mount(box,r);
+    if(r.mine){
+      wireProfileEditing(box,{...p,profile_layout:r.layout},reload);$('#pf-card',box).onclick=()=>KinettaCard.open();
+      $('#pf-audience',box).onchange=e=>setAudience(e.target.value);
+    }
+    const act=$('[data-person-action]',box);
+    if(act)act.onclick=async()=>{
+      act.disabled=true;
+      try{
+        const url='/api/friends/'+encodeURIComponent(p.login);
+        if(act.dataset.personAction==='cancel')await api(url,{method:'DELETE'});
+        else if(act.dataset.personAction==='accept')await api(url+'/accept',json('POST',{}));
+        else await api('/api/friends',json('POST',{login:p.login}));
+        invalidate('/api/friends');invalidate('/api/people/');invalidate('/api/me');invalidateFeed();if(active())await reload();
+      }catch(x){if(active()){toast(x.message);act.disabled=false;}}
     };
-    const manage = $('[data-person-manage]', box);
-    if (manage) manage.onclick = () => friendshipSheet(p, ({blocked}) => blocked ? go('/me/friends', {replace:true}) : reload());
-    const report = $('[data-person-report]', box);
-    if (report) report.onclick = () => reportSheet(p, {}, () => go('/me/friends', {replace: true}));
-    const more = $('#person-more', box);
-    let next = r.next;
-    more.onclick = async () => {
-      if (!next) return; more.disabled = true;
-      try {
-        const query = new URLSearchParams(next);
-        const fresh = await api(path0 + (path0.includes('?') ? '&' : '?') + query);
-        if (!box.isConnected) return;
-        $('#person-activities', box).insertAdjacentHTML('beforeend', fresh.items.map((a) => postCard(a)).join(''));
-        next = fresh.next; more.hidden = !next; feedMaps(box); wireCheers(box);
-      } catch (x) { toast(x.message); }
-      more.disabled = false;
+    const manage=$('[data-person-manage]',box);if(manage)manage.onclick=()=>friendshipSheet(p,({blocked})=>blocked?go('/me/friends',{replace:true}):reload());
+    const report=$('[data-person-report]',box);if(report)report.onclick=()=>reportSheet(p,{},()=>go('/me/friends',{replace:true}));
+    const more=$('#person-more',box);let next=r.next;
+    if(more)more.onclick=async()=>{
+      if(!next||more.disabled||!active())return;more.disabled=true;more.textContent='Loading…';const version=revision;
+      try{const fresh=await api(path()+(own?'&':'?')+new URLSearchParams(next));if(!active()||version!==revision)return;
+        $('#person-activities',box).insertAdjacentHTML('beforeend',fresh.items.map(a=>postCard(a)).join(''));next=fresh.next;more.hidden=!next;feedMaps(box);wireCheers(box);
+      }catch(x){if(active()&&version===revision)toast(x.message);}finally{more.disabled=false;more.textContent='Show more';}
     };
   };
-  const reload = async () => { invalidate('/api/people/'); try { const r = await api(path0); if (box.isConnected) draw(r); } catch (x) { toast(x.message); } };
-  await load(path0, draw, {maxAge: 0});
+  const reload=async()=>{const version=++revision;invalidate('/api/people/');box.setAttribute('aria-busy','true');
+    // Remove the previous projection while changing audiences; a failed read must not masquerade as the new preview.
+    box.innerHTML=skel(2);
+    try{const r=await api(path());if(active()&&version===revision)draw(r);}
+    catch(x){if(active()&&version===revision)showError(box,x);}
+    finally{if(active()&&version===revision)box.removeAttribute('aria-busy');}
+  };
+  function setAudience(next){audience=next;const q=new URLSearchParams(location.search);q.set('preview',audience);history.replaceState(history.state,'',location.pathname+'?'+q);reload();}
+  await load(path(),draw,{maxAge:0});
 });
 
-function friendshipSheet(p, onChange) {
-  sheet(p.name, `<p>You’re friends on Kinetta.</p><a class="ghost wide" href="${profileHref(p)}" data-close>View profile</a><button class="ghost wide danger" type="button" data-remove>Remove friend</button><button class="ghost wide danger" type="button" data-block>Block</button><p class="err" role="alert"></p>`, (b, close) => {
-    const change = (selector, block) => {
-      const button = $(selector, b);
-      button.onclick = async () => {
-        const message = block ? `Block ${p.name}? Neither of you can find or see the other on Kinetta. They aren’t told.` : `Remove ${p.name} from your friends? You’ll stop seeing each other’s friends-only activities.`;
-        if (!confirm(message)) return;
-        $$('button', b).forEach(x => x.disabled = true);
-        try {
-          await api(block ? `/api/people/${encodeURIComponent(p.login)}/block` : `/api/friends/${encodeURIComponent(p.login)}`, block ? json('POST', {}) : {method:'DELETE'});
-          invalidate('/api/friends'); invalidate('/api/people/'); invalidate('/api/shared/'); invalidate('/api/blocks'); invalidateFeed();
-          close(); toast(block ? `${p.name} is blocked` : 'Friend removed'); await onChange({blocked:block});
-        } catch (x) { $('.err', b).textContent = x.message; $$('button', b).forEach(x => x.disabled = false); }
-      };
+const friendCountText = n => n===0?'No friends yet':`${n} ${n===1?'friend':'friends'}`;
+function friendChangeSheet(p, block, onChange) {
+  const owner=readOwner(),verb=block?'Block':'Remove';
+  const message=block?`Neither of you can find or see the other on Kinetta. You stop being friends. They aren’t told.`:`You’ll stop seeing each other’s friends-only activities. They aren’t told.`;
+  sheet(`${verb} ${p.name}?`, `<p>${esc(message)}</p><p class="err" role="alert"></p><div class="actions"><button type="button" class="ghost" data-keep>${block?'Cancel':'Keep'}</button><button type="button" class="primary danger-btn" data-confirm>${verb}</button></div>`,(b,close)=>{
+    const live=()=>owner===readOwner()&&b.isConnected;
+    $('[data-keep]',b).onclick=close;
+    $('[data-confirm]',b).onclick=async()=>{
+      if(!live()||$('[data-confirm]',b).disabled)return;
+      $$('button',b).forEach(x=>x.disabled=true);
+      try {
+        await api(block?`/api/people/${encodeURIComponent(p.login)}/block`:`/api/friends/${encodeURIComponent(p.login)}`,block?json('POST',{}):{method:'DELETE'});
+        if(owner!==readOwner())return;
+        invalidate('/api/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();
+        close();toast(block?`${p.name} is blocked`:'Friend removed');await onChange?.({blocked:block,login:p.login});
+      }catch(x){if(live()){$('.err',b).textContent=x.message;$$('button',b).forEach(x=>x.disabled=false);}}
     };
-    change('[data-remove]', false); change('[data-block]', true);
   });
 }
-
-// These numbers are calculated on the server from the same workouts the viewer can open.
-function profileProgress(recent, mine) {
-  if (!recent) return '';
-  const now = recent.current, before = recent.previous;
-  return `<section class="card profile-progress"><h2>Last 30 days</h2><p class="small muted">${esc(fdate(recent.start + 'T12:00', {month:'short',day:'numeric'}))} – ${esc(fdate(recent.end + 'T12:00', {month:'short',day:'numeric'}))}</p>
-    ${now.activities ? `<div class="stats3">${stat('Workouts', now.activities)}${now.distance_m > 0 ? stat('Distance', U.dist(now.distance_m, 1), U.du()) : stat('Active days', now.active_days)}${stat('Time', dur(now.time_s, true))}</div><p class="profile-consistency"><b>${now.active_days} active ${now.active_days === 1 ? 'day' : 'days'}</b> · ${before.activities} ${before.activities === 1 ? 'workout' : 'workouts'} in the previous 30 days</p>` : `<p class="muted">${mine ? 'Your shared workouts will build your progress here.' : 'No shared workouts in this period.'}</p>`}
-    <p class="small muted">${mine ? 'Your progress from workouts shared with friends or everyone.' : 'Based on workouts shared with you.'}</p></section>`;
+function friendshipSheet(p, onChange) {
+  sheet(p.name, `<p>You’re friends on Kinetta.</p><a class="ghost wide" href="${profileHref(p)}" data-close>View profile</a><button class="ghost wide danger" type="button" data-remove>Remove friend</button><button class="ghost wide danger" type="button" data-block>Block</button>`,(b,close)=>{
+    for(const [selector,block] of [['[data-remove]',false],['[data-block]',true]])$(selector,b).onclick=()=>{close();friendChangeSheet(p,block,onChange);};
+  });
 }
 
 function shareProfile(p) {
+  const owner=readOwner(),same=()=>owner===readOwner();
   const url = `${appBase()}${profileHref(p)}`;
-  const copySheet = () => sheet('Share your profile', `<p>People need a Kinetta account to open your profile. Your sharing choices still apply.</p><label class="form">Profile link<input readonly value="${esc(url)}" aria-label="Profile link"></label><button type="button" class="primary wide" id="pf-copy">Copy link</button><p class="small muted" id="pf-copy-status" role="status"></p>`, (b) => {
+  const copySheet = () => {if(!same())return;return sheet('Share your profile', `<p>People need a Kinetta account to open your profile. Your sharing choices still apply.</p><label class="form">Profile link<input readonly value="${esc(url)}" aria-label="Profile link"></label><button type="button" class="primary wide" id="pf-copy">Copy link</button><p class="small muted" id="pf-copy-status" role="status"></p>`, (b) => {
+    const live=()=>same()&&b.isConnected;
     const input = $('input', b); input.onclick = () => input.select();
     $('#pf-copy', b).onclick = async () => {
-      try { await navigator.clipboard.writeText(url); $('#pf-copy-status', b).textContent = 'Link copied'; }
-      catch { input.select(); $('#pf-copy-status', b).textContent = 'Select and copy the link above.'; }
+      if(!live())return;
+      try { await navigator.clipboard.writeText(url); if(live())$('#pf-copy-status', b).textContent = 'Link copied'; }
+      catch { if(live()){input.select();$('#pf-copy-status', b).textContent = 'Select and copy the link above.';} }
     };
-  });
+  });};
   if (navigator.share) navigator.share({title: `${p.name} on Kinetta`, url}).catch((e) => { if (e.name !== 'AbortError') copySheet(); });
   else copySheet();
 }
@@ -609,22 +618,30 @@ function shareProfile(p) {
 // Your own invite link: whoever opens it while signed in becomes your friend at once; a new account through it, once its
 // email is confirmed. The share sheet says so, so it goes only to people you'd add yourself.
 async function inviteFriends() {
+  const owner=readOwner(),same=()=>owner===readOwner();
   let link;
-  try { link = await api('/api/friends/link'); } catch (x) { toast(x.message); return; }
+  try { link = await api('/api/friends/link'); } catch (x) { if(same())toast(x.message); return; }
+  if(!same())return;
   const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
   const text = `Join me on Kinetta so we can follow each other's workouts.`;
-  const copySheet = () => sheet('Invite friends', `<p>Anyone who opens this link becomes your friend on Kinetta, so send it only to people you’d add yourself. It works for 30 days.</p>
+  const copySheet = () => sheet('Invite friends', `<p>Posting somewhere? <button type="button" class="linkbtn" id="iv-public-card">Use your card</button> so you approve requests.</p><p>Anyone who opens this link becomes your friend on Kinetta, so send it only to people you’d add yourself. It works for 30 days.</p>
     <label class="form">Your invite link<input readonly value="${esc(url)}" aria-label="Invite link"></label><button type="button" class="primary wide" id="iv-copy">Copy link</button>
     <p class="small muted" id="iv-status" role="status"></p><button type="button" class="linkbtn muted" id="iv-new">Make a new link (the old one stops working)</button>`, (b, close) => {
+    const live=()=>same()&&b.isConnected;
+    $('#iv-public-card',b).onclick=()=>{if(live()){close();KinettaCard.open();}};
     const input = $('input', b); input.onclick = () => input.select();
     $('#iv-copy', b).onclick = async () => {
-      try { await navigator.clipboard.writeText(`${text} ${url}`); $('#iv-status', b).textContent = 'Link copied'; }
-      catch { input.select(); $('#iv-status', b).textContent = 'Select and copy the link above.'; }
+      if(!live())return;
+      try { await navigator.clipboard.writeText(`${text} ${url}`); if(live())$('#iv-status', b).textContent = 'Link copied'; }
+      catch { if(live()){input.select();$('#iv-status', b).textContent = 'Select and copy the link above.';} }
     };
-    $('#iv-new', b).onclick = async () => { try { await api('/api/friends/link/new', json('POST', {})); close(); toast('New invite link made'); inviteFriends(); } catch (x) { toast(x.message); } };
+    $('#iv-new', b).onclick = async () => {
+      const button=$('#iv-new',b);if(!live()||button.disabled)return;button.disabled=true;
+      try { await api('/api/friends/link/new', json('POST', {}));if(!live())return;close();toast('New invite link made');inviteFriends(); }
+      catch (x) { if(live()){toast(x.message);button.disabled=false;} }
+    };
   });
-  if (navigator.share) navigator.share({title: 'Join me on Kinetta', text, url}).catch((e) => { if (e.name !== 'AbortError') copySheet(); });
-  else copySheet();
+  copySheet();
 }
 const hiddenKey = () => 'kinetta.hideSuggest:' + readOwner();
 const hiddenPeople = () => { try { return new Set(store.get(hiddenKey()) || []); } catch { return new Set(); } };
@@ -654,19 +671,6 @@ function peopleRow(box, people, {title = 'People you may know', onChange, invite
       invalidate('/api/friends'); invalidate('/api/people/'); onChange?.();
     } catch (x) { toast(x.message); b.disabled = false; }
   });
-}
-// People to add lead the Friends feed until you have a few friends; afterwards they live on the Friends page.
-// Asked at most every five minutes, so opening the feed stays a single read.
-async function feedPeople(box) {
-  const owner = readOwner(), hit = App.cache.get('people:feed');
-  let people = hit && hit.owner === owner && Date.now() - hit.at < 300000 ? hit.people : null;
-  if (!people) {
-    const f = await api('/api/friends').catch(() => null);
-    people = !f || f.friends.length >= 5 ? [] : (await suggestedPeople()).slice(0, 10);
-    if (owner !== readOwner()) return;
-    App.cache.set('people:feed', {owner, people, at: Date.now(), few: !!f && f.friends.length < 5});
-  }
-  if (box.isConnected && App.cache.get('people:feed').few) peopleRow(box, people.filter((p) => !hiddenPeople().has(p.login)), {onChange: () => App.cache.delete('people:feed')});
 }
 // The page an invite link opens when you're signed in: who sent it, and one button.
 route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
@@ -703,10 +707,28 @@ function editProfile(p, reload) {
     <button type="button" class="ghost wide" id="pf-editor-photo">${svg('camera')}Change profile photo</button>
     <label>Name<input name="name" value="${esc(p.name)}" maxlength="60" required autocomplete="name" enterkeyhint="next"></label>
     <label>Bio<textarea name="bio" rows="3" maxlength="280" placeholder="What you enjoy, what you’re working toward…">${esc(p.bio || '')}</textarea></label>
-    <p class="small muted" id="pf-bio-count">${(p.bio || '').length}/280</p><p class="err" role="alert"></p>
+    <p class="small muted" id="pf-bio-count">${(p.bio || '').length}/280</p>${typeof ProfileLayout==='undefined'||!App.me.profile_layout?'':ProfileLayout.editorHtml()}<p class="err" role="alert"></p>
     <div class="actions"><button type="button" class="ghost" data-cancel>Cancel</button><button class="primary" type="submit">Save profile</button></div></form>`, (b, close) => {
     const form = $('#pf-editor', b), save = $('[type="submit"]', form);
     $('#pf-editor-photo', b).onclick = photo;
+    const draft=$('#pf-draft',b);let previewVersion=0;
+    const layout=typeof ProfileLayout==='undefined'||!App.me.profile_layout?null:ProfileLayout.editor(b,p.profile_layout||App.me.profile_layout,{onChange:()=>{previewVersion++;draft.hidden=true;}});
+    if(layout){
+      viewResources.set(draft,()=>{previewVersion++;});
+      const preview=async(audience='friend')=>{
+        if(owner!==readOwner()||!b.isConnected)return;const version=++previewVersion;
+        draft.hidden=false;draft.innerHTML=skel(1);
+        try{
+          const r=await api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview='+audience);
+          if(owner!==readOwner()||!b.isConnected||version!==previewVersion)return;
+          if(audience==='member'&&r.preview!=='member')throw Error('This server needs an update to preview other members.');
+          draft.innerHTML=`<h3>Draft preview</h3><label>Preview as<select id="pf-draft-audience"><option value="friend"${audience==='friend'?' selected':''}>Approved friends</option><option value="member"${audience==='member'?' selected':''}>Other members</option></select></label><div class="profile"><div><h2>${esc(form.elements.name.value.trim())}</h2><small>@${esc(App.me.login)}</small></div></div><p class="profile-bio">${esc(form.elements.bio.value.trim())}</p>${r.profile_hidden?'<p class="callout warn">Your profile is currently hidden.</p>':''}${ProfileLayout.content(r,layout.value(),{preview:true})}`;
+          ProfileLayout.mount(draft,r);$('#pf-draft-audience',b).onchange=e=>preview(e.target.value);
+        }catch(x){if(owner===readOwner()&&b.isConnected&&version===previewVersion){draft.innerHTML=`<p class="small muted">${esc(x.message||'Preview could not load.')}</p><button type="button" class="ghost wide" data-preview-retry>Retry preview</button>`;$('[data-preview-retry]',draft).onclick=()=>preview(audience);}}
+      };
+      $('#pf-preview-draft',b).onclick=()=>preview();
+      form.addEventListener('input',e=>{if(!draft.contains(e.target)){previewVersion++;draft.hidden=true;}});
+    }
     form.elements.bio.oninput = () => { $('#pf-bio-count', b).textContent = `${form.elements.bio.value.length}/280`; };
     $('[data-cancel]', form).onclick = close;
     form.onsubmit = async (e) => {
@@ -714,29 +736,33 @@ function editProfile(p, reload) {
       const name = form.elements.name.value.trim(), bio = form.elements.bio.value.trim();
       save.disabled = true; save.textContent = 'Saving…'; $('.err', form).textContent = '';
       try {
-        const account = await api('/api/account', json('PUT', {name, bio}));
+        const body={name,bio};if(layout?.changed())body.profile_layout=layout.value();
+        const account = await api('/api/account', json('PUT', body));
         if (owner !== readOwner()) { close(); return; }
-        App.me.name = account.name; App.me.bio = bio;
+        App.me.name = account.name; App.me.bio = bio;if(account.profile_layout)App.me.profile_layout=account.profile_layout;
         invalidate('/api/me'); invalidate('/api/people/'); invalidateFeed(); keep('/api/me', App.me);
-        close(); toast('Profile saved'); reload();
+        // The confirmed save still updates account state if its sheet was closed, without remounting a newer view.
+        if(b.isConnected){close();toast('Profile saved');reload();}
       } catch (x) { if (owner !== readOwner()) { close(); return; } $('.err', form).textContent = x.message; save.disabled = false; save.textContent = 'Save profile'; }
     };
   });
 }
 
 route(/^\/me\/friends$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1>Friends</h1>
+  el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1 id="fr-title">Friends</h1><div id="fr-list-error" role="status"></div><div id="fr-lists">${skel(1)}</div><details class="friend-discovery" id="fr-discover"><summary>Find people</summary>
     <form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
       <input type="search" name="q" placeholder="Name or @username" aria-label="Search people" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
     <p class="small muted people-search-help">Find someone on Kinetta, or <button type="button" class="linkbtn" id="fr-browse">browse people</button>.</p>
     <button type="button" class="primary wide" id="fr-invite">${svg('people')}Invite friends to Kinetta</button>
-    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-lists">${skel(1)}</div><div id="fr-suggest"></div>
+    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-suggest"></div></details>
     <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Default audience for new activities, and shared details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
+  const pageOwner=readOwner();let currentFriends=null,filterText='',friendLoadVersion=0;
+  el.insertAdjacentHTML('beforeend','<div id="friends-challenges"></div>');Challenges.mount($('#friends-challenges',el));
   const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el), suggest = $('#fr-suggest', el);
   $('#fr-invite', el).onclick = inviteFriends;
-  const drawSuggest = async () => { const people = await suggestedPeople(); if (suggest.isConnected && people.length) peopleRow(suggest, people, {invite: false, onChange: () => load('/api/friends', draw, {maxAge: 0}).catch(drawListError)}); else if (suggest.isConnected) suggest.innerHTML = ''; };
-  const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}<span class="btnrow tight">${btns}</span></div>`;
+  const drawSuggest = async () => { const people = await suggestedPeople(); if (suggest.isConnected && people.length) peopleRow(suggest, people, {invite: false, onChange: () => loadFriends()}); else if (suggest.isConnected) suggest.innerHTML = ''; };
+  const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}${p.via_card?'<small class="muted card-origin">via your card</small>':''}<span class="btnrow tight">${btns}</span></div>`;
   const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
     sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel request</button>`,
     incoming: `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button>`})[p.status] || `<button class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button>`;
@@ -746,16 +772,24 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   let last = null, people = [], known = [], browsing = false;
   const who = (login) => (people.find((p) => p.login === login) || {}).name || login;
   const drawListError = (x) => {
-    if (!lists.isConnected) return;
-    lists.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" id="fr-list-retry">Retry friends</button>`;
-    $('#fr-list-retry', lists).onclick = () => render();
+    if(!lists.isConnected||pageOwner!==readOwner())return;
+    const box=$('#fr-list-error',el);box.innerHTML=`<p class="small muted">${currentFriends?'Showing your last friends list. ':''}${esc(x.message)}</p><button type="button" class="ghost" id="fr-list-retry">Retry friends</button>`;
+    $('#fr-list-retry',box).onclick=loadFriends;
   };
-  const refresh = async () => {
-    clearTimeout(t); searchVersion++;
-    // A removed/blocked friendship also invalidates previously opened shared details.
-    invalidate('/api/feed/friends'); invalidate('/api/people/'); invalidate('/api/shared/'); invalidate('/api/blocks'); invalidateFeed(); App.cache.delete('/api/friends');
-    await load('/api/friends', draw, {maxAge: 0}).catch(drawListError);
-    if (found.isConnected) await find(true);
+  async function loadFriends(){
+    const request=++friendLoadVersion;
+    try{const r=await api('/api/friends');if(request!==friendLoadVersion||pageOwner!==readOwner()||!lists.isConnected)return;App.cache.set('/api/friends',{data:r,at:Date.now()});keep('/api/friends',r);draw(r);$('#fr-list-error',el).innerHTML='';}
+    catch(x){if(request===friendLoadVersion)drawListError(x);}
+  }
+  const refresh = async (change) => {
+    if(pageOwner!==readOwner()||!lists.isConnected)return;
+    clearTimeout(t);searchVersion++;
+    if(change?.login&&currentFriends){
+      const r={...currentFriends};for(const k of ['friends','incoming','outgoing'])r[k]=r[k].filter(p=>p.login!==change.login);
+      keep('/api/friends',r);draw(r);
+    }
+    invalidate('/api/feed/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();App.cache.delete('/api/friends');
+    await loadFriends();if(found.isConnected)await find(true);
   };
   const act = (box, sel, fn) => $$(sel, box).forEach((b) => b.onclick = async () => {
     b.disabled = true;
@@ -768,10 +802,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     act(box, '[data-ok]', async (b) => { await api(`/api/friends/${encodeURIComponent(b.dataset.ok)}/accept`, json('POST', {})); toast(`You and ${who(b.dataset.ok)} are friends now`); });
     act(box, '[data-no]', (b) => api(`/api/friends/${encodeURIComponent(b.dataset.no)}/decline`, json('POST', {})));
     act(box, '[data-cancel]', (b) => api('/api/friends/' + encodeURIComponent(b.dataset.cancel), {method: 'DELETE'}));
-    act(box, '[data-blk]', async (b) => {
-      if (!confirm(`Block ${who(b.dataset.blk)}? They can't see your activities, find you or ask to be friends, and you won't see theirs. They aren't told.`)) return false;
-      await api(`/api/people/${encodeURIComponent(b.dataset.blk)}/block`, json('POST', {})); toast(`${who(b.dataset.blk)} is blocked`);
-    });
+    $$('[data-blk]',box).forEach(b=>b.onclick=()=>friendChangeSheet(people.find(p=>p.login===b.dataset.blk),true,refresh));
   };
   const drawResults = (rows, pending = false) => {
     found.innerHTML = `<h2 class="sec-head">${browsing ? 'People on Kinetta' : 'Search results'}</h2><div class="card list">${rows.length ? rows.map((p) => person(p, btnFor(p))).join('') : pending ? '<p class="small muted">Searching…</p>' : '<p class="small muted">No people found. Try their full username, or check the spelling.</p>'}</div>`;
@@ -780,7 +811,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   let t, searchVersion = 0;
   async function find(again) {
     const q = input.value.trim();
-    clear.hidden = !q && !browsing; lists.hidden = suggest.hidden = !!q || browsing;
+    clear.hidden = !q && !browsing; suggest.hidden = !!q || browsing;
     if (!q && !browsing) { last = null; found.innerHTML = ''; status.textContent = ''; found.setAttribute('aria-busy', 'false'); return; }
     if (q === last && !again) return; last = q;
     const request = ++searchVersion;
@@ -799,7 +830,7 @@ route(/^\/me\/friends$/, 'me', async (el) => {
     if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
     url.searchParams.delete('find'); history.replaceState(history.state, '', url.pathname + url.search);
     if (!q) { find(); return; }
-    clear.hidden = false; lists.hidden = suggest.hidden = true;
+    clear.hidden = false; suggest.hidden = true;
     const term = q.replace(/^@/, '').toLocaleLowerCase();
     drawResults(known.filter(p => p.name.toLocaleLowerCase().includes(term) || p.login.toLocaleLowerCase().includes(term)).slice(0, 20), true);
     found.setAttribute('aria-busy', 'true'); status.textContent = 'Searching…';
@@ -811,19 +842,30 @@ route(/^\/me\/friends$/, 'me', async (el) => {
   viewResources.set(f, () => { clearTimeout(t); searchVersion++; });
   f.onsubmit = (e) => { e.preventDefault(); clearTimeout(t); find(true); };
   const draw = (r) => {
+    r={...r,friends:[...r.friends].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'})||a.login.localeCompare(b.login))};
+    currentFriends=r;App.me.friend_count=r.friends.length;$('#fr-title',el).textContent=`Friends (${r.friends.length})`;
     Social.set(r.incoming.length);
     known = r.incoming.map(p => ({...p, status:'incoming'})).concat(r.friends.map(p => ({...p,status:'friends'})), r.outgoing.map(p => ({...p,status:'sent'})));
     people = [...new Map(people.concat(known).map(p => [p.login, p])).values()];
     lists.innerHTML = (r.incoming.length ? `<h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2><div class="card list">${r.incoming.map((p) =>
         person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button><button class="ghost sm danger" data-blk="${esc(p.login)}" aria-label="Block ${esc(p.name)}">Block</button>`, 'req')).join('')}</div>` : '') +
-      `<h2 class="sec-head">Your friends${r.friends.length ? ` <span class="count">${r.friends.length}</span>` : ''}</h2><div class="card list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="icon-btn" type="button" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button>`)).join('')
-        : '<p class="small muted">No friends yet. Search for someone above. They approve it first, then you each see what the other shares with friends.</p>'}</div>` +
+      `<h2 class="sec-head">Your friends (${r.friends.length})</h2>${r.friends.length>8?'<label class="friend-filter">Filter your friends<input type="search" id="fr-filter" placeholder="Name or @username" autocomplete="off"></label>':''}<div class="card list" id="fr-own-list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="ghost sm" type="button" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">Friends ${svg('chev')}</button>`)).join('')
+        : '<p class="small muted">No friends yet. <button type="button" class="linkbtn" data-find-people>Find people</button> or <button type="button" class="linkbtn" data-invite-empty>Invite friends</button>. You each approve the friendship first.</p>'}</div>` +
       (r.outgoing.length ? `<h2 class="sec-head">Requests you sent</h2><div class="card list">${r.outgoing.map((p) => person(p, `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel</button>`)).join('')}</div>` : '');
+    const filter=$('#fr-filter',lists),filterRows=()=>{
+      const term=filterText.trim().replace(/^@/,'').toLocaleLowerCase();let shown=0;
+      $$('#fr-own-list .person',lists).forEach((row,i)=>{const p=r.friends[i];row.hidden=!(p.name.toLocaleLowerCase().includes(term)||p.login.toLocaleLowerCase().includes(term));if(!row.hidden)shown++;});
+      let note=$('#fr-filter-empty',lists);if(!note){note=document.createElement('p');note.id='fr-filter-empty';note.className='small muted';$('#fr-own-list',lists).append(note);}note.textContent=shown?'':'No friends match that filter.';note.hidden=!!shown;
+    };
+    if(filter){filter.value=filterText;filter.oninput=()=>{filterText=filter.value;filterRows();};filterRows();}
+    const findButton=$('[data-find-people]',lists);if(findButton)findButton.onclick=()=>{$('#fr-discover',el).open=true;input.focus();};
+    const inviteButton=$('[data-invite-empty]',lists);if(inviteButton)inviteButton.onclick=inviteFriends;
     wire(lists);
   };
   const searching = find();
-  if (initial.has('find')) input.focus();
-  await load('/api/friends', draw, {maxAge: 0}).catch(drawListError);
+  if(initial.has('find')||initial.has('q')){$('#fr-discover',el).open=true;input.focus();}
+  const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);
+  await loadFriends();
   drawSuggest();
   await searching;
 });
@@ -847,13 +889,7 @@ function reportSheet(p, what = {}, onBlocked) {
       try { await api('/api/reports', json('POST', {login: p.login, reason: why, note: f.note.value.trim() || null, ...what})); close(); toast('Thanks. Your report was sent'); }
       catch (x) { toast(x.message); }
     };
-    $('#rp-block', b).onclick = async () => {
-      try {
-        await api(`/api/people/${encodeURIComponent(p.login)}/block`, json('POST', {})); invalidate('/api/'); invalidateFeed();
-        close(); toast(`${p.name} is blocked`);
-        if (onBlocked) onBlocked(); else go('/activity', {replace: true});
-      } catch (x) { toast(x.message); }
-    };
+    $('#rp-block',b).onclick=()=>{close();friendChangeSheet(p,true,()=>{if(onBlocked)onBlocked();else go('/activity',{replace:true});});};
   });
 }
 
@@ -917,7 +953,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 // ---------- Notifications (2026-10-11, notify.py) ----------
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
 // (/me/notifications). /notifications lights no tab (it opens from several).
-const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts'};
+const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts', milestones:'Milestones (at most one a day)',challenge_joins:'Someone joins your challenge',challenge_reminders:'Challenge reminders',challenge_finished:'Challenge finish pictures'};
 const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', report: 'lock'};
 // One notification (2026-10-23, Ben: the list felt scrunched): the person's name in bold, a quoted comment on its own
 // quieter line, a short time, and a dot for new ones instead of tinted rows.

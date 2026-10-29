@@ -1,0 +1,19 @@
+.card-preview,.public-card-picture {display:block;width:100%;max-width:420px;height:auto;margin:0 auto 20px;}
+.card-preview img {display:block;width:100%;height:auto;border-radius:16px;}
+.card-options {border:0;padding:0;margin:16px 0;min-width:0;}
+.card-options legend {font-weight:700;margin-bottom:8px;}
+.card-options .check {min-height:44px;}
+.public-card {max-width:600px;text-align:center;}
+.public-card h1 {overflow-wrap:anywhere;margin-bottom:20px;}
+.public-card .wide {margin-block:12px;}
+.card-qr-screen {background:#fff;color:#15191D;text-align:center;padding:20px;border-radius:16px;overflow-wrap:anywhere;}
+.card-qr-screen svg {width:100%;max-width:480px;display:block;margin:auto;shape-rendering:crispEdges;}
+.scrim:has(.card-qr-screen) .sheet {display:flex;flex-direction:column;height:100dvh;max-height:100dvh;width:100%;max-width:none;border-radius:0;padding-top:calc(env(safe-area-inset-top,0px) + 12px);}
+.scrim:has(.card-qr-screen) .sbody {display:flex;flex:1 0 auto;flex-direction:column;justify-content:center;}
+
+.person:has(.card-origin) {flex-wrap:wrap;}
+.person .card-origin {flex-basis:100%;padding-left:50px;}
+
+.card-preview {max-width:300px;}
+.scrim:has(#card-picture) .sheet {scroll-padding-top:calc(4rem + 36px);}
+.scrim:has(#card-picture) .sheet > header {position:sticky;top:-8px;z-index:3;background:var(--bg);padding:8px 0;margin-top:-8px;}

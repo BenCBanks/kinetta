@@ -7,10 +7,10 @@
 name: iPhone app
 on:
   pull_request:
-    paths: ["mobile/**", "app/static/**", ".github/workflows/ios.yml"]
+    paths: ["mobile/**", "app/static/**", "dev/tests/native-ui/**", ".github/workflows/ios.yml"]
   push:
     branches: [main]
-    paths: ["mobile/**", "app/static/**", ".github/workflows/ios.yml"]
+    paths: ["mobile/**", "app/static/**", "dev/tests/native-ui/**", ".github/workflows/ios.yml"]
   schedule:
     - cron: "0 14 * * 1,4"      # Monday and Thursday, 9-10 am US Eastern
   workflow_dispatch:
@@ -138,8 +138,41 @@ jobs:
           path: Kinetta-simulator.zip
           retention-days: 7
 
+
+  native-ui:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [compact, pro]
+    # Native iOS Simulator execution uses Apple Silicon; Intel remains the compile/archive runner.
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: actions/download-artifact@v4
+        with:
+          name: Kinetta-simulator
+          path: ${{ runner.temp }}/simulator
+      - name: Unpack the unsigned universal Simulator app
+        run: unzip -q "$RUNNER_TEMP/simulator/Kinetta-simulator.zip" -d "$RUNNER_TEMP/simulator"
+      - name: Check native WebView layout with fictional records
+        timeout-minutes: 23
+        run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/native-ui" --device "${{ matrix.device }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ui-fictional-evidence-${{ matrix.device }}
+          path: |
+            ${{ runner.temp }}/native-ui/*.png
+            ${{ runner.temp }}/native-ui/*.json
+          retention-days: 7
+
   testflight:
-    needs: [changes, build]
+    needs: [changes, build, native-ui]
     if: needs.changes.outputs.release == '1' && github.ref == 'refs/heads/main'
     runs-on: macos-26-intel
     timeout-minutes: 45

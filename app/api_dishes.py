@@ -47,7 +47,7 @@ for words, unit, grams in (
         (('l', 'litre', 'litres', 'liter', 'liters'), 'l', 1000),
         (('tbsp', 'tbsps', 'tbs', 'tbl', 'tablespoon', 'tablespoons'), 'tbsp', None),   # weight depends on the food
         (('tsp', 'tsps', 'teaspoon', 'teaspoons'), 'tsp', None),
-        (('cup', 'cups'), 'cup', None),
+        (('cup', 'cups'), 'cup', None), (('shot', 'shots'), 'shot', None),
         (('pinch', 'pinches'), 'pinch', None), (('clove', 'cloves'), 'clove', None),
         (('slice', 'slices'), 'slice', None), (('can', 'cans', 'tin', 'tins'), 'can', None),
         (('piece', 'pieces'), 'piece', None), (('handful', 'handfuls'), 'handful', None)):
@@ -283,6 +283,8 @@ class DishIn(BaseModel):
 @router.post('')
 def dish_add(body: DishIn, user=Depends(current_user)):
     with db.connect() as c:
+        # Serialize empty-draft retries and the library cap across tabs before personal rows.
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         name = (body.name or '').strip()
         # tapping Start a new dish twice shouldn't leave a row of empty dishes: reopen the empty one you already have
         empty = c.execute(f"SELECT id FROM dishes WHERE user_id = %(u)s AND {EMPTY} ORDER BY created DESC LIMIT 1",

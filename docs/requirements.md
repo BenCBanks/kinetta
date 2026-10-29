@@ -2,6 +2,8 @@
 
 Keep one ordered roadmap in [ROADMAP.md](../ROADMAP.md), and one GitHub issue for each independently reviewable change. Plain language is enough; implementation details can be worked out during development.
 
+For work spanning several issues, keep a separate acceptance checklist with current status and unresolved device/release steps. The current example is [the launch-readiness checklist](launch-readiness.md).
+
 For each issue, fill in:
 
 ```text

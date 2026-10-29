@@ -438,6 +438,18 @@ def power_curve(S):
     return out
 
 
+def clean_chart(chart, speed_available=True):
+    """Older indoor recordings contain generated zero-speed lines; filter at read time too."""
+    if not chart: return None
+    chart = dict(chart)
+    if not speed_available:
+        chart.pop('speed',None);chart.pop('gap_speed',None)
+    for key in ('speed', 'gap_speed', 'hr'):
+        if not any(isinstance(v, (int, float)) and math.isfinite(v) and v > 0 for v in chart.get(key) or []):
+            chart.pop(key, None)
+    return chart if any(chart.get(k) for k in ('speed', 'gap_speed', 'hr', 'alt', 'cad', 'power')) else None
+
+
 def chart_series(S, sport, points=600):
     """Down-sampled series for the activity charts (by distance), so phones get small payloads."""
     n = S['n']
@@ -456,4 +468,4 @@ def chart_series(S, sport, points=600):
         a = S.get(k)
         if a is not None and not np.isnan(a).all():
             out[key] = [None if np.isnan(x) else round(float(x), 1) for x in a[idx]]
-    return out
+    return clean_chart(out)
