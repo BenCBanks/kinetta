@@ -42,14 +42,19 @@ try:
     aid = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T01:00:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional private run'})[1]['id']
     assert runner.put(f'/api/activities/{aid}/sharing', {'visibility': 'me'})[0] == 200
     second = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T02:00:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional second run'})[1]['id']
+    for offset in range(1, 7):
+        day = today - dt.timedelta(days=offset * 5)
+        assert runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{day}T01:00:00+14:00', 'duration_s': 1800, 'distance_m': 5000, 'name': 'Fictional training run'})[0] == 200
     uid = ids[1]
     sql(f"""WITH r AS (INSERT INTO routes(user_id,sport,name) VALUES({uid},'run','Fictional loop') RETURNING id)
         UPDATE activities SET route_id=(SELECT id FROM r),geom=ST_GeomFromText('LINESTRING(-77.04 38.90,-77.03 38.91)',4326)
         WHERE user_id={uid} AND id IN ({aid},{second});
+        UPDATE activities SET effort=50 WHERE user_id={uid};
         INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time)
         SELECT user_id,id,sport,5000,'5K',1500,start_time FROM activities WHERE user_id={uid} AND id={aid};""")
     own = get(runner)
-    assert own['activities'] == own['mapped'] == 2 and own['active_days'] == 1 and own['routes'] == 1
+    active_days = len({today} | {today-dt.timedelta(days=i*5) for i in range(1,7) if today-dt.timedelta(days=i*5) >= today.replace(day=1)})
+    assert own['activities'] == 8 and own['mapped'] == 2 and own['active_days'] == active_days and own['routes'] == 1
     assert own['record']['label'] == '5K' and own['record']['elapsed_s'] == 1500
     assert get(empty) == before, 'another account must not inherit any of the runner’s facts'
     assert food.put('/api/food/targets', {'protein_target': 100})[0] == 200

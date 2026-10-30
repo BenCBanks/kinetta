@@ -1099,13 +1099,13 @@ function pHead(el, view, filters) {
   progressFilters(el, $('#p-body',el), filters);
 }
 const PEXPLORE = [
-  ['heatmap','Heatmap','See everywhere you have trained →','globe'],
-  ['plan','Training plan','Build a 5K plan around your runs →','target'],
-  ['calendar','Calendar','See training and meals day by day →','calendar'],
-  ['segments','Segments','Compare your times on fixed courses →','route'],
-  ['routes','Matched routes','Compare loops you have repeated →','activity'],
-  ['trends','Year over year','See how your training has changed →','progress'],
-  ['lifting','Lifting','See your exercises, bests and history →','workout']
+  ['heatmap','Heatmap','See where you train →','globe'],
+  ['plan','Training plan','Build a 5K plan →','target'],
+  ['calendar','Calendar','See each training day →','calendar'],
+  ['segments','Segments','Compare course times →','route'],
+  ['routes','Matched routes','Compare repeated loops →','activity'],
+  ['trends','Year over year','Compare your years →','progress'],
+  ['lifting','Lifting','See your sets and bests →','workout']
 ];
 function progressTeasers(o) {
   const date = new Date(o.today+'T12:00'), month = date.toLocaleDateString([],{month:'long'});
@@ -1130,10 +1130,10 @@ async function progressHome(el, q) {
   const sport = pSport(q), period = PPERIODS.some(p=>p[0]===q.get('period')) ? q.get('period') : 'week';
   el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
     <div class="progress-home"><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
-    <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Your form and race predictions →</span></a>
-    <a class="card progress-summary" href="/progress?view=records"><h2>${svg('trophy')}Records</h2><span data-progress-record class="small muted">Your fastest times appear here after a timed run</span></a></div>
+    <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
+    <a class="card progress-summary" href="/progress?view=records"><h2>${svg('trophy')}Records</h2><span data-progress-record class="small muted">Your fastest times, after a timed run</span></a></div>
     <h2 class="sec-head">Explore your training</h2><div class="progress-grid" id="p-explore"></div>
-    ${foodUser()?'<a class="card progress-food-summary" href="/progress?section=food"><h2>Food &amp; weight</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}
+    ${foodUser()?'<a class="card progress-food-summary" href="/progress?section=food"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}
     ${q.get('review')==='week'?'<div id="p-combined-week"></div>':''}</div>`;
   wireProgressFocus(el); wireProgressPeriods(el);
   el.addEventListener('click',e=>{const tile=e.target.closest('[data-progress-feature]');if(tile)progressVisit(tile.dataset.progressFeature);});
@@ -1144,7 +1144,7 @@ async function progressHome(el, q) {
   if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
   const owner=readOwner(), valid=()=>el.isConnected&&owner===readOwner();
   await Promise.allSettled([
-    pMileage(totals,q).catch(()=>{if(valid())totals.innerHTML='<div class="card empty">Distance by week, month and year →</div>';}),
+    pMileage(totals,q,{home:true}).catch(()=>{if(valid())totals.innerHTML='<div class="card empty">Distance by week, month and year →</div>';}),
     load('/api/progress/overview',o=>{
       if(!valid())return; progressTiles(grid,o,{ready:true});
       const r=o.record;if(r)$('[data-progress-record]',el).innerHTML=`<b>${esc(r.label)} · ${esc(dur(r.elapsed_s))}</b><small>${esc(fdate(r.start_time,{month:'short',day:'numeric',year:'numeric'}))}</small>`;
@@ -1154,6 +1154,7 @@ async function progressHome(el, q) {
     load('/api/fitness?days=60',f=>{
       if(!valid())return;const last=f.days.at(-1),p=f.predictions[0];
       if(last&&f.days.some(d=>d.fitness>0))$('[data-progress-fitness]',el).innerHTML=`<b>${last.form>5?'Fresh':last.form< -15?'Tired':'Training steadily'}</b>${p?`<small>${esc(p.label)} estimate ${esc(dur(p.seconds))}</small>`:''}`;
+      else if(p)$('[data-progress-fitness]',el).innerHTML=`<b>${esc(p.label)} · ${esc(dur(p.seconds))}</b><small>Race estimate</small>`;
     }).catch(()=>{})
   ]);
 }
@@ -1322,7 +1323,7 @@ function monthSeries(firstYm, get) {   // every month from firstYm to this month
   }
   return out;
 }
-async function pMileage(body, q) {
+async function pMileage(body, q, {home=false}={}) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
   const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
   body.innerHTML = `<div id="m-body">${skelChart()}</div>`;   // Weeks / Months / Years: the button in the row at the top
@@ -1330,7 +1331,7 @@ async function pMileage(body, q) {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
     const by = {}; for (const x of r.rows) { const o = by[x.p] = by[x.p] || {}; o[x.s] = x; }
-    if (!r.rows.length) { box.innerHTML = `<div class="card empty"><b>No activities yet</b>Your mileage by week, month and year shows up here.${startCta()}</div>`; return; }
+    if (!r.rows.length) { box.innerHTML = home ? '<div class="card empty"><p class="small muted">No activities yet. Your distance totals appear here.</p></div>' : `<div class="card empty"><b>No activities yet</b>Your mileage by week, month and year shows up here.${startCta()}</div>`; return; }
     // every period from the first activity to today
     const today = new Date(r.today + 'T12:00'), first = new Date(r.rows[0].p + 'T12:00'), all = [];
     const start = (d) => { const x = new Date(d); if (period === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); else if (period === 'month') x.setDate(1); else { x.setMonth(0); x.setDate(1); } return x; };
@@ -1358,15 +1359,15 @@ async function pMileage(body, q) {
     const cur = all[all.length - 1], last = all[all.length - 2];
     box.innerHTML = `<div class="card"><div class="stats3">
         ${stat('This ' + word, toU(val(cur)).toFixed(1), U.du())}
-        ${stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du())}
+        ${home&&avg==null?'':stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du())}
         ${stat('Best ' + word + (scoped ? ' (range)' : ''), toU(val(best)).toFixed(period === 'year' ? 0 : 1), U.du())}</div>
-        <p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>
+        ${home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>`}
         <div id="m-chart"></div>
 </div>
       <details class="fold-row table-fold"><summary><span class="grow">Show as table</span><span class="chev">${svg('chev')}</span></summary><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
           <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div></details>`;
-    requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: 190, distance: sport === 'all'}));
+    requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: home?165:190, distance: sport === 'all'}));
   });
 }
 

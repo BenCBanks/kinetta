@@ -1475,3 +1475,8 @@ Explore tiles show the signed-in person’s counts first, in a fixed order withi
 Empty or unavailable cards explain the feature without invented numbers. Only unused, no-data tiles get a small
 New mark, remembered per account/server on this device. No AI, friend data, tour or notification is involved.
 Personal totals include Only me activities. Browser screenshots and automated checks do not prove physical-iPhone behavior.
+
+Owner/PR density refinement: Progress home uses two-column Explore tiles with inline icons/New dots and short
+two-line teasers. Totals places title/sport/period on one row at390px and reflows for narrow/enlarged text. Empty
+totals collapse to a sentence; sparse averages can be omitted on home. Fitness/Records size to their content.
+Keep the existing detail calculations and charts; home uses the same values in a shorter preview.
