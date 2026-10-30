@@ -207,7 +207,7 @@ async function foodDiscovery(el) {
     const f=facts.food,change=f?.weight_change_kg;
     const items=[
       {id:'recipes',title:'Recipes & cooking',description:'Save your meals →',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
-      {id:'overview',title:'Insights',description:'See food trends →',icon:'sparkle',href:'/food?view=overview',teaser:f?.protein_days>0?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} days to explore`:null},
+      {id:'overview',title:'Insights',description:'See food trends →',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
       {id:'weight',title:'Weight',description:'Log a weigh-in →',icon:'scale',href:'/food?view=weight',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
       {id:'needs',title:'Calorie needs',description:'Your daily needs →',icon:'target',href:'/food?view=needs'},
       {id:'weeks',title:'Week by week',description:'Compare weeks →',icon:'calendar',href:'/food?view=weeks',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
