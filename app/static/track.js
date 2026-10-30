@@ -492,7 +492,7 @@ const Track = (() => {
     let selected = Math.min(choices.length-1, Math.max(0, +store.get(key + ':choice') || 0));
     const done = new URLSearchParams(location.search).get('done');
     el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">Record runs, rides and walks with GPS in the Kinetta iPhone app${App.me?.iphone_app ? ` (<a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">get it through TestFlight</a>)` : ''}. Here you can time indoor workouts, log lifting and add past activities.</p>`}<div class="track-quick" role="group" aria-label="Common activities">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${quick.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 && outdoor.length ? '<optgroup label="Outdoor · GPS">' : i===outdoor.length ? `${outdoor.length ? '</optgroup>' : ''}<optgroup label="Indoor · timer and sets">` : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
-      <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
+      <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="map-full" aria-label="Full-screen map">${svg('expand')}</button><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
       <div class="track-go"><button class="round-btn start" id="track-start"><span>Start</span></button><small id="track-start-label"></small></div><div class="track-interval-ready" id="track-interval-ready"></div>
       <p class="small danger" id="track-ready-error" role="alert"></p>
       <button type="button" class="track-prefs" id="track-options" hidden></button><p class="small muted" id="track-guidance"></p>
@@ -549,7 +549,11 @@ const Track = (() => {
       if(!choices[selected].gps||loadingMap)return;
       if(view){requestAnimationFrame(()=>{if(el.isConnected)view.map.invalidateSize();});return;}
       loadingMap=true;
-      mapInto($('#track-ready-map'), [], {still:true}).then(v=>{if(!v)return;if(!readyLive()){v.map.remove();return;}view=v;view.map.on('dragstart',()=>{readyFollow=false;});if(here)show(...here);})
+      // Pan, pinch and full screen before Start, like the recording map (Ben, 30 Oct 2026); dragging stops following you.
+      mapInto($('#track-ready-map'), []).then(v=>{if(!v)return;if(!readyLive()){v.map.remove();return;}view=v;view.map.on('dragstart',()=>{readyFollow=false;});
+        // Opening or closing full screen resizes the map from its corner; keep the dot centred while it follows you.
+        view.map.on('resize',()=>{if(readyFollow&&here&&centred)view.map.panTo([here[0],here[1]],{animate:false});});
+        wireMediaMapFull($('#track-ready-map-wrap'),()=>view,[],false,{tapArea:'.track-ready-map',refitOnClose:false});if(here)show(...here);})
         .catch(()=>{if(el.isConnected)$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';})
         .finally(()=>{loadingMap=false;});
     }

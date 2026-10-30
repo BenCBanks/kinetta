@@ -1613,6 +1613,15 @@ html.keyboard-open nav.tabs { display: none; }
 .track-locate { right: 12px; top: 12px; bottom: auto; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center;
   background: var(--card); box-shadow: 0 2px 10px #0002; color: var(--accent); }
 .track-locate svg { width: 20px; height: 20px; }
+/* Map before Start: full screen like the recording map (Ben, 30 Oct 2026). Expand sits above Locate. */
+.track-ready-map-wrap .map-full { top:12px; right:12px; }
+.track-ready-map-wrap .track-locate { top:64px; }
+.track-ready-map-wrap.full { position:fixed; inset:0; z-index:2000; }
+.track-ready-map-wrap.full .track-ready-map { position:absolute; inset:0; height:100%; border-radius:0; }
+.track-ready-map-wrap.full .map-full { top:calc(env(safe-area-inset-top) + 12px); right:calc(env(safe-area-inset-right) + 12px); }
+.track-ready-map-wrap.full .track-locate { top:calc(env(safe-area-inset-top) + 64px); right:calc(env(safe-area-inset-right) + 12px); }
+.track-ready-map-wrap.full .gps-chip { top:calc(env(safe-area-inset-top) + 18px); left:calc(env(safe-area-inset-left) + 12px); }
+.track-ready-map-wrap.full #track-ready-map .leaflet-bottom.leaflet-right { bottom:env(safe-area-inset-bottom); }
 .track-go { display: grid; justify-items: center; gap: 6px; margin: 4px 0 2px; position: relative; z-index: 1; }
 .gps-ready .track-go { margin-top: -58px; }
 .track-go small { font-weight: 650; font-size: 15px; color: var(--tx2); }
