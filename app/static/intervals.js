@@ -4,10 +4,10 @@ globalThis.Intervals=(()=>{
  const clone=x=>JSON.parse(JSON.stringify(x)),uid=()=>crypto.randomUUID();
  const scope=()=>App.me?JSON.stringify([Native.base||location.origin,App.me.id]):null;
  const key=s=>'intervals:'+scope()+':'+s;
- const memory=new Map();
+ const memory=new Map();let selectionRevision=0;
  const get=(name,fallback=null)=>scope()?(memory.has(key(name))?memory.get(key(name)):store.get(key(name)))??fallback:fallback;
- const put=(name,value)=>{if(!scope())throw Error('Sign in first.');const k=key(name);memory.set(k,clone(value));try{localStorage.setItem(k,JSON.stringify(value));return true;}catch{if(name==='selected'){memory.delete(k);toast('Could not load this preset on this device. Your previous selection and editor draft are kept.');}else toast('This device cannot keep an offline copy. Keep your editor open and save to the server.');return false;}};
- const clear=()=>{if(!scope())return;const prefix='intervals:'+scope()+':';try{for(const k of Object.keys(localStorage))if(k.startsWith(prefix))localStorage.removeItem(k);}catch{}for(const k of memory.keys())if(k.startsWith(prefix))memory.delete(k);};
+ const put=(name,value)=>{if(!scope())throw Error('Sign in first.');if(name==='selected')selectionRevision++;const k=key(name);memory.set(k,clone(value));try{localStorage.setItem(k,JSON.stringify(value));return true;}catch{if(name==='selected'){memory.delete(k);toast('Could not load this preset on this device. Your previous selection and editor draft are kept.');}else toast('This device cannot keep an offline copy. Keep your editor open and save to the server.');return false;}};
+ const clear=()=>{if(!scope())return;selectionRevision++;const prefix='intervals:'+scope()+':';try{for(const k of Object.keys(localStorage))if(k.startsWith(prefix))localStorage.removeItem(k);}catch{}for(const k of memory.keys())if(k.startsWith(prefix))memory.delete(k);};
  // Track voice preferences are per account/device and deliberately outside the checked preset content.
  const voiceKey=()=>scope()?'kinetta.track:'+scope():null;
  function voicePreferences(){const k=voiceKey(),read=name=>k?store.get(k+':'+name):null;return{voice:read('voice')??true,total:read('interval-total')??true,pace:read('interval-pace')??true};}
@@ -113,13 +113,14 @@ globalThis.Intervals=(()=>{
   });
  }
  // Explicit Use keeps one retry-safe snapshot per plan prescription, reusing identical days; never starts GPS.
- async function usePlan(workout,planId){
-  const who=scope(),revision=readOwner(),f=workout.track_intervals;if(!who||!f)throw Error('Open your plan to review this workout.');
+ async function usePlan(workout,planId,{active=()=>true}={}){
+  const who=scope(),revision=readOwner(),selectedAt=selectionRevision,f=workout.track_intervals;if(!who||!f)throw Error('Open your plan to review this workout.');
   const form={name:workout.title,run:{amount:String(f.run_min),unit:'min'},walk:{amount:String(f.walk_min),unit:'min'},repeat:String(f.repeat),warm:{amount:'5',unit:'min'},cool:{amount:'5',unit:'min'}};
   const source='plan:'+planId,signature=JSON.stringify(form);let attempt=get(source);
   if(!attempt||attempt.signature!==signature){const ids={wb:uid(),warm:uid(),main:uid(),run:uid(),walk:uid(),cb:uid(),cool:uid()};attempt={signature,id:uid(),mutation:uid(),definition:expand(build(form,ids)).definition};if(!put(source,attempt))throw Error('This device could not keep your plan selection. Try again.');}
   let response;try{response=await api('/api/interval-presets/'+attempt.id,json('PUT',{mutation_id:attempt.mutation,expected_version:null,definition:attempt.definition}));}catch(e){if(scope()===who&&readOwner()===revision&&e.status===410)put(source,null);throw e;}
   if(scope()!==who||readOwner()!==revision)throw Error('The recording account changed.');
+  if(!active()||selectionRevision!==selectedAt)throw Error('The recording selection changed. Your newer choice was kept.');
   const rows=get('library',[]).filter(r=>r.id!==response.id),compact={...response,step_count:response.steps.length};delete compact.steps;rows.unshift(compact);put('library',rows);return put('selected',clone(response));
  }
  async function verifySaveSupport(){const who=scope(),revision=readOwner();let cap;try{cap=await api('/api/interval-presets/capabilities');}catch{throw Error('This server could not confirm support for private interval results. Update or reconnect before saving.');}if(who!==scope()||revision!==readOwner())throw Error('The recording account changed.');if(cap?.schema!==1||cap.private_results!==1)throw Error('Update this server before saving a workout with private interval results.');}

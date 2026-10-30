@@ -40,6 +40,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await p.locator('#interval-open').click();await p.waitForSelector('#interval-library');if(who==='runner'){await p.locator('[data-remove]').click();assert.match(await p.locator('#interval-open').innerText(),/Intervals/);}await p.keyboard.press('Escape');
    if(who==='runner'){
     const before=(await(await get('/api/interval-presets')).json()).length;
+    if(size.root===16&&theme==='light'){
+     let release;const gate=new Promise(resolve=>release=resolve);await c.route(url=>/\/api\/interval-presets\/[0-9a-f-]+$/.test(url.pathname),async r=>{const response=await r.fetch();await gate;await r.fulfill({response});},{times:1});
+     await p.locator('[data-plan-use]').click();assert(await p.locator('#track-start').isDisabled(),'Start waits for plan loading');await p.locator('#track-setup').dispatchEvent('submit');assert.deepEqual(await p.evaluate(()=>trackFixtureCalls),[],'Enter cannot start an older selection while loading');
+     await p.locator('[data-quick="2"]').click();release();await until(p,()=>!document.querySelector('[data-plan-use]').disabled,'old plan reply finished');assert.equal(await p.evaluate(()=>Intervals.selected()),null,'a late plan reply keeps the newer choice');assert.equal(await p.locator('[data-quick="2"]').getAttribute('aria-pressed'),'true');
+    }
     await p.locator('[data-plan-use]').click();await until(p,()=>Intervals.selected()?.definition.name.includes('Run/walk'),'plan snapshot loaded');
     assert.equal(await p.evaluate(()=>Intervals.selected().totals.seconds),1800);assert.deepEqual(await p.evaluate(()=>trackFixtureCalls),[],'Use does not start GPS');
     await p.locator('[data-plan-use]').click();await until(p,()=>!document.querySelector('[data-plan-use]').disabled,'repeat Use');const after=(await(await get('/api/interval-presets')).json()).length;assert(after<=before+1,'repeated Use creates no second preset');

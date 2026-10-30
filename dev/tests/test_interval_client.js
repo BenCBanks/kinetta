@@ -49,6 +49,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require(
  assert(await I.usePlan(planWorkout,17));assert.equal(planCalls[2].path,planCalls[1].path,'repeated Use reuses its saved snapshot');
  assert(await I.usePlan({...planWorkout,day:'2026-11-02'},17));assert.equal(planCalls[3].path,planCalls[1].path,'identical prescribed days reuse a preset instead of filling the library');
  const beforeSwitch=I.selected().content_hash;let finishPlan;ctx.api=()=>new Promise(r=>finishPlan=r);const loading=I.usePlan({...planWorkout,day:'2026-11-01'},17);ctx.App.me={id:2};revision++;finishPlan({});await assert.rejects(loading,/account changed/);assert.equal(I.selected(),null,'late old-owner result cannot load into another account');ctx.App.me={id:1};revision++;assert.equal(I.selected().content_hash,beforeSwitch);
+ let finishOlder;ctx.api=()=>new Promise(r=>finishOlder=r);const older=I.usePlan(planWorkout,17);assert(I.removeSelection());finishOlder({});await assert.rejects(older,/selection changed/);assert.equal(I.selected(),null,'late plan loading cannot overwrite an explicit newer selection');
  assert(I.removeSelection());assert.equal(I.selected(),null,'Use on a plain run can explicitly remove loaded intervals');
  I.clear();assert.equal(storage.getItem(prefix+'selected'),null,'Sign-out/deletion clears only this account cache');
  console.log('PASS voice-only start (no vibration/acknowledgement), older-app update prompt, simple builder round-trip/validation, shared expansion, unsupported modes, owner switch, compact results and cache erasure');
