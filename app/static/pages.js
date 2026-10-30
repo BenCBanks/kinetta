@@ -15,26 +15,26 @@ function headline(a) {
 // One card for every activity in a list (2026-10-11 redesign, Strava-style): who and when, the name, three numbers, the
 // map edge to edge, then cheers and comments. `who` adds the person (the Feed); without it the sport leads (Mine, Today).
 // The card is a link; the footer sits outside it so the Cheers button is a real button.
-function postCard(a, {who = false} = {}) {
+function postCard(a, {who = false, compact = false} = {}) {
   const theirs = !!a.owner, href = theirs ? `/activity/friends/${a.id}` : `/activity/${a.id}`;
   const kind = a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? a.sport_label : SPORT_NAMES[a.sport];
   const badges = [];
   if (a.prs) badges.push(`<span class="badge pr">${svg('trophy')} ${a.prs} PR${a.prs > 1 ? 's' : ''}</span>`);
-  if (a.route_id) badges.push('<span class="badge">Matched route</span>');
+  if (a.route_id && !compact) badges.push('<span class="badge">Matched route</span>');
   if (a.commute) badges.push('<span class="badge">Commute</span>');
   // Only the photo and the name open the person's profile (2026-10-16, Ben: the whole row did, so taps meant for the
   // activity landed on the profile); every other part of the card opens the activity (wireCheers → wireCardTaps).
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
   const vis = a.visibility || 'me',audience=theirs?'':` · ${esc(VIS_SHORT[vis])}`;
-  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(when(a.start_time))} · ${esc(kind)}${audience}</small></span>${sportMark(a.sport)}`
+  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(when(a.start_time))} · ${esc(kind)}${audience}${compact&&a.route_id?' · <span class="post-route">Matched route</span>':''}</small></span>${compact?'':sportMark(a.sport)}`
     : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}${audience}</small></span>`;
   // the comment button opens the comments in a sheet from below, right here (2026-10-12); you can cheer your own activity too
-  const foot = reactionButtons(a.id,a)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num">${a.comments||0}</span></button>`+
+  const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num">${a.comments||0}</span></button>`+
     (theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`);
   return `<article class="card post" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <h3 class="post-title">${esc(a.name)}</h3>
     <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
-    </a>${activityMedia(a)}
+    </a>${activityMedia(a,{compact})}
     <div class="post-ft">${foot}</div></article>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
