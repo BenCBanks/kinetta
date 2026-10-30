@@ -13,7 +13,8 @@
   --s1: var(--color-series-1); --s2: var(--color-series-2); --s3: var(--color-series-3); --s4: var(--color-series-4); --s5: var(--color-series-5);
   --gold: var(--color-achievement); --silver: #9AA3A8; --bronze: #B07440;
   --tile1: var(--color-text-secondary); --tile2: var(--color-text-secondary); --tile3: var(--color-text-secondary); --tile4: var(--color-text-secondary);
-  --r: var(--radius-card); --r2: var(--radius-control); --r3: var(--radius-media); --tab-h: 66px; --segon: #FFFFFF; --segbg: #EDF0F3; --toast-bg: #15191D; --toast-tx: #F1F3F5; --toast-tx2: #B4BCC4; --toast-act: #82AAF6;
+  --r: var(--radius-card); --r2: var(--radius-control); --r3: var(--radius-media); --nav-height: 76px; --nav-padding: 8px; --nav-bottom: max(12px, calc(env(safe-area-inset-bottom) - 8px));
+  --tab-h: calc(var(--nav-height) + var(--nav-bottom) - env(safe-area-inset-bottom)); --segon: #FFFFFF; --segbg: #EDF0F3; --toast-bg: #15191D; --toast-tx: #F1F3F5; --toast-tx2: #B4BCC4; --toast-act: #82AAF6;
   --shadow: 0 1px 2px rgba(21,25,29,.03), 0 6px 22px rgba(21,25,29,.05);
   --lift: 0 10px 30px rgba(21,25,29,.14), 0 1px 3px rgba(21,25,29,.08);
   --font: var(--font-ui);
@@ -189,19 +190,44 @@ details.fold-row[open] { padding-bottom: 12px; }
    instead of the screen, and iPhone web views could leave them cut off until the first scroll. */
 @keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* a floating capsule (2026-10-13): inset from the edges, above the iPhone's home bar; the open tab sits in a evergreen selection */
-nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: max(10px, calc(env(safe-area-inset-bottom) - 8px)); max-width: 520px; margin: 0 auto;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 6px; border-radius: 32px;
-  background: color-mix(in srgb, var(--card) 92%, transparent); -webkit-backdrop-filter: saturate(1.8) blur(22px); backdrop-filter: saturate(1.8) blur(22px);
-  box-shadow: 0 10px 30px rgba(21,25,29,.12), 0 0 0 .5px rgba(21,25,29,.05); }
-nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 1px; min-height: 52px; border-radius: 26px;
-  color: var(--tx3); font-size: 10.5px; font-weight: 650; letter-spacing: .01em; transition: color .15s, background-color .15s; }
+/* Floating Frost: one stable five-tab capsule (owner-selected, 29 October 2026).
+   --tab-h reserves its actual height and bottom gap in existing sticky controls and page padding. */
+nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: var(--nav-bottom); max-width: 520px; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; height: var(--nav-height); padding: var(--nav-padding);
+  border: 1px solid var(--line); border-color: color-mix(in srgb, var(--card) 80%, var(--line)); border-radius: calc(var(--nav-height) / 2);
+  background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: 0 8px 26px rgba(21,25,29,.12), inset 0 1px 0 rgba(255,255,255,.7); }
+nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px;
+  min-width: 0; min-height: 44px; height: 100%; padding: 3px 0; border-radius: 30px;
+  color: var(--tx2); font-size: 12px; font-weight: 650; line-height: 1.15; letter-spacing: 0; transition: color .12s, background-color .12s; }
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; }
-nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750; }
+nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750;
+  box-shadow: inset 0 0 0 1px var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 82%, transparent); }
 nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
-nav.tabs :is(a,button):active { transform: scale(.94); }
-@media (prefers-color-scheme: dark) { nav.tabs { box-shadow: 0 10px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07); } }
-.tab-n { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+nav.tabs :is(a,button):active { transform: scale(.96); }
+/* Blur is confined to this small surface; unsupported browsers keep the solid base. */
+@supports (background: color-mix(in srgb, white 88%, transparent)) and ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  nav.tabs { background: color-mix(in srgb, var(--card) 88%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3); }
+}
+@media (prefers-color-scheme: dark) { nav.tabs { box-shadow: 0 8px 26px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08); } }
+@media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs :is(a,button) { font-size: 11px; } }
+@media (max-height: 700px) { :root { --nav-height: 64px; --nav-padding: 5px; --nav-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); } }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  nav.tabs { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--color-outline); }
+  nav.tabs [aria-current="page"] { box-shadow: inset 0 0 0 1px var(--accent); }
+}
+/* UIKit preferences are read locally; remain solid before the native bridge answers. */
+html.native:not(.native-display-ready) nav.tabs, html.native-reduce-transparency nav.tabs, html.native-increase-contrast nav.tabs {
+  background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.native-increase-contrast nav.tabs { border-color: var(--color-outline); }
+html.native-increase-contrast nav.tabs [aria-current="page"] { box-shadow: inset 0 0 0 1px var(--accent); }
+@media (forced-colors: active) {
+  nav.tabs { background: Canvas; border-color: CanvasText; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  nav.tabs [aria-current="page"] { background: Highlight; color: HighlightText; box-shadow: none; outline: 2px solid Highlight; outline-offset: -2px; }
+}
+@media (prefers-reduced-motion: reduce) { nav.tabs :is(a,button) { transition: none !important; transform: none; } nav.tabs svg { animation: none !important; } }
+.tab-n { position: absolute; top: 3px; left: auto; right: calc(50% - 24px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
   background: var(--btn); color: var(--onbtn); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
 
 /* ---------- cards, rows, lists ---------- */
@@ -1276,7 +1302,6 @@ button.lift-prev:active { background: var(--card2); }
 .stat b i { font-size: 12px; font-weight: 400; }
 .hero .stat b, .public-profile ~ .card .stat b { font-size: var(--text-app-stat); }
 .stats3 { grid-template-columns:repeat(auto-fit,minmax(min(100%,6rem),1fr)); }
-nav.tabs { left: 0; right: 0; bottom: 0; max-width: 800px; border-radius: 0; box-shadow: none; border-top: 1px solid var(--line); padding: 7px 10px calc(env(safe-area-inset-bottom) + 7px); background: var(--card); }
 /* Software keyboard takes precedence over global navigation on every route. */
 html.keyboard-open { --tab-h: 0px; }
 html.keyboard-open nav.tabs { display: none; }
@@ -1300,10 +1325,6 @@ html.keyboard-open nav.tabs { display: none; }
 .meal-library-row > .icon-btn { flex: none; }
 .health-progress:empty { display: none; }
 .health-progress { color: var(--accent); font-weight: 600; }
-nav.tabs :is(a,button) { border-radius: 0; font-size: 12px; min-height: 54px; gap: 4px; }
-nav.tabs :is(a,button)[aria-current="page"] { background: transparent; }
-nav.tabs :is(a,button)[aria-current="page"]::after { content: ''; width: 24px; height: 3px; border-radius: 2px; background: var(--accent); position: absolute; bottom: 0; }
-nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .post { padding: 0; }
 .post .post-title { font-size: var(--text-app-card-title); }
 .profile-bio { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 2px 18px; max-width: 60ch; color: var(--tx2); }
@@ -1357,7 +1378,7 @@ nav.tabs :is(a,button) svg { width: 23px; height: 23px; }
 .macro-bars .macro-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
 .macro-bars .track { margin-top: 6px; height: 6px; }
 .tfood { background: var(--card); }
-@media (max-width: 360px) { .shell { padding-inline: 16px; } .stats3 { gap: 6px; } nav.tabs :is(a,button) { font-size: 10.5px; } .top .acts { gap: 0; } }
+@media (max-width: 360px) { .shell { padding-inline: 16px; } .stats3 { gap: 6px; } .top .acts { gap: 0; } }
 @media (min-width: 1000px) { .shell { padding-inline: 32px; } .feed-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: start; } }
 
 /* Compact agenda and trustworthy metric wrapping at narrow widths. */
@@ -1658,9 +1679,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
   border: 2px solid var(--accent); opacity: 0; animation: cheer-ring .45s ease-out; pointer-events: none; }
 @keyframes cheer-pop { 0% { transform: scale(1); } 35% { transform: scale(1.4) rotate(-12deg); } 100% { transform: scale(1) rotate(0); } }
 @keyframes cheer-ring { 0% { opacity: .7; transform: scale(.6); } 100% { opacity: 0; transform: scale(1.9); } }
-/* Tabs switch instantly (no page fade); the bar is solid, so the costly blur behind it is switched off. */
-nav.tabs { -webkit-backdrop-filter: none; backdrop-filter: none; }
-nav.tabs :is(a,button) { transition: color .12s; }
+/* Tabs keep their DOM between routes; selection feedback never delays navigation. */
 nav.tabs :is(a,button)[aria-current="page"] svg { animation: tab-pick .28s cubic-bezier(.2, 1.5, .4, 1); }
 @keyframes tab-pick { 0% { transform: scale(.82); } 100% { transform: scale(1); } }
 /* Opening something inside a tab fades it in, quickly. No transform (2026-10-18): the "both" fill kept a transform on
@@ -2711,7 +2730,7 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
 .track-live-main .track-controls { margin-top: 16px; }
 @media (max-height: 700px) { .track-live .track-hero { margin: 6px 0 2px; } .track-live .track-hero b { font-size: clamp(48px, 15vw, 64px); }
   .track-live .track-live-metrics { margin: 6px 0 2px; } .track-live .track-controls .round-btn { width: 76px; height: 76px; }
-  .track-live.has-route .track-splits { display: none; } .track-live-main .track-controls { margin-top: 10px; }
+  .track-live.has-route .track-splits { display: none; } .track-live-main .track-controls { margin-top: 4px; }
   .track-live-main .track-map-wrap, .track-live.has-route .track-live-main .track-map-wrap { min-height: 72px; } }
 @media(max-height:700px){
   .track-live .track-hero #track-time{font-size:clamp(2rem,8dvh,3.5rem);line-height:1.05}

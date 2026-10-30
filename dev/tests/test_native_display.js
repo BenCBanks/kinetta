@@ -1,0 +1,32 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const code=fs.readFileSync('app/static/appearance.js','utf8'),flush=()=>new Promise(setImmediate);
+const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
+function fixture({native=true,missing=false,read=()=>Promise.resolve({reduceTransparency:false,increaseContrast:false}),lateListener=false}={}){
+  const classes=new Set(native?['native']:[]),events={},timers=new Map();let calls=0,removed=0,id=0;
+  const registration=deferred(),handle={remove:()=>{removed++;return Promise.resolve();}};
+  const display={getState:()=>{calls++;return read();},addListener:(name,fn)=>{events[name]=fn;return lateListener?registration.promise:Promise.resolve(handle);}};
+  const c={Capacitor:{isNativePlatform:()=>native,Plugins:{KinettaDisplayPreferences:missing?undefined:display,App:{addListener:(name,fn)=>{events[name]=fn;return Promise.resolve(handle);}}}},
+    document:{documentElement:{classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),toggle:(x,on)=>on?classes.add(x):classes.delete(x)}}},
+    addEventListener:(name,fn)=>events[name]=fn,setTimeout:(fn,ms)=>{assert.equal(ms,2000);const n=++id;timers.set(n,fn);return n;},clearTimeout:n=>timers.delete(n)};
+  vm.createContext(c);vm.runInContext(code,c);
+  return {classes,events,timers,registration,handle,calls:()=>calls,removed:()=>removed};
+}
+(async()=>{
+  let f=fixture();assert(!f.classes.has('native-display-ready'),'The first paint is solid until preferences are known');await flush();assert(f.classes.has('native-display-ready'));assert(!f.classes.has('native-reduce-transparency'));
+  f.events.changed({reduceTransparency:true,increaseContrast:false});assert(f.classes.has('native-reduce-transparency'));
+  f.events.changed({reduceTransparency:false,increaseContrast:true});assert(!f.classes.has('native-reduce-transparency'));assert(f.classes.has('native-increase-contrast'));
+  f.events.changed({reduceTransparency:false,increaseContrast:false});assert(!f.classes.has('native-increase-contrast'));assert.equal(f.timers.size,0);
+  f.events.changed({reduceTransparency:'false',increaseContrast:false});assert(!f.classes.has('native-display-ready'),'Malformed flags keep the solid fallback');
+  f=fixture({native:false});await flush();assert.equal(f.calls(),0);assert.equal(Object.keys(f.events).length,0,'Web appearance remains owned by CSS media queries');
+  f=fixture({missing:true});await flush();assert(!f.classes.has('native-display-ready'));assert.equal(f.calls(),0,'An older native bridge remains usable and solid');
+  let pending=deferred();f=fixture({read:()=>pending.promise});await flush();f.events.changed({reduceTransparency:true,increaseContrast:true});pending.resolve({reduceTransparency:false,increaseContrast:false});await flush();assert(f.classes.has('native-reduce-transparency')&&f.classes.has('native-increase-contrast'),'A late startup read cannot overwrite a newer system notification');
+  const reads=[deferred(),deferred()];let n=0;f=fixture({read:()=>reads[n++].promise});await flush();f.events.appStateChange({isActive:false});assert.equal(f.calls(),1);f.events.appStateChange({isActive:true});await flush();reads[1].resolve({reduceTransparency:true,increaseContrast:false});await flush();reads[0].resolve({reduceTransparency:false,increaseContrast:false});await flush();assert(f.classes.has('native-reduce-transparency'),'A newer foreground read wins');
+  pending=deferred();f=fixture({read:()=>pending.promise});await flush();[...f.timers.values()].forEach(fn=>fn());await flush();assert(!f.classes.has('native-display-ready'));pending.resolve({reduceTransparency:false,increaseContrast:false});await flush();assert(!f.classes.has('native-display-ready'),'A timed-out response cannot restore translucency later');assert.equal(f.timers.size,0);
+  f=fixture({read:()=>Promise.reject(Error('Unavailable'))});await flush();assert(!f.classes.has('native-display-ready'));assert.equal(f.timers.size,0);
+  f=fixture({read:()=>{throw Error('Bridge unavailable');}});await flush();assert(!f.classes.has('native-display-ready'));assert.equal(f.timers.size,0,'A synchronous bridge failure also leaves a usable solid bar');
+  pending=deferred();f=fixture({read:()=>pending.promise});await flush();f.events.pagehide();assert.equal(f.removed(),2);pending.resolve({reduceTransparency:false,increaseContrast:false});await flush();assert(!f.classes.has('native-display-ready'));f.events.changed({reduceTransparency:false,increaseContrast:false});assert(!f.classes.has('native-display-ready'),'A disposed view ignores late notifications');
+  f=fixture({lateListener:true});await flush();f.events.pagehide();assert.equal(f.removed(),1);f.registration.resolve(f.handle);await flush();assert.equal(f.removed(),2,'A listener registered after disposal is removed too');
+  f=fixture();await flush();f.handle.remove=()=>{throw Error('Bridge closed');};assert.doesNotThrow(()=>f.events.pagehide(),'Listener cleanup remains safe after bridge shutdown');
+  console.log('Native display preferences: initial solid fallback, live flags, browser/old bridge, notification/read ordering, foreground refresh, timeout/error and listener disposal PASS');
+})().catch(e=>{console.error(e);process.exitCode=1;});

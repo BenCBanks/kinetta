@@ -26,6 +26,7 @@
 		AB1600000000000000000011 /* NativeTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1600000000000000000001 /* NativeTrack.swift */; };
 		AB1700000000000000000010 /* HealthRestingEnergy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1700000000000000000000 /* HealthRestingEnergy.swift */; };
 		AB1800000000000000000010 /* NativeHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1800000000000000000000 /* NativeHaptics.swift */; };
+		AD2900000000000000000010 /* NativeDisplayPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2900000000000000000000 /* NativeDisplayPreferences.swift */; };
 		AB2200000000000000000010 /* NativeWebSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2200000000000000000000 /* NativeWebSignIn.swift */; };
 		AB2300000000000000000010 /* NativeActivityShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2300000000000000000000 /* NativeActivityShare.swift */; };
 		AB1900000000000000000010 /* HealthFoodState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000000 /* HealthFoodState.swift */; };
@@ -60,6 +61,7 @@
 		AB1600000000000000000001 /* NativeTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTrack.swift; sourceTree = "<group>"; };
 		AB1700000000000000000000 /* HealthRestingEnergy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthRestingEnergy.swift; sourceTree = "<group>"; };
 		AB1800000000000000000000 /* NativeHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeHaptics.swift; sourceTree = "<group>"; };
+		AD2900000000000000000000 /* NativeDisplayPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeDisplayPreferences.swift; sourceTree = "<group>"; };
 		AB2200000000000000000000 /* NativeWebSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeWebSignIn.swift; sourceTree = "<group>"; };
 		AB2300000000000000000000 /* NativeActivityShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeActivityShare.swift; sourceTree = "<group>"; };
 		AB1900000000000000000000 /* HealthFoodState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthFoodState.swift; sourceTree = "<group>"; };
@@ -119,6 +121,7 @@
 				AB2100000000000000000000 /* ShareFoodState.swift */,
 				AB1700000000000000000000 /* HealthRestingEnergy.swift */,
 				AB1800000000000000000000 /* NativeHaptics.swift */,
+				AD2900000000000000000000 /* NativeDisplayPreferences.swift */,
 				AB2200000000000000000000 /* NativeWebSignIn.swift */,
 				AB2300000000000000000000 /* NativeActivityShare.swift */,
 				AB1600000000000000000001 /* NativeTrack.swift */,
@@ -233,6 +236,7 @@
 				AB2100000000000000000010 /* ShareFoodState.swift in Sources */,
 				AB1700000000000000000010 /* HealthRestingEnergy.swift in Sources */,
 				AB1800000000000000000010 /* NativeHaptics.swift in Sources */,
+				AD2900000000000000000010 /* NativeDisplayPreferences.swift in Sources */,
 				AB2200000000000000000010 /* NativeWebSignIn.swift in Sources */,
 				AB2300000000000000000010 /* NativeActivityShare.swift in Sources */,
 				AB1600000000000000000011 /* NativeTrack.swift in Sources */,

@@ -79,6 +79,19 @@ for device in preferred:
     assert 'error' not in metrics,metrics
     assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
+    nav=metrics['navigation']
+    assert nav['ready'],'Actual UIKit display-preference bridge must respond'
+    assert nav['visible']==(stage in ('track-live','track-review')),metrics
+    if nav['visible']:
+     box=nav['box'];assert box['x']>=8 and box['x']+box['width']<=metrics['viewport']['width']-8,metrics
+     assert box['bottom']<metrics['viewport']['height'],metrics
+     assert [item['text'] for item in nav['items']]==['Me','Activity','Track','Progress','Nutrition'],metrics
+     assert sum(item['selected'] for item in nav['items'])==1,metrics
+     for item in nav['items']:
+      target,label=item['box'],item['label']
+      assert target['width']>=44 and target['height']>=44,metrics
+      assert label['x']>=target['x']-1 and label['x']+label['width']<=target['x']+target['width']+1,metrics
+      assert label['y']>=target['y'] and label['bottom']<=target['bottom'],metrics
     if not stage.startswith('track-'):assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop']-10)<=4,metrics
     if stage.startswith('track-'):
      track=metrics['tracking']
@@ -87,7 +100,9 @@ for device in preferred:
       assert metrics['header']['y']>=metrics['safeTop'] and metrics['header']['y']<=metrics['safeTop']+14,metrics
       assert track['photos'] and track['title'] and track['chart'],metrics
      else:
-      assert track['controls'] and track['controls']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']-(0 if stage=='track-map' else 66),metrics
+      limit=metrics['viewport']['height']-metrics['safeBottom'] if stage=='track-map' else nav['box']['y']
+      assert track['controls'] and track['controls']['bottom']<=limit,metrics
+      assert all(bottom<=limit for bottom in track['captions']),metrics
       assert track['expanded']==(stage=='track-map'),metrics
       if stage=='track-live':assert track['average'] and track['lap'] and track['lap']!='—',metrics
     if stage=='recipe':
