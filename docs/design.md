@@ -1404,3 +1404,10 @@ and its distance on the right ("SEP 27–OCT 3 · 36.5 mi"), so nothing below mo
 Large numbers use thousands separators everywhere on the card and shared profile (3,044 · 11,784 mi · Run · 2,938);
 100 or more hours show whole hours ("1,546h"). All time sits in its own softly tinted panel with content-sized
 columns that wrap only when they cannot fit (narrow phones with enlarged text). Sport chips show the sport's own small icon in its sport colour instead of a coloured dot.
+
+## Track: the map before Start moves and expands · 30 October 2026 (owner)
+
+The map on Track before recording works like the recording map: drag and pinch move it, and a round full-screen
+button (top right, above Locate) or a tap opens it full screen with the GPS chip and Locate still available. Close,
+Escape or Back return to Track unchanged. Dragging stops following your position until Locate is tapped; while it is
+following, opening or closing full screen keeps your dot centred.
