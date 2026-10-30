@@ -38,6 +38,7 @@ class ConfirmIn(Strict):
     confirm:StrictBool
     save_recipe:StrictBool=False
     log_today:StrictBool=True
+    day:dt.date|None=None    # omitted by older apps: keep their existing today behavior
     name:str|None=Field(None,max_length=80)
     meal:Literal['breakfast','lunch','dinner','snacks']|None=None
     basis:Literal['amounts','servings','weight']='amounts'
@@ -219,7 +220,9 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
     if body.basis=='weight' and body.total_g is None:raise HTTPException(422,'What is the whole cooked weight?')
     if not body.whole and (body.basis=='amounts' or body.portion is None):raise HTTPException(422,'Choose how much of the recipe you ate')
     if body.basis=='servings' and body.portion is not None and body.portion>20:raise HTTPException(422,'Log up to 20 servings at once')
-    uid=user['id'];request=body.model_dump(mode='json');request_key=digest(request)
+    uid=user['id'];request=body.model_dump(mode='json')
+    if body.day is None:request.pop('day')    # preserve hashes of already-confirmed older-client requests
+    request_key=digest(request)
     with db.connect() as c:
         m=T.locked_message(c,uid,mid);r=(E.stored_reply(c,uid,m) or {}).get('result') or {}
         if not r.get('food_review'):raise HTTPException(404,'Food review not found')
@@ -235,7 +238,7 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
         public=edit_kcal(public,body.kcal)
         factor=1 if body.whole else body.portion/(body.servings if body.basis=='servings' else body.total_g)
         values={k:N.rounded(k,v*factor) if v is not None else None for k,v in public['totals'].items()}
-        recipe_id=None;name=(body.name or '').strip() or public['names'];day=D._today(c,uid).date()
+        recipe_id=None;name=(body.name or '').strip() or public['names'];today=D._today(c,uid).date();day=body.day or today
         if body.save_recipe:
             if c.execute('SELECT count(*) AS n FROM dishes WHERE user_id=%s',(uid,)).fetchone()['n']>=D.MAX_DISHES:raise HTTPException(409,'Your recipe library is full. Remove a recipe first.')
             recipe_id=c.execute('''INSERT INTO dishes(user_id,name,items,serving,servings,yield_servings,cooked_g)
@@ -261,7 +264,7 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
         for source,result in sources:
             result.update(kind='reviewed',parts=[],pending_count=0,can_resolve=False,text='Included in your completed food review.',completed_review=mid)
             messages+=T.finish_reply(c,uid,source,result)['messages']
-        text=(f'Saved {name} to My Recipes. ' if recipe_id else '')+(f'Logged to {body.meal} today.' if ids else 'Nothing was added to your food log.')
+        text=(f'Saved {name} to My Recipes. ' if recipe_id else '')+(f'Logged to {body.meal} '+('today.' if day==today else f'on {day}.') if ids else 'Nothing was added to your food log.')
         result={**r,'kind':'log' if ids else 'answer','confirmed':request_key,'recipe_id':recipe_id,'entry_ids':ids,'entry_digests':entry_digests,'logged_totals':values,'logged_unknown':[k for k,v in values.items() if v is None],'day':str(day),'meal':body.meal,'text':text}
         saved=T.finish_reply(c,uid,m,result)
         T.link_entries(c,uid,saved['messages'],ids)

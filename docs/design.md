@@ -1495,3 +1495,23 @@ are retired; Preview as remains on the full profile. Preserve Sky Blue, the priv
 
 The bio counter sits directly below its textarea, right-aligned. The editor reserves floating-navigation clearance
 after the unchanged privacy note; the last sport chips and note can scroll entirely above the tab bar.
+
+
+## Nutrition: a compact day log and one place for insights · 30 October 2026 (#384)
+
+Use the date row, Add food with supported Photo/Barcode shortcuts, a small calories/protein summary and meals.
+The summary keeps the existing remaining/above-goal wording, full-width calorie/protein tracks, an accessible
+Goals pencil and a quiet single line for carbs/fat. A missing-body-details prompt links to the existing settings.
+Put Add and the existing meal menu in meal headers; keep swipe removal, Undo and tap-to-edit. Breakfast and Lunch
+on a typical390px day should both clear the floating tabs. Keep44px controls,16px inputs and larger-text reflow.
+
+Explore your food reuses Progress's tile renderer, ordering, styles and account/server visit keys. Show only own
+saved recipes/foods, logged-day counts, last weight/trend and reminder state. No zero-count teasers or invented
+measurements. Health food appears only in the iPhone shell; Add past days stays in browsers. Details have their
+own title and a real Back link, with time range and further insight choices inside their chart card. Progress's
+Food & weight and old food addresses reach these same views; retain the food calendar and every old destination.
+
+Keep existing nutrition arithmetic, burn/unknown wording, model prompts, Health sync and recipe editing. Entry
+routes carry the selected meal/day through the existing review, and the explicit final confirmation shows/saves
+that day. Omitting it preserves older apps' today behavior and existing retry hashes. Media shortcuts open the
+existing tools; they do not enable Kit, take a photo or log food without the existing choices and confirmation.

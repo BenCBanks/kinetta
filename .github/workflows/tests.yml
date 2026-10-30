@@ -55,6 +55,8 @@ jobs:
           npm install --prefix /tmp/card-browser playwright
           /tmp/card-browser/node_modules/.bin/playwright install --with-deps chromium
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/profile_card_ui.cjs
+      - name: Check Nutrition navigation and logging in a browser (fictional accounts)
+        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/nutrition_ui.cjs
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100

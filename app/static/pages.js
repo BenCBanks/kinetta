@@ -1033,14 +1033,9 @@ function wireSport(el, cur) {
   });
 }
 // Discovery choices stay private to this account/server on this device. Old food preference is ignored.
-const progressKey = () => 'fit.progress:' + JSON.stringify([Native.base || location.origin,App.me.id]);
 const foodUser = () => !!(App.me.food_user || App.me.kcal_target);
 function progressSwitch() { return ''; } // Nutrition's legacy Progress entry no longer adds a subject switch.
-const progressSeenKey = () => progressKey() + ':seen';
-function progressVisit(view) {
-  const saved = store.get(progressSeenKey()), seen = Array.isArray(saved) ? saved : [];
-  if (!seen.includes(view)) store.set(progressSeenKey(), [...seen, view]);
-}
+function progressVisit(view) { Discovery.visit('progress',view); }
 function progressBack(el) {
   el.classList.add('has-back');
   const top = $('.top', el);
@@ -1048,13 +1043,13 @@ function progressBack(el) {
   top.insertAdjacentHTML('afterbegin', '<a class="icon-btn progress-back" href="'+esc(home)+'" aria-label="Back to Progress">'+svg('back')+'</a>');
 }
 // Keep the controls alive when a cached chart is replaced by its fresh data. Reuse the shared view cleanup.
-function progressFilters(el, body, html) {
+function progressFilters(el, body, html, {selector='.card'}={}) {
   if (!html) return;
   const controls = document.createElement('div'); controls.className = 'progress-filters'; controls.innerHTML = html;
   body.progressRange = $('#p-rng',controls);
   if (body.progressRange) rangeBar(body.progressRange,getRange(new URLSearchParams(location.search)),new Date().getFullYear());
   const mount = () => {
-    const first = $('.card', body);
+    const first = $(selector, body);
     if (first && controls.parentNode !== first) first.prepend(controls);
   };
   const observer = new MutationObserver(mount); observer.observe(body, {childList:true,subtree:true});
@@ -1073,24 +1068,14 @@ function wireProgressPeriods(el) {
 // Kit sits at the far right of the Progress header like other pages; the header is redrawn per view, so add it each time.
 function wireProgressFocus(el) { if (typeof KitChat !== 'undefined') KitChat.entry(el, '/progress'); if(typeof Recaps!=='undefined')Recaps.entry(el); }
 function nutritionHref(view, params = '') {
-  return location.pathname === '/progress' ? `/progress?section=food&foodview=${view}${params ? '&' + params : ''}` : `/food?view=${view}${params ? '&' + params : ''}`;
+  const q=new URLSearchParams(params);q.set('view',view);
+  if(location.pathname==='/progress'||new URLSearchParams(location.search).get('from')==='progress')q.set('from','progress');
+  return '/food?'+q;
 }
-async function foodProgress(el,q) {
-  const requested = q.get('foodview') || 'overview', view = NPROG.some(v => v[0] === requested) || requested === 'calendar' ? requested : 'overview';
-  if (view !== 'calendar') { const pending = nutritionView(el,view,q); foodProgressHead(el); return pending; }
-  const box = nHead(el,'calendar',''); foodProgressHead(el);
-  await load('/api/food/insights?days=90',I => {
-    if (!box.isConnected) return;
-    const rows = (I.rows || []).slice().sort((a,b)=>b.day.localeCompare(a.day)), logged = rows.filter(r => r.eaten > 0);
-    box.innerHTML = `<section class="card"><h2>Food calendar</h2><p class="small muted">${logged.length} days with food logged in the last 90 days. Newest first · open a day to review it.</p>${logged.length ? `<div class="food-calendar">${rows.map(r => `<a href="/food?d=${esc(r.day)}" aria-label="${esc(dayLabel(r.day))}, ${r.eaten ? homeCalories(r.eaten) + ' kcal logged' : 'no foods logged'}"${r.eaten ? ' class="logged"' : ''}><small>${esc(new Date(r.day+'T12:00').toLocaleDateString([],{month:'short'}))}</small><b>${new Date(r.day+'T12:00').getDate()}</b><small>${r.eaten ? r0(homeCalories(r.eaten)) + ' kcal' : '—'}</small></a>`).join('')}</div>` : '<p>Log something you ate to start your calendar.</p><a class="primary wide" href="/food">Open food log</a>'}</section>`;
-  });
-}
-function foodProgressHead(el) {
-  $('.top h1',el).textContent = 'Food & weight'; progressBack(el);
-  const body = $('#n-body',el), nav = $('.view-nav',el), filters = $('.pbar',el);
-  const card = document.createElement('section'); card.className='card progress-food-options';
-  if (nav) card.append(nav); if (filters) card.append(filters);
-  body.before(card); // The existing food view menu belongs to this detail, never to Progress home.
+function foodProgress(el,q) {
+  const requested=q.get('foodview')||'overview',view=NPROG.some(v=>v[0]===requested)?requested:'overview';
+  const target=new URLSearchParams(q);target.delete('section');target.delete('foodview');target.set('view',view);target.set('from','progress');
+  return go('/food?'+target,{replace:true});
 }
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find(m => m[0] === view);
@@ -1121,9 +1106,9 @@ function progressTeasers(o) {
   };
 }
 function progressTiles(box, overview=null, {ready=false}={}) {
-  const teasers = overview ? progressTeasers(overview) : {}, saved = store.get(progressSeenKey()), seen = Array.isArray(saved) ? saved : [];
-  const ordered = [...PEXPLORE.filter(([k])=>teasers[k]), ...PEXPLORE.filter(([k])=>!teasers[k])];
-  box.innerHTML = ordered.map(([k,n,d,ic])=>`<a class="card progress-tile" href="${k==='plan'?'/plan':k==='lifting'?'/progress?view=lifting':'/progress/'+k}" data-progress-feature="${k}"><span class="progress-tile-name">${svg(ic)}<b>${esc(n)}</b><span class="progress-new${ready&&!teasers[k]&&!seen.includes(k)?'':' seen'}"${ready&&!teasers[k]&&!seen.includes(k)?' aria-label="New feature"':' aria-hidden="true"'}>New</span></span><span class="small muted">${esc((teasers[k] || d).replace(/ →$/, '\u00a0→'))}</span></a>`).join('');
+  const teasers=overview?progressTeasers(overview):{};
+  const items=PEXPLORE.map(([id,title,description,icon])=>({id,title,description,icon,teaser:teasers[id],href:id==='plan'?'/plan':id==='lifting'?'/progress?view=lifting':'/progress/'+id}));
+  Discovery.render(box,items,{space:'progress',ready,attribute:'data-progress-feature'});
 }
 async function progressHome(el, q) {
   App.progressHome={owner:readOwner(),href:location.pathname+location.search};
@@ -1133,10 +1118,10 @@ async function progressHome(el, q) {
     <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
     <a class="card progress-summary" href="/progress?view=records"><h2>${svg('trophy')}Records</h2><span data-progress-record class="small muted">Your fastest times, after a timed run</span></a></div>
     <h2 class="sec-head">Explore your training</h2><div class="progress-grid" id="p-explore"></div>
-    ${foodUser()?'<a class="card progress-food-summary" href="/progress?section=food"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}
+    ${foodUser()?'<a class="card progress-food-summary" href="/food?view=overview&from=progress"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}
     ${q.get('review')==='week'?'<div id="p-combined-week"></div>':''}</div>`;
   wireProgressFocus(el); wireProgressPeriods(el);
-  el.addEventListener('click',e=>{const tile=e.target.closest('[data-progress-feature]');if(tile)progressVisit(tile.dataset.progressFeature);});
+  Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
   const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);
   progressFilters(el,totals,`<a class="progress-totals-title" href="/progress?view=totals">Totals ${svg('chev')}</a>${sportBtn(forView(sport,'totals'))}${progressPeriods(period)}`);
   wireSport(el,sport);

@@ -14,7 +14,7 @@ router = APIRouter(prefix='/api/progress')
 def overview(user=Depends(current_user)):
     uid = user['id']
     with db.connect() as c:
-        profile = c.execute('SELECT tz, protein_target FROM profile WHERE user_id=%s', (uid,)).fetchone() or {}
+        profile = c.execute('SELECT tz, protein_target, food_reminders FROM profile WHERE user_id=%s', (uid,)).fetchone() or {}
         tz = db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ
         today = dt.datetime.now(ZoneInfo(tz)).date()
         week = today - dt.timedelta(days=today.weekday())
@@ -51,6 +51,10 @@ def overview(user=Depends(current_user)):
         # Compare actual trend points a week apart; one weigh-in cannot establish a trend.
         previous = next((p for p in reversed(points) if points and p[0] <= points[-1][0] - dt.timedelta(days=7)), None)
         change = round(points[-1][2] - previous[2], 2) if previous and points[-1][0] >= week - dt.timedelta(days=7) else None
+        from .api_dishes import EMPTY, PLACEHOLDERS
+        recipes = c.execute('SELECT count(*) AS n FROM dishes WHERE user_id=%(u)s AND NOT ('+EMPTY+')', {'u':uid,'p':list(PLACEHOLDERS)}).fetchone()['n']
+        library_items = recipes + c.execute('SELECT (SELECT count(*) FROM custom_foods WHERE user_id=%s)+(SELECT count(*) FROM saved_meals WHERE user_id=%s) AS n', (uid,uid)).fetchone()['n']
+        logged_days = c.execute('SELECT count(DISTINCT day) AS n FROM food_entries WHERE user_id=%s AND day<=%s', (uid,today)).fetchone()['n']
         plan = plans.current_from_connection(c, uid)
     active = plan.get('plan')
     next_workout = None
@@ -62,4 +66,4 @@ def overview(user=Depends(current_user)):
         active = {'week': plan['this_week'], 'weeks': active['weeks'], 'unit': active['unit'], 'next': next_workout}
     return {'today': today.isoformat(), **counts, 'routes': routes, 'segments': segments,
             'lifting': dict(lift) if lift else None, 'record': dict(best) if best else None,
-            'plan': active, 'food': {'protein_days': protein_days, 'weight_change_kg': change}}
+            'plan': active, 'food': {'protein_days': protein_days, 'weight_change_kg': change, 'library_items':library_items, 'weight_kg':weights[-1]['kg'] if weights else None, 'logged_days':logged_days, 'reminders_on':bool(profile.get('food_reminders'))}}
