@@ -13,12 +13,16 @@ const ProfileLayout=(()=>{
     if(!d.stats.length)d.stats=defaults().stats;
     return d;
   }
+  // Thousands separators (Ben, 30 Oct 2026: "3044" and "11784 mi" read poorly); 100+ hours drop the minutes.
+  const big=n=>Number(n).toLocaleString();
+  const distance=m=>{const v=U.dist(m,1),n=Number(v);return n>=1000?n.toLocaleString(undefined,{maximumFractionDigits:1}):v;};
+  const hours=s=>s>=360000?`${big(Math.floor(s/3600))}h`:dur(s,true);
   function numbers(row,selected){
     return selected.map(key=>{
-      if(key==='activities')return row.activities?stat('Activities',row.activities):'';
-      if(key==='distance')return row.distance_m>0?stat('Distance',U.dist(row.distance_m,1),U.du()):'';
-      if(key==='time')return row.time_s>0?stat('Time',dur(row.time_s,true)):'';
-      return row.active_days?stat('Active days',row.active_days):'';
+      if(key==='activities')return row.activities?stat('Activities',big(row.activities)):'';
+      if(key==='distance')return row.distance_m>0?stat('Distance',distance(row.distance_m),U.du()):'';
+      if(key==='time')return row.time_s>0?stat('Time',hours(row.time_s)):'';
+      return row.active_days?stat('Active days',big(row.active_days)):'';
     }).join('');
   }
   function content(r,value=r.layout,{preview=false}={}){
@@ -96,18 +100,20 @@ const MeCard=(()=>{
     const rows=r.mileage?.weeks||[],top=Math.max(...rows.map(w=>w.distance_m||0));
     if(!rows.length||!(top>0))return '';
     const total=rows.reduce((n,w)=>n+(w.distance_m||0),0);
-    return `<div class="me-card-sec"><div class="me-card-label"><span>Distance · ${rows.length} weeks</span><small>${esc(U.dist(total))} ${esc(U.du())}</small></div>
-      <div class="me-card-bars" role="img" aria-label="${esc(`Weekly distance for the last ${rows.length} weeks: `+rows.map(w=>`${U.dist(w.distance_m||0)} ${U.du()}`).join(', '))}">${rows.map(w=>`<span class="${w.today?'now':''}" data-h="${Math.max(2,Math.round((w.distance_m||0)/top*10))}"></span>`).join('')}</div></div>`;
+    // Each week is a button (Ben, 30 Oct 2026): tapping one shows its dates and distance in place of the total.
+    const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),range=w=>`${day(w.d)}–${day(w.end)}`,dist=w=>`${U.dist(w.distance_m||0,1)} ${U.du()}`;
+    return `<div class="me-card-sec"><div class="me-card-label" data-week-label aria-live="polite"><span>Distance · ${rows.length} weeks</span><small>${esc(U.dist(total))} ${esc(U.du())}</small></div>
+      <div class="me-card-bars" role="group" aria-label="Weekly distance, last ${rows.length} weeks">${rows.map(w=>`<button type="button" class="me-week${w.today?' now':''}" aria-pressed="false" data-range="${esc(range(w))}" data-dist="${esc(dist(w))}" aria-label="${esc((w.today?'This week, ':'')+range(w)+': '+dist(w))}"><span data-h="${Math.max(2,Math.round((w.distance_m||0)/top*10))}"></span></button>`).join('')}</div></div>`;
   }
   function sections(r,layout){
     if(!r.overview?.activities&&!r.shared_count)return '<p class="small muted me-card-empty">Your totals appear here once you have workouts.</p>';
     return layout.sections.map(key=>{
       if(key==='recent'){const figures=ProfileLayout.numbers(r.recent.current,layout.stats);return figures?`<div class="me-card-sec"><div class="me-card-label"><span>Last 30 days</span><small>${esc(short(r.recent.start))} – ${esc(short(r.recent.end))}</small></div><div class="profile-stats">${figures}</div></div>`:'';}
       if(key==='mileage')return weeks(r);
-      if(key==='totals'){const figures=ProfileLayout.numbers(r.overview,layout.stats);return figures?`<div class="me-card-sec"><div class="me-card-label"><span>All time</span></div><div class="profile-stats">${figures}</div></div>`:'';}
+      if(key==='totals'){const figures=ProfileLayout.numbers(r.overview,layout.stats);return figures?`<div class="me-card-sec me-card-total"><div class="me-card-label"><span>All time</span></div><div class="profile-stats">${figures}</div></div>`:'';}
       if(key==='sports'){
         const rows=(layout.sports.length?layout.sports.map(s=>(r.sports||[]).find(x=>x.sport===s)).filter(Boolean):(r.sports||[])).slice(0,4);
-        return rows.length?`<div class="me-card-sec me-sport-chips">${rows.map(x=>`<span class="me-sport-chip"><i data-sport="${esc(x.sport)}"></i>${esc(SPORT_NAMES[x.sport]||x.sport)} · ${x.activities}</span>`).join('')}</div>`:'';
+        return rows.length?`<div class="me-card-sec me-sport-chips">${rows.map(x=>`<span class="me-sport-chip"><span class="me-sport-ico" data-sport="${esc(x.sport)}" aria-hidden="true">${svg(SPORT_NAMES[x.sport]?x.sport:'other')}</span>${esc(SPORT_NAMES[x.sport]||x.sport)} · ${esc(Number(x.activities).toLocaleString())}</span>`).join('')}</div>`:'';
       }
       return `<a class="me-card-row" href="${profileHref(App.me)}"><span class="grow"><b>${r.shared_count??r.items.length} shared ${(r.shared_count??r.items.length)===1?'activity':'activities'}</b><small>Shared with friends or everyone</small></span>${svg('chev')}</a>`;
     }).join('');
@@ -116,7 +122,12 @@ const MeCard=(()=>{
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
     let data=null,editing=false;
     const bars=()=>$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px'); // CSP blocks inline style attributes
-    const draw=()=>{if(!live()||editing||!data)return;box.setAttribute('aria-busy','false');box.innerHTML=sections(data,ProfileLayout.normalize(App.me.profile_layout||data.layout));bars();};
+    // The heading swaps to the picked week's dates and distance, so the layout never shifts; tap again for the total.
+    const weekTaps=()=>{const wrap=$('.me-card-bars',box),label=$('[data-week-label]',box);if(!wrap||!label)return;const [head,side]=[$('span',label),$('small',label)],[h0,s0]=[head.textContent,side.textContent];
+      wrap.onclick=e=>{const b=e.target.closest('.me-week');if(!b)return;const on=b.getAttribute('aria-pressed')!=='true';
+        $$('.me-week',wrap).forEach(x=>x.setAttribute('aria-pressed','false'));if(on)b.setAttribute('aria-pressed','true');
+        head.textContent=on?b.dataset.range:h0;side.textContent=on?b.dataset.dist:s0;label.classList.toggle('picked',on);};};
+    const draw=()=>{if(!live()||editing||!data)return;box.setAttribute('aria-busy','false');box.innerHTML=sections(data,ProfileLayout.normalize(App.me.profile_layout||data.layout));bars();weekTaps();};
     const load=async()=>{
       try{data=await api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');draw();}
       catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);load();};}

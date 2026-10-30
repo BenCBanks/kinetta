@@ -86,14 +86,24 @@
 .me-card-label span { font-size:.8125rem; font-weight:700; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em; }
 .me-card-label small { font-size:.75rem; color:var(--tx3); }
 .me-card-bars { display:flex; align-items:flex-end; gap:6px; height:52px; margin-top:8px; }
-.me-card-bars span { flex:1 1 0; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); }
-.me-card-bars span.now { background:var(--btn); }
+/* Week bars are buttons: the whole column is the tap target, the bar inside it shows the distance. */
+.me-week { flex:1 1 0; min-width:0; height:100%; min-height:44px; display:flex; align-items:flex-end; padding:0; border:0; background:none; border-radius:6px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.me-week span { width:100%; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s; }
+.me-week.now span { background:var(--btn); }
+.me-week[aria-pressed=true] span { background:var(--accent); box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+.me-week:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.me-card-label.picked small { color:var(--tx); font-weight:700; font-size:.8125rem; }
+/* All time reads as its own block: a soft tinted panel. */
+.me-card-total { padding:12px 12px 14px; border-radius:var(--r2); background:var(--card2); }
+.me-card-total .profile-stats { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px 16px; }
+.me-card-total .stat b { font-size:clamp(1.125rem,5vw,var(--text-app-stat)); }
 .me-sport-chips { display:flex; flex-wrap:wrap; gap:8px; }
 .me-sport-chip { display:inline-flex; align-items:center; gap:7px; min-height:34px; padding:0 12px; border-radius:999px; background:var(--card2); font-size:.875rem; font-weight:600; }
-.me-sport-chip i { width:10px; height:10px; border-radius:50%; background:var(--other); flex:none; }
-.me-sport-chip i[data-sport=run] { background:var(--run); } .me-sport-chip i[data-sport=ride] { background:var(--ride); } .me-sport-chip i[data-sport=walk] { background:var(--walk); }
-.me-sport-chip i[data-sport=hike] { background:var(--hike); } .me-sport-chip i[data-sport=swim] { background:var(--swim); } .me-sport-chip i[data-sport=row] { background:var(--row); }
-.me-sport-chip i[data-sport=ski] { background:var(--ski); } .me-sport-chip i[data-sport=workout] { background:var(--workout); }
+/* Sport icons instead of dots (Ben, 30 Oct 2026), tinted with each sport's colour. */
+.me-sport-ico { display:inline-flex; flex:none; color:var(--other); } .me-sport-ico svg { width:16px; height:16px; stroke-width:2; }
+.me-sport-ico[data-sport=run] { color:var(--run); } .me-sport-ico[data-sport=ride] { color:var(--ride); } .me-sport-ico[data-sport=walk] { color:var(--walk); }
+.me-sport-ico[data-sport=hike] { color:var(--hike); } .me-sport-ico[data-sport=swim] { color:var(--swim); } .me-sport-ico[data-sport=row] { color:var(--row); }
+.me-sport-ico[data-sport=ski] { color:var(--ski); } .me-sport-ico[data-sport=workout] { color:var(--workout); }
 .me-card-row { display:flex; align-items:center; gap:12px; min-height:56px; padding:8px 14px; border-radius:14px; background:var(--card2); color:var(--tx); }
 .me-card-row .grow { display:flex; flex-direction:column; min-width:0; flex:1; }
 .me-card-row small { color:var(--tx2); font-size:.8125rem; }

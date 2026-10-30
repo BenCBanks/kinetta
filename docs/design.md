@@ -1395,3 +1395,12 @@ Friends opens with a visible search field (search icon, "Find people") directly 
 friend lists; results and Browse people appear right under it. Invite friends to Kinetta and suggested people follow
 the lists. It is no longer a folded card at the bottom. Search behaviour, debouncing, stale-response handling and
 server-enforced discovery rules are unchanged.
+
+## Me card: tappable weeks and a clear All time panel · 30 October 2026 (owner)
+
+The Me card's weekly distance bars are buttons. Tapping one marks it and swaps the section heading to that week's dates
+and its distance on the right ("SEP 27–OCT 3 · 36.5 mi"), so nothing below moves; tapping it again restores
+"Distance · 7 weeks" and the total. Every week keeps a 44px tap target and an accessible name with dates and distance.
+Large numbers use thousands separators everywhere on the card and shared profile (3,044 · 11,784 mi · Run · 2,938);
+100 or more hours show whole hours ("1,546h"). All time sits in its own softly tinted panel with content-sized
+columns that wrap only when they cannot fit (narrow phones with enlarged text). Sport chips show the sport's own small icon in its sport colour instead of a coloured dot.
