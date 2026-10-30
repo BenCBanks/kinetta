@@ -270,3 +270,9 @@ Me → Share your Kinetta offers a revocable card and link. Share card starts on
 ### GPS activity review (#358, draft PR359)
 
 Whole-active-time average pace/speed stays visible alongside independent lap pace. The first manual Lap closes from activity start; later presses define the next laps without automatic-mile resets. Expanded live maps retain controls. Before Save, review the title, headline figures, map/photos and measured charts, with details/splits/laps folded below. Photos and the exact confirmed request stay in account/server-bound local storage; explicit Save commits activity and sanitized photos together. Retry cannot duplicate the workout/photos or change the originally confirmed audience. Final regression/native verification is in progress; merge, deployment and physical GPS/camera acceptance remain separate.
+
+
+Progress opens on a personal home: Totals with inline sport/period choices, Fitness and Records,
+an Explore your training grid, and Food & weight for food users. Tile counts come only from your own history,
+including Only me activities. Empty tools explain what they do; unused tools have a once-per-device New mark.
+Each detail view keeps its old address and has a back arrow to Progress home.

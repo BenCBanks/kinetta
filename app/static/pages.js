@@ -446,7 +446,7 @@ const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div clas
     ${bellBtn()}</div></div>`;
 route(/^\/activity$/, 'activity', async el=>{
   const q=new URLSearchParams(location.search);
-  if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.size?'?'+q:''),{replace:true});}
+  if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.toString()?'?'+q:''),{replace:true});}
   return homeFeed(el);
 });
 route(/^\/me\/activities$/, 'me', async (el)=>{
@@ -1002,11 +1002,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   });
 });
 
-// ---------- Progress (2026-10-12 redesign): one row of small buttons ----------
-// Ben: "too many random tabs at the top". Earlier (2026-10-11) the tab had a Totals | Fitness | Records control, a
-// sport button, a Weeks | Months | Years row and a "More" list at the bottom. Now every view (the three main ones and
-// the deeper ones) is in one View menu, and the filters that view uses sit beside it in a single row: View, Sport,
-// then the period (Totals) or the years (Fitness, Year over year). The sport is remembered on this phone.
+// ---------- Progress: home of cards, with each view’s filters inside its first card ----------
 const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
 const PVIEWS = [['totals', 'Totals', 'Distance by week, month and year', 'progress', 'c-red'],
   ['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
@@ -1028,21 +1024,51 @@ function pickSheet(title, html, pick) {
   sheet(title, html, (sb, close) => $$('[data-pk]', sb).forEach((x) => x.onclick = () => { close(); pick(x.dataset.pk); }));
 }
 function wireSport(el, cur) {
-  const b = $('#p-sport', el); if (!b) return;
-  b.onclick = () => pickSheet('Sport', pickRows(PSPORTS.map(([k, n]) => [k, n, '', k === 'all' ? 'activity' : k, 'c-grey']), cur), (k) => {
-    try { localStorage.setItem('fit.psport', k); } catch (e) { /* no storage */ }
-    const u = new URLSearchParams(location.search); u.set('sport', k); go(location.pathname + '?' + u.toString(), {replace: true});
+  el.addEventListener('click', e => {
+    if (!e.target.closest('#p-sport')) return;
+    pickSheet('Sport', pickRows(PSPORTS.map(([k,n])=>[k,n,'',k==='all'?'activity':k,'c-grey']),cur), k=>{
+      try { localStorage.setItem('fit.psport',k); } catch(e) { /* no storage */ }
+      const u=new URLSearchParams(location.search);u.set('sport',k);go(location.pathname+'?'+u,{replace:true});
+    });
   });
 }
-// Progress opens on Training (#164). Food users also get a Food & weight half, remembered per account on this device;
-// everyone else sees no switch. Explicit food URLs still open (and show the switch, so there is a way back).
+// Discovery choices stay private to this account/server on this device. Old food preference is ignored.
 const progressKey = () => 'fit.progress:' + JSON.stringify([Native.base || location.origin,App.me.id]);
 const foodUser = () => !!(App.me.food_user || App.me.kcal_target);
-const progressChoice = () => foodUser() && store.get(progressKey()) === 'food' ? 'food' : 'training';
-function progressSwitch(section) {
-  if (section === 'training' && !foodUser()) return '';
-  store.set(progressKey(),section);
-  return `<nav class="seg progress-focus" aria-label="Progress focus"><a href="/progress?section=training&amp;view=totals"${section === 'training' ? ' aria-current="page"' : ''}>Training</a><a href="/progress?section=food"${section === 'food' ? ' aria-current="page"' : ''}>Food &amp; weight</a></nav>`;
+function progressSwitch() { return ''; } // Nutrition's legacy Progress entry no longer adds a subject switch.
+const progressSeenKey = () => progressKey() + ':seen';
+function progressVisit(view) {
+  const saved = store.get(progressSeenKey()), seen = Array.isArray(saved) ? saved : [];
+  if (!seen.includes(view)) store.set(progressSeenKey(), [...seen, view]);
+}
+function progressBack(el) {
+  el.classList.add('has-back');
+  const top = $('.top', el);
+  const home = App.progressHome?.owner === readOwner() ? App.progressHome.href : '/progress';
+  top.insertAdjacentHTML('afterbegin', '<a class="icon-btn progress-back" href="'+esc(home)+'" aria-label="Back to Progress">'+svg('back')+'</a>');
+}
+// Keep the controls alive when a cached chart is replaced by its fresh data. Reuse the shared view cleanup.
+function progressFilters(el, body, html) {
+  if (!html) return;
+  const controls = document.createElement('div'); controls.className = 'progress-filters'; controls.innerHTML = html;
+  body.progressRange = $('#p-rng',controls);
+  if (body.progressRange) rangeBar(body.progressRange,getRange(new URLSearchParams(location.search)),new Date().getFullYear());
+  const mount = () => {
+    const first = $('.card', body);
+    if (first && controls.parentNode !== first) first.prepend(controls);
+  };
+  const observer = new MutationObserver(mount); observer.observe(body, {childList:true,subtree:true});
+  viewResources.set(body, () => observer.disconnect()); mount();
+}
+function progressPeriods(period) {
+  return '<div class="me-period mileage-toggle" role="group" aria-label="Totals period">'+PPERIODS.map(([k,n])=>`<button type="button" data-progress-period="${k}" aria-pressed="${period===k}">${n}</button>`).join('')+'</div>';
+}
+function wireProgressPeriods(el) {
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-progress-period]'); if (!b) return;
+    const q = new URLSearchParams(location.search); q.set('period',b.dataset.progressPeriod);
+    go('/progress?'+q, {replace:true});
+  });
 }
 // Kit sits at the far right of the Progress header like other pages; the header is redrawn per view, so add it each time.
 function wireProgressFocus(el) { if (typeof KitChat !== 'undefined') KitChat.entry(el, '/progress'); if(typeof Recaps!=='undefined')Recaps.entry(el); }
@@ -1051,49 +1077,120 @@ function nutritionHref(view, params = '') {
 }
 async function foodProgress(el,q) {
   const requested = q.get('foodview') || 'overview', view = NPROG.some(v => v[0] === requested) || requested === 'calendar' ? requested : 'overview';
-  if (view !== 'calendar') return nutritionView(el,view,q);
-  const box = nHead(el,'calendar','');
+  if (view !== 'calendar') { const pending = nutritionView(el,view,q); foodProgressHead(el); return pending; }
+  const box = nHead(el,'calendar',''); foodProgressHead(el);
   await load('/api/food/insights?days=90',I => {
     if (!box.isConnected) return;
     const rows = (I.rows || []).slice().sort((a,b)=>b.day.localeCompare(a.day)), logged = rows.filter(r => r.eaten > 0);
     box.innerHTML = `<section class="card"><h2>Food calendar</h2><p class="small muted">${logged.length} days with food logged in the last 90 days. Newest first · open a day to review it.</p>${logged.length ? `<div class="food-calendar">${rows.map(r => `<a href="/food?d=${esc(r.day)}" aria-label="${esc(dayLabel(r.day))}, ${r.eaten ? homeCalories(r.eaten) + ' kcal logged' : 'no foods logged'}"${r.eaten ? ' class="logged"' : ''}><small>${esc(new Date(r.day+'T12:00').toLocaleDateString([],{month:'short'}))}</small><b>${new Date(r.day+'T12:00').getDate()}</b><small>${r.eaten ? r0(homeCalories(r.eaten)) + ' kcal' : '—'}</small></a>`).join('')}</div>` : '<p>Log something you ate to start your calendar.</p><a class="primary wide" href="/food">Open food log</a>'}</section>`;
   });
 }
-// the header every Progress view shares: title + bell, then View and the filters this view uses
+function foodProgressHead(el) {
+  $('.top h1',el).textContent = 'Food & weight'; progressBack(el);
+  const body = $('#n-body',el), nav = $('.view-nav',el), filters = $('.pbar',el);
+  const card = document.createElement('section'); card.className='card progress-food-options';
+  if (nav) card.append(nav); if (filters) card.append(filters);
+  body.before(card); // The existing food view menu belongs to this detail, never to Progress home.
+}
 function pHead(el, view, filters) {
-  const v = [...PVIEWS, ...PMORE].find((m) => m[0] === view);
-  el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>${progressSwitch('training')}
-    <nav class="view-nav" aria-label="Progress views">${PVIEWS.slice(0,3).map(([k,n]) => `<a href="/progress${k === 'totals' ? '' : '?view=' + k}"${view === k ? ' aria-current="page"' : ''}>${n}</a>`).join('')}${pillBtn('p-view', '', 'More', 'More progress views')}</nav>${v && !PVIEWS.slice(0,3).some(([k])=>k===view)?`<h2 class="progress-view-title">${esc(v[1])}</h2>`:''}<div class="pbar">${filters}</div><div id="p-combined-week"></div><div id="p-body">${skelChart()}</div>`;
-  wireProgressFocus(el);
-  if(v&&!PVIEWS.slice(0,3).some(([k])=>k===view)){const more=$('#p-view',el);more.classList.add('current-view');more.setAttribute('aria-label',`More progress views · current view: ${v[1]}`);}
-  if (foodUser() || new URLSearchParams(location.search).get('review')==='week') combinedWeek($('#p-combined-week',el));
-  $('#p-view', el).onclick = () => pickSheet('Show', `<h3 class="ghead">Your numbers</h3>${pickRows(PVIEWS, view)}<h3 class="ghead">Explore</h3>${pickRows(PMORE, view)}`, (k) => {
-    if (k === 'plan') return go('/plan');
-    const keep = new URLSearchParams(); const s = new URLSearchParams(location.search).get('sport'); if (s) keep.set('sport', s);
-    if (PVIEWS.some((m) => m[0] === k)) { if (k !== 'totals') keep.set('view', k); go('/progress' + (keep.toString() ? '?' + keep : ''), {replace: true}); }
-    else go(`/progress/${k}${keep.toString() ? '?' + keep : ''}`, {replace: true});
-  });
+  const v = [...PVIEWS, ...PMORE].find(m => m[0] === view);
+  el.innerHTML = `<div class="top progress-heading"><h1>${esc(v?.[1] || 'Progress')}</h1><div class="acts">${bellBtn()}</div></div><div id="p-body">${skelChart()}</div>`;
+  progressBack(el); progressVisit(view); wireProgressFocus(el);
+  progressFilters(el, $('#p-body',el), filters);
+}
+const PEXPLORE = [
+  ['heatmap','Heatmap','See where you train →','globe'],
+  ['plan','Training plan','Build a 5K plan →','target'],
+  ['calendar','Calendar','See each training day →','calendar'],
+  ['segments','Segments','Compare course times →','route'],
+  ['routes','Matched routes','Compare repeated loops →','activity'],
+  ['trends','Year over year','Compare your years →','progress'],
+  ['lifting','Lifting','See your sets and bests →','workout']
+];
+function progressTeasers(o) {
+  const date = new Date(o.today+'T12:00'), month = date.toLocaleDateString([],{month:'long'});
+  const plan = o.plan, next = plan?.next, when = next?.day === o.today ? 'Today' : next?.day === addDays(o.today,1) ? 'Tomorrow' : next ? fdate(next.day+'T12:00',{weekday:'short'}) : '';
+  return {
+    heatmap:o.mapped ? `${o.mapped.toLocaleString()} ${o.mapped===1?'activity':'activities'} mapped` : null,
+    plan:plan ? next ? `${when}: ${next.title || 'Planned run'}` : plan.week ? `Week ${plan.week} of ${plan.weeks}` : 'Your training plan is ready' : null,
+    calendar:o.active_days ? `${o.active_days} active ${o.active_days===1?'day':'days'} in ${month}` : null,
+    segments:o.segments ? `${o.segments} segment ${o.segments===1?'best':'bests'}` : null,
+    routes:o.routes ? `${o.routes} ${o.routes===1?'loop':'loops'} you have repeated` : null,
+    trends:o.years>1 ? `${o.years} years of training` : null,
+    lifting:o.lifting ? o.lifting.kg>0 ? `${o.lifting.name} ${U.weight(o.lifting.kg)} ${imp()?'lb':'kg'} best` : `${o.lifting.name} history` : null
+  };
+}
+function progressTiles(box, overview=null, {ready=false}={}) {
+  const teasers = overview ? progressTeasers(overview) : {}, saved = store.get(progressSeenKey()), seen = Array.isArray(saved) ? saved : [];
+  const ordered = [...PEXPLORE.filter(([k])=>teasers[k]), ...PEXPLORE.filter(([k])=>!teasers[k])];
+  box.innerHTML = ordered.map(([k,n,d,ic])=>`<a class="card progress-tile" href="${k==='plan'?'/plan':k==='lifting'?'/progress?view=lifting':'/progress/'+k}" data-progress-feature="${k}"><span class="progress-tile-name">${svg(ic)}<b>${esc(n)}</b><span class="progress-new${ready&&!teasers[k]&&!seen.includes(k)?'':' seen'}"${ready&&!teasers[k]&&!seen.includes(k)?' aria-label="New feature"':' aria-hidden="true"'}>New</span></span><span class="small muted">${esc((teasers[k] || d).replace(/ →$/, '\u00a0→'))}</span></a>`).join('');
+}
+async function progressHome(el, q) {
+  App.progressHome={owner:readOwner(),href:location.pathname+location.search};
+  const sport = pSport(q), period = PPERIODS.some(p=>p[0]===q.get('period')) ? q.get('period') : 'week';
+  el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
+    <div class="progress-home"><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
+    <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
+    <a class="card progress-summary" href="/progress?view=records"><h2>${svg('trophy')}Records</h2><span data-progress-record class="small muted">Your fastest times, after a timed run</span></a></div>
+    <h2 class="sec-head">Explore your training</h2><div class="progress-grid" id="p-explore"></div>
+    ${foodUser()?'<a class="card progress-food-summary" href="/progress?section=food"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}
+    ${q.get('review')==='week'?'<div id="p-combined-week"></div>':''}</div>`;
+  wireProgressFocus(el); wireProgressPeriods(el);
+  el.addEventListener('click',e=>{const tile=e.target.closest('[data-progress-feature]');if(tile)progressVisit(tile.dataset.progressFeature);});
+  const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);
+  progressFilters(el,totals,`<a class="progress-totals-title" href="/progress?view=totals">Totals ${svg('chev')}</a>${sportBtn(forView(sport,'totals'))}${progressPeriods(period)}`);
+  wireSport(el,sport);
+  q.set('sport',forView(sport,'totals'));q.set('period',period);
+  if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
+  const owner=readOwner(), valid=()=>el.isConnected&&owner===readOwner();
+  await Promise.allSettled([
+    pMileage(totals,q,{home:true}).catch(()=>{if(valid())totals.innerHTML='<div class="card empty">Distance by week, month and year →</div>';}),
+    load('/api/progress/overview',o=>{
+      if(!valid())return; progressTiles(grid,o,{ready:true});
+      const r=o.record;if(r)$('[data-progress-record]',el).innerHTML=`<b>${esc(r.label)} · ${esc(dur(r.elapsed_s))}</b><small>${esc(fdate(r.start_time,{month:'short',day:'numeric',year:'numeric'}))}</small>`;
+      const food=$('[data-progress-food]',el);if(food){const f=o.food,delta=f.weight_change_kg;
+        food.textContent=(f.protein_days===null?'Set a protein goal to track your week':`Protein goal ${f.protein_days} of 7 days`)+(delta===null?'':` · weight ${delta>0?'+':delta<0?'−':''}${U.weight(Math.abs(delta))} ${imp()?'lb':'kg'}`);}
+    }).catch(()=>{if(valid())progressTiles(grid,null,{ready:true});}),
+    load('/api/fitness?days=60',f=>{
+      if(!valid())return;const last=f.days.at(-1),p=f.predictions[0];
+      if(last&&f.days.some(d=>d.fitness>0))$('[data-progress-fitness]',el).innerHTML=`<b>${last.form>5?'Fresh':last.form< -15?'Tired':'Training steadily'}</b>${p?`<small>${esc(p.label)} estimate ${esc(dur(p.seconds))}</small>`:''}`;
+      else if(p)$('[data-progress-fitness]',el).innerHTML=`<b>${esc(p.label)} · ${esc(dur(p.seconds))}</b><small>Race estimate</small>`;
+    }).catch(()=>{})
+  ]);
 }
 // each view takes the sports it can show: the shared choice, mapped to the nearest one it has
 const forView = (sport, view) => ({totals: {hike: 'walk'}, records: {all: 'run'}, trends: {hike: 'walk', all: 'run'}, heatmap: {all: ''}}[view] || {})[sport] ?? sport;
 route(/^\/progress$/, 'progress', async (el) => {
   const q = new URLSearchParams(location.search);
-  if (q.get('section') === 'food' || (!q.has('section') && !q.has('view') && progressChoice() === 'food')) return foodProgress(el,q);
+  if (q.get('section') === 'food') return foodProgress(el,q);
+  if (!q.has('view')) return progressHome(el,q);
   const v0 = q.get('view') || 'totals';
   if (v0 === 'plan') return go('/plan', {replace: true});
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
   const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
   const period = PPERIODS.some((p) => p[0] === q.get('period')) ? q.get('period') : 'week';
   pHead(el, view, view === 'lifting' ? '' : view === 'fitness' ? '<span class="rng" id="p-rng"></span>'
-    : sportBtn(forView(sport, view)) + (view === 'totals' ? pillBtn('p-period', '', PPERIODS.find((p) => p[0] === period)[1], 'Show by') : ''));
+    : sportBtn(forView(sport, view)) + (view === 'totals' ? progressPeriods(period) : ''));
   wireSport(el, sport);
-  const pb = $('#p-period', el);
-  if (pb) pb.onclick = () => pickSheet('Show by', pickRows(PPERIODS, period), (k) => { const u = new URLSearchParams(location.search); u.set('period', k); go('/progress?' + u.toString(), {replace: true}); });
+  wireProgressPeriods(el);
   q.set('sport', forView(sport, view)); q.set('period', period);
   await ({totals: pMileage, fitness: pFitness, records: pRecords, lifting: pLifting}[view])($('#p-body', el), q);
 });
 route(/^\/progress\/routes$/, 'progress', async el => { pHead(el,'routes',''); await pRoutes($('#p-body',el)); });
-route(/^\/progress\/segments$/, 'progress', async el => { pHead(el,'segments',''); await Segments.list($('#p-body',el)); });
+route(/^\/progress\/segments$/, 'progress', async el => {
+  pHead(el,'segments','');const body=$('#p-body',el),pending=Segments.list(body);
+  // Segments owns its map/search logic; contain the existing options without changing that logic.
+  const panel=document.createElement('section');panel.className='card progress-segment-controls';
+  for(const child of [...body.children])if(!['sg-map','sg-list'].includes(child.id))panel.append(child);
+  body.prepend(panel);
+  const filters=$('.segment-filters',panel),select=$('#sg-sport',panel);
+  if(filters&&select){
+    const cur=select.value||'all',button=document.createElement('button');button.type='button';button.className='range-btn';button.id='sg-sport';button.innerHTML=svg(cur==='all'?'activity':cur)+'<span>'+esc(PSPORTS.find(([k])=>k===cur)?.[1]||'All sports')+'</span>'+svg('down');button.setAttribute('aria-label','Sport. Change');select.replaceWith(button);
+    const toggles=document.createElement('div');toggles.className='mileage-toggle me-period';toggles.setAttribute('role','group');toggles.setAttribute('aria-label','Show segments');for(const b of $$('[data-f]',filters))toggles.append(b);filters.prepend(toggles);
+    button.onclick=()=>pickSheet('Sport',pickRows(PSPORTS,cur),k=>{try{localStorage.setItem('fit.psport',k);}catch{}const q=new URLSearchParams(location.search);if(k==='all')q.delete('sport');else q.set('sport',k);go('/progress/segments'+(q.toString()?'?'+q:''),{replace:true});});
+  }
+  await pending;
+});
 route(/^\/progress\/(trends|calendar|heatmap)$/, 'progress', async (el, view) => {
   const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
   pHead(el, view, (withSport ? sportBtn(forView(sport, view)) : '') + (view === 'trends' ? '<span class="rng" id="p-rng"></span>' : ''));
@@ -1140,7 +1237,7 @@ async function pFitness(body, q) {
   await load(`/api/fitness?days=${days}`, (f0) => {
     const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
     const f = {...f0, days: f0.days.filter((d) => inRange(R, +d.d.slice(0, 4)))};
-    rangeBar($('#p-rng'), R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
+    rangeBar(body.progressRange, R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
     const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0}, b = f.basis;
     pbox.innerHTML = f.predictions.length ? `<div class="card"><h2>Race predictions</h2><div class="pred">${f.predictions.map((p) => {
       // green means something (2026-10-13, Ben): the prediction beats your best ever at that distance
@@ -1239,7 +1336,7 @@ function monthSeries(firstYm, get) {   // every month from firstYm to this month
   }
   return out;
 }
-async function pMileage(body, q) {
+async function pMileage(body, q, {home=false}={}) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
   const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
   body.innerHTML = `<div id="m-body">${skelChart()}</div>`;   // Weeks / Months / Years: the button in the row at the top
@@ -1247,7 +1344,7 @@ async function pMileage(body, q) {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
     const by = {}; for (const x of r.rows) { const o = by[x.p] = by[x.p] || {}; o[x.s] = x; }
-    if (!r.rows.length) { box.innerHTML = `<div class="card empty"><b>No activities yet</b>Your mileage by week, month and year shows up here.${startCta()}</div>`; return; }
+    if (!r.rows.length) { box.innerHTML = home ? '<div class="card empty"><p class="small muted">No activities yet. Your distance totals appear here.</p></div>' : `<div class="card empty"><b>No activities yet</b>Your mileage by week, month and year shows up here.${startCta()}</div>`; return; }
     // every period from the first activity to today
     const today = new Date(r.today + 'T12:00'), first = new Date(r.rows[0].p + 'T12:00'), all = [];
     const start = (d) => { const x = new Date(d); if (period === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); else if (period === 'month') x.setDate(1); else { x.setMonth(0); x.setDate(1); } return x; };
@@ -1275,15 +1372,15 @@ async function pMileage(body, q) {
     const cur = all[all.length - 1], last = all[all.length - 2];
     box.innerHTML = `<div class="card"><div class="stats3">
         ${stat('This ' + word, toU(val(cur)).toFixed(1), U.du())}
-        ${stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du())}
+        ${home&&avg==null?'':stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du()).replace('class="stat"','class="stat progress-average"')}
         ${stat('Best ' + word + (scoped ? ' (range)' : ''), toU(val(best)).toFixed(period === 'year' ? 0 : 1), U.du())}</div>
-        <p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>
+        ${home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>`}
         <div id="m-chart"></div>
 </div>
       <details class="fold-row table-fold"><summary><span class="grow">Show as table</span><span class="chev">${svg('chev')}</span></summary><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
           <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div></details>`;
-    requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: 190, distance: sport === 'all'}));
+    requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: home?165:190, distance: sport === 'all'}));
   });
 }
 
@@ -1309,7 +1406,7 @@ async function pTrends(body, q) {
     const series = monthSeries(r.months[0].m, (ym) => { const [y, m] = ym.split('-').map(Number), row = M[ym]; return {ym, ...derive(row ? [row] : [], weeksIn(y, m))}; });
     // by year
     const years = {}; for (const p of series) { const y = p.d.getFullYear(); (years[y] = years[y] || []).push(p); }
-    rangeBar($('#p-rng'), R, +r.months[0].m.slice(0, 4));
+    rangeBar(body.progressRange, R, +r.months[0].m.slice(0, 4));
     const yrows = Object.keys(years).filter((y) => inRange(R, +y)).sort().reverse().map((y) => ({y, ...derive(years[y].map((p) => M[p.ym]).filter(Boolean), years[y].reduce((a, p) => a + p.weeks, 0))}));
     const pace = (v) => (v ? U.pace(v) : '–'), spd = (v) => (v ? U.speed(v) : '–');
     const cy = yrows[0], ly = yrows[1];
@@ -1401,7 +1498,7 @@ function polyFromGeo(g) {   // GeoJSON -> encoded polyline (re-use miniRoute)
 }
 async function pHeatmap(body, q) {
   const sport = q.get('sport') || '';
-  body.innerHTML = '<div class="map tall" id="h-map"></div>';
+  body.innerHTML = '<section class="card progress-map-card"><div class="map tall" id="h-map"></div></section>';
   const lines = await api(`/api/heatmap${sport ? '?sport=' + sport : ''}`);
   if (!lines.length) { $('#h-map', body).outerHTML = `<div class="card empty"><b>Nothing to map yet</b>Every route you've done, on one map.${startCta()}</div>`; return; }
   await mapInto($('#h-map', body), lines, {heat: true});

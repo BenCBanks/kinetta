@@ -1462,3 +1462,21 @@ with one shared explanation. Name is a compact labelled row. Reflow controls at 
 PR review refinement: use an “Also say” row with Total time / Avg pace toggle chips in the builder, sharing the same
 preferences. Chips stay together and labels never wrap within a chip. Recording settings nests that row under Spoken
 updates and hides it when voice is off; the builder keeps a dimmed “Also say · voice is off” row. Both default pressed.
+
+## Progress: home of cards, filters inside cards · 30 October 2026 (#375/#376)
+
+This replaces the 12 October “one row of small buttons” and the later stacked Training/Food and view tabs.
+Progress opens on Totals, a Fitness/Records pair, then Explore your training and, for food users, Food & weight.
+Reuse the Me card’s small inline period controls; keep sport and date choices inside the card they change.
+Detail pages have their own title and a Back to Progress arrow; returning keeps the home’s scroll position.
+Keep every legacy view/food address and the remembered sport. The five tabs and conditional Me panels stay unchanged.
+
+Explore tiles show the signed-in person’s counts first, in a fixed order within data/no-data groups.
+Empty or unavailable cards explain the feature without invented numbers. Only unused, no-data tiles get a small
+New mark, remembered per account/server on this device. No AI, friend data, tour or notification is involved.
+Personal totals include Only me activities. Browser screenshots and automated checks do not prove physical-iPhone behavior.
+
+Owner/PR density refinement: Progress home uses two-column Explore tiles with inline icons/New dots and short
+two-line teasers. Totals places title/sport/period on one row at390px and reflows for narrow/enlarged text. Empty
+totals collapse to a sentence; sparse averages can be omitted on home. Fitness/Records size to their content.
+Keep the existing detail calculations and charts; home uses the same values in a shorter preview.

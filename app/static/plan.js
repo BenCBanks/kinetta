@@ -104,6 +104,7 @@ function planCard(box, {onReady} = {}) {
 
 // ---------- the plan (also Progress > Plan) ----------
 route(/^\/plan$/, 'progress', async (el) => {
+  if (typeof progressVisit === 'function') progressVisit('plan');
   const q = new URLSearchParams(location.search);
   el.innerHTML = `<div class="top">${backBtn('Back')}</div><h1>Training plan</h1><div id="pl">${skel(2)}</div>`;
   wireBack(el, '/progress');

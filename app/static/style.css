@@ -1408,6 +1408,38 @@ html.keyboard-open nav.tabs { display: none; }
 .view-nav a[aria-current="page"] { color: var(--accent); border-color: var(--accent); }
 .view-nav .range-btn { flex: none; margin-left: auto; background: transparent; padding-inline: 8px; min-height: var(--target-min); }
 .pbar:empty { display: none; }
+/* Progress home (30 October): filters stay with their card, discovery stays visible. */
+.progress-heading .progress-back { flex:none; margin-right:0; }
+.progress-heading h1 { min-width:0; }
+.progress-filters { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin-bottom:12px; }
+.progress-filters .range-btn { min-height:44px; padding:6px 8px; font-size:.8125rem; }
+.progress-filters .rng { margin:0; }
+.progress-filters .me-period { margin:0 0 0 auto; }
+.progress-filters .me-period button { min-width:44px; min-height:44px; padding:0 5px; font-size:.75rem; }
+.progress-totals-title { display:flex; align-items:center; min-height:44px; font-size:var(--text-app-card-title); font-weight:700; color:var(--tx); }
+.progress-totals-title svg { width:16px; height:16px; }
+.progress-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.progress-pair .card { margin-bottom:0; }
+.progress-summary { display:block; min-height:148px; color:var(--tx); }
+.progress-summary h2 { justify-content:flex-start; display:flex; align-items:center; gap:6px; }
+.progress-summary h2 svg { width:18px; height:18px; flex:none; }
+.progress-summary small { display:block; margin-top:4px; }
+.progress-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+.progress-grid .progress-tile { margin:0; padding:12px; min-height:154px; color:var(--tx); display:flex; flex-direction:column; gap:10px; }
+.progress-tile-name { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.progress-tile-name svg { width:20px; height:20px; flex:none; }
+.progress-tile-name b { flex-basis:100%; font-size:.875rem; line-height:1.3; }
+.progress-tile .small { font-size:.8125rem; line-height:1.4; overflow-wrap:anywhere; }
+.progress-new { display:inline-flex; align-items:center; gap:4px; font-size:.625rem; color:var(--tx3); }
+.progress-new.seen { visibility:hidden; }
+.progress-new::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); }
+
+.progress-home-totals .table-fold { display:none; }
+.progress-food-summary { display:block; color:var(--tx); }
+.progress-food-options .view-nav { margin:0; }
+.progress-food-options .pbar { margin:0; padding:8px 0 0; }
+.progress-map-card .map { margin-top:8px; }
+@media(max-width:370px) { .progress-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 .tab-n, .bell-dot { background: var(--btn); color: var(--onbtn); }
 
@@ -2855,3 +2887,40 @@ html.keyboard-open .thread-quick-actions {display:none;}
 #interval-editor .interval-name { display:flex; align-items:center; gap:6px; }
 #interval-editor .interval-name input { flex:1; min-width:0; width:0; margin:0; }
 .track-voice-copy + #track-voice { align-self:start; margin-top:2px; }
+
+/* Compact Progress home, refined after owner/PR review. Detail charts retain their full layout. */
+.progress-home-totals .card { padding:12px; }
+.progress-home-totals .progress-filters { gap:4px; margin-bottom:6px; }
+.progress-home-totals .progress-totals-title { font-size:1rem; }
+.progress-home-totals .progress-totals-title svg { width:12px; height:12px; }
+.progress-home-totals .progress-filters .range-btn { padding:4px 6px; gap:3px; }
+.progress-home-totals .progress-filters .range-btn svg { width:14px; height:14px; }
+.progress-home-totals .me-period button { padding-inline:3px; font-size:.6875rem; }
+.progress-home-totals .empty { text-align:left; }
+.progress-home-totals .empty p { margin:0; }
+.progress-home-totals #m-chart { margin-top:0; }
+.progress-pair { gap:10px; }
+.progress-summary { min-height:0; padding:12px; }
+.progress-summary h2 { margin:0 0 6px; font-size:1rem; }
+.progress-summary > span { font-size:.8125rem; line-height:1.4; }
+.progress-summary > span b { font-size:.875rem; }
+.progress-summary small { font-size:.75rem; }
+.progress-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.progress-grid .progress-tile { min-height:86px; gap:8px; }
+.progress-tile-name { flex-wrap:nowrap; }
+.progress-tile-name svg { width:18px; height:18px; }
+.progress-tile-name b { flex:1; flex-basis:auto; min-width:0; font-size:.8125rem; }
+.progress-tile .small { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.progress-tile .progress-new { width:5px; flex:none; height:5px; font-size:0; gap:0; }
+.progress-grid .progress-tile:last-child { grid-column:1/-1; }
+.progress-food-summary h2 { display:flex; align-items:center; gap:6px; }
+.progress-food-summary h2 svg { width:16px; height:16px; }
+.progress-home-totals #m-chart > .readout:has(> span:only-child:empty) { display:none; }
+.progress-tile-name b { flex:0 1 auto; }
+
+.progress-segment-controls .segment-filters { gap:8px; }
+.progress-segment-controls .me-period { margin:0; flex-wrap:wrap; }
+.progress-segment-controls [data-f] { min-height:44px; }
+
+.progress-home-totals #m-chart .legend { display:none; }
+.progress-home-totals .progress-average > small::before { content:""; display:inline-block; width:10px; border-top:1.5px dashed var(--tx2); margin-right:4px; vertical-align:middle; }
