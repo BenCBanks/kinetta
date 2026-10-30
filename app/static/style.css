@@ -2854,3 +2854,4 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .track-voice-copy .voice-chip-row { margin:4px 0 0; }
 #interval-editor .interval-name { display:flex; align-items:center; gap:6px; }
 #interval-editor .interval-name input { flex:1; min-width:0; width:0; margin:0; }
+.track-voice-copy + #track-voice { align-self:start; margin-top:2px; }
