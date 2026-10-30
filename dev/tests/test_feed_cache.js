@@ -27,7 +27,7 @@ vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const FEED_N'
  assert.equal(ctx.App.cache.has('feed:home')||saved.has('feed:home'),false,'warm-up for a previous account is dropped');
  // Extra pages survive detail visits; expired views revalidate their full visible depth.
  owner='paged';epoch=0;ctx.App.cache.clear();saved.clear();const paths=[];
- const rows=Array.from({length:120},(_,i)=>({id:i+1,start_time:new Date(Date.UTC(2026,0,15,12)-i*3600000).toISOString()}));
+ const rows=Array.from({length:120},(_,i)=>({id:i+1,visibility:'friends',start_time:new Date(Date.UTC(2026,0,15,12)-i*3600000).toISOString()}));
  ctx.readOnce=async path=>{paths.push(path);const q=new URL('https://example.test'+path).searchParams,limit=+q.get('limit');assert(limit<=50,'both feed APIs support this page size');if(path.startsWith('/api/feed/'))return [];return rows.filter(r=>!q.get('before')||r.start_time<q.get('before')).slice(0,limit);};
  await ctx.feed({});assert.equal(ctx.App.cache.get('feed:home').data.rows.length,15);
  await more.onclick();assert.equal(ctx.App.cache.get('feed:home').data.rows.length,30,'Show more updates the session cache');assert.equal(saved.get('feed:home').rows.length,15,'only the small opening page is persisted');
@@ -48,6 +48,10 @@ vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const FEED_N'
  ctx.readOnce=async path=>path.startsWith('/api/feed/')?rows.slice(90,105).map(r=>({...r,owner:{login:'fictional-friend'}})):rows.slice(0,15);
  await ctx.feed({});ctx.App.cache.clear();draws=0;await ctx.feed({});assert.equal(draws,1,'unchanged saved opening view renders once, without a metadata-only rebuild');
  // Shared timestamps cross both readers; cursor identity must reach both APIs.
- owner='ties';epoch=0;ctx.App.cache.clear();saved.clear();const tied=Array.from({length:40},(_,i)=>({id:40-i,start_time:'2026-10-20T12:00:00Z',...(i%2?{owner:{login:'friend'}}:{})}));ctx.readOnce=async path=>{const q=new URL('https://example.test'+path).searchParams,isFriend=path.startsWith('/api/feed/');return tied.filter(row=>!!row.owner===isFriend&&(!q.has('before_id')||row.id<+q.get('before_id'))).slice(0,+q.get('limit'));};await ctx.feed({});await more.onclick();await more.onclick();assert.deepEqual(JSON.parse(JSON.stringify(ctx.App.cache.get('feed:home').data.rows.map(row=>row.id))),tied.map(row=>row.id),'same-start activities are never skipped across merged pages');
+ owner='ties';epoch=0;ctx.App.cache.clear();saved.clear();const tied=Array.from({length:40},(_,i)=>({id:40-i,visibility:'friends',start_time:'2026-10-20T12:00:00Z',...(i%2?{owner:{login:'friend'}}:{})}));ctx.readOnce=async path=>{const q=new URL('https://example.test'+path).searchParams,isFriend=path.startsWith('/api/feed/');return tied.filter(row=>!!row.owner===isFriend&&(!q.has('before_id')||row.id<+q.get('before_id'))).slice(0,+q.get('limit'));};await ctx.feed({});await more.onclick();await more.onclick();assert.deepEqual(JSON.parse(JSON.stringify(ctx.App.cache.get('feed:home').data.rows.map(row=>row.id))),tied.map(row=>row.id),'same-start activities are never skipped across merged pages');
+ // Older opening caches may contain private own rows; hide them before any network response paints.
+ owner='shared-only';ctx.App.cache.clear();const painted=[];ctx.postCard=a=>{painted.push(a.id);return '<article>'+a.id+'</article>';};
+ ctx.App.cache.set('feed:home',{at:Date.now(),data:{rows:[{id:1,visibility:'me'},{id:2,visibility:'friends'},{id:3,owner:{login:'fictional-friend'}},{id:4}],more:false,friends:1}});
+ await ctx.feed({});assert.deepEqual(painted,[2,3],'private and unclassified own cached rows never enter Activity');
  console.log('Feed: first load2 requests, warm return0, unchanged refresh1 render, late account response ignored; saved copy shows at once; warm-up fills once and ignores account changes');
 })().catch(e=>{console.error(e);process.exitCode=1;});

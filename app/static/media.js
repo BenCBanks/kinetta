@@ -1,14 +1,15 @@
 // The route leads, followed by photos in one equally sized horizontal rail.
 'use strict';
-function activityMedia(a, {mapId = '', detail = false, full = false, openHref = ''} = {}) {
+function activityMedia(a, {mapId = '', detail = false, full = false, openHref = '', compact = false} = {}) {
+  compact=compact&&!detail;
   const photos = a.photos || [], count = photos.length + (a.line ? 1 : 0);
   if (!count) return '';
   const map = a.line ? `<div class="media-item media-map"><div class="${detail ? 'map big lead' : 'fmap'}"${mapId ? ` id="${mapId}"` : ''} data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" role="img" aria-label="Route map">
     ${detail ? '' : miniRoute(a.line, a.sport)}${full ? '<button class="map-full" id="d-full" aria-label="Full-screen map">' + svg('expand') + '</button>' : ''}</div></div>` : '';
-  return `<div class="activity-media${detail ? ' detail-media' : ''}" data-media="${a.id}" data-media-photos="${esc(JSON.stringify(photos))}" data-media-mine="${!a.owner || a.owner.login === App.me.login}">
+  return `<div class="activity-media${detail ? ' detail-media' : ''}${compact?' compact-media':''}" data-media="${a.id}" data-media-photos="${esc(JSON.stringify(photos))}" data-media-mine="${!a.owner || a.owner.login === App.me.login}">
     <div class="media-track" tabindex="0" role="region" aria-label="Activity photos and route; swipe or use arrow buttons">${map}${photos.map((p, i) => `<button type="button" class="media-item media-photo" data-media-photo="${i}" aria-label="Open photo ${i + 1} of ${photos.length}">${pimg(photoSrc(p, true)).replace('alt=""', `alt="Activity photo ${i + 1}"`)}</button>`).join('')}</div>
     ${openHref ? `<a class="primary wide post-open" href="${esc(openHref)}">View activity ${svg('chev')}</a>` : ''}
-    ${count > 1 ? `<div class="media-controls"><button type="button" class="icon-btn" data-media-step="-1" aria-label="Previous photo or map" disabled>${svg('back')}</button><span class="small muted num" data-media-position aria-live="polite">${a.line ? 'Map' : 'Photo 1'} · 1 of ${count}</span>${a.line && photos.length ? `<button class="linkbtn small" data-media-map>Map</button>` : ''}<button type="button" class="icon-btn" data-media-step="1" aria-label="Next photo or map">${svg('chev')}</button></div>` : ''}</div>`;
+    ${count > 1 ? `<div class="media-controls"><button type="button" class="icon-btn" data-media-step="-1" aria-label="Previous photo or map" disabled>${svg('back')}</button><span class="small muted num${compact?' vh':''}" data-media-position aria-live="polite">${a.line ? 'Map' : 'Photo 1'} · 1 of ${count}</span>${compact?`<span class="media-dots" aria-hidden="true">${Array.from({length:count},(_,i)=>`<i data-media-dot="${i}"${i===0?' class="current"':''}></i>`).join('')}</span>`:a.line && photos.length ? `<button class="linkbtn small" data-media-map>Map</button>` : ''}<button type="button" class="icon-btn" data-media-step="1" aria-label="Next photo or map">${svg('chev')}</button></div>` : ''}</div>`;
 }
 function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOnClose = true} = {}) {
   const btn = $('.map-full', box); if (!btn) return;
@@ -95,6 +96,7 @@ function wireActivityMedia(root) {
       if (fromScroll) index = Math.max(0, Math.min(items.length - 1, Math.round(track.scrollLeft / track.clientWidth)));
       const label = $('[data-media-position]', box);
       if (label) label.textContent = `${items[index].classList.contains('media-map') ? 'Map' : `Photo ${+items[index].dataset.mediaPhoto + 1}`} · ${index + 1} of ${items.length}`;
+      $$('[data-media-dot]',box).forEach(dot=>dot.classList.toggle('current',+dot.dataset.mediaDot===index));
       const prev = $('[data-media-step="-1"]', box), next = $('[data-media-step="1"]', box);
       if (prev) prev.disabled = index === 0;
       if (next) next.disabled = index === items.length - 1;

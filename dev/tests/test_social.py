@@ -64,6 +64,10 @@ a1, a2, a3 = [x['id'] for x in feed if x['line'] and not x['cheers'] and not x['
 check(all(s.q('GET', f'/api/shared/{a1}', want=404) for s in (fr, st, pe)), 'private by default: nobody sees it')
 alex.q('PUT', f'/api/activities/{a1}/sharing', {'visibility': 'friends'})
 alex.q('PUT', f'/api/activities/{a2}/sharing', {'visibility': 'everyone'})
+shared_own=alex.q('GET','/api/activities?shared_only=1&limit=100')
+check(all(a['visibility'] in ('friends','everyone') for a in shared_own),'social own-reader excludes Only me before pagination')
+check(a1 in [a['id'] for a in shared_own] and a2 in [a['id'] for a in shared_own] and a3 not in [a['id'] for a in shared_own],'shared filter preserves both shared audiences')
+check(a3 in [a['id'] for a in alex.q('GET','/api/activities?limit=100')],'Me default still includes own private workouts')
 fr.q('PUT', f'/api/activities/{a1}/sharing', {'visibility': 'everyone'}, want=404)   # not the owner
 v = fr.q('GET', f'/api/shared/{a1}')
 st.q('GET', f'/api/shared/{a1}', want=404); pe.q('GET', f'/api/shared/{a1}', want=404)
