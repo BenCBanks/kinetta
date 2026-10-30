@@ -757,12 +757,13 @@ function editProfile(p, reload) {
 }
 
 route(/^\/me\/friends$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1 id="fr-title">Friends</h1><div id="fr-list-error" role="status"></div><div id="fr-lists">${skel(1)}</div><details class="friend-discovery" id="fr-discover"><summary>Find people</summary>
+  el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1 id="fr-title">Friends</h1><section class="friend-discovery" id="fr-discover" aria-label="Find people">
     <form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
-      <input type="search" name="q" placeholder="Name or @username" aria-label="Search people" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
-    <p class="small muted people-search-help">Find someone on Kinetta, or <button type="button" class="linkbtn" id="fr-browse">browse people</button>.</p>
-    <button type="button" class="primary wide" id="fr-invite">${svg('people')}Invite friends to Kinetta</button>
-    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div><div id="fr-suggest"></div></details>
+      <input type="search" name="q" placeholder="Find people" aria-label="Find people by name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
+    <p class="small muted people-search-help">Search by name or @username, or <button type="button" class="linkbtn" id="fr-browse">browse people</button></p>
+    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div></section>
+    <div id="fr-list-error" role="status"></div><div id="fr-lists">${skel(1)}</div>
+    <section class="friend-more"><div id="fr-suggest"></div><button type="button" class="primary wide" id="fr-invite">${svg('people')}Invite friends to Kinetta</button></section>
     <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Default audience for new activities, and shared details</small></span><span class="chev">${svg('chev')}</span></a>`;
   wireBack(el, '/me');
   const pageOwner=readOwner();let currentFriends=null,filterText='',friendLoadVersion=0;
@@ -866,12 +867,12 @@ route(/^\/me\/friends$/, 'me', async (el) => {
       let note=$('#fr-filter-empty',lists);if(!note){note=document.createElement('p');note.id='fr-filter-empty';note.className='small muted';$('#fr-own-list',lists).append(note);}note.textContent=shown?'':'No friends match that filter.';note.hidden=!!shown;
     };
     if(filter){filter.value=filterText;filter.oninput=()=>{filterText=filter.value;filterRows();};filterRows();}
-    const findButton=$('[data-find-people]',lists);if(findButton)findButton.onclick=()=>{$('#fr-discover',el).open=true;input.focus();};
+    const findButton=$('[data-find-people]',lists);if(findButton)findButton.onclick=()=>input.focus();
     const inviteButton=$('[data-invite-empty]',lists);if(inviteButton)inviteButton.onclick=inviteFriends;
     wire(lists);
   };
   const searching = find();
-  if(initial.has('find')||initial.has('q')){$('#fr-discover',el).open=true;input.focus();}
+  if(initial.has('find')||initial.has('q'))input.focus();
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);
   await loadFriends();
   drawSuggest();

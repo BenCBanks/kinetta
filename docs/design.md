@@ -1388,3 +1388,10 @@ Save daily targets button saves them. A different calorie goal for one day is a 
 ("Different calories just for today"), opened automatically when that day already has one; it changes calories only,
 and the sheet says so. The Set macro targets link opens the same sheet without the one-day part. With no daily target
 yet, Set goals still opens the full goal setup. Do not autofocus a field: the keyboard would hide the grid.
+
+## Find people at the top of Friends · 30 October 2026 (owner)
+
+Friends opens with a visible search field (search icon, "Find people") directly under the title, above requests and
+friend lists; results and Browse people appear right under it. Invite friends to Kinetta and suggested people follow
+the lists. It is no longer a folded card at the bottom. Search behaviour, debouncing, stale-response handling and
+server-enforced discovery rules are unchanged.
