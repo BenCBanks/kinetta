@@ -1492,3 +1492,6 @@ Sections are one grouped list with switches and44px reorder arrows; hidden rows 
 remain compact and keep their existing limits. Settings → Edit profile opens Me’s editor with Name focused; the card
 Edit pill focuses the first section switch. The separate profile sheet, duplicate layout editor and Draft preview
 are retired; Preview as remains on the full profile. Preserve Sky Blue, the privacy note and normal keyboard dismissal.
+
+The bio counter sits directly below its textarea, right-aligned. The editor reserves floating-navigation clearance
+after the unchanged privacy note; the last sport chips and note can scroll entirely above the tab bar.

@@ -214,3 +214,6 @@
 @media(max-width:360px) { .me-editor-head { margin-inline:-14px; padding-inline:6px; } .me-editor-identity { grid-template-columns:56px minmax(0,1fr); gap:8px; } .me-editor-photo .av { width:56px; height:56px; } }
 
 .me-editor-head [data-card-status] { grid-column:1/-1; margin:0; padding:0 8px 4px; font-size:.75rem; }
+
+/* Reserve the floating navigation clearance inside the editor, after its privacy note. */
+.me-card.editing .me-card-body { padding-bottom:calc(18px + var(--tab-h) + env(safe-area-inset-bottom,0px)); }

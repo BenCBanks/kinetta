@@ -94,6 +94,8 @@ async function inlineEditorChecks(browser){
   if(size.root===16){const h=(await card.boundingBox()).height;assert(h<=size.height*1.3,`default editor is compact: ${h}px`);}
   await card.scrollIntoViewIfNeeded();await p.evaluate(()=>scrollTo(0,document.querySelector('.me-card').offsetTop));
   if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/card-editor-default-${theme}.png`});}
+  const countBox=await p.locator('[data-card-bio-count]').boundingBox(),bioBox=await p.locator('#card-bio').boundingBox();assert(countBox.y>=bioBox.y+bioBox.height,'bio counter belongs below the bio');
+  await p.evaluate(()=>{const note=document.querySelector('.me-card-note');scrollTo(0,note.getBoundingClientRect().bottom+scrollY-innerHeight*.6);});const noteBox=await p.locator('.me-card-note').boundingBox(),navBox=await p.locator('nav.tabs').boundingBox();assert(noteBox.y+noteBox.height<navBox.y-8,'privacy note scrolls fully above navigation');if(out&&size.root===16)await p.screenshot({path:`${out}/card-editor-bottom-${theme}.png`});
   await p.evaluate(()=>scrollBy(0,180));assert((await header.boundingBox()).y<=2,'header remains pinned');
   await p.locator('#card-name').fill('');await p.locator('[data-card-save]').click();assert.match(await p.locator('#card-name-error').innerText(),/1 and 60/);assert.equal(puts.length,0,'empty name writes nothing');
   await p.locator('#card-name').fill('Brook Fixture');await p.locator('#card-bio').fill('Fictional trails and weekend rides.');
