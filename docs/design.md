@@ -1431,3 +1431,12 @@ least 3 runs each side); day and week streaks; View progress.
 Finish setting up: each open step has its own Skip (not everyone wants Apple Health). Skipped steps leave the list and
 the count, are saved to the account (`setup_skipped`), and come back with Settings → Show setup tips or "Bring back
 skipped setup steps". Add a profile photo opens the photo picker in place.
+
+## Edit activity: pinned Save, common choices first · 30 October 2026 (owner)
+
+Edit activity keeps **Cancel · Edit activity · Save** pinned at the top of the sheet while the form scrolls (only the
+grab bar scrolls away); there is no button row at the bottom. Order: Title, What did you do?, Who can see it (with
+"Choose what’s shared" and "Preview as a friend ›"), description and private note, then **Details** (distance, time &
+heart rate; gear; commute). **Delete activity** sits alone at the very bottom in red, with its confirmation. After any
+change, Cancel, Escape, swipe-down or a tap outside asks "Discard your changes?"; saving closes without asking.
+Other sheets can use the same pinned header through `sheet(..., {save: formId, canClose})`.

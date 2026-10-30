@@ -53,6 +53,7 @@ node dev/tests/test_lift_summary.js
 node dev/tests/test_lift_lifecycle.js
 node --check dev/tests/lift_ui.cjs # rendered checks run in the screenshot workflow
 node --check dev/tests/activity_ui.cjs
+node --check dev/tests/edit_activity_ui.cjs # rendered checks run in the screenshot workflow
 node --check dev/tests/tracking_ui.cjs
 node --check dev/tests/track_ready_map_ui.cjs # rendered checks run in the screenshot workflow
 node dev/tests/test_recipe_delete.js

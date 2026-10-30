@@ -506,10 +506,10 @@ function wireSeg(box, attr, onPick) {
 function shareFields(box, aid, s) {
   let vis = s.visibility, usual = false;
   box.innerHTML = `<h3 class="ghead">Who can see it</h3>${visSeg(vis)}<p class="small muted vis-note"></p>
-    <details class="sh-more"><summary>What they see</summary><div class="checks">${detailChecks(s.details)}</div>
+    <details class="sh-more"><summary>Choose what’s shared</summary><div class="checks">${detailChecks(s.details)}</div>
       <p class="small muted">Splits and laps are shared only with pace. Private notes and Kit’s notes are never shared.</p>
       ${s.custom ? '<button type="button" class="linkbtn" id="sh-usual">Use my usual details</button>' : ''}</details>
-    ${s.visibility !== 'me' ? `<a class="small" href="/activity/friends/${aid}" data-close>See what they see ›</a>` : ''}`;
+    ${s.visibility !== 'me' ? `<a class="small" href="/activity/friends/${aid}" data-close>Preview as a friend ›</a>` : ''}`;
   const note = $('.vis-note', box);
   const say = () => { note.textContent = vis === 'me' ? 'Only you. Nobody else can see it.' : vis === 'friends' ? 'Friends you have approved.' : 'Anyone with an account on this Kinetta server.'; };
   say(); wireSeg(box, 'vis', (v) => { vis = v; say(); });
