@@ -1,0 +1,29 @@
+/* Track launch controls; recording and review keep their own layout. */
+.compact-ready.track-ready { gap:10px; }
+.compact-ready .track-quick { display:flex; flex-wrap:nowrap; gap:4px; overflow-x:auto; scrollbar-width:none; padding:1px 0; }
+.compact-ready .track-quick button { display:flex; align-items:center; justify-content:center; flex:0 0 auto; min-height:44px; padding:6px; border-radius:999px; font-size:.9375rem; white-space:nowrap; }
+.compact-ready .track-quick button svg { width:14px; height:14px; }
+.compact-ready .track-gps-note { margin:0; font-size:.8125rem; }
+.compact-ready .track-ready-map { height:clamp(190px,28dvh,240px); }
+.compact-ready .track-ready-map-wrap.full .track-ready-map { height:100%; }
+.compact-ready .track-go,.gps-ready .compact-ready .track-go { margin:0; }
+.compact-ready .track-go > .round-btn { width:92px; height:92px; min-height:92px; font-size:1.25rem; }
+.compact-ready .track-go > .primary { min-height:48px; }
+.compact-ready #track-ready-error:empty { display:none; }
+.compact-ready #track-guidance { font-size:.8125rem; }
+.track-recording-options { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.track-recording-options:not(:has(#interval-open)):not(:has(#track-options:not([hidden]))) { display:none; }
+.track-recording-options > div { max-width:100%; }
+.track-recording-options .me-chip { display:flex; gap:5px; min-height:44px; max-width:100%; white-space:normal; text-align:left; padding:7px 10px; font-size:.8125rem; }
+.track-recording-options .me-chip svg { flex:none; width:16px; height:16px; }
+.track-plan { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; }
+.track-plan[hidden] { display:none; }
+.track-plan > a:first-child { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; min-width:0; color:var(--tx); text-decoration:none; font-size:.9375rem; }
+.track-plan small { color:var(--tx2); font-size:.8125rem; }
+.track-plan > .me-chip { flex:none; min-height:44px; }
+.compact-track-tools.track-tools { margin:16px 0 8px; padding:0; border:0; }
+.compact-track-tools .sec-head { font-size:1rem; margin:0 0 10px; }
+.compact-track-tools .progress-tile { margin:0; }
+
+.compact-ready .track-quick #track-other { position:sticky; right:0; background:var(--card); box-shadow:-6px 0 8px var(--bg); }
+.compact-track-tools .progress-tile:last-child:nth-child(even) { grid-column:auto; }

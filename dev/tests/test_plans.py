@@ -95,6 +95,13 @@ if P: check('predictions carry the best at each distance', all('best_s' in x for
 
 for a in p.get('/api/activities?limit=20')[1]:
     if a['name'] == 'zz plan run': p.delete(f"/api/activities/{a['id']}")
+# Deterministic run/walk metadata is a recorder prefill, not parsed workout prose or changed plan maths.
+s,r=p.post('/api/plans',{'race':'5k','level':'first','weeks':9,'runs':3,'long_day':5,'race_day':(monday+dt.timedelta(weeks=8,days=5)).isoformat()})
+check('run/walk plan made',s==200,r)
+walk_plan=p.get('/api/plans/current')[1]
+first_walk=walk_plan['weeks'][0]['workouts'][0]
+check('first run/walk exposes exact structured intervals',first_walk.get('track_intervals')=={'run_min':1,'walk_min':1.5,'repeat':8},first_walk)
+check('last continuous run is informational',all('track_intervals' not in w for wk in walk_plan['weeks'][7:] for w in wk['workouts']))
 p.delete('/api/plans/current')
 print(f'plans: {ok} passed, {fail} failed')
 sys.exit(1 if fail else 0)

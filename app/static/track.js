@@ -491,22 +491,22 @@ const Track = (() => {
     const quick = outdoor.length ? TRACK_QUICK : [0, 1, 2, 3].filter(i => i < choices.length);
     let selected = Math.min(choices.length-1, Math.max(0, +store.get(key + ':choice') || 0));
     const done = new URLSearchParams(location.search).get('done');
-    el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">Record runs, rides and walks with GPS in the Kinetta iPhone app${App.me?.iphone_app ? ` (<a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">get it through TestFlight</a>)` : ''}. Here you can time indoor workouts, log lifting and add past activities.</p>`}<div class="track-quick" role="group" aria-label="Common activities">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${svg(choices[i].lift ? 'workout' : choices[i].sport)}<span>${esc(choices[i].label)}</span></button>`).join('')}</div><details class="track-other" id="track-other"><summary>${quick.includes(selected)?'More activities':esc(choices[selected].label)}${svg('down')}</summary><label>All activities<select id="track-kind">${choices.map((c,i) => `${i===0 && outdoor.length ? '<optgroup label="Outdoor · GPS">' : i===outdoor.length ? `${outdoor.length ? '</optgroup>' : ''}<optgroup label="Indoor · timer and sets">` : ''}<option value="${i}"${i===selected ? ' selected' : ''}>${esc(c.label)}${c.gps ? ' · GPS' : c.lift ? ' · sets & reps' : ' · timer'}</option>`).join('')}</optgroup></select></label></details>
+    if(new URLSearchParams(location.search).get('past')==='1'){const url=new URL(location.href);url.searchParams.delete('past');history.replaceState(null,'',url.pathname+url.search);setTimeout(()=>{if(el.isConnected)addActivitySheet();});}
+    el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready compact-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">GPS recording is in the iPhone app.${App.me?.iphone_app ? ` <a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">Get it</a>` : ''}</p>`}<div class="track-quick" role="group" aria-label="Common activities">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}">${esc(choices[i].label)}</button>`).join('')}<button type="button" id="track-other" aria-label="More activities">More ${svg('down')}</button></div>
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="map-full" aria-label="Full-screen map">${svg('expand')}</button><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
-      <div class="track-go"><button class="round-btn start" id="track-start"><span>Start</span></button><small id="track-start-label"></small></div><div class="track-interval-ready" id="track-interval-ready"></div>
-      <p class="small danger" id="track-ready-error" role="alert"></p>
-      <button type="button" class="track-prefs" id="track-options" hidden></button><p class="small muted" id="track-guidance"></p>
+      <div id="track-plan" class="track-plan" hidden></div>
+      <div class="track-recording-options" aria-label="This recording"><div id="track-interval-ready"></div><button type="button" class="me-chip" id="track-options" hidden></button></div>
+      <div class="track-go"><button class="${outdoor.length?'round-btn start':'primary wide'}" id="track-start"><span>Start</span></button></div>
+      <p class="small danger" id="track-ready-error" role="alert"></p><p class="small muted" id="track-guidance"></p>
       </form>
-      <div id="track-open-lift"></div><section class="track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">More ways to add</h2><div class="card list">${Native.on ? `<a class="row-link" href="/track/health">${svg('heart')}<span class="grow">Apple Health</span>${svg('chev')}</a>` : ''}<a class="row-link" href="/track/connections">${svg('watch')}<span class="grow">Connections<small class="muted gs-sub">${Native.on ? 'Garmin and Apple Health' : 'Garmin, Apple Health and other apps'}</small></span>${svg('chev')}</a><button class="row-link" id="track-past">${svg('calendar')}<span class="grow">Log a past activity</span>${svg('chev')}</button>${Native.on ? '' : `<a class="row-link" href="/track/import">${svg('upload')}<span class="grow">Import activity history</span>${svg('chev')}</a>`}</div></section>`;
+      <div id="track-open-lift"></div><section class="track-tools compact-track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">Other ways to add</h2><div id="track-explore" class="progress-grid"></div></section>`;
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false,readyFollow=true;const readyOwner=readOwner(),readyLive=()=>renderRevision===drawRevision&&el.isConnected&&readyOwner===readOwner()&&!session;
-    const guide = () => { const c=choices[selected];globalThis.Intervals?.mount($('#track-interval-ready'),c);$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start-label').textContent=c.lift?'Lifting':c.label;$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Exercises, sets, reps and a rest timer.':c.gps ? TrackNative.supported ? 'GPS keeps recording with your screen locked.' : 'Outdoor GPS recording. For screen-off and background recording, use the iPhone app.' : TrackNative.supported ? 'A timer for active time, including with the screen locked.' : 'Timer recording. Keep this browser page open.'; };
-    // Spoken splits and auto-pause (#234 item 4): on by default, auto-pause off for rides; remembered on this device
-    // Recording settings live in a sheet (Ben, 2026-10-26: big checkboxes up top weren't friendly); one quiet line
-    // under Start says what's on and opens it. Same saved choices as before, per device.
+    const guide = () => { const c=choices[selected];globalThis.Intervals?.mount($('#track-interval-ready'),c,{compact:true,changed:opts});$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Sets, reps and a rest timer.':c.gps?'GPS continues with your screen locked.':TrackNative.supported?'A timer, including with your screen locked.':'Keep this page open while the timer runs.'; };
+    // The pre-start chips edit the existing device choices; the recorder remains their owner after Start.
     const opts=()=>{ const c=choices[selected],box=$('#track-options');if(!box)return;
       box.hidden=!c.gps;if(!c.gps)return;
       const o=recordOptions(c.sport),unit=imp()?'mile':'km';
-      box.innerHTML=`${svg('sound')}<span>${o.voice?`Spoken every ${unit}`:'Spoken updates off'} · Auto-pause ${o.autoPause?'on':'off'}</span>${svg('chev')}`;
+      box.innerHTML=`${svg('sound')}<span>${o.voice?`Every ${unit}`:'Voice off'} · Auto-pause ${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?'off for intervals':o.autoPause?'on':'off'}</span>`;
       box.onclick=()=>prefs(c); };
     const prefs=(c)=>{ const o=recordOptions(c.sport),unit=imp()?'mile':'km';
       sheet('Recording settings',`<div class="track-pref-list"><div class="switch-row"><div class="track-voice-copy"><label for="track-voice"><b>Spoken updates</b></label><small>Hear your time and ${speedSport(c)?'speed':'pace'} at every ${unit}, even with the screen locked.</small>${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?Intervals.voiceControls():''}</div><input type="checkbox" role="switch" id="track-voice"${o.voice?' checked':''}></div>
@@ -518,9 +518,9 @@ const Track = (() => {
         $('[data-done]',b).onclick=close;});
       Native.haptic?.('selection'); };
     const gear=$('#track-settings');if(gear)gear.onclick=()=>{const c=choices[selected];if(c.gps)prefs(c);else toast('Spoken updates and auto-pause are for GPS activities.');};
-    const pick=(i)=>{selected=i;setTimeout(opts);store.set(key+':choice',selected);$('#track-kind').value=String(i);const other=$('#track-other');other.open=false;$('summary',other).innerHTML=esc(quick.includes(i)?'More activities':choices[i].label)+svg('down');$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();};
-    $('#track-kind').onchange=(e)=>pick(+e.target.value);opts();
-    $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});guide();
+    const pick=(i)=>{if(!readyLive()||!choices[i])return;selected=i;store.set(key+':choice',selected);const other=$('#track-other');other.innerHTML=esc(quick.includes(i)?'More':choices[i].label)+svg('down');other.setAttribute('aria-pressed',String(!quick.includes(i)));$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();opts();auto();};
+    $('#track-other').onclick=()=>pickSheet('Activity',pickRows(choices.map((c,i)=>[String(i),c.label,c.gps?'GPS':c.lift?'Sets & reps':'Timer',c.lift?'workout':c.sport]),String(selected)),i=>pick(+i));
+    $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
     // (permission is remembered); a browser locates by itself only after the person has already allowed it.
     const show=(lat,lon,accuracy,at)=>{if(!readyLive())return;located=true;here=[lat,lon,accuracy,at];if(!view||!$('#track-ready-map')?.isConnected)return;
@@ -543,7 +543,7 @@ const Track = (() => {
     };
     const auto=()=>{ if(!located&&choices[selected].gps)locate(true); };
     $('#track-locate').onclick=()=>{centred=false;readyFollow=true;locate(false);};
-    $('#track-kind').addEventListener('change',auto);auto();
+    pick(selected);
     // keep the dot live while you get ready, not just one fix from when the screen opened
     const tick=setInterval(()=>{ if(!readyLive()){clearInterval(tick);return;} if(located&&choices[selected].gps&&!document.hidden)locate(true); },8000);
     function ensureMap(){
@@ -558,10 +558,27 @@ const Track = (() => {
         .catch(()=>{if(el.isConnected)$('#track-ready-error').textContent='Map unavailable. Recording still works without map tiles.';})
         .finally(()=>{loadingMap=false;});
     }
-    globalThis.Intervals?.mount($('#track-interval-ready'),choices[selected]);
-    if(globalThis.Intervals&&new URLSearchParams(location.search).get('intervals')==='1'){const url=new URL(location.href);url.searchParams.delete('intervals');history.replaceState(null,'',url.pathname+url.search+url.hash);Intervals.library(()=>Intervals.mount($('#track-interval-ready')));}
+    if(globalThis.Intervals&&new URLSearchParams(location.search).get('intervals')==='1'){const url=new URL(location.href);url.searchParams.delete('intervals');history.replaceState(null,'',url.pathname+url.search+url.hash);Intervals.library(()=>{guide();opts();});}
     $('#track-setup').onsubmit=async(e)=>{e.preventDefault();if(controlling||!readyLive())return;const c=choices[selected];if(c.lift){if(globalThis.Intervals?.hasSelection()){const error=$('#track-ready-error');if(error)error.textContent='Intervals need an outdoor Run or Walk in the iPhone app. Change the activity or remove the loaded preset.';return;}startLiftSheet();return;}await begin(c.sport,c.label,c.sportLabel,c.gps);};
-    $('#track-past').onclick=()=>addActivitySheet();liftNowCard($('#track-open-lift'));
+    // Only live plan facts may prefill an expressible workout. Never infer intervals from its prose.
+    if(outdoor.length)api('/api/plans/current').then(d=>{if(!readyLive())return;const w=d.today_workout;if(!d.plan||!w||w.day!==d.today||w.status==='done'||w.type==='rest')return;
+      const box=$('#track-plan'),canUse=!!w.track_intervals||['easy','recovery','long','long_pace'].includes(w.type);box.hidden=false;
+      box.innerHTML=`<a href="/plan"><small>Today</small><b>${esc(w.title)}</b></a>${canUse?'<button type="button" class="me-chip" data-plan-use>Use</button>':`<a class="me-chip" href="/plan">View plan</a>`}`;
+      const button=$('[data-plan-use]',box);if(button)button.onclick=async()=>{if(!readyLive())return;button.disabled=true;try{const loaded=w.track_intervals?await Intervals.usePlan(w,d.plan.id):Intervals.removeSelection();if(!readyLive()||!loaded)return;pick(0);toast('Ready for today’s run. Press Start when you are.');}catch(e){if(readyLive())$('#track-ready-error').textContent=e.message;}finally{if(button.isConnected)button.disabled=false;}};
+    }).catch(()=>{});
+    trackDiscovery($('#track-explore'),readyLive);
+    liftNowCard($('#track-open-lift'));
+  }
+  function trackDiscovery(box,current){
+    if(typeof Discovery==='undefined')return;let connections=null,health=null,settled=false;
+    const draw=()=>{if(!current())return;const count=(connections?['apple','garmin_connect'].filter(k=>connections[k]).length:0)+(health?.on?1:0);
+      const items=[...(Native.on?[{id:'health',title:'Apple Health',icon:'heart',href:'/track/health',description:health?.on===false?'Off · Set up →':'Bring in workouts →',teaser:Native.syncing?'Syncing…':health?.error?'Check sync →':health?.on?(health.at?'Synced '+when(health.at):'Sync is on'):''}]:[]),
+        {id:'past',title:'Log past',icon:'calendar',href:'/track?past=1',description:'Add a workout →'},
+        {id:'import',title:'Import history',icon:'upload',href:'/track/import',description:Native.on?'Use your browser →':'Bring in old workouts →'},
+        {id:'connections',title:'Connections',icon:'watch',href:'/track/connections',description:'Connect your apps →',teaser:count?`${count} connected`:''}];
+      Discovery.render(box,items,{space:'track',ready:settled,attribute:'data-track-feature'});
+    };Discovery.wire(box,'track',{attribute:'data-track-feature'});box.addEventListener('click',e=>{if(!current()||e.metaKey||e.ctrlKey||e.button>0)return;if(e.target.closest('[data-track-feature="past"]')){e.preventDefault();e.stopPropagation();addActivitySheet();}else if(Native.on&&e.target.closest('[data-track-feature="import"]')){e.preventDefault();e.stopPropagation();sheet('Import history',`<p>Open Kinetta in your browser to import original activity files or a Strava export.</p><a class="primary wide" href="${esc(Native.base+'/track/import')}" target="_blank" rel="noopener">Open in browser</a>`);}});draw();
+    Promise.allSettled([api('/api/connections',{maxAge:0}).then(value=>connections=value),...(Native.on?[Native.healthCall(Promise.all([Native.healthOn(),Native.healthStatus()]),'Health status is unavailable.',5000).then(([on,st])=>health={on,at:st?.last_success_at||st?.at,error:st?.error},()=>health={error:true})]:[])]).then(()=>{settled=true;draw();});
   }
   function recordOptions(sport) {
     const voice=store.get(key+':voice'),auto=store.get(key+':auto:'+sport);

@@ -143,7 +143,8 @@ def build(p, P):
                     mins = run + 10
                     detail = f'5 min brisk walk, run {run} minutes without stopping (slow is fine), 5 min walk.'
                     title = f'Run {run} min'
-                ws.append({'day': day, 'type': 'runwalk', 'title': title, 'dist': None, 'minutes': mins, 'detail': detail})
+                ws.append({'day': day, 'type': 'runwalk', 'title': title, 'dist': None, 'minutes': mins, 'detail': detail,
+                           **({'track_intervals': {'run_min':run, 'walk_min':walk, 'repeat':reps}} if walk else {})})
             if i == W - 1 and not any(w['type'] == 'race' for w in ws) and start <= race_day:
                 ws.append({'day': race_day, 'type': 'race', 'title': f"Race: {R['name']}", 'dist': _r(R['m'] / 1000 / (MI / 1000 if U == 'mi' else 1), 0.1),
                            'detail': 'Start slower than you want to. Walk breaks are allowed - finishing is the goal.'})
@@ -407,6 +408,7 @@ def apply_adjustments(c, uid, p, weeks):
     for week in weeks:
         for workout in week['workouts']:
             if workout['day'] in adjusted:
+                workout.pop('track_intervals', None)  # an adjusted description is not a checked interval prescription
                 workout['original_dist'] = workout.get('dist')
                 workout.update(adjusted[workout['day']])
                 workout['adjusted'] = True
