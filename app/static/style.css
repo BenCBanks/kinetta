@@ -2836,3 +2836,22 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .sheet-text-btn:disabled { opacity: .5; }
 .e-details-head { margin: 10px 0 -4px; }
 .e-delete { display: block; width: 100%; min-height: 48px; margin-top: 18px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--alert); font-size: 1rem; font-weight: 600; }
+
+/* Compact builder and shared Track voice chips (owner refinement, 30 October). */
+.interval-extras { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:start; }
+.interval-extras .interval-line { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; }
+#interval-editor .interval-extras .interval-extra { grid-column:1/-1; }
+.voice-chip-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; min-width:0; }
+.voice-chip-row[hidden] { display:none; }
+.voice-chip-label { font-size:.8125rem; color:var(--tx2); }
+.builder .voice-chip-label { font-weight:650; }
+.voice-chip-buttons { display:flex; flex-wrap:nowrap; gap:6px; }
+.voice-chip-buttons .me-chip { min-height:44px; font-size:.8125rem; padding:0 10px; white-space:nowrap; }
+.voice-chip-row.voice-off { opacity:.5; }
+#interval-editor .voice-chip-row { margin:10px 0; }
+.track-voice-copy { display:grid; gap:2px; min-width:0; flex:1; }
+.track-voice-copy > label { margin:0; }
+.track-voice-copy .voice-chip-row { margin:4px 0 0; }
+#interval-editor .interval-name { display:flex; align-items:center; gap:6px; }
+#interval-editor .interval-name input { flex:1; min-width:0; width:0; margin:0; }
+.track-voice-copy + #track-voice { align-self:start; margin-top:2px; }

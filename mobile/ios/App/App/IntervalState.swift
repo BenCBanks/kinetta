@@ -232,12 +232,12 @@ struct IntervalState: Codable {
             if effects[i].vibration=="attempted" { effects[i].vibration="unknown" }
         }
     }
-    func instruction() -> String {
+    func instruction(unitMetres: Double = 1000) -> String {
         if status=="complete" { return "Interval sequence complete. Keep recording, or pause and finish when ready." }
         guard let phase=current else { return "Intervals ended. Recording continues." }
         let action=phase.action=="run" ? "Run":"Walk"
         let value=remaining ?? phase.target
-        let target=phase.kind=="time" ? NativeTrackVoiceText.said(value):"\(Int(value.rounded(.up))) metres"
+        let target=phase.kind=="time" ? NativeTrackVoiceText.said(value):NativeTrackVoiceText.distance(value, unitMetres:unitMetres)
         return "\(action). \(target) remaining."
     }
 }

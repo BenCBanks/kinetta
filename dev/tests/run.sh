@@ -84,6 +84,7 @@ node dev/tests/test_activity_sync_ui.js
 python3 dev/tests/test_activity_food.py
 python3 dev/tests/test_intervals.py
 node dev/tests/test_interval_client.js
+node --check dev/tests/interval_voice_ui.cjs
 node dev/tests/test_combined_week_ui.js
 node dev/tests/test_mileage_chart.js
 node dev/tests/test_fitness_chart_controls.js

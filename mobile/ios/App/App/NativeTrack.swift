@@ -21,6 +21,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
     private var intervalTimer: DispatchSourceTimer?
     private var lastIntervalWrite=0.0
     private var audioObserver: NSObjectProtocol?
+    private var voiceEpoch=0
 
     override private init() {
         super.init();manager.delegate=self
@@ -28,6 +29,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
             guard let self else { return }
             let raw=note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             if raw==AVAudioSession.InterruptionType.began.rawValue {
+                self.voiceEpoch+=1
                 NativeTrackVoice.shared.cancel()
                 if var next=self.session { next.intervals?.suppress();try? self.files?.save(next);self.session=next }
             } else if let options=note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt,AVAudioSession.InterruptionOptions(rawValue:options).contains(.shouldResume),var next=self.session,next.state=="recording" {
@@ -91,7 +93,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
     }
     func begin(account: String, id: String, sport: String, label: String, kind: String?, gps: Bool,
                voice: Bool = false, autoPause: Bool = false, splitMetres: Double = 1000, routePlan:TrackRoutePlan? = nil,
-               intervals: IntervalPin? = nil, intervalVoice: Bool = true, intervalVibration: Bool = false,
+               intervals: IntervalPin? = nil, intervalVoice: Bool = true, intervalVibration: Bool = false, intervalSayTotal: Bool = true, intervalSayPace: Bool = true,
                completion: @escaping (Error?) -> Void) {
         do {
             try check(account)
@@ -115,7 +117,8 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
                         next.voice=voice;next.autoPause=autoPause;next.splits=[];next.autoMs=0;next.lastMove=now
                         next.splitMetres=splitMetres==1609.344 ? 1609.344 : 1000
                     }
-                    if let intervals { next.intervals=try IntervalState(pin:intervals,voice:intervalVoice,vibration:intervalVibration && NativeIntervalAlerts.vibrationAvailable) }
+                    next.intervalSayTotal=intervalSayTotal;next.intervalSayPace=intervalSayPace
+                    if let intervals { next.intervals=try IntervalState(pin:intervals,voice:voice && intervalVoice,vibration:intervalVibration && NativeIntervalAlerts.vibrationAvailable) }
                     guard let files=self.files else { throw self.fail("Recording storage is unavailable.") }
                     try files.save(next,resetPoints:true);self.session=next
                     self.startGPS()
@@ -152,7 +155,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         message="Finding GPS · background recording on"
     }
     func pause(account: String, id: String) throws {
-        try check(account,id:id);manager.stopUpdatingLocation();stopIntervalTimer();NativeTrackVoice.shared.cancel()
+        try check(account,id:id);voiceEpoch+=1;manager.stopUpdatingLocation();stopIntervalTimer();NativeTrackVoice.shared.cancel()
         guard var next=session else { return }
         next.advanceIntervals(at:self.instant,cues:false);next.intervals?.suppress()
         next.pause(at:self.instant);session=next;message="Paused";try files?.save(next)
@@ -246,6 +249,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         guard let account=owner,var next=session,next.state=="recording",var intervals=next.intervals,
               let i=intervals.effects.indices.last else { return }
         let sequence=intervals.effects[i].sequence,id=next.id
+        if next.voice != true && intervals.effects[i].voice=="pending" { intervals.effects[i].voice="disabled";next.intervals=intervals;try? files?.save(next);session=next }
         let voice=intervals.effects[i].voice=="pending",vibration=intervals.effects[i].vibration=="pending"
         if !voice && !vibration { return }
         let attemptedAt=next.seconds(at:instant)
@@ -253,8 +257,9 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         if vibration { intervals.effects[i].vibration=NativeIntervalAlerts.vibrationAvailable ? "attempted":"unsupported";if NativeIntervalAlerts.vibrationAvailable { intervals.effects[i].vibration_attempt_time=attemptedAt } }
         next.intervals=intervals
         do { try files?.save(next);session=next } catch { storageFailed();return }
-        if voice {
-            let ok=NativeTrackVoice.shared.say(intervals.instruction()) { [weak self] in
+        if voice,let text=NativeTrackVoiceText.intervalText(next,at:instant) {
+            voiceEpoch+=1
+            let ok=NativeTrackVoice.shared.say(text) { [weak self] in
                 self?.acknowledgeInterval(sequence,owner:account,id:id,channel:"voice",outcome:"completed")
             }
             if !ok { acknowledgeInterval(sequence,owner:account,id:id,channel:"voice",outcome:"failed") }
@@ -303,9 +308,20 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
             if let account=owner,let id=session?.id,session?.gps==true { try? pause(account:account,id:id);message="Location permission stopped. Your draft is kept." }
         }
     }
+    private func scheduleIntervalSplit(_ snapshot: TrackRecordingState, splitTime: Double) {
+        guard let text=NativeTrackVoiceText.text(snapshot) else { return }
+        let account=snapshot.owner,id=snapshot.id,splitCount=snapshot.splits?.count
+        let epoch=voiceEpoch
+        DispatchQueue.main.asyncAfter(deadline:.now()+4) { [weak self] in
+            guard let self,self.owner==account,let current=self.session,current.id==id,current.state=="recording",
+                  self.voiceEpoch==epoch,
+                  current.splits?.count==splitCount,current.segment==snapshot.segment,
+                  NativeTrackVoiceText.splitAllowed(current,splitTime:splitTime),!NativeTrackVoice.shared.speaking else { return }
+            NativeTrackVoice.shared.say(text,completion:{})
+        }
+    }
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard var next=session,next.state=="recording",next.gps else { return }
-        let hadIntervals=next.intervals?.status=="running"
         do {
             for location in locations.sorted(by: { $0.timestamp<$1.timestamp }) {
                 if next.points.count>=TrackRecordingState.maxPoints {
@@ -322,7 +338,10 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
                         candidate.advanceIntervals(at:self.instant,accepted:sample)
                     }
                     try files?.append(point);next=candidate
-                    if !hadIntervals,next.voice==true,let splits=next.splits,splits.count>before { NativeTrackVoice.shared.announce(next) }
+                    if next.voice==true,let splits=next.splits,splits.count>before {
+                        if next.intervals==nil { NativeTrackVoice.shared.announce(next) }
+                        else { scheduleIntervalSplit(next,splitTime:splits.last!) }
+                    }
                     message="GPS ±\(Int(location.horizontalAccuracy)) m · background recording on"
                 } else if location.horizontalAccuracy>100 { message="Weak GPS signal · waiting for better accuracy" }
             }
@@ -347,6 +366,7 @@ final class NativeTrackVoice: NSObject, AVSpeechSynthesizerDelegate {
     private let synth=AVSpeechSynthesizer()
     private var callbacks:[ObjectIdentifier:() -> Void]=[:]
     override private init() { super.init();synth.delegate=self;synth.usesApplicationAudioSession=true }
+    var speaking: Bool { synth.isSpeaking }
     func cancel() {
         callbacks.removeAll();synth.stopSpeaking(at:.immediate)
         try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
@@ -476,7 +496,7 @@ class KinettaTrackPlugin: CAPPlugin, CAPBridgedPlugin {
                 catch { call.reject("Review a complete supported interval preset before Start.");return }
             }
             r.begin(account:owner,id:call.getString("id") ?? "",sport:call.getString("sport") ?? "",label:call.getString("label") ?? "",kind:call.getString("sportLabel"),gps:call.getBool("gps") ?? false,
-                    voice:call.getBool("voice") ?? false,autoPause:call.getBool("autoPause") ?? false,splitMetres:call.getDouble("splitMetres") ?? 1000,routePlan:plan,intervals:pin,intervalVoice:call.getBool("intervalVoice") ?? true,intervalVibration:call.getBool("intervalVibration") ?? false) { error in
+                    voice:call.getBool("voice") ?? false,autoPause:call.getBool("autoPause") ?? false,splitMetres:call.getDouble("splitMetres") ?? 1000,routePlan:plan,intervals:pin,intervalVoice:call.getBool("intervalVoice") ?? true,intervalVibration:call.getBool("intervalVibration") ?? false,intervalSayTotal:call.getBool("intervalSayTotal") ?? true,intervalSayPace:call.getBool("intervalSayPace") ?? true) { error in
                 if let error=error { call.reject(error.localizedDescription);return }
                 do { call.resolve(try r.snapshot(account:owner,id:nil,since:0)) } catch { call.reject(error.localizedDescription) }
             }
