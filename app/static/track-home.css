@@ -35,3 +35,7 @@
 .compact-ready #track-other { display:flex; align-items:center; gap:3px; flex:none; min-height:44px; padding:6px; font-size:.9375rem; white-space:nowrap; }
 .compact-ready #track-other svg { width:14px; height:14px; }
 .compact-ready #track-other[aria-pressed="true"] { background:var(--accent2); color:var(--accent); border-color:var(--accent); }
+
+.track-recording-options > div { min-width:0; }
+.track-recording-options #interval-open span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.track-recording-options #interval-open { max-width:min(100%,16rem); }

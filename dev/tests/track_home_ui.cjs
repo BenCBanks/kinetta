@@ -28,6 +28,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   if(native&&who==='runner')await until(p,()=>!document.querySelector('#track-plan').hidden,'today workout');
   else assert(await p.locator('#track-plan').isHidden());
   if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${native?'native':'browser'}-${who}-${theme}.png`,fullPage:true,animations:'disabled'});}
+  if(native&&who==='empty'&&size.root===24&&theme==='dark'){
+   const name='Fictional'+('longname'.repeat(13)),definition={schema:1,name,description:'',blocks:[{id:'main',repeat:3,steps:[{id:'run',action:'run',role:'effort',title:'',target:{kind:'time',amount:'3',unit:'min'}},{id:'walk',action:'walk',role:'recovery',title:'',target:{kind:'time',amount:'1',unit:'min'}}]}]};
+   const created=await c.request.put(base+'/api/interval-presets/'+require('node:crypto').randomUUID(),{headers:{...auth,Origin:base},data:{mutation_id:require('node:crypto').randomUUID(),definition}});assert.equal(created.status(),200);const pin=await created.json();
+   await p.evaluate(pin=>{store.set('intervals:'+JSON.stringify([Native.base,App.me.id])+':selected',pin);render();},pin);await ready();assert.equal(await p.locator('#interval-open').getAttribute('title'),name);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'a long checked preset name cannot widen the phone');
+  }
   await p.locator('#track-other').click();await p.waitForSelector('.pick-list');await p.locator('.pick-list [data-pk]').last().click();assert.equal(await p.locator('#track-other').getAttribute('aria-pressed'),'true');
   await p.locator('[data-quick]').first().click();
   if(native){
