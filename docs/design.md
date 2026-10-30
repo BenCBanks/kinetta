@@ -1458,3 +1458,7 @@ the physical acceptance in #303/#305 and an owner-authorized TestFlight release.
 
 Owner refinement: the interval builder groups Warm-up/Cool-down side by side, then both voice switches side by side
 with one shared explanation. Name is a compact labelled row. Reflow controls at narrow/enlarged sizes without shrinking touch targets.
+
+PR review refinement: use an “Also say” row with Total time / Avg pace toggle chips in the builder, sharing the same
+preferences. Chips stay together and labels never wrap within a chip. Recording settings nests that row under Spoken
+updates and hides it when voice is off; the builder keeps a dimmed “Also say · voice is off” row. Both default pressed.

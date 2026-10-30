@@ -509,11 +509,11 @@ const Track = (() => {
       box.innerHTML=`${svg('sound')}<span>${o.voice?`Spoken every ${unit}`:'Spoken updates off'} · Auto-pause ${o.autoPause?'on':'off'}</span>${svg('chev')}`;
       box.onclick=()=>prefs(c); };
     const prefs=(c)=>{ const o=recordOptions(c.sport),unit=imp()?'mile':'km';
-      sheet('Recording settings',`<div class="track-pref-list"><label class="switch-row"><span><b>Spoken updates</b><small>Hear your time and ${speedSport(c)?'speed':'pace'} at every ${unit}, even with the screen locked.</small></span><input type="checkbox" role="switch" id="track-voice"${o.voice?' checked':''}></label>
-        <label class="switch-row"><span><b>Auto-pause</b><small>Stops the clock when you stop moving and starts it when you go. Saved for each kind of activity: this is for ${esc(c.label.toLowerCase())}.</small></span><input type="checkbox" role="switch" id="track-auto"${o.autoPause?' checked':''}></label></div>${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?Intervals.voiceControls():''}
+      sheet('Recording settings',`<div class="track-pref-list"><div class="switch-row"><div class="track-voice-copy"><label for="track-voice"><b>Spoken updates</b></label><small>Hear your time and ${speedSport(c)?'speed':'pace'} at every ${unit}, even with the screen locked.</small>${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?Intervals.voiceControls():''}</div><input type="checkbox" role="switch" id="track-voice"${o.voice?' checked':''}></div>
+        <label class="switch-row"><span><b>Auto-pause</b><small>Stops the clock when you stop moving and starts it when you go. Saved for each kind of activity: this is for ${esc(c.label.toLowerCase())}.</small></span><input type="checkbox" role="switch" id="track-auto"${o.autoPause?' checked':''}></label></div>
         <button type="button" class="primary wide" data-done>Done</button>`,(b,close)=>{
         globalThis.Intervals?.wireVoiceControls(b);
-        $('#track-voice',b).onchange=(e)=>{store.set(key+':voice',e.target.checked);opts();};
+        $('#track-voice',b).onchange=(e)=>{store.set(key+':voice',e.target.checked);globalThis.Intervals?.updateVoiceAvailability(b);opts();};
         $('#track-auto',b).onchange=(e)=>{store.set(key+':auto:'+c.sport,e.target.checked);opts();};
         $('[data-done]',b).onclick=close;});
       Native.haptic?.('selection'); };
