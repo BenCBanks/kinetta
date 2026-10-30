@@ -25,22 +25,14 @@ const tick=()=>new Promise(setImmediate);
  type('offline');flush();pending[2].reject(new Error('Connection failed'));await tick();assert(found.innerHTML.includes('Retry search'));assert.equal(input.value,'offline');nodes['[data-retry]'].onclick();pending[3].resolve([]);await tick();assert(found.innerHTML.includes('No people found'));
  type('late');flush();type('');pending[4].resolve([{name:'Late fixture',login:'late'}]);await tick();assert.equal(found.innerHTML,'');assert.equal(lists.hidden,false);assert.equal(clear.hidden,true);
  type('detached');flush();found.isConnected=false;pending[5].resolve([{name:'Detached fixture',login:'other'}]);await tick();assert(!found.innerHTML.includes('Detached fixture'));
- // Real editor: failed atomic save keeps name AND bio; retry updates the normalised name and closes.
- const f={elements:{name:{value:'New name',focus(){}},bio:{value:'Draft bio',focus(){}}}},save={},error={},cancel={},photo={};let closed=false,reloaded=0,attempts=0;
- c.$=(sel,box)=>sel==='#pf-editor'?f:sel==='[type="submit"]'?save:sel==='.err'?error:sel==='[data-cancel]'?cancel:photo;
- let editorBox;c.sheet=(title,html,mount)=>{editorBox={isConnected:true};mount(editorBox,()=>{editorBox.isConnected=false;closed=true;});};c.profilePhotoSheet=()=>{};c.invalidate=()=>{};c.keep=()=>{};c.invalidateFeed=()=>{};c.toast=()=>{};c.App={me:{name:'Old name'}};c.json=(method,body)=>body;
- c.api=async(path,body)=>{assert.equal(path,'/api/account');assert.deepEqual(JSON.parse(JSON.stringify(body)),{name:'New name',bio:'Draft bio'});if(++attempts===1)throw new Error('Try again');return {name:'New name'};};
- vm.runInContext(source.slice(source.indexOf('function editProfile('),source.indexOf("route(/^\\/me\\/friends$/")),c);
- c.editProfile({name:'Old name',bio:''},()=>reloaded++);await f.onsubmit({preventDefault(){}});assert.equal(closed,false);assert.equal(error.textContent,'Try again');assert.equal(f.elements.bio.value,'Draft bio');assert.equal(save.disabled,false);await f.onsubmit({preventDefault(){}});assert(closed);assert.equal(c.App.me.name,'New name');assert.equal(c.App.me.bio,'Draft bio');assert.equal(reloaded,1);
- // The shared Settings/profile editor never submits an old draft to a new account,
- // or applies an old account's delayed response to the person now signed in.
- save.disabled=false;closed=false;c.editProfile({name:'Old name',bio:''},()=>reloaded++);editorOwner='second';
- const beforeStale=attempts;await f.onsubmit({preventDefault(){}});assert.equal(attempts,beforeStale);assert(closed);
- editorOwner='first';save.disabled=false;closed=false;c.editProfile({name:'Old name',bio:''},()=>reloaded++);
- let finish;c.api=()=>new Promise(resolve=>finish=resolve);const saving=f.onsubmit({preventDefault(){}});
- editorOwner='second';c.App.me={name:'Other account',bio:'Other bio'};finish({name:'Old response'});await saving;
- assert.equal(c.App.me.name,'Other account');assert.equal(c.App.me.bio,'Other bio');assert.equal(reloaded,1);assert(closed);
- editorOwner='first';save.disabled=false;closed=false;c.editProfile({name:'Old name',bio:''},()=>reloaded++);const closedSave=f.onsubmit({preventDefault(){}});cancel.onclick();finish({name:'Saved after closing'});await closedSave;assert.equal(c.App.me.name,'Saved after closing','confirmed saves still reconcile own account state');assert.equal(reloaded,1,'a closed editor must not remount the newer view');
+ // The separate sheet is retired; every Settings entry uses the same inline card editor.
+ const profile=fs.readFileSync('app/static/profile.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8');
+ assert(!source.includes('function editProfile(')&&!source.includes('Draft preview')&&!source.includes('pf-editor'));
+ assert(!profile.includes('data-card-identity')&&!profile.includes('function editor(box,initial'));
+ assert(pages.includes("$('#m-profile', el).onclick = () => MeCard.openEditor()"));
+ assert(profile.includes("openEditor:()=>go('/me?edit=profile')"));
+ // Atomic inline save/retry/cancel/account behavior is exercised with real DOM in profile_card_ui.cjs.
+ c.invalidate=()=>{};c.keep=()=>{};c.invalidateFeed=()=>{};c.toast=()=>{};c.App={me:{name:'Old name'}};
  // Friend-management confirmation/retry/account behavior is covered by test_friend_management.js.
  // Native share cancellation is quiet; unavailable sharing exposes a copyable authenticated link.
  let sharePayload,shareSheet=null,cardOpens=0,closedShares=0;
@@ -49,12 +41,12 @@ const tick=()=>new Promise(setImmediate);
  // Only controls actually present in the rendered sheet exist. Unknown selectors return null.
  c.sheet=(title,html,mount)=>{const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{textContent:'',disabled:false}]));const box={nodes,isConnected:true};shareSheet={title,html,box};mount(box,()=>{box.isConnected=false;closedShares++;});};
  c.$=(sel,box)=>sel==='input'?copyInput:box?.nodes[sel]||null;c.KinettaCard={open:()=>cardOpens++};
- vm.runInContext(source.slice(source.indexOf('function shareProfile('),source.indexOf('// One editor saves')),c);
+ vm.runInContext(source.slice(source.indexOf('function shareProfile('),source.indexOf("route(/^\\/me\\/friends$/")),c);
  c.shareProfile({login:'alex',name:'Alex'});await tick();assert.equal(sharePayload.url,'https://example.test/people/alex');assert.equal(shareSheet,null);
  c.navigator.share=undefined;c.shareProfile({login:'alex',name:'Alex'});assert(shareSheet.html.includes('sharing choices still apply'));await shareSheet.box.nodes['#pf-copy'].onclick();assert.equal(shareSheet.box.nodes['#pf-copy-status'].textContent,'Link copied');
  c.navigator.clipboard.writeText=async()=>{throw Error('Clipboard denied')};await shareSheet.box.nodes['#pf-copy'].onclick();assert(copyInput.selected);assert(shareSheet.box.nodes['#pf-copy-status'].textContent.includes('Select and copy'));
  c.api=async()=>({url:'/add/fictional-invitation'});await c.inviteFriends();assert.equal(typeof shareSheet.box.nodes['#iv-public-card'].onclick,'function','The advertised card action must work');shareSheet.box.nodes['#iv-public-card'].onclick();assert.equal(cardOpens,1);assert.equal(closedShares,1);
  let resolveInvite;c.api=()=>new Promise(resolve=>resolveInvite=resolve);shareSheet=null;const oldInvite=c.inviteFriends();editorOwner='third';resolveInvite({url:'/add/old-account-link'});await oldInvite;assert.equal(shareSheet,null,'An old account’s delayed invite link cannot appear after login changes');
  c.navigator.share=()=>new Promise((_,reject)=>{c.rejectShare=reject});c.shareProfile({login:'alex',name:'Alex'});editorOwner='fourth';c.rejectShare({name:'Unavailable'});await tick();assert.equal(shareSheet,null,'A late native share failure cannot reopen an old account’s sheet');
- console.log('Social profiles: own tab, friend matching, reordered/failed/detached search, atomic editor retry, working share/copy/invite controls and account fences PASS');
+ console.log('Social profiles: own tab, friend matching, reordered/failed/detached search, unified editor entry, working share/copy/invite controls and account fences PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

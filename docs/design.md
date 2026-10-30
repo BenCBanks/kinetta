@@ -1480,3 +1480,18 @@ Owner/PR density refinement: Progress home uses two-column Explore tiles with in
 two-line teasers. Totals places title/sport/period on one row at390px and reflows for narrow/enlarged text. Empty
 totals collapse to a sentence; sparse averages can be omitted on home. Fitness/Records size to their content.
 Keep the existing detail calculations and charts; home uses the same values in a shorter preview.
+
+## Card editor: identity inline · 30 October 2026 (#378)
+
+The Me card and your full profile use one inline editor. Keep Cancel · Editing your card · Save pinned at the top.
+Name, photo and bio lead; the username is read-only. Photo changes save immediately without losing other drafts.
+One account update saves name, bio and layout together; failed saves keep the fields and show the message below
+the header. Save stays disabled until a change. Empty/overlong names are refused inline. Cancel asks before discarding.
+
+Sections are one grouped list with switches and44px reorder arrows; hidden rows stay movable. Headline/sport chips
+remain compact and keep their existing limits. Settings → Edit profile opens Me’s editor with Name focused; the card
+Edit pill focuses the first section switch. The separate profile sheet, duplicate layout editor and Draft preview
+are retired; Preview as remains on the full profile. Preserve Sky Blue, the privacy note and normal keyboard dismissal.
+
+The bio counter sits directly below its textarea, right-aligned. The editor reserves floating-navigation clearance
+after the unchanged privacy note; the last sport chips and note can scroll entirely above the tab bar.
