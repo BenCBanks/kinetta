@@ -4,10 +4,10 @@ globalThis.Intervals=(()=>{
  const clone=x=>JSON.parse(JSON.stringify(x)),uid=()=>crypto.randomUUID();
  const scope=()=>App.me?JSON.stringify([Native.base||location.origin,App.me.id]):null;
  const key=s=>'intervals:'+scope()+':'+s;
- const memory=new Map();
+ const memory=new Map();let selectionRevision=0;
  const get=(name,fallback=null)=>scope()?(memory.has(key(name))?memory.get(key(name)):store.get(key(name)))??fallback:fallback;
- const put=(name,value)=>{if(!scope())throw Error('Sign in first.');const k=key(name);memory.set(k,clone(value));try{localStorage.setItem(k,JSON.stringify(value));return true;}catch{if(name==='selected'){memory.delete(k);toast('Could not load this preset on this device. Your previous selection and editor draft are kept.');}else toast('This device cannot keep an offline copy. Keep your editor open and save to the server.');return false;}};
- const clear=()=>{if(!scope())return;const prefix='intervals:'+scope()+':';try{for(const k of Object.keys(localStorage))if(k.startsWith(prefix))localStorage.removeItem(k);}catch{}for(const k of memory.keys())if(k.startsWith(prefix))memory.delete(k);};
+ const put=(name,value)=>{if(!scope())throw Error('Sign in first.');if(name==='selected')selectionRevision++;const k=key(name);memory.set(k,clone(value));try{localStorage.setItem(k,JSON.stringify(value));return true;}catch{if(name==='selected'){memory.delete(k);toast('Could not load this preset on this device. Your previous selection and editor draft are kept.');}else toast('This device cannot keep an offline copy. Keep your editor open and save to the server.');return false;}};
+ const clear=()=>{if(!scope())return;selectionRevision++;const prefix='intervals:'+scope()+':';try{for(const k of Object.keys(localStorage))if(k.startsWith(prefix))localStorage.removeItem(k);}catch{}for(const k of memory.keys())if(k.startsWith(prefix))memory.delete(k);};
  // Track voice preferences are per account/device and deliberately outside the checked preset content.
  const voiceKey=()=>scope()?'kinetta.track:'+scope():null;
  function voicePreferences(){const k=voiceKey(),read=name=>k?store.get(k+':'+name):null;return{voice:read('voice')??true,total:read('interval-total')??true,pace:read('interval-pace')??true};}
@@ -58,7 +58,7 @@ globalThis.Intervals=(()=>{
  // Pre-start entry below Start, a secondary action: only for Run/Walk, or while intervals are loaded so they can be removed.
  let lastChoice=null;
  function entryHTML(){const p=selected(),stale=!p&&get('selected');return`<button type="button" class="track-prefs" id="interval-open">${svg('clock')}<span>${p?'Intervals: '+esc(p.definition.name):stale?'Intervals: reload needed':'Add run/walk intervals'}</span>${svg('chev')}</button>${p?`<p class="small muted track-interval-summary">${esc(total(p))}</p>`:''}`;}
- function mount(el,c=lastChoice){if(!el)return;lastChoice=c;if(c&&!(c.gps&&['run','walk'].includes(c.sport))&&!get('selected')){el.innerHTML='';return;}el.innerHTML=entryHTML();$('#interval-open',el).onclick=()=>library(()=>mount(el));}
+ function mount(el,c=lastChoice,{compact=false,changed=()=>{}}={}){if(!el)return;lastChoice=c;if(c&&!(c.gps&&['run','walk'].includes(c.sport))&&!get('selected')){el.innerHTML='';return;}el.innerHTML=compact?`<button type="button" class="me-chip" id="interval-open" aria-label="${esc(selected()?'Intervals: '+selected().definition.name:'Intervals')}" title="${esc(selected()?.definition.name||'Intervals')}">${svg('clock')}<span>${esc(selected()?.definition.name||(get('selected')?'Reload intervals':'+ Intervals'))}</span></button>`:entryHTML();$('#interval-open',el).onclick=()=>library(()=>{mount(el,c,{compact,changed});changed();});}
  function library(changed=()=>{}){
   const who=scope(),revision=readOwner();if(!who)return;let rows=get('library',[]),closed=false;if(!Array.isArray(rows))rows=[];rows=rows.filter(p=>{try{return!!expand(p.definition);}catch{return false;}});
   sheet('Intervals','<div id="interval-library"></div>',(b,close)=>{
@@ -112,6 +112,17 @@ globalThis.Intervals=(()=>{
    };draw();
   });
  }
+ // Explicit Use keeps one retry-safe snapshot per plan prescription, reusing identical days; never starts GPS.
+ async function usePlan(workout,planId,{active=()=>true}={}){
+  const who=scope(),revision=readOwner(),selectedAt=selectionRevision,f=workout.track_intervals;if(!who||!f)throw Error('Open your plan to review this workout.');
+  const form={name:workout.title,run:{amount:String(f.run_min),unit:'min'},walk:{amount:String(f.walk_min),unit:'min'},repeat:String(f.repeat),warm:{amount:'5',unit:'min'},cool:{amount:'5',unit:'min'}};
+  const source='plan:'+planId,signature=JSON.stringify(form);let attempt=get(source);
+  if(!attempt||attempt.signature!==signature){const ids={wb:uid(),warm:uid(),main:uid(),run:uid(),walk:uid(),cb:uid(),cool:uid()};attempt={signature,id:uid(),mutation:uid(),definition:expand(build(form,ids)).definition};if(!put(source,attempt))throw Error('This device could not keep your plan selection. Try again.');}
+  let response;try{response=await api('/api/interval-presets/'+attempt.id,json('PUT',{mutation_id:attempt.mutation,expected_version:null,definition:attempt.definition}));}catch(e){if(scope()===who&&readOwner()===revision&&e.status===410)put(source,null);throw e;}
+  if(scope()!==who||readOwner()!==revision)throw Error('The recording account changed.');
+  if(!active()||selectionRevision!==selectedAt)throw Error('The recording selection changed. Your newer choice was kept.');
+  const rows=get('library',[]).filter(r=>r.id!==response.id),compact={...response,step_count:response.steps.length};delete compact.steps;rows.unshift(compact);put('library',rows);return put('selected',clone(response));
+ }
  async function verifySaveSupport(){const who=scope(),revision=readOwner();let cap;try{cap=await api('/api/interval-presets/capabilities');}catch{throw Error('This server could not confirm support for private interval results. Update or reconnect before saving.');}if(who!==scope()||revision!==readOwner())throw Error('The recording account changed.');if(cap?.schema!==1||cap.private_results!==1)throw Error('Update this server before saving a workout with private interval results.');}
  async function startOptions({sport,gps}){const p=selected();if(!p){if(get('selected'))throw Error('Your intervals need reloading. Open Intervals to reload or remove them.');return null;}const who=scope(),revision=readOwner();if(!TrackNative.supported||!gps||!['run','walk'].includes(sport))throw Error('Intervals need an outdoor Run or Walk in the iPhone app. Change the activity or remove the intervals.');const cap=await TrackNative.call('intervalCapabilities');if(who!==scope()||revision!==readOwner())throw Error('The recording account changed.');if(!cap.intervalCapabilities?.outdoor)throw Error('Update the iPhone app to use intervals, or remove them to record normally.');expand(p.definition);
   // Spoken prompts only (Ben, 27 October 2026): no vibration option, and intervals keep their own auto-pause off.
@@ -126,5 +137,5 @@ globalThis.Intervals=(()=>{
    el.innerHTML=sessions.map(state=>{const plan=expand(state.pin.definition),s=state.summary;return `<h2>Intervals</h2><p><b>${esc(state.pin.definition.name)}</b> · ${s.completed_steps} of ${s.planned_steps} steps done${s.skipped_steps?' · '+s.skipped_steps+' skipped':''}</p><div class="interval-history-table" tabindex="0" role="region" aria-label="Interval steps"><table><thead><tr><th scope="col">Step</th><th scope="col">Time · distance</th><th scope="col">Result</th></tr></thead><tbody>${state.results.map((r,i)=>{const phase=plan.steps[i],d=r.start_distance==null||r.end_distance==null?null:r.end_distance-r.start_distance-(r.unallocated_distance||0);return `<tr><td>${esc(label(phase))}</td><td>${esc(time(r.end_time-r.start_time))}${d==null?'':' · '+esc(dist(d))}</td><td>${esc(labels[r.outcome]||r.outcome)}</td></tr>`;}).join('')}</tbody></table></div><p class="small muted">Only you can see this, even when the activity is shared.</p>`;}).join('')||'<h2>Intervals</h2><p>No interval results for this activity.</p>';
   }catch(e){if(el.isConnected&&scope()===who&&readOwner()===revision){el.innerHTML='<h2>Intervals</h2><p class="small muted">Could not load your interval steps.</p><button type="button" class="ghost wide">Try again</button>';el.querySelector('button').onclick=()=>history(el,aid);}}
  }
- return{voicePreferences,voiceControls,wireVoiceControls,updateVoiceAvailability,expand,builder:{simpleOf,build,autoName},preview,total,mount,library,selected,resultPayload:state=>({pin:clone(state.pin),status:state.status,results:clone(state.results),effects:clone(state.effects),effects_omitted:state.effects_omitted||0}),verifySaveSupport,hasSelection:()=>!!get('selected'),startOptions,updateLive,clear,history};
+ return{usePlan,removeSelection:()=>put('selected',null),voicePreferences,voiceControls,wireVoiceControls,updateVoiceAvailability,expand,builder:{simpleOf,build,autoName},preview,total,mount,library,selected,resultPayload:state=>({pin:clone(state.pin),status:state.status,results:clone(state.results),effects:clone(state.effects),effects_omitted:state.effects_omitted||0}),verifySaveSupport,hasSelection:()=>!!get('selected'),startOptions,updateLive,clear,history};
 })();

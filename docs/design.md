@@ -1515,3 +1515,27 @@ Keep existing nutrition arithmetic, burn/unknown wording, model prompts, Health 
 routes carry the selected meal/day through the existing review, and the explicit final confirmation shows/saves
 that day. Omitting it preserves older apps' today behavior and existing retry hashes. Media shortcuts open the
 existing tools; they do not enable Kit, take a photo or log food without the existing choices and confirmation.
+
+## Track: one compact launch row · 30 October 2026 (#385)
+
+Sport chips share a row with More. Common choices scroll within their own space on narrow or enlarged-text phones;
+More stays beside them and never covers a label. Lift and Treadmill are short visible labels with their full accessible
+names. Native GPS keeps the movable/expandable pre-start map, now sized to leave its plan, options and Start above the
+floating tabs. Browser GPS copy is one short line and its Start button is full width; the selected sport is not repeated
+under it. Recording and review retain their existing controls.
+
+Intervals and the voice/auto-pause summary sit together directly above Start. They open the existing preset/settings
+sheets. A loaded Run/Walk preset reports its forced auto-pause-off behavior accurately. Today's unfinished plan appears
+only when the server actually supplies a workout. Use selects Run and loads a checked structured run/walk prescription
+through the existing retry-safe preset API; it never starts GPS. Easy/long runs remove a loaded interval selection.
+Workouts that the builder cannot express stay informational. No workout prose is parsed into instructions and no
+missed-workout relevance rule is invented.
+
+Route is hidden while saved-route/following surfaces remain deliberately parked under #328. Native pinned snapshots
+and old journals remain compatible; this design does not restore retired APIs or create a planner.
+
+Other ways to add uses the shared private Discovery tiles and its per-account/server/device visit markers. Health
+status and connection counts are read-only; opening Track does not sync or request Health permission. Log past opens
+the existing form. Import uses the browser; the native tile opens a short browser handoff. Preserve 44px controls,
+large-text readability, keyboard/drafts, Sky Blue and the five tabs. Browser/native-idle stand-ins are software evidence;
+physical route/plan/locked-phone acceptance remains separate.
