@@ -112,11 +112,11 @@ globalThis.Intervals=(()=>{
    };draw();
   });
  }
- // Explicit Use on today's deterministic plan creates one retry-safe saved snapshot, then loads it; never starts GPS.
+ // Explicit Use keeps one retry-safe snapshot per plan prescription, reusing identical days; never starts GPS.
  async function usePlan(workout,planId){
   const who=scope(),revision=readOwner(),f=workout.track_intervals;if(!who||!f)throw Error('Open your plan to review this workout.');
   const form={name:workout.title,run:{amount:String(f.run_min),unit:'min'},walk:{amount:String(f.walk_min),unit:'min'},repeat:String(f.repeat),warm:{amount:'5',unit:'min'},cool:{amount:'5',unit:'min'}};
-  const source='plan:'+planId+':'+workout.day,signature=JSON.stringify(form);let attempt=get(source);
+  const source='plan:'+planId,signature=JSON.stringify(form);let attempt=get(source);
   if(!attempt||attempt.signature!==signature){const ids={wb:uid(),warm:uid(),main:uid(),run:uid(),walk:uid(),cb:uid(),cool:uid()};attempt={signature,id:uid(),mutation:uid(),definition:expand(build(form,ids)).definition};if(!put(source,attempt))throw Error('This device could not keep your plan selection. Try again.');}
   let response;try{response=await api('/api/interval-presets/'+attempt.id,json('PUT',{mutation_id:attempt.mutation,expected_version:null,definition:attempt.definition}));}catch(e){if(scope()===who&&readOwner()===revision&&e.status===410)put(source,null);throw e;}
   if(scope()!==who||readOwner()!==revision)throw Error('The recording account changed.');

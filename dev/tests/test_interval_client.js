@@ -47,6 +47,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require(
  const previous=I.selected().content_hash;await assert.rejects(I.usePlan(planWorkout,17),/Lost reply/);assert.equal(I.selected().content_hash,previous,'failed Use preserves the loaded preset');
  assert(await I.usePlan(planWorkout,17));assert.deepStrictEqual(planCalls[0],planCalls[1],'retry identity and pinned content are unchanged');assert.equal(I.selected().totals.seconds,1800,'5 minute walks surround 8 x (1 + 1.5 minutes)');assert(!calls.includes('start'),'Use never starts recording');
  assert(await I.usePlan(planWorkout,17));assert.equal(planCalls[2].path,planCalls[1].path,'repeated Use reuses its saved snapshot');
+ assert(await I.usePlan({...planWorkout,day:'2026-11-02'},17));assert.equal(planCalls[3].path,planCalls[1].path,'identical prescribed days reuse a preset instead of filling the library');
  const beforeSwitch=I.selected().content_hash;let finishPlan;ctx.api=()=>new Promise(r=>finishPlan=r);const loading=I.usePlan({...planWorkout,day:'2026-11-01'},17);ctx.App.me={id:2};revision++;finishPlan({});await assert.rejects(loading,/account changed/);assert.equal(I.selected(),null,'late old-owner result cannot load into another account');ctx.App.me={id:1};revision++;assert.equal(I.selected().content_hash,beforeSwitch);
  assert(I.removeSelection());assert.equal(I.selected(),null,'Use on a plain run can explicitly remove loaded intervals');
  I.clear();assert.equal(storage.getItem(prefix+'selected'),null,'Sign-out/deletion clears only this account cache');
