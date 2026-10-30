@@ -50,10 +50,12 @@ const app=fs.readFileSync('app/static/app.js','utf8');
 {
  const text=fs.readFileSync('app/static/pages.js','utf8'),data=new Map();
  const c={App:{me:{id:1}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},store:{get:k=>data.get(k),set:(k,v)=>data.set(k,v)}};
- vm.createContext(c);vm.runInContext(text.slice(text.indexOf('const progressKey'),text.indexOf('function progressBack')),c);
+ vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/discovery.js','utf8'),c);vm.runInContext(text.slice(text.indexOf('const foodUser'),text.indexOf('function progressBack')),c);
  assert.equal(c.progressSwitch('food'),'','no subject switch, including legacy food pages');
  c.progressVisit('heatmap');c.progressVisit('heatmap');assert.deepEqual(Array.from([...data.values()][0]),['heatmap']);
  c.App.me={id:2};c.progressVisit('routes');assert.equal(data.size,2,'discovery history belongs to each account');
+ vm.runInContext("Discovery.visit('nutrition','needs')",c);assert.equal(data.size,3,'each area has independent discovery history');
+ assert(data.has('fit.progress:'+JSON.stringify(['https://fictional.invalid',1])+':seen'),'previous Progress visits retain their exact storage key');
  assert(!text.includes('id="p-view"'),'no global More control');
  console.log('Progress navigation: no subject/view tabs, per-account discovery history PASS');
 }

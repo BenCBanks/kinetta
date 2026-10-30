@@ -181,6 +181,25 @@ class Review(unittest.TestCase):
   with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(lambda _:self.confirm(r),range(2)))
   self.assertEqual(len(self.rows('food_entries')),1);self.assertEqual(sum(bool(x.get('replayed')) for x in results),1)
   self.post(f"/api/food/thread/reviews/{other['id']}/confirm",{'confirm':True,'meal':'dinner'},status=409)
+ def test_explicit_past_day_and_retry_preserve_destination(self):
+  past=str(dt.date.today()-dt.timedelta(days=12))
+  m,_=self.stage();review=self.prepare([m])
+  result=self.confirm(review,day=past,meal='lunch')
+  rows=self.rows('food_entries');self.assertEqual(len(rows),1);self.assertEqual(str(rows[0]['day']),past);self.assertEqual(rows[0]['meal'],'lunch')
+  replay=self.confirm(review,day=past,meal='lunch');self.assertTrue(replay['replayed']);self.assertEqual(len(self.rows('food_entries')),1)
+  self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch','day':str(dt.date.today())},status=409)
+  self.assertEqual(str(self.rows('food_entries')[0]['day']),past)
+ def test_invalid_day_and_old_confirmation_hash(self):
+  from app.food_entry_review import ConfirmIn,digest
+  m,_=self.stage();review=self.prepare([m]);path=f"/api/food/thread/reviews/{review['id']}/confirm"
+  self.post(path,{'confirm':True,'meal':'dinner','day':'not-a-date'},status=422);self.assertEqual(self.rows('food_entries'),[])
+  self.confirm(review)
+  legacy=ConfirmIn(confirm=True,meal='dinner').model_dump(mode='json');legacy.pop('day')
+  with db.connect() as c:
+   reply=c.execute('SELECT result FROM food_chat_messages WHERE user_id=%s AND reply_to=%s',(self.ids[0],review['id'])).fetchone()['result']
+  self.assertEqual(reply['confirmed'],digest(legacy),'omitted day keeps the old request fingerprint')
+  self.assertTrue(self.confirm(review)['replayed']);self.assertEqual(len(self.rows('food_entries')),1)
+
  def test_old_client_auto_log_preference_still_works(self):
   self.food('Fictional rice');self.send('1 serving fictional rice',review=False);self.assertEqual(len(self.rows('food_entries')),1)
 

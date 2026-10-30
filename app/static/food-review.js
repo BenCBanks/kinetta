@@ -8,7 +8,7 @@ const FoodReview=(()=>{
   const number=input=>{const text=input.value.trim();return text===''?null:Number(text.replace(',','.'));};
   // A calorie edit scales that food's other nutrients by the same ratio (the server applies the same rule).
   const edited=(e,kcal)=>{if(kcal==null)return e;const r=e.kcal?kcal/e.kcal:null,out={...e,kcal};if(r!=null)for(const k of FOOD_NUTRIENTS)if(k!=='kcal'&&e[k]!=null)out[k]=e[k]*r;return out;};
-  async function open({done=()=>{},messages,draftId,meal,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
+  async function open({done=()=>{},messages,draftId,meal,day=null,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
     const owner=readOwner(),id=newId();let prepared;
     try{prepared=await api('/api/food/thread/reviews',json('POST',{client_id:id,draft_id:draftId,messages}));}
     catch(e){toast(e.message);return;}
@@ -17,14 +17,14 @@ const FoodReview=(()=>{
     const chosen=Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal();
     sheet('Add to log',`<form class="form food-final-review" id="food-final-review">
       <label id="review-recipe-name" hidden>Recipe name<input name="name" maxlength="80" autocomplete="off" placeholder="Name this recipe"></label>
-      <div class="where review-where"><span class="muted">Adding to</span><span class="pill-sel"><select name="meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}"${k===chosen?' selected':''}>${n}</option>`).join('')}</select>${svg('chev')}</span><span class="muted">today</span></div>
+      <div class="where review-where"><span class="muted">Adding to</span><span class="pill-sel"><select name="meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}"${k===chosen?' selected':''}>${n}</option>`).join('')}</select>${svg('chev')}</span><span class="muted">${esc(day&&day!==isoDay(new Date())?dayLabel(day):'today')}</span></div>
       <div id="review-foods"></div><div class="review-total" id="review-totals"></div>
       <label class="switch-row"><span><b>Save as a recipe</b><small>Reuse it from My Recipes next time</small></span><input type="checkbox" role="switch" name="save_recipe"${saveRecipe?' checked':''}></label>
       <div id="review-recipe" hidden>
         <label>How is the whole recipe measured?<select name="basis"><option value="">Choose servings or weight</option><option value="servings">By servings</option><option value="weight">By cooked weight</option></select></label>
         <label id="review-yield" hidden>Servings in the whole recipe<input name="servings" inputmode="decimal" placeholder="How many does it make?"></label>
         <label id="review-weight" hidden>Whole cooked weight (g)<input name="total_g" inputmode="decimal" placeholder="Enter the total cooked weight"></label>
-        <label class="check"><input type="checkbox" name="log_today" checked>Also add what I ate to today’s log</label>
+        <label class="check"><input type="checkbox" name="log_today" checked>Also add what I ate to ${day&&day!==isoDay(new Date())?esc(dayLabel(day))+'’s':'today’s'} log</label>
         <div id="review-log-amount"><label>What I ate<select name="amount_kind"><option value="whole">Everything listed above</option><option value="portion">Part of this recipe</option></select></label>
           <label id="review-portion" hidden><span id="review-portion-label">Your portion</span><input name="portion" inputmode="decimal" placeholder="How much did you eat?"></label>
           <div id="review-portion-nutrition" aria-live="polite"></div></div>
@@ -77,7 +77,7 @@ const FoodReview=(()=>{
         const recipe=save.checked,logging=!recipe||log.checked,part=recipe&&logging&&f.elements.amount_kind.value==='portion';
         if(logging&&!f.elements.meal.value){$('#review-error',body).textContent='Choose a meal.';return;}
         const basis=recipe?f.elements.basis.value:'amounts';
-        const request={confirm:true,save_recipe:recipe,log_today:logging,name:recipe?f.elements.name.value.trim():null,meal:logging?f.elements.meal.value:null,
+        const request={confirm:true,save_recipe:recipe,log_today:logging,...(day?{day}:{}),name:recipe?f.elements.name.value.trim():null,meal:logging?f.elements.meal.value:null,
           basis,servings:basis==='servings'?number(f.elements.servings):null,total_g:basis==='weight'?number(f.elements.total_g):null,whole:!part,portion:part?number(f.elements.portion):null,
           ...(Object.keys(kcal).length?{kcal:Object.fromEntries(Object.entries(kcal).map(([i,v])=>[String(i),v]))}:{})};
         const button=$('#review-confirm',body),label=button.textContent;button.disabled=true;button.textContent='Saving…';$('#review-error',body).textContent='';

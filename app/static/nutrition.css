@@ -1,0 +1,54 @@
+/* Nutrition log: the day and its food lead; analysis uses the same private detail views. */
+.nutrition-home .top { margin-bottom:8px; }
+.nutrition-date-row { display:flex; align-items:center; gap:4px; margin:0 0 8px; }
+.nutrition-date-row .daypick { flex:1; justify-content:center; min-width:0; margin:0; min-height:44px; }
+.nutrition-date-row .icon-btn,.nutrition-date-row .me-chip { flex:none; }
+.nutrition-date-row .me-chip { padding-inline:10px; }
+.nutrition-add.quick { display:flex; gap:8px; }
+.nutrition-add .primary { flex:1; }
+.nutrition-add .icon-btn { flex:none; background:var(--card); border:1px solid var(--line); border-radius:12px; }
+.nutrition-start { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:72px; padding:12px; color:var(--tx); text-decoration:none; }
+.nutrition-start > span { display:grid; gap:3px; }
+.nutrition-start b { font-size:.9375rem; }
+.nutrition-start small { font-size:.8125rem; }
+.nutrition-start svg { flex:none; width:18px; height:18px; }
+.nutrition-day-summary { position:relative; padding:0; }
+.nutrition-summary-link { display:block; padding:12px; border-radius:inherit; color:inherit; text-decoration:none; }
+.nutrition-summary-link .nutrition-summary { padding-right:44px; margin-bottom:6px; }
+.nutrition-summary-link .hero-num { font-size:1.875rem; }
+.nutrition-summary-link .hero-num i { font-size:.875rem; }
+.nutrition-summary-link > .track,.nutrition-summary-link .macro .track { width:100%; max-width:none; background:var(--card2); height:8px; border-radius:999px; overflow:hidden; }
+.nutrition-summary-link .track .bar { height:8px; border-radius:999px; }
+.nutrition-summary-link .macro-bars { margin-top:10px; }
+.nutrition-summary-link .macro-line { font-size:.875rem; }
+.nutrition-other-macros { display:flex; align-items:center; flex-wrap:wrap; gap:0 4px; margin-top:8px; font-size:.8125rem; }
+.nutrition-other-macros svg { width:14px; height:14px; margin-left:auto; }
+.nutrition-goals { position:absolute; right:8px; top:8px; background:var(--card2); border-radius:50%; }
+.nutrition-body-prompt { display:block; margin:6px 0 10px; font-size:.8125rem; }
+.nutrition-home .meal { padding:6px 12px; margin-bottom:10px; }
+.nutrition-home .meal > h2 { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-height:44px; margin:0; font-size:1rem; }
+.nutrition-home .meal > h2 > span:first-child { flex:1; color:var(--tx); font-size:1rem; }
+.nutrition-home .meal-actions { display:flex; flex:none; gap:0; margin-left:auto; color:var(--tx); }
+.nutrition-home .meal > h2 .num { font-size:.8125rem; white-space:nowrap; }
+.nutrition-home .meal > h2 button { flex:none; min-height:44px; margin:0; }
+.nutrition-home .meal .fe { padding:8px 0; min-height:52px; gap:10px; }
+.nutrition-home .meal .fe > div:first-child { min-width:0; }
+.nutrition-home .meal .fe b { font-size:.9375rem; }
+.nutrition-home .meal .fe small { font-size:.8125rem; }
+.nutrition-home .meal .meal-calories { white-space:nowrap; flex:none; }
+.nutrition-home .meal .meal-calories b,.nutrition-home .meal .meal-calories small { display:inline; }
+.nutrition-detail .top { display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:8px; }
+.nutrition-detail .top h1 { font-size:1.5rem; }
+.nutrition-detail .top .acts { flex-wrap:nowrap; }
+.nutrition-detail .progress-filters { justify-content:flex-end; margin-bottom:10px; }
+.nutrition-detail .top:not(:has(.nutrition-back)) { grid-template-columns:minmax(0,1fr) auto; }
+
+/* At narrow widths, let later title lines use the icon column too. Keep full labels readable with larger text. */
+@media (max-width:360px) {
+  .progress-grid .progress-tile-name { display:block; }
+  .progress-grid .progress-tile-name b { display:inline; }
+  .progress-grid .progress-tile-name svg { display:inline-block; margin-right:6px; vertical-align:-.15em; }
+  .progress-grid .progress-tile-name .progress-new { display:inline-block; margin-left:6px; vertical-align:middle; }
+  .progress-grid .progress-tile-name .progress-new.seen { display:none; }
+  .progress-grid .progress-tile .small { display:block; -webkit-line-clamp:unset; }
+}
