@@ -26,7 +26,10 @@ for(const size of [{width:390,height:844},{width:330,height:667}])for(const them
  // A drag moves the map (and stops following the dot); the locate button still re-centres.
  const centre=()=>p.evaluate(()=>{const pane=document.querySelector('#track-ready-map .leaflet-map-pane');return pane.style.transform;});
  const before=await centre(),box=await map.boundingBox();
- await p.mouse.move(box.x+box.width/2,box.y+box.height/2);await p.mouse.down();await p.mouse.move(box.x+box.width/2-80,box.y+box.height/2-40,{steps:8});await p.mouse.up();
+ // The short map's centre can contain the offline Retry control. Drag an exposed map surface.
+ const start=await p.evaluate(box=>{for(const [x,y] of [[.7,.4],[.7,.5],[.5,.3]]){const point={x:box.x+box.width*x,y:box.y+box.height*y},hit=document.elementFromPoint(point.x,point.y);if(hit?.closest('#track-ready-map')&&!hit.closest('button,a,.leaflet-control'))return point;}return null;},box);
+ assert(start,'an exposed map surface is available');
+ await p.mouse.move(start.x,start.y);await p.mouse.down();await p.mouse.move(start.x-80,start.y-40,{steps:8});await p.mouse.up();
  assert.notEqual(await centre(),before,'drag pans the map');
  const expand=p.locator('#track-ready-map-wrap .map-full'),locate=p.locator('#track-locate');
  for(const button of [expand,locate]){const bb=await button.boundingBox();assert(bb.width>=44&&bb.height>=44,'44px target');}
