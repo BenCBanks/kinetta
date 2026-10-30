@@ -5,7 +5,7 @@ const source=fs.readFileSync('app/static/social.js','utf8');
 function setup(){
  let owner='fictional-owner',hit=null;const timers=new Map(),pending=[],resources=new Map(),changes=[],people=[],errors=[];let timer=0;
  const document={activeElement:null,handlers:new Map(),addEventListener(k,f){(this.handlers.get(k)||this.handlers.set(k,[]).get(k)).push(f);},removeEventListener(k,f){this.handlers.set(k,(this.handlers.get(k)||[]).filter(x=>x!==f));},elementFromPoint:()=>hit};
- function node(dataset={}){return {dataset,hidden:false,isConnected:true,children:[],style:{},attrs:{},handlers:new Map(),classList:{remove(){}},innerHTML:'',
+ function node(dataset={}){return {dataset,hidden:false,isConnected:true,children:[],style:{},attrs:{},handlers:new Map(),classList:{remove(){},contains(){return false;}},innerHTML:'',
   setAttribute(k,v){this.attrs[k]=String(v);},getAttribute(k){return this.attrs[k]??null;},
   addEventListener(k,f){(this.handlers.get(k)||this.handlers.set(k,[]).get(k)).push(f);},removeEventListener(){},
   appendChild(n){if(n.parentElement)n.parentElement.children=n.parentElement.children.filter(x=>x!==n);this.children.push(n);n.parentElement=this;},remove(){if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(x=>x!==this);this.isConnected=false;},
