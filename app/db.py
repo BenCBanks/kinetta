@@ -1919,6 +1919,10 @@ MIGRATIONS = [
     """ALTER TABLE profile ADD COLUMN setup_skipped text[] NOT NULL DEFAULT '{}';
     ALTER TABLE profile ADD CONSTRAINT setup_skipped_known
       CHECK(setup_skipped <@ ARRAY['email','health','iphone','photo','nutrition','friends']::text[]);""",
+    # 90. Bounded social catch-up only after every device token was retired; no saved message payload.
+    """ALTER TABLE notifications ADD COLUMN push_pending boolean NOT NULL DEFAULT false;
+    CREATE INDEX notifications_pending_push ON notifications(user_id) WHERE push_pending;""",
+
 ]
 
 

@@ -60,6 +60,7 @@ function device(background = null, push = null) {
   let finishRegister;
   push.register = () => new Promise(resolve => { finishRegister = resolve; });
   const pendingPush = pushDevice.n.enablePush();
+  while (!finishRegister) await new Promise(r => setTimeout(r, 0));
   pushDevice.ctx.App.me = {id: 3};
   finishRegister({token: 'ab'.repeat(32), environment: 'production'});
   await assert.rejects(pendingPush, /account changed/);
@@ -82,7 +83,7 @@ function device(background = null, push = null) {
   // the app icon's number follows the unread count and clears at zero, without repeating the same number
   const badges = []; push.setBadge = async ({count}) => badges.push(count);
   pushDevice.n.setBadge(3); pushDevice.n.setBadge(3); pushDevice.n.setBadge(0);
-  assert.deepEqual(badges, [3, 0]);
+  await tick(); assert.deepEqual(badges, [3, 0]);
   // The new invitation's device-local choice is scoped to server+account, never its token.
   const invitationOwner = JSON.stringify([pushDevice.n.base, 6]);
   await pushDevice.n.writePushInvitation({asks:1,lastAsked:123,done:false}, invitationOwner);
@@ -95,8 +96,45 @@ function device(background = null, push = null) {
   let releaseStatus, permissionRequests=0;
   const racing=device(null,{status:()=>new Promise(r=>releaseStatus=r),register:async()=>{permissionRequests++;return {};},takePending:async()=>({url:''}),addListener(){},unregister:async()=>{}});
   await racing.n.ready;racing.n.base='https://example.test';racing.n.token='first-login';racing.n.syncPush();
+  while (!releaseStatus) await new Promise(r => setTimeout(r, 0));
   const waitingEnable=racing.n.enablePush();racing.ctx.App.me={id:2};racing.n.token='second-login';releaseStatus({allowed:false});
   await assert.rejects(waitingEnable,/account changed/);assert.equal(permissionRequests,0,'old tap never prompts Apple for the new account');
+  // APNs callbacks rebind a changed token immediately, once, without another Apple registration request.
+  const changedEvents = {}, posts = [], order = [];
+  let currentToken = 'fa'.repeat(32), appleCalls = 0, holdStatus = null;
+  const changedPush = {status: async () => holdStatus ? new Promise(r => {holdStatus = r;}) : ({allowed:true}),
+    register: async () => {appleCalls++;order.push('register');return {token:currentToken,environment:'production'};},
+    takePending: async () => {order.push('open');return {url:''};}, unregister:async()=>{},
+    addListener:(name, fn) => {changedEvents[name]=fn;}};
+  const changedDevice=device(null,changedPush);await changedDevice.n.ready;
+  const changed=changedDevice.n;changed.base='https://example.test';changed.token='fictional-login';changed.appBuild='801';
+  changedDevice.saved.set('push.wanted',JSON.stringify([changed.base,1]));
+  changedDevice.ctx.api=async(path,opts)=>{posts.push({path,method:opts.method,body:opts.body,who:changedDevice.ctx.App.me.id});return {};};
+  changed.syncPush();await changed.pushNavigationReady;
+  assert.equal(posts.length,1);assert.equal(appleCalls,1);assert.deepEqual(order,['register','open']);
+  assert.equal(changedDevice.saved.get('push.build.'+encodeURIComponent(JSON.stringify([changed.base,1]))),'801');
+  changed.syncPush();await changed.pushNavigationReady;assert.equal(appleCalls,1,'normal page opens remain throttled');
+  currentToken='fb'.repeat(32);
+  changedEvents.tokenChanged({token:currentToken,environment:'production'});
+  changedEvents.tokenChanged({token:currentToken,environment:'production'});await tick();
+  assert.equal(posts.length,2,'new token posts once inside the minute');assert.equal(appleCalls,1,'event uses the token directly');
+  changed.appBuild='802';changed.syncPush();await changed.pushNavigationReady;
+  assert.equal(appleCalls,2,'changed build bypasses the minute limit');assert.equal(posts.length,3);
+  changedEvents.tokenChanged({token:currentToken,environment:'production'});await tick();assert.equal(posts.length,3);
+  changedEvents.tokenChanged({token:'fc'.repeat(32),environment:'production',revision:2});
+  changedEvents.tokenChanged({token:'fa'.repeat(32),environment:'production',revision:1});await tick();
+  assert.equal(posts.length,4,'a retained old token cannot overwrite a newer callback');
+  assert.equal(JSON.parse(posts.at(-1).body).token,'fc'.repeat(32));
+  // Delayed permission callbacks, a new server/account and an explicit Turn off never inherit the old request.
+  holdStatus=true;changedEvents.tokenChanged({token:'fc'.repeat(32),environment:'production'});
+  while(typeof holdStatus!=='function')await tick();
+  changedDevice.ctx.App.me={id:2};changed.token='other-login';holdStatus({allowed:true});holdStatus=null;await tick();
+  assert.equal(posts.length,4,'late token callback cannot register another account');
+  changedEvents.tokenChanged({token:'fd'.repeat(32),environment:'production'});await tick();assert.equal(posts.length,4);
+  changedDevice.ctx.App.me={id:1};changed.token='fictional-login';changed.base='https://other.example.test';
+  changedEvents.tokenChanged({token:'fd'.repeat(32),environment:'production'});await tick();assert.equal(posts.length,4);
+  changed.base='https://example.test';await changed.disconnectPush({forget:true});const afterOff=posts.length;
+  changedEvents.tokenChanged({token:'fe'.repeat(32),environment:'production'});await tick();assert.equal(posts.length,afterOff);
   const d = device(); await d.n.ready; d.n.base = 'https://example.test'; d.n.token = 'first';
   d.saved.set('health.on', '1');
   assert.equal(await d.n.healthOn(), false, 'legacy device consent is not inherited');

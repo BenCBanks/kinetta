@@ -236,3 +236,21 @@ Release evidence must state which scenarios ran on a physical iPhone. Browser sc
 ## Opening the app from email links (27 October 2026)
 
 The app registers the `kinetta://` URL scheme (Info.plist `CFBundleURLTypes`). Email links (such as email confirmation) open in the phone's browser, and a same-site https link cannot hand off from Safari to the app, so on an iPhone the confirmation page offers **Open the Kinetta app** (`kinetta://open`, which just opens the app) and **Continue in browser**. The scheme carries no data and the app does nothing with it beyond opening. Builds before this change do not register it.
+
+
+### Token updates and missed social alerts (#380)
+
+The app registers on its first launch after a build update when iOS already allows notifications; it never asks for
+permission at launch. A new APNs token is posted immediately for the signed-in account that wants notifications,
+including when Apple supplies it outside a registration request. Duplicate callbacks and stale account/server
+callbacks cannot bind a device to a different account. Ordinary foreground registration remains limited to once a minute.
+
+The server logs only notification kind, fixed reason and device/accepted counts; tokens, account identifiers and
+message text stay out of logs. If every device token is retired, only friend requests, friend acceptances, comments
+and cheers can be marked for catch-up. A later authenticated device registration claims each mark once, then
+rechecks the ten-minute age, unread state, current visibility, preference and current device session before delivery.
+Other failures and Apple-accepted alerts are not retried. A stopped process can lose a claimed catch-up; claims are
+cleared before delivery to prevent duplicate accepted alerts. Notices remain under the bell as before.
+
+Software tests use fictional accounts and APNs stand-ins. Real delivery after an update, including a locked phone,
+requires a new TestFlight build and a physical iPhone check; a Simulator/unsigned build does not prove delivery.

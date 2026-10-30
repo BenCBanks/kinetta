@@ -142,11 +142,15 @@ def eligible(c, uid, kind, period, tz):
 
 def deliver(uid, kind, period, send=None, now=None):
     if send is None and not apns.ready():
+        notify.log_unconfigured(uid, kind)
         return 0
     def prepare(c):
         p = profile(c, uid)
         at = now or clock()
         if not p:
+            return None
+        if not preferences(p['notify'])[kind]:
+            prepare.reason = 'preference_off'
             return None
         slot = next((s for s in due(p, at) if s[:2] == (kind, period)), None)
         if not slot:
@@ -160,6 +164,7 @@ def deliver(uid, kind, period, send=None, now=None):
                 'url': '/plan' if kind == 'plan' else '/progress?section=activity&review=week',
                 'badge': notify.unread(c, uid), 'tag': f'personal-{kind}-{period}',
                 'expires_at': int((slot[2] + WINDOW).timestamp())}
+    prepare.kind = kind
     return notify._deliver_native(uid, {}, prepare, send)
 
 
