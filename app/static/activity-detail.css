@@ -5,6 +5,7 @@
 .detail-map-hero .media-track { border-radius:0; }
 .detail-map-hero::after { content:''; position:absolute; pointer-events:none; inset:0 0 auto; height:calc(env(safe-area-inset-top) + 64px); z-index:1001; background:linear-gradient(var(--bg),transparent); }
 .detail-bar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.detail-bar .acts { display:flex; align-items:center; gap:4px; }
 .detail-bar .back,.detail-bar .icon-btn { min-width:44px; min-height:44px; flex:none; }
 .detail-floating { position:absolute; z-index:1002; top:calc(env(safe-area-inset-top) + 8px); left:12px; right:12px; }
 .detail-floating .back,.detail-floating .icon-btn { border-radius:999px; background:color-mix(in srgb,var(--card) 92%,transparent); color:var(--tx); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
@@ -42,3 +43,5 @@
  .detail-primary,.detail-secondary { grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); }
  .detail-floating { left:8px; right:8px; }
 }
+
+.activity-detail .seg.dtabs button { min-height:44px; }
