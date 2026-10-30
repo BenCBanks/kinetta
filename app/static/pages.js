@@ -446,7 +446,7 @@ const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div clas
     ${bellBtn()}</div></div>`;
 route(/^\/activity$/, 'activity', async el=>{
   const q=new URLSearchParams(location.search);
-  if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.size?'?'+q:''),{replace:true});}
+  if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.toString()?'?'+q:''),{replace:true});}
   return homeFeed(el);
 });
 route(/^\/me\/activities$/, 'me', async (el)=>{
@@ -1177,7 +1177,20 @@ route(/^\/progress$/, 'progress', async (el) => {
   await ({totals: pMileage, fitness: pFitness, records: pRecords, lifting: pLifting}[view])($('#p-body', el), q);
 });
 route(/^\/progress\/routes$/, 'progress', async el => { pHead(el,'routes',''); await pRoutes($('#p-body',el)); });
-route(/^\/progress\/segments$/, 'progress', async el => { pHead(el,'segments',''); await Segments.list($('#p-body',el)); });
+route(/^\/progress\/segments$/, 'progress', async el => {
+  pHead(el,'segments','');const body=$('#p-body',el),pending=Segments.list(body);
+  // Segments owns its map/search logic; contain the existing options without changing that logic.
+  const panel=document.createElement('section');panel.className='card progress-segment-controls';
+  for(const child of [...body.children])if(!['sg-map','sg-list'].includes(child.id))panel.append(child);
+  body.prepend(panel);
+  const filters=$('.segment-filters',panel),select=$('#sg-sport',panel);
+  if(filters&&select){
+    const cur=select.value||'all',button=document.createElement('button');button.type='button';button.className='range-btn';button.id='sg-sport';button.innerHTML=svg(cur==='all'?'activity':cur)+'<span>'+esc(PSPORTS.find(([k])=>k===cur)?.[1]||'All sports')+'</span>'+svg('down');button.setAttribute('aria-label','Sport. Change');select.replaceWith(button);
+    const toggles=document.createElement('div');toggles.className='mileage-toggle me-period';toggles.setAttribute('role','group');toggles.setAttribute('aria-label','Show segments');for(const b of $$('[data-f]',filters))toggles.append(b);filters.prepend(toggles);
+    button.onclick=()=>pickSheet('Sport',pickRows(PSPORTS,cur),k=>{try{localStorage.setItem('fit.psport',k);}catch{}const q=new URLSearchParams(location.search);if(k==='all')q.delete('sport');else q.set('sport',k);go('/progress/segments'+(q.toString()?'?'+q:''),{replace:true});});
+  }
+  await pending;
+});
 route(/^\/progress\/(trends|calendar|heatmap)$/, 'progress', async (el, view) => {
   const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
   pHead(el, view, (withSport ? sportBtn(forView(sport, view)) : '') + (view === 'trends' ? '<span class="rng" id="p-rng"></span>' : ''));

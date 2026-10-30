@@ -34,6 +34,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    // Every tile has a direct destination and every Progress detail has a Home arrow, including old addresses.
    for(const url of ['/progress?view=totals','/progress?view=fitness','/progress?view=records','/progress?view=lifting','/progress/trends','/progress/calendar','/progress/routes','/progress/segments','/progress/heatmap','/progress?section=food','/progress?section=food&foodview=weight','/progress?view=training','/progress?view=heatmap']){
     if(['/progress?view=fitness','/progress?section=food','/progress/heatmap'].includes(url))await p.goto(base+url);else await p.evaluate(url=>go(url),url);await ready();assert.equal(await p.locator('.progress-back[href^="/progress"]').count(),1,url+' home arrow');assert.equal(await p.locator('.progress-focus').count(),0);await fits(url);
+    if(url==='/progress/segments'){assert.equal(await p.locator('#sg-sport').evaluate(n=>!!n.closest('.card')),true,'segment sport is inside its first card');await p.locator('#sg-sport').click();await p.locator('[data-pk=run]').click();await ready();assert.match(new URL(p.url()).search,/sport=run/);}
     if(url.includes('view=fitness')||url.includes('/trends'))assert.equal(await p.locator('#p-rng button').count(),1,'years filter survives first-card refresh');
     await p.locator('.progress-back').click();await p.waitForURL(base+'/progress');await p.waitForSelector('.progress-home');await ready();assert.equal(await p.locator('.progress-home').count(),1);
    }

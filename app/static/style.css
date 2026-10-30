@@ -2917,3 +2917,7 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-food-summary h2 svg { width:16px; height:16px; }
 .progress-home-totals #m-chart > .readout:has(> span:only-child:empty) { display:none; }
 .progress-tile-name b { flex:0 1 auto; }
+
+.progress-segment-controls .segment-filters { gap:8px; }
+.progress-segment-controls .me-period { margin:0; flex-wrap:wrap; }
+.progress-segment-controls [data-f] { min-height:44px; }
