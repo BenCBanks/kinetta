@@ -1408,6 +1408,39 @@ html.keyboard-open nav.tabs { display: none; }
 .view-nav a[aria-current="page"] { color: var(--accent); border-color: var(--accent); }
 .view-nav .range-btn { flex: none; margin-left: auto; background: transparent; padding-inline: 8px; min-height: var(--target-min); }
 .pbar:empty { display: none; }
+/* Progress home (30 October): filters stay with their card, discovery stays visible. */
+.progress-heading .progress-back { flex:none; margin-right:0; }
+.progress-heading h1 { min-width:0; }
+.progress-filters { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin-bottom:12px; }
+.progress-filters .range-btn { min-height:44px; padding:6px 8px; font-size:.8125rem; }
+.progress-filters .rng { margin:0; }
+.progress-filters .me-period { margin:0 0 0 auto; }
+.progress-filters .me-period button { min-width:44px; min-height:44px; padding:0 5px; font-size:.75rem; }
+.progress-totals-title { display:flex; align-items:center; min-height:44px; font-size:var(--text-app-card-title); font-weight:700; color:var(--tx); }
+.progress-totals-title svg { width:16px; height:16px; }
+.progress-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.progress-pair .card { margin-bottom:0; }
+.progress-summary { display:block; min-height:148px; color:var(--tx); }
+.progress-summary h2 { justify-content:flex-start; display:flex; align-items:center; gap:6px; }
+.progress-summary h2 svg { width:18px; height:18px; flex:none; }
+.progress-summary small { display:block; margin-top:4px; }
+.progress-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+.progress-grid .progress-tile { margin:0; padding:12px; min-height:154px; color:var(--tx); display:flex; flex-direction:column; gap:10px; }
+.progress-tile-name { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.progress-tile-name svg { width:20px; height:20px; flex:none; }
+.progress-tile-name b { flex-basis:100%; font-size:.875rem; line-height:1.3; }
+.progress-tile .small { font-size:.8125rem; line-height:1.4; overflow-wrap:anywhere; }
+.progress-new { display:inline-flex; align-items:center; gap:4px; font-size:.625rem; color:var(--tx3); }
+.progress-new.seen { visibility:hidden; }
+.progress-new::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); }
+.progress-home-totals { min-height:340px; }
+.progress-home-totals #m-body > .card { min-height:320px; }
+.progress-home-totals .table-fold { display:none; }
+.progress-food-summary { display:block; color:var(--tx); }
+.progress-food-options .view-nav { margin:0; }
+.progress-food-options .pbar { margin:0; padding:8px 0 0; }
+.progress-map-card .map { margin-top:8px; }
+@media(max-width:370px) { .progress-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 .tab-n, .bell-dot { background: var(--btn); color: var(--onbtn); }
 

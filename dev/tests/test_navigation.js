@@ -46,33 +46,16 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  for(const path of old)assert(patterns.some(re=>re.test(path)),path+' remains routable');
  console.log('navigation legacy URL contract: '+old.length+' previous destinations remain registered PASS');
 }
+// Progress now opens on cards, with a real back link and account-scoped discovery history.
 {
  const text=fs.readFileSync('app/static/pages.js','utf8'),data=new Map();
- const c={svg:()=>'',App:{me:{id:1}},Native:{base:'',token:'fictional-token-never-store'},location:{origin:'https://fictional.invalid'},store:{get:k=>data.get(k),set:(k,v)=>data.set(k,v)}};
- vm.createContext(c);vm.runInContext(text.slice(text.indexOf('const progressKey'),text.indexOf('function nutritionHref'))+'\nglobalThis.choice=progressChoice;',c);
- assert.equal(c.choice(),'training','not a food user: Training');assert.equal(c.progressSwitch('training'),'','no switch for non-food users');
- assert.match(c.progressSwitch('food'),/Training/,'an explicit food URL keeps a way back');data.clear();
- c.App.me={id:1,food_user:true};assert.equal(c.choice(),'training','food users also start on Training');assert.match(c.progressSwitch('training'),/Food &amp; weight/);
- c.progressSwitch('food');assert.equal(c.choice(),'food');assert([...data.keys()].every(k=>!k.includes('token')));
- c.App.me={id:2,kcal_target:1900};assert.equal(c.choice(),'training');c.App.me={id:1,food_user:true};assert.equal(c.choice(),'food');
- c.App.me={id:1};assert.equal(c.choice(),'training','a stored food choice is ignored once food tracking stops');
- console.log('navigation Progress: Training default, switch only for food users, remembered per account, no credentials in preference keys PASS');
-}
-// A deeper Progress view keeps the stable More control and names its current destination.
-{
- const text=fs.readFileSync('app/static/pages.js','utf8');
- const pv=vm.runInNewContext(text.match(/const PVIEWS = (\[.*?\]);/s)[1]);
- const pm=vm.runInNewContext(text.match(/const PMORE = (\[.*?\]);/s)[1]);
- let more,handler;
- const c={PVIEWS:pv,PMORE:pm,progressSwitch:()=>'',bellBtn:()=>'',pillBtn:()=>'<button id="p-view">More</button>',esc:String,skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',wireProgressFocus(){},foodUser:()=>false,
-  $:()=>more,location:{search:''},URLSearchParams,pickSheet:(title,html,fn)=>{handler=fn},pickRows:()=>'',go:()=>{}};
- vm.createContext(c);vm.runInContext(text.slice(text.indexOf('function pHead('),text.indexOf('// each view takes')),c);
- for(const [view,label] of [['calendar','Calendar'],['heatmap','Heatmap'],['lifting','Lifting']]){
-  const classes=[],attrs={};more={classList:{add:x=>classes.push(x)},setAttribute:(k,v)=>attrs[k]=v};const el={};c.pHead(el,view,'filters kept');
-  assert.match(el.innerHTML,new RegExp('progress-view-title">'+label));assert(classes.includes('current-view'));assert.match(attrs['aria-label'],new RegExp(label));assert.match(el.innerHTML,/More<\/button>/);assert.match(el.innerHTML,/filters kept/);more.onclick();assert.equal(typeof handler,'function');
- }
- more={classList:{add(){throw Error('Totals should select its existing tab')}},setAttribute(){}};const el={};c.pHead(el,'totals','');assert(!el.innerHTML.includes('progress-view-title'));
- console.log('navigation deeper Progress views: stable More, named current view, active indicator, filters and chooser remain available PASS');
+ const c={App:{me:{id:1}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},store:{get:k=>data.get(k),set:(k,v)=>data.set(k,v)}};
+ vm.createContext(c);vm.runInContext(text.slice(text.indexOf('const progressKey'),text.indexOf('function progressBack')),c);
+ assert.equal(c.progressSwitch('food'),'','no subject switch, including legacy food pages');
+ c.progressVisit('heatmap');c.progressVisit('heatmap');assert.deepEqual(Array.from([...data.values()][0]),['heatmap']);
+ c.App.me={id:2};c.progressVisit('routes');assert.equal(data.size,2,'discovery history belongs to each account');
+ assert(!text.includes('id="p-view"'),'no global More control');
+ console.log('Progress navigation: no subject/view tabs, per-account discovery history PASS');
 }
 
 // The actual router position helper: Back/Forward and same-page refresh retain place per account.

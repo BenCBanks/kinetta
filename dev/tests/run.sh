@@ -66,6 +66,7 @@ node dev/tests/test_notification_rows.js
 node dev/tests/test_personal_notifications_ui.js
 node --check dev/tests/personal_notifications_ui.cjs
 node --check dev/tests/me_card_ui.cjs # rendered checks run in the screenshot workflow
+node --check dev/tests/progress_ui.cjs
 node --check dev/tests/profile_card_ui.cjs # rendered checks run in the screenshot workflow
 node --check dev/tests/public_card_ui.cjs
 node --check dev/tests/goals_ui.cjs # rendered checks run in the screenshot workflow
@@ -151,7 +152,7 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_layout test_profile_progress test_chart_weeks test_track test_track_review test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
+for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_layout test_profile_progress test_progress_overview test_chart_weeks test_track test_track_review test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
 cd ../..
 
 echo "== in the app container"

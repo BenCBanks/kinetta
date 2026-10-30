@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool
-from . import cards,milestones,challenges,personal_notifications
+from . import cards,milestones,challenges,personal_notifications,progress_overview
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts, garmin_connect
 import threading
 from .auth import current_user
@@ -39,6 +39,7 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
 from . import recaps
 app.include_router(recaps.router)
 app.include_router(personal_notifications.router)
+app.include_router(progress_overview.router)
 from . import api_intervals
 app.include_router(api_intervals.router)
 app.include_router(map_config.router)
