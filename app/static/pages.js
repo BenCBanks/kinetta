@@ -234,21 +234,62 @@ function getStarted(healthConnected = false, hasHistory = false) {
 // After the first workouts, optional setup is one checklist: finished steps tick off instead of being asked again, and
 // the whole list hides (restore in Settings). Apple Health shows done once connected (owner, 29 October 2026).
 function setupChecklist(healthConnected) {
-  const me = App.me || {}, ch = `<span class="chev">${svg('chev')}</span>`;
+  const me = App.me || {}, ch = `<span class="chev">${svg('chev')}</span>`, skipped = new Set(me.setup_skipped || []);
+  // [key, href, label, done, external]. Skip removes one step for good (owner, 30 October 2026: not everyone wants Apple
+  // Health); Settings → Show setup tips brings skipped steps back.
   const items = [
-    me.mail_ready && !me.needs_email_confirm ? ['/me/settings?email=add', 'Add your email', !!me.email || !!pendingEmail()] : null,
-    Native.on ? ['/track/health', 'Connect Apple Health', healthConnected] : null,
-    !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent) && me.iphone_app ? [me.iphone_app, 'Get the iPhone app', false, true] : null,
-    [profileHref(me), 'Add a profile photo', !!me.photo],
-    foodUser() ? ['/food/setup', 'Set a nutrition goal', !!me.kcal_target] : null,
-    ['/me/friends', 'Find friends', (me.friend_count || 0) > 0],
-  ].filter(Boolean);
-  const done = items.filter((i) => i[2]).length;
+    me.mail_ready && !me.needs_email_confirm ? ['email', '/me/settings?email=add', 'Add your email', !!me.email || !!pendingEmail()] : null,
+    Native.on ? ['health', '/track/health', 'Connect Apple Health', healthConnected] : null,
+    !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent) && me.iphone_app ? ['iphone', me.iphone_app, 'Get the iPhone app', false, true] : null,
+    // The photo picker opens in place: the profile page no longer has its own camera badge (30 Oct 2026).
+    ['photo', 'photo', 'Add a profile photo', !!me.photo],
+    foodUser() ? ['nutrition', '/food/setup', 'Set a nutrition goal', !!me.kcal_target] : null,
+    ['friends', '/me/friends', 'Find friends', (me.friend_count || 0) > 0],
+  ].filter(i => i && (i[3] || !skipped.has(i[0])));
+  const done = items.filter((i) => i[3]).length;
   if (done === items.length) return '';
-  const row = ([href, label, ok, external]) => ok ? `<div class="row-link setup-done"><span class="setup-mark">${svg('check')}</span><span class="grow">${label}<span class="vh">, done</span></span></div>`
-    : `<a class="row-link" href="${esc(href)}"${external ? ' target="_blank" rel="noopener"' : ''}><span class="setup-mark todo"></span><span class="grow">${label}</span>${ch}</a>`;
-  return `<section class="setup-tips setup-check" aria-label="Finish setting up"><div class="setup-heading"><div><h2>Finish setting up</h2><p class="small muted">${done} of ${items.length} done · each one is optional</p></div><button type="button" class="ghost" data-hide-setup>Hide</button></div>
+  const skip = (key, label) => `<button type="button" class="setup-skip" data-setup-skip="${key}" aria-label="Skip ${esc(label)}">Skip</button>`;
+  const row = ([key, href, label, ok, external]) => ok ? `<div class="row-link setup-done"><span class="setup-mark">${svg('check')}</span><span class="grow">${label}<span class="vh">, done</span></span></div>`
+    : `<div class="setup-row">${href === 'photo' ? `<button type="button" class="row-link" data-setup-photo><span class="setup-mark todo"></span><span class="grow">${label}</span>${ch}</button>`
+    : `<a class="row-link" href="${esc(href)}"${external ? ' target="_blank" rel="noopener"' : ''}><span class="setup-mark todo"></span><span class="grow">${label}</span>${ch}</a>`}${skip(key, label)}</div>`;
+  return `<section class="setup-tips setup-check" aria-label="Finish setting up"><div class="setup-heading"><div><h2>Finish setting up</h2><p class="small muted">${done} of ${items.length} done · skip any you don’t need</p></div><button type="button" class="ghost" data-hide-setup>Hide</button></div>
     <div class="card list"><progress max="${items.length}" value="${done}" aria-label="Setup progress">${done} of ${items.length}</progress>${items.map(row).join('')}</div></section>`;
+}
+// Private insights under the card (Ben, 30 Oct 2026): the distance chart lives on the card, so this space answers
+// "how am I doing?" from your own records only. Each row appears only when there is enough history behind it.
+function meInsights(box, s) {
+  const owner = readOwner(), live = () => box.isConnected && owner === readOwner();
+  const weeks = s.chart_weeks || [], now = weeks.at(-1), past = weeks.slice(0, -1).filter(w => w.distance_m > 0);
+  const rows = [];
+  if (now && past.length >= 3) {
+    // Usual = the average full week among the previous six that had any distance.
+    const usual = past.reduce((n, w) => n + w.distance_m, 0) / past.length, pct = Math.min(1, (now.distance_m || 0) / usual);
+    rows.push(`<div class="me-insight"><div class="me-insight-top"><span>This week so far</span><b class="num">${esc(U.dist(now.distance_m || 0, 1))} <small>of your usual ${esc(U.dist(usual, 1))} ${esc(U.du())}</small></b></div>
+      <div class="track" role="img" aria-label="${Math.round(pct * 100)}% of your usual week"><div class="bar" data-w="${pct.toFixed(3)}"></div></div><small class="muted">Usual is your average week over the last ${past.length} active weeks.</small></div>`);
+  }
+  const chips = [s.day_streak > 1 ? `<span class="achievement">${svg('flame')}${s.day_streak}-day streak</span>` : '', s.week_streak > 1 ? `<span class="achievement">${svg('trophy')}${s.week_streak}-week streak</span>` : ''].join('');
+  box.innerHTML = `<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows>${rows.join('')}</div><div data-insight-more></div>${chips ? `<div class="achievement-row">${chips}</div>` : ''}
+    <a class="mileage-progress" href="/progress?view=training">View progress ${svg('chev')}</a></section>`;
+  // Runners also get recent bests and a pace trend, read from the same records the Progress pages use.
+  if (!(s.years || []).some(y => y.sport === 'run')) return;
+  const more = $('[data-insight-more]', box), month = d => fdate(d, {month: 'short', day: 'numeric'}), parts = {};
+  const paint = () => { if (live()) more.innerHTML = (parts.best || '') + (parts.pace || ''); };
+  load('/api/records?sport=run', r => {
+    const since = Date.now() - 30 * 864e5, best = (r.efforts || []).filter(e => e.top?.[0] && e.count > 1 && new Date(e.top[0].start_time) >= since).slice(-2);
+    parts.best = best.map(e => `<a class="me-insight me-insight-link" href="/activity/${e.top[0].activity_id}"><span class="me-insight-ico">${svg('trophy')}</span><span class="grow"><b>New ${esc(e.label)} best · <span class="num">${esc(dur(e.top[0].elapsed_s))}</span></b><small class="muted">${esc(month(e.top[0].start_time))}</small></span>${svg('chev')}</a>`).join('');
+    paint();
+  }).catch(() => {});
+  load('/api/progress/trends?sport=run', r => {
+    // Last three months (this one included) against the three before; at least three runs on each side.
+    const months = r.months || [], recent = months.slice(-3), before = months.slice(-6, -3);
+    const pace = list => { const d = list.reduce((n, m) => n + (+m.pd || 0), 0), t = list.reduce((n, m) => n + (+m.pt || 0), 0); return d > 0 ? t / (d / 1000) : 0; };
+    const runs = list => list.reduce((n, m) => n + m.n, 0), cur = new Date(r.today + 'T12:00').getMonth(), last = recent.at(-1)?.m;
+    if (!last || +last.slice(5) - 1 !== cur || recent.length < 3 || before.length < 3 || runs(recent) < 3 || runs(before) < 3) return;
+    const a = pace(recent), b = pace(before); if (!a || !b) return;
+    const diff = Math.round((b - a) * (U.du() === 'mi' ? 1.609344 : 1)), same = Math.abs(diff) < 3;
+    parts.pace = `<div class="me-insight"><div class="me-insight-top"><span>Run pace · last 3 months</span><b class="num">${esc(U.pace(a))} <small>${esc(U.pu())}</small></b></div><small class="muted">${same ? 'About the same as the 3 months before.' : `${Math.abs(diff)} s ${diff > 0 ? 'faster' : 'slower'} per ${U.du()} than the 3 months before.`}</small></div>`;
+    paint();
+  }).catch(() => {});
 }
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // A person's shared identity leads; the overview below it is private.
@@ -275,7 +316,7 @@ async function meOverview(el) {
     <div class="me-overview-title"><h2>Your dashboard</h2><div id="t-review"></div></div>
     <div id="t-required"></div><div id="t-start"></div><div id="t-setup"></div><div id="t-food-lead" hidden></div>
     <div id="t-plan"></div>
-    <section id="t-week" aria-label="Weekly activity"><div class="mileage-loading" aria-hidden="true">${skelChart()}</div></section>
+    <section id="t-week" aria-label="Your insights">${skel(1)}</section>
     <div id="t-loading" role="status"><span class="vh">Loading your overview</span>${skel(1)}</div>
     <div id="t-content"><section class="me-agenda" hidden><div id="t-food"></div><div id="t-checkin"></div></section>
     <div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
@@ -296,6 +337,12 @@ async function meOverview(el) {
     $('#t-start', el).innerHTML = fresh ? getStarted(healthConnected, false) : '';
     setup.innerHTML = (fresh ? '' : getStarted(healthConnected, true)) +
       (!App.me.setup_hidden && missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+    const photo=$('[data-setup-photo]',setup);if(photo)photo.onclick=()=>profilePhotoSheet(()=>{invalidate('/api/me');keep('/api/me',App.me);render();});
+    $$('[data-setup-skip]',setup).forEach(button=>button.onclick=async()=>{
+      if(button.disabled)return;const owner=readOwner(),next=[...new Set([...(App.me.setup_skipped||[]),button.dataset.setupSkip])];button.disabled=true;
+      try{await api('/api/profile',json('PUT',{setup_skipped:next}));if(owner!==readOwner())return;App.me.setup_skipped=next;invalidate('/api/me');keep('/api/me',App.me);if(el.isConnected)drawSetup();}
+      catch(x){if(owner===readOwner()&&button.isConnected){toast(x.message);button.disabled=false;}}
+    });
     new Set([...$$('[data-hide-setup]',el),...$$('[data-hide-setup]',setup)]).forEach(button=>button.onclick=async()=>{
       if(button.disabled)return;const owner=readOwner();button.disabled=true;button.textContent='Hiding…';
       try{await api('/api/profile',json('PUT',{setup_hidden:true}));if(owner!==readOwner())return;App.me.setup_hidden=true;invalidate('/api/me');keep('/api/me',App.me);if(!el.isConnected)return;drawSetup();toast('Setup tips hidden. Restore them in Settings.');}
@@ -347,8 +394,7 @@ async function meOverview(el) {
     })),
     tracked('chart', load('/api/stats', (s) => {
       if (!el.isConnected) return;
-      $('#t-week', el).innerHTML = '<div class="card" id="me-distance"></div>';
-      mileageChart($('#me-distance', el), {days:s.recent_days || [], today:s.chart_today, weeks:s.chart_weeks,streaks:{days:s.day_streak,weeks:s.week_streak}},'days',{progress:true});
+      meInsights($('#t-week', el), s);
       ready('chart');
     })),
     load('/api/fitness?days=60', (f) => {
@@ -1405,7 +1451,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing &amp; privacy')}</div>
     <h2 class="sec-head">Connections &amp; notifications</h2>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}
-      ${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications')}<label class="row-link"><span class="ri c-brand">${svg('help')}</span><span class="grow">Show setup tips<small class="muted">Optional connection and profile reminders</small></span><input type="checkbox" id="m-setup-tips"${me.setup_hidden?'':' checked'}></label></div>
+      ${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications')}<label class="row-link"><span class="ri c-brand">${svg('help')}</span><span class="grow">Show setup tips<small class="muted">Optional connection and profile reminders</small></span><input type="checkbox" id="m-setup-tips"${me.setup_hidden?'':' checked'}></label>${(me.setup_skipped||[]).length?'<button type="button" class="row-link" id="m-setup-unskip"><span class="ri c-brand">'+svg('check')+'</span><span class="grow">Bring back skipped setup steps</span></button>':''}</div>
     <h2 class="sec-head">Units &amp; body</h2>
     <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
@@ -1421,9 +1467,14 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       ${row('a', 'href="/me/speed"', 'clock', 'c-grey', 'Speed check')}</div>
     </section>`;
   wireBack(el, '/me');
+  const unskip=$('#m-setup-unskip',el);if(unskip)unskip.onclick=async()=>{
+    if(unskip.disabled)return;const owner=readOwner();unskip.disabled=true;
+    try{await api('/api/profile',json('PUT',{setup_skipped:[]}));if(owner!==readOwner())return;App.me.setup_skipped=[];invalidate('/api/me');keep('/api/me',App.me);unskip.remove();toast('Skipped setup steps are back on Me');}
+    catch(x){if(owner===readOwner()){unskip.disabled=false;toast(x.message);}}
+  };
   $('#m-setup-tips',el).onchange=async e=>{
     const input=e.target,owner=readOwner(),hidden=!input.checked;input.disabled=true;
-    try{await api('/api/profile',json('PUT',{setup_hidden:hidden}));if(owner!==readOwner())return;App.me.setup_hidden=hidden;invalidate('/api/me');keep('/api/me',App.me);}
+    try{await api('/api/profile',json('PUT',hidden?{setup_hidden:true}:{setup_hidden:false,setup_skipped:[]}));if(owner!==readOwner())return;App.me.setup_hidden=hidden;if(!hidden)App.me.setup_skipped=[];invalidate('/api/me');keep('/api/me',App.me);}
     catch(x){if(owner===readOwner()){input.checked=hidden;toast(x.message);}}finally{input.disabled=false;}
   };
   $('#m-profile', el).onclick = () => editProfile(me, () => render());

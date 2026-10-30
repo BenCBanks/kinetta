@@ -1914,6 +1914,11 @@ MIGRATIONS = [
     ALTER TABLE public_cards ALTER COLUMN stats SET DEFAULT '["distance_year","activity_weeks"]'::jsonb;
     UPDATE public_cards SET enabled=true,photo=true,sports=true,
       stats='["distance_year","activity_weeks"]'::jsonb,allow_requests=true,updated=now();""",
+
+    # 89. Setup steps a person chose to skip (owner, 30 October 2026: not everyone wants Apple Health); cleared on restore.
+    """ALTER TABLE profile ADD COLUMN setup_skipped text[] NOT NULL DEFAULT '{}';
+    ALTER TABLE profile ADD CONSTRAINT setup_skipped_known
+      CHECK(setup_skipped <@ ARRAY['email','health','iphone','photo','nutrition','friends']::text[]);""",
 ]
 
 

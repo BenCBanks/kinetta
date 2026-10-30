@@ -45,6 +45,16 @@ try:
     req(owner,'PUT','/api/profile',{'setup_hidden':False})
     assert req(owner,'GET','/api/me')['setup_hidden'] is False
     assert req(viewer,'GET','/api/me')['setup_hidden'] is False
+    # Skipped setup steps: a known list, saved per account, cleared with an empty list
+    assert defaults['setup_skipped']==[]
+    req(owner,'PUT','/api/profile',{'setup_skipped':['health','photo','health']})
+    assert req(owner,'GET','/api/me')['setup_skipped']==['health','photo']
+    for bad in (['weight'],'health',['health']*7):req(owner,'PUT','/api/profile',{'setup_skipped':bad},422)
+    req(owner,'PUT','/api/profile',{'setup_skipped':None})
+    assert req(owner,'GET','/api/me')['setup_skipped']==['health','photo']
+    assert req(viewer,'GET','/api/me')['setup_skipped']==[]
+    req(owner,'PUT','/api/profile',{'setup_skipped':[]})
+    assert req(owner,'GET','/api/me')['setup_skipped']==[]
 
     start=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=1)).replace(microsecond=0).isoformat()
     ids=[]

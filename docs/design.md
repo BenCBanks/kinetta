@@ -1411,3 +1411,23 @@ The map on Track before recording works like the recording map: drag and pinch m
 button (top right, above Locate) or a tap opens it full screen with the GPS chip and Locate still available. Close,
 Escape or Back return to Track unchanged. Dragging stops following your position until Locate is tapped; while it is
 following, opening or closing full screen keeps your dot centred.
+## Profile = the Me card, one distance chart, private insights · 30 October 2026 (owner)
+
+Supersedes the profile-page layout in "Profile-first Me" and "Social profiles". Every profile page (your own and other
+people's) is the Me card at full size, then the shared activities. It uses the same component as Me: banner, photo,
+name, handle, bio, friend count and the layout's sections. Your own card has the same Edit and Share pills; Edit works
+in place, as on Me, and Share offers the profile link and Public card & QR (no separate link on the page). Someone else's card puts
+Add friend (solid white), Request sent, Approve request or ✓ Friends, plus ⋯ (report or block), in the banner. Only
+your own card carries the privacy note. The page title is "Your profile" or "Profile". Preview as is a slim
+Friends · Other members switch between the card and the activities. The card has no link row back to the page itself.
+
+The card's distance chart has a tiny Days · Weeks switch (Weeks first): Days is this Sunday–Saturday week with weekday
+letters and greyed future days. Tapping a bar shows its date and distance in the heading. Me no longer has a second
+distance chart. Below "Only you below this line", **Your insights** shows, only when there is enough history:
+this week so far against your usual week (the average of the previous active weeks among the last six); new run
+bests from the last 30 days (not first-ever efforts); run pace over the last 3 months against the 3 before (at
+least 3 runs each side); day and week streaks; View progress.
+
+Finish setting up: each open step has its own Skip (not everyone wants Apple Health). Skipped steps leave the list and
+the count, are saved to the account (`setup_skipped`), and come back with Settings → Show setup tips or "Bring back
+skipped setup steps". Add a profile photo opens the photo picker in place.

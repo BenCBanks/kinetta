@@ -85,49 +85,67 @@ const ProfileLayout=(()=>{
 const MeCard=(()=>{
   const firstName=me=>(me.name||'').trim().split(/\s+/)[0]||me.login;
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
-  function header(me){
-    const bio=(me.bio||'').trim(),pending=Number.isInteger(me.friend_requests)?me.friend_requests:0;
-    return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools">${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
-    <section class="me-card" aria-label="Your profile card"><div class="me-card-banner"><button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button></div>
-      <div class="me-card-body"><div class="me-card-id"><a class="me-card-avatar" href="${profileHref(me)}" aria-label="View your shared profile">${avatar(me,'lg')}</a><div class="me-card-name"><h2>${esc(me.name||me.login)}</h2><span>@${esc(me.login)}</span></div></div>
+  // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
+  // then the shared activities). pills fill the banner; friends is the friend-count line.
+  function card(p,{mine=false,pills='',friends='',link=false}={}){
+    const bio=(p.bio||'').trim(),photo=avatar(p,'lg');
+    return `<section class="me-card" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
+      <div class="me-card-body"><div class="me-card-id">${link?`<a class="me-card-avatar" href="${profileHref(p)}" aria-label="View your shared profile">${photo}</a>`:`<span class="me-card-avatar">${photo}</span>`}<div class="me-card-name"><h2>${esc(p.name||p.login)}</h2><span>@${esc(p.login)}</span></div></div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
-        <a class="me-friends-link" href="/me/friends">${svg('people')}<span data-friend-count>${Number.isInteger(me.friend_count)?friendCountText(me.friend_count):'Friends'}</span><span class="badge alert" data-friend-waiting${pending?'':' hidden'}>${pending} waiting</span>${svg('chev')}</a>
+        ${friends}
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
-        <p class="me-card-note">${svg('lock')}<span>Your friends see this card. Totals include all your workouts; private ones never show details. Food, body data and Kit are never shown.</span></p></div></section>
+        ${mine?`<p class="me-card-note">${svg('lock')}<span>Your friends see this card. Totals include all your workouts; private ones never show details. Food, body data and Kit are never shown.</span></p>`:''}</div></section>`;
+  }
+  const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
+  function ownFriends(count){
+    const pending=Number.isInteger(App.me.friend_requests)?App.me.friend_requests:0;
+    return `<a class="me-friends-link" href="/me/friends">${svg('people')}<span data-friend-count>${Number.isInteger(count)?friendCountText(count):'Friends'}</span><span class="badge alert" data-friend-waiting${pending?'':' hidden'}>${pending} waiting</span>${svg('chev')}</a>`;
+  }
+  function header(me){
+    return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools">${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
+    ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count)})}
     <div class="me-divider"><span>${svg('lock')}Only you below this line</span></div>`;
   }
-  function weeks(r){
-    const rows=r.mileage?.weeks||[],top=Math.max(...rows.map(w=>w.distance_m||0));
-    if(!rows.length||!(top>0))return '';
-    const total=rows.reduce((n,w)=>n+(w.distance_m||0),0);
-    // Each week is a button (Ben, 30 Oct 2026): tapping one shows its dates and distance in place of the total.
-    const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),range=w=>`${day(w.d)}–${day(w.end)}`,dist=w=>`${U.dist(w.distance_m||0,1)} ${U.du()}`;
-    return `<div class="me-card-sec"><div class="me-card-label" data-week-label aria-live="polite"><span>Distance · ${rows.length} weeks</span><small>${esc(U.dist(total))} ${esc(U.du())}</small></div>
-      <div class="me-card-bars" role="group" aria-label="Weekly distance, last ${rows.length} weeks">${rows.map(w=>`<button type="button" class="me-week${w.today?' now':''}" aria-pressed="false" data-range="${esc(range(w))}" data-dist="${esc(dist(w))}" aria-label="${esc((w.today?'This week, ':'')+range(w)+': '+dist(w))}"><span data-h="${Math.max(2,Math.round((w.distance_m||0)/top*10))}"></span></button>`).join('')}</div></div>`;
+  // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
+  // Every bar is a button: tapping one shows its dates and distance in place of the total; tap again for the total.
+  let period='weeks';
+  function distance(r){
+    const weekly=period==='weeks',all=mileagePeriods(r.mileage||{}),rows=(weekly?all.weeks:all.days)||[],top=Math.max(0,...rows.map(w=>w.distance_m||0));
+    if(!(r.mileage?.weeks||[]).some(w=>w.distance_m>0))return '';
+    const total=rows.reduce((n,w)=>n+(w.distance_m||0),0),day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),dist=w=>`${U.dist(w.distance_m||0,1)} ${U.du()}`;
+    const when=w=>weekly?`${day(w.d)}–${day(w.end)}`:fdate(w.d+'T12:00',{weekday:'short',month:'short',day:'numeric'});
+    const value=w=>w.future?'Not yet':dist(w),letter=w=>fdate(w.d+'T12:00',{weekday:'narrow'});
+    const toggle=`<div class="mileage-toggle me-period" role="group" aria-label="Distance chart period">${[['days','Days'],['weeks','Weeks']].map(([k,l])=>`<button type="button" data-period="${k}" aria-pressed="${period===k}"${k==='weeks'&&!all.weeks?' disabled':''}>${l}</button>`).join('')}</div>`;
+    return `<div class="me-card-sec me-distance${weekly?'':' days'}"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>${weekly?'Distance · 7 weeks':'This week'}</span><small>${esc(U.dist(total,1))} ${esc(U.du())}</small></div>${toggle}</div>
+      <div class="me-card-bars" role="group" aria-label="${weekly?'Weekly distance, last 7 weeks':'Daily distance this week'}">${rows.map(w=>`<button type="button" class="me-week${w.today?' now':''}${w.future?' future':''}" aria-pressed="false" data-range="${esc(when(w))}" data-dist="${esc(value(w))}" aria-label="${esc((w.today?(weekly?'This week, ':'Today, '):'')+when(w)+': '+value(w))}"><span data-h="${top?Math.max(2,Math.round((w.distance_m||0)/top*10)):2}"></span>${weekly?'':`<i aria-hidden="true">${esc(letter(w))}</i>`}</button>`).join('')}</div></div>`;
   }
-  function sections(r,layout){
-    if(!r.overview?.activities&&!r.shared_count)return '<p class="small muted me-card-empty">Your totals appear here once you have workouts.</p>';
+  function sections(r,layout,full){
+    if(!r.overview?.activities&&!r.shared_count)return `<p class="small muted me-card-empty">${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>`;
     return layout.sections.map(key=>{
       if(key==='recent'){const figures=ProfileLayout.numbers(r.recent.current,layout.stats);return figures?`<div class="me-card-sec"><div class="me-card-label"><span>Last 30 days</span><small>${esc(short(r.recent.start))} – ${esc(short(r.recent.end))}</small></div><div class="profile-stats">${figures}</div></div>`:'';}
-      if(key==='mileage')return weeks(r);
+      if(key==='mileage')return distance(r);
       if(key==='totals'){const figures=ProfileLayout.numbers(r.overview,layout.stats);return figures?`<div class="me-card-sec me-card-total"><div class="me-card-label"><span>All time</span></div><div class="profile-stats">${figures}</div></div>`:'';}
       if(key==='sports'){
         const rows=(layout.sports.length?layout.sports.map(s=>(r.sports||[]).find(x=>x.sport===s)).filter(Boolean):(r.sports||[])).slice(0,4);
         return rows.length?`<div class="me-card-sec me-sport-chips">${rows.map(x=>`<span class="me-sport-chip"><span class="me-sport-ico" data-sport="${esc(x.sport)}" aria-hidden="true">${svg(SPORT_NAMES[x.sport]?x.sport:'other')}</span>${esc(SPORT_NAMES[x.sport]||x.sport)} · ${esc(Number(x.activities).toLocaleString())}</span>`).join('')}</div>`:'';
       }
+      if(full)return '';
       return `<a class="me-card-row" href="${profileHref(App.me)}"><span class="grow"><b>${r.shared_count??r.items.length} shared ${(r.shared_count??r.items.length)===1?'activity':'activities'}</b><small>Shared with friends or everyone</small></span>${svg('chev')}</a>`;
     }).join('');
   }
-  function mount(root,{reload}){
+  // data: the profile page passes the response it already has; full: the activities follow the card (no link row, no
+  // View full profile); onSaved: reread after a layout save. Someone else's card only gets the week taps.
+  function mount(root,{reload,data:given=null,full=false,onSaved}={}){
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
-    let data=null,editing=false;
+    let data=given,editing=false;
     const bars=()=>$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px'); // CSP blocks inline style attributes
     // The heading swaps to the picked week's dates and distance, so the layout never shifts; tap again for the total.
     const weekTaps=()=>{const wrap=$('.me-card-bars',box),label=$('[data-week-label]',box);if(!wrap||!label)return;const [head,side]=[$('span',label),$('small',label)],[h0,s0]=[head.textContent,side.textContent];
       wrap.onclick=e=>{const b=e.target.closest('.me-week');if(!b)return;const on=b.getAttribute('aria-pressed')!=='true';
         $$('.me-week',wrap).forEach(x=>x.setAttribute('aria-pressed','false'));if(on)b.setAttribute('aria-pressed','true');
         head.textContent=on?b.dataset.range:h0;side.textContent=on?b.dataset.dist:s0;label.classList.toggle('picked',on);};};
-    const draw=()=>{if(!live()||editing||!data)return;box.setAttribute('aria-busy','false');box.innerHTML=sections(data,ProfileLayout.normalize(App.me.profile_layout||data.layout));bars();weekTaps();};
+    const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
+    const draw=()=>{if(!live()||editing||!data)return;box.setAttribute('aria-busy','false');box.innerHTML=sections(data,ProfileLayout.normalize(data.mine===false?data.layout:App.me.profile_layout||data.layout),full);bars();weekTaps();periods();};
     const load=async()=>{
       try{data=await api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');draw();}
       catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);load();};}
@@ -162,7 +180,7 @@ const MeCard=(()=>{
         $('[data-card-save]',box).onclick=async e=>{
           const button=e.currentTarget;if(button.disabled)return;button.disabled=true;button.textContent='Saving…';status.textContent='';
           try{const r=await api('/api/account',json('PUT',{profile_layout:value}));if(owner!==readOwner())return;
-            App.me.profile_layout=r.profile_layout||value;invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);if(live()){finish();toast('Card saved');}}
+            App.me.profile_layout=r.profile_layout||value;invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);if(live()){finish();toast('Card saved');onSaved?.();}}
           catch(x){if(!live())return;button.disabled=false;button.textContent='Save card';status.textContent=x.message;}
         };
         if(focus){const [k,v]=Object.entries(focus).find(([key])=>key!=='step');const target=$(`[data-${k}="${v}"]${k==='move'?`[data-step="${focus.step}"]`:''}`,box);(target&&!target.disabled?target:$(`[data-show="${focus.move||v}"]`,box))?.focus({preventScroll:true});}
@@ -170,13 +188,14 @@ const MeCard=(()=>{
       paint();$('[data-show]',box)?.focus({preventScroll:true});
     }
     function finish(){editing=false;dim(false);draw();if(!data)load();$('[data-card-edit]',card).focus({preventScroll:true});}
+    if(data?.mine===false){draw();return {};}
     $('[data-card-edit]',card).onclick=edit;
-    $('[data-card-share]',card).onclick=()=>sheet('Share your profile',`<p class="small muted">Friends see the card on Me. Other members see only activities shared with everyone.</p><button type="button" class="primary wide" data-share-link>${svg('share')}Share profile link</button>${typeof KinettaCard==='undefined'?'':'<button type="button" class="ghost wide" data-share-card>Public card &amp; QR</button>'}<a class="ghost wide" href="${profileHref(App.me)}" data-close>View full profile</a>`,(b,close)=>{
+    $('[data-card-share]',card).onclick=()=>sheet('Share your profile',`<p class="small muted">Friends see the card on Me. Other members see only activities shared with everyone.</p><button type="button" class="primary wide" data-share-link>${svg('share')}Share profile link</button>${typeof KinettaCard==='undefined'?'':'<button type="button" class="ghost wide" data-share-card>Public card &amp; QR</button>'}${full?'':`<a class="ghost wide" href="${profileHref(App.me)}" data-close>View full profile</a>`}`,(b,close)=>{
       $('[data-share-link]',b).onclick=()=>{close();shareProfile(App.me);};
       const cardButton=$('[data-share-card]',b);if(cardButton)cardButton.onclick=()=>{close();KinettaCard.open();};
     });
-    load();
+    if(data)draw();else load();
     return {edit};
   }
-  return {header,mount,firstName};
+  return {header,card,ownPills,ownFriends,mount,firstName};
 })();

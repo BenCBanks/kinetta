@@ -22,10 +22,11 @@
 .setup-heading button { min-height:44px; }
 .setup-tips>.small { margin-top:-4px; }
 .profile-page-title { flex:1; text-align:center; font-size:.9375rem; font-weight:650; }
-.pf-preview { background:var(--card2); padding:12px; }
-.pf-preview label { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:.875rem; font-weight:600; }
-.pf-preview select { flex:1 1 12rem; width:100%; min-width:0; font-size:max(16px,1em); }
-.pf-preview p { margin:6px 0 0; }
+/* Your own profile: a slim Preview as switch between the card and the activities, in the Days/Weeks style. */
+.pf-preview { display:flex; flex-wrap:wrap; align-items:center; column-gap:8px; margin:12px 2px 4px; padding:0; background:none; font-size:.8125rem; font-weight:600; color:var(--tx2); }
+.pf-preview .mileage-toggle button { font-size:.8125rem; }
+.pf-preview small { flex-basis:100%; font-weight:400; color:var(--tx3); }
+#person-profile .profile-activities { margin-top:12px; }
 .profile-private-note { display:flex; gap:7px; align-items:center; margin:0 0 20px; }
 .profile-private-note svg { width:16px; height:16px; flex:none; }
 .profile-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); gap:14px; margin:14px 0 4px; }
@@ -69,6 +70,9 @@
 .me-card-pill { min-height:44px; min-width:44px; padding:0 12px; border:0; border-radius:22px; background:rgba(255,255,255,.2); color:#fff; font-size:.875rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; }
 .me-card-pill svg { width:16px; height:16px; flex:none; }
 .me-card-pill:active { background:rgba(255,255,255,.32); }
+/* Add friend / Approve on someone else's card: the one solid pill, so the next step stands out. */
+.me-card-pill.solid { background:#fff; color:var(--color-brand); }
+.me-card-pill:disabled { opacity:.6; }
 .me-card-body { padding:0 18px 18px; display:flex; flex-direction:column; gap:12px; }
 .me-card-id { display:flex; align-items:flex-end; gap:14px; min-width:0; }
 /* The row overlaps the banner; only the photo link takes taps there, so Edit and Share stay reachable. */
@@ -139,3 +143,31 @@
 .setup-mark svg { width:14px; height:14px; stroke-width:3; }
 .setup-mark.todo { background:none; border:2px solid var(--color-outline); width:22px; height:22px; }
 @media(max-width:360px) { .me-card-body { padding:0 14px 16px; } .me-card-avatar .av { width:3.5rem; height:3.5rem; } }
+/* The card's distance chart: a tiny Days / Weeks switch beside the heading; days carry weekday letters. */
+.me-card-head { display:flex; align-items:center; gap:4px; }
+.me-card-head .me-card-label { flex:1; min-width:0; }
+.me-period { margin:-12px -6px -12px 0; }
+.me-period button { min-width:40px; padding:0 4px; font-size:.6875rem; }
+.me-distance.days .me-card-bars { height:68px; }
+.me-distance.days .me-week { flex-direction:column; justify-content:flex-end; align-items:stretch; gap:3px; }
+.me-week i { font-style:normal; font-size:.6875rem; line-height:1; text-align:center; color:var(--tx3); }
+.me-week.now i { color:var(--accent); font-weight:700; }
+.me-week.future span { background:var(--line); }
+/* Your insights: private rows under the card (replaces the second distance chart, 30 Oct 2026). */
+.me-insights h2 { margin:0 0 4px; }
+.me-insight { display:flex; flex-direction:column; gap:6px; padding:12px 0; border-top:1px solid var(--line); color:var(--tx); }
+.me-insight:first-child { border-top:0; }
+.me-insight-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:.875rem; color:var(--tx2); }
+.me-insight-top b { color:var(--tx); font-size:1.125rem; } .me-insight-top b small { font-size:.8125rem; font-weight:500; color:var(--tx2); }
+.me-insight-link { flex-direction:row; align-items:center; gap:12px; min-height:56px; }
+.me-insight-link .grow { display:flex; flex-direction:column; min-width:0; flex:1; }
+.me-insight-link>svg { width:16px; height:16px; color:var(--tx3); flex:none; }
+.me-insight-ico { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--card2); color:var(--color-achievement); flex:none; }
+.me-insight-ico svg { width:17px; height:17px; }
+/* Finish setting up: each open step can be skipped on its own (owner, 30 Oct 2026). */
+.setup-row { display:flex; align-items:center; gap:4px; border-top:1px solid var(--line); }
+.setup-row:first-of-type { border-top:0; }
+.setup-row>.row-link { flex:1; min-width:0; border-top:0; }
+.setup-skip { flex:none; min-height:44px; min-width:44px; padding:0 8px; border:0; background:none; color:var(--tx2); font-size:.8125rem; font-weight:600; }
+.me-insight .track { height:8px; border-radius:4px; background:var(--card2); overflow:hidden; }
+.me-insight .track .bar { height:8px; }

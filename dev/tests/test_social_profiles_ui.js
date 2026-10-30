@@ -26,13 +26,12 @@ const tick=()=>new Promise(setImmediate);
  type('late');flush();type('');pending[4].resolve([{name:'Late fixture',login:'late'}]);await tick();assert.equal(found.innerHTML,'');assert.equal(lists.hidden,false);assert.equal(clear.hidden,true);
  type('detached');flush();found.isConnected=false;pending[5].resolve([{name:'Detached fixture',login:'other'}]);await tick();assert(!found.innerHTML.includes('Detached fixture'));
  // Real editor: failed atomic save keeps name AND bio; retry updates the normalised name and closes.
- const outer=Object.fromEntries(['#pf-photo','#pf-share','#pf-edit-profile','#pf-name','#pf-bio'].map(k=>[k,{}]));
  const f={elements:{name:{value:'New name',focus(){}},bio:{value:'Draft bio',focus(){}}}},save={},error={},cancel={},photo={};let closed=false,reloaded=0,attempts=0;
- c.$=(sel,box)=>box===outer?outer[sel]:sel==='#pf-editor'?f:sel==='[type="submit"]'?save:sel==='.err'?error:sel==='[data-cancel]'?cancel:photo;
+ c.$=(sel,box)=>sel==='#pf-editor'?f:sel==='[type="submit"]'?save:sel==='.err'?error:sel==='[data-cancel]'?cancel:photo;
  let editorBox;c.sheet=(title,html,mount)=>{editorBox={isConnected:true};mount(editorBox,()=>{editorBox.isConnected=false;closed=true;});};c.profilePhotoSheet=()=>{};c.invalidate=()=>{};c.keep=()=>{};c.invalidateFeed=()=>{};c.toast=()=>{};c.App={me:{name:'Old name'}};c.json=(method,body)=>body;
  c.api=async(path,body)=>{assert.equal(path,'/api/account');assert.deepEqual(JSON.parse(JSON.stringify(body)),{name:'New name',bio:'Draft bio'});if(++attempts===1)throw new Error('Try again');return {name:'New name'};};
- vm.runInContext(source.slice(source.indexOf('function wireProfileEditing('),source.indexOf("route(/^\\/me\\/friends$/")),c);
- c.wireProfileEditing(outer,{name:'Old name',bio:''},()=>reloaded++);outer['#pf-edit-profile'].onclick();await f.onsubmit({preventDefault(){}});assert.equal(closed,false);assert.equal(error.textContent,'Try again');assert.equal(f.elements.bio.value,'Draft bio');assert.equal(save.disabled,false);await f.onsubmit({preventDefault(){}});assert(closed);assert.equal(c.App.me.name,'New name');assert.equal(c.App.me.bio,'Draft bio');assert.equal(reloaded,1);
+ vm.runInContext(source.slice(source.indexOf('function editProfile('),source.indexOf("route(/^\\/me\\/friends$/")),c);
+ c.editProfile({name:'Old name',bio:''},()=>reloaded++);await f.onsubmit({preventDefault(){}});assert.equal(closed,false);assert.equal(error.textContent,'Try again');assert.equal(f.elements.bio.value,'Draft bio');assert.equal(save.disabled,false);await f.onsubmit({preventDefault(){}});assert(closed);assert.equal(c.App.me.name,'New name');assert.equal(c.App.me.bio,'Draft bio');assert.equal(reloaded,1);
  // The shared Settings/profile editor never submits an old draft to a new account,
  // or applies an old account's delayed response to the person now signed in.
  save.disabled=false;closed=false;c.editProfile({name:'Old name',bio:''},()=>reloaded++);editorOwner='second';
