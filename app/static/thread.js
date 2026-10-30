@@ -93,7 +93,7 @@ const FoodThread = (() => {
     for(const m of rows){if(write&&m.kind==='user')ctx.visibleClients.add(m.client_id);const i=ctx.messages.findIndex(x=>x.id===m.id);if(i<0)ctx.messages.push(m);else ctx.messages[i]=m;}
     ctx.messages.sort((a,b)=>a.id-b.id);
     const completed=rows.find(m=>m.kind==='user'&&m.result?.draft_id===ctx.draftId&&rows.some(r=>r.reply_to===m.id&&r.result?.food_review&&r.result?.confirmed));
-    if(completed){ctx.draftId=uuid();store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});ctx.context=null;ctx.reviewForm=null;store.del(contextKey(ctx.owner));}
+    if(completed){ctx.draftId=uuid();store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal});ctx.context=null;ctx.reviewForm=null;store.del(contextKey(ctx.owner));}
     remember(ctx);draw(ctx);
   }
   const outbox=foodOutbox({db:ThreadDB,request:(path,body,options)=>api(path,{...json('POST',body),...options}),session:()=>readOwner()+':'+privacyEpoch,changed:merge,progress:async owner=>{const ctx=current;if(ctx&&active(ctx)&&ctx.owner===owner){ctx.jobs=await ThreadDB.list(owner);if(active(ctx))draw(ctx);}}});
@@ -214,7 +214,7 @@ const FoodThread = (() => {
     const state=held(ctx);if(!state.ready||waitingJobs(ctx)||pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
     ctx.preparingReview=true;primary(ctx);
     try {
-      await FoodReview.open({done:result=>{if(!result.queued)wipe(ctx);},messages:state.ids,draftId:ctx.draftId,meal:ctx.meal,day:ctx.day,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal,form});},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
+      await FoodReview.open({done:result=>{if(!result.queued)wipe(ctx);},messages:state.ids,draftId:ctx.draftId,meal:ctx.meal,day:ctx.day,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal,form});},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
     } finally {ctx.preparingReview=false;primary(ctx);}
   }
   async function stage(items,{dish=null}={}){
@@ -267,7 +267,7 @@ const FoodThread = (() => {
     const retry=$('[data-retry]',node);if(retry)retry.onclick=async()=>{if(!active(ctx))return;
       if(job.draft_id&&job.draft_id!==ctx.draftId){
         const state=held(ctx);if(state.ready||state.open||waitingJobs(ctx)||$('#thread-text',ctx.el).value.trim()){status(ctx,'Finish your current food review before retrying this older message.');return;}
-        ctx.draftId=job.draft_id;ctx.context=null;ctx.reviewForm=null;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});store.del(contextKey(ctx.owner));
+        ctx.draftId=job.draft_id;ctx.context=null;ctx.reviewForm=null;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal});store.del(contextKey(ctx.owner));
       }
       await ThreadDB.update(ctx.owner,job.id,j=>({...j,error:null,offline:false}));flush(ctx,true);};
     const cancel=$('[data-cancel]',node);if(cancel)cancel.onclick=async()=>{if(!active(ctx))return;try{
@@ -435,7 +435,7 @@ const FoodThread = (() => {
     try{await api('/api/food/thread/clear',json('POST',{confirm:true}));}catch(e){return;}   // a failed clear just leaves the chat as it was
     privacyEpoch++;photos.clear(ctx.owner);await ThreadDB.erase(ctx.owner);store.del(cacheKey(ctx.owner));store.del(contextKey(ctx.owner));
     ctx.messages=[];ctx.jobs=[];ctx.visibleClients=new Set();ctx.context=null;ctx.reviewForm=null;ctx.draftId=uuid();ctx.epoch++;
-    store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});if(active(ctx))draw(ctx);
+    store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal});if(active(ctx))draw(ctx);
   }
   async function clearChat(ctx,close){
     if(!active(ctx))return;
@@ -446,12 +446,12 @@ const FoodThread = (() => {
     try{await api('/api/food/thread/clear',json('POST',{confirm:true}));
       privacyEpoch++;photos.clear(ctx.owner);await ThreadDB.erase(ctx.owner);store.del(cacheKey(ctx.owner));store.del(contextKey(ctx.owner));store.del(draftKey(ctx.owner));
       ctx.messages=[];ctx.jobs=[];ctx.visibleClients=new Set();ctx.context=null;ctx.reviewForm=null;ctx.draftId=uuid();ctx.epoch++;
-      store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,meal:ctx.meal});$('#thread-text',ctx.el).value='';ctx.chatView?.resize();draw(ctx);done();toast('Chat cleared');}
+      store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal});$('#thread-text',ctx.el).value='';ctx.chatView?.resize();draw(ctx);done();toast('Chat cleared');}
     catch(e){toast(e.message);}};});
   }
   function page(el,{day,meal}={}){
     if(new URLSearchParams(location.search).get('save')==='1'){el.innerHTML=`<header class="thread-heading">${backBtn('My Recipes')}<h1>Create recipe</h1></header><button type="button" class="primary wide" id="recipe-start">Create recipe</button>`;wireBack(el,'/food/meals');const button=$('#recipe-start',el);button.onclick=()=>newDish(button);newDish(button);return;}
-    const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),ctx={el,owner,day:typeof day==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(day)?day:null,meal:Object.hasOwn(MEAL_NAMES,meal)?meal:(Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:null),session:readOwner(),draftId:(typeof resume==='string'?resume:resume?.id)||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resume?.form||null,messages:[],visibleClients:new Set(),context:resume?store.get(contextKey(owner)):null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current?.chatView?.dispose();current=ctx;store.set(reviewDraftKey(owner),{id:ctx.draftId,meal:ctx.meal,form:ctx.reviewForm});
+    const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),ctx={el,owner,day:/^\d{4}-\d{2}-\d{2}$/.test(day)?day:/^\d{4}-\d{2}-\d{2}$/.test(resume?.day)?resume.day:isoDay(new Date()),meal:Object.hasOwn(MEAL_NAMES,meal)?meal:(Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:null),session:readOwner(),draftId:(typeof resume==='string'?resume:resume?.id)||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resume?.form||null,messages:[],visibleClients:new Set(),context:resume?store.get(contextKey(owner)):null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current?.chatView?.dispose();current=ctx;store.set(reviewDraftKey(owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal,form:ctx.reviewForm});
     el.classList.add('food-thread');el.setAttribute('aria-live','off');
     const tile=(attr,ico,label)=>`<button type="button" ${attr}>${svg(ico)}<span>${label}</span></button>`;
     el.innerHTML=`<header class="thread-heading"><a class="back" href="${ctx.day?'/food?d='+encodeURIComponent(ctx.day):'/food'}">${svg('back')}Nutrition</a><h1>Add food</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2><span class="kit-mark" aria-hidden="true">${svg('sparkle')}</span>What did you eat?</h2><p>Describe your food, or choose an action below. Check the amounts and nutrition before adding to your log.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div class="thread-tools">${tile('data-tool="snap"','camera','Camera')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Barcode')}${tile('id="thread-search"','search','Search')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('id="thread-manual-add"','edit','Manual')}</div></div><label class="vh" for="thread-text">Message about your food</label><button type="button" class="thread-review-strip" id="thread-review" hidden><span id="thread-review-sum"></span><span class="thread-review-go">Add to log ›</span></button><div class="kit-starters thread-quick-actions" role="group" aria-label="Quick food actions">${tile('data-thread-quick="recipes"','pot','My Recipes')}${tile('data-thread-quick="snap"','camera','Take a photo')}${tile('data-thread-quick="scan"','barcode','Scan a barcode')}${tile('data-thread-quick="search"','search','Search foods')}</div><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="send" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;

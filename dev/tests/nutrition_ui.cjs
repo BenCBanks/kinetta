@@ -78,7 +78,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     // Entered numbers cannot call a catalog/model. The final explicit confirmation must keep the chosen day.
     await p.locator('#thread-plus').click();await p.locator('.sheet .thread-tools button',{hasText:'Manual'}).click();await p.waitForSelector('#ty');
     await p.locator('#ty [name=name]').fill('Fictional past-day meal');await p.locator('#ty [name=kcal]').fill('180');await p.locator('#ty [name=protein_g]').fill('10');await p.locator('#ty button.primary').click();
-    await until(p,()=>!!document.querySelector('#thread-review:not([hidden]):not([disabled])'),'ready for review');await p.locator('#thread-review').click();await p.waitForSelector('#food-final-review');assert.match(await p.locator('.review-where').innerText(),/Yesterday/);
+    await until(p,()=>!!document.querySelector('#thread-review:not([hidden]):not([disabled])'),'ready for review');
+    await p.goto(base+'/food/describe');await until(p,()=>App.pageReady&&!!document.querySelector('#thread-review:not([hidden]):not([disabled])'),'resume review without date in URL');await p.locator('#thread-review').click();await p.waitForSelector('#food-final-review');assert.match(await p.locator('.review-where').innerText(),/Yesterday/);
     await p.locator('#review-confirm').click();await p.waitForSelector('#food-final-review',{state:'detached'});
     const day=await c.request.get(base+'/api/food/day?d='+past);assert.equal(day.status(),200);const savedDay=await day.json(),entries=savedDay.entries.filter(e=>e.name==='Fictional past-day meal');assert.equal(savedDay.day,past);assert(entries.some(e=>e.meal==='breakfast'),'confirmed food is on the selected day and meal');
     const today=await(await c.request.get(base+'/api/food/day')).json();assert(!today.entries.some(e=>e.name==='Fictional past-day meal'),'past-day food cannot appear in today’s log');
