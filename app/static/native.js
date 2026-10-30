@@ -23,7 +23,7 @@ const Native = (() => {
   const progress = (text) => { N.healthProgress = text; if (N.onHealthProgress) N.onHealthProgress(text); N.onWorkoutStatus?.(); };
   // the server and login token live in the app's own settings (Capacitor Preferences), which iOS doesn't clear the way it
   // can clear a web view's storage when the phone runs low on space
-  N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); try {const info=await P.App?.getInfo?.();if(info?.version)N.appVersion=info.version+(info.build?' ('+info.build+')':'');}catch(_){/* Older builds can omit version metadata. */} })().catch(() => {}) : Promise.resolve();
+  N.ready = on ? (async () => { N.base = (await get('server')) || ''; N.token = await get('token'); try {const info=await P.App?.getInfo?.();if(info?.version)N.appVersion=info.version+(info.build?' ('+info.build+')':'');N.appBuild=info?.build||'';}catch(_){/* Older builds can omit version metadata. */} })().catch(() => {}) : Promise.resolve();
   // no ↑ ↓ ✓ bar above the keyboard (2026-10-13, Ben): every text box here has its own send / save button. Only the app can
   // hide it (@capacitor/keyboard); Safari and the Home Screen version always show it.
   if (on && P.Keyboard) P.Keyboard.setAccessoryBarVisible({isVisible: false}).catch(() => {});
@@ -101,7 +101,7 @@ const Native = (() => {
 
   // ---------- Native iPhone notifications ----------
   const push = P.KinettaPush;
-  let pushTask = null, pushEnableTask = null, pushAccount = null, pushAt = 0;
+  let pushTask = null, pushEnableTask = null, pushTokenTask = Promise.resolve(), pushStopping = false, pushPosted = null, pushPostedAt = 0, pushTokenRevision = 0, pushPostTask = Promise.resolve(), pushAccount = null, pushAt = 0;
   const pushOwner = () => App.me && JSON.stringify([N.base, App.me.id]);
   N.pushSupported = !!push;
   N.pushEntryBlocked = false;
@@ -130,18 +130,31 @@ const Native = (() => {
     const status = await push.status();
     return {...status, supported: true, enabled: status.allowed && (await get('push.owner')) === pushOwner()};
   };
+  const pushBuildKey = account => 'push.build.' + encodeURIComponent(account);
+  const postPushDevice = (device, account, token, changed = false) => {
+    pushTokenRevision = Math.max(pushTokenRevision, device.revision || 0);
+    return pushPostTask = pushPostTask.catch(() => {}).then(async () => {
+      if (device.revision && device.revision < pushTokenRevision) return;
+      if (pushStopping || account !== pushOwner() || token !== N.token) throw new Error('Notification registration stopped because the account changed.');
+      const stamp = JSON.stringify([account, token, device.token, device.environment, N.appBuild]);
+      if (stamp === pushPosted && (changed || Date.now() - pushPostedAt < 60000)) return;
+      await api('/api/push/ios', json('POST', {token:device.token, environment:device.environment}));
+      if (account !== pushOwner() || token !== N.token) return;
+      pushPosted = stamp; pushPostedAt = Date.now();
+      await put('push.owner', account); await put('push.wanted', account);
+      if (N.appBuild) await put(pushBuildKey(account), N.appBuild);
+    });
+  };
   N.registerPush = async (request = false) => {
     const account = pushOwner(), token = N.token;
     if (!push || !account || !token) throw new Error('Log in to the iPhone app to enable notifications.');
     const device = await N.healthCall(push.register({request}), 'Apple notification registration timed out.', request ? 120000 : 20000);
-    if (account !== pushOwner() || token !== N.token) throw new Error('Notification registration stopped because the account changed.');
-    await api('/api/push/ios', json('POST', device));
-    if (account !== pushOwner() || token !== N.token) return;
-    await put('push.owner', account); await put('push.wanted', account);
+    await postPushDevice(device, account, token);
   };
   N.enablePush = () => pushEnableTask || (pushEnableTask = (async () => {
     const account = pushOwner(), token = N.token;
     if (pushTask) await pushTask;
+    await pushTokenTask;
     if (!account || account !== pushOwner() || token !== N.token) throw new Error('Notification registration stopped because the account changed.');
     pushTask = N.registerPush(true);
     try { await pushTask; } finally { pushTask = null; }
@@ -149,15 +162,19 @@ const Native = (() => {
   // forget: turned off on purpose. Logging out (or in again) keeps the wish, so the same account gets alerts back.
   N.disconnectPush = async ({signedOut = false, forget = false} = {}) => {
     if (!push) return;
-    // Finish any registration before removing it, so a late response cannot re-register the old login.
-    if (pushEnableTask) await pushEnableTask.catch(() => {});
-    if (pushTask) await pushTask.catch(() => {});
-    if (N.token) {
-      try { await api('/api/push/ios', {method: 'DELETE'}); }
-      catch (e) { if (!signedOut && e.status !== 401) throw e; }
-    }
-    await put('push.owner', null); if (forget) await put('push.wanted', null); pushAccount = null; pushAt = 0;
-    await push.unregister();
+    pushStopping = true;
+    try {
+      // Finish any registration before removing it, so a late response cannot re-register the old login.
+      if (pushEnableTask) await pushEnableTask.catch(() => {});
+      if (pushTask) await pushTask.catch(() => {});
+      await pushTokenTask;
+      if (N.token) {
+        try { await api('/api/push/ios', {method: 'DELETE'}); }
+        catch (e) { if (!signedOut && e.status !== 401) throw e; }
+      }
+      await put('push.owner', null); if (forget) await put('push.wanted', null); pushAccount = null; pushAt = 0;
+      await push.unregister();
+    } finally { pushStopping = false; pushPosted = null; pushPostedAt = 0; }
   };
   const openPush = async () => {
     if (!push || !App.me) return;
@@ -172,23 +189,46 @@ const Native = (() => {
     if (account === pushOwner() && /^\/(activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people|milestones)|food\/cook\/\d+|add\/[\w-]{1,40}|card\/[A-Za-z0-9_-]{1,60}|challenge\/[A-Za-z0-9_-]{1,60}|me\/challenges(?:\/[A-Za-z0-9_-]{1,60})?)$/.test(url)) go(url);
   };
   N.syncPush = () => {
-    if (!push || !App.me || !N.token) return;
-    N.pushNavigationReady = openPush().catch(() => {});
-    const account = pushOwner();
-    if (pushTask || (pushAccount === account && Date.now() - pushAt < 60000)) return;
-    pushAccount = account; pushAt = Date.now();
+    if (!push || !App.me || !N.token || pushStopping) return;
+    const account = pushOwner(), token = N.token;
+    if (pushTask) return;
     pushTask = (async () => {
-      const st = await N.pushStatus();
-      if (account === pushOwner() && st.allowed && (st.enabled || (await get('push.wanted')) === account)) await N.registerPush();
+      await N.ready;
+      const changedBuild = N.appBuild && (await get(pushBuildKey(account))) !== N.appBuild;
+      if (account !== pushOwner() || token !== N.token || pushStopping) return;
+      if (!changedBuild && pushAccount === account && Date.now() - pushAt < 60000) return;
+      pushAccount = account; pushAt = Date.now();
+      const st = await N.pushStatus(), wanted = st.enabled || (await get('push.wanted')) === account;
+      if (account === pushOwner() && token === N.token && st.allowed && wanted) await N.registerPush();
     })().catch(() => { pushAt = 0; }).finally(() => { pushTask = null; });
+    // First registration after an update precedes handling a notification or updating its badge.
+    N.pushNavigationReady = pushTask.then(() => account === pushOwner() && token === N.token ? openPush() : null).catch(() => {});
   };
   // the number on the app icon: the unread count, so reading them under the bell clears it
   let badgeShown = null;
-  N.setBadge = (n) => { if (!push || !push.setBadge || n === badgeShown) return; badgeShown = n; push.setBadge({count: n}).catch(() => { badgeShown = null; }); };
+  N.setBadge = (n) => { if (!push || !push.setBadge || n === badgeShown) return; const account=pushOwner(), token=N.token; badgeShown = n; Promise.resolve(pushTask).then(() => { if(account===pushOwner() && token===N.token)return push.setBadge({count:n}); badgeShown=null; }).catch(() => { badgeShown = null; }); };
   if (push) {
+    push.addListener('tokenChanged', device => {
+      pushTokenRevision = Math.max(pushTokenRevision, device.revision || 0);
+      const account = pushOwner(), token = N.token;
+      if (!account || !token || pushStopping) return;
+      // Unsolicited APNs changes bypass only the minute throttle, never account consent or an in-flight post.
+      const busy = pushTask;
+      pushTokenTask = pushTokenTask.then(async () => {
+        if (busy) await busy;
+        const wanted = await get('push.wanted');
+        if (account !== pushOwner() || token !== N.token || wanted !== account || pushStopping) return;
+        const st = await push.status();
+        if (st.allowed) await postPushDevice(device, account, token, true);
+      }).catch(() => { pushAt = 0; });
+    });
     const external = () => { N.pushEntryBlocked = true; window.dispatchEvent(new Event('kinetta:external-entry')); };
     push.addListener('externalEntryOpened', external);
-    push.addListener('notificationOpened', () => { external(); N.pushNavigationReady = openPush().catch(() => {}); });
+    push.addListener('notificationOpened', () => {
+      external();
+      if (pushTask) N.pushNavigationReady = pushTask.then(openPush).catch(() => {});
+      else N.syncPush();
+    });
     const back = () => { N.syncPush(); if (typeof Social !== 'undefined') { Social.at = 0; Social.refresh(); } };
     window.addEventListener('focus', back);
     document.addEventListener('visibilitychange', () => { if (document.hidden) N.pushEntryBlocked = false; else back(); });

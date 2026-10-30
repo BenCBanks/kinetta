@@ -22,12 +22,49 @@ final class NativePushCenter: NSObject, UNUserNotificationCenterDelegate {
     }
     func becameActive() { pendingExternalEntry = false }
 
+    private(set) var tokenRevision = 0
+    private var lastToken: Data?
+    private var pendingToken: Data?
+    private let buildKey = "kinetta.push.registeredBuild"
+    private var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "" }
+    private var environment: String {
+        #if DEBUG
+        return "sandbox"
+        #else
+        return "production"
+        #endif
+    }
+    private func publish(_ token: Data) {
+        guard let plugin = plugin else { pendingToken = token; return }
+        pendingToken = nil
+        plugin.notifyListeners("tokenChanged", data: ["token": token.map { String(format: "%02x", $0) }.joined(),
+                                                    "environment": environment, "revision": tokenRevision], retainUntilConsumed: true)
+    }
+    func attach(_ plugin: KinettaPushPlugin) {
+        self.plugin = plugin
+        if let token = pendingToken { publish(token) }
+    }
+
     var registration: ((Result<Data, Error>) -> Void)?
 
-    func start() { UNUserNotificationCenter.current().delegate = self }
+    func start() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        // An update may rotate the token before the web app opens its first page. Never prompt at launch.
+        guard UserDefaults.standard.string(forKey: buildKey) != build else { return }
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+            DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
+        }
+    }
     func registered(_ token: Data) {
         let callback = registration; registration = nil
-        callback?(.success(token))
+        let changed = lastToken != token
+        if changed { tokenRevision += 1 }
+        lastToken = token
+        UserDefaults.standard.set(build, forKey: buildKey)
+        if let callback = callback { pendingToken = nil; callback(.success(token)) }
+        else if changed { publish(token) }
     }
     func failed(_ error: Error) {
         let callback = registration; registration = nil
@@ -64,7 +101,7 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setBadge", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise)
     ]
-    override func load() { NativePushCenter.shared.plugin = self }
+    override func load() { NativePushCenter.shared.attach(self) }
     @objc func status(_ call: CAPPluginCall) {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let allowed = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
@@ -107,7 +144,7 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
                     #else
                     let environment = "production"
                     #endif
-                    call.resolve(["token": token.map { String(format: "%02x", $0) }.joined(), "environment": environment])
+                    call.resolve(["token": token.map { String(format: "%02x", $0) }.joined(), "environment": environment, "revision": NativePushCenter.shared.tokenRevision])
                 case .failure(let error): call.reject(error.localizedDescription)
                 }
             }

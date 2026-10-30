@@ -4,6 +4,8 @@ Rows store relationships and render the current activity/name when read. Native 
 session; logout revokes them. Browser notification delivery has been retired.
 """
 import json
+import logging
+from collections import Counter
 import threading
 import datetime as dt
 from zoneinfo import ZoneInfo
@@ -23,6 +25,8 @@ NOTICE_VISIBLE += " AND (n.challenge_id IS NULL OR EXISTS(SELECT 1 FROM challeng
 router = APIRouter(prefix='/api')
 KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'report')   # report: admins only, in the app only
 PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',),'challenge_joins':('challenge_join',),'challenge_reminders':('challenge_reminder',),'challenge_finished':('challenge_finished',)}
+log = logging.getLogger('uvicorn.error')
+CATCH_UP_KINDS = ('friend_request', 'friend_accepted', 'comment', 'cheer')
 MAX_SUBS = 10           # devices per person
 AUTO_SOURCES = ('apple', 'healthkit', 'garmin', 'garmin_connect')   # workouts that arrive without the person doing anything
 
@@ -185,6 +189,7 @@ def native_session(request):
 def native_subscribe(body: DeviceIn, request: Request, user=Depends(current_user)):
     session = native_session(request)
     with db.connect() as c:
+        _push_lock(c, user['id'])
         # One installation moves to the current person on login; it cannot keep delivering to the previous account.
         c.execute("""INSERT INTO native_push_devices (token, environment, user_id, session_hash)
                      VALUES (%s, %s, %s, %s) ON CONFLICT (token, environment)
@@ -193,6 +198,7 @@ def native_subscribe(body: DeviceIn, request: Request, user=Depends(current_user
         c.execute("""DELETE FROM native_push_devices WHERE user_id = %s AND (token, environment) NOT IN
                      (SELECT token, environment FROM native_push_devices WHERE user_id = %s ORDER BY created DESC LIMIT %s)""",
                   (user['id'], user['id'], MAX_SUBS))
+    _catch_up(user['id'])
     return {'ok': True}
 
 
@@ -238,62 +244,136 @@ def _push_words(r):
     return titles.get(r['kind'],'Kinetta'),text
 
 
+def _push_log(kind, reason, devices, accepted=0):
+    # Only fixed kinds/reasons and counts: exception messages can contain token URLs or private text.
+    kind = kind if kind in (*KINDS, 'meal', 'plan', 'weekly') else 'unknown'
+    if reason:
+        log.info('push skipped: kind=%s reason=%s devices=%d', kind, reason, devices)
+    else:
+        log.info('push accepted: kind=%s devices=%d accepted=%d', kind, devices, accepted)
+
+
+def log_unconfigured(uid, kind):
+    with db.connect() as c:
+        devices = c.execute('SELECT count(*) AS n FROM native_push_devices WHERE user_id=%s', (uid,)).fetchone()['n']
+    _push_log(kind, 'apns_not_configured', devices)
+
+
+def _push_lock(c, uid):
+    # Order delivery and device registration so a replacement cannot miss the retired-token mark.
+    c.execute("SELECT pg_advisory_xact_lock(hashtextextended('native-push:'||%s::text,0))", (uid,))
+
+
 def _push_later(nid):
     import time
-    for _ in range(10):        # started before the change is committed: wait until the notification can be read
+    for _ in range(10):        # wait for the notification's creating transaction to commit
         time.sleep(0.5)
         try:
-            if push(nid) is not None: return
-        except Exception as e:
-            print('push failed', nid, type(e).__name__, flush=True); return
+            with db.connect() as c:
+                exists = c.execute('SELECT kind FROM notifications WHERE id=%s', (nid,)).fetchone()
+            if not exists: continue
+            push(nid)
+            return
+        except Exception as error:
+            _push_log('unknown', 'send_error:'+type(error).__name__, 0)
+            return
 
 
-def push(nid, send=None):
-    """Deliver only to native iPhone registrations. `send(device, payload)` replaces APNs in tests."""
-    if not send and not apns.ready(): return 0
+class _DeliveryCount(int):
+    def __new__(cls, accepted, all_retired=False):
+        result = super().__new__(cls, accepted)
+        result.all_retired = all_retired
+        return result
+
+
+def push(nid, send=None, *, catchup=False):
+    """Deliver native alerts; catchup is a previously claimed, recent unread social notice."""
     with db.connect() as c:
-        r = c.execute(_LIST + ' WHERE n.id = %s AND '+NOTICE_VISIBLE, (nid,)).fetchone()
-        if not r: return None
-        p = c.execute('SELECT notify FROM profile WHERE user_id = %s', (r['user_id'],)).fetchone() or {}
-        want = _prefs(p.get('notify'))
-        if not any(want[g] for g, kinds in PUSH_KINDS.items() if r['kind'] in kinds): return 0
-        badge = unread(c, r['user_id'])
-    text, link = _words(r)
-    title, body = _push_words(r)
-    payload = {'title': title[:180], 'body': body[:600], 'url': link, 'badge': badge, 'tag': f"{r['kind']}-{nid}"}
-    def prepare(c):
-        fresh=c.execute(_LIST+' WHERE n.id=%s AND '+NOTICE_VISIBLE,(nid,)).fetchone()
-        if not fresh:return None
-        prefs=c.execute('SELECT notify FROM profile WHERE user_id=%s',(r['user_id'],)).fetchone() or {}
-        if not any(_prefs(prefs.get('notify'))[g] for g,kinds in PUSH_KINDS.items() if fresh['kind'] in kinds):return None
-        title,body=_push_words(fresh)
-        return {**payload,'title':title[:180],'body':body[:600]}
-    return _deliver_native(r['user_id'],payload,prepare,send)
+        row = c.execute('SELECT user_id FROM notifications WHERE id=%s', (nid,)).fetchone()
+        if not row: return None
+        _push_lock(c, row['user_id'])
+        return _push(c, nid, send, catchup)
+
+
+def _push(c, nid, send, catchup):
+    row = c.execute('SELECT kind,user_id FROM notifications WHERE id=%s', (nid,)).fetchone()
+    if not row: return None
+    uid, kind = row['user_id'], row['kind']
+    devices = c.execute('SELECT count(*) AS n FROM native_push_devices WHERE user_id=%s', (uid,)).fetchone()['n']
+    eligible = " AND n.read_at IS NULL AND n.created>now()-interval '10 minutes'" if catchup else ''
+    def prepare(conn):
+        fresh = conn.execute(_LIST+' WHERE n.id=%s AND '+NOTICE_VISIBLE+eligible, (nid,)).fetchone()
+        if not fresh or (catchup and fresh['kind'] not in CATCH_UP_KINDS):
+            prepare.reason = 'not_visible'
+            return None
+        prefs = conn.execute('SELECT notify FROM profile WHERE user_id=%s', (uid,)).fetchone() or {}
+        if not any(_prefs(prefs.get('notify'))[g] for g,kinds in PUSH_KINDS.items() if fresh['kind'] in kinds):
+            prepare.reason = 'preference_off'
+            return None
+        title, body = _push_words(fresh)
+        _, link = _words(fresh)
+        return {'title':title[:180], 'body':body[:600], 'url':link, 'badge':unread(conn,uid), 'tag':f'{kind}-{nid}'}
+    prepare.kind = kind
+    payload = prepare(c)
+    if payload is None:
+        _push_log(kind, prepare.reason, devices)
+        return None if prepare.reason == 'not_visible' else 0
+    if send is None and not apns.ready():
+        _push_log(kind, 'apns_not_configured', devices)
+        return 0
+    result = _deliver_native(uid, payload, prepare, send)
+    if result:
+        c.execute('UPDATE notifications SET push_pending=false WHERE id=%s AND user_id=%s', (nid,uid))
+    elif not catchup and kind in CATCH_UP_KINDS and getattr(result, 'all_retired', False):
+        c.execute('UPDATE notifications SET push_pending=true WHERE id=%s AND user_id=%s', (nid,uid))
+    return int(result)
+
+
+def _catch_up(uid, send=None):
+    # Claim durably BEFORE APNs: parallel/repeated registrations and a crash after acceptance cannot resend it.
+    with db.connect() as c:
+        _push_lock(c, uid)
+        rows = c.execute('UPDATE notifications SET push_pending=false WHERE user_id=%s AND push_pending RETURNING id', (uid,)).fetchall()
+    for row in rows:
+        try: push(row['id'], send=send, catchup=True)
+        except Exception as error: _push_log('unknown', 'send_error:'+type(error).__name__, 0)
 
 
 def _deliver_native(uid,payload,prepare,send):
     """One shared device/session/transfer/token-removal boundary for native pushes."""
+    kind = getattr(prepare, 'kind', payload.get('tag', '').split('-')[0])
     with db.connect() as c:subs=c.execute('SELECT token,environment FROM native_push_devices WHERE user_id=%s',(uid,)).fetchall()
-    count=0
+    count, reasons = 0, Counter()
+    if not subs: reasons['no_device'] += 1
     for device in subs:
         with db.connect() as c:
             current=c.execute(f"""SELECT d.* FROM native_push_devices d JOIN sessions s ON s.token_hash=d.session_hash
               WHERE d.token=%s AND d.environment=%s AND d.user_id=%s AND s.user_id=d.user_id
               AND s.last_seen>now()-interval '{SESSION_DAYS} days' FOR UPDATE OF d""",(device['token'],device['environment'],uid)).fetchone()
-            if not current:continue
+            if not current:
+                reasons['no_current_session'] += 1
+                continue
             ready=prepare(c)
-            if ready is None:continue
+            if ready is None:
+                reasons[getattr(prepare, 'reason', 'not_visible')] += 1
+                continue
             try:
                 accepted=send(device,ready) if send else apns.deliver(device,ready)
-                if accepted is False:c.execute('DELETE FROM native_push_devices WHERE token=%s AND environment=%s',(device['token'],device['environment']))
+                if accepted is False:
+                    c.execute('DELETE FROM native_push_devices WHERE token=%s AND environment=%s',(device['token'],device['environment']))
+                    reasons['token_retired'] += 1
                 else:count+=1
-            except Exception as error:print('native push failed',type(error).__name__,flush=True)
-    return count
+            except Exception as error:reasons['send_error:'+type(error).__name__] += 1
+    for reason in reasons: _push_log(kind, reason, len(subs))
+    if count: _push_log(kind, None, len(subs), count)
+    return _DeliveryCount(count, bool(subs) and reasons == {'token_retired':len(subs)})
 
 
 def private_meal_push(uid,day,meal,payload,send=None):
     """Private nudge with a final non-locking preference/date/meal check per device."""
-    if send is None and not apns.ready():return 0
+    if send is None and not apns.ready():
+        log_unconfigured(uid, 'meal')
+        return 0
     def prepare(c):
         p=c.execute("""SELECT tz FROM profile WHERE user_id=%s AND food_reminders
           AND NOT EXISTS(SELECT 1 FROM food_entries WHERE user_id=%s AND day=%s AND meal=%s)
@@ -302,4 +382,5 @@ def private_meal_push(uid,day,meal,payload,send=None):
         local=dt.datetime.now(dt.timezone.utc).astimezone(ZoneInfo(db.valid_tz(p['tz']) or db.DEFAULT_TZ))
         if local.date()!=day or not 7<=local.hour<21:return None
         return {**payload,'badge':unread(c,uid),'expires_at':int(dt.datetime.now(dt.timezone.utc).timestamp())+300}
+    prepare.kind = 'meal'
     return _deliver_native(uid,payload,prepare,send)
