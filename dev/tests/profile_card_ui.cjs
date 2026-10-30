@@ -4,6 +4,8 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+// Poll with page.evaluate: the app's Content Security Policy forbids the string evaluation waitForFunction uses.
+async function until(page,fn,label,arg){for(let i=0;i<150;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);}
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
 for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
  const c=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
@@ -15,7 +17,7 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  const noOverflow=async where=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no overflow on '+where);
 
  // Me: one distance chart (on the card), private insights below the line.
- await p.goto(base+'/me');await p.waitForFunction(()=>App.pageReady);await settled();
+ await p.goto(base+'/me');await until(p,()=>App.pageReady,'1');await settled();
  await p.waitForSelector('.me-insights',{timeout:15000});
  assert.equal(await p.locator('#me-distance, .mileage-heading').count(),0,'no second distance chart on Me');
  assert.match(await p.locator('.me-insights').innerText(),/This week so far[\s\S]*of your usual/);
@@ -29,13 +31,13 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  assert.match(await p.locator('[data-week-label] span').innerText(),/This week/i);
  await p.locator('.me-distance .me-week.now').click();assert.match(await p.locator('[data-week-label] span').innerText(),/\d/,'tapped day shows its date');
  await p.locator('.me-card').scrollIntoViewIfNeeded();await shot('me-card-days');
- await p.locator('.me-card .me-period [data-period="weeks"]').click();await p.waitForFunction(()=>!document.querySelector('.me-distance.days'));
+ await p.locator('.me-card .me-period [data-period="weeks"]').click();await until(p,()=>!document.querySelector('.me-distance.days'),'2')
  assert.equal(await p.locator('.me-distance .me-week i').count(),0);
  await noOverflow('Me');
 
  // Your profile: the same card with Edit / Share pills, a slim preview switch, then the activities. No separate
  // Public card link; the card stays one tap inside Share.
- await p.goto(base+'/people/alex');await p.waitForFunction(()=>App.pageReady);await settled();
+ await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'3');await settled();
  assert.equal(await p.locator('.profile-page-title').innerText(),'Your profile');
  assert.equal(await p.locator('#person-profile .me-card [data-card-edit]').count(),1);assert.equal(await p.locator('#person-profile .me-card [data-card-share]').count(),1);
  assert.equal(await p.locator('#pf-card, #pf-edit-profile, #pf-share, .profile-progress, .profile-mileage').count(),0,'old profile parts are gone');
@@ -49,19 +51,19 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  // Edit happens in place on the card, exactly as on Me; Cancel leaves everything as it was.
  await p.locator('[data-card-edit]').click();await p.waitForSelector('#person-profile .me-card.editing');
  assert.equal(await p.locator('#person-activities').evaluate(n=>!!n.closest('[inert]')),true,'activities dimmed while editing');
- await p.locator('[data-card-cancel]').click();await p.waitForFunction(()=>!document.querySelector('.me-card.editing'));
- await p.locator('[data-audience="member"]').click();await p.waitForFunction(()=>new URLSearchParams(location.search).get('preview')==='member');await settled();
+ await p.locator('[data-card-cancel]').click();await until(p,()=>!document.querySelector('.me-card.editing'),'4')
+ await p.locator('[data-audience="member"]').click();await until(p,()=>new URLSearchParams(location.search).get('preview')==='member','5');await settled();
  assert.equal(await p.locator('[data-audience="member"]').getAttribute('aria-pressed'),'true');
  await p.locator('.pf-preview').scrollIntoViewIfNeeded();await shot('profile-own-preview');
  await noOverflow('own profile');
 
  // Someone else's profile: the same card; the friendship button and ⋯ sit where Edit and Share are.
- await p.goto(base+'/people/jordan');await p.waitForFunction(()=>App.pageReady);await settled();
+ await p.goto(base+'/people/jordan');await until(p,()=>App.pageReady,'6');await settled();
  assert.equal(await p.locator('.profile-page-title').innerText(),'Profile');
  assert.equal(await p.locator('.me-card-banner [data-person-manage]').count(),1);assert.equal(await p.locator('.me-card-banner [data-person-report]').count(),1);
  assert.equal(await p.locator('.me-card [data-card-edit], .me-card-note').count(),0,'no owner controls or owner note');
  await shot('profile-friend');
- await p.goto(base+'/people/sam');await p.waitForFunction(()=>App.pageReady);await settled();
+ await p.goto(base+'/people/sam');await until(p,()=>App.pageReady,'7');await settled();
  const approve=p.locator('.me-card-banner [data-person-action="accept"]');assert.equal(await approve.count(),1);assert((await approve.boundingBox()).height>=44);
  await noOverflow('request profile');
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
