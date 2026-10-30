@@ -132,6 +132,8 @@ struct TrackRecordingState: Codable {
     var intervals: IntervalState?
     var anchor: TrackFix?          // the last fix that counted toward distance (missing in older saved recordings: fine)
     // Spoken splits and auto-pause (#234 item 4). Optional so recordings saved by older builds still open.
+    var intervalSayTotal: Bool? // Optional: older journals keep the new default (on).
+    var intervalSayPace: Bool?
     var voice: Bool?
     var autoPause: Bool?
     var splitMetres: Double?       // 1609.344 (mile) or 1000 (km), from the account's units
@@ -259,6 +261,37 @@ enum NativeTrackVoiceText {
         let s=Int(seconds.rounded()),h=s/3600,m=s/60%60,r=s%60
         let parts=[h>0 ? "\(h) hour\(h>1 ? "s":"")" : "",m>0 ? "\(m) minute\(m>1 ? "s":"")" : "",r>0 ? "\(r) second\(r>1 ? "s":"")" : ""].filter { !$0.isEmpty }
         return parts.isEmpty ? "0 seconds" : parts.joined(separator:" ")
+    }
+    static func distance(_ metres: Double, unitMetres: Double) -> String {
+        if unitMetres <= 1500 && metres < 1000 { return "\(Int(metres.rounded(.up))) metre\(metres.rounded(.up)==1 ? "":"s")" }
+        let amount=metres/(unitMetres>1500 ? TrackRecordingState.mile:1000)
+        let formatter=NumberFormatter();formatter.locale=Locale(identifier:"en_US_POSIX")
+        formatter.minimumFractionDigits=0;formatter.maximumFractionDigits=2
+        let value=formatter.string(from:NSNumber(value:max(metres>0 ? 0.01:0,amount))) ?? "0"
+        let name=unitMetres>1500 ? "mile":"kilometre"
+        return "\(value) \(name)\(value=="1" ? "":"s")"
+    }
+    static func intervalText(_ state: TrackRecordingState, at now: Double) -> String? {
+        guard state.voice==true,let intervals=state.intervals,intervals.voice else { return nil }
+        let active=state.seconds(at:now),unit=state.splitMetres ?? 1000
+        var parts=[intervals.instruction(unitMetres:unit)]
+        if state.intervalSayTotal ?? true { parts.append("Total time \(said(active)).") }
+        let fix=state.points.last
+        let fresh=fix.map { $0.accuracy<=25 && $0.segment==state.segment && now-(state.start+$0.t*1000)<=15000 && now>=state.start+$0.t*1000 } ?? false
+        let minimum=unit>1500 ? TrackRecordingState.mile*0.1:150
+        if state.intervalSayPace ?? true, fresh, state.distance>=minimum,active>0,active.isFinite,state.distance.isFinite {
+            parts.append("Average pace \(said(active/state.distance*unit)) per \(unit>1500 ? "mile":"kilometre").")
+        }
+        return parts.joined(separator:" ")
+    }
+    // The recorder delays an interval-workout split briefly so a nearby change can take priority in either order.
+    static func splitAllowed(_ state: TrackRecordingState, splitTime: Double) -> Bool {
+        guard state.voice==true else { return false }
+        guard let intervals=state.intervals,intervals.voice else { return true }
+        if intervals.effects.contains(where:{abs($0.logical_time-splitTime)<=4}) { return false }
+        if intervals.status=="running",let phase=intervals.current,phase.kind=="time",
+           abs(intervals.phase_time+phase.target-splitTime)<=4 { return false }
+        return true
     }
     static func text(_ state: TrackRecordingState) -> String? {
         guard let splits=state.splits,let total=splits.last,let unit=state.splitMetres else { return nil }

@@ -45,3 +45,20 @@ The owner accepts voice-only guidance, and on 27 October 2026 removed the vibrat
 Shared fictional JSON fixtures drive Python/browser/native expansion checks. Native Foundation tests cover exact boundaries, mixed overshoot allocation, gaps, controls and recovery. HTTP/SQL checks use separate fictional accounts on a disposable install. Review, full suites, upgrade, unsigned compilation, merge, hosted deployment, signed upload and device tests are separate recorded outcomes in the PR.
 
 #303 and #305 remain physical spoken-guidance acceptance gates. Haptics are optional, may be deferred without delaying voice-only release and are not required to close the voice-first gate. Record optional vibration separately without advertising a pass that has not occurred. Record build/phone/iOS/settings, audio route, app/lock state, movement/GPS, target and logical boundary, attempted API event, and observed/heard/felt delivery separately. Proposed logical tolerance is 0.1 s; the proposed ordinary physical target is two seconds and is not yet demonstrated. Keep evidence free of real health records and private device identifiers. If a required mode cannot pass, obtain a scope/mechanism decision before advertising it.
+
+
+### Spoken totals (#377)
+
+In the interval builder or Track’s pre-Start Recording settings, choose **Say total time** and **Say average pace**.
+Both start on and are remembered together for your account on this device. They are Track voice settings; editing
+them does not change a saved preset. These are the owner-approved exceptions to the earlier “no alert switches” rule.
+
+The instruction comes first, followed by moving time since Start and average pace for the whole workout. Manual
+and automatic pauses do not count. Pace needs at least 0.1 mi or 150 m and a recent good GPS fix; without it you
+still hear the time. Distance instructions and pace use your distance units. The completion prompt includes the
+same enabled totals. Turning **Spoken updates** off silences all speech. Nearby mile/km splits give way to an
+interval change so the prompts do not compete; other split announcements keep their wording.
+
+A new iPhone build is required. Software/simulator checks do not establish that speech is audible with a real
+phone locked: check a short outdoor run/walk, compare the spoken average with Track, and turn each extra off once.
+Keep the #303/#305 background, offline, stationary, GPS-loss and interruption acceptance checks open until observed.

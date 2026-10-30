@@ -2836,3 +2836,6 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .sheet-text-btn:disabled { opacity: .5; }
 .e-details-head { margin: 10px 0 -4px; }
 .e-delete { display: block; width: 100%; min-height: 48px; margin-top: 18px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--alert); font-size: 1rem; font-weight: 600; }
+
+/* Interval voice preferences share the standard side-by-side switch rows. */
+#interval-editor .switch-row { display:flex; margin:0; }

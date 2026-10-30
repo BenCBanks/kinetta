@@ -1440,3 +1440,18 @@ grab bar scrolls away); there is no button row at the bottom. Order: Title, What
 heart rate; gear; commute). **Delete activity** sits alone at the very bottom in red, with its confirmation. After any
 change, Cancel, Escape, swipe-down or a tap outside asks "Discard your changes?"; saving closes without asking.
 Other sheets can use the same pinned header through `sheet(..., {save: formId, canClose})`.
+
+
+## Interval spoken totals · 30 October 2026 (#377, owner exception)
+
+Say total time and Say average pace are the two owner-approved exceptions to the 27 October “no alert switches”
+rule. Both default on and share Track voice preferences per account/server on this device, outside saved preset
+content. Show them below Repeat/warm-up/cool-down in the builder and in pre-Start Recording settings when
+intervals are loaded. Spoken updates off silences the interval instruction and extras too.
+
+At each change and sequence completion, keep the instruction first, then moving time since Start, then whole-workout
+average pace in the account’s units. Pauses are excluded. Omit pace below 0.1 mi/150 m or without recent good GPS.
+Distance-step instructions use the same units. Nearby splits yield to the interval prompt; distant split wording stays
+unchanged. No vibration, test-voice control, timing/distance algorithm change or indoor support is added.
+Exact Foundation tests and browser evidence are software checks; locked/background iPhone delivery still needs
+the physical acceptance in #303/#305 and an owner-authorized TestFlight release.

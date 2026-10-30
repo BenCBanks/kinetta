@@ -79,4 +79,56 @@ try Data("{broken".utf8).write(to:files.manifest)
 let prior=try files.load(owner:"fictional-interval-account")
 check(files.recoveredPrevious && prior?.intervals?.time==0,"Corrupt latest manifest retains prior valid interval checkpoint")
 try files.clear();check(!FileManager.default.fileExists(atPath:files.previous.path),"Discard clears protected previous interval state")
-print("PASS interval shared-contract, exact time/distance/mixed allocation, gap, control and recovery fixtures; no physical delivery claim")
+// Voice numbers use the recorder's whole-workout active clock and accepted distance, never a phase target.
+var spoken=TrackRecordingState(owner:"fictional-voice-account",id:UUID().uuidString,sport:"run",label:"Run",gps:true,start:0,activeAt:0,checkpoint:0)
+spoken.voice=true;spoken.splitMetres=TrackRecordingState.mile;spoken.intervals=try state("time")
+spoken.intervals?.advance(to:180)
+spoken.distance=750.0/702.0*TrackRecordingState.mile
+spoken.points=[TrackFix(lat:0,lon:0,t:750,accuracy:5,segment:0)]
+let instruction="Walk. 1 minute remaining."
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)==instruction+" Total time 12 minutes 30 seconds. Average pace 11 minutes 42 seconds per mile.","Exact imperial interval sentence")
+spoken.splitMetres=1000;spoken.distance=1000
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)==instruction+" Total time 12 minutes 30 seconds. Average pace 12 minutes 30 seconds per kilometre.","Exact metric interval sentence")
+spoken.intervalSayTotal=false
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)==instruction+" Average pace 12 minutes 30 seconds per kilometre.","Time switch removes only time")
+spoken.intervalSayPace=false
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)==instruction,"Both extras off retains the instruction")
+spoken.intervalSayTotal=true;spoken.intervalSayPace=true;spoken.distance=149
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)==instruction+" Total time 12 minutes 30 seconds.","Too little GPS omits pace")
+spoken.distance=150
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"150m metric threshold")
+spoken.splitMetres=TrackRecordingState.mile;spoken.distance=160
+check(!NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Imperial threshold is a tenth mile")
+spoken.distance=TrackRecordingState.mile*0.1
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Tenth-mile boundary is eligible")
+spoken.distance=1000;spoken.points[0].t=730
+check(!NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Lost GPS omits pace")
+spoken.points[0].t=750;spoken.points[0].accuracy=80
+check(!NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Weak GPS omits pace")
+spoken.points=[]
+check(!NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"No GPS omits pace")
+spoken.voice=false
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)==nil,"Spoken updates off silences interval speech")
+spoken.voice=true;spoken.intervals?.voice=false
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)==nil,"Interval voice off also silences speech")
+spoken.intervals?.voice=true
+// Manual pause and auto-pause use exactly the same active clock as Track.
+spoken.pause(at:600000);spoken.resume(at:900000)
+check(NativeTrackVoiceText.intervalText(spoken,at:1050000)==instruction+" Total time 12 minutes 30 seconds.","Manual pause excluded")
+spoken.autoPause=true;spoken.lastMove=1030000
+check(NativeTrackVoiceText.intervalText(spoken,at:1050000)==instruction+" Total time 12 minutes 25 seconds.","Auto-pause excluded")
+spoken.autoPause=false;spoken.intervals?.advance(to:720)
+check(NativeTrackVoiceText.intervalText(spoken,at:1050000)!.hasPrefix("Interval sequence complete. Keep recording, or pause and finish when ready. Total time"),"Completion includes enabled totals")
+check(NativeTrackVoiceText.distance(402.336,unitMetres:TrackRecordingState.mile)=="0.25 miles","Imperial distance steps")
+check(NativeTrackVoiceText.distance(400,unitMetres:1000)=="400 metres","Metric short steps")
+check(NativeTrackVoiceText.distance(1000,unitMetres:1000)=="1 kilometre","Metric kilometre singular")
+check(NativeTrackVoiceText.distance(1500,unitMetres:1000)=="1.5 kilometres","Metric long steps")
+var stepDistance=try state("mixed");stepDistance.advance(to:60)
+check(stepDistance.instruction(unitMetres:TrackRecordingState.mile).contains("miles remaining"),"Instruction uses chosen distance units")
+spoken.intervals=try state("time");spoken.intervals?.advance(to:180)
+check(!NativeTrackVoiceText.splitAllowed(spoken,splitTime:177),"Interval shortly after a split wins")
+check(!NativeTrackVoiceText.splitAllowed(spoken,splitTime:183),"Interval shortly before a split wins")
+check(NativeTrackVoiceText.splitAllowed(spoken,splitTime:200),"Distant splits keep their unchanged wording")
+let persisted=try JSONDecoder().decode(TrackRecordingState.self,from:JSONEncoder().encode(spoken))
+check(persisted.intervalSayTotal==true && persisted.intervalSayPace==true,"Voice preferences persist in the recording journal")
+print("PASS interval contracts, timing, recovery and exact time/pace/unit/switch/GPS/pause/completion/split voice cases; no physical delivery claim")

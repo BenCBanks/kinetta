@@ -12,12 +12,24 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require(
  await assert.rejects(I.startOptions({sport:'workout',gps:false}),/outdoor Run or Walk/);assert.deepStrictEqual(calls,[],'Unsupported start has no native effects');
  ctx.TrackNative.supported=true;
  const ready=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true}});const options=await ready;
+ assert.equal(options.intervalSayTotal,true);assert.equal(options.intervalSayPace,true);
  assert.equal(options.intervals.content_hash,fixture.pin.content_hash);assert.equal(options.autoPause,false);assert.equal(options.intervalVoice,true);assert.equal(options.intervalVibration,false);assert(!calls.includes('start')&&!calls.includes('locate'),'Preload/capability query starts no GPS');
  // Spoken prompts only (27 October 2026): no acknowledgement step, and older saved alert choices can't turn voice off or vibration on.
  storage.setItem(prefix+'alerts',JSON.stringify({voice:false,vibration:true,autoPause:true}));
  let request=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true,vibrationAvailable:true}});let voiceOnly=await request;
  assert.equal(voiceOnly.intervalVoice,true);assert.equal(voiceOnly.intervalVibration,false);assert.equal(voiceOnly.autoPause,false);
  request=I.startOptions({sport:'walk',gps:true});resolveCapabilities({});await assert.rejects(request,/Update the iPhone app/,'An older iPhone app is asked to update');
+ // Account-scoped Track settings are shared by builder/pre-start and never added to the preset.
+ const trackPrefix='kinetta.track:'+JSON.stringify(['https://fictional.invalid',1])+':';
+ storage.setItem(trackPrefix+'interval-total','false');storage.setItem(trackPrefix+'interval-pace','false');storage.setItem(trackPrefix+'voice','false');
+ request=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true}});const quiet=await request;
+ assert.equal(quiet.intervalVoice,false);assert.equal(quiet.intervalSayTotal,false);assert.equal(quiet.intervalSayPace,false);
+ assert.equal(JSON.stringify(quiet.intervals),JSON.stringify(options.intervals),'voice preferences cannot change checked preset content');
+ storage.setItem(trackPrefix+'voice','true');storage.setItem(trackPrefix+'interval-total','true');
+ request=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true}});const justTime=await request;
+ assert.equal(justTime.intervalVoice,true);assert.equal(justTime.intervalSayTotal,true);assert.equal(justTime.intervalSayPace,false);
+ ctx.App.me={id:2};assert.deepStrictEqual(JSON.parse(JSON.stringify(I.voicePreferences())),{voice:true,total:true,pace:true});ctx.App.me={id:1};
+ assert.equal(I.voicePreferences().pace,false,'switching back restores only this account’s saved choices');
  // Simple builder: Run/Walk/Repeat with optional warm-up and cool-down round-trips; other shapes are not opened in it.
  const B=I.builder,ids={wb:'wb',warm:'w',main:'m',run:'r',walk:'k',cb:'cb',cool:'c'};
  const form={name:'',run:{amount:'3',unit:'min'},walk:{amount:'90',unit:'s'},repeat:'4',warm:{amount:'5',unit:'min'},cool:null};
