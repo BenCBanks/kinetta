@@ -1960,6 +1960,15 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .macpreview .extra-nutrients b {font:600 1rem var(--numf);}
 .tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
 .tcard .extra-nutrients dd small {display:block;font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);}
+/* Goals sheet (30 Oct 2026): daily calories and macros as an even 2x2 grid; one-day calories folded below. */
+.goal-h {margin:0 0 8px;font-size:1rem;font-weight:650;}
+.goal-now {margin:0 0 14px;padding:10px 12px;border-radius:var(--r2);background:var(--accent2);line-height:1.5;}
+.goal4 label:first-child {grid-column:auto;}
+.goal4 input {min-height:44px;font-size:max(16px,1rem);}
+#tg #tg-sum {min-height:3em;margin:8px 0 0;line-height:1.5;}
+.goal-day {margin-top:1rem;border-top:1px solid var(--line);padding-top:.65rem;}
+.goal-day > summary {min-height:44px;display:list-item;cursor:pointer;font-weight:600;line-height:1.5;padding:.35rem 0;}
+.goal-help {text-align:center;margin:18px 0 4px;}
 
 /* Weekly food records are separate from estimates and optional Kit advice. */
 .weekly-food-review h2 {margin-bottom:.4rem;}

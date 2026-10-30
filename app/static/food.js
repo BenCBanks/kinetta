@@ -15,7 +15,7 @@ const FOOD_NUTRIENTS = ['kcal','protein_g','carbs_g','fat_g','fiber_g',...EXTRA_
 const nutrientKnown = (v,k) => v[k]!=null && !(v.ref?.unknown_nutrients||[]).includes(k);
 function nutrientNumber(v,unit){if(v==null)return 'Unknown';if(v===0)return '0 '+unit;return v<(unit==='mg'?1:.1)?'&lt;'+(unit==='mg'?'1':'0.1')+' '+unit:(unit==='mg'?r0(v):r1(v))+' '+unit;}
 function nutrientSource(v){const r=v.ref||{},origin=r.origin||v.origin,source=r.origin_ref?.source||r.source||v.source;return (origin==='ai'?'Kit’s estimate':origin==='label'?'Nutrition label':({usda:'USDA',off:'Open Food Facts',label:'Nutrition label',quick:'Entered by you',dish:'Saved recipe',custom:'My food'}[source]||''))+((r.origin_edited||v.origin_edited)?' · Edited':'');}
-function extraInputs(v={},targets=false){return `<details class="extra-nutrients extra-inputs"><summary>${targets?'Optional nutrient limits':'More nutrients'}</summary><p class="small muted">${targets?'Leave these unset unless you want your own daily limits. These do not change your calorie goal.':'For this amount of food. Leave a value blank if you don’t know it; a reported zero stays zero.'}</p>${!targets&&nutrientSource(v)?`<p class="small muted">Source: ${esc(nutrientSource(v))}</p>`:''}<div class="extra-fields">${EXTRA_NUTRIENTS.map(([key,label,unit,target])=>{const k=targets?target:key;return `<label>${label} (${unit})<input name="${k}" inputmode="decimal" value="${esc((targets||nutrientKnown(v,k))?v[k]??'':'')}" aria-label="${label} ${targets?'daily limit in ': 'in '}${unit}"></label>`;}).join('')}</div></details>`;}
+function extraInputs(v={},targets=false,lead=''){return `<details class="extra-nutrients extra-inputs"><summary>${targets?'More targets':'More nutrients'}</summary><p class="small muted">${targets?'Fiber and optional daily limits. Leave any blank. These do not change your calorie goal.':'For this amount of food. Leave a value blank if you don’t know it; a reported zero stays zero.'}</p>${!targets&&nutrientSource(v)?`<p class="small muted">Source: ${esc(nutrientSource(v))}</p>`:''}<div class="extra-fields">${lead}${EXTRA_NUTRIENTS.map(([key,label,unit,target])=>{const k=targets?target:key;return `<label>${label} (${unit})<input name="${k}" inputmode="decimal" value="${esc((targets||nutrientKnown(v,k))?v[k]??'':'')}" aria-label="${label} ${targets?'daily limit in ': 'in '}${unit}"></label>`;}).join('')}</div></details>`;}
 function extraFormValues(f,targets=false){return Object.fromEntries(EXTRA_NUTRIENTS.map(([key,, ,target])=>{const k=targets?target:key,raw=f.elements.namedItem(k)?.value.trim()??'',value=raw===''?null:Number(raw.replace(',','.'));if(value!==null&&(!Number.isFinite(value)||value<0))throw Error('Enter a positive number or zero, or leave the nutrient blank.');return [k,value];}));}
 function foodStorage(entry){const missing=FOOD_NUTRIENTS.filter(k=>!nutrientKnown(entry,k));if(missing.includes('kcal'))throw Error('Add calories before logging this food.');const out={...entry,ref:{...(entry.ref||{}),unknown_nutrients:[...new Set([...(Array.isArray(entry.ref?.unknown_nutrients)?entry.ref.unknown_nutrients.filter(k=>typeof k==='string'&&!FOOD_NUTRIENTS.includes(k)):[]),...missing])]}};for(const k of FOOD_NUTRIENTS)if(missing.includes(k))out[k]=['kcal','protein_g','carbs_g','fat_g'].includes(k)?0:null;return out;}
 function extraCoverage(entries,targets={}){return Object.fromEntries(EXTRA_NUTRIENTS.map(([k,,,target])=>{const known=entries.filter(e=>nutrientKnown(e,k));return [k,{recorded:known.length?known.reduce((n,e)=>n+Number(e[k]),0):null,known_count:known.length,unknown_count:entries.length-known.length,complete:!!entries.length&&known.length===entries.length,target:targets[target]}];}));}
@@ -233,7 +233,7 @@ function drawDay(el, D) {
   const t = D.targets || {}, T = D.totals, B = D.burned || {kcal: 0, n: 0, items: []}, G = D.goal || {}, today = dayLabel(D.day) === 'Today';
   const watchResting = B.source === 'apple_health';
   const eaten = T.kcal, goal = G.kcal, left = goal != null ? goal - eaten : null, sofar = today ? ' so far' : '';
-  const goalNote = goal == null ? 'No calorie goal yet. Tap Set goal to add one.'
+  const goalNote = goal == null ? 'No calorie goal yet. Tap Set goals to add one.'
     : G.custom != null ? `Goal set for this day${G.default ? ` (your usual is ${r0(G.default)})` : ''}.`
     : '';
   // signs (2026-10-13, Ben): what you eat counts up (+), what you burn counts down (−), so the deficit comes out negative
@@ -247,7 +247,7 @@ function drawDay(el, D) {
   if (fresh) firstFood($('#fd-sum', el), D.day);
   else $('#fd-sum', el).innerHTML = `<div class="card tcard balance">
       <div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories eaten' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} eaten of ${r0(goal)}</p>`}</div>
-        <button class="ghost" id="fd-goal" aria-label="Set the calorie goal for this day">${svg('edit')} ${goal == null ? 'Set goal' : 'Goal'}</button></div>
+        <button class="ghost" id="fd-goal" aria-label="Calorie and macro goals">${svg('edit')} ${goal == null ? 'Set goals' : 'Goals'}</button></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
       <div class="macro-bars">${MACROS.map(([k,n]) => { const target = t[k.replace('_g','_target')], v = T[k] || 0; return `<div class="macro m-${k}"><div class="macro-line"><b>${n}</b><span class="num">${macroTotal(D,k,target)}</span></div>${target && !D.unknown_nutrients?.[k] ? `<div class="track"><div class="bar m-${k}" data-w="${Math.min(1,v/target).toFixed(3)}"></div></div>` : ''}</div>`; }).join('')}</div>
       <div class="nutrition-secondary">${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
@@ -270,7 +270,7 @@ function drawDay(el, D) {
   if(secondary){secondary.classList.add('card');$('#fd-details',el).replaceChildren(secondary);}
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
   const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
-  // No usual target yet: Set goal opens the full goal setup rather than a one-day override.
+  // No usual target yet: Set goals opens the full goal setup rather than a one-day override.
   const gb = $('#fd-goal', el); if (gb) gb.onclick = () => (G.default == null && goal == null ? go('/food/setup') : goalSheet(D));
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
@@ -832,41 +832,52 @@ function scanSheet(day, meal, onFound, onCode) {
 }
 
 // ---------- targets ----------
-function goalSheet(D) {
-  const G = D.goal || {}, label = dayLabel(D.day);
-  sheet(`Calorie goal · ${label}`, `<form class="form" id="dg"><label>Goal for ${esc(/^(Today|Yesterday|Tomorrow)$/.test(label) ? label.toLowerCase() : label)} (kcal)<input name="k" inputmode="numeric" value="${esc(G.kcal != null ? r0(G.kcal).replace(/,/g, '') : '')}" placeholder="e.g. 2000" enterkeyhint="done"></label>
-    <p class="small muted">${G.default ? `Your usual daily target is ${r0(G.default)}. A goal set here applies to this day only.` : 'You have no usual daily target yet - set one under Daily targets.'}</p>
-    <div class="actions">${G.custom != null && G.default ? `<button type="button" class="ghost" id="dg-reset">Use usual target</button>` : ''}<button class="primary">Save</button></div>
-    <button type="button" class="linkbtn" id="dg-daily">Change your usual daily target</button></form>`, (b, close) => {
-    const f = $('#dg', b); f.k.focus(); f.k.select();
-    const save = async (kcal) => { try { await api('/api/food/day-goal', json('PUT', {day: D.day, kcal})); close(); refresh(); toast(kcal == null ? 'Back to your usual target' : `Goal for ${label.toLowerCase()}: ${r0(kcal)} kcal`); } catch (x) { toast(x.message); } };
-    f.onsubmit = (e) => { e.preventDefault(); const v = parseFloat(f.k.value.replace(/,/g, '')); if (!(v > 0)) { toast('Enter a number of calories'); return; } save(v); };
-    const r = $('#dg-reset', b); if (r) r.onclick = () => save(null);
-    $('#dg-daily', b).onclick = () => { close(); targetsSheet(); };
-  });
-}
-function targetsSheet() {
-  const m = App.me,owner=readOwner();
-  sheet('Daily targets', `<p class="small"><a href="/food/setup" id="tg-help">Help me choose targets</a></p><form class="form" id="tg"><div class="mac4">
-    <label>Calories<input name="kcal_target" inputmode="numeric" value="${esc(m.kcal_target || '')}"></label>
-    <label>Protein g<input name="protein_target" inputmode="numeric" value="${esc(m.protein_target || '')}"></label>
-    <label>Carbs g<input name="carbs_target" inputmode="numeric" value="${esc(m.carbs_target || '')}"></label>
-    <label>Fat g<input name="fat_target" inputmode="numeric" value="${esc(m.fat_target || '')}"></label>
-    <label>Fiber g<input name="fiber_target" inputmode="numeric" value="${esc(m.fiber_target || '')}"></label></div>
-    ${extraInputs(m,true)}<p class="small muted" id="tg-sum"></p><div class="actions"><button class="primary">Save targets</button></div></form>`, (b, close) => {
-    guardFoodSheet(b,close,owner);
+// One Goals sheet (Ben, 30 Oct 2026: macros were hidden behind the calorie-only day goal). Daily calories and the three
+// macros sit together with a running check of what the macros add up to; a different calorie goal for one day is a
+// secondary, folded choice. Without a day (the Set macro targets link) it shows only the daily targets.
+function goalSheet(D = null) {
+  const m = App.me, owner = readOwner(), G = D?.goal || {}, label = D ? dayLabel(D.day) : '';
+  const word = /^(Today|Yesterday|Tomorrow)$/.test(label) ? label.toLowerCase() : label, v = (x) => esc(x ? Math.round(x) : '');
+  const dayForm = D ? `<details class="goal-day"${G.custom != null ? ' open' : ''}><summary>Different calories just for ${esc(word)}</summary>
+      <form class="form" id="dg"><label>Calories for ${esc(word)}<input name="k" inputmode="numeric" value="${esc(G.custom != null ? Math.round(G.custom) : '')}" placeholder="${v(m.kcal_target) || 'e.g. 2000'}" enterkeyhint="done"></label>
+      <p class="small muted">Other days keep your daily target. Protein, carbs and fat stay the same.</p>
+      <div class="actions">${G.custom != null ? '<button type="button" class="ghost" id="dg-reset">Use daily target</button>' : ''}<button class="ghost">Save for ${esc(word)}</button></div></form></details>` : '';
+  sheet('Goals', `${G.custom != null ? `<p class="small goal-now">${esc(label)} has its own calorie goal: <b class="num">${r0(G.custom)} kcal</b>${G.default ? ` (daily target ${r0(G.default)})` : ''}.</p>` : ''}
+    <form class="form" id="tg"><h3 class="goal-h">Every day</h3><div class="mac4 goal4">
+    <label>Calories<input name="kcal_target" inputmode="numeric" value="${v(m.kcal_target)}" aria-label="Daily calories in kcal"></label>
+    <label>Protein g<input name="protein_target" inputmode="numeric" value="${v(m.protein_target)}" aria-label="Daily protein in grams"></label>
+    <label>Carbs g<input name="carbs_target" inputmode="numeric" value="${v(m.carbs_target)}" aria-label="Daily carbs in grams"></label>
+    <label>Fat g<input name="fat_target" inputmode="numeric" value="${v(m.fat_target)}" aria-label="Daily fat in grams"></label></div>
+    <p class="small muted" id="tg-sum" aria-live="polite"></p>
+    ${extraInputs(m, true, `<label>Fiber (g)<input name="fiber_target" inputmode="numeric" value="${v(m.fiber_target)}" aria-label="Daily fiber in grams"></label>`)}
+    <div class="actions"><button class="primary">Save daily targets</button></div></form>
+    ${dayForm}<p class="small goal-help"><a href="/food/setup" id="tg-help">Help me choose targets</a></p>`, (b, close) => {
+    guardFoodSheet(b, close, owner);
     $('#tg-help', b).onclick = () => close();
-    const f = $('#tg', b), n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value));
-    const sum = () => { const p = n(f.protein_target) || 0, c = n(f.carbs_target) || 0, fat = n(f.fat_target) || 0, k = p * 4 + c * 4 + fat * 9;
-      $('#tg-sum', b).textContent = k ? `Macros add up to ${Math.round(k)} kcal${n(f.kcal_target) ? ` (target ${n(f.kcal_target)})` : ''}.` : ''; };
+    const f = $('#tg', b), n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value.replace(/,/g, '')));
+    const sum = () => {
+      const k = Math.round((n(f.protein_target) || 0) * 4 + (n(f.carbs_target) || 0) * 4 + (n(f.fat_target) || 0) * 9), goal = n(f.kcal_target), diff = goal ? k - goal : 0;
+      $('#tg-sum', b).textContent = !k ? 'Protein and carbs have 4 kcal per gram, fat has 9.'
+        : `Protein, carbs and fat add up to ${r0(k)} kcal` + (!goal ? '.' : Math.abs(diff) <= Math.max(50, goal * .03) ? ', matching your calorie target.'
+        : `, ${r0(Math.abs(diff))} kcal ${diff > 0 ? 'more' : 'less'} than your calorie target.`);
+    };
     f.oninput = sum; sum();
     f.onsubmit = async (e) => {
       e.preventDefault();
-      const body = {kcal_target: n(f.kcal_target), protein_target: n(f.protein_target), carbs_target: n(f.carbs_target), fat_target: n(f.fat_target), fiber_target: n(f.fiber_target),...extraFormValues(f,true)};
-      try { await api('/api/food/targets', json('PUT', body)); if(owner!==readOwner())return;Object.assign(App.me, body); close(); refresh(); toast('Targets saved'); } catch (x) { toast(x.message); }
+      let body;
+      try {
+        body = {kcal_target: n(f.kcal_target), protein_target: n(f.protein_target), carbs_target: n(f.carbs_target), fat_target: n(f.fat_target), fiber_target: n(f.fiber_target), ...extraFormValues(f, true)};
+        if (['kcal_target', 'protein_target', 'carbs_target', 'fat_target', 'fiber_target'].some((k) => body[k] != null && !(body[k] >= 0))) throw Error('Enter a number, or leave a target blank.');
+      } catch (x) { toast(x.message); return; }
+      try { await api('/api/food/targets', json('PUT', body)); if (owner !== readOwner()) return; Object.assign(App.me, body); close(); refresh(); toast('Daily targets saved'); } catch (x) { toast(x.message); }
     };
+    const d = $('#dg', b); if (!d) return;
+    const save = async (kcal) => { try { await api('/api/food/day-goal', json('PUT', {day: D.day, kcal})); if (owner !== readOwner()) return; close(); refresh(); toast(kcal == null ? `${label} uses your daily target` : `Calories for ${word}: ${r0(kcal)} kcal`); } catch (x) { toast(x.message); } };
+    d.onsubmit = (e) => { e.preventDefault(); const k = parseFloat(d.k.value.replace(/,/g, '')); if (!(k > 0)) { toast('Enter a number of calories'); return; } save(k); };
+    const r = $('#dg-reset', b); if (r) r.onclick = () => save(null);
   });
 }
+const targetsSheet = () => goalSheet();
 
 // ---------- weight trend + food trends ----------
 // the weigh-ins and the trend (2026-10-12: part of Nutrition > Weight, under the box to log one)
