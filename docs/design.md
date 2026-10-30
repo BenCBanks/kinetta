@@ -1455,3 +1455,6 @@ Distance-step instructions use the same units. Nearby splits yield to the interv
 unchanged. No vibration, test-voice control, timing/distance algorithm change or indoor support is added.
 Exact Foundation tests and browser evidence are software checks; locked/background iPhone delivery still needs
 the physical acceptance in #303/#305 and an owner-authorized TestFlight release.
+
+Owner refinement: the interval builder groups Warm-up/Cool-down side by side, then both voice switches side by side
+with one shared explanation. Name is a compact labelled row. Reflow controls at narrow/enlarged sizes without shrinking touch targets.

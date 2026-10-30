@@ -27,8 +27,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.locator('#interval-open').click();await p.waitForSelector('[data-open]');await p.locator('[data-open]').first().click();await p.locator('[data-edit]').click();await p.waitForSelector('#interval-editor');
   assert(!(await total().isChecked()));assert(await pace().isChecked());await pace().uncheck();
   const amount=p.locator('[data-amount="run"]');await amount.fill('4');await p.locator('#interval-sum').click();assert.equal(await amount.inputValue(),'4','background dismissal keeps builder input');assert(!(await amount.evaluate(n=>n===document.activeElement)),'background dismisses focused input');
-  await total().scrollIntoViewIfNeeded();await snap('builder');
-  assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'builder no overflow');
+  await total().scrollIntoViewIfNeeded();if(size.root===16){const a=await total().locator('..').boundingBox(),b=await pace().locator('..').boundingBox();assert(Math.abs(a.y-b.y)<2,'voice choices share one row');const w=await p.locator('[data-extra=warm]').boundingBox(),c=await p.locator('[data-extra=cool]').boundingBox();assert(Math.abs(w.y-c.y)<2,'warm/cool share one row');}await snap('builder');
+  assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'builder no overflow');assert(await p.locator('.sheet').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'sheet has no overflow');
   assert(await total().evaluate(n=>n.closest('label').getBoundingClientRect().height>=44));
   await close();await prefs();assert(!(await total().isChecked()));assert(!(await pace().isChecked()));
   await p.locator('#track-voice').uncheck();assert.equal(await p.evaluate(()=>Intervals.voicePreferences().voice),false);await close();await p.reload();await ready();await prefs();assert(!(await total().isChecked()));assert(!(await pace().isChecked()));assert(!(await p.locator('#track-voice').isChecked()));await close();

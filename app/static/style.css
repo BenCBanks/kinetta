@@ -2839,3 +2839,15 @@ html.keyboard-open .thread-quick-actions {display:none;}
 
 /* Interval voice preferences share the standard side-by-side switch rows. */
 #interval-editor .switch-row { display:flex; margin:0; }
+
+/* Owner: compact builder options share rows; text and switches keep their normal target sizes. */
+.interval-extras { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:start; }
+.interval-extras .interval-line { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; }
+#interval-editor .interval-extras .interval-extra { grid-column:1/-1; }
+#interval-editor .interval-voice-preferences.compact { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:16px; margin:4px 0 8px; }
+#interval-editor .compact .switch-row { border:0; gap:8px; min-width:0; }
+#interval-editor .compact .switch-row > span { min-width:0; }
+#interval-editor .compact > p { grid-column:1/-1; margin:4px 0; }
+#interval-editor .interval-name { display:flex; align-items:center; gap:6px; }
+#interval-editor .interval-name input { flex:1; min-width:0; width:0; margin:0; }
+@media(max-width:360px) { #interval-editor .compact .switch-row { flex-wrap:wrap; } }
