@@ -3,6 +3,8 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+// Poll with page.evaluate: the app's Content Security Policy forbids the string evaluation waitForFunction uses.
+async function until(page,fn,label,arg){for(let i=0;i<150;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);}
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState(),token=st.cookies.find(k=>/sess|login|token/i.test(k.name))?.value;assert(token,'login token');
 for(const size of [{width:390,height:844},{width:330,height:667}])for(const theme of ['light','dark']){
  const c=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,geolocation:{latitude:51.5007,longitude:-0.1246,accuracy:12},permissions:['geolocation'],timezoneId:'America/New_York'});
@@ -13,13 +15,13 @@ for(const size of [{width:390,height:844},{width:330,height:667}])for(const them
  const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
  await c.route(u=>!u.href.startsWith(base),r=>r.abort());
  await c.route('**/api/**',r=>{const q=r.request();if(!['GET','HEAD'].includes(q.method())){writes.push(new URL(q.url()).pathname);return r.fulfill({json:{}});}return r.continue();});
- await p.goto(base+'/track');await p.waitForFunction(()=>App.pageReady);
+ await p.goto(base+'/track');await until(p,()=>App.pageReady,'1')
  // The fictional fix (a public park) puts the dot and accuracy chip on the map at street level.
- await p.waitForFunction(()=>document.querySelector('#track-ready-map .leaflet-map-pane')&&!document.querySelector('#track-gps-chip').hidden,null,{timeout:15000});await p.waitForTimeout(300);
+ await until(p,()=>document.querySelector('#track-ready-map .leaflet-map-pane')&&!document.querySelector('#track-gps-chip').hidden,'2');await p.waitForTimeout(300);
  const map=p.locator('#track-ready-map');
  const dotNear=async()=>{const m=await map.boundingBox(),d=await p.locator('#track-ready-map .leaflet-interactive, #track-ready-map path.leaflet-interactive, #track-ready-map path').last().boundingBox();return Math.abs(d.x+d.width/2-(m.x+m.width/2))<24&&Math.abs(d.y+d.height/2-(m.y+m.height/2))<24;};
  assert(await dotNear(),'dot centred');await p.locator('#track-ready-map-wrap .map-full').click();await p.waitForSelector('#track-ready-map-wrap.full');await p.waitForTimeout(200);
- assert(await dotNear(),'dot stays centred in full screen');await p.keyboard.press('Escape');await p.waitForFunction(()=>!document.querySelector('.track-ready-map-wrap.full'));await p.waitForTimeout(200);assert(await dotNear(),'and after closing');
+ assert(await dotNear(),'dot stays centred in full screen');await p.keyboard.press('Escape');await until(p,()=>!document.querySelector('.track-ready-map-wrap.full'),'3');await p.waitForTimeout(200);assert(await dotNear(),'and after closing');
  assert.equal(await map.evaluate(el=>el.classList.contains('leaflet-touch-drag')||el.classList.contains('leaflet-grab')),true,'small map can be dragged');
  // A drag moves the map (and stops following the dot); the locate button still re-centres.
  const centre=()=>p.evaluate(()=>{const pane=document.querySelector('#track-ready-map .leaflet-map-pane');return pane.style.transform;});
@@ -36,8 +38,8 @@ for(const size of [{width:390,height:844},{width:330,height:667}])for(const them
  const mb=await map.boundingBox();assert(mb.height>=size.height-1,'map fills the screen');
  assert(await locate.isVisible(),'locate in full screen');assert.equal(await p.locator('#track-start').evaluate(n=>!!n.closest('[inert]')),true,'page behind is inert');
  if(out&&size.width===390)await p.screenshot({path:`${out}/track-ready-full-${theme}.png`});
- await expand.click();await p.waitForFunction(()=>!document.querySelector('.track-ready-map-wrap.full')&&document.querySelector('#track-content #track-ready-map-wrap'));
- await expand.click();await p.waitForSelector('#track-ready-map-wrap.full');await p.keyboard.press('Escape');await p.waitForFunction(()=>!document.querySelector('.track-ready-map-wrap.full'));
+ await expand.click();await until(p,()=>!document.querySelector('.track-ready-map-wrap.full')&&document.querySelector('#track-content #track-ready-map-wrap'),'4')
+ await expand.click();await p.waitForSelector('#track-ready-map-wrap.full');await p.keyboard.press('Escape');await until(p,()=>!document.querySelector('.track-ready-map-wrap.full'),'5')
  assert.equal(new URL(p.url()).pathname,'/track','closing stays on Track');
  assert.equal(await p.locator('#track-start').evaluate(n=>!n.closest('[inert]')),true,'page usable again');
  const ov=await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);assert(!ov,'no overflow');
