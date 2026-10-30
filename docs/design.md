@@ -1539,3 +1539,26 @@ status and connection counts are read-only; opening Track does not sync or reque
 the existing form. Import uses the browser; the native tile opens a short browser handoff. Preserve 44px controls,
 large-text readability, keyboard/drafts, Sky Blue and the five tabs. Browser/native-idle stand-ins are software evidence;
 physical route/plan/locked-phone acceptance remains separate.
+
+## Activity: compact social tools and shared-workout cards · 30 October 2026 (#386)
+
+Activity has one Find friends entry. With zero to two friends it is the first shared Discovery tile under Make Activity
+yours, followed by the invite card, a challenge and opt-in public segments. With more friends it stays in the header.
+A strip of at most four compact links shows applicable own challenge deadlines, Invite and pending requests; it scrolls
+sideways and disappears when nothing applies. There is no friends-comparison tool to advertise. Invite and challenge
+creation open their existing deliberate sheets. No food, body, intake or protein target appears in Activity.
+
+The combined social reader asks for shared own workouts before pagination, and the client also filters private or
+unclassified own cached rows before painting. Me's complete activity list keeps its existing default behavior. Friends'
+fields, blocks and audiences remain server-authorized; client filtering grants no access.
+
+Feed-only compact cards show the sport once and put Matched route in the subtitle. Existing readable map height stays;
+the before-evidence card already met the two-thirds-screen target. Photo/map arrows are 44px overlays with small position
+dots, kept above attribution. Swipe, keyboard arrows/Home/End and the spoken position remain available. One visual
+reaction pill contains the toggle icon and the count that opens the people list. Holding or ArrowDown still chooses
+Strong or Applause; APIs, optimistic state, failure recovery and ownership guards are unchanged. Other card/detail
+contexts keep their current variant.
+
+Refreshing social-tool facts does not replace feed cards. Unchanged card and map nodes survive revalidation and
+pagination. Preserve the five tabs, Sky Blue, enlarged text and existing comment drafts/keyboard dismissal. Rendered
+fictional-account checks do not establish physical VoiceOver or iPhone gesture acceptance.
