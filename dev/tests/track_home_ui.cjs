@@ -31,7 +31,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.locator('#track-other').click();await p.waitForSelector('.pick-list');await p.locator('.pick-list [data-pk]').last().click();assert.equal(await p.locator('#track-other').getAttribute('aria-pressed'),'true');
   await p.locator('[data-quick]').first().click();
   if(native){
-   await p.locator('#track-options').click();await p.waitForSelector('#track-voice');await p.locator('#track-voice').uncheck();await p.keyboard.press('Escape');assert.match(await p.locator('#track-options').innerText(),/Voice off/);
+   await p.locator('#track-options').click();await p.waitForSelector('#track-voice');await p.locator('#track-voice').uncheck();await p.keyboard.press('Escape');assert.match(await p.locator('#track-options').getAttribute('aria-label'),/Spoken updates off/);
    await p.locator('#interval-open').click();await p.waitForSelector('#interval-library');if(who==='runner'){await p.locator('[data-remove]').click();assert.match(await p.locator('#interval-open').innerText(),/Intervals/);}await p.keyboard.press('Escape');
    if(who==='runner'){
     const before=(await(await get('/api/interval-presets')).json()).length;
