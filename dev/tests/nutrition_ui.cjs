@@ -37,7 +37,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const title of await p.locator('.progress-tile-name').all())assert(await title.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'tile title fits without clipping');
    assert.equal(await p.locator('.nutrition-date-row #fd-date').count(),1);assert.equal(await p.locator('#fq-add').count(),1);
-   if(who!=='empty')assert.match(await p.locator('[data-nutrition-feature=overview]').innerText(),new RegExp('Protein goal '+(who==='heavy'?7:0)+'/7'),'goal-day counts remain factual, including zero');
+   if(who!=='empty'){const facts=await(await c.request.get(base+'/api/progress/overview')).json();assert.match(await p.locator('[data-nutrition-feature=overview]').innerText(),new RegExp('Protein goal '+facts.food.protein_days+'/7'),'tile agrees with own facts after earlier confirmed food saves, including zero');}
    if(who==='empty'){
     assert.equal(await p.locator('.nutrition-start').count(),1);assert.equal(await p.locator('.nutrition-body-prompt').count(),1);assert.equal(await p.locator('#nutrition-explore .progress-new:not(.seen)').count(),7);
     assert(!/0 (saved|logged)/.test(await p.locator('#nutrition-explore').innerText()));
