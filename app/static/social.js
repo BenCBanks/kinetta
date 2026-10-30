@@ -530,25 +530,26 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   const own=!!App.me&&login.toLowerCase()===App.me.login.toLowerCase(),owner=readOwner();
   let audience=new URLSearchParams(location.search).get('preview')==='member'?'member':'friend',revision=0;
   const path=()=>'/api/people/'+encodeURIComponent(login)+'/profile'+(own?'?as_friend=true&preview='+audience:'');
-  el.innerHTML=`<div class="top">${backBtn(own?'Me':'People')}<span class="profile-page-title">Shared profile</span><a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a></div><div id="person-profile">${skel(2)}</div>`;
+  el.innerHTML=`<div class="top">${backBtn(own?'Me':'People')}<span class="profile-page-title">${own?'Your profile':'Profile'}</span><a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a></div><div id="person-profile">${skel(2)}</div>`;
   wireBack(el,own?'/me':'/me/friends');
   const box=$('#person-profile',el),active=()=>box.isConnected&&owner===readOwner();
   const draw=r=>{
     if(!active())return;
     if(own&&audience==='member'&&r.preview!=='member'){box.innerHTML='<p class="callout">This server needs an update to preview other members.</p><button type="button" class="ghost wide" id="pf-friend-fallback">Preview as friends</button>';$('#pf-friend-fallback',box).onclick=()=>setAudience('friend');return;}
     r={...r,layout:ProfileLayout.normalize(r.layout)};
-    const p=r.person,action=r.mine?'':r.status==='friends'?`<button type="button" class="ghost" data-person-manage>Friends ${svg('more')}</button>`:r.status==='sent'?'<button type="button" class="ghost" data-person-action="cancel">Request sent</button>':r.status==='incoming'?'<button type="button" class="primary" data-person-action="accept">Approve request</button>':'<button type="button" class="primary" data-person-action="add">Add friend</button>';
-    box.innerHTML=`${r.mine?`<div class="pf-preview"><label>Preview as<select id="pf-audience"><option value="friend"${audience==='friend'?' selected':''}>Approved friends</option><option value="member"${audience==='member'?' selected':''}>Other members</option></select></label><p class="small muted">${audience==='friend'?'Activities shared with friends or everyone.':'Activities shared with everyone.'}</p></div>`:''}
-      ${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}
-      <div class="profile public-profile">${r.mine?`<button type="button" class="av-edit" id="pf-photo" aria-label="Change profile photo">${avatar(p,'lg')}<span class="av-cam">${svg('camera')}</span></button>`:avatar(p,'lg')}<div><h1>${esc(p.name)}</h1><div class="sub">@${esc(p.login)}</div>${r.mine?`<a class="profile-friends" href="/me/friends">${Number.isInteger(r.friend_count)?friendCountText(r.friend_count):'Friends'} ${svg('chev')}</a>`:Number.isInteger(r.friend_count)?`<span class="profile-friends">${friendCountText(r.friend_count)}</span>`:''}</div></div>
-      ${p.bio?`<p class="profile-bio">${esc(p.bio)}</p>`:''}<div class="profile-actions">${r.mine?'<button type="button" class="primary" id="pf-edit-profile">Edit profile</button><button type="button" class="ghost" id="pf-share">Share profile</button>':action+'<button type="button" class="ghost" data-person-report>Report or block</button>'}</div>
-      ${r.mine?'<div class="profile-tools"><button type="button" class="linkbtn" id="pf-card">Public card &amp; QR</button></div><p class="small muted profile-private-note">'+svg('lock')+'Food, body data and Kit stay private.</p>':''}
-      ${ProfileLayout.content(r)}${r.mine&&!r.layout.sections.length?'<p class="small muted">Your profile shows your identity only. Add sections in Edit profile.</p>':''}`;
+    // The page is the Me card at full size, then the shared activities (Ben, 30 Oct 2026). Someone else's card puts the
+    // friendship button and a ⋯ (report or block) where your own has Edit and Share.
+    const p=r.person,feed=r.layout.sections.includes('activities');
+    const action=r.status==='friends'?`<button type="button" class="me-card-pill" data-person-manage>${svg('check')}Friends</button>`:r.status==='sent'?'<button type="button" class="me-card-pill" data-person-action="cancel">Request sent</button>':r.status==='incoming'?`<button type="button" class="me-card-pill solid" data-person-action="accept">${svg('check')}Approve request</button>`:`<button type="button" class="me-card-pill solid" data-person-action="add">${svg('plus')}Add friend</button>`;
+    const pills=r.mine?MeCard.ownPills():action+`<button type="button" class="me-card-pill" data-person-report aria-label="Report or block ${esc(p.name)}">${svg('more')}</button>`;
+    const friends=r.mine?MeCard.ownFriends(r.friend_count):Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
+    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}
+      ${MeCard.card(p,{mine:r.mine,pills,friends})}
+      ${r.mine?`<div class="pf-preview" role="group" aria-label="Preview your profile as"><span>Preview as</span><div class="mileage-toggle">${[['friend','Friends'],['member','Other members']].map(([k,l])=>`<button type="button" data-audience="${k}" aria-pressed="${audience===k}">${l}</button>`).join('')}</div><small>${audience==='friend'?'Activities shared with friends or everyone.':'Activities shared with everyone.'}</small></div>`:''}
+      ${feed?ProfileLayout.content(r,{...r.layout,sections:['activities']}):''}`;
+    MeCard.mount(box,{data:r,full:true,reload,onSaved:reload});
     ProfileLayout.mount(box,r);
-    if(r.mine){
-      wireProfileEditing(box,{...p,profile_layout:r.layout},reload);$('#pf-card',box).onclick=()=>KinettaCard.open();
-      $('#pf-audience',box).onchange=e=>setAudience(e.target.value);
-    }
+    if(r.mine)$$('[data-audience]',box).forEach(b=>b.onclick=()=>{if(b.dataset.audience!==audience)setAudience(b.dataset.audience);});
     const act=$('[data-person-action]',box);
     if(act)act.onclick=async()=>{
       act.disabled=true;
@@ -702,11 +703,6 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
 });
 
 // One editor saves identity fields together; errors leave both drafts in place.
-function wireProfileEditing(box, p, reload) {
-  $('#pf-photo', box).onclick = () => profilePhotoSheet(() => { invalidate('/api/me'); keep('/api/me', App.me); reload(); });
-  $('#pf-share', box).onclick = () => shareProfile(p);
-  $('#pf-edit-profile', box).onclick = () => editProfile(p, reload);
-}
 function editProfile(p, reload) {
   const owner = readOwner();
   const photo = () => { if (owner === readOwner()) profilePhotoSheet(() => { if (owner !== readOwner()) return; invalidate('/api/me'); keep('/api/me', App.me); reload(); }); };

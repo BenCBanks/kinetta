@@ -1,6 +1,7 @@
 """Kinetta web app: accounts, login, per-person settings, the phone-installable app and all API routers."""
 import os, time
 from contextlib import asynccontextmanager
+from typing import Literal
 from fastapi import FastAPI, Request, Response, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware import gzip as _gzip
@@ -207,7 +208,7 @@ def logout(request: Request, response: Response):
 def me(user=Depends(current_user)):
     from . import ai_access
     with db.connect() as c:
-        p = c.execute('SELECT setup_hidden, profile_layout, share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, (ai_ok AND ai_adult_at IS NOT NULL) AS ai_ok, health_ai_ok, health_weight_ai_ok, garmin_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT setup_hidden, setup_skipped, profile_layout, share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, (ai_ok AND ai_adult_at IS NOT NULL) AS ai_ok, health_ai_ok, health_weight_ai_ok, garmin_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
         from .admin_usage import opened
@@ -221,6 +222,7 @@ def me(user=Depends(current_user)):
 
 class ProfileIn(BaseModel):
     setup_hidden: StrictBool | None = None
+    setup_skipped: list[Literal['email', 'health', 'iphone', 'photo', 'nutrition', 'friends']] | None = Field(None, max_length=6)
     bio: str | None = Field(None, max_length=280)
     units: str | None = Field(None, pattern='^(imperial|metric)$')
     tz: str | None = Field(None, max_length=64)
@@ -243,6 +245,9 @@ class ProfileIn(BaseModel):
 def set_profile(body: ProfileIn, user=Depends(current_user)):
     vals = body.model_dump(exclude_unset=True)
     if vals.get('setup_hidden', False) is None: del vals['setup_hidden']
+    if 'setup_skipped' in vals:
+        if vals['setup_skipped'] is None: del vals['setup_skipped']
+        else: vals['setup_skipped'] = sorted(set(vals['setup_skipped']))
     if vals.get('resting_source', False) is None: del vals['resting_source']
     if vals.get('health_ai_ok', False) is None: del vals['health_ai_ok']    # yes or no only
     if vals.get('health_weight_ai_ok',False) is None:del vals['health_weight_ai_ok']
