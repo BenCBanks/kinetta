@@ -255,6 +255,42 @@ function setupChecklist(healthConnected) {
   return `<section class="setup-tips setup-check" aria-label="Finish setting up"><div class="setup-heading"><div><h2>Finish setting up</h2><p class="small muted">${done} of ${items.length} done · skip any you don’t need</p></div><button type="button" class="ghost" data-hide-setup>Hide</button></div>
     <div class="card list"><progress max="${items.length}" value="${done}" aria-label="Setup progress">${done} of ${items.length}</progress>${items.map(row).join('')}</div></section>`;
 }
+// Private insights under the card (Ben, 30 Oct 2026): the distance chart lives on the card, so this space answers
+// "how am I doing?" from your own records only. Each row appears only when there is enough history behind it.
+function meInsights(box, s) {
+  const owner = readOwner(), live = () => box.isConnected && owner === readOwner();
+  const weeks = s.chart_weeks || [], now = weeks.at(-1), past = weeks.slice(0, -1).filter(w => w.distance_m > 0);
+  const rows = [];
+  if (now && past.length >= 3) {
+    // Usual = the average full week among the previous six that had any distance.
+    const usual = past.reduce((n, w) => n + w.distance_m, 0) / past.length, pct = Math.min(1, (now.distance_m || 0) / usual);
+    rows.push(`<div class="me-insight"><div class="me-insight-top"><span>This week so far</span><b class="num">${esc(U.dist(now.distance_m || 0, 1))} <small>of your usual ${esc(U.dist(usual, 1))} ${esc(U.du())}</small></b></div>
+      <div class="track" role="img" aria-label="${Math.round(pct * 100)}% of your usual week"><div class="bar" data-w="${pct.toFixed(3)}"></div></div><small class="muted">Usual is your average week over the last ${past.length} active weeks.</small></div>`);
+  }
+  const chips = [s.day_streak > 1 ? `<span class="achievement">${svg('flame')}${s.day_streak}-day streak</span>` : '', s.week_streak > 1 ? `<span class="achievement">${svg('trophy')}${s.week_streak}-week streak</span>` : ''].join('');
+  box.innerHTML = `<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows>${rows.join('')}</div><div data-insight-more></div>${chips ? `<div class="achievement-row">${chips}</div>` : ''}
+    <a class="mileage-progress" href="/progress?view=training">View progress ${svg('chev')}</a></section>`;
+  // Runners also get recent bests and a pace trend, read from the same records the Progress pages use.
+  if (!(s.years || []).some(y => y.sport === 'run')) return;
+  const more = $('[data-insight-more]', box), month = d => fdate(d, {month: 'short', day: 'numeric'}), parts = {};
+  const paint = () => { if (live()) more.innerHTML = (parts.best || '') + (parts.pace || ''); };
+  load('/api/records?sport=run', r => {
+    const since = Date.now() - 30 * 864e5, best = (r.efforts || []).filter(e => e.top?.[0] && e.count > 1 && new Date(e.top[0].start_time) >= since).slice(-2);
+    parts.best = best.map(e => `<a class="me-insight me-insight-link" href="/activity/${e.top[0].activity_id}"><span class="me-insight-ico">${svg('trophy')}</span><span class="grow"><b>New ${esc(e.label)} best · <span class="num">${esc(dur(e.top[0].elapsed_s))}</span></b><small class="muted">${esc(month(e.top[0].start_time))}</small></span>${svg('chev')}</a>`).join('');
+    paint();
+  }).catch(() => {});
+  load('/api/progress/trends?sport=run', r => {
+    // Last three months (this one included) against the three before; at least three runs on each side.
+    const months = r.months || [], recent = months.slice(-3), before = months.slice(-6, -3);
+    const pace = list => { const d = list.reduce((n, m) => n + (+m.pd || 0), 0), t = list.reduce((n, m) => n + (+m.pt || 0), 0); return d > 0 ? t / (d / 1000) : 0; };
+    const runs = list => list.reduce((n, m) => n + m.n, 0), cur = new Date(r.today + 'T12:00').getMonth(), last = recent.at(-1)?.m;
+    if (!last || +last.slice(5) - 1 !== cur || recent.length < 3 || before.length < 3 || runs(recent) < 3 || runs(before) < 3) return;
+    const a = pace(recent), b = pace(before); if (!a || !b) return;
+    const diff = Math.round((b - a) * (U.du() === 'mi' ? 1.609344 : 1)), same = Math.abs(diff) < 3;
+    parts.pace = `<div class="me-insight"><div class="me-insight-top"><span>Run pace · last 3 months</span><b class="num">${esc(U.pace(a))} <small>${esc(U.pu())}</small></b></div><small class="muted">${same ? 'About the same as the 3 months before.' : `${Math.abs(diff)} s ${diff > 0 ? 'faster' : 'slower'} per ${U.du()} than the 3 months before.`}</small></div>`;
+    paint();
+  }).catch(() => {});
+}
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // A person's shared identity leads; the overview below it is private.
 function arrangeHomeFood(el,loggedToday) {

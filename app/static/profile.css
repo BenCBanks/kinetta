@@ -155,17 +155,19 @@
 .me-week.future span { background:var(--line); }
 /* Your insights: private rows under the card (replaces the second distance chart, 30 Oct 2026). */
 .me-insights h2 { margin:0 0 4px; }
-.insight { display:flex; flex-direction:column; gap:6px; padding:12px 0; border-top:1px solid var(--line); color:var(--tx); }
-.insight:first-child { border-top:0; }
-.insight-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:.875rem; color:var(--tx2); }
-.insight-top b { color:var(--tx); font-size:1.125rem; } .insight-top b small { font-size:.8125rem; font-weight:500; color:var(--tx2); }
-.insight-link { flex-direction:row; align-items:center; gap:12px; min-height:56px; }
-.insight-link .grow { display:flex; flex-direction:column; min-width:0; flex:1; }
-.insight-link>svg { width:16px; height:16px; color:var(--tx3); flex:none; }
-.insight-ico { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--card2); color:var(--color-achievement); flex:none; }
-.insight-ico svg { width:17px; height:17px; }
+.me-insight { display:flex; flex-direction:column; gap:6px; padding:12px 0; border-top:1px solid var(--line); color:var(--tx); }
+.me-insight:first-child { border-top:0; }
+.me-insight-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:.875rem; color:var(--tx2); }
+.me-insight-top b { color:var(--tx); font-size:1.125rem; } .me-insight-top b small { font-size:.8125rem; font-weight:500; color:var(--tx2); }
+.me-insight-link { flex-direction:row; align-items:center; gap:12px; min-height:56px; }
+.me-insight-link .grow { display:flex; flex-direction:column; min-width:0; flex:1; }
+.me-insight-link>svg { width:16px; height:16px; color:var(--tx3); flex:none; }
+.me-insight-ico { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--card2); color:var(--color-achievement); flex:none; }
+.me-insight-ico svg { width:17px; height:17px; }
 /* Finish setting up: each open step can be skipped on its own (owner, 30 Oct 2026). */
 .setup-row { display:flex; align-items:center; gap:4px; border-top:1px solid var(--line); }
 .setup-row:first-of-type { border-top:0; }
 .setup-row>.row-link { flex:1; min-width:0; border-top:0; }
 .setup-skip { flex:none; min-height:44px; min-width:44px; padding:0 8px; border:0; background:none; color:var(--tx2); font-size:.8125rem; font-weight:600; }
+.me-insight .track { height:8px; border-radius:4px; background:var(--card2); overflow:hidden; }
+.me-insight .track .bar { height:8px; }

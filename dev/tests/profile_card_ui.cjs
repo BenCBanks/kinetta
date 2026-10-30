@@ -20,6 +20,8 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  assert.equal(await p.locator('#me-distance, .mileage-heading').count(),0,'no second distance chart on Me');
  assert.match(await p.locator('.me-insights').innerText(),/This week so far[\s\S]*of your usual/);
  assert.equal(await p.locator('.me-insights a[href^="/progress"]').count(),1);
+ // The week bar is drawn to scale inside its track (not squashed to a sliver).
+ const [bar,track]=await p.$$eval('.me-insights .track, .me-insights .track .bar',e=>e.map(x=>x.getBoundingClientRect().width).reverse());assert(track>100&&bar<=track,'week track spans the card');
  // Days / Weeks on the card: seven bars either way, days carry weekday letters, a tap shows that day.
  const toggle=p.locator('.me-card .me-period [data-period="days"]');assert((await toggle.boundingBox()).height>=44,'44px toggle target');
  await toggle.click();await p.waitForSelector('.me-distance.days');
