@@ -22,7 +22,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   assert.equal(await p.locator('h1').innerText(),'Track');assert.equal(await p.locator('#track-explore a').count(),native?4:3);assert.equal(await p.locator('#track-kind,.track-other').count(),0,'no extra global choice row');
   assert.equal(await p.locator('#track-explore').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);
   assert(!/0 connected/.test(await p.locator('#track-explore').innerText()));assert.equal(await p.locator('#track-route').count(),0,'retired picker is not resurrected');
-  for(const button of await p.locator('.track-quick button,.track-recording-options button').all()){const r=await button.boundingBox();assert(r.height>=44,'44px control');}
+  for(const button of await p.locator('.track-quick button,.track-recording-options button').all())if(await button.isVisible()){const r=await button.boundingBox();assert(r.height>=44,'44px control');}
   assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');
   if(size.root===16){const start=await p.locator('#track-start').boundingBox(),nav=await p.locator('nav.tabs').boundingBox(),more=await p.locator('#track-other').boundingBox();assert(start.y+start.height<nav.y,'Start above tabs');assert(more.x>=0&&more.x+more.width<=size.width,'More remains visible');if(!native){const first=await p.locator('#track-explore a').first().boundingBox();assert(first.y+first.height<nav.y,'browser first tile row visible');}}
   if(native&&who==='runner')await until(p,()=>!document.querySelector('#track-plan').hidden,'today workout');

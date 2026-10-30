@@ -25,5 +25,13 @@
 .compact-track-tools .sec-head { font-size:1rem; margin:0 0 10px; }
 .compact-track-tools .progress-tile { margin:0; }
 
-.compact-ready .track-quick #track-other { position:sticky; right:0; background:var(--card); box-shadow:-6px 0 8px var(--bg); }
 .compact-track-tools .progress-tile:last-child:nth-child(even) { grid-column:auto; }
+
+
+/* Keep More beside the scrolling sports, so it never paints over a label. */
+.compact-ready .track-sport-row { display:flex; align-items:center; gap:4px; min-width:0; }
+.compact-ready .track-quick { flex:1; min-width:0; }
+.compact-ready .track-quick button { min-width:44px; }
+.compact-ready #track-other { display:flex; align-items:center; gap:3px; flex:none; min-height:44px; padding:6px; font-size:.9375rem; white-space:nowrap; }
+.compact-ready #track-other svg { width:14px; height:14px; }
+.compact-ready #track-other[aria-pressed="true"] { background:var(--accent2); color:var(--accent); border-color:var(--accent); }
