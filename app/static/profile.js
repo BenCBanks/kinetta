@@ -50,34 +50,7 @@ const ProfileLayout=(()=>{
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
     feedMaps(box);wireCheers(box);
   }
-  function editor(box,initial,{onChange=()=>{}}={}){
-    let value=normalize(initial),order=[...value.sections,...Object.keys(sections).filter(k=>!value.sections.includes(k))],changed=false;
-    const status=$('[data-layout-status]',box);
-    const announce=text=>{status.textContent=text;changed=true;onChange();};
-    function draw(focus){
-      $('[data-layout-sections]',box).innerHTML=order.map((key,i)=>`<div class="profile-layout-row"><label><input type="checkbox" data-section="${key}"${value.sections.includes(key)?' checked':''}>${sections[key]}</label><div><button type="button" class="icon-btn" data-move="${key}" data-step="-1" aria-label="Move ${sections[key]} up"${i?'':' disabled'}><span class="profile-up">${svg('down')}</span></button><button type="button" class="icon-btn" data-move="${key}" data-step="1" aria-label="Move ${sections[key]} down"${i===order.length-1?' disabled':''}>${svg('down')}</button></div></div>`).join('');
-      $$('[data-section]',box).forEach(input=>input.onchange=()=>{value.sections=order.filter(key=>key===input.dataset.section?input.checked:value.sections.includes(key));announce('Profile sections updated.');});
-      $$('[data-move]',box).forEach(button=>button.onclick=()=>{
-        const i=order.indexOf(button.dataset.move),next=i+Number(button.dataset.step);if(next<0||next>=order.length)return;
-        [order[i],order[next]]=[order[next],order[i]];value.sections=order.filter(k=>value.sections.includes(k));announce(`${sections[button.dataset.move]} moved ${button.dataset.step==='1'?'down':'up'}.`);draw({key:button.dataset.move,step:button.dataset.step});
-      });
-      if(focus){const button=$(`[data-move="${focus.key}"][data-step="${focus.step}"]`,box);(button.disabled?$(`[data-section="${focus.key}"]`,box):button).focus({preventScroll:true});}
-    }
-    function choices(key,catalog){
-      const target=$(`[data-layout-${key}]`,box);
-      target.innerHTML=Object.entries(catalog).map(([id,label])=>`<label class="profile-choice"><input type="checkbox" data-choice="${key}" value="${id}"${value[key].includes(id)?' checked':''}>${esc(label)}</label>`).join('');
-      $$(`[data-choice="${key}"]`,box).forEach(input=>input.onchange=()=>{
-        if(input.checked&&value[key].length>=3){input.checked=false;status.textContent='Choose up to three.';return;}
-        if(!input.checked&&key==='stats'&&value.stats.length===1){input.checked=true;status.textContent='Keep at least one statistic.';return;}
-        value[key]=input.checked?[...value[key],input.value]:value[key].filter(k=>k!==input.value);announce(`${key==='stats'?'Statistics':'Featured sports'} updated.`);
-      });
-    }
-    function all(){draw();choices('stats',stats);choices('sports',Object.fromEntries(sports.map(s=>[s,SPORT_NAMES[s]||s])));}
-    all();$('[data-layout-reset]',box).onclick=()=>{value=defaults();order=Object.keys(sections);announce('Default layout restored. Save to keep it.');all();};
-    return {value:()=>structuredClone(value),changed:()=>changed};
-  }
-  const editorHtml=()=>`<details class="profile-layout"><summary>Profile content &amp; layout</summary><p class="small muted">Choose sections and order. Activity audiences stay the same.</p><fieldset><legend>Sections</legend><div data-layout-sections></div></fieldset><fieldset><legend>Statistics · choose up to 3</legend><div class="profile-choices" data-layout-stats></div></fieldset><fieldset><legend>Featured sports · up to 3</legend><p class="small muted">Leave clear to show all your sports.</p><div class="profile-choices" data-layout-sports></div></fieldset><button type="button" class="ghost wide" data-layout-reset>Restore default layout</button><p class="small muted" data-layout-status role="status" aria-live="polite"></p></details><button type="button" class="ghost wide" id="pf-preview-draft">Preview profile</button><section id="pf-draft" hidden></section>`;
-  return {defaults,normalize,numbers,content,mount,editor,editorHtml,labels:{sections,stats},sports};
+  return {defaults,normalize,numbers,content,mount,labels:{sections,stats},sports};
 })();
 
 // Me leads with the card friends see, then a private dashboard (owner-approved mockup, 29 October 2026). The card uses the
@@ -135,9 +108,9 @@ const MeCard=(()=>{
   }
   // data: the profile page passes the response it already has; full: the activities follow the card (no link row, no
   // View full profile); onSaved: reread after a layout save. Someone else's card only gets the week taps.
-  function mount(root,{reload,data:given=null,full=false,onSaved}={}){
+  function mount(root,{reload,data:given=null,full=false,onSaved,editOnLoad=false}={}){
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
-    let data=given,editing=false;
+    let data=given,editing=false,editRevision=0;
     const bars=()=>$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px'); // CSP blocks inline style attributes
     // The heading swaps to the picked week's dates and distance, so the layout never shifts; tap again for the total.
     const weekTaps=()=>{const wrap=$('.me-card-bars',box),label=$('[data-week-label]',box);if(!wrap||!label)return;const [head,side]=[$('span',label),$('small',label)],[h0,s0]=[head.textContent,side.textContent];
@@ -147,45 +120,62 @@ const MeCard=(()=>{
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
     const draw=()=>{if(!live()||editing||!data)return;box.setAttribute('aria-busy','false');box.innerHTML=sections(data,ProfileLayout.normalize(data.mine===false?data.layout:App.me.profile_layout||data.layout),full);bars();weekTaps();periods();};
     const load=async()=>{
-      try{data=await api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');draw();}
+      try{data=await api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');draw();if(editOnLoad&&live()){editOnLoad=false;edit({focusName:true,fromSettings:true});}}
       catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);load();};}
     };
     const dim=on=>{
       const page=root.parentElement;card.classList.toggle('editing',on);$('.me-card-banner',card).classList.toggle('hidden-tools',on);
       [...$$(':scope>:not(.me-card):not(.me-top)',root),...[...page.children].filter(x=>x!==root)].forEach(x=>{x.inert=on;x.classList.toggle('me-dim',on);});
     };
-    function edit(){
+    function edit({focusName=false,fromSettings=false}={}){
       if(!live()||editing)return;editing=true;dim(true);
-      const start=ProfileLayout.normalize(App.me.profile_layout||data?.layout),value=structuredClone(start),{sections:names,stats}=ProfileLayout.labels;
-      let order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))];
-      const sports=[...new Set([...(data?.sports||[]).map(s=>s.sport),...value.sports])];
+      const revision=++editRevision,valid=()=>live()&&editing&&revision===editRevision;
+      const start={name:App.me.name||'',bio:App.me.bio||'',layout:ProfileLayout.normalize(App.me.profile_layout||data?.layout)};
+      const value=structuredClone(start.layout),{sections:names,stats}=ProfileLayout.labels;
+      let order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))],busy=false;
       const chip=(group,id,label,on)=>`<button type="button" class="me-chip" data-${group}="${esc(id)}" aria-pressed="${on}">${esc(label)}</button>`;
-      const paint=focus=>{
-        box.innerHTML=`<div class="me-card-editor">${order.map((k,i)=>{const on=value.sections.includes(k);return `<div class="me-edit-row${on?'':' off'}"><span class="grow">${names[k]}</span><button type="button" class="me-chip" data-show="${k}" aria-pressed="${on}" aria-label="${on?'Hide':'Show'} ${names[k]}">${on?'Shown':'Hidden'}</button><button type="button" class="icon-btn" data-move="${k}" data-step="-1" aria-label="Move ${names[k]} up"${i?'':' disabled'}><span class="profile-up">${svg('down')}</span></button><button type="button" class="icon-btn" data-move="${k}" data-step="1" aria-label="Move ${names[k]} down"${i===order.length-1?' disabled':''}>${svg('down')}</button></div>`;}).join('')}
-          <h3>Headline numbers · up to 3</h3><div class="me-chips">${Object.entries(stats).map(([k,l])=>chip('stat',k,l,value.stats.includes(k))).join('')}</div>
-          ${sports.length?`<h3>Featured sports · up to 3</h3><p class="small muted">None chosen shows all your sports.</p><div class="me-chips">${sports.map(k=>chip('sport',k,SPORT_NAMES[k]||k,value.sports.includes(k))).join('')}</div>`:''}
-          <button type="button" class="ghost wide" data-card-identity>${svg('user')}Name, photo &amp; bio</button>
-          <p class="small muted" role="status" aria-live="polite" data-card-status></p>
-          <div class="me-card-actions"><button type="button" class="ghost" data-card-cancel>Cancel</button><button type="button" class="primary" data-card-save>Save card</button></div></div>`;
-        const status=$('[data-card-status]',box);
-        $$('[data-show]',box).forEach(b=>b.onclick=()=>{const k=b.dataset.show;value.sections=order.filter(x=>x===k?!value.sections.includes(k):value.sections.includes(x));paint({show:k});});
-        $$('[data-move]',box).forEach(b=>b.onclick=()=>{const i=order.indexOf(b.dataset.move),j=i+Number(b.dataset.step);if(j<0||j>=order.length)return;[order[i],order[j]]=[order[j],order[i]];value.sections=order.filter(x=>value.sections.includes(x));paint({move:b.dataset.move,step:b.dataset.step});});
-        const pick=(group,key,list,min)=>$$(`[data-${group}]`,box).forEach(b=>b.onclick=()=>{const k=b.dataset[group],on=value[key].includes(k);
-          if(on&&value[key].length<=min){status.textContent='Keep at least one number.';return;}
-          if(!on&&value[key].length>=3){status.textContent='Choose up to three.';return;}
-          value[key]=on?value[key].filter(x=>x!==k):[...value[key],k];paint({[group]:k});});
-        pick('stat','stats',stats,1);pick('sport','sports',null,0);
-        $('[data-card-identity]',box).onclick=()=>editProfile(App.me,reload);
-        $('[data-card-cancel]',box).onclick=()=>finish();
-        $('[data-card-save]',box).onclick=async e=>{
-          const button=e.currentTarget;if(button.disabled)return;button.disabled=true;button.textContent='Saving…';status.textContent='';
-          try{const r=await api('/api/account',json('PUT',{profile_layout:value}));if(owner!==readOwner())return;
-            App.me.profile_layout=r.profile_layout||value;invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);if(live()){finish();toast('Card saved');onSaved?.();}}
-          catch(x){if(!live())return;button.disabled=false;button.textContent='Save card';status.textContent=x.message;}
-        };
-        if(focus){const [k,v]=Object.entries(focus).find(([key])=>key!=='step');const target=$(`[data-${k}="${v}"]${k==='move'?`[data-step="${focus.step}"]`:''}`,box);(target&&!target.disabled?target:$(`[data-show="${focus.move||v}"]`,box))?.focus({preventScroll:true});}
+      box.innerHTML=`<form class="me-card-editor" novalidate>
+        <header class="me-editor-head"><button type="button" class="linkbtn" data-card-cancel>Cancel</button><b>Editing your card</b><button type="submit" class="linkbtn" data-card-save disabled>Save</button><p class="small muted" role="status" aria-live="polite" data-card-status></p></header>
+        <div class="me-editor-identity"><button type="button" class="me-editor-photo" data-card-photo aria-label="Change profile photo">${avatar(App.me,'lg')}<small>Change</small></button>
+          <div class="me-editor-fields"><label class="vh" for="card-name">Name</label><input id="card-name" name="name" value="${esc(start.name)}" maxlength="60" autocomplete="name" placeholder="Name" required aria-describedby="card-name-error"><small class="danger" id="card-name-error" role="alert"></small><span class="small muted">@${esc(App.me.login)}</span>
+          <div class="me-editor-bio-label"><label class="vh" for="card-bio">Bio</label><small class="muted" data-card-bio-count>${start.bio.length}/280</small></div><textarea id="card-bio" name="bio" rows="2" maxlength="280" placeholder="Bio">${esc(start.bio)}</textarea></div></div>
+        <p class="small muted me-editor-privacy">Your name, photo and bio are visible to people who find your profile.</p>
+        <h3>Sections</h3><div class="me-editor-sections" data-card-sections></div>
+        <h3>Headline numbers <span>· up to 3</span></h3><div class="me-chips" data-card-stats></div>
+        <h3>Featured sports <span>· up to 3 · none = all</span></h3><div class="me-chips" data-card-sports></div></form>`;
+      const form=$('form',box),name=form.elements.name,bio=form.elements.bio,save=$('[data-card-save]',box),status=$('[data-card-status]',box),nameError=$('#card-name-error',box);
+      const dirty=()=>name.value!==start.name||bio.value!==start.bio||JSON.stringify(value)!==JSON.stringify(start.layout);
+      const changed=text=>{save.disabled=busy||!dirty();if(text)status.textContent=text;};
+      const sizeBio=()=>{bio.style.height='auto';const style=getComputedStyle(bio),line=parseFloat(style.lineHeight)||22,padding=parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+2;bio.style.height=Math.max(line*2+padding,Math.min(bio.scrollHeight,line*3+padding))+'px';};
+      const rows=focus=>{
+        $('[data-card-sections]',box).innerHTML=order.map((k,i)=>{const on=value.sections.includes(k);return `<div class="me-edit-row${on?'':' off'}"><label class="me-section-toggle switch-row"><span>${names[k]}</span><input type="checkbox" role="switch" data-show="${k}" aria-label="Show ${names[k]}"${on?' checked':''}></label><button type="button" class="icon-btn" data-move="${k}" data-step="-1" aria-label="Move ${names[k]} up"${i?'':' disabled'}><span class="profile-up">${svg('down')}</span></button><button type="button" class="icon-btn" data-move="${k}" data-step="1" aria-label="Move ${names[k]} down"${i===order.length-1?' disabled':''}>${svg('down')}</button></div>`;}).join('');
+        $$('[data-show]',box).forEach(input=>input.onchange=()=>{if(!valid())return;const k=input.dataset.show;value.sections=order.filter(x=>x===k?input.checked:value.sections.includes(x));input.closest('.me-edit-row').classList.toggle('off',!input.checked);changed(`${names[k]} ${input.checked?'shown':'hidden'}.`);});
+        $$('[data-move]',box).forEach(button=>button.onclick=()=>{if(!valid())return;const i=order.indexOf(button.dataset.move),j=i+Number(button.dataset.step);if(j<0||j>=order.length)return;[order[i],order[j]]=[order[j],order[i]];value.sections=order.filter(k=>value.sections.includes(k));changed(`${names[button.dataset.move]} moved ${button.dataset.step==='1'?'down':'up'}.`);rows({key:button.dataset.move,step:button.dataset.step});});
+        if(focus){const b=$(`[data-move="${focus.key}"][data-step="${focus.step}"]`,box);(b.disabled?$(`[data-show="${focus.key}"]`,box):b).focus({preventScroll:true});}
       };
-      paint();$('[data-show]',box)?.focus({preventScroll:true});
+      const choices=(group,key,catalog,min)=>{
+        const target=$(`[data-card-${key}]`,box);target.innerHTML=Object.entries(catalog).map(([k,l])=>chip(group,k,l,value[key].includes(k))).join('');
+        $$(`[data-${group}]`,target).forEach(button=>button.onclick=()=>{if(!valid())return;const k=button.dataset[group],on=value[key].includes(k);if(on&&value[key].length<=min){status.textContent='Keep at least one number.';return;}if(!on&&value[key].length>=3){status.textContent='Choose up to three.';return;}value[key]=on?value[key].filter(x=>x!==k):[...value[key],k];button.setAttribute('aria-pressed',String(!on));changed(`${key==='stats'?'Headline numbers':'Featured sports'} updated.`);});
+      };
+      rows();choices('stat','stats',stats,1);choices('sport','sports',Object.fromEntries(ProfileLayout.sports.map(k=>[k,SPORT_NAMES[k]||k])),0);
+      name.oninput=()=>{nameError.textContent='';name.removeAttribute('aria-invalid');changed();};
+      bio.oninput=()=>{$('[data-card-bio-count]',box).textContent=bio.value.length+'/280';sizeBio();changed();};
+      $('[data-card-photo]',box).onclick=()=>{if(!valid())return;profilePhotoSheet(()=>{if(!valid())return;const photo=$('[data-card-photo]',box);photo.innerHTML=avatar(App.me,'lg')+'<small>Change</small>';const original=$('.me-card-id .me-card-avatar',card);if(original)original.innerHTML=avatar(App.me,'lg');invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);status.textContent='Photo saved. Your other edits are kept.';});};
+      const close=()=>{finish();if(fromSettings&&live())go('/me',{replace:true});};
+      $('[data-card-cancel]',box).onclick=()=>{if(valid()&&(!dirty()||confirm('Discard your changes?')))close();};
+      form.onsubmit=async e=>{
+        e.preventDefault();if(!valid()||busy||!dirty())return;
+        const trimmed=name.value.trim();if(!trimmed||trimmed.length>60){nameError.textContent='Enter a name between 1 and 60 characters.';name.setAttribute('aria-invalid','true');name.focus();return;}
+        const body={name:trimmed,bio:bio.value.trim(),profile_layout:structuredClone(value)};
+        busy=true;save.disabled=true;save.textContent='Saving…';status.textContent='';
+        try{
+          const account=await api('/api/account',json('PUT',body));if(owner!==readOwner())return;
+          App.me.name=account.name??body.name;App.me.bio=account.bio??body.bio;App.me.profile_layout=account.profile_layout||body.profile_layout;
+          invalidate('/api/me');invalidate('/api/people/');invalidateFeed();keep('/api/me',App.me);
+          if(valid()){finish();toast('Card saved');if(fromSettings)go('/me',{replace:true});else (onSaved||reload)?.();}
+        }catch(x){if(valid()){status.textContent=x.message;save.textContent='Save';busy=false;changed();}}
+      };
+      sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});
     }
     function finish(){editing=false;dim(false);draw();if(!data)load();$('[data-card-edit]',card).focus({preventScroll:true});}
     if(data?.mine===false){draw();return {};}
@@ -197,5 +187,5 @@ const MeCard=(()=>{
     if(data)draw();else load();
     return {edit};
   }
-  return {header,card,ownPills,ownFriends,mount,firstName};
+  return {header,card,ownPills,ownFriends,mount,firstName,openEditor:()=>go('/me?edit=profile')};
 })();

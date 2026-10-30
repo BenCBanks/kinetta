@@ -320,7 +320,7 @@ async function meOverview(el) {
     <div id="t-loading" role="status"><span class="vh">Loading your overview</span>${skel(1)}</div>
     <div id="t-content"><section class="me-agenda" hidden><div id="t-food"></div><div id="t-checkin"></div></section>
     <div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
-  MeCard.mount(el,{reload:()=>render()});
+  MeCard.mount(el,{reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'});
   const setup=$('#t-setup',el);
   if(me.needs_email_confirm)$('#t-required',el).innerHTML=`<a class="card tap row-link" href="/me/settings?email=add"><span class="ri c-brand">${svg('mail')}</span><span class="grow"><b>Confirm your email</b><small class="muted">Your profile stays hidden until you confirm it.</small></span>${svg('chev')}</a>`;
   if(typeof Recaps!=='undefined')Recaps.offer($('#t-recap',el));
@@ -1551,7 +1551,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       ${row('a', 'href="/me/devices"', 'shield', 'c-grey', 'Signed-in devices')}</div>
     <h2 class="sec-head">Profile &amp; sharing</h2>
-    <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile', 'Content & layout')}
+    <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile', 'Name, photo, bio & layout')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing &amp; privacy')}</div>
     <h2 class="sec-head">Connections &amp; notifications</h2>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}
@@ -1581,7 +1581,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     try{await api('/api/profile',json('PUT',hidden?{setup_hidden:true}:{setup_hidden:false,setup_skipped:[]}));if(owner!==readOwner())return;App.me.setup_hidden=hidden;if(!hidden)App.me.setup_skipped=[];invalidate('/api/me');keep('/api/me',App.me);}
     catch(x){if(owner===readOwner()){input.checked=hidden;toast(x.message);}}finally{input.disabled=false;}
   };
-  $('#m-profile', el).onclick = () => editProfile(me, () => render());
+  $('#m-profile', el).onclick = () => MeCard.openEditor();
 
   $('#m-kit-memory',el).onclick=()=>KitChat.memorySettings();
   const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit', aiExplain());

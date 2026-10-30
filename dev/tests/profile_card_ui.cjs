@@ -68,4 +68,53 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  await noOverflow('request profile');
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
  console.log(`Profile card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
-await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+await inlineEditorChecks(b);await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+
+async function inlineEditorChecks(browser){
+ const cp=require('node:child_process'),path=require('node:path'),pw='green teapot on the hill';
+ cp.execFileSync('python3',['-c',"import sys;sys.path.insert(0,'dev/tests');from kc import person;person('zz_test_card_editor');person('zz_test_card_other')"],{cwd:path.join(__dirname,'../..'),env:process.env,stdio:'inherit'});
+ const auth=await browser.newContext(),login=(c,n)=>c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:n,password:pw}});
+ const layout={sections:['recent','mileage','totals','sports','activities'],stats:['activities','distance','time'],sports:[]};
+ await login(auth,'zz_test_card_editor');const storage=await auth.storageState();
+ try{
+ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  const c=await browser.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],puts=[];let fail=false,hold=false,held;
+  await c.request.put(base+'/api/account',{headers:{Origin:base},data:{name:'River Fixture',bio:'',profile_layout:layout}});
+  p.on('pageerror',e=>errors.push(e.message));
+  await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
+  await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(q.method()==='PUT'&&u.pathname==='/api/account'){puts.push(q.postDataJSON());if(fail){fail=false;return r.fulfill({status:503,json:{detail:'Fictional save failed'}});}if(hold){held=r;return;}return r.continue();}if(q.method()==='PUT'&&u.pathname==='/api/me/photo')return r.continue();if(!['GET','HEAD'].includes(q.method()))return r.fulfill({json:{}});return r.continue();});
+  const ready=()=>until(p,()=>App.pageReady,'editor route ready');
+  const open=async()=>{await p.locator('[data-card-edit]').click();await p.waitForSelector('.me-card.editing');};
+  const close=async()=>{await p.locator('[data-card-cancel]').click();await until(p,()=>!document.querySelector('.me-card.editing'),'editor closed');};
+  await p.goto(base+'/me');await ready();await p.waitForSelector('.me-card-sections[aria-busy=false]');await open();
+  assert.equal(await p.evaluate(()=>document.activeElement.dataset.show),'recent','Edit pill focuses the first section switch');
+  assert(await p.locator('[data-card-save]').isDisabled());assert.equal(await p.locator('#pf-editor,#pf-draft,[data-card-identity],.me-card-actions').count(),0,'old sheet and bottom Save removed');
+  assert.equal(await p.locator('[data-show][role=switch]').count(),5);assert(await p.locator('[data-move=recent][data-step="-1"]').isDisabled());assert(await p.locator('[data-move=activities][data-step="1"]').isDisabled());
+  const card=p.locator('.me-card'),header=p.locator('.me-editor-head');
+  if(size.root===16){const h=(await card.boundingBox()).height;assert(h<=size.height*1.3,`default editor is compact: ${h}px`);}
+  await card.scrollIntoViewIfNeeded();await p.evaluate(()=>scrollTo(0,document.querySelector('.me-card').offsetTop));
+  if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/card-editor-default-${theme}.png`});}
+  await p.evaluate(()=>scrollBy(0,180));assert((await header.boundingBox()).y<=2,'header remains pinned');
+  await p.locator('#card-name').fill('');await p.locator('[data-card-save]').click();assert.match(await p.locator('#card-name-error').innerText(),/1 and 60/);assert.equal(puts.length,0,'empty name writes nothing');
+  await p.locator('#card-name').fill('Brook Fixture');await p.locator('#card-bio').fill('Fictional trails and weekend rides.');
+  await p.locator('[data-show=activities]').uncheck();await p.locator('[data-move=recent][data-step="1"]').click();
+  await p.locator('[data-stat=time]').click();await p.locator('[data-stat=active_days]').click();await p.locator('[data-sport=run]').click();
+  assert.equal(await p.locator('#card-name').inputValue(),'Brook Fixture');assert.equal(await p.locator('#card-bio').inputValue(),'Fictional trails and weekend rides.');
+  assert.match(await p.locator('[data-card-bio-count]').innerText(),/35\/280/);
+  // Cancelling is deliberate; rejecting the dialog retains every draft field and layout choice.
+  p.once('dialog',async d=>{assert.equal(d.message(),'Discard your changes?');await d.dismiss();});await p.locator('[data-card-cancel]').click();assert(await p.locator('.me-card.editing').count());
+  // The existing photo picker opens inside this editor without losing drafts.
+  await p.locator('[data-card-photo]').click();await p.waitForSelector('#pp-file',{state:'attached'});const png=await p.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle='#2563eb';g.fillRect(0,0,128,128);return c.toDataURL('image/png').split(',')[1];});await p.locator('#pp-file').setInputFiles({name:'fictional-avatar.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});await p.waitForSelector('.sheet',{state:'detached'});await p.waitForSelector('[data-card-photo] img');assert.equal(await p.locator('#card-bio').inputValue(),'Fictional trails and weekend rides.');
+  fail=true;await p.locator('[data-card-save]').click();await until(p,()=>document.querySelector('[data-card-status]')?.textContent.includes('Fictional save failed'),'inline save error');assert(await p.locator('[data-card-status]').isVisible(),'save failure stays under the pinned header');assert.equal(await p.locator('#card-name').inputValue(),'Brook Fixture');assert.equal(await p.locator('#card-bio').inputValue(),'Fictional trails and weekend rides.');assert(!(await p.locator('[data-show=activities]').isChecked()));assert(!(await p.locator('[data-card-save]').isDisabled()));
+  await p.locator('[data-card-save]').click();await until(p,()=>!document.querySelector('.me-card.editing'),'save closes editor');await p.waitForSelector('.me-card-name h2');assert.equal(await p.locator('.me-card-name h2').innerText(),'Brook Fixture');
+  assert.deepEqual(Object.keys(puts.at(-1)).sort(),['bio','name','profile_layout']);
+  await p.reload();await ready();assert.equal(await p.locator('.me-card-name h2').innerText(),'Brook Fixture');await open();assert.equal(await p.locator('#card-bio').inputValue(),'Fictional trails and weekend rides.');assert(!(await p.locator('[data-show=activities]').isChecked()));assert.equal(await p.locator('.me-edit-row').first().locator('[data-show]').getAttribute('data-show'),'mileage');await close();
+  await p.evaluate(()=>go('/me/settings'));await p.waitForURL('**/me/settings');await ready();assert.match(await p.locator('#m-profile').innerText(),/Name, photo, bio & layout/);await p.locator('#m-profile').click();await p.waitForURL('**/me?edit=profile');await p.waitForSelector('.me-card.editing');await until(p,()=>document.activeElement.id==='card-name','Settings focuses Name');assert.equal(await p.locator('#pf-editor').count(),0);await close();await p.waitForURL('**/me');await ready();
+  assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no enlarged-text overflow');
+  // A delayed save response cannot update the account or editor that is now signed in.
+  await p.waitForSelector('.me-card-sections[aria-busy=false]');await open();await p.locator('#card-name').fill('Delayed Fixture');hold=true;await p.locator('[data-card-save]').click();for(let i=0;i<100&&!held;i++)await p.waitForTimeout(50);assert(held);
+  await login(c,'zz_test_card_other');await p.evaluate(async()=>refreshMe(await api('/api/me')));await until(p,()=>App.me.login==='zz_test_card_other','new account');const other=await p.evaluate(()=>App.me.name);await held.fulfill({json:{name:'Old response',profile_layout:layout}});await p.waitForTimeout(150);assert.equal(await p.evaluate(()=>App.me.name),other);assert.equal(await p.locator('.me-card.editing').count(),0);
+  assert.deepEqual(errors,[]);console.log(`Inline card editor ${size.width}/${size.root} ${theme}: pinned header, height, atomic retry/reload, drafts/cancel, Settings focus and stale account PASS`);await c.close();
+ }
+ }finally{for(const n of ['zz_test_card_editor','zz_test_card_other']){await login(auth,n);await auth.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}await auth.close();}
+}

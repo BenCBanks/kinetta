@@ -702,56 +702,6 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
   };
 });
 
-// One editor saves identity fields together; errors leave both drafts in place.
-function editProfile(p, reload) {
-  const owner = readOwner();
-  const photo = () => { if (owner === readOwner()) profilePhotoSheet(() => { if (owner !== readOwner()) return; invalidate('/api/me'); keep('/api/me', App.me); reload(); }); };
-  return sheet('Edit profile', `<form class="form" id="pf-editor">
-    <p class="small muted">Your name, photo and bio are visible to people who find your profile. Workouts follow your sharing choices.</p>
-    <button type="button" class="ghost wide" id="pf-editor-photo">${svg('camera')}Change profile photo</button>
-    <label>Name<input name="name" value="${esc(p.name)}" maxlength="60" required autocomplete="name" enterkeyhint="next"></label>
-    <label>Bio<textarea name="bio" rows="3" maxlength="280" placeholder="What you enjoy, what you’re working toward…">${esc(p.bio || '')}</textarea></label>
-    <p class="small muted" id="pf-bio-count">${(p.bio || '').length}/280</p>${typeof ProfileLayout==='undefined'||!App.me.profile_layout?'':ProfileLayout.editorHtml()}<p class="err" role="alert"></p>
-    <div class="actions"><button type="button" class="ghost" data-cancel>Cancel</button><button class="primary" type="submit">Save profile</button></div></form>`, (b, close) => {
-    const form = $('#pf-editor', b), save = $('[type="submit"]', form);
-    $('#pf-editor-photo', b).onclick = photo;
-    const draft=$('#pf-draft',b);let previewVersion=0;
-    const layout=typeof ProfileLayout==='undefined'||!App.me.profile_layout?null:ProfileLayout.editor(b,p.profile_layout||App.me.profile_layout,{onChange:()=>{previewVersion++;draft.hidden=true;}});
-    if(layout){
-      viewResources.set(draft,()=>{previewVersion++;});
-      const preview=async(audience='friend')=>{
-        if(owner!==readOwner()||!b.isConnected)return;const version=++previewVersion;
-        draft.hidden=false;draft.innerHTML=skel(1);
-        try{
-          const r=await api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview='+audience);
-          if(owner!==readOwner()||!b.isConnected||version!==previewVersion)return;
-          if(audience==='member'&&r.preview!=='member')throw Error('This server needs an update to preview other members.');
-          draft.innerHTML=`<h3>Draft preview</h3><label>Preview as<select id="pf-draft-audience"><option value="friend"${audience==='friend'?' selected':''}>Approved friends</option><option value="member"${audience==='member'?' selected':''}>Other members</option></select></label><div class="profile"><div><h2>${esc(form.elements.name.value.trim())}</h2><small>@${esc(App.me.login)}</small></div></div><p class="profile-bio">${esc(form.elements.bio.value.trim())}</p>${r.profile_hidden?'<p class="callout warn">Your profile is currently hidden.</p>':''}${ProfileLayout.content(r,layout.value(),{preview:true})}`;
-          ProfileLayout.mount(draft,r);$('#pf-draft-audience',b).onchange=e=>preview(e.target.value);
-        }catch(x){if(owner===readOwner()&&b.isConnected&&version===previewVersion){draft.innerHTML=`<p class="small muted">${esc(x.message||'Preview could not load.')}</p><button type="button" class="ghost wide" data-preview-retry>Retry preview</button>`;$('[data-preview-retry]',draft).onclick=()=>preview(audience);}}
-      };
-      $('#pf-preview-draft',b).onclick=()=>preview();
-      form.addEventListener('input',e=>{if(!draft.contains(e.target)){previewVersion++;draft.hidden=true;}});
-    }
-    form.elements.bio.oninput = () => { $('#pf-bio-count', b).textContent = `${form.elements.bio.value.length}/280`; };
-    $('[data-cancel]', form).onclick = close;
-    form.onsubmit = async (e) => {
-      e.preventDefault(); if (owner !== readOwner()) { close(); return; } if (save.disabled) return;
-      const name = form.elements.name.value.trim(), bio = form.elements.bio.value.trim();
-      save.disabled = true; save.textContent = 'Saving…'; $('.err', form).textContent = '';
-      try {
-        const body={name,bio};if(layout?.changed())body.profile_layout=layout.value();
-        const account = await api('/api/account', json('PUT', body));
-        if (owner !== readOwner()) { close(); return; }
-        App.me.name = account.name; App.me.bio = bio;if(account.profile_layout)App.me.profile_layout=account.profile_layout;
-        invalidate('/api/me'); invalidate('/api/people/'); invalidateFeed(); keep('/api/me', App.me);
-        // The confirmed save still updates account state if its sheet was closed, without remounting a newer view.
-        if(b.isConnected){close();toast('Profile saved');reload();}
-      } catch (x) { if (owner !== readOwner()) { close(); return; } $('.err', form).textContent = x.message; save.disabled = false; save.textContent = 'Save profile'; }
-    };
-  });
-}
-
 route(/^\/me\/friends$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1 id="fr-title">Friends</h1><section class="friend-discovery" id="fr-discover" aria-label="Find people">
     <form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
