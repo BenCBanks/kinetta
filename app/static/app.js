@@ -401,18 +401,25 @@ function toast(msg, undo) {
   if (undo) $('button', t).onclick = () => { t.classList.remove('on'); undo(); };
   t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
 }
-function sheet(title, html, onMount) {
+// opts.save (Ben, 30 Oct 2026: Save shouldn't be at the bottom of a long form): a pinned header with Cancel · title ·
+// Save, where Save submits the form with that id. opts.canClose: asked before a swipe, Escape, tap outside or Cancel
+// closes it (e.g. "Discard your changes?"); onMount's close and the returned close skip it.
+function sheet(title, html, onMount, opts = {}) {
   $$('.scrim.is-closing').forEach(el => el.remove());
   cleanViews();
   const notice = $('#toast');
   if (notice && !$('button', notice)) notice.classList.remove('on'); // an old hint must not cover the new sheet; retain Undo
   const prev = document.activeElement;
   const s = document.createElement('div'); s.className = 'scrim';
-  s.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
-    <header><h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button></header><div class="sbody">${html}</div></div>`;
+  const head = opts.save ? `<button type="button" class="sheet-text-btn" data-close>Cancel</button><h2>${esc(title)}</h2><button type="submit" class="sheet-text-btn save" form="${esc(opts.save)}">Save</button>`
+    : `<h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button>`;
+  s.innerHTML = `<div class="sheet${opts.save ? ' pinned' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
+    <header>${head}</header><div class="sbody">${html}</div></div>`;
   let closing = false;
-  const close = () => {
-    if (closing) return; closing = true;
+  const close = (force) => {
+    if (closing) return;
+    if (force !== true && opts.canClose && !opts.canClose()) { if (sh.style.transform) settle(false); return; }
+    closing = true;
     document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit();
     // Release focus and handlers at once. Keep only the inert visual shell for the short exit, including when
     // closing halfway through entrance or a drag. A replacement sheet can take focus without a delayed restore.
@@ -488,8 +495,9 @@ function sheet(title, html, onMount) {
   const first = $('input, select, textarea, button:not([data-close])', $('.sbody', s));
   // (2026-10-12: a select too - iOS opened the meal picker as soon as Add food appeared)
   if (first && !(first.matches('input, textarea, select') && matchMedia('(pointer: coarse)').matches)) first.focus({preventScroll: true});
-  if (onMount) onMount($('.sbody', s), close);
-  return close;
+  const closeNow = () => close(true);
+  if (onMount) onMount($('.sbody', s), closeNow);
+  return closeNow;
 }
 
 // ---------- router ----------

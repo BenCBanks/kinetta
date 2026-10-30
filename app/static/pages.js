@@ -721,18 +721,25 @@ function editActivity(a) {
   // times as 1:34:50 like everywhere else in the app; heart rate, energy and climb as whole numbers (2026-10-16)
   const isTime=(key)=>key.endsWith('_s');
   const correctionFields=summaryFields.map(([key,label,unit,scale])=>{const value=a[key]==null?'':isTime(key)?dur(a[key]):key==='distance_m'?String(Math.round(a[key]/scale*100)/100):String(Math.round(a[key]/scale));initial[key]=value;return `<label>${label} (${unit})<input name="summary_${key}" inputmode="${isTime(key)?'text':'decimal'}" value="${value}" placeholder="Not recorded" aria-label="${label} in ${isTime(key)?'hours, minutes and seconds':unit}"></label>${Object.hasOwn(a.summary_overrides||{},key)?`<label class="check"><input type="checkbox" name="restore_${key}"> Use recorded ${label.toLowerCase()}</label>`:''}`}).join('');
+  // Redesigned 30 Oct 2026 (Ben): Cancel · Save stay pinned at the top; the most-used choices come first, the rarer
+  // details are grouped, and Delete sits alone at the bottom, away from Save.
+  let dirty = false;
   sheet('Edit activity', `<form class="form" id="e-form">
     <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
     <label>What did you do?<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
-    <details id="e-summary" class="fold-row"><summary><span class="ri c-brand">${svg('edit')}</span><span class="grow"><b>Distance, time & heart rate</b><small>Fix numbers your watch got wrong</small></span><span class="chev">${svg('chev')}</span></summary><div class="form e-fields"><p class="small muted">Your edits stay when Apple Health syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
+    <div id="e-share" class="e-share"><p class="small muted">Loading sharing…</p></div>
     ${optionalText('description', 'Description', 'Add a description', a.description)}
     ${optionalText('private_note', 'Private note (only you)', 'Add a private note', a.private_note)}
+    <h3 class="ghead e-details-head">Details</h3>
+    <details id="e-summary" class="fold-row"><summary><span class="ri c-brand">${svg('edit')}</span><span class="grow"><b>Distance, time & heart rate</b><small>Fix numbers your watch got wrong</small></span><span class="chev">${svg('chev')}</span></summary><div class="form e-fields"><p class="small muted">Your edits stay when Apple Health syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
     <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
     <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
-    <div id="e-share" class="e-share"><p class="small muted">Loading sharing…</p></div>
-    <div class="actions"><button type="button" class="ghost danger" id="e-del">Delete</button><span class="spacer"></span>
-      <button type="button" class="ghost" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, async (body, close) => {
-    const f = $('#e-form', body);
+    <button type="button" class="e-delete" id="e-del">Delete activity</button></form>`, async (body, close) => {
+    const f = $('#e-form', body), btn = body.closest('.sheet').querySelector('button[form="e-form"]');
+    // Any edit (typing, a choice, a sharing button) means closing asks first; opening the fold-outs doesn't count.
+    const touched = () => { dirty = true; };
+    f.addEventListener('input', touched); f.addEventListener('change', touched);
+    f.addEventListener('click', (e) => { if (e.target.closest('.seg button, #sh-usual')) touched(); });
     wireOptionalText(f);
     let saveShare = null;   // sharing (2026-10-12): moved here from the activity page
     (a._social ? Promise.resolve(a._social) : api(`/api/activities/${a.id}/social`))
@@ -750,7 +757,7 @@ function editActivity(a) {
       if (f.gear.value) body2.gear_id = +f.gear.value; else body2.clear_gear = true;
       body2.restore_summary=[];
       for(const [key,label,,scale] of summaryFields){if(f.elements['restore_'+key]?.checked){body2.restore_summary.push(key);continue}const value=f.elements['summary_'+key].value.trim();if(value===initial[key])continue;const number=value===''?null:isTime(key)?clockSecs(value):Number(value.replace(',','.'))*scale;if(number!==null&&!Number.isFinite(number)){toast(isTime(key)?`Enter ${label.toLowerCase()} like 1:34:50`:'Enter a valid '+label.toLowerCase());return}body2[key]=number}
-      const btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'Saving…';
+      if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Saving…';
       try {
         await api(`/api/activities/${a.id}`, json('PATCH', body2));
         if (saveShare) await saveShare();
@@ -762,7 +769,7 @@ function editActivity(a) {
       try { await api(`/api/activities/${a.id}`, {method: 'DELETE'}); invalidate('/api/'); close(); toast('Activity deleted'); go('/activity', {replace: true}); }
       catch (x) { toast(x.message); }
     };
-  });
+  }, {save: 'e-form', canClose: () => !dirty || confirm('Discard your changes?')});
 }
 
 // ---------- Share (2026-10-12): send a link to people on Kinetta, or a picture of the route and the key numbers ----------
