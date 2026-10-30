@@ -263,9 +263,9 @@ Recipe creation uses its own ingredient editor with naming first, a Save recipe 
 
 Progress → Share creates a reviewed 4:5 week/month/year picture with selectable totals, activity calendar, highlights, activity weeks, optional food consistency and optional username/photo. Source credit is retained. Eligible monthly Me offers are quiet and dismissible. Rendering/sharing is local; no sharing destination or recipient is stored. Implementation, browser/native compilation and physical iPhone sharing remain separate release states.
 
-## Opt-in Kinetta cards (#295)
+## Kinetta sharing cards (#295)
 
-Me → Share your Kinetta creates an off-default, revocable username-only card and link. Choose a photo, sport icons and up to two fixed activity/food-consistency stats; private names, individual food/activity details and locations stay out. Share the exact picture and link, copy it or show a bright, awake QR code. Requests stay pending for approval; signup, waitlist invitations and email confirmation retain the deliberate choice. Turning off/rotating the card immediately stops its public surfaces. Physical iPhone sharing, QR scanning and installation handoff remain separate acceptance checks.
+Me → Share your Kinetta offers a revocable card and link. Share card starts on for everyone, with profile photo, sports, distance this year, weekly activity streak and friend requests selected. Existing cards receive these defaults once; later personal changes persist. Sports use app icons and all-time completed counts, omitting unused sports. Change the photo, sports and up to two fixed activity/food-consistency stats; private names, individual food/activity details and locations stay out. Share the exact picture and link, copy it or show a bright, awake QR code. Requests stay pending for approval; signup, waitlist invitations and email confirmation retain the deliberate choice. Turning off/rotating the card immediately stops its public surfaces. Physical iPhone sharing, QR scanning and installation handoff remain separate acceptance checks.
 
 ### GPS activity review (#358, draft PR359)
 
