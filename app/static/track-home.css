@@ -11,7 +11,7 @@
 .compact-ready .track-go > .primary { min-height:48px; }
 .compact-ready #track-ready-error:empty { display:none; }
 .compact-ready #track-guidance { font-size:.8125rem; }
-.track-recording-options { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.track-recording-options { min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .track-recording-options:not(:has(#interval-open)):not(:has(#track-options:not([hidden]))) { display:none; }
 .track-recording-options > div { max-width:100%; }
 .track-recording-options .me-chip { display:flex; gap:5px; min-height:44px; max-width:100%; white-space:normal; text-align:left; padding:7px 10px; font-size:.8125rem; }
