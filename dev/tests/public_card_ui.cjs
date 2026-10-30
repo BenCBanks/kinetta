@@ -12,7 +12,11 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
   await p.goto(base+'/me');await p.locator('[data-card-share]').click();await p.locator('[data-share-card]').click();
   const enabled=p.getByRole('switch',{name:'Share card',exact:true}),photo=p.locator('#card-photo'),sports=p.locator('#card-sports'),requests=p.locator('#card-requests');
-  const settled=async()=>{await p.waitForFunction(()=>{const img=document.querySelector('#card-picture'),toggle=document.querySelector('#card-enabled');return img?.complete&&img.naturalWidth===1080&&toggle&&!toggle.disabled;});};
+  // Evaluate directly: older Playwright's waitForFunction injects eval, rejected by the app's strict CSP.
+  const settled=async()=>{for(let attempt=0;attempt<150;attempt++){
+   if(await p.evaluate(()=>{const img=document.querySelector('#card-picture'),toggle=document.querySelector('#card-enabled');return !!(img?.complete&&img.naturalWidth===1080&&toggle&&!toggle.disabled);}))return;
+   await p.waitForTimeout(100);
+  }throw Error('Card picture and settings did not settle');};
   await settled();assert.match(await p.title(),/Kinetta/);assert.equal(new URL(p.url()).pathname,'/me');
   for(const x of [enabled,photo,sports,requests])assert(await x.isChecked());
   assert.deepEqual(await p.locator('[data-card-stat]:checked').evaluateAll(xs=>xs.map(x=>x.dataset.cardStat)),['distance_year','activity_weeks']);
