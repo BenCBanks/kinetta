@@ -1907,6 +1907,13 @@ MIGRATIONS = [
     CREATE POLICY own_rows ON personal_notification_attempts FOR SELECT TO fit_readers USING(user_id=fit_me());
     CREATE POLICY all_rows ON personal_notification_attempts FOR SELECT TO fit_all_readers USING(true);
     GRANT SELECT ON personal_notification_attempts TO fit_readers;""",
+
+    # 88. Owner-requested card defaults for everyone, once; later personal edits remain authoritative.
+    """ALTER TABLE public_cards ALTER COLUMN enabled SET DEFAULT true;
+    ALTER TABLE public_cards ALTER COLUMN photo SET DEFAULT true;
+    ALTER TABLE public_cards ALTER COLUMN stats SET DEFAULT '["distance_year","activity_weeks"]'::jsonb;
+    UPDATE public_cards SET enabled=true,photo=true,sports=true,
+      stats='["distance_year","activity_weeks"]'::jsonb,allow_requests=true,updated=now();""",
 ]
 
 

@@ -1,4 +1,4 @@
-"""Opt-in, revocable public cards. Only a fixed allowlist leaves the owner's account."""
+"""Revocable public cards. Only a fixed allowlist leaves the owner's account."""
 import datetime as dt
 import html
 import io
@@ -18,7 +18,10 @@ from .auth import current_user
 
 router=APIRouter()
 STAT_KEYS=('distance_year','active_days_year','activities_year','activity_weeks','food_days_month')
+DEFAULT_STATS=('distance_year','activity_weeks')
 SPORTS={'run':'Running','ride':'Cycling','walk':'Walking','hike':'Hiking','swim':'Swimming','workout':'Workouts','row':'Rowing','ski':'Skiing','other':'Other activities'}
+# The light-theme sport colours used by app/static/theme.css; exported pictures have a white canvas.
+SPORT_COLORS={'run':'#12924F','ride':'#0B8798','walk':'#6F8A12','hike':'#B26A10','swim':'#2A80BD','row':'#2A80BD','ski':'#2F6FD6','workout':'#D9532A','other':'#78828C'}
 HEADERS={'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer'}
 # Process-local, bounded work reuse; browsers still revalidate access on every request.
 _pictures=OrderedDict()
@@ -54,7 +57,8 @@ def payload(c,row,request=None):
     uid=row['user_id'];wanted=row['stats'];out={'username':row['login'],'sports':[],'stats':[],'garmin_sources':[],'allow_requests':row['allow_requests'],'url':url(row['code'],request)}
     year=recaps.facts(c,uid,'this_year') if wanted else None
     if row['sports']:
-        out['sports']=[r['sport'] for r in c.execute('SELECT DISTINCT sport FROM activities WHERE user_id=%s AND NOT lift_open ORDER BY sport',(uid,)).fetchall() if r['sport'] in SPORTS]
+        out['sports']=[dict(r) for r in c.execute('''SELECT sport,count(*) AS activities FROM activities
+          WHERE user_id=%s AND NOT lift_open GROUP BY sport ORDER BY activities DESC,sport''',(uid,)).fetchall() if r['sport'] in SPORTS]
     if wanted:
         profile=c.execute('SELECT units FROM profile WHERE user_id=%s',(uid,)).fetchone() or {};imperial=profile.get('units')=='imperial'
         for key in wanted:
@@ -71,9 +75,9 @@ def payload(c,row,request=None):
 class Settings(BaseModel):
     model_config=ConfigDict(extra='forbid')
     enabled:StrictBool
-    photo:StrictBool=False
+    photo:StrictBool=True
     sports:StrictBool=True
-    stats:list[str]=Field(default_factory=list,max_length=2)
+    stats:list[str]=Field(default_factory=lambda:list(DEFAULT_STATS),max_length=2)
     allow_requests:StrictBool=True
     @model_validator(mode='after')
     def valid_stats(self):
@@ -173,18 +177,21 @@ def sport_icon(g,sport,x,y,size=48):
       'workout':[[6,8,6,16],[18,8,18,16],[3,10,3,14],[21,10,21,14],[6,12,18,12]],
       'other':[[12,8,12,12,15,14]]}
     circles={'run':[(15,4.5,2)],'walk':[(13,4.5,2)],'ride':[(6,16,4),(18,16,4)],'swim':[(16,8.5,2)],'ski':[(13,4,1.6)],'other':[(12,12,8)]}
-    scale=size/24;color='#1F55D0';width=max(2,round(1.7*scale))
-    for path in strokes.get(sport,[]):g.line([(x+path[i]*scale,y+path[i+1]*scale) for i in range(0,len(path),2)],fill=color,width=width,joint='curve')
+    scale=size/24;color=SPORT_COLORS[sport];width=max(2,round(1.7*scale))
+    for path in strokes.get(sport,[]):
+        points=[(x+path[i]*scale,y+path[i+1]*scale) for i in range(0,len(path),2)]
+        g.line(points,fill=color,width=width,joint='curve')
+        for px,py in points:g.ellipse((px-width/2,py-width/2,px+width/2,py+width/2),fill=color)
     for cx,cy,r in circles.get(sport,[]):g.ellipse((x+(cx-r)*scale,y+(cy-r)*scale,x+(cx+r)*scale,y+(cy+r)*scale),outline=color,width=width)
 
 
 def image(c,row,request):
     d=payload(c,row,request);im=Image.new('RGB',(1080,1350),'#FFFFFF');g=ImageDraw.Draw(im)
     def text(value,x,y,size=42,color='#15191D',max_width=936):
+        font=ImageFont.load_default(size=size)
         while size>20:
-            font=ImageFont.load_default(size=size)
             if g.textlength(str(value),font=font)<=max_width:break
-            size-=2
+            size-=2;font=ImageFont.load_default(size=size)
         g.text((x,y),str(value),font=font,fill=color)
     y=100
     if 'photo' in d:
@@ -193,11 +200,14 @@ def image(c,row,request):
             photo=ImageOps.fit(Image.open(io.BytesIO(bytes(p['img']))).convert('RGB'),(180,180));mask=Image.new('L',(180,180));ImageDraw.Draw(mask).ellipse((0,0,180,180),fill=255);im.paste(photo,(72,y),mask);y+=225
     text('@'+d['username'],72,y,76);y+=110;text('is on Kinetta',72,y,42,'#4A535C');y+=95
     if d['sports']:
-        for n,sport in enumerate(d['sports']):
-            x=72+(n%3)*312;top=y+(n//3)*64
-            sport_icon(g,sport,x,top)
-            text(SPORTS[sport],x+60,top+7,30,'#4A535C',max_width=240)
-        y+=((len(d['sports'])+2)//3)*64+25
+        text('Sports · all time',72,y,26,'#646D77');y+=44
+        for n,item in enumerate(d['sports']):
+            sport=item['sport'];x=72+(n%3)*312;top=y+(n//3)*100
+            g.rounded_rectangle((x,top,x+296,top+88),radius=18,fill='#EDF0F3')
+            sport_icon(g,sport,x+16,top+23,size=42)
+            text(f"{item['activities']:,}",x+76,top+10,36,max_width=204)
+            text(SPORTS[sport],x+76,top+54,22,'#4A535C',max_width=204)
+        y+=((len(d['sports'])+2)//3)*100+16
     if d['stats']:
         slot=(1040-y)/len(d['stats'])
         for stat in d['stats']:
