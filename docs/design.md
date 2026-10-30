@@ -1378,3 +1378,13 @@ toast, composer, plan, recording and review-Save clearance. Use the compact heig
 thread, recipe and full-screen-map hiding, route/scroll state and visible keyboard focus. The bar reuses its DOM
 across routes. Limit blur to this small surface and respect reduced motion. Physical-device scrolling performance
 and real iOS accessibility-setting changes require separate acceptance from browser/Simulator layout evidence.
+
+## Goals sheet · 30 October 2026 (owner: macros were hard to find)
+
+The Nutrition goal button opens one **Goals** sheet. Daily calories, protein, carbs and fat sit together as an even
+2×2 grid under "Every day", with a plain running line saying what the macros add up to (4/4/9 kcal per gram) and
+whether that matches the calorie target. Fiber and the optional nutrient limits stay folded under More targets. One
+Save daily targets button saves them. A different calorie goal for one day is a secondary, folded choice below
+("Different calories just for today"), opened automatically when that day already has one; it changes calories only,
+and the sheet says so. The Set macro targets link opens the same sheet without the one-day part. With no daily target
+yet, Set goals still opens the full goal setup. Do not autofocus a field: the keyboard would hide the grid.

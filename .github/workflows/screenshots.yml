@@ -61,6 +61,7 @@ jobs:
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/activity_ui.cjs"
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/tracking_ui.cjs"
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/personal_notifications_ui.cjs"
+          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/goals_ui.cjs"
           pip install pillow==11.0.0
           python3 "$GITHUB_WORKSPACE/dev/screenshots/to_webp.py" /tmp/png "$GITHUB_WORKSPACE/site/assets/shots"
       - name: Commit them
