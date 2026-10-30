@@ -1123,7 +1123,7 @@ function progressTeasers(o) {
 function progressTiles(box, overview=null, {ready=false}={}) {
   const teasers = overview ? progressTeasers(overview) : {}, saved = store.get(progressSeenKey()), seen = Array.isArray(saved) ? saved : [];
   const ordered = [...PEXPLORE.filter(([k])=>teasers[k]), ...PEXPLORE.filter(([k])=>!teasers[k])];
-  box.innerHTML = ordered.map(([k,n,d,ic])=>`<a class="card progress-tile" href="${k==='plan'?'/plan':k==='lifting'?'/progress?view=lifting':'/progress/'+k}" data-progress-feature="${k}"><span class="progress-tile-name">${svg(ic)}<b>${esc(n)}</b><span class="progress-new${ready&&!teasers[k]&&!seen.includes(k)?'':' seen'}"${ready&&!teasers[k]&&!seen.includes(k)?' aria-label="New feature"':' aria-hidden="true"'}>New</span></span><span class="small muted">${esc(teasers[k] || d)}</span></a>`).join('');
+  box.innerHTML = ordered.map(([k,n,d,ic])=>`<a class="card progress-tile" href="${k==='plan'?'/plan':k==='lifting'?'/progress?view=lifting':'/progress/'+k}" data-progress-feature="${k}"><span class="progress-tile-name">${svg(ic)}<b>${esc(n)}</b><span class="progress-new${ready&&!teasers[k]&&!seen.includes(k)?'':' seen'}"${ready&&!teasers[k]&&!seen.includes(k)?' aria-label="New feature"':' aria-hidden="true"'}>New</span></span><span class="small muted">${esc((teasers[k] || d).replace(/ →$/, '\u00a0→'))}</span></a>`).join('');
 }
 async function progressHome(el, q) {
   App.progressHome={owner:readOwner(),href:location.pathname+location.search};
@@ -1372,7 +1372,7 @@ async function pMileage(body, q, {home=false}={}) {
     const cur = all[all.length - 1], last = all[all.length - 2];
     box.innerHTML = `<div class="card"><div class="stats3">
         ${stat('This ' + word, toU(val(cur)).toFixed(1), U.du())}
-        ${home&&avg==null?'':stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du())}
+        ${home&&avg==null?'':stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du()).replace('class="stat"','class="stat progress-average"')}
         ${stat('Best ' + word + (scoped ? ' (range)' : ''), toU(val(best)).toFixed(period === 'year' ? 0 : 1), U.du())}</div>
         ${home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>`}
         <div id="m-chart"></div>

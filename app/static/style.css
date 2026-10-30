@@ -2921,3 +2921,6 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-segment-controls .segment-filters { gap:8px; }
 .progress-segment-controls .me-period { margin:0; flex-wrap:wrap; }
 .progress-segment-controls [data-f] { min-height:44px; }
+
+.progress-home-totals #m-chart .legend { display:none; }
+.progress-home-totals .progress-average > small::before { content:""; display:inline-block; width:10px; border-top:1.5px dashed var(--tx2); margin-right:4px; vertical-align:middle; }
