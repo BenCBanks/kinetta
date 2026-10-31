@@ -38,10 +38,10 @@ try:
     assert before['activities'] == before['mapped'] == before['active_days'] == before['routes'] == before['segments'] == 0
     assert before['record'] is before['lifting'] is before['plan'] is None
     assert before['food'] == {'protein_days': None, 'weight_change_kg': None, 'library_items':0, 'weight_kg':None, 'logged_days':0, 'reminders_on':False}
-    today = dt.date.fromisoformat(before['today'])
-    aid = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T01:00:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional private run'})[1]['id']
+    today = dt.date.fromisoformat(before['today'])   # just after midnight in UTC+14, so today's runs stay within the 1-hour future allowance at any UTC hour
+    aid = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T00:00:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional private run'})[1]['id']
     assert runner.put(f'/api/activities/{aid}/sharing', {'visibility': 'me'})[0] == 200
-    second = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T02:00:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional second run'})[1]['id']
+    second = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T00:30:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional second run'})[1]['id']
     for offset in range(1, 7):
         day = today - dt.timedelta(days=offset * 5)
         assert runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{day}T01:00:00+14:00', 'duration_s': 1800, 'distance_m': 5000, 'name': 'Fictional training run'})[0] == 200
