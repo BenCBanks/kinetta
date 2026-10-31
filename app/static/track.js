@@ -79,6 +79,7 @@ const TrackMath = {
 };
 const Track = (() => {
   let session = null, key = null, owner = null, watch = null, wake = null, message = '', saving = false, mapTimer = null, mapView = null, lastPersist = 0, nativeTask = null, controlling = false, display = 'map', nativeRevision = 0,refreshReadyDistance=null,drawRevision=0;
+  let planIntent=null;
   let reviewDraft=null,reviewRestore=null,photoBusy=false,photoGeneration=0,saveError='',mapOverlay=null,reviewResize=null;
   const accountKey = () => App.me ? 'kinetta.track:' + JSON.stringify([Native.base || location.origin, App.me.id]) : null;
   const stopGPS = () => { if (watch !== null) navigator.geolocation?.clearWatch(watch); watch = null; if (wake) wake.release().catch(() => {}); wake = null; };
@@ -97,7 +98,7 @@ const Track = (() => {
     const next = accountKey();
     if (next !== key || owner && owner !== readOwner()) {
       if (session && !session.native) pause();
-      key = next; owner = App.me ? readOwner() : null; session = key ? store.get(key) : null; message = '';
+      key = next; owner = App.me ? readOwner() : null; session = key ? store.get(key) : null; planIntent=null; message = '';
       reviewDraft=null;photoBusy=false;photoGeneration++;saveError='';reviewRestore=null;
       if (session) {
         // No time is invented between the last durable checkpoint and opening Kinetta again.
@@ -480,14 +481,28 @@ const Track = (() => {
     const discarding=$('#track-discard');if(discarding)discarding.onclick=()=>{if(live()&&!photoBusy&&!reviewDraft?.request)discard();};
   }
   const OUTDOOR = [['run','Run'],['run','Trail run','Trail Running'],['ride','Ride'],['ride','Mountain bike','Mountain Biking'],['walk','Walk'],['hike','Hike'],['swim','Open-water swim','Open Water'],['row','Row on water'],['ski','Ski'],['other','Other outdoor activity']];
+  const recordingChoices=()=>[...(TrackNative.supported?OUTDOOR:[]).map(([sport,label,kind])=>({sport,label,sportLabel:kind,gps:true})),{label:'Lifting',lift:true},...HAND_KINDS.flatMap(([,rows])=>rows).filter(([, ,kind])=>kind!=='Strength Training').map(([sport,label,kind])=>({sport,label,sportLabel:kind,gps:false}))];
+  const canPreparePlan=w=>!!w&&w.type!=='rest'&&w.status!=='done'&&/^\d{4}-\d{2}-\d{2}$/.test(w.day);
+  async function preparePlan(workout,planId,{active=()=>true,remember=true}={}){
+    sync();const scope=accountKey(),revision=readOwner();
+    if(!scope||!Number.isSafeInteger(planId)||planId<=0||!canPreparePlan(workout))throw Error('Open your plan and choose the workout again.');
+    if(session)throw Error('Finish or discard your current recording before choosing a plan workout.');
+    const current=()=>accountKey()===scope&&readOwner()===revision&&!session&&active();
+    if(!current())return null;
+    const loaded=workout.track_intervals?await Intervals.usePlan(workout,planId,{active:current}):Intervals.removeSelection();
+    if(!current())return null;if(!loaded)throw Error('This device could not keep your workout selection. Try again.');
+    const index=recordingChoices().findIndex(c=>c.sport==='run'&&!c.sportLabel);if(index<0)throw Error('Run is unavailable. Choose it from Track.');
+    store.set(scope+':choice',index);
+    if(remember)planIntent={scope,owner:revision,planId,workout:JSON.parse(JSON.stringify(workout))};
+    return{index};
+  }
   // One-tap shortcuts for the most common choices (2026-10-18 UI pass); everything else stays in the All activities list.
   const TRACK_QUICK = [0, 2, 4, 5, OUTDOOR.length];   // Run, Ride, Walk, Hike, then Lifting (the first choice after OUTDOOR)
   function ready(el,renderRevision) {
-    const indoor = HAND_KINDS.flatMap(([, rows]) => rows).filter(([, , kind]) => kind !== 'Strength Training');
     // GPS recording is in the iPhone app only (Ben, 2026-10-24); a browser times indoor workouts, lifting and past entries.
     // A GPS draft already started in a browser can still be finished and saved (draw/resume above).
     const outdoor = TrackNative.supported ? OUTDOOR : [];
-    const choices = [...outdoor.map(([sport,label,kind]) => ({sport,label,sportLabel:kind,gps:true})), {label:'Lifting',lift:true}, ...indoor.map(([sport,label,kind]) => ({sport,label,sportLabel:kind,gps:false}))];
+    const choices = recordingChoices();
     const quick = outdoor.length ? TRACK_QUICK : [0, 1, 2, 3].filter(i => i < choices.length);
     let selected = Math.min(choices.length-1, Math.max(0, +store.get(key + ':choice') || 0)),choiceRevision=0,planLoading=false;
     const done = new URLSearchParams(location.search).get('done');
@@ -501,7 +516,7 @@ const Track = (() => {
       </form>
       <div id="track-open-lift"></div><section class="track-tools compact-track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">Other ways to add</h2><div id="track-explore" class="progress-grid"></div></section>`;
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false,readyFollow=true;const readyOwner=readOwner(),readyLive=()=>renderRevision===drawRevision&&el.isConnected&&readyOwner===readOwner()&&!session;
-    const guide = () => { const c=choices[selected];globalThis.Intervals?.mount($('#track-interval-ready'),c,{compact:true,changed:opts});$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Sets, reps and a rest timer.':c.gps?'GPS continues with your screen locked.':TrackNative.supported?'A timer, including with your screen locked.':'Keep this page open while the timer runs.'; };
+    const guide = () => { const c=choices[selected];globalThis.Intervals?.mount($('#track-interval-ready'),c,{compact:true,changed:()=>{choiceRevision++;opts();}});$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Sets, reps and a rest timer.':c.gps?'GPS continues with your screen locked.':TrackNative.supported?'A timer, including with your screen locked.':'Keep this page open while the timer runs.'; };
     // The pre-start chips edit the existing device choices; the recorder remains their owner after Start.
     const opts=()=>{ const c=choices[selected],box=$('#track-options');if(!box)return;
       box.hidden=!c.gps;if(!c.gps)return;
@@ -520,7 +535,7 @@ const Track = (() => {
         $('[data-done]',b).onclick=close;});
       Native.haptic?.('selection'); };
     const gear=$('#track-settings');if(gear)gear.onclick=()=>{const c=choices[selected];if(c.gps)prefs(c);else toast('Spoken updates and auto-pause are for GPS activities.');};
-    const pick=(i)=>{if(!readyLive()||!choices[i])return;selected=i;choiceRevision++;store.set(key+':choice',selected);const other=$('#track-other');other.innerHTML=esc(quick.includes(i)?'More':choices[i].label)+svg('down');other.setAttribute('aria-pressed',String(!quick.includes(i)));other.setAttribute('aria-label',quick.includes(i)?'More activities':'More activities, selected '+choices[i].label);$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();opts();auto();};
+    const pick=(i,fromPlan=false)=>{if(!readyLive()||!choices[i])return;if(!fromPlan&&planIntent){planIntent=null;$('#track-plan').hidden=true;}selected=i;choiceRevision++;store.set(key+':choice',selected);const other=$('#track-other');other.innerHTML=esc(quick.includes(i)?'More':choices[i].label)+svg('down');other.setAttribute('aria-pressed',String(!quick.includes(i)));other.setAttribute('aria-label',quick.includes(i)?'More activities':'More activities, selected '+choices[i].label);$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();opts();auto();};
     $('#track-other').onclick=()=>pickSheet('Activity',pickRows(choices.map((c,i)=>[String(i),c.label,c.gps?'GPS':c.lift?'Sets & reps':'Timer',c.lift?'workout':c.sport]),String(selected)),i=>pick(+i));
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
@@ -562,11 +577,13 @@ const Track = (() => {
     }
     if(globalThis.Intervals&&new URLSearchParams(location.search).get('intervals')==='1'){const url=new URL(location.href);url.searchParams.delete('intervals');history.replaceState(null,'',url.pathname+url.search+url.hash);Intervals.library(()=>{guide();opts();});}
     $('#track-setup').onsubmit=async(e)=>{e.preventDefault();if(controlling||planLoading||!readyLive())return;const c=choices[selected];if(c.lift){if(globalThis.Intervals?.hasSelection()){const error=$('#track-ready-error');if(error)error.textContent='Intervals need an outdoor Run or Walk in the iPhone app. Change the activity or remove the loaded preset.';return;}startLiftSheet();return;}await begin(c.sport,c.label,c.sportLabel,c.gps);};
-    // Only live plan facts may prefill an expressible workout. Never infer intervals from its prose.
-    if(outdoor.length)api('/api/plans/current').then(d=>{if(!readyLive())return;const w=d.today_workout;if(!d.plan||!w||w.day!==d.today||w.status==='done'||w.type==='rest')return;
-      const box=$('#track-plan'),canUse=!!w.track_intervals||['easy','recovery','long'].includes(w.type);box.hidden=false;
-      box.innerHTML=`<a href="/plan"><small>Today</small><b>${esc(w.title)}</b></a>${canUse?'<button type="button" class="me-chip" data-plan-use>Use</button>':`<a class="me-chip" href="/plan">View plan</a>`}`;
-      const button=$('[data-plan-use]',box);if(button)button.onclick=async()=>{if(!readyLive()||planLoading)return;const choice=choiceRevision,start=$('#track-start');planLoading=true;button.disabled=start.disabled=true;button.textContent='Loading…';$('#track-ready-error').textContent='';try{const loaded=w.track_intervals?await Intervals.usePlan(w,d.plan.id,{active:()=>readyLive()&&choice===choiceRevision}):Intervals.removeSelection();if(!readyLive()||!loaded)return;pick(0);toast('Ready for today’s run. Press Start when you are.');}catch(e){if(readyLive())$('#track-ready-error').textContent=e.message;}finally{planLoading=false;if(button.isConnected){button.disabled=false;button.textContent='Use';start.disabled=controlling;}}};
+    // A plan-page Start carries an already checked choice; ordinary Track visits show today's own facts.
+    const intent=planIntent?.scope===key&&planIntent.owner===readOwner()?planIntent:null;
+    if(outdoor.length||intent)(intent?Promise.resolve({plan:{id:intent.planId}}):api('/api/plans/current')).then(d=>{if(!readyLive())return;const w=intent?.workout||d.today_workout;if(!d.plan||!w||(!intent&&w.day!==d.today)||w.status==='done'||w.type==='rest')return;
+      const box=$('#track-plan'),canUse=!!intent||!!w.track_intervals||['easy','recovery','long'].includes(w.type);box.hidden=false;
+      const label=intent?(w.day===isoDay(new Date())?'Selected today':'Selected '+new Date(w.day+'T12:00').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})):'Today';
+      box.innerHTML=`<a href="/plan"><small>${esc(label)}</small><b>${esc(w.title)}</b></a>${canUse?'<button type="button" class="me-chip" data-plan-use>Use</button>':`<a class="me-chip" href="/plan">View plan</a>`}`;
+      const button=$('[data-plan-use]',box);if(button)button.onclick=async()=>{if(!readyLive()||planLoading)return;const choice=choiceRevision,start=$('#track-start');planLoading=true;button.disabled=start.disabled=true;button.textContent='Loading…';$('#track-ready-error').textContent='';try{const loaded=await preparePlan(w,d.plan.id,{active:()=>readyLive()&&choice===choiceRevision,remember:false});if(!readyLive()||!loaded)return;pick(loaded.index,true);toast('Ready for your run. Press Start when you are.');}catch(e){if(readyLive())$('#track-ready-error').textContent=e.message;}finally{planLoading=false;if(button.isConnected){button.disabled=false;button.textContent='Use';start.disabled=controlling;}}};
     }).catch(()=>{});
     trackDiscovery($('#track-explore'),readyLive);
     liftNowCard($('#track-open-lift'));
@@ -610,7 +627,7 @@ const Track = (() => {
   document.addEventListener('visibilitychange', () => { if (document.hidden && session?.state === 'recording' && !session.native) { message = 'Paused while Kinetta was in the background. Resume when ready.'; pause(); draw(); } });
   window.addEventListener('pagehide', () => { if (session && !session.native) pause(); });
   setInterval(() => { if (!App.me || owner && readOwner() !== owner) { stopGPS(); if (session && !session.native) pause(); return; } if(!session)refreshReadyDistance?.(); if (session?.native) { if (!document.hidden && location.pathname === '/track') pullNative().catch((e)=>{message=e.message;update();});update();return; } if (session?.state === 'recording') { session.checkpoint = Date.now(); persist(false); update(); } }, 1000);
-  return {get active() { return !!session; }, sync, draw, pause, pullNative, restoreReview, async leave() { if(TrackNative.supported) await TrackNative.detach();else await pause(); }, async forgetDraft() { const scope=key;stopGPS();mapOverlay?.close();if(scope)store.del(scope);session=null;reviewDraft=null;if(scope)await TrackReviewStore.erase(scope); }};
+  return {get active() { return !!session; }, canPreparePlan, preparePlan, sync, draw, pause, pullNative, restoreReview, async leave() { if(TrackNative.supported) await TrackNative.detach();else await pause(); }, async forgetDraft() { const scope=key;stopGPS();mapOverlay?.close();if(scope)store.del(scope);session=null;reviewDraft=null;if(scope)await TrackReviewStore.erase(scope); }};
 })();
 route(/^\/track$/, 'track', async (el) => {
   Track.sync(); el.innerHTML = `<div class="top"><h1>Track</h1><div class="acts">${TrackNative.supported ? `<button type="button" class="icon-btn" id="track-settings" aria-label="Recording settings">${svg('gear')}</button>` : ''}</div></div><div id="track-content"></div>`;
