@@ -270,7 +270,7 @@ with patch.object(notify.threading, 'Thread'):
         ck(len(rows) == 1, 'workout replay has one notification')
     sent = []
     ck(notify.push(rows[0]['id'], send=lambda info, data: sent.append(data)) == 1, 'new-workout push sent through existing delivery')
-    ck(sent[0]['title'] == 'Workout saved' and sent[0]['body'] == 'Test ready workout\n5.00 km · 30 min' and sent[0]['url'] == f'/activity/{aid}', 'descriptive title, metric summary and deep link')
+    ck('run' in sent[0]['title'].lower() and 'Alex' in sent[0]['title'] and len(sent[0]['title']) < 40 and sent[0]['body'].splitlines()[0] == 'Test ready workout · 5.00 km in 30 min' and sent[0]['url'] == f'/activity/{aid}?edit=1', 'warm owner title, metric summary and own-edit deep link')
     notify.settings(notify.PrefsIn(activities=False), user={'id': uid})
     ck(notify.push(rows[0]['id'], send=lambda i, d: sent.append(d)) == 0 and len(sent) == 1, 'disabled workout category sends nothing')
     with db.connect() as c:
