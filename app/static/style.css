@@ -797,6 +797,21 @@ a.ntile { color: inherit; text-decoration: none; }
 .wdone { display: flex; align-items: center; gap: 6px; color: var(--good); margin: 0 0 10px; } .wdone svg { width: 18px; height: 18px; } .wdone b { color: var(--tx); }
 .wfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .wfoot .daypick { display: inline-flex; align-items: center; gap: 6px; padding: 0; }
+.weight-heading { display:flex; flex-wrap:wrap; gap:8px; }
+.weight-heading > .back { flex:0 0 auto; }
+.weight-heading-main { display:flex; align-items:center; gap:8px; width:max-content; flex:1 0 auto; min-width:0; }
+.weight-heading-main > h1 { flex:0 0 auto; font-size:var(--text-app-title); }
+.weight-heading-main > .acts { flex:0 0 auto; gap:8px; margin-left:auto; }
+.weight-page .card { padding:16px; }
+.weight-page .chartbox .yl { font-size:13px; }
+.body-weight { min-width:0; display:grid; align-content:start; }
+.body-weight-input { display:flex; align-items:stretch; gap:8px; }
+.body-weight-input input { min-width:0; flex:1; }
+.body-weight-input .linkbtn { min-width:44px; min-height:44px; }
+.weight-page .card h2 { font-size:max(16px,1.0625rem); }
+.weight-page .weight-history-row > span:first-child { flex-basis:6rem; }
+.weight-page .weight-source { font-size:max(13px,.8125rem); }
+
 .mac4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .mac4 label:first-child { grid-column: 1 / -1; }
 .mac4 input { padding: 8px 12px; }
 

@@ -3,16 +3,17 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const app=fs.readFileSync('app/static/app.js','utf8');
 // Actual weigh-in sheet (weekly check-in): opening and prefill are read-only, late prefill respects typing.
 (async()=>{
- let owner='one',prefill,closed=0,html='',writes=[],focused=0;
- const field={value:'',focus(){focused++},setCustomValidity(){},reportValidity(){}},button={disabled:false},form={elements:{weight:field}},nodes={'#quick-weight':form},b={isConnected:true};
+ let owner='one',prefill,closed=0,html='',writes=[],focused=0,refreshed=0,callbacks=0;
+ const field={value:'',selectionStart:0,selectionEnd:0,focus(){focused++},setCustomValidity(){},reportValidity(){}},button={disabled:false},form={elements:{weight:field}},nodes={'#quick-weight':form},b={isConnected:true};
  const c={App:{me:{weight_kg:75}},readOwner:()=>owner,isoDay:()=> '2026-10-17',dayLabel:()=> 'Today',imp:()=>false,U:{weight:v=>v},esc:String,LB:2.20462,
   sheet:(title,body,fn)=>{html=body;fn(b,()=>closed++)},$:s=>s==='button'?button:nodes[s],load:(path,fn)=>{prefill=fn;return Promise.resolve()},
-  sendOrQueue:async(...args)=>{writes.push(args);return{}},invalidate(){},Native:{haptic(){}},toast(){}};
+  refreshWeightData:async who=>{assert.equal(who,'one');refreshed++;},sendOrQueue:async(...args)=>{writes.push(args);return{}},invalidate(){},Native:{haptic(){}},toast(){}};
  vm.createContext(c);vm.runInContext(app.slice(app.indexOf('function quickWeighIn'),app.indexOf('function render()')),c);
- c.quickWeighIn();assert.equal(writes.length,0);assert.match(html,/>Today</);assert.equal(focused,1);
+ c.quickWeighIn({afterSave:()=>callbacks++});assert.equal(writes.length,0);assert.match(html,/>Today</);assert.equal(focused,1);
  prefill({points:[{day:'2026-10-16',kg:76},{day:'2026-10-15',kg:77}]});assert.equal(field.value,76);
+ field.selectionEnd=2;prefill({points:[{day:'2026-10-16',kg:79}]});assert.equal(field.value,76,'Selecting text before typing blocks a late prefill');field.selectionEnd=0;
  field.value='74.5';field.oninput();prefill({points:[{day:'2026-10-16',kg:78}]});assert.equal(field.value,'74.5');
- await form.onsubmit({preventDefault(){}});assert.equal(writes.length,1);assert.equal(writes[0][0],'/api/food/weights');assert.equal(writes[0][2].kg,74.5);assert.equal(writes[0][2].day,'2026-10-17');assert.equal(closed,1);
+ await form.onsubmit({preventDefault(){}});assert.equal(writes.length,1);assert.equal(writes[0][0],'/api/food/weights');assert.equal(writes[0][2].kg,74.5);assert.equal(writes[0][2].day,'2026-10-17');assert.equal(closed,1);assert.equal(refreshed,1);assert.equal(callbacks,1);
  await form.onsubmit({preventDefault(){}});assert.equal(writes.length,1,'double tap does not repeat save');
  console.log('navigation quick weigh-in: no open write, today, latest prefill, late-read typing guard and explicit one-time save PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

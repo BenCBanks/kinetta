@@ -1753,6 +1753,13 @@ stay as they are. Activity-photo notification thumbnails are deferred to a separ
 no photo or route URL is added here.
 
 
+### Weight belongs in Progress (31 October 2026, #411)
+
+Progress always offers Weight, including for people who never log food. Its shared discovery tile shows the latest weigh-in and the existing trend change, or invites a first weigh-in; it does not label that change as a fixed thirty-day comparison. `/progress/weight` is the private home. Nutrition discovery and Insights still link there, Explore lists it under Progress, and both older Nutrition addresses remain aliases. Named Back follows the actual page and filters, with owner-bound parent fallbacks for direct links.
+
+Me → Settings → Body has a Log action beside the stored weight. A confirmed weigh-in refreshes that value and discovery facts; an unchanged Body weight cannot overwrite a newer weigh-in. Daily calorie estimates prefer the existing trend, then the stored weight. Late history reads preserve a typed weigh-in, and late profile replies update only weight-owned fields. Offline saves retain their waiting-to-send message.
+
+The existing units, smoothing, source labels, manual priority, history and deletion remain. The Weight cards use16px padding and chart labels13px; the narrow chart measures its real width. History keeps its original controls with44px Delete targets and generous row spacing. Normal and enlarged330px layouts wrap the title/actions together. Weight remains absent from shared cards, friends and recap pictures.
 ### Visible reaction choices (31 October 2026, #442)
 
 Activity, profile and private-history cards show three inline icon toggles: Cheers, Strong and Applause. Each needs one tap. The selected choice uses its existing colour; selecting it again clears it, and choosing another replaces it. Per-kind and comment counts appear only above zero. The separate people button opens the existing reaction list when anyone has reacted. Detail retains its visible picker and hold shortcut.

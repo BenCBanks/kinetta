@@ -1075,7 +1075,7 @@ function wireProgressFocus(el) { if (typeof KitChat !== 'undefined') KitChat.ent
 function nutritionHref(view, params = '') {
   const q=new URLSearchParams(params);q.set('view',view);
   if(location.pathname==='/progress'||new URLSearchParams(location.search).get('from')==='progress')q.set('from','progress');
-  return '/food?'+q;
+  return view==='weight'?weightAddress(q):'/food?'+q;
 }
 function foodProgress(el,q) {
   const requested=q.get('foodview')||'overview',view=NPROG.some(v=>v[0]===requested)?requested:'overview';
@@ -1089,6 +1089,7 @@ function pHead(el, view, filters) {
   progressFilters(el, $('#p-body',el), filters, {selector:view === 'heatmap' ? '.heatmap-tools' : '.card'});
 }
 const PEXPLORE = [
+  ['weight','Weight','Log your first weigh-in →','scale'],
   ['heatmap','Heatmap','See where you train →','globe'],
   ['plan','Training plan','Build a 5K plan →','target'],
   ['calendar','Calendar','See each training day →','calendar'],
@@ -1100,7 +1101,9 @@ const PEXPLORE = [
 function progressTeasers(o) {
   const date = new Date(o.today+'T12:00'), month = date.toLocaleDateString([],{month:'long'});
   const plan = o.plan, next = plan?.next, when = next?.day === o.today ? 'Today' : next?.day === addDays(o.today,1) ? 'Tomorrow' : next ? fdate(next.day+'T12:00',{weekday:'short'}) : '';
+  const weight=o.food?.weight_kg,change=o.food?.weight_change_kg,unit=imp()?'lb':'kg';
   return {
+    weight:weight!=null?`${U.weight(weight)} ${unit} latest${change==null?'':change===0?' · trend steady':` · ${change<0?'−':'+'}${U.weight(Math.abs(change))} ${unit} trend`}`:null,
     heatmap:o.mapped ? `${o.mapped.toLocaleString()} ${o.mapped===1?'activity':'activities'} mapped` : null,
     plan:plan ? next ? `${when}: ${next.title || 'Planned run'}` : plan.week ? `Week ${plan.week} of ${plan.weeks}` : 'Your training plan is ready' : null,
     calendar:o.active_days ? `${o.active_days} active ${o.active_days===1?'day':'days'} in ${month}` : null,
@@ -1122,7 +1125,7 @@ async function progressHome(el, q) {
     <div class="progress-home"><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
     <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
     <a class="card progress-summary" href="/progress?view=records"><h2>${svg('trophy')}Records</h2><span data-progress-record class="small muted">Your fastest times, after a timed run</span></a></div>
-    <h2 class="sec-head">Explore your training</h2><div class="progress-grid" id="p-explore"></div>
+    <h2 class="sec-head">Explore your progress</h2><div class="progress-grid" id="p-explore"></div>
     ${foodUser()?'<a class="card progress-food-summary" href="/food?view=overview&from=progress"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}
     ${q.get('review')==='week'?'<div id="p-combined-week"></div>':''}</div>`;
   wireProgressFocus(el); wireProgressPeriods(el);
@@ -1644,7 +1647,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   });
   $('#m-body', el).onclick = () => bodySheet();
   if (new URLSearchParams(location.search).get('setup') === 'body') {
-    history.replaceState(null, '', '/me/settings'); bodySheet();
+    replacePageAddress(el,'/me/settings'); bodySheet();
   }
   const logout = $('#logout', el);
   let leaving = false;
@@ -1679,25 +1682,28 @@ route(/^\/me\/settings$/, 'me', async (el) => {
 
 // heart rate, body and time zone (zones, effort, calorie needs) - a sheet, so the Me page stays a short list
 function bodySheet() {
-  const me = App.me;
+  const me = App.me,owner=readOwner(),initialWeight=String(U.weight(me.weight_kg));
   sheet('Body, heart rate & time zone', `<form class="form" id="m-form">
         <div class="two"><label>Max heart rate<input name="max_hr" inputmode="numeric" value="${esc(me.max_hr || '')}" placeholder="auto"></label>
         <label>Resting heart rate<input name="rest_hr" inputmode="numeric" value="${esc(me.rest_hr || '')}" placeholder="60"></label></div>
         <div class="two"><label>Sex (for calorie & effort estimates)<select name="sex"><option value="">—</option><option value="male"${me.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${me.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
         <label>Birth year<input name="birth_year" inputmode="numeric" value="${esc(me.birth_year || '')}"></label></div>
-        <div class="two"><label>Weight (${imp() ? 'lb' : 'kg'})<input name="weight" inputmode="decimal" value="${esc(U.weight(me.weight_kg))}"></label>
+        <div class="two"><div class="body-weight"><label for="body-weight">Weight (${imp() ? 'lb' : 'kg'})</label><div class="body-weight-input"><input id="body-weight" name="weight" inputmode="decimal" value="${esc(initialWeight)}"><button type="button" class="linkbtn" id="body-log-weight" aria-label="Log weight">Log</button></div></div>
         <label>Height (${imp() ? 'ft in' : 'cm'})<input name="height" value="${esc(me.height_cm ? (imp() ? `${Math.floor(me.height_cm / 2.54 / 12)} ${Math.round(me.height_cm / 2.54 % 12)}` : Math.round(me.height_cm)) : '')}" placeholder="${imp() ? '5 10' : '178'}"></label></div>
         <label>Time zone<select name="tz">${tzOptions(me.tz)}</select></label>
         <label>Everyday activity (outside workouts)<select name="activity_factor">${[[1.2, 'Mostly sitting'], [1.3, 'Some walking & standing'], [1.45, 'On my feet a lot']].map(([f, n]) => `<option value="${f}"${Math.abs((me.activity_factor || 1.2) - f) < .01 ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-        <p class="small muted">Heart-rate zones and effort use these; sex, birth year, weight and height give your resting burn (BMR), and BMR × everyday activity = your daily calorie needs on Nutrition (workouts are added on the day). Leave max HR blank to use the highest your watch has recorded.</p>
+        <p class="small muted">Logging a weigh-in updates this stored weight; daily calorie estimates prefer your weight trend. Height, age, sex and everyday activity complete the estimate, with workouts added each day. Heart rates set your zones; leave max HR blank to use your watch’s highest.</p>
         <div class="actions"><button class="primary wide">Save settings</button></div></form>`, (b, close) => {
+    $('#body-log-weight',b).onclick=()=>{close();quickWeighIn({afterSave:()=>{if(owner===readOwner()&&location.pathname==='/me/settings'&&!document.querySelector('.scrim:not(.is-closing)'))render();}});};
     $('#m-form', b).onsubmit = async (e) => {
-      e.preventDefault(); const f = e.target, n = (v) => (v.trim() === '' ? null : Number(v));
+      e.preventDefault(); if(owner!==readOwner())return;const f = e.target, n = (v) => (v.trim() === '' ? null : Number(v));
       const w = n(f.weight.value);
       const hv = f.height.value.trim(), hn = hv.match(/\d+(\.\d+)?/g) || [];   // "5 10", "5'10", "70" (in) or "178" (cm)
       const height_cm = !hn.length ? null : imp() ? (hn.length > 1 ? +hn[0] * 12 + +hn[1] : +hn[0] < 9 ? +hn[0] * 12 : +hn[0]) * 2.54 : +hn[0];
-      const body = {max_hr: n(f.max_hr.value), rest_hr: n(f.rest_hr.value), sex: f.sex.value || null, birth_year: n(f.birth_year.value), weight_kg: w == null ? null : imp() ? w / 2.20462 : w, height_cm, activity_factor: +f.activity_factor.value, tz: f.tz.value || undefined};
-      try { await api('/api/profile', json('PUT', body)); Object.assign(App.me, body); close(); toast('Settings saved'); render(); } catch (x) { toast(x.message); }
+      const body = {max_hr: n(f.max_hr.value), rest_hr: n(f.rest_hr.value), sex: f.sex.value || null, birth_year: n(f.birth_year.value), height_cm, activity_factor: +f.activity_factor.value, tz: f.tz.value || undefined};
+      // An unchanged field must not overwrite a weigh-in synced while this sheet was open.
+      if(f.weight.value!==initialWeight)body.weight_kg=w==null?null:imp()?w/2.20462:w;
+      try { await api('/api/profile', json('PUT', body)); if(owner!==readOwner())return;Object.assign(App.me, body);keep('/api/me',App.me);close(); toast('Settings saved'); render(); } catch (x) { if(owner===readOwner()&&b.isConnected)toast(x.message); }
     };
   });
 }
