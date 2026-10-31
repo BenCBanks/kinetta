@@ -52,20 +52,19 @@ function drawDish(el, d) {
     $('.recipe-content',el).scrollTop=scroll;if($('#dk-t',el))$('#dk-t',el).value=draft;
     if (keep) { const n = $('#' + keep[0], el); if (n) { n.value = keep[1]; n.focus(); } }
   };
-  const ing = (it) => `<span class="ig-n">${esc(it.name)}</span><span class="ig-g num">${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</span><b class="num r">${r0(it.kcal)}</b>`;
+  const ing = (it) => `<span class="ig-info"><span class="ig-n">${esc(it.name)}</span><span class="ig-g num"> · ${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</span></span><b class="num r">${r0(it.kcal)}</b>`;
   const shared = mine ? d.shared_with || [] : [];
   const bySv = d.serving === 'one';
   const source=d.recipe_source||{}, imported=!!source.import_id, display=imported?d.per_serving:t;
   el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
-  const sums = has ? `<p class="dish-sum num"><b>${display.kcal==null?'Calories unknown':r0(display.kcal)+' kcal'}${imported?' a serving':''}</b> · ${MACROS.map(([k, nm]) => `${display[k]==null?'Unknown '+nm.toLowerCase():r0(display[k])+' g '+nm.toLowerCase()}`).join(' · ')}${typed && !imported ? `<br><span class="muted">Using the total ${mine ? 'you' : esc(d.owner.name.split(' ')[0])} typed in${d.items.length ? ', not the ingredients' : ''}.</span>` : ''}</p>` : '';
-  el.innerHTML = `<div class="top">${backBtn(mine?'My Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}${mine ? `<button class="icon-btn" id="dk-help" aria-label="How recipes work">${svg('help')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button> </div></div>
+  const sums=has?`<div class="recipe-nutrition num" aria-label="${imported?'Nutrition per serving':'Nutrition in the whole recipe'}"><div><b>${display.kcal==null?'Unknown':r0(display.kcal)}</b><small>kcal${imported?' / serving':' total'}</small></div>${MACROS.map(([k,nm])=>`<div><b>${display[k]==null?'Unknown':r0(display[k])+' g'}</b><small>${nm}</small></div>`).join('')}</div>${typed&&!imported?`<p class="small muted">Using the total ${mine?'you':esc(d.owner.name.split(' ')[0])} typed in${d.items.length?', not the ingredients':''}.</p>`:''}`:'';
+  el.innerHTML = `<div class="top">${backBtn(mine?'Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button>${mine?`<button type="button" class="primary sm" id="dk-done"${has?'':' disabled'}>Done</button>`:''}</div></div>
     <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
-    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea><button type="button" class="icon-btn" id="dk-rename" aria-label="Edit recipe title">${svg('edit')}</button><button type="button" class="icon-btn danger" id="dk-delete" aria-label="Delete recipe" title="Delete recipe">${svg('trash')}</button></div><p id="recipe-title-status" class="small muted" role="status"></p>`
+    ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea></div><p id="recipe-title-status" class="small muted" role="status">${d.named?'Saved':'Draft saved · add a name'}</p>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
-    ${mine?'<p class="small muted">Changes save as you go. Logging is optional.</p>':''}
     ${sums}
     ${imported?recipeSourceCard(d):''}
-    ${d.items.length ? `<div class="card ing-card"><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
+    ${d.items.length ? `<div class="card ing-card"><div class="ingredient-heading small muted">Ingredients<span>kcal</span></div><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
     ${mine && has ? `<div class="card serve measure"><div class="seg wide m-seg" role="group" aria-label="How it's measured">
         <button type="button" data-sv="one" aria-pressed="${bySv}">By servings</button><button type="button" data-sv="portion" aria-pressed="${!bySv}">By weight</button></div>
       ${bySv ? `<form class="m-row" id="dk-yield"><label class="m-lab" for="dk-servings">Servings in the whole recipe</label><input id="dk-servings" name="count" type="text" inputmode="decimal" value="${esc(d.serving_count)}" aria-label="Servings in the whole recipe"></form><p class="small muted m-note">Nutrition per serving uses this number.</p>`
@@ -73,22 +72,20 @@ function drawDish(el, d) {
           value="${w ? Math.round(w) : ''}" placeholder="0" aria-label="Weight of the whole recipe in grams"><span>g</span></span></form>
           ${d.weighed && d.items_g ? `<button class="linkbtn wt-reset" id="dk-sum">Use the ingredients added up (${gfmt(d.items_g)})</button>` : ''}`}</div>` : ''}
     ${mine&&(has||shared.length)?`<button type="button" class="card tap share-row" id="dk-share">${shared.length?`<span class="avs">${shared.map(p=>avatar(p)).join('')}</span>`:''}<span class="grow"><b>${shared.length?'Shared with '+esc(shared.map(p=>p.name.split(' ')[0]).join(', ')):'Share with…'}</b><small class="muted">${shared.length?'Change who can see this recipe':'Optional · private until you choose a friend'}</small></span>${svg('chev')}</button>`:''}
-    ${mine ? `${chatLog(d)}<div id="dk-match">${CHATS.get(d.id)?.some(m=>m.clarification)?'<p class="small muted">Finish the ingredient above, or cancel it.</p><button type="button" class="linkbtn" id="dk-cancel-clarification">Cancel ingredient</button>':''}</div></div><button type="button" class="primary wide recipe-save" id="dk-done"${has?'':' disabled'}>Save recipe</button>
+    ${mine ? `${chatLog(d)}<div id="dk-match">${CHATS.get(d.id)?.some(m=>m.clarification)?'<p class="small muted">Finish the ingredient above, or cancel it.</p><button type="button" class="linkbtn" id="dk-cancel-clarification">Cancel ingredient</button>':''}</div></div>
       <form class="composer" id="dk-add"><button type="button" class="icon-btn" id="dk-plus" aria-label="Scan a barcode, photograph the nutrition label, or search">${svg('plus')}</button>
         <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'e.g. 100 g oats' : 'Search ingredients…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="${aiCan('food')?'send':'search'}" maxlength="600" required>
         <button class="icon-btn send" aria-label="${aiCan('food')?'Add ingredient':'Search ingredients'}">${svg('send')}</button></form>
       <input type="file" accept="image/*" multiple id="dk-label-file" hidden>`
       : has ? `</div><div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `</div><p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
   wireBack(el, mine?'/food/meals':'/food');
-  $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set)) : sharedMenu(d));
+  $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set),()=>{const n=$('#dk-name',el);n.focus();n.setSelectionRange(0,n.value.length);}) : sharedMenu(d));
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
   const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&aiCan('coach') ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
   if (!mine) return;
   $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Leave this unmatched line out of the recipe nutrition? If you added it separately, its nutrition will be included.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
-  $('#dk-delete',el).onclick=()=>deleteRecipe(d);
-  $('#dk-help', el).onclick = () => sheet('How recipes work', cookSteps(d));
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
   const cancelClarification=$('#dk-cancel-clarification',el);
@@ -110,7 +107,6 @@ function drawDish(el, d) {
   };
   // the name, edited in place: saved when you leave the box or press Done on the keyboard
   const nm = $('#dk-name', el);
-  $('#dk-rename',el).onclick=()=>{nm.focus();nm.setSelectionRange(0,nm.value.length);};
   const titleStatus=$('#recipe-title-status',el);
   let nameSave=Promise.resolve(true);
   const saveName = () => {
@@ -597,11 +593,13 @@ function knownSheet(d, set) {
     const c = $('#kn-clear', b); if (c) c.onclick = () => save({known_kcal: null, known_protein_g: null, known_carbs_g: null, known_fat_g: null, known_fiber_g:null,known_sodium_mg:null,known_sugar_g:null,known_saturated_fat_g:null,use_ingredients:true});
   });
 }
-function dishMenu(d, set, search, known) {
-  sheet(d.name, `<div class="btncol"><button class="ghost" id="dm-search">Search the food database</button>
+function dishMenu(d, set, search, known, rename) {
+  sheet(d.name, `<div class="btncol"><button type="button" class="ghost" id="dm-rename">${svg('edit')}Rename recipe</button><button type="button" class="ghost" id="dm-help">${svg('help')}How recipes work</button><button class="ghost" id="dm-search">Search the food database</button>
     <button class="ghost" id="dm-known">${d.known.kcal != null ? 'Change the total you typed in' : 'I already know the total'}</button>
     <button class="ghost danger" id="dm-del">${svg('trash')}Delete recipe</button></div>
     <p class="small muted">What you've logged from it stays in your food log.</p>`, (b, close) => {
+    $('#dm-rename',b).onclick=()=>{close();rename();};
+    $('#dm-help',b).onclick=()=>{close();sheet('How recipes work',cookSteps(d));};
     $('#dm-search', b).onclick = () => { close(); search(); };
     $('#dm-known', b).onclick = () => { close(); known(); };
     $('#dm-del', b).onclick = () => { close(); deleteRecipe(d); };
