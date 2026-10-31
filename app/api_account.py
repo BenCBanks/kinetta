@@ -294,13 +294,6 @@ def list_invites(user=Depends(admin_user)):
                             ORDER BY created DESC""").fetchall()
 
 
-def cancel_invite(invite_id: int, user=Depends(admin_user)):
-    _admin(user)
-    with db.connect() as c:
-        c.execute('DELETE FROM invites WHERE id = %s AND used_at IS NULL', (invite_id,))
-    return {'ok': True}
-
-
 def _open_invite(c, token, lock=False):
     r = c.execute(f"""SELECT i.id, i.note, '@'||u.login::text AS inviter,
                       (SELECT card_code FROM beta_requests WHERE invite_id=i.id ORDER BY id DESC LIMIT 1) AS origin_card,

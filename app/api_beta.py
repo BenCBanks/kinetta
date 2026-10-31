@@ -72,13 +72,6 @@ def beta_request(body: BetaIn, request: Request):
     return {'ok': True}
 
 
-def beta_list(user=Depends(admin_user)):
-    _admin(user)
-    with db.connect() as c:
-        return c.execute("""SELECT id, name, email, phone, watch, note, created FROM beta_requests
-                            WHERE status = 'new' ORDER BY created""").fetchall()
-
-
 def beta_invite(rid: int, user=Depends(admin_user)):
     _admin(user)
     with db.connect() as c:
@@ -88,10 +81,3 @@ def beta_invite(rid: int, user=Depends(admin_user)):
     with db.connect() as c:
         c.execute("UPDATE beta_requests SET status = 'invited', invite_id = %s WHERE id = %s", (inv['id'], rid))
     return inv
-
-
-def beta_dismiss(rid: int, user=Depends(admin_user)):
-    _admin(user)
-    with db.connect() as c:
-        c.execute("UPDATE beta_requests SET status = 'dismissed' WHERE id = %s AND status = 'new'", (rid,))
-    return {'ok': True}
