@@ -1625,3 +1625,21 @@ activity-detail map hero under the status area. The More picker already has the 
 remains a distinct, readable map overlay. Recording, settings, privacy and other launch tools keep their behavior.
 
 The later31October spacing rule keeps8px between quick activities, More and recording pills. Common targets stay44px, giving52px minimum pitch. The primary plan link itself gets a44px target. Two-line More choices use56px rows and8px separation. Track discovery cards use16px padding and12px grid gaps. The31px iPhone-shaped Spoken updates switch stays visually intact inside a44px-high label target; Auto-pause already had a full-row label. Control labels use15px and secondary notes at least13px. These are scoped spacing/activation changes; no recording preference or GPS behavior changes.
+
+## Progress share pictures · 31 October 2026
+
+The recap sheet exports one4:5 picture (1080×1350). A larger full-width preview frame opens the original picture. Periods scroll in snap pages of whole pills, with an edge fade showing more; text enlargement can put fewer choices on each page. Inclusion choices stay account/server scoped. Share follows the controls in normal scroll order. No discovery section belongs in this sheet.
+
+Exports use the existing Sky Blue share-action/share-brand gradient and white text (at least 4.5:1), with the hero
+number and unit on one baseline. Available height is divided between the selected totals, real distance/time bars
+and rounded highlight/streak/food-day tiles. Week and month show daily bars; year sums the same days into months.
+Visible rest stubs preserve the calendar's active-day meaning. Totals-only pictures reuse active days/time below the
+hero. Empty previews remain honest and cannot be shared. The single export size lays out the selected facts without letterboxing.
+
+Only me activities count in totals and bars; highlights still come only from shared activities. No names, maps,
+places, intake or body facts are added. Food and photo/username remain off initially; source credits, descriptive
+alt text, cached-data notices, Retry, monthly offers and the existing native delivery/cancellation guard remain.
+Single-activity pictures are unchanged. Sport breakdown and previous-period comparisons are deferred: the existing
+response has only the top sport and selected-period totals; this visual change adds no API reads or new statistics.
+
+Owner follow-up31October: period and Include controls keep44px hit areas with36px visible faces,15px medium text at default and8px gaps between hit areas. Unavailable Streak remains legible and explains its two-active-week requirement on tap. The preview has no content-card padding because it is the rendered picture, inside the18px padded sheet. At ordinary390px it grows beyond the former two-column preview while controls and Share remain reachable; enlarged text scrolls naturally.

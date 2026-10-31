@@ -59,10 +59,10 @@ const ShareArt=(()=>{
     g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(M,1275);g.lineTo(1008,1275);g.stroke();drawMark(g,M+24,1311,48,p.blue);text(g,'Kinetta',M+62,1323,30);text(g,'kinetta.app',1008,1321,26,{align:'right',color:p.muted});
     return{blob:await blob(canvas),alt:[identity?'@'+App.me.login:'',kicker,title,date,value,unit,...facts,credit,qrLink?'Invitation: '+qrLink:''].filter(Boolean).join('. ')};
   }
-  return{palette,text,lines,blob,deliver,photo,simplePicture};
+  return{palette,family,text,lines,blob,deliver,photo,simplePicture};
 })();
 const Recaps=(()=>{
-  const periods=[['this_week','This week'],['last_week','Last week'],['this_month','This month'],['last_month','Last month'],['this_year','This year']];
+  const periods=[['this_week','Week'],['last_week','Last week'],['this_month','Month'],['last_month','Last month'],['this_year','Year']];
   const defaults={totals:true,calendar:true,highlights:true,streak:true,food:false,identity:false};
   const scope=()=>JSON.stringify([serverKey(),App.me?.id]);
   function today(){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:App.me?.tz||'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const get=k=>parts.find(p=>p.type===k).value;return `${get('year')}-${get('month')}-${get('day')}`;}
@@ -98,71 +98,147 @@ const Recaps=(()=>{
     try{const d=await api('/api/recaps?period='+period);if(owner!==readOwner())throw Error('The account changed.');keep(key,d);return d;}
     catch(e){if(owner!==readOwner()||e.stale||[401,403,404].includes(e.status))throw e;const cached=kept(key);if(cached&&cached.tz===(App.me?.tz||'America/New_York'))return {...cached,from_cache:true};throw e;}
   }
-  function calendar(g,d,y,height){
-    const p=ShareArt.palette(),W=1080,M=72,by=new Map(d.days.map(x=>[x.day,x.activities]));
-    ShareArt.text(g,'Activity calendar',M,y,28,{color:p.soft});y+=36;
-    const begin=new Date(d.start+'T12:00:00Z');
-    if(d.period==='this_year'){
-      const counts=Array.from({length:12},(_,m)=>d.days.filter(x=>+x.day.slice(5,7)===m+1).length),top=Math.max(1,...counts),base=y+height-70;
-      counts.forEach((n,i)=>{const x=M+i*78+8,h=n/top*(height-105);g.fillStyle=p.blue;if(n){g.beginPath();g.roundRect(x,base-h,48,h,8);g.fill();}ShareArt.text(g,new Date(Date.UTC(begin.getUTCFullYear(),i,1,12)).toLocaleDateString(undefined,{timeZone:'UTC',month:'short'}),x+24,base+32,22,{align:'center',max:70,color:p.soft});});
-      return;
-    }
-    const week=d.period.includes('week'),offset=week?0:(begin.getUTCDay()+6)%7,days=Math.round((Date.parse(d.end)-Date.parse(d.start))/86400000),rows=week?1:Math.ceil((offset+days)/7),step=Math.min(60,(height-65)/rows),dx=(W-2*M)/7;
-    for(let i=0;i<7;i++)ShareArt.text(g,new Date(Date.UTC(2026,0,5+i,12)).toLocaleDateString(undefined,{timeZone:'UTC',weekday:'narrow'}),M+dx*(i+.5),y+15,22,{align:'center',color:p.muted});
-    for(let i=0;i<days;i++){
-      const date=new Date(begin);date.setUTCDate(date.getUTCDate()+i);const day=date.toISOString().slice(0,10),column=(offset+i)%7,row=Math.floor((offset+i)/7),x=M+dx*(column+.5),cy=y+48+row*step,active=by.has(day);
-      g.beginPath();g.arc(x,cy,Math.min(24,step/2-3),0,Math.PI*2);g.fillStyle=active?p.blue:p.tint;g.fill();ShareArt.text(g,date.getUTCDate(),x,cy+8,24,{align:'center',color:active?col('--color-on-action'):p.soft,max:dx-10});
-    }
+  // Export colours stay legible in either app theme, like the other ShareArt pictures.
+  const ink=()=>({blue:col('--share-brand'),action:col('--share-action'),white:col('--share-on-action'),tint:col('--share-brand-soft')});
+  function chartData(d){
+    const distance=d.days.some(x=>x.distance_m>0),field=distance?'distance_m':'time_s',factor=distance?(d.units==='imperial'?1609.344:1000):60,by=new Map(d.days.map(x=>[x.day,x]));
+    const year=d.period==='this_year',count=year?12:Math.round((Date.parse(d.end)-Date.parse(d.start))/86400000),begin=new Date(d.start+'T12:00:00Z');
+    return {unit:distance?unit(d):'min',year,bars:Array.from({length:count},(_,i)=>{
+      const date=new Date(begin);year?date.setUTCMonth(i,1):date.setUTCDate(date.getUTCDate()+i);const day=date.toISOString().slice(0,10),rows=year?d.days.filter(x=>x.day.slice(0,7)===day.slice(0,7)):[by.get(day)].filter(Boolean);
+      return{day,value:rows.reduce((n,x)=>n+(x[field]||0),0)/factor,active:rows.some(x=>x.activities>0),label:date.toLocaleDateString(undefined,{timeZone:'UTC',...(year?{month:'short'}:d.period.includes('week')?{weekday:'narrow'}:{day:'numeric'})})};
+    })};
+  }
+  function chart(g,d,x,y,w,h,p){
+    const data=chartData(d),M=32,top=Math.max(1,...data.bars.map(b=>b.value)),step=(w-2*M)/data.bars.length,base=y+h-66,room=h-150;
+    ShareArt.text(g,`${data.year?'Monthly':'Daily'} ${data.unit==='min'?'active time':'distance'} · ${data.unit}`,x+M,y+45,28,{color:p.white,max:w-2*M-200});
+    ShareArt.text(g,'0–'+top.toLocaleString(undefined,{maximumFractionDigits:1})+' '+data.unit,x+w-M,y+45,25,{align:'right',color:p.white,max:200});
+    data.bars.forEach((b,i)=>{
+      const bw=Math.min(data.year?48:64,step*.65),height=b.value?Math.max(12,b.value/top*room):b.active?16:8,left=x+M+step*(i+.5)-bw/2;
+      g.fillStyle=p.white;g.globalAlpha=.12;g.beginPath();g.roundRect(left,base-room,bw,room,Math.min(10,bw/2));g.fill();
+      g.fillStyle=b.active?p.white:p.tint;g.globalAlpha=b.active?1:.8;g.beginPath();g.roundRect(left,base-height,bw,height,Math.min(10,bw/2));g.fill();g.globalAlpha=1;
+      if(data.bars.length<=12||i%7===0||i===data.bars.length-1)ShareArt.text(g,b.label,left+bw/2,base+37,data.year?23:26,{align:'center',color:p.white,max:Math.max(42,step-4)});
+      if(data.bars.length===7&&b.value)ShareArt.text(g,b.value.toLocaleString(undefined,{maximumFractionDigits:1}),left+bw/2,base-height-14,26,{align:'center',color:p.white,max:step-4});
+    });
+  }
+  function tiles(d,o){
+    const items=[];
+    if(o.highlights)for(const h of d.highlights)items.push(h.kind==='longest'?{label:'Longest shared '+(SPORT_NAMES[h.sport]||h.sport).toLowerCase(),value:distance({...d,distance_m:h.distance_m})+' '+unit(d)}:{label:'New '+h.label+' best',value:dur(h.elapsed_s)});
+    if(o.streak&&d.streak_weeks>=2)items.push({label:'Active weeks in a row',value:String(d.streak_weeks)});
+    if(o.food){items.push({label:'Days with food logged',value:String(d.food.logged_days)});if(d.food.protein_goal_days!==null)items.push({label:'Days meeting protein goal',value:String(d.food.protein_goal_days)});}
+    return items;
   }
   async function draw(d,o){
-    const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const g=canvas.getContext('2d'),p=ShareArt.palette(),s=summary(d,o),M=72;
-    g.fillStyle=p.bg;g.fillRect(0,0,1080,1350);let y=72;
+    await document.fonts.ready;
+    const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
+    const g=canvas.getContext('2d'),p=ink(),s=summary(d,o),M=72,W=936,H=canvas.height;
+    const gradient=g.createLinearGradient(0,0,1080,H);gradient.addColorStop(0,p.action);gradient.addColorStop(1,p.blue);g.fillStyle=gradient;g.fillRect(0,0,1080,H);
+    let y=72;
     if(o.identity){
       const image=App.me.photo?await ShareArt.photo(`/api/people/${encodeURIComponent(App.me.login)}/photo?v=${App.me.photo}`):null;
-      if(image){g.save();g.beginPath();g.arc(M+34,y+28,34,0,2*Math.PI);g.clip();g.drawImage(image,M,y-6,68,68);g.restore();}
-      ShareArt.text(g,'@'+App.me.login,M+(image?94:0),y+40,32,{max:image?830:936,color:p.soft});y+=84;
+      if(image){g.save();g.beginPath();g.arc(M+28,y+24,28,0,2*Math.PI);g.clip();g.drawImage(image,M,y-4,56,56);g.restore();}
+      ShareArt.text(g,'@'+App.me.login,M+(image?80:0),y+36,30,{color:p.white,max:image?856:W});y+=82;
     }
-    ShareArt.text(g,s.title,M,y+48,54,{max:936});y+=86;
-    if(s.hero){ShareArt.text(g,s.hero.value,M,y+116,132,{max:936});ShareArt.text(g,s.hero.label,M,y+170,44,{color:p.soft});if(s.secondary)ShareArt.text(g,s.secondary,M,y+222,31,{color:p.soft});y+=252;}
-    if(o.calendar&&d.activities>0){const h=d.period==='this_year'?270:d.period.includes('week')?150:330;calendar(g,d,y+20,h);y+=h+36;}
-    for(const line of s.highlights){ShareArt.text(g,line,M,y+38,32,{max:936});y+=48;}
-    if(o.streak&&d.streak_weeks>=2){ShareArt.text(g,`${d.streak_weeks} active weeks in a row`,M,y+38,30,{color:p.soft});y+=48;}
-    for(const line of s.food){ShareArt.text(g,line,M,y+38,30,{color:p.soft});y+=44;}
-    if(!d.activities&&!(o.food&&d.food.logged_days)){ShareArt.text(g,'No activities in this period yet',M,470,44,{color:p.soft});}
-    const credits=ShareArt.lines(g,s.credits,936,20),creditTop=1260-credits.length*25;
-    if(credits.length&&y+20>creditTop)throw Error('Choose fewer sections so the source credit fits clearly.');
-    credits.forEach((line,i)=>ShareArt.text(g,line,M,creditTop+i*25,20,{color:p.muted}));
-    g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(M,1275);g.lineTo(1008,1275);g.stroke();drawMark(g,M+24,1311,48,p.blue);ShareArt.text(g,'Kinetta',M+62,1323,30);ShareArt.text(g,'kinetta.app',1008,1321,26,{align:'right',color:p.muted});
-    return {blob:await ShareArt.blob(canvas),alt:s.alt};
+    ShareArt.text(g,s.title,M,y+42,43,{color:p.white,max:W});y+=86;
+    const creditLines=s.credits?ShareArt.lines(g,s.credits,W,23):[],footer=H-118-creditLines.length*29,items=tiles(d,o),rows=[];
+    if(o.totals)rows.push({kind:'hero',weight:1.15});
+    if(o.calendar)rows.push({kind:'chart',weight:1.4});
+    for(let i=0;i<items.length;i+=2)rows.push({kind:'tiles',items:items.slice(i,i+2),weight:.65});
+    // With only Totals selected, let the existing facts carry the lower part of the poster.
+    if(rows.length===1&&rows[0].kind==='hero'&&d.activities)rows.push({kind:'tiles',weight:.8,items:[{label:'Active days',value:String(d.active_days)},{label:'Active time',value:time(d.time_s)}]});
+    if(!rows.length)rows.push({kind:'empty',weight:1});
+    const gap=24,available=footer-30-y-gap*(rows.length-1),weight=rows.reduce((n,r)=>n+r.weight,0);
+    for(const row of rows){
+      const h=available*row.weight/weight;
+      if(row.kind==='hero'){
+        const hero=s.hero||{value:d.activities?'Your progress':'No activities yet',label:''},single=!s.hero;
+        if(single){
+          drawMark(g,540,y+h*.32,Math.min(420,h*.6),p.white);
+          ShareArt.text(g,hero.value,540,y+h*.8,Math.min(96,h*.18),{align:'center',color:p.white,max:W,weight:800});
+          y+=h+gap;continue;
+        }
+        const valueSize=Math.min(single?96:260,h*.52),unitSize=Math.min(64,valueSize*.4),baseline=y+h*.43;
+        // Reserve room for the unit before fitting the number; both use the same baseline.
+        g.font=`650 ${unitSize}px ${ShareArt.family()}`;const unitWidth=hero.label?g.measureText(hero.label).width+22:0;
+        const actual=ShareArt.text(g,hero.value,M,baseline,valueSize,{color:p.white,max:Math.max(280,W-unitWidth),weight:800});
+        g.font=`800 ${actual}px ${ShareArt.family()}`;const valueWidth=g.measureText(hero.value).width;
+        if(hero.label)ShareArt.text(g,hero.label,M+valueWidth+22,baseline,unitSize,{color:p.white,max:W-valueWidth-22});
+        if(s.secondary)ShareArt.text(g,s.secondary,M,y+h*.72,32,{color:p.white,max:W});
+      }else if(row.kind==='chart')chart(g,d,M,y,W,h,p);
+      else if(row.kind==='tiles')row.items.forEach((tile,i)=>{
+        const w=(W-gap*(row.items.length-1))/row.items.length,x=M+i*(w+gap);g.fillStyle=p.white;g.beginPath();g.roundRect(x,y,w,h,30);g.fill();
+        if(h>400){
+          const labelSize=Math.min(78,h*.12),lines=ShareArt.lines(g,tile.label,w-64,labelSize),valueSize=Math.min(300,h*.35);
+          lines.forEach((line,j)=>ShareArt.text(g,line,x+32,y+70+j*labelSize*1.2,labelSize,{color:p.blue,max:w-64}));
+          ShareArt.text(g,tile.value,x+32,y+h*.8,valueSize,{color:p.blue,max:w-64,weight:800});
+        }else{
+          ShareArt.text(g,tile.label,x+32,y+40,25,{color:p.blue,max:w-64});
+          ShareArt.text(g,tile.value,x+32,y+h-28,Math.min(130,h*.4,Math.max(28,h-90)),{color:p.blue,max:w-64,weight:800});
+        }
+      });
+      else{
+        ShareArt.text(g,'Your progress',M,y+h*.42,112,{color:p.white,max:W,weight:800});
+        ShareArt.text(g,o.identity?'Made with Kinetta':'Choose what to include',M,y+h*.62,44,{color:p.white,max:W});
+      }
+      y+=h+gap;
+    }
+    creditLines.forEach((line,i)=>ShareArt.text(g,line,M,footer+25+i*29,23,{color:p.white}));
+    g.strokeStyle=p.white;g.globalAlpha=.35;g.lineWidth=2;g.beginPath();g.moveTo(M,H-88);g.lineTo(1008,H-88);g.stroke();g.globalAlpha=1;
+    drawMark(g,M+24,H-45,48,p.white);ShareArt.text(g,'Kinetta',M+62,H-33,30,{color:p.white});ShareArt.text(g,'kinetta.app',1008,H-35,26,{align:'right',color:p.white});
+    const chartInfo=chartData(d),chartAlt=o.calendar?chartInfo.bars.filter(b=>b.active).map(b=>`${b.day}: ${b.value.toLocaleString(undefined,{maximumFractionDigits:1})} ${chartInfo.unit}`).join('; '):'';
+    return {blob:await ShareArt.blob(canvas),alt:[o.identity?'@'+App.me.login:'',s.alt,o.calendar?'Activity chart. '+(chartAlt||'No active days'):''].filter(Boolean).join('. ')};
   }
   function open(initial='this_month',onShared){
-    const owner=readOwner(),prefKey='fit.recap.options:'+scope(),saved=store.get(prefKey);let options={...defaults,...Object.fromEntries(Object.entries(saved||{}).filter(([k,v])=>k in defaults&&typeof v==='boolean'))},period=initial,data=null,picture=null,url='',version=0,sending=false,defaultApplied=false;
-    sheet('Share progress',`<div class="recap-preview busy"><img id="recap-preview" alt="Loading your picture"></div><div class="seg recap-periods" role="group" aria-label="Recap period">${periods.map(([k,v])=>`<button type="button" data-recap-period="${k}" aria-pressed="${k===period}">${v}</button>`).join('')}</div><fieldset class="recap-options"><legend>What’s included</legend>${[['totals','Totals'],['calendar','Calendar'],['highlights','Highlights'],['streak','Activity streak (2+ weeks)'],['food','Food'],['identity','Photo and username']].map(([k,v])=>`<label class="check"><input type="checkbox" data-recap-option="${k}" disabled${options[k]?' checked':''}>${v}</label>`).join('')}</fieldset><p class="small muted" id="recap-description"></p><p class="small muted" id="recap-status" role="status"></p><button type="button" class="ghost wide" id="recap-retry" hidden>Retry picture</button><div class="recap-actions"><button type="button" class="primary wide" id="recap-share" disabled>Share</button></div>`,(b,close)=>{
-      const live=()=>owner===readOwner()&&b.isConnected,button=$('#recap-share',b),image=$('#recap-preview',b),status=$('#recap-status',b);
-      const closeSelf=()=>close();App.closeActivityShare=closeSelf;
-      viewResources.set(b,()=>{version++;picture=null;if(url)URL.revokeObjectURL(url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
+    const owner=readOwner(),prefKey='fit.recap.options:'+scope(),saved=store.get(prefKey);
+    let options={...defaults,...Object.fromEntries(Object.entries(saved||{}).filter(([k,v])=>k in defaults&&typeof v==='boolean'))},period=initial,data=null,picture=null,url='',version=0,sending=false,defaultApplied=false,canShare=false;
+    const names=[['totals','Totals'],['calendar','Chart'],['highlights','Highlights'],['streak','Streak'],['food','Food'],['identity','Photo & username']];
+    sheet('Share progress',`<div class="recap-stage"><button type="button" class="recap-preview busy" aria-label="View full-size picture" disabled><img id="recap-preview" alt="Loading your picture"></button></div><div class="recap-period-wrap"><div class="seg recap-periods" role="group" aria-label="Recap period">${periods.map(([k,v])=>`<button type="button" data-recap-period="${k}" aria-pressed="${k===period}"><span>${v}</span></button>`).join('')}</div></div><fieldset class="recap-options"><legend>Include</legend><div>${names.map(([k,v])=>`<button type="button" data-recap-option="${k}" aria-pressed="${options[k]}"${k==='streak'?' aria-label="Activity streak (two or more active weeks in a row)"':''} disabled><span>${v}</span></button>`).join('')}</div></fieldset><p class="small muted" id="recap-streak-help" role="status" hidden></p><p class="small muted" id="recap-description"></p><p class="small muted" id="recap-status" role="status"></p><button type="button" class="ghost wide" id="recap-retry" hidden>Retry picture</button><div class="recap-actions"><button type="button" class="primary wide" id="recap-share" disabled>Share</button></div>`,(b,close)=>{
+      b.closest('.sheet').classList.add('recap-sheet');
+      const live=()=>owner===readOwner()&&b.isConnected,button=$('#recap-share',b),image=$('#recap-preview',b),preview=$('.recap-preview',b),status=$('#recap-status',b);
+      const closeSelf=()=>close();App.closeActivityShare=closeSelf;let stopPeriods=()=>{};
+      viewResources.set(b,()=>{stopPeriods();version++;picture=null;if(url)URL.revokeObjectURL(url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
+      function controls(){
+        $$('[data-recap-option]',b).forEach(x=>{const k=x.dataset.recapOption,eligible=k!=='streak'||data?.streak_weeks>=2;x.disabled=sending||!data;if(eligible)x.removeAttribute('aria-disabled');else x.setAttribute('aria-disabled','true');x.setAttribute('aria-pressed',String(options[k]&&eligible));});
+        $$('[data-recap-period]',b).forEach(x=>x.disabled=sending);preview.disabled=sending||!picture;button.disabled=sending||!canShare||!picture;
+      }
       async function make(reload=false){
-        const run=++version;picture=null;button.disabled=true;$('.recap-preview',b).classList.add('busy');status.textContent='';$('#recap-retry',b).hidden=true;
+        $('#recap-streak-help',b).hidden=true;const run=++version;picture=null;canShare=false;controls();preview.classList.add('busy');status.textContent='';$('#recap-retry',b).hidden=true;
         try{
           const fresh=reload||!data?await read(period):data;if(!live()||run!==version)return;data={...fresh,units:App.me?.units||fresh.units};
-          if(!saved&&!defaultApplied){options.streak=data.streak_weeks>=2;const field=$('[data-recap-option="streak"]',b);field.checked=options.streak;}defaultApplied=true;
-          const streakField=$('[data-recap-option="streak"]',b);streakField.checked=options.streak&&data.streak_weeks>=2;
-          const description=['Totals and calendar include Only me workouts. Highlights use shared activities.',options.food?'Food shows only logged days and protein-goal days.':'No food details.',options.identity?'Includes your username and photo if available.':'No photo or username.','No maps, places or body details.'];$('#recap-description',b).textContent=description.join(' ');
+          if(!saved&&!defaultApplied)options.streak=data.streak_weeks>=2;defaultApplied=true;
+          $('#recap-description',b).textContent='Totals and chart include Only me workouts; highlights use shared activities. No maps, places or body details.'+(options.food?' Food: logged and protein-goal days only.':'')+(options.identity?' Includes your photo and username.':'');
           const result=await draw(data,options);if(!live()||run!==version)return;
           if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;picture=result.blob;
-          const hasData=data.activities>0||options.food&&data.food.logged_days>0,hasSections=options.totals||options.calendar&&data.activities>0||options.highlights&&data.highlights.length>0||options.streak&&data.streak_weeks>=2||options.food||options.identity;
-          button.disabled=!hasData||!hasSections;if(data.from_cache)status.textContent='Using the last data loaded for this period.';if(!hasData)status.textContent=data.food.logged_days?'No activities in this period. Turn on Food to include your logged days, or choose another period.':'No activities in this period yet. Choose another period.';
+          const hasData=data.activities>0||options.food&&data.food.logged_days>0,hasSections=options.totals||options.calendar||options.highlights&&data.highlights.length>0||options.streak&&data.streak_weeks>=2||options.food||options.identity;
+          canShare=hasData&&hasSections;
+          if(data.from_cache)status.textContent='Using the last data loaded for this period.';
+          if(!hasData)status.textContent=data.food.logged_days?'No activities in this period. Turn on Food to include logged days, or choose another period.':'No activities in this period yet. Choose another period.';
         }catch(e){if(live()&&run===version){status.textContent=e.message;$('#recap-retry',b).hidden=false;}}
-        finally{if(live()&&run===version){$('.recap-preview',b).classList.remove('busy');$$('[data-recap-option]',b).forEach(x=>x.disabled=!data||x.dataset.recapOption==='streak'&&data.streak_weeks<2);}}
+        finally{if(live()&&run===version){preview.classList.remove('busy');controls();}}
       }
       $$('[data-recap-period]',b).forEach(x=>x.onclick=()=>{if(sending||!live())return;period=x.dataset.recapPeriod;data=null;$$('[data-recap-period]',b).forEach(p=>p.setAttribute('aria-pressed',String(p===x)));make(true);});
-      $$('[data-recap-option]',b).forEach(x=>x.onchange=()=>{if(sending||!live())return;options[x.dataset.recapOption]=x.checked;store.set(prefKey,options);make();});
+      $$('[data-recap-option]',b).forEach(x=>x.onclick=()=>{if(sending||!live())return;const k=x.dataset.recapOption;if(k==='streak'&&data?.streak_weeks<2){const help=$('#recap-streak-help',b);help.textContent='Available after two active weeks in a row.';help.hidden=false;return;}options[k]=!options[k];store.set(prefKey,options);make();});
+      preview.onclick=()=>{if(!picture||!live())return;sheet('Your progress picture',`<img class="recap-full" src="${esc(url)}" alt="${esc(image.alt)}">`);};
       $('#recap-retry',b).onclick=()=>make(true);
-      button.onclick=async()=>{if(sending||!picture||!live())return;const run=version,blob=picture;sending=true;button.disabled=true;$$('input,[data-recap-period]',b).forEach(x=>x.disabled=true);
-        try{const handedOff=await ShareArt.deliver(blob,`kinetta-${data.start}.png`,()=>live()&&run===version);if(handedOff&&live()&&run===version){onShared?.(data);}}
+      button.onclick=async()=>{if(sending||!picture||!canShare||!live())return;const run=version,blob=picture;sending=true;controls();
+        try{const handedOff=await ShareArt.deliver(blob,`kinetta-${data.start}.png`,()=>live()&&run===version);if(handedOff&&live()&&run===version)onShared?.(data);}
         catch(e){if(live()&&e.name!=='AbortError')status.textContent=e.message||'Couldn’t share this picture';}
-        finally{sending=false;if(live()){$$('input,[data-recap-period]',b).forEach(x=>x.disabled=false);$('[data-recap-option="streak"]',b).disabled=data.streak_weeks<2;button.disabled=!picture;}}
+        finally{sending=false;if(live())controls();}
       };
+      // Snap whole groups of periods, so the resting edge never cuts through a word.
+      const periodRow=$('.recap-periods',b),periodWrap=$('.recap-period-wrap',b),periodButtons=$$('[data-recap-period]',b);let periodWidth=0,periodFont='',periodFrame=0;
+      const fades=()=>{periodWrap.classList.toggle('more-right',periodRow.scrollLeft<periodRow.scrollWidth-periodRow.clientWidth-1);periodWrap.classList.toggle('more-left',periodRow.scrollLeft>1);};
+      const arrangePeriods=()=>{
+        if(!live())return;const width=periodRow.clientWidth,font=getComputedStyle(periodButtons[0]).fontSize;
+        if(!width||width===periodWidth&&font===periodFont)return;periodWidth=width;periodFont=font;
+        const focused=document.activeElement,widths=periodButtons.map(x=>x.getBoundingClientRect().width),fragment=document.createDocumentFragment();let page=null,used=0;
+        periodButtons.forEach((x,i)=>{const need=widths[i]+(used?8:0);if(!page||used+need>width-20){page=document.createElement('div');page.className='recap-period-page';fragment.append(page);used=0;}page.append(x);used+=widths[i]+(used?8:0);});
+        periodRow.replaceChildren(fragment);const selected=$('[aria-pressed="true"]',periodRow);if(selected)periodRow.scrollLeft=selected.parentElement.offsetLeft;
+        if(periodButtons.includes(focused))focused.focus({preventScroll:true});fades();
+      };
+      const schedulePeriods=()=>{cancelAnimationFrame(periodFrame);periodFrame=requestAnimationFrame(arrangePeriods);},periodResize=new ResizeObserver(schedulePeriods),periodFontChange=new MutationObserver(schedulePeriods);
+      periodResize.observe(periodRow);periodFontChange.observe(document.documentElement,{attributes:true,attributeFilter:['style']});periodRow.addEventListener('scroll',fades,{passive:true});
+      periodButtons.forEach(x=>x.addEventListener('focus',()=>{periodRow.scrollLeft=x.parentElement.offsetLeft;fades();}));
+      stopPeriods=()=>{cancelAnimationFrame(periodFrame);periodResize.disconnect();periodFontChange.disconnect();};document.fonts?.ready.then(schedulePeriods);schedulePeriods();
       make(true);
     });
   }
