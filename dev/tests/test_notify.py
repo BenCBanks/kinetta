@@ -28,7 +28,7 @@ n1.post('/api/friends/zz_test_note2/decline')
 ck(notes(n1)['unread'] == 0, 'declined: the request notification goes')
 n2.post('/api/friends', {'login': 'zz_test_note1'}); n1.post('/api/friends/zz_test_note2/accept')
 ck(notes(n1)['unread'] == 0, 'accepted: the request notification goes')
-r = notes(n2); ck(r['items'][0]['kind'] == 'friend_accepted' and 'Note1 Test accepted' in r['items'][0]['text'], 'asker told')
+r = notes(n2); ck(r['items'][0]['kind'] == 'friend_accepted' and r['items'][0]['text']=='You and Note1 Test are now friends', 'asker told')
 
 # cheers: once per person and activity, even after un-cheering; comments with a snippet; deleting removes it
 s, a = n1.post('/api/activities/manual', {'sport': 'run', 'start': '2026-10-01T07:00', 'duration_s': 1800, 'distance_m': 5000})
@@ -36,7 +36,7 @@ aid = a['id']; n1.put(f'/api/activities/{aid}/sharing', {'visibility': 'friends'
 n1.post('/api/notifications/read')
 n2.post(f'/api/activities/{aid}/cheer'); n2.delete(f'/api/activities/{aid}/cheer'); n2.post(f'/api/activities/{aid}/cheer')
 r = notes(n1); ck([i['kind'] for i in r['items'] if not i['read']] == ['cheer'], f'one cheer {r["items"][:3]}')
-ck(r['items'][0]['link'] == f'/activity/{aid}' and 'sent cheers on your' in r['items'][0]['text'], 'cheer text')
+ck(r['items'][0]['link'] == f'/activity/{aid}' and 'cheered your' in r['items'][0]['text'], 'cheer text')
 s, cm = n2.post(f'/api/activities/{aid}/comments', {'text': 'Nice pace <b>today</b>!'})
 r = notes(n1); ck(r['items'][0]['kind'] == 'comment' and r['items'][0]['text'].endswith(': "Nice pace <b>today</b>!"'), f'comment {r["items"][0]}')
 n1.post(f'/api/activities/{aid}/comments', {'text': 'Thanks'})

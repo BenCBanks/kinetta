@@ -15,7 +15,7 @@ base_notice={'name':'Fictional Friend','activity':'A deliberately long fictional
 for kind in ('friend_request','friend_accepted','cheer','comment','dish_shared','activity_ready'):
     title,body=notify._push_words({**base_notice,'kind':kind})
     assert len(title)<40 and body and '\n' not in title,(kind,title,body)
-assert '\n' in notify._push_words({**base_notice,'kind':'activity_ready'})[1]
+assert '\n' not in notify._push_words({**base_notice,'kind':'activity_ready'})[1], 'Plain workouts have no padding line'
 assert base_notice['comment'] in notify._push_words({**base_notice,'kind':'comment'})[1]
 print('Notification content: short headings and complete multiline body for all delivered types PASS')
 key = ec.generate_private_key(ec.SECP256R1())

@@ -14,13 +14,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .dish_access import NOTICE_VISIBLE
-from . import apns, db, reactions
+from . import apns, db, notification_words, notification_facts
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
 
 # A stale or removed source cannot leave a pending private celebration in the bell or on a phone.
 NOTICE_VISIBLE += " AND (n.kind<>'milestone' OR EXISTS(SELECT 1 FROM milestones m JOIN milestone_state ms ON ms.user_id=m.user_id WHERE m.id=n.milestone_id AND m.user_id=n.user_id AND m.valid AND NOT m.silent AND ms.generation=ms.processed AND (m.activity_id IS NULL OR EXISTS(SELECT 1 FROM activities ma WHERE ma.id=m.activity_id AND ma.user_id=m.user_id))))"
 
 NOTICE_VISIBLE += " AND (n.challenge_id IS NULL OR EXISTS(SELECT 1 FROM challenges cq JOIN users cu ON cu.id=cq.user_id JOIN challenge_members cv ON cv.challenge_id=cq.id AND cv.user_id=n.user_id AND cv.status='active' JOIN challenge_members ca ON ca.challenge_id=cq.id AND ca.user_id=n.actor_id AND ca.status='active' WHERE cq.id=n.challenge_id AND NOT cu.needs_email_confirm AND cu.suspended_at IS NULL))"
+
+NOTICE_VISIBLE += " AND (n.kind<>'activity_ready' OR EXISTS(SELECT 1 FROM activities own WHERE own.id=n.activity_id AND own.user_id=n.user_id))"
 
 router = APIRouter(prefix='/api')
 KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'report')   # report: admins only, in the app only
@@ -79,45 +81,36 @@ def drop(c, user_id, kind, actor_id):
 
 # ---------- reading: the words are made here ----------
 _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,
-             u.login::text AS login, u.name, u.photo_v AS photo, a.name AS activity, a.distance_m, a.moving_s, a.elapsed_s, a.sport, a.sport_label, p.units, d.name AS dish, cm.text AS comment
+             u.login::text AS login, u.name, u.photo_v AS photo, recipient.name AS recipient_name,
+             a.name AS activity, a.user_id AS activity_owner, a.updated, a.start_time, a.lift_open, a.distance_m, a.moving_s, a.elapsed_s, a.sport, a.sub_sport, a.sport_label,
+             (a.sport='workout' AND EXISTS(SELECT 1 FROM lift_sets ls WHERE ls.activity_id=a.id AND ls.user_id=n.user_id)) AS has_lifts,
+             p.units, p.tz, ms.generation, m.title AS milestone_title, d.name AS dish, cm.text AS comment
            FROM notifications n JOIN users u ON u.id = n.actor_id LEFT JOIN profile p ON p.user_id = n.user_id
+           JOIN users recipient ON recipient.id=n.user_id LEFT JOIN milestone_state ms ON ms.user_id=n.user_id
+           LEFT JOIN milestones m ON m.id=n.milestone_id AND m.user_id=n.user_id AND m.valid
            LEFT JOIN activities a ON a.id = n.activity_id LEFT JOIN dishes d ON d.id = n.dish_id LEFT JOIN comments cm ON cm.id = n.comment_id LEFT JOIN challenges q ON q.id=n.challenge_id"""
 
 
 def _words(r):
-    if r['kind']=='milestone':return 'A milestone is ready to review', '/me/milestones'
+    if r['kind']=='milestone':return notification_words.clean(r.get('milestone_title') or 'A milestone is ready to review',100), '/me/milestones'
     if r['kind'].startswith('challenge_'):
         text={'challenge_join':'@'+r['login']+' joined your challenge','challenge_reminder':'Three days left in your challenge','challenge_finished':'Your challenge finish picture is ready'}[r['kind']]
         return text,'/me/challenges/'+r['challenge_code']
-    who, act = r['name'], r['activity'] or 'activity'
+    who, act = notification_words.clean(r['name'],40), notification_words.clean(r['activity'] or 'activity',90)
     if r['kind'] == 'activity_ready':
-        return f"Nice work! {act} saved — {_activity_summary(r)}", f"/activity/{r['activity_id']}"
+        title,body=notification_words.activity(r)
+        return title+' · '+body, f"/activity/{r['activity_id']}?edit=1"
     if r['kind'] == 'friend_request': return f'{who} wants to be friends', '/me/friends'
-    if r['kind'] == 'friend_accepted': return f'{who} accepted your friend request', '/activity'
+    if r['kind'] == 'friend_accepted': return f'You and {who} are now friends', '/activity'
     if r['kind']=='cheer':
-        label='cheers' if r.get('reaction_kind') in (None,'cheer') else reactions.LABELS[r['reaction_kind']]
-        return f"{who} sent {label} on your {act}",f"/activity/{r['activity_id']}"
+        action={'cheer':'cheered','applause':'applauded','strong':'sent Strong for'}.get(r.get('reaction_kind') or 'cheer','cheered')
+        return f"{who} {action} your {act}",f"/activity/{r['activity_id']}"
     if r['kind'] == 'comment':
-        snip = (r['comment'] or '').strip()
-        return f'{who} commented on your {act}' + (f': "{snip[:80]}{"…" if len(snip) > 80 else ""}"' if snip else ''), f"/activity/{r['activity_id']}"
+        snip = notification_words.clean(r['comment'],80)
+        return f'{who} commented on your {act}' + (f': "{snip}"' if snip else ''), f"/activity/{r['activity_id']}"
     if r['kind'] == 'report': return f'{who} reported something for the admins to look at', '/me/people'
     return f"{who} shared {r['dish'] or 'a meal'} with you", f"/food/cook/{r['dish_id']}"
 
-
-
-def _activity_summary(r):
-    """Deterministic lock-screen summary in the person's chosen units; no AI calls."""
-    parts = []
-    if r.get('distance_m'):
-        metric = r.get('units') == 'metric'
-        distance = r['distance_m'] / (1000 if metric else 1609.344)
-        parts.append(f"{distance:.2f} {'km' if metric else 'mi'}")
-    seconds = r.get('moving_s') or r.get('elapsed_s')
-    if seconds:
-        minutes = max(1, round(seconds / 60))
-        hours, mins = divmod(minutes, 60)
-        parts.append(f'{hours} h {mins} min' if hours and mins else f'{hours} h' if hours else f'{mins} min')
-    return ' · '.join(parts) or 'workout saved'
 
 
 def _item(r):
@@ -230,17 +223,17 @@ def settings(body: PrefsIn, user=Depends(current_user)):
     return {'push': _prefs(p.get('notify'))}
 
 
-def _push_words(r):
+def _push_words(r, facts=None):
     """Keep long activity/person text in the multiline body, not iOS's short title."""
     text,_=_words(r)
-    titles={'friend_request':'Friend request','friend_accepted':'Friend request accepted',
+    titles={'friend_request':'Friend request','friend_accepted':'You’re now friends',
             'cheer':'New reaction','comment':'New comment','dish_shared':'Meal shared',
             'activity_ready':'Workout saved','milestone':'Milestone'}
     if r['kind']=='activity_ready':
-        return 'Workout saved', f"{r['activity'] or 'Your workout'}\n{_activity_summary(r)}"
+        return notification_words.activity(r,facts)
     if r['kind']=='comment':
-        lead=f"{r['name']} commented on your {r['activity'] or 'activity'}"
-        return 'New comment', lead+(f"\n{r['comment'].strip()}" if r.get('comment') else '')
+        lead=f"{notification_words.clean(r['name'],40)} commented on your {notification_words.clean(r['activity'] or 'activity',90)}"
+        return 'New comment', lead+(f"\n{notification_words.clean(r['comment'],450)}" if r.get('comment') else '')
     return titles.get(r['kind'],'Kinetta'),text
 
 
@@ -289,13 +282,22 @@ class _DeliveryCount(int):
 def push(nid, send=None, *, catchup=False):
     """Deliver native alerts; catchup is a previously claimed, recent unread social notice."""
     with db.connect() as c:
-        row = c.execute('SELECT user_id FROM notifications WHERE id=%s', (nid,)).fetchone()
+        row = c.execute(_LIST+' WHERE n.id=%s', (nid,)).fetchone()
         if not row: return None
+        # Optional history reads happen once, before the user's delivery lock and
+        # every device/session row lock. A fresh generation check discards stale facts.
+        can_highlight=row['kind']=='activity_ready' and (send is not None or apns.ready())
+        has_device=can_highlight and c.execute('SELECT 1 FROM native_push_devices WHERE user_id=%s LIMIT 1',(row['user_id'],)).fetchone()
+        facts=notification_facts.read(c,row) if has_device else None
+        stamp=notification_facts.signature(row) if facts else None
+        if facts:
+            after=c.execute(_LIST+' WHERE n.id=%s AND '+NOTICE_VISIBLE,(nid,)).fetchone()
+            if stamp!=notification_facts.signature(after):facts=None;stamp=None
         _push_lock(c, row['user_id'])
-        return _push(c, nid, send, catchup)
+        return _push(c, nid, send, catchup, facts, stamp)
 
 
-def _push(c, nid, send, catchup):
+def _push(c, nid, send, catchup, facts=None, stamp=None):
     row = c.execute('SELECT kind,user_id FROM notifications WHERE id=%s', (nid,)).fetchone()
     if not row: return None
     uid, kind = row['user_id'], row['kind']
@@ -310,7 +312,8 @@ def _push(c, nid, send, catchup):
         if not any(_prefs(prefs.get('notify'))[g] for g,kinds in PUSH_KINDS.items() if fresh['kind'] in kinds):
             prepare.reason = 'preference_off'
             return None
-        title, body = _push_words(fresh)
+        current_facts=facts if stamp is not None and stamp==notification_facts.signature(fresh) else None
+        title, body = _push_words(fresh,current_facts)
         _, link = _words(fresh)
         return {'title':title[:180], 'body':body[:600], 'url':link, 'badge':unread(conn,uid), 'tag':f'{kind}-{nid}'}
     prepare.kind = kind
