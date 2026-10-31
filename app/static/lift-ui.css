@@ -1,32 +1,32 @@
 /* Compact gym controls keep the existing numbers and saving/rest behavior. */
 .compact-lift .lift-top { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:8px; }
-.lift-top .acts { max-width:140px; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.lift-top .acts { max-width:140px; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
 .lift-header-clock { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:2px 8px; min-width:0; }
 .lift-header-clock > span:first-child b { font-size:1rem; }
-.lift-header-clock #lf-restbox { color:var(--accent); font-size:.75rem; white-space:nowrap; }
+.lift-header-clock #lf-restbox { color:var(--accent); font-size:max(13px,.8125rem); white-space:nowrap; }
 .lift-header-clock #lf-rest { font-size:.875rem; }
 .lift-top .lift-save:not([data-state=error]) { flex:none; width:7px; height:7px; min-width:0; overflow:hidden; font-size:0; border-radius:50%; background:var(--prog); }
 .lift-top .lift-save[data-state=saving] { background:var(--warn); }
 .lift-top .lift-save:empty { display:none; }
-.lift-top .lift-save[data-state=error] { color:var(--warn); font-size:.75rem; white-space:normal; max-width:7rem; }
-.compact-lift .lift-ex { padding:10px 12px; margin-bottom:10px; }
-.compact-lift .lift-hd { gap:4px; margin:0; }
-.lift-title-line { display:flex; flex-wrap:wrap; align-items:center; gap:0 6px; min-width:0; flex:1; }
-.compact-lift .lift-name { min-height:44px; font-size:1rem; }
-.compact-lift .lift-note { margin:0; padding:0; min-height:44px; border:0; background:none; color:var(--tx2); font-size:.8125rem; text-align:left; overflow-wrap:anywhere; }
+.lift-top .lift-save[data-state=error] { color:var(--warn); font-size:max(13px,.8125rem); white-space:normal; max-width:7rem; }
+.compact-lift .lift-ex { padding:16px; margin-bottom:12px; }
+.compact-lift .lift-hd { gap:8px; margin:0; }
+.lift-title-line { display:flex; flex-wrap:wrap; align-items:center; gap:0 8px; min-width:0; flex:1; }
+.compact-lift .lift-name { min-height:44px; font-size:max(16px,1rem); }
+.compact-lift .lift-note { margin:0; padding:0; min-height:44px; border:0; background:none; color:var(--tx2); font-size:max(13px,.8125rem); text-align:left; overflow-wrap:anywhere; }
 .compact-lift .lift-note::before { content:'· '; }
-.compact-lift .lift-sets { gap:2px; margin-top:2px; }
-.compact-lift .lift-row { padding:0; margin:0; gap:3px; }
-.compact-lift .lift-in { font-size:max(16px,1rem); padding-inline:2px; }
-.compact-lift .lift-row > .lift-in[data-k="kg"],.compact-lift .lift-row > .lh-kg,.compact-lift .lift-row > .lift-in[data-k="secs"],.compact-lift .lift-row > .lh-secs { flex-basis:max(78px,4.1rem); }
-.compact-lift .lift-row > .lift-in[data-k="reps"],.compact-lift .lift-row > .lh-reps { flex-basis:max(64px,3rem); }
-.compact-lift .lift-prev { font-size:.8125rem; }
-.compact-lift .lift-row > .lift-prev,.compact-lift .lift-row > .lh-prev { flex-basis:56px; }
+.compact-lift .lift-sets { gap:8px; margin-top:8px; }
+.compact-lift .lift-row { padding:0; margin:0; gap:8px; }
+.compact-lift .lift-in { min-height:44px; font-size:max(16px,1rem); padding-inline:2px; }
+.compact-lift .lift-row > .lift-in[data-k="kg"],.compact-lift .lift-row > .lh-kg,.compact-lift .lift-row > .lift-in[data-k="secs"],.compact-lift .lift-row > .lh-secs { flex-basis:max(70px,3.65rem); }
+.compact-lift .lift-row > .lift-in[data-k="reps"],.compact-lift .lift-row > .lh-reps { flex-basis:max(56px,2.65rem); }
+.compact-lift .lift-prev { font-size:max(13px,.8125rem); }
+.compact-lift .lift-row > .lift-prev,.compact-lift .lift-row > .lh-prev { flex-basis:64px; }
 .compact-lift .lift-n { outline:1px solid var(--line); text-decoration:underline; text-underline-offset:3px; }
-.compact-lift .lift-tick { border-radius:10px; }
+.compact-lift .lift-tick { width:44px; min-width:44px; height:44px; min-height:44px; border-radius:10px; }
 .compact-lift .lift-tick svg { width:18px; height:18px; }
-.compact-lift .lift-row > .lift-pr { margin:0; font-size:.8125rem; min-height:18px; }
-.compact-lift .lift-addset { display:inline-flex; align-items:center; justify-content:center; gap:4px; min-height:44px; margin:2px 0 0; padding:0 4px; font-size:.875rem; }
+.compact-lift .lift-row > .lift-pr { margin:4px 0; font-size:max(13px,.8125rem); min-height:18px; }
+.compact-lift .lift-addset { display:inline-flex; align-items:center; justify-content:center; gap:4px; min-height:44px; margin:8px 0 0; padding:0 4px; font-size:max(15px,.9375rem); }
 .compact-lift .lift-addset svg { width:16px; height:16px; }
 .compact-lift-exercise .lx-head { padding:12px 14px; }
 .lx-title { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
@@ -41,3 +41,22 @@
  .compact-lift .lift-top > .acts { grid-column:2; grid-row:1; }
 }
 @media(min-width:700px) { .compact-lift .lift-row > .lift-pr { flex:0 1 auto; padding-left:4px; } }
+
+.compact-lift .lift-row.lh span,.compact-lift .lift-n { font-size:max(13px,.8125rem); }
+
+/* At enlarged text sizes, keep complete numeric values and the tick together.
+   The set control and previous result use the line above instead of squeezing fields. */
+.compact-lift .lift-sets { container-type:inline-size; }
+@container (max-width:13.5rem) {
+ .compact-lift .lift-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.8fr) 44px; }
+ .compact-lift .lift-row > .lift-n,.compact-lift .lift-row > .lh-n { grid-column:1; grid-row:1; width:44px; }
+ .compact-lift .lift-row > .lift-prev { grid-column:1 / -1; grid-row:1; margin-left:52px; min-width:0; flex-wrap:wrap; }
+ .compact-lift .lift-row > .lift-prev > span:last-child { white-space:nowrap; }
+ .compact-lift .lift-row > .lh-n { width:auto; }
+ .compact-lift .lift-row > .lh-prev { display:none; }
+ .compact-lift .lift-row > .lift-in[data-k="kg"],.compact-lift .lift-row > .lh-kg { grid-column:1; grid-row:2; }
+ .compact-lift .lift-row > .lift-in[data-k="reps"],.compact-lift .lift-row > .lh-reps { grid-column:2; grid-row:2; }
+ .compact-lift .lift-row:not(:has([data-k="kg"],.lh-kg)) > :is(.lift-in,.lh-reps,.lh-secs) { grid-column:1 / 3; grid-row:2; }
+ .compact-lift .lift-row > .lift-tick,.compact-lift .lift-row > .lh-tick { grid-column:3; grid-row:2; }
+ .compact-lift .lift-row > .lift-pr { grid-column:1 / -1; grid-row:3; }
+}

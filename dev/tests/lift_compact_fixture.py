@@ -17,6 +17,13 @@ for days,kg in ((5,75),(3,80)):
  ok(c.put(f'/api/activities/{aid}/lifts',{'exercises':[{'exercise_id':ex[0],'sets':[{'kg':40,'reps':8,'warmup':True}]+[{'kg':kg,'reps':5}]*3},{'exercise_id':ex[1],'sets':[{'kg':60,'reps':8}]*3},{'exercise_id':ex[2],'sets':[{'secs':45}]}]}))
 aid=ok(c.post('/api/lifts/start',{'copy_from':aid}))['id'];ok(c.put(f'/api/activities/{aid}/lifts',{'exercises':[{'exercise_id':ex[0],'sets':[{'kg':40,'reps':8,'warmup':True,'done':True},{'kg':90,'reps':5,'done':True},{'kg':90,'reps':5,'done':False},{'kg':90,'reps':5,'done':False}]},{'exercise_id':ex[1],'sets':[{'kg':60,'reps':8,'done':False}]*3},{'exercise_id':ex[2],'sets':[{'secs':45,'done':False}]}]}))
 data=ok(c.get(f'/api/activities/{aid}/lifts'));assert data['open'] and len(data['exercises'])==3;assert data['exercises'][0]['sets'][1]['pr'];ids={'live':aid,'exercise':ex[0],'new':ex[3]};
+fresh=person('zz_test_lift_compact_fresh');ok(fresh.post('/api/account/delete',{'password':PW}));fresh=person('zz_test_lift_compact_fresh','Fresh Logger');ok(fresh.put('/api/profile',{'tz':'UTC','ai_ok':False,'units':'imperial'}))
+fresh_ex=ok(fresh.post('/api/lifts/exercises',{'name':'Squat'}))['id'];started=ok(fresh.post('/api/lifts/start',{}));assert started['resumed'] is False
+fresh_aid=started['id'];ok(fresh.put(f'/api/activities/{fresh_aid}/lifts',{'exercises':[{'exercise_id':fresh_ex,'sets':[{'done':False} for _ in range(3)]}]}))
+fresh_data=ok(fresh.get(f'/api/activities/{fresh_aid}/lifts'));assert fresh_data['open'] and len(fresh_data['exercises'])==1
+fresh_row=fresh_data['exercises'][0];assert fresh_row['last'] is None and fresh_row['sessions_before']==0 and len(fresh_row['sets'])==3
+assert all(all(row[k] is None for k in ('reps','kg','secs')) and not row['done'] and not row['warmup'] and not row.get('pr') for row in fresh_row['sets'])
+ids.update(fresh_live=fresh_aid,fresh_exercise=fresh_ex)
 if os.environ.get('KINETTA_LIFT_IDS'):Path(os.environ['KINETTA_LIFT_IDS']).write_text(json.dumps(ids))
 print('Fictional three-exercise/warmup/record/unfinished/history/empty lifting fixture ready')
 print(json.dumps(ids))

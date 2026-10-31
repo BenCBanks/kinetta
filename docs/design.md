@@ -1594,6 +1594,17 @@ Set rows retain44px number/tick/previous/add/menu/note controls and input text o
 
 An exercise has a named Lifting return and compact muscle/name/session/note header. Its existing records already used clear label/value rows, so their layout and all chart/history/record/one-rep-max calculations stay unchanged. Empty history invents no record. No discovery grid belongs on either sub-page. `lift_compact_ui.cjs` covers phone/themes/enlarged text, menu/note/set actions, sticky clocks, failed-save recovery and two native keyboard-event stand-ins for focused-field visibility/dismissal/value retention; existing lifting lifecycle/write/large-number coverage remains. Physical one-hand logging stays a separate check after TestFlight.
 
+
+### Lifting spacing correction (31 October 2026, #423)
+
+Exercise cards use16px padding with12px between cards. Set rows and neighbouring controls have8px gaps; numeric
+inputs and ticks remain at least44px high, with input text at least16px and Last/record text at least13px. Record
+lines have4px above and below. At enlarged text sizes the set number and previous result move above the fields;
+complete numeric values and the inline tick keep their own row. Default-size rows remain compact, with the sticky
+clock, editable note and Add set retained. The exercise-history page is unchanged. The rendered fixture also
+starts a genuinely fresh session with three blank, unticked sets and no previous result or record.
+
+
 ## Compact recipes and foods (31 October2026, #392)
 
 The managed library is Recipes & foods, with one New menu for recipe, link and food creation. Recipe rows keep one-line names/previews, server-supplied per-serving calories when the yield is known, otherwise a labelled total, and44px log actions. Recipes and foods remain separate sections so typical lists show both; long libraries add one search across all names and direct Recipes/Foods links. Shared recipes, saved combinations and Add food's separate portion-picker purpose stay intact. No discovery grid belongs on this sub-page.
