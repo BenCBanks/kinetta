@@ -74,6 +74,14 @@
       ]
     },
     {
+      "id": "food-weight-progress",
+      "source": "app/static/food.js",
+      "pattern": "/^\\/progress\\/weight$/",
+      "paths": [
+        "/progress/weight"
+      ]
+    },
+    {
       "id": "food-5",
       "source": "app/static/food.js",
       "pattern": "/^\\/food\\/trends$/",
