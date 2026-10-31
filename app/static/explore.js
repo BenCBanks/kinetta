@@ -72,24 +72,44 @@ function aiOffer(feature) {
 }
 // Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
 function kitChatOn() { return !!App.me?.kit_chat && aiCan('coach'); }
+const guideId=title=>title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+function guideIcon(group,title,href){
+  if(/weight/i.test(title))return 'scale';
+  if(/Health/.test(title))return 'heart';
+  if(/map|GPS|route/i.test(title))return 'globe';
+  if(/recipe|meal portion/i.test(title))return 'pot';
+  if(/target|plan|goal/i.test(title))return 'target';
+  if(/lifting|strength/i.test(title))return 'workout';
+  return {'Set up':'settings',Food:'food',Training:'run',Progress:'progress',Friends:'friends','Optional AI':'sparkle'}[group]||'help';
+}
 route(/^\/me\/explore$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Explore Kinetta</h1>
-    <p>Your guide to the everyday tools and the less obvious ones. Come back any time.</p>
-    <form class="searchbox guide-search" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" aria-label="Search features" placeholder="Try weight, meals, maps or plans" autocomplete="off"></form>
-    <label class="guide-categories">Category<select id="guide-category" aria-label="Feature category"></select></label><p class="small muted" id="guide-count" role="status"></p><div id="guide-results"></div>`;
+  el.classList.add('guide-page');
+  el.innerHTML = `<div class="top">${backBtn('Me')}<h1>Explore Kinetta</h1></div>
+    <form class="searchbox guide-search" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" aria-label="Search features" placeholder="Search features" autocomplete="off"><span id="guide-count" role="status"></span></form>
+    <div class="guide-categories" role="group" aria-label="Feature category"></div><div id="guide-results"></div>`;
   wireBack(el, '/me');
+  const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
   let category = 'All';
   const catalog = FEATURE_GUIDE.filter(f=>!Native.on || !['/track/import','/food/import'].includes(f[3]));
   const cats = ['All', ...new Set(catalog.map((f) => f[0]))];
-  $('#guide-category', el).innerHTML = cats.map(c=>`<option>${esc(c)}</option>`).join('');
+  $('.guide-categories', el).innerHTML = cats.map(c=>`<button type="button" class="me-chip" data-guide-category="${esc(c)}" aria-pressed="${c===category}">${esc(c)}</button>`).join('');
   const draw = () => {
+    if(!valid())return;
     const words = $('input', el).value.toLowerCase().trim().split(/\s+/).filter(Boolean);
     const rows = catalog.filter((f) => (category === 'All' || f[0] === category) && words.every((w) => f.join(' ').toLowerCase().includes(w)));
     $('#guide-count', el).textContent = `${rows.length} feature${rows.length === 1 ? '' : 's'}`;
-    $('#guide-results', el).innerHTML = rows.length ? rows.map(([group,title,desc,href,how,,feature]) => `<article class="card feature-guide-card"><details><summary><span><small class="eyebrow">${esc(group)}${feature && group !== 'Optional AI' && !aiCan(feature) ? ' · optional AI' : ''}</small><b>${esc(title)}</b></span></summary><p>${esc(desc)}</p><p>${esc(how)}</p><a class="guide-open" href="${href}">Open ${esc(title)} ${svg('chev')}</a></details></article>`).join('') : '<div class="card empty">No features match. Try a shorter search or choose All.</div>';
+    const groups=[...new Set(rows.map(f=>f[0]))];
+    $('#guide-results', el).innerHTML = rows.length ? groups.map(group=>`<section class="guide-group"><h2>${esc(group)}</h2><div class="card">${rows.filter(f=>f[0]===group).map(([,title,desc,href,how,,feature])=>{
+      const id=guideId(title),fresh=!Discovery.hasVisited('guide',id);
+      return `<details data-guide-id="${esc(id)}"><summary>${svg(guideIcon(group,title,href))}<span class="guide-row-copy"><b>${esc(title)}</b><span class="guide-row-summary">${esc(desc)}</span></span><span class="guide-new${fresh?'':' seen'}"${fresh?' aria-label="New guide entry"':' aria-hidden="true"'}></span>${svg('chev')}</summary><div class="guide-how"><h3>${esc(title)}</h3><p>${esc(desc)}</p><p>${esc(how)}</p><a class="guide-open linkbtn" href="${esc(href)}">Open ${esc(title)} ${svg('chev')}</a></div></details>`;
+    }).join('')}</div></section>`).join('') : '<div class="card empty">No features match. Try a shorter search or choose All.</div>';
+    $$('#guide-results details',el).forEach(d=>d.addEventListener('toggle',()=>{
+      if(d.open&&valid()){Discovery.visit('guide',d.dataset.guideId);const dot=$('.guide-new',d);dot.classList.add('seen');dot.setAttribute('aria-hidden','true');dot.removeAttribute('aria-label');}
+    }));
+    $$('#guide-results .guide-open',el).forEach(a=>a.addEventListener('click',()=>{if(valid())Discovery.visit('guide',a.closest('details').dataset.guideId);}));
   };
   $('form', el).onsubmit = (e) => { e.preventDefault(); $('input', el).blur(); };
   $('input', el).oninput = draw;
-  $('#guide-category',el).onchange=e=>{category=e.target.value;draw();};
+  $('.guide-categories',el).onclick=e=>{const b=e.target.closest('[data-guide-category]');if(!b||!valid())return;category=b.dataset.guideCategory;$$('[data-guide-category]',el).forEach(n=>n.setAttribute('aria-pressed',String(n===b)));draw();};
   draw();
 });

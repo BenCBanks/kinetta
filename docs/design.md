@@ -1643,3 +1643,7 @@ Single-activity pictures are unchanged. Sport breakdown and previous-period comp
 response has only the top sport and selected-period totals; this visual change adds no API reads or new statistics.
 
 Owner follow-up31October: period and Include controls keep44px hit areas with36px visible faces,15px medium text at default and8px gaps between hit areas. Unavailable Streak remains legible and explains its two-active-week requirement on tap. The preview has no content-card padding because it is the rendered picture, inside the18px padded sheet. At ordinary390px it grows beyond the former two-column preview while controls and Share remain reachable; enlarged text scrolls naturally.
+
+## Explore guide rows (31 October 2026)
+
+Explore keeps its searchable catalog and real destinations. Category chips scroll in one row; category headings appear once above compact divider rows. Each row uses an existing app icon, a name, one-line summary and disclosure chevron. Opening it retains the full description, instructions and Open link. New dots mean a guide entry has not been opened on this account/server/device; they do not infer feature usage elsewhere. Reading an entry clears its dot. The catalog, native import exclusions and shared Kit availability/consent helpers are unchanged. This sub-page has no discovery tile grid or layout helper paragraph. Enlarged text wraps names; the touch target stays at least44px.
