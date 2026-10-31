@@ -39,6 +39,7 @@
         const old = methods.get(key);
         if (old?.original === original) return old.wrapper;
         const wrapper = function (...args) {
+          const callTarget = this === view ? target : this;
           if (!state) {
             const event = args[0], callback = args[1];
             const observed = name === 'App' && event === 'appStateChange' || name === 'KinettaDisplayPreferences' && event === 'changed';
@@ -49,13 +50,13 @@
                 return callback.apply(this, values);
               };
             }
-            return original.apply(target, args);
+            return original.apply(callTarget, args);
           }
           const call = ++calls, began = at();
           record('read-start', {call});
           if (pending.size < 64) pending.set(call, began);
           let result;
-          try { result = original.apply(target, args); }
+          try { result = original.apply(callTarget, args); }
           catch (error) { pending.delete(call); try { record('read-throw', {call, ...failure(error)}); } catch { record('read-throw', {call}); } throw error; }
           // Observe settlement separately; preserve the caller's exact return value/promise.
           Promise.resolve(result).then(value => {
