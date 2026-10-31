@@ -1169,17 +1169,17 @@ function weightCard(box) {
     };
   };
   draw();
-  load('/api/food/weights?days=3650', (w) => { W = w; draw(); }).catch(() => {});
+  load('/api/food/weights?days=3650', (w) => { W = w;if(draft===null)draw(); }).catch(() => {});
 }
 
 let weightRefresh=0;
 async function refreshWeightData(owner) {
   if(owner!==readOwner())return false;
-  const revision=++weightRefresh;
+  const revision=++weightRefresh,weight=App.me.weight_kg,source=App.me.weight_health_derived;
   invalidate('/api/food');invalidate('/api/progress/overview');invalidate('/api/me');
   try {
     const me=await api('/api/me');
-    if(owner!==readOwner()||me.id!==App.me?.id||revision!==weightRefresh)return false;
+    if(owner!==readOwner()||me.id!==App.me?.id||revision!==weightRefresh||App.me.weight_kg!==weight||App.me.weight_health_derived!==source)return false;
     refreshMe({...App.me,weight_kg:me.weight_kg,weight_health_derived:me.weight_health_derived});return true;
   } catch {return false;} // The weigh-in already saved; an optional profile read cannot undo it.
 }
