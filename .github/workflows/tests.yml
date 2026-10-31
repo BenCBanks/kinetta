@@ -88,6 +88,11 @@ jobs:
         run: |
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/lift_compact_ui.cjs
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/lift_ui.cjs
+      - name: Check compact recipes, foods and ingredient editor (fictional accounts)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/recipes_compact_ui.cjs
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100
