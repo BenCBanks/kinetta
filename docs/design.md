@@ -1666,3 +1666,7 @@ large-text widths, entries use one column so full times remain visible. Green st
 recorded best. Source and help controls retain44px targets; the caveat and collapsed method remain. Current before
 captures already show Running fitness and VDOT on the first screen, so their structure, numbers, charts and caveats
 need no change. Chart inspection and existing year filtering stay available.
+
+## Explore guide rows (31 October 2026)
+
+Explore keeps its searchable catalog and real destinations. Category chips scroll in one row; category headings appear once above compact divider rows. Each row uses an existing app icon, a name, one-line summary and disclosure chevron. Opening it retains the full description, instructions and Open link. New dots mean a guide entry has not been opened on this account/server/device; they do not infer feature usage elsewhere. Reading an entry clears its dot. The catalog, native import exclusions and shared Kit availability/consent helpers are unchanged. This sub-page has no discovery tile grid or layout helper paragraph. Enlarged text wraps names; the touch target stays at least44px.
