@@ -1727,3 +1727,27 @@ This is an owner-only, untrimmed view. Header Share still opens a progress pictu
 The endpoint supplies at most5000 encoded geometries and a sport filter, without dates, distance or total/truncation
 metadata. The count labels returned routes and the5000 cap; period/distance summaries need a separate API contract.
 No unsupported selector or calculated distance is invented. Empty history keeps the sport choice and Start action.
+
+
+## Calm, personal workout notifications (31 October2026, #426)
+
+Workout titles use a small, fixed, deterministic set per sport and the recipient's first name.
+The body starts with the activity name, distance and duration in that person's units. At most one
+additional line gives a verified best effort, longest run/ride in a month/year, milestone, weekly
+progress or return after a long break, in that order. With nothing notable, omit the second line.
+Unknown distances cannot establish a longest workout or a complete weekly distance. Missing,
+changed or unavailable facts fall back to the ordinary workout summary, including during a local
+calendar boundary. Optional facts are read once before delivery locks and rechecked against the
+owner's committed history generation and source/profile values.
+
+Use plain encouragement without gushing, guilt, streak pressure, calorie talk or stacked exclamation
+marks. No AI, private notes, Kit text or route maps belong in these alerts. Reactions name the actual
+action; comments name the commenter and retain the comment in the body; friend acceptance says
+You and [name] are now friends. Milestone alerts name the actual valid milestone. Existing ownership,
+visibility, preference, current-device/session and retry boundaries remain.
+
+A completed-workout notification opens its own activity's existing Edit sheet; closing leaves the
+detail. The consumed edit parameter must be removed before opening so reload and Back do not reopen
+it. Another person's activity or a missing activity never gains an editor. Other alert destinations
+stay as they are. Activity-photo notification thumbnails are deferred to a separate native extension;
+no photo or route URL is added here.

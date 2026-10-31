@@ -33,10 +33,19 @@ def accept(request):
     assert claims['iss'] == 'TESTTEAM01' and abs(claims['iat'] - time.time()) < 60
     data = json.loads(request.content)
     assert data['aps']['alert']['title'] == payload['title'] and data['url'] == '/activity/1'
+    assert 'edit_url' not in data, 'Ordinary existing destinations stay exact'
     return httpx.Response(200)
 with patch.dict(os.environ, {'KINETTA_APNS_TEAM_ID': 'TESTTEAM01', 'KINETTA_APNS_KEY_ID': 'TESTKEY001', 'KINETTA_APNS_PRIVATE_KEY': pem}):
     apns._cached = None
     assert apns.deliver(device, payload, httpx.MockTransport(accept))
+    edit_payload={**payload,'url':'/activity/1?edit=1'}
+    def accept_edit(request):
+        data=json.loads(request.content)
+        assert data['url']=='/activity/1' and data['edit_url']=='/activity/1?edit=1'
+        assert data['aps']['alert']=={'title':payload['title'],'body':payload['body']}
+        return httpx.Response(200)
+    assert apns.deliver(device,edit_payload,httpx.MockTransport(accept_edit))
+    assert edit_payload['url']=='/activity/1?edit=1', 'Transport does not mutate the logical destination'
     assert apns.deliver(device, payload, httpx.MockTransport(lambda r: httpx.Response(410, json={'reason': 'Unregistered'}))) is False
     try:
         apns.deliver(device, payload, httpx.MockTransport(lambda r: httpx.Response(403, json={'reason': 'InvalidProviderToken'})))

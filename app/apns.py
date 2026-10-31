@@ -1,5 +1,6 @@
 """Native iPhone alert delivery. Credentials stay on the server; tests replace the HTTP transport."""
 import os
+import re
 from pathlib import Path
 import threading
 import time
@@ -37,11 +38,14 @@ def deliver(device, payload, transport=None):
                'apns-push-type': 'alert', 'apns-priority': '10',
                'apns-expiration': str(payload.get('expires_at', int(time.time()) + 86400)),
                'apns-collapse-id': payload['tag']}
+    data={'aps':{'alert':{'title':payload['title'],'body':payload['body']},'sound':'default','badge':payload['badge']},'url':payload['url']}
+    if payload['tag'].startswith('activity_ready-') and re.fullmatch(r'/activity/[1-9]\d*\?edit=1',payload['url']):
+        # Older installed native clients accept only the original bare detail URL.
+        # Updated clients can opt into Edit without making old notification taps inert.
+        data['edit_url']=payload['url'];data['url']=payload['url'].split('?',1)[0]
     with httpx.Client(http2=True, timeout=10, transport=transport) as client:
         response = client.post(f'https://{host}/3/device/{device["token"]}', headers=headers,
-                               json={'aps': {'alert': {'title': payload['title'], 'body': payload['body']},
-                                             'sound': 'default', 'badge': payload['badge']},
-                                     'url': payload['url']})
+                               json=data)
     if response.status_code == 200: return True
     reason = response.json().get('reason', '')
     if response.status_code == 410 or reason in ('BadDeviceToken', 'DeviceTokenNotForTopic'): return False

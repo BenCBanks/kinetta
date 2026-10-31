@@ -82,7 +82,7 @@ def drop(c, user_id, kind, actor_id):
 # ---------- reading: the words are made here ----------
 _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,
              u.login::text AS login, u.name, u.photo_v AS photo, recipient.name AS recipient_name,
-             a.name AS activity, a.user_id AS activity_owner, a.updated, a.start_time, a.lift_open, a.distance_m, a.moving_s, a.elapsed_s, a.sport, a.sub_sport, a.sport_label,
+             a.name AS activity, a.user_id AS activity_owner, a.updated, a.start_time, a.lift_open, a.distance_m::double precision AS distance_m, a.moving_s, a.elapsed_s, a.sport, a.sub_sport, a.sport_label,
              (a.sport='workout' AND EXISTS(SELECT 1 FROM lift_sets ls WHERE ls.activity_id=a.id AND ls.user_id=n.user_id)) AS has_lifts,
              p.units, p.tz, ms.generation, m.title AS milestone_title, d.name AS dish, cm.text AS comment
            FROM notifications n JOIN users u ON u.id = n.actor_id LEFT JOIN profile p ON p.user_id = n.user_id
@@ -288,11 +288,21 @@ def push(nid, send=None, *, catchup=False):
         # every device/session row lock. A fresh generation check discards stale facts.
         can_highlight=row['kind']=='activity_ready' and (send is not None or apns.ready())
         has_device=can_highlight and c.execute('SELECT 1 FROM native_push_devices WHERE user_id=%s LIMIT 1',(row['user_id'],)).fetchone()
-        facts=notification_facts.read(c,row) if has_device else None
-        stamp=notification_facts.signature(row) if facts else None
-        if facts:
-            after=c.execute(_LIST+' WHERE n.id=%s AND '+NOTICE_VISIBLE,(nid,)).fetchone()
-            if stamp!=notification_facts.signature(after):facts=None;stamp=None
+        facts=None;stamp=None
+        if has_device:
+            try:
+                # Optional copy must never make a valid ordinary alert disappear.
+                # The savepoint also recovers the outer transaction after SQL errors.
+                with c.transaction():
+                    asof=dt.datetime.now(dt.timezone.utc)
+                    stamp=notification_facts.signature(row,asof)
+                    facts=notification_facts.read(c,row,asof)
+                    if facts:
+                        after=c.execute(_LIST+' WHERE n.id=%s AND '+NOTICE_VISIBLE,(nid,)).fetchone()
+                        if stamp!=notification_facts.signature(after):facts=None;stamp=None
+            except Exception:
+                facts=None;stamp=None
+                log.info('push highlight skipped: reason=unavailable')
         _push_lock(c, row['user_id'])
         return _push(c, nid, send, catchup, facts, stamp)
 

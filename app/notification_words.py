@@ -71,7 +71,7 @@ def highlight(row,facts):
         for period in ('year','month'):
             item=facts.get('longest',{}).get(period,{})
             previous=number(item.get('previous_m'))
-            if item.get('count',0)>0 and previous is not None and metres>previous:
+            if item.get('count',0)>0 and not item.get('unknown') and previous is not None and metres>previous:
                 label='this '+period if item.get('current') else 'in '+clean(item.get('label'),16)
                 if label!='in ':return f'Longest {sport} {label}'
     for item in facts.get('milestones',[]):

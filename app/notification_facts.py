@@ -56,23 +56,25 @@ def read(c,row,now=None):
       max(a.start_time) FILTER(WHERE a.sport=%(sport)s AND {prefix}) AS previous,
       count(*) FILTER(WHERE a.sport=%(sport)s AND {prefix} AND a.start_time>=%(day)s) AS earlier_today,
       count(*) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(year)s AND a.start_time<%(year_end)s) AS year_count,
-      max(a.distance_m) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(year)s AND a.start_time<%(year_end)s AND {_DISTANCE}) AS year_max,
+      count(*) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(year)s AND a.start_time<%(year_end)s AND coalesce(({_DISTANCE}),false)=false) AS year_missing,
+      max(a.distance_m::double precision) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(year)s AND a.start_time<%(year_end)s AND {_DISTANCE}) AS year_max,
       count(*) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(month)s AND a.start_time<%(month_end)s) AS month_count,
-      max(a.distance_m) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(month)s AND a.start_time<%(month_end)s AND {_DISTANCE}) AS month_max,
+      count(*) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(month)s AND a.start_time<%(month_end)s AND coalesce(({_DISTANCE}),false)=false) AS month_missing,
+      max(a.distance_m::double precision) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(month)s AND a.start_time<%(month_end)s AND {_DISTANCE}) AS month_max,
       count(*) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(week)s AND {prefix}) AS week_count,
       count(*) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(week)s AND {prefix} AND {_DISTANCE}) AS week_known,
-      coalesce(sum(a.distance_m) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(week)s AND {prefix} AND {_DISTANCE}),0) AS week_distance,
+      coalesce(sum(a.distance_m::double precision) FILTER(WHERE a.sport=%(sport)s AND a.start_time>=%(week)s AND {prefix} AND {_DISTANCE}),0) AS week_distance,
       count(*) FILTER(WHERE a.start_time>=%(year)s AND {prefix} AND coalesce(({_DISTANCE}),false)=false) AS year_unknown,
-      coalesce(sum(a.distance_m) FILTER(WHERE a.start_time>=%(year)s AND {prefix} AND {_DISTANCE}),0) AS year_distance
+      coalesce(sum(a.distance_m::double precision) FILTER(WHERE a.start_time>=%(year)s AND {prefix} AND {_DISTANCE}),0) AS year_distance
       FROM activities a WHERE a.user_id=%(uid)s AND a.id<>%(aid)s AND {_COMPLETED}""",p).fetchone()
     facts={'user_id':row['user_id'],'activity_id':row['activity_id'],'bests':[],'longest':{},'milestones':[]}
     for period in ('year','month'):
-        facts['longest'][period]={'count':stats[period+'_count'],'previous_m':stats[period+'_max'],
+        facts['longest'][period]={'count':stats[period+'_count'],'unknown':stats[period+'_missing'],'previous_m':stats[period+'_max'],
           'current':at.year==local.year and (period=='year' or at.month==local.month),'label':str(at.year) if period=='year' else at.strftime('%B %Y')}
     # The shipped column is PostgreSQL real (float32), including fractional miles.
     labels={real(metres):label for metres,label in efforts_for(row['sport'])}
-    efforts=c.execute(f"""SELECT b.distance_m, min(b.elapsed_s) FILTER(WHERE b.activity_id=%(aid)s) AS seconds,
-          min(b.elapsed_s) FILTER(WHERE b.activity_id<>%(aid)s) AS previous
+    efforts=c.execute(f"""SELECT b.distance_m, min(b.elapsed_s::double precision) FILTER(WHERE b.activity_id=%(aid)s) AS seconds,
+          min(b.elapsed_s::double precision) FILTER(WHERE b.activity_id<>%(aid)s) AS previous
           FROM best_efforts b JOIN activities a ON a.id=b.activity_id AND a.user_id=b.user_id
           WHERE b.user_id=%(uid)s AND b.sport=%(sport)s AND a.sport=%(sport)s AND b.distance_m=ANY(%(distances)s::real[])
           AND b.elapsed_s>0 AND b.elapsed_s<'Infinity'::float8 AND {_COMPLETED} GROUP BY b.distance_m""",{**p,'distances':list(labels)}).fetchall() if labels else []

@@ -98,6 +98,14 @@ class WarmNotifications(unittest.TestCase):
         self.activity(NOW-dt.timedelta(days=15),5000,sport='walk')
         row,facts=self.facts(nid);self.assertEqual(notification_words.highlight(row,facts),'First walk in 2 weeks. Welcome back')
 
+    def test_unknown_competitor_cannot_establish_longest(self):
+        self.activity(NOW-dt.timedelta(days=40),40000,sport='ride')
+        self.activity(NOW-dt.timedelta(days=4),10000,sport='ride')
+        current=self.activity(NOW-dt.timedelta(hours=2),20000,sport='ride');nid=self.notice(current)
+        self.activity(NOW-dt.timedelta(hours=1),None,sport='ride')
+        row,facts=self.facts(nid);self.assertEqual(facts['longest']['month']['unknown'],1)
+        self.assertFalse(notification_words.highlight(row,facts))
+
     def test_owner_invalid_time_and_missing_generation_fail_closed(self):
         current=self.activity(NOW-dt.timedelta(hours=2));nid=self.notice(current);row=self.row(nid)
         with db.connect() as c:
@@ -125,9 +133,9 @@ class WarmNotifications(unittest.TestCase):
         now=dt.datetime.now(UTC);old=self.activity(now-dt.timedelta(days=3),7000);self.effort(old,1500)
         current=self.activity(now-dt.timedelta(hours=2));self.effort(current,1450);nid=self.notice(current);self.devices();sent=[]
         read=notification_facts.read
-        def observed(c,row):
+        def observed(c,row,now=None):
             self.assertFalse(c.execute("SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='advisory'").fetchone())
-            return read(c,row)
+            return read(c,row,now)
         def send(device,payload):
             sent.append(payload)
             if len(sent)==1:
@@ -140,10 +148,37 @@ class WarmNotifications(unittest.TestCase):
     def test_change_during_fact_read_discards_before_first_delivery(self):
         now=dt.datetime.now(UTC);old=self.activity(now-dt.timedelta(days=3),7000);self.effort(old,1500)
         current=self.activity(now-dt.timedelta(hours=2));self.effort(current,1450);nid=self.notice(current);self.devices();sent=[];read=notification_facts.read
-        def changed(c,row):
-            facts=read(c,row);c.execute('UPDATE best_efforts SET elapsed_s=1400 WHERE activity_id=%s',(old,));return facts
+        def changed(c,row,now=None):
+            facts=read(c,row,now);c.execute('UPDATE best_efforts SET elapsed_s=1400 WHERE activity_id=%s',(old,));return facts
         with patch.object(notification_facts,'read',side_effect=changed):self.assertEqual(notify.push(nid,send=lambda d,p:sent.append(p)),2)
         self.assertTrue(all('\n' not in p['body'] for p in sent))
+
+    def test_midnight_during_fact_scan_discards_old_period_highlight(self):
+        now=dt.datetime.now(UTC);old=self.activity(now-dt.timedelta(days=3),7000);self.effort(old,1500)
+        current=self.activity(now-dt.timedelta(hours=2));self.effort(current,1450);nid=self.notice(current);self.devices()
+        before=now.replace(hour=23,minute=59);after=before+dt.timedelta(minutes=2);advanced=[False];sent=[];read=notification_facts.read
+        def clock(row,asof=None):return before if asof is not None or not advanced[0] else after
+        def crossing(c,row,asof=None):
+            facts=read(c,row,asof);advanced[0]=True;return facts
+        with patch.object(notification_facts,'local_now',side_effect=clock),patch.object(notification_facts,'read',side_effect=crossing):
+            self.assertEqual(notify.push(nid,send=lambda d,p:sent.append(p)),2)
+        self.assertTrue(all('\n' not in p['body'] for p in sent),'The next day cannot inherit yesterday’s period claims')
+
+    def test_optional_loader_and_sql_errors_preserve_plain_delivery(self):
+        current=self.activity(dt.datetime.now(UTC)-dt.timedelta(hours=2));nid=self.notice(current);self.devices()
+        def bad_sql(c,row,now=None):c.execute('SELECT 1/0')
+        for error in (RuntimeError('fictional private detail must not be logged'),bad_sql):
+            sent=[]
+            with patch.object(notification_facts,'read',side_effect=error):self.assertEqual(notify.push(nid,send=lambda d,p:sent.append(p)),2)
+            self.assertTrue(all('\n' not in p['body'] for p in sent))
+
+    def test_distance_threshold_uses_double_sum_of_stored_records(self):
+        with db.connect() as c:c.execute("UPDATE profile SET units='metric' WHERE user_id=%s",(self.owner,))
+        for n in range(99):self.activity(NOW-dt.timedelta(days=20,hours=n),1000.001,sport='walk')
+        current=self.activity(NOW-dt.timedelta(hours=2),999.9,sport='walk');nid=self.notice(current)
+        row,facts=self.facts(nid)
+        with db.connect() as c:total=c.execute('SELECT sum(distance_m::double precision) AS total FROM activities WHERE user_id=%s',(self.owner,)).fetchone()['total']
+        self.assertLess(total,100000);self.assertFalse(any(m['kind']=='year_distance' and m['amount']==100 for m in facts['milestones']))
 
 
 if __name__=='__main__':unittest.main(verbosity=2)
