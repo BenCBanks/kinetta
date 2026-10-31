@@ -73,26 +73,87 @@ function aiOffer(feature) {
 // Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
 function kitChatOn() { return !!App.me?.kit_chat && aiCan('coach'); }
 const guideId=title=>title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-function guideIcon(group,title,href){
-  if(/weight/i.test(title))return 'scale';
-  if(/Health/.test(title))return 'heart';
-  if(/map|GPS|route/i.test(title))return 'globe';
-  if(/recipe|meal portion/i.test(title))return 'pot';
-  if(/target|plan|goal/i.test(title))return 'target';
-  if(/lifting|strength/i.test(title))return 'workout';
-  return {'Set up':'settings',Food:'food',Training:'run',Progress:'progress',Friends:'friends','Optional AI':'sparkle'}[group]||'help';
-}
+// Match the existing destination icons; titles alone do not determine the feature.
+const GUIDE_ICONS = {
+  "welcome-to-kinetta": "user",
+  "personal-estimates": "target",
+  "apple-health": "heart",
+  "watch-connections": "watch",
+  "bring-in-activity-history": "upload",
+  "log-food-without-ai": "food",
+  "my-recipes": "pot",
+  "meal-portions-sharing": "pot",
+  "nutrition-targets": "target",
+  "weight-trend": "scale",
+  "calories-weight": "progress",
+  "protein-macros": "food",
+  "calorie-needs": "target",
+  "food-overview-weekly-totals": "calendar",
+  "import-earlier-food-and-weight": "upload",
+  "training-plans": "target",
+  "run-walk-intervals": "clock",
+  "track-an-activity": "run",
+  "live-pace-laps-auto-pause": "clock",
+  "gps-distance-watch-duplicates": "globe",
+  "log-strength-workouts": "workout",
+  "lifting-history-records": "workout",
+  "activity-details": "activity",
+  "weekly-monthly-yearly-totals": "progress",
+  "fitness-freshness": "flame",
+  "personal-records": "trophy",
+  "calendar": "calendar",
+  "matched-routes": "activity",
+  "heatmap": "globe",
+  "year-over-year-trends": "progress",
+  "challenges": "trophy",
+  "recent-milestones": "trophy",
+  "share-your-kinetta": "share",
+  "friends-people-search": "friends",
+  "cheers-comments": "cheer",
+  "your-shared-profile": "user",
+  "sharing-map-privacy": "lock",
+  "shoes-bikes": "shoe",
+  "goals": "target",
+  "notifications": "bell",
+  "units-time-zone": "ruler",
+  "your-data": "download",
+  "describe-what-you-ate": "food",
+  "food-estimates-nutrition-labels": "camera",
+  "signed-in-devices-safety-emails": "shield",
+  "settings-account": "settings",
+  "refresh-and-return": "refresh",
+  "share-your-progress": "share",
+  "share-an-activity-picture": "share",
+  "full-screen-maps": "globe",
+  "fitness-fatigue-and-form-defined": "flame",
+  "vdot-and-race-predictions": "flame",
+  "pace-gap-and-effort": "activity",
+  "weekly-review-and-calorie-check-in": "calendar",
+  "nutrition-reminders-and-health-sync": "bell",
+  "offline-food-entries-and-undo": "refresh",
+  "nutrient-details": "food",
+  "ask-kit-and-memory": "sparkle",
+  "kit-training-nutrition-reviews": "sparkle",
+};
+function guideIcon(group,title,href){ return GUIDE_ICONS[guideId(title)] || 'help'; }
 route(/^\/me\/explore$/, 'me', async (el) => {
   el.classList.add('guide-page');
-  el.innerHTML = `<div class="top">${backBtn('Me')}<h1>Explore Kinetta</h1></div>
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Explore Kinetta</h1>
     <form class="searchbox guide-search" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" aria-label="Search features" placeholder="Search features" autocomplete="off"><span id="guide-count" role="status"></span></form>
-    <div class="guide-categories" role="group" aria-label="Feature category"></div><div id="guide-results"></div>`;
+    <div class="guide-category-window"><div class="guide-categories" role="group" aria-label="Feature category"></div></div><div id="guide-results"></div>`;
   wireBack(el, '/me');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
   let category = 'All';
   const catalog = FEATURE_GUIDE.filter(f=>!Native.on || !['/track/import','/food/import'].includes(f[3]));
   const cats = ['All', ...new Set(catalog.map((f) => f[0]))];
-  $('.guide-categories', el).innerHTML = cats.map(c=>`<button type="button" class="me-chip" data-guide-category="${esc(c)}" aria-pressed="${c===category}">${esc(c)}</button>`).join('');
+  $('.guide-categories', el).innerHTML = cats.map(c=>`<button type="button" class="me-chip" data-guide-category="${esc(c)}" aria-pressed="${c===category}"><span>${esc(c)}</span></button>`).join('');
+  const scroller=$('.guide-categories',el),windowBox=scroller.parentElement;
+  const edges=()=>{windowBox.toggleAttribute('data-overflow-start',scroller.scrollLeft>1);windowBox.toggleAttribute('data-overflow-end',scroller.scrollWidth-scroller.clientWidth-scroller.scrollLeft>1);};
+  scroller.addEventListener('scroll',edges,{passive:true});
+  scroller.addEventListener('focusin',e=>{e.target.closest('[data-guide-category]')?.scrollIntoView({block:'nearest',inline:'nearest'});edges();});
+  const observer=new ResizeObserver(()=>{if(!scroller.isConnected){observer.disconnect();return;}edges();});
+  observer.observe(scroller);$$('[data-guide-category]',el).forEach(n=>observer.observe(n));
+  edges();
   const draw = () => {
     if(!valid())return;
     const words = $('input', el).value.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -110,6 +171,6 @@ route(/^\/me\/explore$/, 'me', async (el) => {
   };
   $('form', el).onsubmit = (e) => { e.preventDefault(); $('input', el).blur(); };
   $('input', el).oninput = draw;
-  $('.guide-categories',el).onclick=e=>{const b=e.target.closest('[data-guide-category]');if(!b||!valid())return;category=b.dataset.guideCategory;$$('[data-guide-category]',el).forEach(n=>n.setAttribute('aria-pressed',String(n===b)));draw();};
+  $('.guide-categories',el).onclick=e=>{const b=e.target.closest('[data-guide-category]');if(!b||!valid())return;category=b.dataset.guideCategory;$$('[data-guide-category]',el).forEach(n=>n.setAttribute('aria-pressed',String(n===b)));b.scrollIntoView({block:'nearest',inline:'nearest'});edges();draw();};
   draw();
 });

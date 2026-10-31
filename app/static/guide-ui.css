@@ -1,12 +1,13 @@
 /* Explore is a compact guide: one category heading, divider rows and inline instructions. */
 .guide-page .top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-.guide-page .top h1 { margin:0; font-size:var(--text-app-title); }
+.guide-page > h1 { margin:0 0 12px; font-size:var(--text-app-title); }
 .guide-page .guide-search { display:flex; align-items:center; gap:8px; margin:0 0 8px; }
 .guide-page .guide-search input { min-height:44px; min-width:0; padding-right:85px; font-size:max(16px,1rem); }
 .guide-page #guide-count { position:absolute; right:12px; font-size:max(13px,.8125rem); color:var(--tx3); white-space:nowrap; pointer-events:none; }
 .guide-page .guide-categories { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; overflow-x:auto; scrollbar-width:none; padding:0 0 8px; margin:0; }
-.guide-page .guide-categories .me-chip { flex:none; min-height:44px; padding-inline:12px; font-size:max(15px,.9375rem); }
-.guide-page .guide-categories [aria-pressed=true] { background:var(--accent); color:var(--on-accent,#fff); border-color:var(--accent); }
+.guide-page .guide-categories .me-chip { flex:none; min-height:44px; padding:4px 0; border:0; background:transparent; font-size:max(15px,.9375rem); font-weight:500; }
+.guide-categories .me-chip > span { display:flex; align-items:center; min-height:36px; padding:0 12px; border:1px solid var(--line); border-radius:999px; background:var(--card2); color:var(--tx); }
+.guide-page .guide-categories [aria-pressed=true] > span { background:var(--accent2); color:var(--tx); border-color:var(--accent); }
 .guide-group { margin-bottom:12px; }
 .guide-group > h2 { margin:0; min-height:30px; display:flex; align-items:center; font-size:max(17px,1.125rem); color:var(--tx3); font-weight:600; }
 .guide-group > .card { margin:0; padding:16px; }
@@ -33,3 +34,9 @@
  .guide-row-copy b { overflow-wrap:anywhere; }
  .guide-how { padding-left:0; }
 }
+
+.guide-category-window { position:relative; min-width:0; }
+.guide-category-window::before,.guide-category-window::after { content:''; position:absolute; z-index:1; top:4px; bottom:12px; width:20px; pointer-events:none; opacity:0; }
+.guide-category-window::before { left:0; background:linear-gradient(to right,var(--bg),transparent); }
+.guide-category-window::after { right:0; background:linear-gradient(to left,var(--bg),transparent); }
+.guide-category-window[data-overflow-start]::before,.guide-category-window[data-overflow-end]::after { opacity:1; }
