@@ -27,6 +27,7 @@ async function until(p,f,label){for(let i=0;i<180;i++){if(await p.evaluate(f))re
    await p.locator('.progress-back').click();await until(p,()=>App.pageReady&&!!document.querySelector('.progress-home'),'Progress Back');assert.equal(new URL(p.url()).pathname,'/progress');
    await p.goto(base+'/progress?view=heatmap');await ready();assert.equal(new URL(p.url()).pathname,'/progress/heatmap','legacy address still opens Heatmap');
    if(state==='heavy'&&size.width===390&&size.root===16){
+    await p.locator('#recap-entry').click();await until(p,()=>document.querySelector('#recap-preview')?.naturalWidth>0,'existing progress share picture');assert.equal(await p.locator('.recap-preview').count(),1,'Share retains the progress picture, not raw map export');await p.locator('.sheet [data-close]').click();assert(await p.evaluate(()=>qaHeatmap.map._container===document.querySelector('#h-map')),'closing Share keeps map alive');
     const mapBox=await p.locator('#h-map').boundingBox(),x=mapBox.x+mapBox.width/2,y=mapBox.y+mapBox.height/2;
     const before=await p.evaluate(()=>qaHeatmap.map.getCenter());await p.mouse.move(x,y);await p.mouse.down();await p.mouse.move(x+40,y+15,{steps:8});await p.mouse.up();await p.evaluate(()=>qaHeatmap.map.stop());const panned=await p.evaluate(()=>qaHeatmap.map.getCenter());assert(Math.abs(panned.lng-before.lng)>1e-7,'real drag pans map');
     const zoomBefore=await p.evaluate(()=>qaHeatmap.map.getZoom()),cdp=await c.newCDPSession(p);
