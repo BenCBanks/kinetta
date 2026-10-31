@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths: ["app/static/**", "dev/demo/**", "dev/screenshots/**"]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
     paths: ["dev/screenshots/**", ".github/workflows/screenshots.yml"]
   workflow_dispatch:
 permissions:
@@ -20,7 +21,7 @@ concurrency:
 jobs:
   shots:
     # a pull request from someone else's fork can't push here
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

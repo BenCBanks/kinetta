@@ -254,3 +254,19 @@ cleared before delivery to prevent duplicate accepted alerts. Notices remain und
 
 Software tests use fictional accounts and APNs stand-ins. Real delivery after an update, including a locked phone,
 requires a new TestFlight build and a physical iPhone check; a Simulator/unsigned build does not prove delivery.
+
+
+## Bundled asset hashes and PR checks
+
+`npm run sync` calls the same Python content-hash builder as Docker before copying
+files into Capacitor. Keep asset placeholders in `app/static`; no manual version
+bump is needed. Both unsigned checks and signed builds use this path. The native
+app carries stamped index/script/style/icon URLs and omits the web service worker.
+
+Draft PRs run the quick checks only. Mark ready for review to run the full suite and,
+when bundled app/mobile/native-test/build files changed, unsigned builds and both
+Simulator jobs. Backend, documentation and website-only PRs skip native checks.
+Scheduled/manual release eligibility and upload behavior are unchanged. The next
+owner-authorized TestFlight build still needs reviewer confirmation of the stamped
+bundle; unsigned CI success does not establish upload or tester availability.
+See [development and updates](development-and-updates.md).

@@ -7,10 +7,10 @@
 name: iPhone app
 on:
   pull_request:
-    paths: ["mobile/**", "app/static/**", "dev/tests/native-ui/**", ".github/workflows/ios.yml"]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main]
-    paths: ["mobile/**", "app/static/**", "dev/tests/native-ui/**", ".github/workflows/ios.yml"]
+    paths: ["mobile/**", "app/static/**", "app/asset_build.py", "dev/ci/policy.py", "dev/demo/friends.cjs", "dev/demo/activity_detail.cjs", "dev/demo/track_session.cjs", "dev/tests/fixtures/interval_presets.json", "dev/tests/native-ui/**", ".github/workflows/ios.yml"]
   schedule:
     - cron: "0 14 * * 1,4"      # Monday and Thursday, 9-10 am US Eastern
   workflow_dispatch:
@@ -23,17 +23,21 @@ jobs:
   # Is there anything new for testers? A scheduled run with no app changes since the last release stops here, so no
   # Mac time is spent and nobody gets an email. Also writes "What to Test" from the changes since that release.
   changes:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     outputs:
+      native: ${{ steps.paths.outputs.native }}
       release: ${{ steps.check.outputs.release }}
       since: ${{ steps.check.outputs.since }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - id: paths
+        run: python3 dev/ci/policy.py >> "$GITHUB_OUTPUT"
       - id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -45,14 +49,14 @@ jobs:
             -q '[.[] | select(.event == "schedule" or .event == "workflow_dispatch")][0].headSha // ""')
           echo "since=$since" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" = schedule ] && [ -n "$since" ] && git cat-file -e "$since^{commit}" 2>/dev/null \
-             && git diff --quiet "$since" HEAD -- mobile app/static .github/workflows/ios.yml; then
+             && git diff --quiet "$since" HEAD -- mobile app/static app/asset_build.py .github/workflows/ios.yml; then
             echo "::notice::No app changes since the last tester build ($since); nothing sent."
             echo "release=0" >> "$GITHUB_OUTPUT"
           else echo "release=1" >> "$GITHUB_OUTPUT"; fi
 
   build:
     needs: changes
-    if: github.event_name != 'schedule' || needs.changes.outputs.release == '1'
+    if: needs.changes.outputs.native == 'true' && (github.event_name != 'schedule' || needs.changes.outputs.release == '1')
     runs-on: macos-26-intel
     timeout-minutes: 40
     defaults:
@@ -140,7 +144,8 @@ jobs:
 
 
   native-ui:
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.native == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     strategy:
       fail-fast: false
       matrix:

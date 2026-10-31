@@ -98,6 +98,9 @@ async def invalid_request(request: Request, exc: RequestValidationError):
 
 
 STATIC = os.path.join(os.path.dirname(__file__), 'static')
+from .asset_build import runtime_copy
+_static_build = runtime_copy(STATIC)
+if _static_build is not None:STATIC = _static_build.name
 MAP_ORIGINS = ' '.join(map_config.origins())
 CSP = (f"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: {MAP_ORIGINS}; connect-src 'self' {MAP_ORIGINS}; "
        "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")

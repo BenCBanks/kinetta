@@ -11,6 +11,12 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 export KINETTA_URL="${KINETTA_URL:-http://localhost:8798}"
 P="${KINETTA_PROJECT:-kinettatest}"
+MODE="${1:---full}"
+[[ "$MODE" == --full || "$MODE" == --quick ]] || { echo "Use --quick or --full" >&2; exit 2; }
+
+python3 dev/tests/test_asset_build.py
+python3 dev/tests/test_ci_policy.py
+node --check dev/tests/asset_cache_ui.cjs
 
 echo "== shared design tokens and contrast"
 python3 dev/design/build_tokens.py --check
@@ -175,8 +181,16 @@ python3 dev/evals/check.py
 
 echo "== API"
 cd dev/tests
-for t in test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_layout test_profile_progress test_progress_overview test_chart_weeks test_track test_track_review test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit; do python3 "$t.py"; done
+if [[ "$MODE" == --quick ]]; then
+  # Authentication/ownership plus the main activity, food and notification contracts.
+  api_tests="test_expected_account test_social test_search test_share test_notify test_block test_unified_food test_account test_track test_health_details test_onboarding"
+else
+  api_tests="test_food_thread_receipts test_expected_account test_food_history test_cooking test_unified_food test_meal_chat test_social test_search test_share test_fixes test_notify test_block test_fulldays test_plans test_cookchat test_weights test_account test_hardening test_photos test_lifts test_coach_tools test_profiles test_profile_layout test_profile_progress test_progress_overview test_chart_weeks test_track test_track_review test_interval_api test_phone_watch test_health_details test_add_map test_resting_energy test_onboarding test_food_thread test_food_thread_answers test_food_thread_log test_food_thread_phrasings test_food_thread_edit"
+fi
+for t in $api_tests; do python3 "$t.py"; done
 cd ../..
+
+if [[ "$MODE" == --quick ]]; then echo "== quick unit/API checks passed"; exit 0; fi
 
 echo "== in the app container"
 docker compose -p "$P" exec -T app python - < dev/tests/track_review_incontainer.py

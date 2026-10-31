@@ -1169,7 +1169,7 @@ function aiSheet(after) {   // ask once; after() runs when they turn it on
 }
 
 // ---------- login, first-run setup, invite links + start ----------
-const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=4" alt="Kinetta" width="210" height="34"></picture>`;
+const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=__ASSET_HASH__" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=__ASSET_HASH__" alt="Kinetta" width="210" height="34"></picture>`;
 function showLogin(msg = '') {
   App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {});
   root.innerHTML = `<div class="login"><form novalidate>

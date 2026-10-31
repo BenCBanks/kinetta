@@ -13,7 +13,7 @@ CI checks both generated files for drift and checks at least 4.5:1 contrast for 
 Edit the JSON rather than creating another palette. Existing app/site CSS variable names are aliases of these tokens.
 
 `app/static/style.css` owns app components; `site/assets/site.css` owns marketing components. Both load the generated
-theme before their component styles. Update static cache versions and the service-worker shell after shared changes.
+theme before their component styles. Static file URLs and the service-worker shell are stamped from content during Docker and iPhone builds; retain the source placeholders instead of changing version numbers.
 AGENTS.md and CLAUDE.md link here. This newer owner decision supersedes older palette/orbit guidance in shared references.
 The generated `--share-*` colours use these same dark tokens so activity pictures keep a consistent dark appearance.
 
