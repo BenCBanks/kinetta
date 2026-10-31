@@ -61,11 +61,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('.sheet [data-close]').click();
    }
    for(const view of ['overview','energy','macros','weight','needs','weeks','calendar','trends']){
-    await p.evaluate(view=>go('/food?view='+view),view);await ready();assert.equal(await p.locator('.nutrition-back').count(),1,view+' back');assert.equal(await p.locator('.view-nav,.pbar').count(),0,view+' no global bars');await fits(view);
-    await p.locator('.nutrition-back').click();await ready();
+    await p.evaluate(view=>go('/food?view='+view),view);await ready();const weight=view==='weight';assert.equal(await p.locator(weight?'.weight-heading [data-back]':'.nutrition-back').count(),1,view+' back');if(weight){assert.equal(new URL(p.url()).pathname,'/progress/weight');assert.equal(await p.locator('nav.tabs [aria-current=page]').getAttribute('data-tab'),'progress');}assert.equal(await p.locator('.view-nav,.pbar').count(),0,view+' no global bars');await fits(view);
+    await p.locator(weight?'.weight-heading [data-back]':'.nutrition-back').click();await ready();
    }
    for(const address of ['/food/weight','/progress?section=food','/progress?section=food&foodview=calendar','/progress?section=food&foodview=weight']){
-    await p.evaluate(url=>go(url),address);await ready();assert.equal(new URL(p.url()).pathname,'/food','legacy address reaches the single food implementation');assert.equal(await p.locator('.nutrition-back').count(),1);await fits(address);
+    const origin=new URL(p.url()).pathname+new URL(p.url()).search,weight=address==='/food/weight'||address.endsWith('foodview=weight');await p.evaluate(url=>go(url),address);await ready();assert.equal(new URL(p.url()).pathname,weight?'/progress/weight':'/food','legacy address reaches its canonical implementation');assert.equal(await p.locator(weight?'.weight-heading [data-back]':'.nutrition-back').count(),1);await fits(address);if(weight){assert.equal(await p.locator('nav.tabs [aria-current=page]').getAttribute('data-tab'),'progress');await p.locator('.weight-heading [data-back]').click();await ready();assert.equal(new URL(p.url()).pathname+new URL(p.url()).search,origin,'Legacy Weight Back retains its actual origin');}
    }
    await home();await p.locator('[data-nutrition-feature=needs]').click();await ready();await p.locator('.nutrition-back').click();await ready();await home();assert.equal(await p.locator('[data-nutrition-feature=needs] .progress-new:not(.seen)').count(),0,'opened tool stays seen');
    // Date picker/arrows and the same-row Today chip retain the selected day on returning from Add food.
