@@ -101,6 +101,7 @@ for device in preferred:
      assert all(r['width']>=44 and r['height']>=44 for r in friends['controls']),metrics
      if stage=='friends-empty':assert friends['empty'],metrics
      if stage=='friends-heavy' and root==16:assert friends['firstFriend']['bottom']<nav['box']['y'],metrics
+     if root==24:assert friends['requestNameFits'] and friends['requestActions']['y']>=friends['requestPerson']['bottom']-1,metrics
     if stage.startswith('activity'):
      detail=metrics['activity'];assert detail['socialHidden'],metrics
      if stage=='activity-map':
