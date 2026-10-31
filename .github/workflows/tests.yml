@@ -112,6 +112,12 @@ jobs:
         run: |
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/friends_ui.cjs
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/back_navigation_ui.cjs
+      - name: Check notification switches and pending saves (fictional preferences)
+        env:
+          KINETTA_URL: http://localhost:8798
+        run: |
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/personal_notifications_ui.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/notification_settings_ui.cjs
       - name: Check progress share pictures and controls (fictional accounts)
         env:
           KINETTA_URL: http://localhost:8798
