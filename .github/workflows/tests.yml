@@ -168,6 +168,15 @@ jobs:
           NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/insights_ui.cjs
           NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/goals_ui.cjs
 
+      - name: Check one-tap reaction choices on every activity list (fictional accounts)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+        run: |
+          python3 dev/tests/inline_reactions_fixture.py
+          PHASE=after NODE_PATH=/tmp/card-browser/node_modules node dev/tests/inline_reactions_ui.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/inline_reactions_actions.cjs
+
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100

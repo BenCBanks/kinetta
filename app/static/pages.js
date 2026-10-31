@@ -30,7 +30,7 @@ function postCard(a, {who = false, compact = false} = {}) {
   const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(time)} · ${esc(kind)}${audience}${compact&&a.route_id?' · <span class="post-route">Matched route</span>':''}</small></span>${compact?'':sportMark(a.sport)}`
     : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(time)} · ${esc(kind)}${audience}</small></span>`;
   // the comment button opens the comments in a sheet from below, right here (2026-10-12); you can cheer your own activity too
-  const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num">${a.comments||0}</span></button>`+
+  const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments||''}</span></button>`+
     (theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`);
   return `<article class="card post" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <h3 class="post-title">${esc(a.name)}</h3>
@@ -54,7 +54,7 @@ function wireCheers(box) {
   $$('[data-talk]', box).forEach((b) => {SocialData.warm(b,b.dataset.talk);b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
-      $('.num',b).textContent = fresh.comments.length;
+      $('.num',b).textContent = fresh.comments.length||'';$('.num',b).hidden=!fresh.comments.length;
       b.setAttribute('aria-label',`Comments, ${fresh.comments.length}`);
       const group=b.closest('.post-ft')?.querySelector('[data-reaction-group]');group?._sync?.(fresh);
     });
