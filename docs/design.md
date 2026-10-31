@@ -1760,3 +1760,8 @@ Progress always offers Weight, including for people who never log food. Its shar
 Me → Settings → Body has a Log action beside the stored weight. A confirmed weigh-in refreshes that value and discovery facts; an unchanged Body weight cannot overwrite a newer weigh-in. Daily calorie estimates prefer the existing trend, then the stored weight. Late history reads preserve a typed weigh-in, and late profile replies update only weight-owned fields. Offline saves retain their waiting-to-send message.
 
 The existing units, smoothing, source labels, manual priority, history and deletion remain. The Weight cards use16px padding and chart labels13px; the narrow chart measures its real width. History keeps its original controls with44px Delete targets and generous row spacing. Normal and enlarged330px layouts wrap the title/actions together. Weight remains absent from shared cards, friends and recap pictures.
+### Visible reaction choices (31 October 2026, #442)
+
+Activity, profile and private-history cards show three inline icon toggles: Cheers, Strong and Applause. Each needs one tap. The selected choice uses its existing colour; selecting it again clears it, and choosing another replaces it. Per-kind and comment counts appear only above zero. The separate people button opens the existing reaction list when anyone has reacted. Detail retains its visible picker and hold shortcut.
+
+Pills have36px visual height inside44px targets, with8px gaps between targets and wrapped rows. They wrap at330px with enlarged text rather than squeezing the controls. The shared controller retains pending-state disabling, failure rollback, keyboard focus and account/late-response guards. The API and privacy boundaries are unchanged.
