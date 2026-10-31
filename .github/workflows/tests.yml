@@ -50,6 +50,9 @@ jobs:
           /tmp/progress-browser/node_modules/.bin/playwright install --with-deps chromium
           NODE_PATH=/tmp/progress-browser/node_modules node dev/tests/progress_ui.cjs
 
+      - name: Check Fitness prediction layout and provenance (fictional accounts)
+        run: KINETTA_PROJECT=kinettatest NODE_PATH=/tmp/progress-browser/node_modules node dev/tests/fitness_ui.cjs
+
       - name: Check profile cards and the inline editor in a browser (fictional accounts)
         run: |
           npm install --prefix /tmp/card-browser playwright
