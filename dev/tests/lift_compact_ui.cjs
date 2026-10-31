@@ -76,7 +76,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   }
   if(!process.env.KINETTA_LIFT_CASE||process.env.KINETTA_LIFT_CASE==='set-actions')for(const theme of ['light','dark']){
    const {c,p,errors}=await open('fresh',theme,{width:390,height:844,root:16}),first=p.locator('.lift-ex').first();
-   for(let n=2;n>=0;n--){await first.locator('[data-set]').last().click();await p.locator('[data-pk=del]').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saved'&&document.querySelectorAll('.lift-ex:first-child [data-row]').length===n,'last-set delete');}
+   for(let n=2;n>=0;n--){await first.locator('[data-set]').last().click();await p.locator('[data-pk=del]').click();await until(p,n=>document.querySelector('#lf-save')?.textContent==='Saved'&&document.querySelectorAll('.lift-ex:first-child [data-row]').length===n,'last-set delete',n);}
    assert(await first.locator('[data-addset]').evaluate(n=>document.activeElement===n),'deleting only remaining set focuses Add set');await p.locator('#toast.on button').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saved'&&document.querySelectorAll('.lift-ex:first-child [data-row]').length===1,'only-set Undo');assert(await first.locator('[data-set="0"]').evaluate(n=>document.activeElement===n));assert.deepEqual(errors,[]);console.log('Only-set delete/Undo and Add set/restored focus '+theme+' PASS');await c.close();contexts.splice(contexts.indexOf(c),1);
   }
   if(!process.env.KINETTA_LIFT_CASE||process.env.KINETTA_LIFT_CASE==='actions'){
