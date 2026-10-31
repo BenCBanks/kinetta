@@ -1,0 +1,45 @@
+// Real owner/friend APIs and fictional demo geometry. No provider, device or sharing effects.
+'use strict';
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
+const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
+async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
+(async()=>{
+ const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
+ const b=await chromium.launch(),contexts=[];
+ async function open(kind,theme,size,mouse=false,comments=false){
+  const friend=kind==='friend',id=ids[friend?'run':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
+  assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password:pw}})).status(),200);
+  await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
+  const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
+  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}return r.continue();});
+  await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend};
+ }
+ try{
+  for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+   const name=`${kind}-${size.width}-${theme}`;if(process.env.KINETTA_DETAIL_CASE&&process.env.KINETTA_DETAIL_CASE!==name)continue;
+   const {c,p,errors,writes,friend}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
+   assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
+   const bar=p.locator(mapped?'.detail-floating':'.detail-bar.top');assert.equal(await bar.locator('.back').innerText(),'Activity');
+   for(const control of await bar.locator('button').all()){const r=await control.boundingBox();assert(r.height>=44&&r.width>=44,'44px navigation/action');}
+   assert.equal(await p.locator('.detail-secondary .stat').count()<=3,true);
+   if(friend){assert.equal(await p.locator('[data-detail-share],[data-detail-edit],#d-kit,.detail-highlights,#d-milestones').count(),0);assert(!/Only me|Friends|Cadence|Avg HR|Calories/.test(await p.locator('.d-title').innerText()),'only permitted friend fields');assert(await p.locator('.detail-owner').isVisible());assert(await p.locator('#s-rb').isVisible());}
+   else{await until(p,()=>!!document.querySelector('#d-soc [data-ttalk]'),'owner reactions read');assert(await p.locator('#d-soc').isHidden(),'empty owner reaction/comment counts omitted');}
+   if(mapped){
+    const map=p.locator(friend?'#s-map':'#d-map');await until(p,()=>!!document.querySelector('.leaflet-container'),'actual Leaflet');const hero=await p.locator('.detail-map-hero').boundingBox();assert(Math.abs(hero.x)<1&&Math.abs(hero.y)<1&&Math.abs(hero.width-size.width)<1,'full bleed top map');assert(hero.height<=size.height*.41,'about 38% viewport map');assert.equal(await map.locator('.leaflet-control-zoom').count(),0,'coarse pointer uses pinch');
+    if(size.root===16){const tabs=await p.locator('.dtabs').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();assert(tabs.y+tabs.height<nav.y,'analysis tabs in first screen');}
+    await p.locator('.detail-primary').scrollIntoViewIfNeeded();await p.evaluate(()=>document.querySelector('.dtabs').scrollIntoView({block:'start'}));await until(p,()=>!document.querySelector('.detail-sticky').hidden,'compact sticky header');assert.equal((await p.locator('.detail-sticky').boundingBox()).y,0);await p.evaluate(()=>scrollTo(0,0));await until(p,()=>document.querySelector('.detail-sticky').hidden,'floating header restored');
+    await map.locator('.map-full').click();await until(p,()=>!!document.querySelector('.map.full'),'full map');assert.equal(await p.locator('.map.full .leaflet-control-zoom').count(),0);assert(await p.locator('nav.tabs').evaluate(n=>n.closest('#app').inert));await p.keyboard.press('Escape');await until(p,()=>!document.querySelector('.map.full'),'map close');
+   }else{assert.equal(await p.locator('.detail-map-hero,.detail-sticky').count(),0,'indoor uses ordinary header');if(kind==='empty')assert.equal(await p.locator('.detail-secondary').count(),0,'no invented empty stats');}
+   const buttons=p.locator('[data-dt]'),order=await buttons.evaluateAll(nodes=>nodes.map(n=>n.dataset.dt));assert.deepEqual(order,['charts','splits','efforts','overview'].filter(key=>order.includes(key)),'analysis order');
+   for(const tab of await buttons.all()){const key=await tab.getAttribute('data-dt');await tab.click();assert(await p.locator(`[data-pane="${key}"]`).isVisible());assert.equal(await tab.getAttribute('aria-selected'),'true');}
+   if(kind==='run'){await p.locator('[data-detail-tab=efforts]').click();assert(await p.locator('[data-pane=efforts]').isVisible());assert.match(await p.locator('.detail-highlights').innerText(),/Matched:.*Fictional river loop/);}
+   if(!friend){await p.locator('[data-dt=overview]').click();assert.equal(await p.locator('[data-phadd]').count(),1,'photo action retained in Details');await p.evaluate(()=>scrollTo(0,0));await bar.locator('[data-detail-edit]').click();await p.waitForSelector('#e-form');assert(await p.locator('#e-form').isVisible());await p.keyboard.press('Escape');}
+   assert.deepEqual(errors,[]);assert(!writes.some(x=>x!=='/api/challenges/signup/continue'),'layout/actions do not write private data');console.log(`Activity detail ${name}: layout/actions/tabs/empty/permitted fields/map modal PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
+  }
+  if(!process.env.KINETTA_DETAIL_CASE||process.env.KINETTA_DETAIL_CASE==='actions'){
+   const {c,p,errors}=await open('run','light',{width:390,height:844,root:16},true);await until(p,()=>!!document.querySelector('.leaflet-container'),'mouse map');assert.equal(await p.locator('#d-map .leaflet-control-zoom').count(),0,'photo rail starts still');await p.locator('#d-map .map-full').click();assert(await p.locator('.map.full .leaflet-control-zoom').isVisible(),'expanded photo map supports mouse zoom');await p.locator('.map.full .leaflet-control-zoom-in').click();await p.keyboard.press('Escape');await until(p,()=>!document.querySelector('.map.full'),'mouse map closed');assert.equal(await p.locator('#d-map .leaflet-control-zoom').count(),0,'inline rail restored');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);
+   const item=await open('empty','light',{width:390,height:844,root:16},false,true);await item.p.waitForSelector('.c-form');assert(await item.p.locator('#d-soc').isHidden());await item.p.locator('.c-form textarea').fill('Fictional private workout note');await item.p.locator('.c-send').click();await until(item.p,()=>document.querySelector('.social-read-status')?.textContent==='Comment posted.','own comment saved');await item.p.keyboard.press('Escape');assert(await item.p.locator('#d-soc').isVisible(),'existing/new owner comments remain reachable');assert.match(await item.p.locator('#d-soc [data-ttalk]').getAttribute('aria-label'),/1/);assert.deepEqual(item.errors,[]);await item.c.close();contexts.splice(contexts.indexOf(item.c),1);
+   console.log('Activity detail actions: mouse zoom/keyboard restoration, empty-owner comment deep link and live social update PASS');
+  }
+ }finally{for(const c of contexts)await c.close();for(const who of ['owner','friend']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

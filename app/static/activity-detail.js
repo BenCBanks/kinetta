@@ -28,7 +28,7 @@ const ActivityDetail=(()=>{
     <div class="hero detail-primary">${hero}</div>${secondary(a,{shared})}${highlights(a,{shared})}<div class="detail-social" id="${socialId}"${!shared?' hidden':''}></div>${!shared?'<div id="d-milestones"></div>':''}</section>`;
  }
  function header(a,{mine=true,mapped=!!a.line,backLabel='Activity'}={}){
-  const bar=sticky=>`<header class="detail-bar ${mapped?(sticky?'detail-sticky':'detail-floating'):'top'}"${sticky?' hidden':''}><button type="button" class="back" data-back aria-label="Back to ${esc(backLabel)}">${svg('back')}<span>${esc(backLabel)}</span></button>${sticky?`<b class="detail-bar-title">${esc(a.name)}</b>`:''}<div class="acts">${mine?`<button type="button" class="icon-btn" data-detail-share aria-label="Share activity">${svg('share')}</button><button type="button" class="icon-btn" data-detail-edit aria-label="Edit activity">${svg('edit')}</button>`:''}</div></header>`;
+  const bar=sticky=>`<header class="detail-bar ${mapped?(sticky?'detail-sticky':'detail-floating'):'top'}"${sticky?' hidden':''}><button type="button" class="back" data-back aria-label="Back to ${esc(backLabel)}">${svg('back')}<span>${esc(backLabel)}</span></button>${sticky?`<b class="detail-bar-title">${esc(a.name)}</b>`:''}<div class="acts">${mine?`<button type="button" class="icon-btn"${sticky?'':' id="d-send"'} data-detail-share aria-label="Share activity">${svg('share')}</button><button type="button" class="icon-btn"${sticky?'':' id="d-edit"'} data-detail-edit aria-label="Edit activity">${svg('edit')}</button>`:''}</div></header>`;
   return {floating:bar(false),sticky:mapped?bar(true):''};
  }
  function wire(root,a,{mine=true,back='/activity'}={}){

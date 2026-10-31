@@ -41,6 +41,8 @@ node dev/tests/test_map_late_layers.js
 node dev/tests/test_recaps.js
 node dev/tests/test_milestones.js
 node dev/tests/test_activity_milestone_loading.js
+node dev/tests/test_activity_detail.js
+node --check dev/tests/activity_detail_ui.cjs
 node dev/tests/test_map_failure.js
 node dev/tests/test_challenges.js
 node dev/tests/test_join_context.js

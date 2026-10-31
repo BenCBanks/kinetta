@@ -2,19 +2,19 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('app/static/media.js','utf8');
-function fixture(){
+function fixture(coarse=true){
  const classes=new Set(),attributes=new Map([['role','img']]),events={},windowEvents={},refits=[],moves=[],track={scrollLeft:0};
  const background=[{inert:false},{inert:true}],spot={isConnected:false,replaceWith(){spot.isConnected=false;box.isConnected=true}},ctx={};
  const button={disabled:false,getClientRects:()=>[1],setAttribute:(k,v)=>attributes.set('button-'+k,v),focus(){ctx.document.activeElement=button}},link={disabled:false,getClientRects:()=>[1],focus(){ctx.document.activeElement=link}};
  const box={isConnected:true,classList:{contains:k=>classes.has(k),add:k=>classes.add(k),remove:k=>classes.delete(k)},setAttribute:(k,v)=>attributes.set(k,v),removeAttribute:k=>attributes.delete(k),replaceWith(){box.isConnected=false;spot.isConnected=true},remove(){box.isConnected=false},closest:()=>track,querySelectorAll:()=>[button,link],addEventListener:(k,fn)=>events[k]=fn};
  let historyIndex=0;const states=[{tab:'charts'}];
- Object.assign(ctx,{App:{},slide:()=>{ctx.routed=true},window:{addEventListener:(k,fn)=>windowEvents[k]=fn},Date,Math,Array,Map,console,location:{pathname:'/activity/7',search:'?tab=charts',href:'https://fictional.test/activity/7?tab=charts'},viewResources:new Map(),$:()=>button,svg:String,
+ Object.assign(ctx,{App:{},slide:()=>{ctx.routed=true},window:{addEventListener:(k,fn)=>windowEvents[k]=fn},Date,Math,Array,Map,console,location:{pathname:'/activity/7',search:'?tab=charts',href:'https://fictional.test/activity/7?tab=charts'},viewResources:new Map(),matchMedia:()=>({matches:coarse}),$:(selector)=>selector==='.leaflet-control-zoom'?null:button,svg:String,
   decode:line=>line==='a'?[[1,2],[3,4]]:[[5,6],[7,8]],
   addEventListener:(k,fn)=>windowEvents[k]=fn,removeEventListener:(k,fn)=>{if(windowEvents[k]===fn)delete windowEvents[k]},
   document:{activeElement:null,createComment:()=>spot,body:{children:background,classList:{add:k=>moves.push(k),remove:k=>moves.push('-'+k)},append(n){n.isConnected=true;if(!this.children.includes(n))this.children.push(n)}}},
   history:{get state(){return states[historyIndex]},pushState(s){states[++historyIndex]=s},replaceState(s){states[historyIndex]=s},back(){assert(historyIndex>0);historyIndex--;const e={stopImmediatePropagation(){ctx.stopped=true}};windowEvents.popstate?.(e)}},
  });
- const mapObject={map:{invalidateSize(){},fitBounds:b=>refits.push(b),dragging:{enable:()=>moves.push('drag-on'),disable:()=>moves.push('drag-off')},touchZoom:{enable:()=>moves.push('zoom-on'),disable:()=>moves.push('zoom-off')}},L:{latLngBounds:x=>x}};
+ const mapObject={map:{invalidateSize(){},fitBounds:b=>refits.push(b),dragging:{enable:()=>moves.push('drag-on'),disable:()=>moves.push('drag-off')},touchZoom:{enable:()=>moves.push('zoom-on'),disable:()=>moves.push('zoom-off')},keyboard:{enable:()=>moves.push('key-on'),disable:()=>moves.push('key-off')}},L:{latLngBounds:x=>x,control:{zoom:()=>({addTo(){moves.push('mouse-zoom-on');return this},remove(){moves.push('mouse-zoom-off')}})}}};
  vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/app.js','utf8').split('\n').find(line=>line.startsWith("window.addEventListener('popstate'")),ctx);vm.runInContext(source.slice(source.indexOf('function wireMediaMapFull('),source.indexOf('\nfunction wireActivityMedia')),ctx);
  ctx.wireMediaMapFull(box,()=>mapObject,['a','b'],true);
  const target={closest:()=>null},event=(extra={})=>({isPrimary:true,button:0,pointerId:1,clientX:20,clientY:30,target,stopPropagation(){},...extra});
@@ -36,3 +36,5 @@ for(const kind of ['drag','pinch','cancel','control','rail']){
 }
 f=fixture();f.button.onclick(f.event());assert(f.classes.has('full'),'existing keyboard-accessible expand button retained');f.spot.isConnected=false;[...f.ctx.viewResources.values()][0]();assert(!f.box.isConnected);assert(!f.classes.has('full'));assert.equal(f.history(),1,'navigation cleanup never navigates backwards');assert.equal(f.ctx.history.state.tab,'charts');assert(!f.ctx.history.state.kinettaMap);assert(!f.windowEvents.keydown&&!f.ctx.App.mediaMapBack);
 console.log('Map: drag/pinch/cancel/controls/rail guards, expand button and disconnected-route cleanup PASS');
+
+f=fixture(false);f.tap();assert(f.moves.includes('mouse-zoom-on')&&f.moves.includes('key-on'));f.ctx.history.back();assert(f.moves.includes('mouse-zoom-off')&&f.moves.includes('key-off'));f=fixture(true);f.tap();assert(!f.moves.includes('mouse-zoom-on'),'touch maps keep pinch without duplicate buttons');console.log('Map: expanded still/photo map restores mouse zoom and keyboard, then removes temporary controls on close; coarse touch stays button-free PASS');

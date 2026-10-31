@@ -45,3 +45,6 @@
 }
 
 .activity-detail .seg.dtabs button { min-height:44px; }
+
+.detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:12px; left:auto; bottom:auto; }
+@media(min-width:1000px) { .activity-detail { --detail-edge:32px; } }
