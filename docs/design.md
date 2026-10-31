@@ -94,7 +94,7 @@ they already pass on the new surfaces. Outline is neutral `#7B8791` / `#82909C`,
 UI sans is the display face for page titles and section headings, about 700 weight with slightly negative tracking.
 The existing Source Serif 4 logo artwork and bundled OFL font remain for the unchanged wordmark only. Native system sans is used for app controls, labels, body and numbers;
 the marketing site retains Figtree body text. Use tabular numerals and explicit units. Ordinary bold text must not
-inherit display sizes. App page titles are 30px, sections 20px, card titles 18px, summary figures 28px and secondary stats 20px at the default text size. Body copy stays 15–16px and small labels 11–13px. Use the `text-app-*` tokens (in rem) so this hierarchy grows with text enlargement; do not shrink the root font. Marketing display sizes remain separate.
+inherit display sizes. At the default text size, app page titles are28–32px, sections17–20px and card titles16–17px. Body, buttons and chips are15–16px; secondary text is13–14px and never below12px. Allow one clearly identified hero per card or sheet, up to about40px; other statistics are20–24px and no larger than the page title. Use the `text-app-*` tokens (in rem) so this hierarchy grows with text enlargement; do not shrink the root font. Marketing display sizes remain separate.
 
 The shared spacing scale is 4, 8, 12, 16, 22, 32 and 48px. Phones have 22px side margins, dropping to 16px when narrow.
 Use 12px control radii, 16px media radii and 18px quiet card radii. Cards use about 16px padding and a fine border with
@@ -811,8 +811,8 @@ reaction still names itself on the main action. Keep the hold/slide, visible cho
 rollback and owner guards. Do not turn it back into three labelled tiles or shrink its touch targets.
 
 App-only typography tokens reduce repeated display emphasis across Me, Activity, Progress, Nutrition, plans,
-profiles and sheets: 30px page / 20px section / 18px card / 28px hero figure / 20px secondary statistic.
-Cards use 14px padding and 12px separation; Me's decorative chart bars are shorter and latest-activity/day gaps tighter.
+profiles and sheets: 28–32px page /17–20px section /16–17px card /one identified hero up to40px /20–24px secondary statistic.
+Cards use16px padding and12–16px separation; Me's decorative chart bars are shorter and latest-activity/day gaps tighter.
 Body copy, privacy/source explanations and tab labels stay readable; inputs are at least 16px and grow with rem text.
 Metric grids may wrap into fewer columns at enlarged text sizes. Live recording readouts retain their glanceable size.
 The generated shared theme contains these app-only tokens; marketing does not consume them.

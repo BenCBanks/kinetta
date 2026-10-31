@@ -1,6 +1,6 @@
 /* Track launch controls; recording and review keep their own layout. */
 .compact-ready.track-ready { gap:10px; }
-.compact-ready .track-quick { display:flex; flex-wrap:nowrap; gap:8px; overflow-x:auto; scrollbar-width:none; padding:1px 0; }
+.compact-ready .track-quick { display:flex; flex-wrap:nowrap; gap:8px; overflow:hidden; scrollbar-width:none; padding:1px 0; }
 .compact-ready .track-quick button { display:flex; align-items:center; justify-content:center; flex:0 0 auto; min-height:44px; height:44px; padding:0 12px; gap:6px; border-radius:999px; font-size:max(15px,.875rem); white-space:nowrap; }
 .compact-ready .track-quick button svg { flex:none; width:16px; height:16px; }
 .compact-ready .track-gps-note { margin:0; font-size:.8125rem; }
@@ -28,7 +28,7 @@
 .compact-track-tools .progress-tile:last-child:nth-child(even) { grid-column:auto; }
 
 
-/* Keep More beside the scrolling sports, so it never paints over a label. */
+/* Keep More beside the fully visible sports, so it never paints over a label. */
 .compact-ready .track-sport-row { display:flex; align-items:center; gap:8px; min-width:0; }
 .compact-ready .track-quick { flex:1; min-width:0; }
 .compact-ready .track-quick button { min-width:44px; }
@@ -50,3 +50,23 @@
 .track-sport-picker .row-link { min-height:56px; }
 .track-switch-target { display:flex; flex:none; align-items:center; justify-content:center; min-width:51px; min-height:44px; cursor:pointer; }
 .compact-ready .track-gps-note,.compact-ready #track-guidance,.track-plan small { font-size:max(13px,.8125rem); }
+
+.compact-ready .track-quick[hidden],.compact-ready .track-quick button[hidden] { display:none; }
+.compact-ready #track-other { max-width:100%; }
+.compact-ready #track-other span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.compact-ready .track-quick button,.compact-ready #track-other { font-weight:500; }
+
+/* Owner type scale: default sizes stay calm; rem text still follows accessibility enlargement. */
+.compact-ready .track-go #track-start > span { font-size:max(15px,1rem); }
+.compact-track-tools .sec-head { font-size:max(17px,1.125rem); }
+.compact-track-tools .progress-tile-name b { font-size:max(16px,1rem); }
+
+.track-recording-settings > header h2 { font-size:1.25rem; }
+.track-recording-settings .track-pref-list { min-width:0; grid-template-columns:minmax(0,1fr); }
+.track-recording-settings .switch-row { min-width:0; gap:8px; }
+.track-recording-settings .switch-row > :first-child { min-width:0; flex:1; }
+.track-recording-settings .switch-row b { font-size:max(15px,.9375rem); }
+.track-recording-settings .switch-row small { font-size:max(13px,.85rem); }
+
+.compact-track-tools .progress-tile-name { min-width:0; width:100%; }
+.compact-track-tools .progress-tile-name b { overflow-wrap:anywhere; }
