@@ -168,6 +168,17 @@ jobs:
           NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/insights_ui.cjs
           NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/goals_ui.cjs
 
+      - name: Check private Weight discovery and saved-profile races (fictional accounts)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+        run: |
+          python3 dev/tests/weight_progress_fixture.py
+          PHASE=after NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_ui.cjs
+          PHASE=after W=330 ROOT=24 NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_ui.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_actions.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_journeys.cjs
+
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100

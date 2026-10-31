@@ -547,7 +547,7 @@ if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' &
   new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) fadeImages(n); })
     .observe(document.documentElement, {childList: true, subtree: true});
 // Today's weigh-in sheet (used by the weekly check-in).
-function quickWeighIn() {
+function quickWeighIn({afterSave}={}) {
   const owner = readOwner(), day = isoDay(new Date()), unit = imp() ? 'lb' : 'kg';
   sheet('Weigh in', `<form id="quick-weight" class="form"><p class="small muted">${esc(dayLabel(day))}</p><label>Weight (${unit})<input name="weight" inputmode="decimal" required value="${App.me.weight_kg ? esc(U.weight(App.me.weight_kg)) : ''}" aria-label="Today’s weight in ${unit}" enterkeyhint="done"></label><button class="primary wide">Save weight</button></form>`, (b,close) => {
     const f = $('#quick-weight',b), input = f.elements.weight; let touched = false;
@@ -558,13 +558,14 @@ function quickWeighIn() {
       if (latest) input.value = U.weight(latest.kg);
     }).catch(()=>{});
     f.onsubmit = async e => {
-      e.preventDefault(); const v = Number(input.value.replace(',','.')), kg = imp() ? v / LB : v;
+      e.preventDefault(); if(readOwner()!==owner||!b.isConnected)return;const v = Number(input.value.replace(',','.')), kg = imp() ? v / LB : v;
       if (!(kg > 20 && kg < 400)) { input.setCustomValidity('Enter a weight between ' + (imp() ? Math.round(20*LB) : 20) + ' and ' + (imp() ? Math.round(400*LB) : 400) + ' ' + unit); input.reportValidity(); input.oninput = () => { touched = true; input.setCustomValidity(''); }; return; }
       const button = $('button',f); if (button.disabled) return; button.disabled = true;
       try {
         const r = await sendOrQueue('/api/food/weights','PUT',{day,kg},'weigh-in');
         if (readOwner() !== owner) return;
         close(); invalidate('/api/food'); Native.haptic('success'); toast(r.queued ? 'Weight saved on this phone · waiting to send' : 'Weight saved');
+        if(!r.queued){await refreshWeightData(owner);if(readOwner()===owner)afterSave?.();}
       } catch(x) { if (b.isConnected && readOwner() === owner) { button.disabled = false; toast(x.message); } }
     };
   });
@@ -842,8 +843,8 @@ function chartStack(box, x, rows, {xfmt, onIndex} = {}) {
 }
 
 // simple dot chart over dates with a trend line (matched routes, PR history, VO2max)
-function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null, best = null, height = 150, line = false}) {   // line: join the dots (pts oldest first)
-  const W = Math.max(300, box.clientWidth || 340), H = height, padL = 40, padR = 8, padB = 18;
+function dotChart(box, pts, {yfmt, invert = false, trend = null, current = null, best = null, height = 150, line = false, minWidth = 300}) {   // line: join the dots (pts oldest first)
+  const W = Math.max(minWidth, box.clientWidth || 340), H = height, padL = 40, padR = 8, padB = 18;
   if (pts.length < 1) { box.innerHTML = '<p class="muted">Not enough data yet.</p>'; return; }
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   let x0 = Math.min(...xs), x1 = Math.max(...xs); if (x1 === x0) { x0 -= 1; x1 += 1; }

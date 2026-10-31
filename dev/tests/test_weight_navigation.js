@@ -1,0 +1,20 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('app/static/food.js','utf8'),start=source.indexOf('let weightRefresh=0;'),end=source.indexOf("route(/^\\/progress\\/weight",start);
+(async()=>{
+ let owner='account-one',resolve,invalidated=[],rendered=0;
+ const c={URLSearchParams,location:{pathname:'/progress',search:''},document:{querySelector:()=>null,activeElement:{matches:()=>false}},render:()=>rendered++,App:{me:{id:1,weight_kg:75},nutritionHome:{owner:'account-one',href:'/food?d=2026-10-01'},progressHome:{owner:'account-one',href:'/progress?sport=ride&period=month'}},readOwner:()=>owner,refreshMe:me=>{c.App.me=me;c.kept=me;},invalidate:path=>invalidated.push(path),api:()=>new Promise(r=>resolve=r)};
+ vm.createContext(c);vm.runInContext(source.slice(start,end),c);
+ assert.equal(c.weightAddress(new URLSearchParams('view=weight')),'/progress/weight?from=nutrition');
+ assert.equal(c.weightAddress(new URLSearchParams('view=weight&from=progress')),'/progress/weight?from=progress');
+ assert.equal(c.weightOrigin(new URLSearchParams('from=nutrition')).href,'/food?d=2026-10-01');
+ assert.equal(c.weightOrigin(new URLSearchParams()).href,'/progress?sport=ride&period=month');
+ owner='account-two';assert.equal(c.weightOrigin(new URLSearchParams('from=nutrition')).href,'/food');assert.equal(c.weightOrigin(new URLSearchParams()).href,'/progress');
+ owner='account-one';c.App.me.height_cm=170;let task=c.refreshWeightData(owner);c.App.me.height_cm=185;resolve({id:1,weight_kg:74,height_cm:170});assert(await task);assert.equal(c.App.me.height_cm,185,'An older weight refresh preserves newer body settings');assert.equal(c.App.me.weight_kg,74);assert.deepEqual(invalidated,['/api/food','/api/progress/overview','/api/me']);
+ const older=c.refreshWeightData(owner),finishOlder=resolve,newer=c.refreshWeightData(owner),finishNewer=resolve;finishNewer({id:1,weight_kg:72});assert(await newer);finishOlder({id:1,weight_kg:73});assert.equal(await older,false);assert.equal(c.App.me.weight_kg,72);assert.equal(c.kept.weight_kg,72,'Only newest profile is persisted');
+ task=c.refreshWeightData(owner);owner='account-two';c.App.me={id:2,weight_kg:90};resolve({id:1,weight_kg:73});assert.equal(await task,false);assert.equal(c.App.me.weight_kg,90,'Late first-account profile cannot overwrite another person');
+ task=c.weightChanged(owner,{isConnected:false});resolve({id:2,weight_kg:91});await task;assert.equal(c.App.me.weight_kg,91);assert.equal(rendered,1,'A detached successful write refreshes the current home');
+ c.document.activeElement.matches=()=>true;task=c.weightChanged(owner,{isConnected:false});resolve({id:2,weight_kg:92});await task;assert.equal(c.App.me.weight_kg,92);assert.equal(rendered,1,'A refreshed profile cannot interrupt typing');
+ c.api=async()=>{throw Error('Fictional unavailable profile');};assert.equal(await c.refreshWeightData(owner),false,'A failed optional read cannot undo saved weight');
+ console.log('Weight navigation: canonical aliases, owner-bound return fallbacks, fresh profile and late-account/error guards PASS');
+})().catch(error=>{console.error(error);process.exitCode=1;});

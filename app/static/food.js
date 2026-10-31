@@ -208,7 +208,7 @@ async function foodDiscovery(el) {
     const items=[
       {id:'recipes',title:'Recipes & cooking',description:'Save your meals →',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
       {id:'overview',title:'Insights',description:'See food trends →',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      {id:'weight',title:'Weight',description:'Log a weigh-in →',icon:'scale',href:'/food?view=weight',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
+      {id:'weight',title:'Weight',description:'Log a weigh-in →',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
       {id:'goals',title:'Calorie & macro goals',description:'Set your daily targets →',icon:'target',href:'/food?goals=1'},
       {id:'needs',title:'Calorie needs',description:'Your daily needs →',icon:'target',href:'/food?view=needs'},
       {id:'weeks',title:'Week by week',description:'Compare weeks →',icon:'calendar',href:'/food?view=weeks',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
@@ -227,6 +227,7 @@ async function foodDiscovery(el) {
 route(/^\/food$/, 'food', async (el) => {
   const q = new URLSearchParams(location.search), v0 = q.get('view') || 'log';
   const view = v0 === 'trends' ? 'overview' : [...NLOG, ...NPROG].some((m) => m[0] === v0) ? v0 : 'log';   // "trends": the old address
+  if(view==='weight')return go(weightAddress(q),{replace:true});
   if (view !== 'log') return nutritionView(el, view, q);
   const day = q.get('d') || isoDay(new Date()), today = isoDay(new Date());
   const homeQuery=new URLSearchParams(q);homeQuery.delete('goals');
@@ -948,7 +949,7 @@ function goalSheet(D = null) {
 const targetsSheet = () => goalSheet();
 
 // ---------- weight trend + food trends ----------
-// the weigh-ins and the trend (2026-10-12: part of Nutrition > Weight, under the box to log one)
+// The same private weigh-ins and trend live under Progress, with Nutrition links.
 function weightHistory(box) {
   const account=readOwner(),valid=()=>box.isConnected&&account===readOwner();
   load('/api/food/weights?days=365', (W) => {
@@ -959,15 +960,16 @@ function weightHistory(box) {
       <div class="card"><h2>Weigh-ins</h2>${[...pts].reverse().slice(0, 60).map((p) => `<div class="row weight-history-row"><span>${esc(new Date(p.day + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}))}<small class="weight-source muted">${esc(p.source_label||'Manual')}</small></span>
         <span class="num">${wt(p.kg)} <small class="muted">trend ${U.weight(p.trend)}</small> <button class="linkbtn danger" data-del="${p.day}" aria-label="Delete weigh-in">×</button></span></div>`).join('')}</div>`
       : '<div class="card empty"><b>No weigh-ins yet</b>Log one above. Kinetta smooths out the daily ups and downs into a trend.</div>';
-    $$('[data-del]', box).forEach((b) => b.onclick = async () => { if(!valid())return;try { await api(`/api/food/weights/${b.dataset.del}`, {method: 'DELETE'}); if(!valid())return;invalidate('/api/food'); render(); } catch (x) { toast(x.message); } });
+    $$('[data-del]', box).forEach((b) => b.onclick = async () => { if(!valid())return;try { await api(`/api/food/weights/${b.dataset.del}`, {method: 'DELETE'});if(account===readOwner())await weightChanged(account,box); } catch (x) { if(valid())toast(x.message); } });
     if (pts.length) requestAnimationFrame(() => {
+      if(!valid())return;
       const xs = pts.map((p) => new Date(p.day + 'T12:00') / 864e5);
-      dotChart($('#w-chart', box), pts.map((p, i) => ({x: xs[i], y: imp() ? p.kg * 2.20462 : p.kg, id: i})), {yfmt: (v) => v.toFixed(1),
+      dotChart($('#w-chart', box), pts.map((p, i) => ({x: xs[i], y: imp() ? p.kg * 2.20462 : p.kg, id: i})), {yfmt: (v) => v.toFixed(1), minWidth:0,
         trend: pts.length > 1 ? {start: imp() ? pts[0].trend * 2.20462 : pts[0].trend, end: imp() ? pts[pts.length - 1].trend * 2.20462 : pts[pts.length - 1].trend} : null});
     });
   });
 }
-route(/^\/food\/weight$/, 'food', async () => go('/food?view=weight', {replace: true}));   // old address
+route(/^\/food\/weight$/, 'progress', async () => go(weightAddress(new URLSearchParams(location.search)), {replace: true}));   // old address
 route(/^\/food\/trends$/, 'food', async () => go('/food?view=overview', {replace: true}));   // old address
 
 // ---------- Add past days (2026-10-09): paste / CSV / one day -> preview -> save ----------
@@ -1137,35 +1139,81 @@ function weeksCard(box) {
 }
 const NRANGES = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '1 year']];
 // Log your weight (2026-10-12: moved here from the Log view). Any day up to today, so old weigh-ins can be added too.
-let wcDay = null;   // the day picked for a weigh-in stays picked after saving, to add several old ones in a row
+let wcDay = null,wcOwner=null;   // selected days stay with the account/server that picked them
 function weightCard(box) {
-  const unit = imp() ? 'lb' : 'kg', today = isoDay(new Date());
-  let day = wcDay && wcDay < today ? wcDay : today, W = {points: []};
+  const unit = imp() ? 'lb' : 'kg', today = isoDay(new Date()),owner=readOwner(),valid=()=>box.isConnected&&owner===readOwner();
+  if(wcOwner!==owner){wcDay=null;wcOwner=owner;}
+  let day = wcDay && wcDay < today ? wcDay : today, W = {points: []},draft=null;
   const draw = () => {
-    if (!box.isConnected) return;
+    if (!valid()) return;
     const isToday = day === today, had = W.points.find((p) => p.day === day), r = W.rate_kg_per_week;
     box.innerHTML = `<div class="card wcard"><h2>${isToday ? "Log today's weight" : `Log weight for ${esc(dayLabel(day))}`}</h2>
       ${had ? `<p class="small muted">${esc(had.source_label||'Manual')}${had.source==='healthkit'?' · Updating makes this a manual weigh-in.':''}</p><p class="wdone">${svg('check')} Logged: <b class="num">${esc(U.weight(had.kg))} ${unit}</b>${isToday ? ' today' : ''}</p>` : ''}
-      <form class="wform"><label class="wfield"><input name="w" inputmode="decimal" placeholder="e.g. ${imp() ? '165.4' : '75.0'}" value="${had ? U.weight(had.kg) : ''}" aria-label="Your weight ${isToday ? 'today' : 'on ' + esc(dayLabel(day))} in ${unit}" enterkeyhint="done"><span>${unit}</span></label>
+      <form class="wform"><label class="wfield"><input name="w" inputmode="decimal" placeholder="e.g. ${imp() ? '165.4' : '75.0'}" value="${esc(draft??(had ? U.weight(had.kg) : ''))}" aria-label="Your weight ${isToday ? 'today' : 'on ' + esc(dayLabel(day))} in ${unit}" enterkeyhint="done"><span>${unit}</span></label>
         <button class="${had ? 'ghost' : 'primary'}">${had ? 'Update' : 'Log weight'}</button></form>
       <div class="wfoot"><label class="linkbtn daypick">${svg('calendar')}<span>${isToday ? 'A different day' : esc(dayLabel(day))}</span><input type="date" name="wday" value="${esc(day)}" max="${today}" aria-label="The day you weighed yourself"></label>
         ${W.trend_kg ? `<span class="small muted num">Trend ${U.weight(W.trend_kg)} ${unit}${r != null ? ` · ${r > 0 ? '+' : r < 0 ? '−' : ''}${U.weight(Math.abs(r))} a week` : ''}</span>` : ''}</div></div>`;
+    $('.wform input',box).oninput=e=>{draft=e.target.value;};
     const dp = $('[name=wday]', box);
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
-    dp.onchange = () => { if (dp.value && dp.value <= today) { day = wcDay = dp.value; draw(); } };
+    dp.onchange = () => { if (dp.value && dp.value <= today) { day = wcDay = dp.value;draft=null; draw(); } };
     $('.wform', box).onsubmit = async (e) => {
-      e.preventDefault(); const v = parseFloat(e.target.w.value.replace(',', '.')); if (!(v > 0)) return;
+      e.preventDefault(); if(!valid())return;const v = parseFloat(e.target.w.value.replace(',', '.')); if (!(v > 0)) return;
       const kg = imp() ? v / 2.20462 : v;
       try {
         const q = await sendOrQueue('/api/food/weights', 'PUT', {day, kg}, `weight ${U.weight(kg)}`);
+        if(owner!==readOwner())return;
         toast(q.queued ? 'Weight saved on this phone - it sends when you are back online' : `Weight logged${day === today ? '' : ` for ${dayLabel(day)}`}: ${U.weight(kg)} ${unit}`);
-        if (!q.queued) { invalidate('/api/food'); render(); }
-      } catch (x) { toast(x.message); }
+        if (!q.queued) await weightChanged(owner,box);
+      } catch (x) { if(valid())toast(x.message); }
     };
   };
   draw();
   load('/api/food/weights?days=3650', (w) => { W = w; draw(); }).catch(() => {});
 }
+
+let weightRefresh=0;
+async function refreshWeightData(owner) {
+  if(owner!==readOwner())return false;
+  const revision=++weightRefresh;
+  invalidate('/api/food');invalidate('/api/progress/overview');invalidate('/api/me');
+  try {
+    const me=await api('/api/me');
+    if(owner!==readOwner()||me.id!==App.me?.id||revision!==weightRefresh)return false;
+    refreshMe({...App.me,weight_kg:me.weight_kg,weight_health_derived:me.weight_health_derived});return true;
+  } catch {return false;} // The weigh-in already saved; an optional profile read cannot undo it.
+}
+async function weightChanged(owner,box) {
+  if(owner!==readOwner())return;
+  const profile=refreshWeightData(owner);
+  if(box.isConnected)render();
+  await profile;
+  if(owner!==readOwner()||box.isConnected)return;
+  const q=new URLSearchParams(location.search),home=location.pathname==='/me'||location.pathname==='/me/settings'||location.pathname==='/progress'&&!q.has('view')&&!q.has('section');
+  if(home&&!document.querySelector('.scrim:not(.is-closing)')&&!document.activeElement?.matches('input,textarea,select,[contenteditable]'))render();
+}
+
+function weightAddress(query) {
+  const q=new URLSearchParams(query);q.delete('view');
+  if(!['progress','explore','me'].includes(q.get('from')))q.set('from','nutrition');
+  return '/progress/weight'+(q.size?'?'+q:'');
+}
+function weightOrigin(query) {
+  const from=query.get('from');
+  if(from==='nutrition')return {label:'Nutrition',href:App.nutritionHome?.owner===readOwner()?App.nutritionHome.href:'/food'};
+  if(from==='explore')return {label:'Explore Kinetta',href:'/me/explore'};
+  if(from==='me')return {label:'Me',href:'/me'};
+  return {label:'Progress',href:App.progressHome?.owner===readOwner()?App.progressHome.href:'/progress'};
+}
+route(/^\/progress\/weight$/, 'progress', async el=>{
+  const origin=weightOrigin(new URLSearchParams(location.search));
+  Discovery.visit('progress','weight');Discovery.visit('nutrition','weight');
+  el.classList.add('weight-page');
+  el.innerHTML=`<div class="top weight-heading">${backBtn(origin.label)}<div class="weight-heading-main"><h1>Weight</h1><div class="acts"><button type="button" class="icon-btn" id="weight-help" aria-label="About your weight">${svg('help')}</button>${bellBtn()}</div></div></div><div id="nt-weight"></div><div id="nt-whist"></div>`;
+  wireBack(el,origin.href);
+  $('#weight-help',el).onclick=()=>sheet('Your weight',`<p>Weigh-ins and body measurements are private. They never appear on a shared profile or progress picture.</p><p>The trend smooths day-to-day changes. Apple Health weights keep their source label; a manual weigh-in takes priority for its day.</p><p class="small muted">Daily calorie estimates use your trend when available, then your stored body weight. Logging a weigh-in also updates that stored value.</p>`);
+  weightCard($('#nt-weight',el));weightHistory($('#nt-whist',el));
+});
 
 async function foodCalendar(root) {
   await load('/api/food/insights?days=90',I=>{
