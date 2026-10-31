@@ -21,6 +21,7 @@
 .compact-lift .lift-row > .lift-in[data-k="kg"],.compact-lift .lift-row > .lh-kg,.compact-lift .lift-row > .lift-in[data-k="secs"],.compact-lift .lift-row > .lh-secs { flex-basis:max(78px,4.1rem); }
 .compact-lift .lift-row > .lift-in[data-k="reps"],.compact-lift .lift-row > .lh-reps { flex-basis:max(64px,3rem); }
 .compact-lift .lift-prev { font-size:.8125rem; }
+.compact-lift .lift-row > .lift-prev,.compact-lift .lift-row > .lh-prev { flex-basis:56px; }
 .compact-lift .lift-n { outline:1px solid var(--line); text-decoration:underline; text-underline-offset:3px; }
 .compact-lift .lift-tick { border-radius:10px; }
 .compact-lift .lift-tick svg { width:18px; height:18px; }
