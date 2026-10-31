@@ -81,6 +81,11 @@ node dev/tests/test_recording_sharing.js
 node dev/tests/test_activity_sharing.js
 node dev/tests/test_stationary_summary.js
 node dev/tests/test_map_fullscreen.js
+node dev/tests/test_back_navigation.js
+node dev/tests/test_back_navigation_dom.js
+node dev/tests/test_friends_presentation.js
+node --check dev/tests/friends_ui.cjs
+node --check dev/tests/back_navigation_ui.cjs
 node dev/tests/test_native_sync.js
 node dev/tests/test_native_pictures.js
 node dev/tests/test_share_photo.js

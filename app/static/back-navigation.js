@@ -11,14 +11,14 @@ const BackNavigation=(()=>{
  function label(value){
   const clean=path(value);if(!clean)return 'Me';const u=new URL(clean,origin()),p=u.pathname;
   const exact={'/me':'Me','/today':'Me','/activity':'Activity','/track':'Track','/progress':'Progress','/food':'Nutrition','/me/friends':'Friends','/me/settings':'Settings','/me/sharing':'Sharing','/me/people':'People','/me/activities':'My activities','/me/explore':'Explore Kinetta','/me/challenges':'Challenges','/me/milestones':'Milestones','/me/kit':'Kit','/me/goals':'Goals','/me/gear':'Gear','/me/devices':'Devices','/me/speed':'Speed','/me/health':'Apple Health','/track/health':'Apple Health','/me/import':'Import','/track/import':'Import','/food/import':'Import food','/me/connections':'Connections','/track/connections':'Connections','/notifications':'Notifications','/me/notifications':'Notifications','/food/meals':'Recipes','/food/describe':'Add food','/food/recipe-link':'Import recipe','/food/setup':'Food setup','/food/weight':'Weight','/food/trends':'Food & weight','/plan':'Training plan','/routes':'Routes','/progress/routes':'Routes','/segments':'Segments','/progress/segments':'Segments','/segments/review':'Segment review','/segments/new':'New segment','/progress/calendar':'Calendar','/progress/trends':'Trends','/progress/heatmap':'Activity map','/welcome':'Get started'};
-  if(p==='/progress'&&u.searchParams.get('section')==='food')return 'Food & weight';
-  if(p==='/progress'&&(u.searchParams.get('section')==='lifting'||u.searchParams.get('view')==='lifting'))return 'Lifting';
+  if(p==='/progress'){const view=u.searchParams.get('view')||u.searchParams.get('section'),names={totals:'Totals',mileage:'Totals',fitness:'Fitness',records:'Records',lifting:'Lifting',routes:'Routes',segments:'Segments',trends:'Year over year',calendar:'Calendar',heatmap:'Heatmap',plan:'Training plan',food:'Food & weight'};if(names[view])return names[view];}
+  if(p==='/food'&&u.searchParams.get('view')==='overview')return 'Food & weight';
   if(p==='/routes'&&u.searchParams.get('view')==='segments')return 'Segments';
   if(exact[p])return exact[p];
   for(const [re,name] of [[/^\/activity\/(?:friends\/)?\d+$/,'Activity'],[/^\/people\/[^/]+$/,'Profile'],[/^\/food\/cook\/\d+$/,'Recipe'],[/^\/(?:track\/)?lift\/ex\/\d+$/,'Exercise'],[/^\/(?:track\/)?lift\/\d+$/,'Lifting'],[/^\/route\/\d+$/,'Route'],[/^\/segments\/\d+$/,'Segment'],[/^\/records\//,'Records'],[/^\/(?:me\/challenges|challenge)\/[^/]+$/,'Challenge'],[/^\/card\/[^/]+$/,'Kinetta card'],[/^\/add\/[^/]+$/,'Friend invite']])if(re.test(p))return name;
   return parent(clean);
  }
- const appPath=value=>{const p=path(value);return p&&!/^\/(?:$|signup(?:\/|$)|beta(?:\/|$)|login(?:\/|$)|join(?:\/|$)|forgot(?:\/|$)|reset(?:\/|$)|verify(?:\/|$))/.test(new URL(p,origin()).pathname);};
+ const appPath=value=>{const p=path(value);return p&&/^\/(?:me|today|activity|track|progress|food|plan|lift|route|routes|segments|records|people|add|card|challenge|notifications|welcome)(?:\/|$)/.test(new URL(p,origin()).pathname);};
  const id=()=>globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
  const validRef=(r,owner)=>r&&typeof r.id==='string'&&r.id.length>0&&r.id.length<=128&&appPath(r.path)&&r.owner===owner;
  function entry(state,current,owner){
