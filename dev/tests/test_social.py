@@ -64,6 +64,12 @@ a1, a2, a3 = [x['id'] for x in feed if x['line'] and not x['cheers'] and not x['
 check(all(s.q('GET', f'/api/shared/{a1}', want=404) for s in (fr, st, pe)), 'private by default: nobody sees it')
 alex.q('PUT', f'/api/activities/{a1}/sharing', {'visibility': 'friends'})
 alex.q('PUT', f'/api/activities/{a2}/sharing', {'visibility': 'everyone'})
+own_rows=alex.q('GET','/api/activities?limit=100')
+check(all(aid in [a['id'] for a in own_rows] for aid in (a1,a2,a3)),'Activity and Me own-reader include both shared and private workouts')
+from urllib.parse import urlencode
+first=own_rows[0];later=alex.q('GET','/api/activities?'+urlencode({'limit':100,'before':first['start_time'],'before_id':first['id']}))
+check(first['id'] not in [a['id'] for a in later] and [a['id'] for a in later[:3]]==[a['id'] for a in own_rows[1:4]],'own pagination includes private rows with the same time/id cursor')
+check(all(a3 not in [a['id'] for a in other.q('GET','/api/feed/friends?limit=100')] for other in (fr,st,pe)),'other people never receive the owner private workout in their feeds')
 fr.q('PUT', f'/api/activities/{a1}/sharing', {'visibility': 'everyone'}, want=404)   # not the owner
 v = fr.q('GET', f'/api/shared/{a1}')
 st.q('GET', f'/api/shared/{a1}', want=404); pe.q('GET', f'/api/shared/{a1}', want=404)

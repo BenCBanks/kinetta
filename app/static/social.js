@@ -8,16 +8,17 @@ const CHEER = {verb: 'Cheers', done: 'Cheers sent', many: 'cheers', title: 'Chee
 const REACTIONS=[['cheer','Cheers'],['strong','Strong'],['applause','Applause']];
 let closeReactionPicker = null;
 const reactionIcon = kind => kind==='strong'?'workout':kind==='applause'?'sparkle':'cheer';
-function reactionButtons(aid,s,detail=false){
+function reactionButtons(aid,s,detail=false,compact=false){
   const selected=s.my_reaction??(s.cheered?'cheer':null),counts=s.reactions||{cheer:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0};
-  return `<div class="activity-reactions" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS.map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
-    <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span class="num">${Object.values(counts).reduce((n,count)=>n+(+count||0),0)}</span></button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('down')}</button></div>
-    <button type="button" class="pf reaction-count" aria-label="See who reacted" hidden></button>
+  const count='<button type="button" class="pf reaction-count" aria-label="See who reacted"'+(compact?'':' hidden')+'></button>',more=`<button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false"${compact?' hidden':''}>${svg('down')}</button>`;
+  return `<div class="activity-reactions${compact?' compact-reactions':''}" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS.map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
+    <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span class="num">${Object.values(counts).reduce((n,count)=>n+(+count||0),0)}</span></button>${compact?count:more}</div>
+    ${compact?more:count}
     <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="${label}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1"><i class="reaction-badge" data-kind="${kind}">${svg(reactionIcon(kind))}</i><span>${label}</span></button>`).join('')}</div></div>`;
 }
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
-  const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
+  const compact=group.classList?.contains('compact-reactions'),owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
   const main=$('.reaction-main',group),more=$('.reaction-more',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
   let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS.map(([k])=>[k,+group.getAttribute('data-count-'+k)||0]))};
   let hoverTimer=null,leaveTimer=null,heldOpen=false;
@@ -46,7 +47,7 @@ function wireReactionGroup(group,aid,changed){
     main.dataset.kind=selected||'cheer';main.setAttribute('aria-pressed',String(!!selected));
     main.setAttribute('aria-label',`${selected?label+'. Tap to remove; hold to change':'Cheers. Tap to send; hold to choose'}. ${total} reaction${total===1?'':'s'}`);
     main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    count.hidden=!total;const badges=`<span class="reaction-icons" aria-hidden="true">${used.map(([k])=>`<i class="reaction-badge" data-kind="${k}">${svg(reactionIcon(k))}</i>`).join('')}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
+    count.hidden=compact?false:!total;const badges=compact?`<span class="num">${total}</span>`:`<span class="reaction-icons" aria-hidden="true">${used.map(([k])=>`<i class="reaction-badge" data-kind="${k}">${svg(reactionIcon(k))}</i>`).join('')}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
     count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}. See who reacted`);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
@@ -92,7 +93,7 @@ function wireReactionGroup(group,aid,changed){
   function listen(on){const method=on?'addEventListener':'removeEventListener';document[method]('pointerdown',outside,true);document[method]('keydown',escape);window[method]('scroll',scroll,true);window[method]('resize',resize);}
   const enter=e=>{if(e.pointerType==='mouse'&&matchMedia('(hover: hover)').matches){clearTimeout(leaveTimer);hoverTimer=setTimeout(()=>open(),250);}};
   const leave=e=>{if(e.pointerType==='mouse'){clearTimeout(hoverTimer);leaveTimer=setTimeout(()=>close(),200);}};
-  const action=$('.reaction-action',group);action.addEventListener('pointerenter',enter);action.addEventListener('pointerleave',leave);
+  const action=compact?main:$('.reaction-action',group);action.addEventListener('pointerenter',enter);action.addEventListener('pointerleave',leave);
   picker.addEventListener('pointerenter',()=>clearTimeout(leaveTimer));picker.addEventListener('pointerleave',leave);
   viewResources.set(group,()=>{stopWatching?.();close();picker.remove();});
   draw();
@@ -192,10 +193,12 @@ const Social = {
 // ---------- Activity tab: the Feed (yours and your friends', newest first) ----------
 // Both readers use the same (time, id) cursor, including activities starting at exactly the same time.
 const FEED_N = 15;
+// Own private workouts stay visible here. Cached rows explicitly private to someone else never paint.
+const visibleFeedRows=rows=>rows.filter(a=>!a.owner||(App.me?.login&&a.owner.login===App.me.login)||a.visibility!=='me');
 async function feedPage(before,size=FEED_N) {
   const b=before?'&before='+encodeURIComponent(typeof before==='string'?before:before.start_time)+(before.id?'&before_id='+before.id:''):'';
   const [mine,theirs]=await Promise.all([readOnce(`/api/activities?limit=${size}${b}`),readOnce(`/api/feed/friends?limit=${size}${b}`)]);
-  const all=mine.concat(theirs).sort((x,y)=>new Date(y.start_time)-new Date(x.start_time)||y.id-x.id),rows=all.slice(0,size);
+  const all=visibleFeedRows(mine.concat(theirs)).sort((x,y)=>new Date(y.start_time)-new Date(x.start_time)||y.id-x.id),rows=all.slice(0,size);
   return {rows,more:all.length>size||mine.length===size||theirs.length===size,friends:rows.filter(a=>a.owner).length};
 }
 // Persist only a small opening view; deeper browsing stays in this account's memory cache.
@@ -210,13 +213,15 @@ function warmFeed() {
   feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg); } }).catch(() => {});
 }
 async function homeFeed(el) {
-  el.innerHTML=`${actTop(false,true)}<a class="feed-discovery" href="/me/friends?find=1">${svg('people')}<span>Find friends</span>${svg('chev')}</a>
+  el.classList?.add('activity-home');
+  el.innerHTML=`<div id="feed-top">${actTop(false,!(Number.isInteger(App.me?.friend_count)&&App.me.friend_count<=2))}</div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   const list=$('#ff-list',el),more=$('#ff-more',el),account=readOwner();
   let items=[],shown=null,pageRevision=0;
-  const active=()=>account===readOwner()&&list.isConnected;
+  const active=()=>account===readOwner()&&list.isConnected,tools=feedTools(el,()=>account===readOwner()&&list.isConnected);
   const draw=pg=>{
     if(!active())return;
+    const visible=visibleFeedRows(pg.rows);pg={...pg,rows:visible,friends:visible.filter(a=>a.owner).length};
     const signature=JSON.stringify(pg),previous=items;items=pg.rows;
     if(signature===shown)return;
     shown=signature;
@@ -227,12 +232,12 @@ async function homeFeed(el) {
       for(const a of items){
         const href=(a.owner?'/activity/friends/':'/activity/')+a.id;
         let node=old.get(a.id)===JSON.stringify(a)?nodes.get(href):null;
-        if(!node){const template=document.createElement('template');template.innerHTML=postCard(a,{who:true});node=template.content.firstElementChild;}
+        if(!node){const template=document.createElement('template');template.innerHTML=postCard(a,{who:true,compact:true});node=template.content.firstElementChild;}
         if(node===cursor)cursor=cursor.nextElementSibling;else list.insertBefore(node,cursor);
         retained.add(node);
       }
       for(const node of [...list.children])if(!retained.has(node))node.remove();
-    }else list.innerHTML=items.length?items.map(a=>postCard(a,{who:true})).join(''):`<div class="card empty"><b>Nothing here yet</b>Your activities and your friends’ shared activities appear here.<div class="btncol"><a class="ghost" href="/me/friends">Find friends</a><button type="button" class="ghost" data-invite-empty>Invite friends</button></div></div>`;
+    }else list.innerHTML=items.length?items.map(a=>postCard(a,{who:true,compact:true})).join(''):`<p class="feed-empty small muted">Your workouts and your friends’ shared workouts appear here.</p>`;
     const invite=list.querySelector?.('[data-invite-empty]');if(invite)invite.onclick=inviteFriends;
     more.hidden=!pg.more;feedMaps(list);wireCheers(list);if(typeof cleanViews!=='undefined')cleanViews();
   };
@@ -252,7 +257,7 @@ async function homeFeed(el) {
     App.cache.set('feed:home',{data:pg,at:Date.now()});keepFeed(pg);draw(pg);
   };
   // Pull-to-refresh uses this read-only hook instead of replacing the entire page.
-  el.refresh=revalidate;
+  el.refresh=()=>Promise.all([revalidate(),tools.refresh()]);
   more.onclick=async()=>{
     if(more.disabled||!active()||!items.length)return;
     const epoch=readEpoch('feed:home');pageRevision++;more.disabled=true;more.textContent='Loading…';
@@ -265,6 +270,29 @@ async function homeFeed(el) {
   };
   try{if(!hit||Date.now()-hit.at>=15000)await revalidate();}
   catch(x){if(!hit)throw x;if(typeof PageRefresh!=='undefined')PageRefresh.failed(x);}
+}
+
+// Read-only own social facts never replace feed cards or their live maps.
+function feedTools(el,current){
+  if(typeof Discovery==='undefined')return{refresh:async()=>{}};
+  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let count=Number.isInteger(App.me?.friend_count)?App.me.friend_count:null,waiting=App.me?.friend_requests||0,challenges=[],ready=false;
+  const live=()=>current()&&readOwner()===owner;
+  function draw(){
+    if(!live())return;host.setAttribute('aria-busy',String(!ready));const low=count!=null&&count<=2;top.innerHTML=actTop(false,!low);
+    const active=challenges.filter(q=>q.member&&!q.self?.finished&&Number.isInteger(q.self?.days_left)).sort((a,b)=>a.self.days_left-b.self.days_left);
+    const chips=[...(active.length?[{id:'challenges',title:(active.length>1?active.length+' challenges':'Challenge')+' · '+active[0].self.days_left+' days left',href:'/me/challenges/'+encodeURIComponent(active[0].code),icon:'trophy'}]:[]),...(!low?[{id:'invite',title:'Invite',href:'/me',icon:'share'}]:[]),...(waiting?[{id:'requests',title:waiting+' request'+(waiting===1?'':'s'),href:'/me/friends',icon:'people'}]:[])].slice(0,4);
+    host.innerHTML=`${chips.length?`<div class="feed-social-strip" aria-label="Social tools">${chips.map(q=>`<a class="me-chip" data-feed-tool="${q.id}" href="${esc(q.href)}">${svg(q.icon)}${esc(q.title)}</a>`).join('')}</div>`:''}${low?'<section class="feed-low"><h2>Make Activity yours</h2><div class="progress-grid" id="feed-discovery"></div></section>':''}`;
+    const grid=$('#feed-discovery',host);if(grid){Discovery.render(grid,[
+      {id:'find',title:'Find friends',description:'People you know →',href:'/me/friends?find=1',icon:'people'},
+      {id:'invite',title:'Invite card',description:'Share your QR card →',href:'/me',icon:'share'},
+      {id:'challenge',title:'Start a challenge',description:'Do a goal together →',href:'/me/challenges',icon:'trophy'},
+      {id:'segments',title:'Public segments',description:'Opt-in course times →',href:'/progress/segments',icon:'route'}],{space:'activity',ready:true,attribute:'data-activity-feature'});Discovery.wire(grid,'activity',{attribute:'data-activity-feature'});}
+  }
+  host.addEventListener('click',e=>{if(!live()||e.metaKey||e.ctrlKey||e.button>0)return;const tile=e.target.closest('[data-activity-feature],[data-feed-tool]');if(!tile)return;const id=tile.dataset.activityFeature||tile.dataset.feedTool;Discovery.visit('activity',id);
+    if(id==='invite'||id==='challenge'){e.preventDefault();e.stopPropagation();if(id==='invite')KinettaCard.open();else Challenges.create();}
+  });
+  async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/friends').then(r=>{if(live()){count=r.friends.length;waiting=r.incoming.length;}}),api('/api/challenges').then(rows=>{if(live())challenges=rows;})]);ready=true;draw();}
+  draw();refresh();return{refresh};
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------

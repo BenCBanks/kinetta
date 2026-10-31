@@ -1,0 +1,36 @@
+/* The social launch tools and compact feed; profile/activity-detail controls keep their own layout. */
+.feed-social-strip { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 0 12px; padding-block:1px; }
+.feed-social-strip .me-chip { display:flex; align-items:center; gap:6px; flex:none; min-height:44px; white-space:nowrap; padding:6px 10px; font-size:.875rem; }
+.feed-social-strip svg { width:16px; height:16px; flex:none; }
+.feed-low { margin:0 0 12px; }
+.feed-low h2 { font-size:1rem; margin:0 0 10px; }
+.feed-low .progress-grid { margin-bottom:0; }
+.feed-low .progress-tile:last-child:nth-child(even) { grid-column:auto; }
+.feed-empty { margin:12px 0; }
+.activity-home .post-hd > .sp { display:none; }
+.activity-home .post-title { margin-bottom:10px; }
+.activity-home .post-link { padding-bottom:6px; }
+.activity-home .post-profile .ph-txt small { font-size:.8125rem; }
+.activity-home .post-route { white-space:nowrap; }
+.compact-media { position:relative; }
+.compact-media .media-controls { position:absolute; inset:0; margin:0; pointer-events:none; }
+.compact-media .media-controls > button { position:absolute; bottom:8px; width:44px; height:44px; background:var(--card); border:1px solid var(--line); border-radius:50%; box-shadow:0 2px 6px #0002; pointer-events:auto; }
+.compact-media [data-media-step="-1"] { left:8px; }
+.compact-media [data-media-step="1"] { right:8px; }
+.compact-media .media-controls > button:disabled { opacity:.45; }
+.media-dots { position:absolute; bottom:22px; left:50%; transform:translateX(-50%); display:flex; gap:5px; max-width:calc(100% - 120px); padding:5px 7px; border-radius:999px; background:var(--card); }
+.media-dots i { flex:none; display:block; width:5px; height:5px; border-radius:50%; background:var(--tx3); opacity:.4; }
+.media-dots i.current { background:var(--accent); opacity:1; }
+.compact-reactions .reaction-action { border:1px solid var(--line); border-radius:999px; overflow:hidden; }
+.compact-reactions .reaction-main { min-width:44px; justify-content:center; padding:4px 6px; }
+.compact-reactions .reaction-main .num { display:none; }
+.compact-reactions .reaction-count { min-width:44px; margin:0; padding:4px 8px; order:initial; }
+.compact-reactions .reaction-count .num { font-weight:650; }
+.activity-home .post-ft:has(.compact-reactions) { padding:6px 12px; gap:6px; }
+
+/* Keep map-source attribution clear beneath carousel controls. */
+.compact-media:has(.media-map) .media-controls > button { bottom:28px; }
+.compact-media:has(.media-map) .media-dots { bottom:42px; }
+
+.post-private { display:inline-flex; align-items:center; vertical-align:middle; color:var(--tx3); }
+.post-private svg { width:14px; height:14px; }
