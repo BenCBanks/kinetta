@@ -204,7 +204,7 @@ function liftLogger(el, aid, data) {
     };
     const pr = (s.pr || []).map((k) => PR_NAMES[k]).join(', ');
     return `<div class="lift-row${s.done && S.open ? ' done' : ''}" data-row="${j}">${cols(e).map((k) => cell[k]).join('')}
-      ${pr ? `<span class="lift-pr" aria-label="New record">${svg('trophy')} ${esc(pr)}</span>` : ''}</div>`;
+      ${pr ? `<span class="lift-pr" role="img" aria-label="New record: ${esc(pr)}">${svg('trophy')} ${esc(pr)}</span>` : ''}</div>`;
   }
   // records, after a save, without redrawing the boxes being typed in
   function marks() {
@@ -214,7 +214,7 @@ function liftLogger(el, aid, data) {
       e.sets.forEach((s, j) => {
         if (!(s.pr || []).length) return;
         const row = $(`[data-row="${j}"]`, card);
-        if (row) row.insertAdjacentHTML('beforeend', `<span class="lift-pr" aria-label="New record">${svg('trophy')} ${esc(s.pr.map((k) => PR_NAMES[k]).join(', '))}</span>`);
+        if (row) row.insertAdjacentHTML('beforeend', `<span class="lift-pr" role="img" aria-label="New record: ${esc(s.pr.map((k) => PR_NAMES[k]).join(', '))}">${svg('trophy')} ${esc(s.pr.map((k) => PR_NAMES[k]).join(', '))}</span>`);
       });
     });
   }
