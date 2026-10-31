@@ -511,7 +511,7 @@ const Track = (() => {
     if(planIntent?.scope===key&&planIntent.owner===readOwner())selected=choices.findIndex(c=>c.sport==='run'&&!c.sportLabel);
     const done = new URLSearchParams(location.search).get('done');
     if(new URLSearchParams(location.search).get('past')==='1'){const url=new URL(location.href);url.searchParams.delete('past');history.replaceState(null,'',url.pathname+url.search);setTimeout(()=>{if(el.isConnected)addActivitySheet();});}
-    el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready compact-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">GPS recording is in the iPhone app.${App.me?.iphone_app ? ` <a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">Get it</a>` : ''}</p>`}<div class="track-sport-row" role="group" aria-label="Common activities"><div class="track-quick">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}" aria-label="${esc(choices[i].label)}">${esc(choices[i].lift?'Lift':choices[i].label==='Treadmill run'?'Treadmill':choices[i].label)}</button>`).join('')}</div><button type="button" class="me-chip" id="track-other" aria-label="More activities">More ${svg('down')}</button></div>
+    el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready compact-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">GPS recording is in the iPhone app.${App.me?.iphone_app ? ` <a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">Get it</a>` : ''}</p>`}<div class="track-sport-row" role="group" aria-label="Common activities"><div class="track-quick">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}" aria-label="${esc(choices[i].label)}">${svg(choices[i].lift?'workout':choices[i].sport)}${esc(choices[i].lift?'Lift':choices[i].label==='Treadmill run'?'Treadmill':choices[i].label)}</button>`).join('')}</div><button type="button" class="me-chip" id="track-other" aria-label="More activities"><span>More</span>${svg('down')}</button></div>
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="map-full" aria-label="Full-screen map">${svg('expand')}</button><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
       <div id="track-plan" class="track-plan" hidden></div>
       <div class="track-recording-options" aria-label="This recording"><div id="track-interval-ready"></div><button type="button" class="me-chip" id="track-options" hidden></button></div>
@@ -520,6 +520,27 @@ const Track = (() => {
       </form>
       <div id="track-open-lift"></div><section class="track-tools compact-track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">Other ways to add</h2><div id="track-explore" class="progress-grid"></div></section>`;
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false,readyFollow=true;const readyOwner=readOwner(),readyLive=()=>renderRevision===drawRevision&&el.isConnected&&readyOwner===readOwner()&&!session;
+    const quickRow=$('.track-sport-row',el),quickBox=$('.track-quick',el),more=$('#track-other',el),quickButtons=$$('[data-quick]',el);
+    const fitQuick=()=>{
+      if(!readyLive())return;
+      const focused=document.activeElement;
+      quickBox.hidden=false;quickButtons.forEach(b=>b.hidden=false);
+      const label=(text,selectedHidden)=>{more.innerHTML=`<span>${esc(text)}</span>${svg('down')}`;more.setAttribute('aria-pressed',String(selectedHidden));more.setAttribute('aria-label',selectedHidden?'More activities, selected '+choices[selected].label:'More activities');};
+      label('More',false);
+      const widths=quickButtons.map(b=>b.getBoundingClientRect().width),gap=parseFloat(getComputedStyle(quickBox).columnGap)||8,outerGap=parseFloat(getComputedStyle(quickRow).columnGap)||8;
+      const fit=(limit=Infinity)=>{
+        const available=Math.max(0,quickRow.clientWidth-more.getBoundingClientRect().width-outerGap);let used=0,full=false;const shown=[];
+        quickButtons.forEach((b,i)=>{const need=widths[i]+(shown.length?gap:0);b.hidden=full||shown.length>=limit||used+need>available;if(b.hidden)full=true;else{used+=need;shown.push(+b.dataset.quick);}});
+        quickBox.hidden=!shown.length;quickBox.scrollLeft=0;return shown;
+      };
+      const shown=fit();
+      if(!shown.includes(selected)){label(choices[selected].label,true);fit(shown.length);}
+      if(quickButtons.includes(focused)&&focused.hidden)more.focus({preventScroll:true});
+    };
+    const quickResize=new ResizeObserver(fitQuick),quickFont=new MutationObserver(fitQuick);
+    quickResize.observe(quickRow);quickFont.observe(document.documentElement,{attributes:true,attributeFilter:['style']});
+    viewResources.set(quickRow,()=>{quickResize.disconnect();quickFont.disconnect();});
+    document.fonts?.ready.then(fitQuick);requestAnimationFrame(fitQuick);
     const guide = () => { const c=choices[selected];globalThis.Intervals?.mount($('#track-interval-ready'),c,{compact:true,changed:()=>{choiceRevision++;opts();}});$('#track-ready-map-wrap').hidden=!c.gps;el.classList.toggle('gps-ready',!!c.gps);ensureMap();$('#track-start').setAttribute('aria-label',c.lift?'Start lifting':`Start ${c.label.toLowerCase()}`);$('#track-guidance').textContent=c.lift?'Sets, reps and a rest timer.':c.gps?'GPS continues with your screen locked.':TrackNative.supported?'A timer, including with your screen locked.':'Keep this page open while the timer runs.'; };
     // The pre-start chips edit the existing device choices; the recorder remains their owner after Start.
     const opts=()=>{ const c=choices[selected],box=$('#track-options');if(!box)return;
@@ -530,17 +551,18 @@ const Track = (() => {
       box.setAttribute('aria-label',`${o.voice?'Spoken updates every '+unit:'Spoken updates off'}. Auto-pause ${paused}${intervals?' for intervals':''}. Recording settings`);
       box.title=box.getAttribute('aria-label');box.onclick=()=>prefs(c); };
     const prefs=(c)=>{ const o=recordOptions(c.sport),unit=imp()?'mile':'km';
-      sheet('Recording settings',`<div class="track-pref-list"><div class="switch-row"><div class="track-voice-copy"><label for="track-voice"><b>Spoken updates</b></label><small>Hear your time and ${speedSport(c)?'speed':'pace'} at every ${unit}, even with the screen locked.</small>${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?Intervals.voiceControls():''}</div><input type="checkbox" role="switch" id="track-voice"${o.voice?' checked':''}></div>
+      sheet('Recording settings',`<div class="track-pref-list"><div class="switch-row"><div class="track-voice-copy"><label for="track-voice"><b>Spoken updates</b></label><small>Hear your time and ${speedSport(c)?'speed':'pace'} at every ${unit}, even with the screen locked.</small>${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?Intervals.voiceControls():''}</div><label class="track-switch-target" for="track-voice"><input type="checkbox" role="switch" id="track-voice"${o.voice?' checked':''}></label></div>
         <label class="switch-row"><span><b>Auto-pause</b><small>Stops the clock when you stop moving and starts it when you go. Saved for each kind of activity: this is for ${esc(c.label.toLowerCase())}.</small></span><input type="checkbox" role="switch" id="track-auto"${o.autoPause?' checked':''}></label></div>
         <button type="button" class="primary wide" data-done>Done</button>`,(b,close)=>{
+        b.closest('.sheet').classList.add('track-recording-settings');
         globalThis.Intervals?.wireVoiceControls(b);
         $('#track-voice',b).onchange=(e)=>{store.set(key+':voice',e.target.checked);globalThis.Intervals?.updateVoiceAvailability(b);opts();};
         $('#track-auto',b).onchange=(e)=>{store.set(key+':auto:'+c.sport,e.target.checked);opts();};
         $('[data-done]',b).onclick=close;});
       Native.haptic?.('selection'); };
     const gear=$('#track-settings');if(gear)gear.onclick=()=>{const c=choices[selected];if(c.gps)prefs(c);else toast('Spoken updates and auto-pause are for GPS activities.');};
-    const pick=(i,fromPlan=false)=>{if(!readyLive()||!choices[i])return;if(!fromPlan&&planIntent){planIntent=null;$('#track-plan').hidden=true;}selected=i;choiceRevision++;store.set(key+':choice',selected);const other=$('#track-other');other.innerHTML=esc(quick.includes(i)?'More':choices[i].label)+svg('down');other.setAttribute('aria-pressed',String(!quick.includes(i)));other.setAttribute('aria-label',quick.includes(i)?'More activities':'More activities, selected '+choices[i].label);$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();opts();auto();};
-    $('#track-other').onclick=()=>pickSheet('Activity',pickRows(choices.map((c,i)=>[String(i),c.label,c.gps?'GPS':c.lift?'Sets & reps':'Timer',c.lift?'workout':c.sport]),String(selected)),i=>pick(+i));
+    const pick=(i,fromPlan=false)=>{if(!readyLive()||!choices[i])return;if(!fromPlan&&planIntent){planIntent=null;$('#track-plan').hidden=true;}selected=i;choiceRevision++;store.set(key+':choice',selected);fitQuick();$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();opts();auto();};
+    $('#track-other').onclick=()=>sheet('Activity',pickRows(choices.map((c,i)=>[String(i),c.label,c.gps?'GPS':c.lift?'Sets & reps':'Timer',c.lift?'workout':c.sport]),String(selected)),(b,close)=>{b.closest('.sheet').classList.add('track-sport-picker');$$('[data-pk]',b).forEach(x=>x.onclick=()=>{close();pick(+x.dataset.pk);});});
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
     // (permission is remembered); a browser locates by itself only after the person has already allowed it.

@@ -1,8 +1,8 @@
 /* Track launch controls; recording and review keep their own layout. */
 .compact-ready.track-ready { gap:10px; }
-.compact-ready .track-quick { display:flex; flex-wrap:nowrap; gap:4px; overflow-x:auto; scrollbar-width:none; padding:1px 0; }
-.compact-ready .track-quick button { display:flex; align-items:center; justify-content:center; flex:0 0 auto; min-height:44px; padding:6px; border-radius:999px; font-size:.9375rem; white-space:nowrap; }
-.compact-ready .track-quick button svg { width:14px; height:14px; }
+.compact-ready .track-quick { display:flex; flex-wrap:nowrap; gap:8px; overflow:hidden; scrollbar-width:none; padding:1px 0; }
+.compact-ready .track-quick button { display:flex; align-items:center; justify-content:center; flex:0 0 auto; min-height:44px; height:44px; padding:0 12px; gap:6px; border-radius:999px; font-size:max(15px,.875rem); white-space:nowrap; }
+.compact-ready .track-quick button svg { flex:none; width:16px; height:16px; }
 .compact-ready .track-gps-note { margin:0; font-size:.8125rem; }
 .compact-ready .track-ready-map { height:clamp(190px,28dvh,240px); }
 .compact-ready .track-ready-map-wrap.full .track-ready-map { height:100%; }
@@ -11,10 +11,10 @@
 .compact-ready .track-go > .primary { min-height:48px; }
 .compact-ready #track-ready-error:empty { display:none; }
 .compact-ready #track-guidance { font-size:.8125rem; }
-.track-recording-options { min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.track-recording-options { min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .track-recording-options:not(:has(#interval-open)):not(:has(#track-options:not([hidden]))) { display:none; }
 .track-recording-options > div { max-width:100%; }
-.track-recording-options .me-chip { display:flex; gap:5px; min-height:44px; max-width:100%; white-space:normal; text-align:left; padding:7px 10px; font-size:.8125rem; }
+.track-recording-options .me-chip { display:flex; gap:4px; font-weight:500; min-height:44px; height:44px; max-width:100%; white-space:nowrap; text-align:left; padding:0 12px; font-size:max(15px,.9375rem); border:1px solid var(--line); border-radius:999px; background:var(--card); }
 .track-recording-options .me-chip svg { flex:none; width:16px; height:16px; }
 .track-plan { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; }
 .track-plan[hidden] { display:none; }
@@ -28,14 +28,45 @@
 .compact-track-tools .progress-tile:last-child:nth-child(even) { grid-column:auto; }
 
 
-/* Keep More beside the scrolling sports, so it never paints over a label. */
-.compact-ready .track-sport-row { display:flex; align-items:center; gap:4px; min-width:0; }
+/* Keep More beside the fully visible sports, so it never paints over a label. */
+.compact-ready .track-sport-row { display:flex; align-items:center; gap:8px; min-width:0; }
 .compact-ready .track-quick { flex:1; min-width:0; }
 .compact-ready .track-quick button { min-width:44px; }
-.compact-ready #track-other { display:flex; align-items:center; gap:3px; flex:none; min-height:44px; padding:6px; font-size:.9375rem; white-space:nowrap; }
+.compact-ready #track-other { display:flex; align-items:center; gap:3px; flex:none; min-height:44px; height:44px; padding:0 12px; font-size:max(15px,.875rem); border:1px solid var(--line); background:var(--card); white-space:nowrap; }
 .compact-ready #track-other svg { width:14px; height:14px; }
 .compact-ready #track-other[aria-pressed="true"] { background:var(--accent2); color:var(--accent); border-color:var(--accent); }
 
-.track-recording-options > div { min-width:0; }
+.track-recording-options > div { min-width:0; flex:1 1 8.25rem; }
+.track-recording-options #interval-open { width:100%; }
+.track-recording-options #track-options { flex:0 1 auto; }
 .track-recording-options #interval-open span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.track-recording-options #interval-open { max-width:min(100%,16rem); }
+.track-recording-options #interval-open { max-width:100%; }
+
+/* Spacing follows the31October minimums; glyph/label gaps remain inside one control. */
+.track-plan > a:first-child { min-height:44px; }
+.compact-track-tools .progress-grid { gap:12px; }
+.compact-track-tools .progress-tile { padding:16px; }
+.track-sport-picker .pick-list { display:flex; flex-direction:column; gap:8px; }
+.track-sport-picker .row-link { min-height:56px; }
+.track-switch-target { display:flex; flex:none; align-items:center; justify-content:center; min-width:51px; min-height:44px; cursor:pointer; }
+.compact-ready .track-gps-note,.compact-ready #track-guidance,.track-plan small { font-size:max(13px,.8125rem); }
+
+.compact-ready .track-quick[hidden],.compact-ready .track-quick button[hidden] { display:none; }
+.compact-ready #track-other { max-width:100%; }
+.compact-ready #track-other span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.compact-ready .track-quick button,.compact-ready #track-other { font-weight:500; }
+
+/* Owner type scale: default sizes stay calm; rem text still follows accessibility enlargement. */
+.compact-ready .track-go #track-start > span { font-size:max(15px,1rem); }
+.compact-track-tools .sec-head { font-size:max(17px,1.125rem); }
+.compact-track-tools .progress-tile-name b { font-size:max(16px,1rem); }
+
+.track-recording-settings > header h2 { font-size:1.25rem; }
+.track-recording-settings .track-pref-list { min-width:0; grid-template-columns:minmax(0,1fr); }
+.track-recording-settings .switch-row { min-width:0; gap:8px; }
+.track-recording-settings .switch-row > :first-child { min-width:0; flex:1; }
+.track-recording-settings .switch-row b { font-size:max(15px,.9375rem); }
+.track-recording-settings .switch-row small { font-size:max(13px,.85rem); }
+
+.compact-track-tools .progress-tile-name { min-width:0; width:100%; }
+.compact-track-tools .progress-tile-name b { overflow-wrap:anywhere; }

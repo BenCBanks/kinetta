@@ -94,7 +94,7 @@ they already pass on the new surfaces. Outline is neutral `#7B8791` / `#82909C`,
 UI sans is the display face for page titles and section headings, about 700 weight with slightly negative tracking.
 The existing Source Serif 4 logo artwork and bundled OFL font remain for the unchanged wordmark only. Native system sans is used for app controls, labels, body and numbers;
 the marketing site retains Figtree body text. Use tabular numerals and explicit units. Ordinary bold text must not
-inherit display sizes. App page titles are 30px, sections 20px, card titles 18px, summary figures 28px and secondary stats 20px at the default text size. Body copy stays 15–16px and small labels 11–13px. Use the `text-app-*` tokens (in rem) so this hierarchy grows with text enlargement; do not shrink the root font. Marketing display sizes remain separate.
+inherit display sizes. At the default text size, app page titles are28–32px, sections17–20px and card titles16–17px. Body, buttons and chips are15–16px; secondary text is13–14px and never below12px. Allow one clearly identified hero per card or sheet, up to about40px; other statistics are20–24px and no larger than the page title. Use the `text-app-*` tokens (in rem) so this hierarchy grows with text enlargement; do not shrink the root font. Marketing display sizes remain separate.
 
 The shared spacing scale is 4, 8, 12, 16, 22, 32 and 48px. Phones have 22px side margins, dropping to 16px when narrow.
 Use 12px control radii, 16px media radii and 18px quiet card radii. Cards use about 16px padding and a fine border with
@@ -811,8 +811,8 @@ reaction still names itself on the main action. Keep the hold/slide, visible cho
 rollback and owner guards. Do not turn it back into three labelled tiles or shrink its touch targets.
 
 App-only typography tokens reduce repeated display emphasis across Me, Activity, Progress, Nutrition, plans,
-profiles and sheets: 30px page / 20px section / 18px card / 28px hero figure / 20px secondary statistic.
-Cards use 14px padding and 12px separation; Me's decorative chart bars are shorter and latest-activity/day gaps tighter.
+profiles and sheets: 28–32px page /17–20px section /16–17px card /one identified hero up to40px /20–24px secondary statistic.
+Cards use16px padding and12–16px separation; Me's decorative chart bars are shorter and latest-activity/day gaps tighter.
 Body copy, privacy/source explanations and tab labels stay readable; inputs are at least 16px and grow with rem text.
 Metric grids may wrap into fewer columns at enlarged text sizes. Live recording readouts retain their glanceable size.
 The generated shared theme contains these app-only tokens; marketing does not consume them.
@@ -1608,3 +1608,20 @@ Friends leads with one search, incoming requests and the owner's list. Search fi
 A shared Back policy records only local app destinations in account-scoped browser history. A page names the actual prior app page when known, or its explicit parent for a direct/unknown entry. Replace, Back/Forward and reload preserve truthful labels; authentication pages, a different account and transient full-map duplicates cannot supply a return destination. Both floating and sticky activity controls get the same accessible name and action. Missing-record screens retain the declared parent and shared named return; an unregistered source URL cannot supply a destination from its prefix alone. The existing coarse-pointer map helper already hides zoom buttons while keeping pinch, full screen and credits; mouse zoom controls remain. Route/friendship logic, privacy, notifications, map providers and page calculations are unchanged.
 
 Pure policy/DOM/escaping checks and real browser regressions cover phone/themes/enlarged text, source-aware returns, history/account boundaries, request confirmation, search races/retry and touch/mouse maps. GPS and providers are stand-ins. Physical VoiceOver, keyboard animation and device gestures remain separate acceptance. The route audit is in `docs/navigation-review.md`.
+
+## Track pills and measured title spacing · 31 October 2026
+
+Quick activities reuse the Me card's sport SVGs and keep their labels in one scrolling row beside More. Quick,
+More and recording controls share44px height, rounded borders, horizontal padding and Sky Blue selection. Recording
+settings use the lighter divider border and quieter text; at390px the ordinary Intervals label stays whole beside
+voice/auto-pause. Long preset names shorten inside their pill while retaining the full accessible label and title.
+At330px with enlarged text the recording pills can use separate single-line rows. The global me-chip style stays.
+
+Main's five titles already align within one pixel in both themes with0 and59px simulated top safe areas. Their
+bounding boxes start16.53–17.5px below that inset. Native automatic content insets are already disabled, so no extra
+40–50px CSS band or double inset was reproduced. Shared shell padding and native inset configuration therefore need
+no change on that evidence; the physical owner observation remains a separate check. Regression checks retain the
+activity-detail map hero under the status area. The More picker already has the same sport icons; the GPS badge
+remains a distinct, readable map overlay. Recording, settings, privacy and other launch tools keep their behavior.
+
+The later31October spacing rule keeps8px between quick activities, More and recording pills. Common targets stay44px, giving52px minimum pitch. The primary plan link itself gets a44px target. Two-line More choices use56px rows and8px separation. Track discovery cards use16px padding and12px grid gaps. The31px iPhone-shaped Spoken updates switch stays visually intact inside a44px-high label target; Auto-pause already had a full-row label. Control labels use15px and secondary notes at least13px. These are scoped spacing/activation changes; no recording preference or GPS behavior changes.
