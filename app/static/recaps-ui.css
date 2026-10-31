@@ -1,0 +1,25 @@
+/* Progress sharing: the export is the focus; controls remain in normal scroll order. */
+.recap-sheet .recap-stage{display:grid;grid-template-columns:minmax(0,1fr) 5.75rem;gap:16px;align-items:center}
+.recap-sheet .recap-preview{display:flex;align-items:center;justify-content:center;border:0;padding:0;margin:0;min-height:160px;height:clamp(160px,28dvh,240px);background:transparent;border-radius:var(--r2);overflow:hidden}
+.recap-preview img{display:block;max-width:100%;height:100%;object-fit:contain;border-radius:12px}
+.recap-preview.busy{opacity:.6}
+.recap-sheet .recap-formats{display:flex;flex-direction:column;margin:0;gap:4px;padding:4px}
+.recap-formats button{display:grid;gap:2px;min-height:56px;padding:6px 10px;font-size:.9375rem;border-radius:var(--r2)}
+.recap-formats small{font-weight:500;font-size:.75rem}
+.recap-sheet .recap-periods{display:flex;flex-wrap:nowrap;gap:6px;margin:12px 0;padding:3px 0;overflow-x:auto;background:transparent;scrollbar-width:none}
+.recap-periods::-webkit-scrollbar{display:none}
+.recap-sheet .recap-periods button{flex:0 0 auto;white-space:nowrap;min-height:44px;border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:.9375rem;background:var(--card);color:var(--tx)}
+.recap-sheet .recap-periods button[aria-pressed=true]{background:var(--accent2);border-color:var(--accent);color:var(--accent)}
+.recap-options{border:0;padding:0;margin:0;min-width:0}
+.recap-options legend{font-size:.9375rem;font-weight:700;margin:0 0 6px;padding:0}
+.recap-options>div{display:flex;flex-wrap:wrap;gap:6px}
+.recap-options button{min-height:44px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--tx2);padding:8px 12px;font-size:.9375rem;font-weight:650}
+.recap-options button[aria-pressed=true]{background:var(--accent2);border-color:var(--accent);color:var(--accent)}
+.recap-options button:disabled{opacity:.45}
+.recap-sheet #recap-description{font-size:.875rem;line-height:1.4;margin:10px 0 0}
+.recap-sheet #recap-status{font-size:.875rem;line-height:1.4;margin:8px 0 0}
+.recap-sheet #recap-status:empty{display:none}
+.recap-sheet .recap-actions{position:static;padding:0;background:transparent}
+.recap-sheet .icon-btn{width:44px;height:44px}
+.recap-full{display:block;max-width:100%;height:auto;margin:0 auto}
+@media(prefers-reduced-motion:no-preference){.recap-preview{transition:opacity .15s}}
