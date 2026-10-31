@@ -16,6 +16,8 @@ in `dev/demo/`. Signing keys and API keys belong in GitHub Actions secrets, whic
 - The maintainer's live server is updated separately. Cloud/code-only agents must not access it. A server-resident
   agent may deploy only with the owner's session authorization and applicable private house workflow.
 
+Open PRs as **drafts** while iterating: drafts run syntax, unit and a small API suite. Mark ready for review to trigger the full suite on the final head; pushes to ready PRs rerun it. Native builds/screenshots run for ready PRs affecting the bundled app, mobile/native tests or their build plumbing. Backend/docs/site-only PRs skip native work. Wait for full `tests` success before merge; quick draft success is not full acceptance. See `docs/development-and-updates.md`.
+
 ## Pull request descriptions
 
 Describe the specifics of the final change: the concrete problem, exactly what users will experience, and relevant
@@ -53,7 +55,7 @@ accuracy evidence. New tool-based questions stay disabled until the matching rev
 ## Conventions
 - Database changes: append a new SQL string to the end of `MIGRATIONS` in `app/db.py`, with a numbered comment. Never
   change the SQL of a migration that has shipped; real installs have already run it.
-- After changing a file in `app/static/`, bump its `?v=` number in `app/static/index.html`, or phones keep the old copy.
+- Static versions are automatic. Keep `__ASSET_HASH__` URL placeholders and the `__SHELL_HASH__` service-worker placeholder in source; never bump numbers or commit generated output. Docker and `mobile/scripts/copy-web.mjs` use `app/asset_build.py`. See `docs/development-and-updates.md` for local builds and cache checks.
 - Match the code around you: short functions, comments that explain why, plain-language text in the UI.
 - UI: phone first. Centered, full-width buttons; roomy spacing; charts that explain themselves without helper text;
   colors from the CSS tokens in `style.css`, in both light and dark mode.
@@ -65,7 +67,7 @@ accuracy evidence. New tool-based questions stay disabled until the matching rev
 ## Working in parallel
 Several agents may work on different parts at once, each on its own branch (ideally its own git worktree and its own
 test copy on its own `KINETTA_PORT` and `-p` project name). Before opening a pull request, rebase on the latest `main`:
-if `main` gained a migration, renumber yours to come after it, and re-bump `?v=` numbers from `main`'s values. Keep
+if `main` gained a migration, renumber yours to come after it, and keep the automatic asset placeholders from `main`; drop obsolete manual version edits. Keep
 style changes in the section of `style.css` for your area, so changes from different branches merge cleanly.
 
 ## Run and test

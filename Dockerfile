@@ -5,6 +5,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # runs as an ordinary user; /data (uploads) and /run/kinetta (generated passwords) belong to it
 RUN useradd --uid 1000 --create-home kinetta && mkdir -p /data /run/kinetta && chown kinetta:kinetta /data /run/kinetta
 COPY app ./app
+RUN python -m app.asset_build app/static app/static
 ENV FIT_DATA=/data PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 USER kinetta
 EXPOSE 8000

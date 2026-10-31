@@ -13,7 +13,7 @@ class DisplayCopyTests(unittest.TestCase):
     def test_original_and_update_keep_fixture_isolation(self):
         with tempfile.TemporaryDirectory() as temp:
             source=Path(temp)/'Original.app';public=source/'public';static=public/'static';static.mkdir(parents=True)
-            (public/'index.html').write_text('<body><script src="/static/keyboard.js?v=1"></script></body>')
+            (public/'index.html').write_text('<body><script src="/static/keyboard.js?v=0123456789abcdef0123456789abcdef"></script></body>')
             (static/'native.js').write_text("const get = async (key) => (await prefs.get({key})).value;")
             (static/'appearance.js').write_bytes((ROOT/'app/static/appearance.js').read_bytes())
             before={str(p.relative_to(source)):hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}

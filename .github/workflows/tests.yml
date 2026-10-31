@@ -4,10 +4,9 @@
 name: Tests
 on:
   pull_request:
-    paths: ["app/**", "dev/**", "site/content/**", "site/templates/**", "docs/design-tokens.json", "requirements.txt", "Dockerfile", "docker-compose.yml", ".github/workflows/tests.yml"]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main]
-    paths: ["app/**", "dev/**", "site/content/**", "site/templates/**", "docs/design-tokens.json", "requirements.txt", "Dockerfile", "docker-compose.yml", ".github/workflows/tests.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,7 +14,36 @@ concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  quick:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start a throwaway Kinetta
+        run: |
+          GEMINI_API_KEY=placeholder-for-tests KINETTA_PORT=8798 TZ=America/New_York docker compose -p kinettatest up -d --build
+          for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
+      - name: Load the demo data
+        env:
+          KINETTA_URL: http://localhost:8798
+        run: |
+          python3 dev/demo/gen_gpx.py /tmp/gpx 120
+          python3 dev/demo/seed.py /tmp/gpx
+          python3 dev/screenshots/stage.py /tmp/gpx
+      - name: Syntax, unit and quick API checks
+        run: dev/tests/run.sh --quick
+      - name: Server log (if something failed)
+        if: failure()
+        run: docker compose -p kinettatest logs app | tail -100
+      - name: Stop it
+        if: always()
+        run: docker compose -p kinettatest down -v
   tests:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -43,6 +71,9 @@ jobs:
           npm install --prefix /tmp/interval-browser playwright
           /tmp/interval-browser/node_modules/.bin/playwright install --with-deps chromium
           NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/interval_voice_ui.cjs
+
+      - name: Check automatic asset updates and offline cache
+        run: NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/asset_cache_ui.cjs
 
       - name: Check the compact Explore guide (fictional accounts)
         env:

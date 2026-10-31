@@ -17,7 +17,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
           if(request.isNavigationRequest()&&request.frame()===page.mainFrame()){
             const response=await route.fetch(),html=await response.text();
             assert.match(response.headers()['content-security-policy'],/script-src 'self'/,'Keep the actual restrictive policy');
-            const body=html.replace(/(<script src="\/static\/boot\.js\?v=\d+"><\/script>)/,'$1<script src="https://optional.invalid/static/beacon.js"></script>');
+            const body=html.replace(/(<script src="\/static\/boot\.js\?v=[a-f0-9]{32}"><\/script>)/,'$1<script src="https://optional.invalid/static/beacon.js"></script>');
             assert.notEqual(body,html,'The blocked optional script runs immediately after the startup guard');
             return route.fulfill({response,body});
           }
