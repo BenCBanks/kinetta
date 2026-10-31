@@ -30,7 +30,7 @@
 .lx-title { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
 .compact-lift-exercise .lx-title .eyebrow { margin:0; font-size:.75rem; }
 .compact-lift-exercise .lx-title h1 { margin:0; font-size:1.25rem; }
-.compact-lift-exercise .lx-meta { display:inline; margin:4px 6px 0 0; font-size:.8125rem; }
+.compact-lift-exercise .lx-meta { display:inline; margin:4px 0 0; font-size:.8125rem; }
 .compact-lift-exercise .lx-note { width:auto; max-width:100%; display:inline-flex; align-items:center; min-height:44px; margin:0; padding:0; background:none; font-size:.8125rem; }
 .compact-lift-exercise .lx-note:not(.empty-note)::before { content:'· '; white-space:pre; }
 @media(max-width:370px) {
