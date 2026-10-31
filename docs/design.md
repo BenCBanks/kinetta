@@ -1686,3 +1686,23 @@ Nutrition’s summary has a target icon and a visible Goals label, opening its e
 Insights keeps its title whole at 330px with enlarged text: the back/title use the first row, and Help/notifications share the range row. The range has a 36px visual face inside its 44px hit area. Nutrition’s labelled Goals action uses an explicitly sized 18px icon beside its label in a 44px inline target, preserving the existing form.
 
 Food Insights review: Eaten bars and their legend use calorie action blue in both themes, with the actual dashed goal line retained. Ordinary logged days are not red warnings. Nutrition detail Back names Nutrition or Progress and keeps the account-scoped destination. The weekly food section heading uses20px at16px root and grows with accessibility text.
+
+
+## Notification preference switches (31 October2026, #417 part1)
+
+Notifications leads with labelled switch rows: meal reminders, planned workouts, weekly summaries and available
+phone alert types. Each row has a56px or taller label target, the existing iPhone-shaped switch face,15–16px default
+text and8px separation. Cards keep16px padding. Phone status uses one short instruction plus its existing action;
+the browser instruction remains because no direct installed-app opening action exists in this flow.
+
+Meal times and How times work appear only when reminders are on. Learned meals retain their times, with one
+Learning your usual times message for the rest; no time is invented. The planned reminder time and delivery details
+also appear only for enabled choices. Off-by-default meal/training choices, timezone, no streak/calorie nudges,
+explicit confirmation and device/server readiness remain. Previously enabled choices can always be switched off
+when delivery becomes unavailable. Basic social preferences retain their existing defaults.
+
+Pending controls and failure feedback survive phone-status refreshes; stale account/view/older reads cannot update
+them. Saving retains control focus and failure restores the previous value. Rendered tests use fictional preferences
+and native-method stand-ins, block real writes/delivery, and cover switches, full-label hit areas, spacing, conditional
+details, unavailable Off, failed writes/retries and pending meal saves through a failed phone refresh. UIKit/physical
+push acceptance remains separate. Settings, Segments and other #417 screens are separate work.
