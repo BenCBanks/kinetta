@@ -26,8 +26,8 @@
 .plan-key .plan-legend { position:absolute; z-index:3; right:0; top:100%; width:220px; margin:0; padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--card); box-shadow:var(--lift); }
 .plan-other-title { margin:12px 0 2px; font-size:.8125rem; color:var(--tx2); }
 .plan-overview .pweek > summary { min-height:44px; gap:6px; font-size:.875rem; }
-.plan-week-name { min-width:0; }
-.plan-overview .pweek > summary > .num { flex:none; color:var(--tx2); font-size:.75rem; }
+.plan-week-name { flex:1; min-width:0; }
+.plan-overview .pweek > summary > .num { flex:none; text-align:right; color:var(--tx2); font-size:.75rem; }
 .plan-overview .pw.compact-workout { display:grid; grid-template-columns:3.5rem 6px minmax(0,1fr) 16px; gap:8px; min-height:44px; padding:7px 0; border-inline-start:0; border-bottom:0; border-radius:0; background:none; color:var(--tx); }
 .compact-workout .pw-date { color:var(--tx2); font-size:.8125rem; }
 .compact-workout .pw-mark { width:6px; height:6px; border-radius:50%; background:var(--workout-color); }
@@ -52,3 +52,5 @@
 
 .plan-summary-facts { display:flex; flex-wrap:wrap; gap:2px 10px; }
 .plan-summary-facts > span { white-space:nowrap; }
+
+.compact-workout.missed .pw-main > b { color:var(--tx2); }
