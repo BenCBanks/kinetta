@@ -1,3 +1,17 @@
+import Foundation
+
+// Keep old app builds on the ordinary detail URL; only a matching optional URL
+// can opt an updated app into the existing owner-only editor.
+enum NativeNotificationPath {
+    static func resolve(url: String?, editURL: String?) -> String? {
+        guard let url = url else { return nil }
+        guard url.range(of: "\\A/activity/[1-9][0-9]*\\z", options: .regularExpression) != nil,
+              editURL == url + "?edit=1" else { return url }
+        return editURL
+    }
+}
+
+#if canImport(UIKit)
 import UIKit
 import UserNotifications
 import Capacitor
@@ -78,7 +92,8 @@ final class NativePushCenter: NSObject, UNUserNotificationCenterDelegate {
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         DispatchQueue.main.async {
             self.markExternalEntry()
-            if let path = response.notification.request.content.userInfo["url"] as? String,
+            let data = response.notification.request.content.userInfo
+            if let path = NativeNotificationPath.resolve(url: data["url"] as? String, editURL: data["edit_url"] as? String),
                path.hasPrefix("/"), !path.hasPrefix("//"), !path.contains(":") {
                 self.pendingURL = path
                 self.pendingServer = nil
@@ -191,3 +206,4 @@ class KinettaPushPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 }
+#endif

@@ -541,12 +541,19 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
     <div class="card d-ph" aria-hidden="true"><div class="sk line short"></div><div class="sk big"></div><div class="d-ph-stats"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div>${skel(1)}`;
   wireBack(el, '/activity');
   SocialData.prefetch(id);
-  const milestoneOwner=readOwner(),milestoneOffers=Milestones.read({activity_id:id}).catch(()=>({items:[]}));let milestoneDraw=0;
+  const milestoneOwner=readOwner(),milestoneOffers=Milestones.read({activity_id:id}).catch(()=>({items:[]}));let milestoneDraw=0,openedEdit=false;
+  const wantsEdit=new URLSearchParams(location.search).get('edit')==='1';
   await load(`/api/activities/${id}`, (a) => {
     const stamp=++milestoneDraw;drawDetail(el,a);
     // An optional celebration must not delay the workout, chart or food-energy summary.
     milestoneOffers.then(data=>{if(el.isConnected&&readOwner()===milestoneOwner&&stamp===milestoneDraw)Milestones.paint($('#d-milestones',el),data,{params:{activity_id:id}});}).catch(()=>{});
     if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('[data-pane="overview"]').prepend(box);workoutEnergy(box,id);}
+    if(wantsEdit&&!openedEdit&&!a.owner&&Number(a.id)===Number(id)&&el.isConnected&&readOwner()===milestoneOwner&&location.pathname===`/activity/${id}`&&closeActivityEditor()){
+      const query=new URLSearchParams(location.search);query.delete('edit');
+      if(replacePageAddress(el,location.pathname+(query.size?'?'+query:'')+location.hash)){
+        openedEdit=true;editActivity(a);
+      }
+    }
   }, {maxAge:60000});
 });
 
@@ -572,7 +579,7 @@ function wireActivityTabs(el, onShow = () => {}) {
     buttons.forEach(b => { const active = b.dataset.dt === key; b.setAttribute('aria-selected', String(active)); b.tabIndex = active ? 0 : -1; });
     $$('[data-pane]', el).forEach(p => p.hidden = p.dataset.pane !== key);
     onShow(key);
-    if (remember) history.replaceState(history.state, '', location.pathname + (key === first ? '' : '?tab=' + key));
+    if (remember) replacePageAddress(el,location.pathname + (key === first ? '' : '?tab=' + key));
   };
   buttons.forEach((button,index) => {
     button.onclick = () => show(button.dataset.dt, true);
@@ -732,6 +739,7 @@ function editActivity(a) {
     <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
     <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
     <button type="button" class="e-delete" id="e-del">Delete activity</button></form>`, async (body, close) => {
+    body.closest('.sheet').classList.add('activity-editor');
     const f = $('#e-form', body), btn = body.closest('.sheet').querySelector('button[form="e-form"]');
     // Any edit (typing, a choice, a sharing button) means closing asks first; opening the fold-outs doesn't count.
     const touched = () => { dirty = true; };

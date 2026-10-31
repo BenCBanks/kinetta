@@ -15,7 +15,7 @@ base_notice={'name':'Fictional Friend','activity':'A deliberately long fictional
 for kind in ('friend_request','friend_accepted','cheer','comment','dish_shared','activity_ready'):
     title,body=notify._push_words({**base_notice,'kind':kind})
     assert len(title)<40 and body and '\n' not in title,(kind,title,body)
-assert '\n' in notify._push_words({**base_notice,'kind':'activity_ready'})[1]
+assert '\n' not in notify._push_words({**base_notice,'kind':'activity_ready'})[1], 'Plain workouts have no padding line'
 assert base_notice['comment'] in notify._push_words({**base_notice,'kind':'comment'})[1]
 print('Notification content: short headings and complete multiline body for all delivered types PASS')
 key = ec.generate_private_key(ec.SECP256R1())
@@ -33,10 +33,19 @@ def accept(request):
     assert claims['iss'] == 'TESTTEAM01' and abs(claims['iat'] - time.time()) < 60
     data = json.loads(request.content)
     assert data['aps']['alert']['title'] == payload['title'] and data['url'] == '/activity/1'
+    assert 'edit_url' not in data, 'Ordinary existing destinations stay exact'
     return httpx.Response(200)
 with patch.dict(os.environ, {'KINETTA_APNS_TEAM_ID': 'TESTTEAM01', 'KINETTA_APNS_KEY_ID': 'TESTKEY001', 'KINETTA_APNS_PRIVATE_KEY': pem}):
     apns._cached = None
     assert apns.deliver(device, payload, httpx.MockTransport(accept))
+    edit_payload={**payload,'url':'/activity/1?edit=1'}
+    def accept_edit(request):
+        data=json.loads(request.content)
+        assert data['url']=='/activity/1' and data['edit_url']=='/activity/1?edit=1'
+        assert data['aps']['alert']=={'title':payload['title'],'body':payload['body']}
+        return httpx.Response(200)
+    assert apns.deliver(device,edit_payload,httpx.MockTransport(accept_edit))
+    assert edit_payload['url']=='/activity/1?edit=1', 'Transport does not mutate the logical destination'
     assert apns.deliver(device, payload, httpx.MockTransport(lambda r: httpx.Response(410, json={'reason': 'Unregistered'}))) is False
     try:
         apns.deliver(device, payload, httpx.MockTransport(lambda r: httpx.Response(403, json={'reason': 'InvalidProviderToken'})))

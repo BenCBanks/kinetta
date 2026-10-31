@@ -2881,6 +2881,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .sheet-text-btn { min-height: 44px; min-width: 44px; padding: 0 10px; border: 0; background: none; color: var(--accent); font-size: 1rem; font-weight: 500; justify-self: start; }
 .sheet-text-btn.save { justify-self: end; font-weight: 700; }
 .sheet-text-btn:disabled { opacity: .5; }
+.sheet.activity-editor > header { grid-template-columns: max-content minmax(0,1fr) max-content; gap: 8px; }
+.sheet.activity-editor > header h2 { min-width: 0; white-space: normal; overflow-wrap: normal; word-break: normal; }
 .e-details-head { margin: 10px 0 -4px; }
 .e-delete { display: block; width: 100%; min-height: 48px; margin-top: 18px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--alert); font-size: 1rem; font-weight: 600; }
 

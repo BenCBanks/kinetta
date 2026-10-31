@@ -52,6 +52,8 @@ node dev/tests/test_recaps.js
 node --check dev/tests/recaps_ui.cjs
 node dev/tests/test_milestones.js
 node dev/tests/test_activity_milestone_loading.js
+node dev/tests/test_notification_edit.js
+node --check dev/tests/notification_edit_ui.cjs
 node dev/tests/test_activity_detail.js
 node --check dev/tests/activity_detail_ui.cjs
 node dev/tests/test_map_failure.js
@@ -104,6 +106,7 @@ node dev/tests/test_friends_presentation.js
 node --check dev/tests/friends_ui.cjs
 node --check dev/tests/back_navigation_ui.cjs
 node dev/tests/test_native_sync.js
+PYTHONPATH=. python3 dev/tests/test_notification_words.py
 node dev/tests/test_native_pictures.js
 node dev/tests/test_share_photo.js
 node dev/tests/test_push_invitation.js
@@ -214,6 +217,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/health_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/resting_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/garmin_connect_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/native_push_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/warm_notifications_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/push_repair_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/daily_goals_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/ai_access_incontainer.py
