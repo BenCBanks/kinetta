@@ -2127,6 +2127,17 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 /* Optional food guidance follows the user's text size. */
 /* Activity social row: actions/counts on the left, reaction people on the right. */
 .activity-reactions { display:contents; }
+.inline-reactions .reaction-action { display:contents; }
+.inline-reactions .reaction-inline { position:relative; isolation:isolate; order:1; min-width:44px; min-height:44px; gap:6px; justify-content:center; border:0; background:none; color:var(--tx2); }
+.inline-reactions .reaction-inline::before { content:""; position:absolute; z-index:-1; inset:4px 0; border-radius:18px; background:var(--card2); }
+.inline-reactions .reaction-inline > svg { width:24px; height:24px; flex:none; }
+.inline-reactions .reaction-inline[aria-pressed="true"] { color:var(--accent); }
+.inline-reactions .reaction-inline[aria-pressed="true"]::before { background:var(--accent2); }
+.inline-reactions .reaction-inline[data-kind="strong"][aria-pressed="true"] { color:var(--react-strong); }
+.inline-reactions .reaction-inline[data-kind="applause"][aria-pressed="true"] { color:var(--react-applause); }
+.post-ft:has(.activity-reactions.inline-reactions) { gap:8px; }
+.inline-reactions .reaction-count { margin-left:auto; }
+.inline-reactions .reaction-count svg { width:24px; height:24px; }
 .reaction-action { display:flex; align-items:center; order:1; min-width:0; }
 .activity-reactions .pf, .activity-comments, .activity-share { min-height:44px; padding:4px 8px; font-size:1rem; white-space:nowrap; }
 .activity-reactions .reaction-main { gap:8px; }

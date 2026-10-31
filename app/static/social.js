@@ -9,16 +9,18 @@ const REACTIONS=[['cheer','Cheers'],['strong','Strong'],['applause','Applause']]
 let closeReactionPicker = null;
 const reactionIcon = kind => kind==='strong'?'workout':kind==='applause'?'sparkle':'cheer';
 function reactionButtons(aid,s,detail=false,compact=false){
-  const selected=s.my_reaction??(s.cheered?'cheer':null),counts=s.reactions||{cheer:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0};
-  const count='<button type="button" class="pf reaction-count" aria-label="See who reacted"'+(compact?'':' hidden')+'></button>',more=`<button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false"${compact?' hidden':''}>${svg('down')}</button>`;
-  return `<div class="activity-reactions${compact?' compact-reactions':''}" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS.map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
-    <div class="reaction-action"><button type="button" class="pf cheer reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span class="num">${Object.values(counts).reduce((n,count)=>n+(+count||0),0)}</span></button>${compact?count:more}</div>
+  const inline=!detail,selected=s.my_reaction??(s.cheered?'cheer':null),counts=s.reactions||{cheer:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0};
+  const total=Object.values(counts).reduce((n,count)=>n+(+count||0),0);
+  const count='<button type="button" class="pf reaction-count" aria-label="See who reacted"'+((inline?!total:!compact)?' hidden':'')+'></button>',more=`<button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false"${inline||compact?' hidden':''}>${svg('down')}</button>`;
+  return `<div class="activity-reactions${compact?' compact-reactions':''}${inline?' inline-reactions':''}" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS.map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
+    ${inline?REACTIONS.map(([kind,label])=>`<button type="button" class="pf reaction-inline" data-inline-react="${kind}" data-kind="${kind}" aria-label="${label}. Tap to ${selected===kind?'remove':'send'}" aria-pressed="${selected===kind}">${svg(reactionIcon(kind))}<span class="num"${counts[kind]>0?'':' hidden'}>${counts[kind]||''}</span></button>`).join(''):''}
+    <div class="reaction-action"><button type="button" class="pf cheer reaction-main"${inline?' hidden':''} data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${svg(reactionIcon(selected))}<span class="num">${total}</span></button>${compact?count:more}</div>
     ${compact?more:count}
     <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden>${REACTIONS.map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="${label}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1"><i class="reaction-badge" data-kind="${kind}">${svg(reactionIcon(kind))}</i><span>${label}</span></button>`).join('')}</div></div>`;
 }
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
-  const compact=group.classList?.contains('compact-reactions'),owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
+  const inline=group.classList?.contains('inline-reactions'),inlineButtons=inline?$$('[data-inline-react]',group):[],compact=group.classList?.contains('compact-reactions'),owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
   const main=$('.reaction-main',group),more=$('.reaction-more',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
   let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS.map(([k])=>[k,+group.getAttribute('data-count-'+k)||0]))};
   let hoverTimer=null,leaveTimer=null,heldOpen=false;
@@ -47,7 +49,8 @@ function wireReactionGroup(group,aid,changed){
     main.dataset.kind=selected||'cheer';main.setAttribute('aria-pressed',String(!!selected));
     main.setAttribute('aria-label',`${selected?label+'. Tap to remove; hold to change':'Cheers. Tap to send; hold to choose'}. ${total} reaction${total===1?'':'s'}`);
     main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    count.hidden=compact?false:!total;const badges=compact?`<span class="num">${total}</span>`:`<span class="reaction-icons" aria-hidden="true">${used.map(([k])=>`<i class="reaction-badge" data-kind="${k}">${svg(reactionIcon(k))}</i>`).join('')}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
+    count.hidden=inline?!total:compact?false:!total;const badges=inline?svg('people'):compact?`<span class="num">${total}</span>`:`<span class="reaction-icons" aria-hidden="true">${used.map(([k])=>`<i class="reaction-badge" data-kind="${k}">${svg(reactionIcon(k))}</i>`).join('')}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
+    for(const button of inlineButtons){const kind=button.dataset.inlineReact,n=state.reactions[kind]||0,label=REACTIONS.find(([k])=>k===kind)[1],number=$('.num',button);button.setAttribute('aria-pressed',String(selected===kind));button.setAttribute('aria-label',`${label}. Tap to ${selected===kind?'remove':'send'}${n?`. ${n} ${n===1?'reaction':'reactions'}`:''}`);button.title=label;button.disabled=busy;number.textContent=n||'';number.hidden=!n;}
     count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}. See who reacted`);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
@@ -63,8 +66,9 @@ function wireReactionGroup(group,aid,changed){
       let fresh=await api(`/api/activities/${aid}/reaction`,next?json('POST',{kind:next}):{method:'DELETE'});if(readOwner()!==owner)return;
       if(!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);if(readOwner()!==owner)return;
       SocialData.remember(aid,fresh);socialChanged(aid);if(active()){state={my_reaction:fresh.my_reaction,reactions:{...fresh.reactions}};changed?.(fresh);}
-    }catch(x){if(readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?main:host?.querySelector('.reaction-main');if(button?.isConnected)button.focus({preventScroll:true});}}
+    }catch(x){if(readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const selector=inline?`[data-inline-react="${focused?.dataset.inlineReact||'cheer'}"]`:'.reaction-main',button=active()?(inline?group.querySelector(selector):main):host?.querySelector(selector);if(button?.isConnected)button.focus({preventScroll:true});}}
   };
+  for(const button of inlineButtons)button.onclick=e=>{e.preventDefault();e.stopPropagation();const kind=button.dataset.inlineReact;choose(state.my_reaction===kind?null:kind);};
   cheerGesture(main,()=>{if(!picker.hidden){close();return;}choose(state.my_reaction?null:'cheer');},()=>{open();heldOpen=true;});
   main.title='Tap to send or remove; hold to choose a reaction';
   // iOS keeps a held touch captured on its original button. Resolve the release

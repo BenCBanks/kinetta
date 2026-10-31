@@ -1751,3 +1751,10 @@ detail. The consumed edit parameter must be removed before opening so reload and
 it. Another person's activity or a missing activity never gains an editor. Other alert destinations
 stay as they are. Activity-photo notification thumbnails are deferred to a separate native extension;
 no photo or route URL is added here.
+
+
+### Visible reaction choices (31 October 2026, #442)
+
+Activity, profile and private-history cards show three inline icon toggles: Cheers, Strong and Applause. Each needs one tap. The selected choice uses its existing colour; selecting it again clears it, and choosing another replaces it. Per-kind and comment counts appear only above zero. The separate people button opens the existing reaction list when anyone has reacted. Detail retains its visible picker and hold shortcut.
+
+Pills have36px visual height inside44px targets, with8px gaps between targets and wrapped rows. They wrap at330px with enlarged text rather than squeezing the controls. The shared controller retains pending-state disabling, failure rollback, keyboard focus and account/late-response guards. The API and privacy boundaries are unchanged.

@@ -127,6 +127,8 @@ node dev/tests/test_workout_sync_status.js
 node dev/tests/test_native_resting.js
 node dev/tests/test_social_gestures.js
 node dev/tests/test_reaction_picker.js
+node --check dev/tests/inline_reactions_ui.cjs
+node --check dev/tests/inline_reactions_actions.cjs
 node dev/tests/test_social_data.js
 node dev/tests/test_semantic_colours.js
 node dev/tests/test_card_taps.js
