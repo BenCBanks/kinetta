@@ -31,3 +31,6 @@
 /* Keep map-source attribution clear beneath carousel controls. */
 .compact-media:has(.media-map) .media-controls > button { bottom:28px; }
 .compact-media:has(.media-map) .media-dots { bottom:42px; }
+
+.post-private { display:inline-flex; align-items:center; vertical-align:middle; color:var(--tx3); }
+.post-private svg { width:14px; height:14px; }

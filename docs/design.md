@@ -1548,9 +1548,10 @@ A strip of at most four compact links shows applicable own challenge deadlines, 
 sideways and disappears when nothing applies. There is no friends-comparison tool to advertise. Invite and challenge
 creation open their existing deliberate sheets. No food, body, intake or protein target appears in Activity.
 
-The combined social reader asks for shared own workouts before pagination, and the client also filters private or
-unclassified own cached rows before painting. Me's complete activity list keeps its existing default behavior. Friends'
-fields, blocks and audiences remain server-authorized; client filtering grants no access.
+The combined reader includes the signed-in person's private workouts before pagination, just as Me's activity list
+does. Only-me cards have a small lock with the accessible label Only you can see this. Account-scoped old caches keep
+own private/legacy rows and reject another person's explicitly private row. Friends' fields, blocks and audiences remain
+server-authorized; client filtering grants no access. Today's compact subtitle uses the time without repeating Today.
 
 Feed-only compact cards show the sport once and put Matched route in the subtitle. Existing readable map height stays;
 the before-evidence card already met the two-thirds-screen target. Photo/map arrows are 44px overlays with small position

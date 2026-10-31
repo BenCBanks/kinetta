@@ -25,9 +25,10 @@ function postCard(a, {who = false, compact = false} = {}) {
   // Only the photo and the name open the person's profile (2026-10-16, Ben: the whole row did, so taps meant for the
   // activity landed on the profile); every other part of the card opens the activity (wireCheers → wireCardTaps).
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
-  const vis = a.visibility || 'me',audience=theirs?'':` · ${esc(VIS_SHORT[vis])}`;
-  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(when(a.start_time))} · ${esc(kind)}${audience}${compact&&a.route_id?' · <span class="post-route">Matched route</span>':''}</small></span>${compact?'':sportMark(a.sport)}`
-    : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(when(a.start_time))} · ${esc(kind)}${audience}</small></span>`;
+  const vis = a.visibility || 'me',audience=theirs?'':compact&&vis==='me'?` · <span class="post-private" role="img" aria-label="Only you can see this" title="Only you can see this">${svg('lock')}</span>`:` · ${esc(VIS_SHORT[vis])}`;
+  const time=compact&&isoDay(new Date(a.start_time))===isoDay(new Date())?ftime(a.start_time):when(a.start_time);
+  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(time)} · ${esc(kind)}${audience}${compact&&a.route_id?' · <span class="post-route">Matched route</span>':''}</small></span>${compact?'':sportMark(a.sport)}`
+    : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(time)} · ${esc(kind)}${audience}</small></span>`;
   // the comment button opens the comments in a sheet from below, right here (2026-10-12); you can cheer your own activity too
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num">${a.comments||0}</span></button>`+
     (theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`);

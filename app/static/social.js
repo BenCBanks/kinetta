@@ -193,12 +193,12 @@ const Social = {
 // ---------- Activity tab: the Feed (yours and your friends', newest first) ----------
 // Both readers use the same (time, id) cursor, including activities starting at exactly the same time.
 const FEED_N = 15;
-// The social view excludes private own workouts, including older cached rows. Me keeps the complete activity list.
-const sharedFeedRows=rows=>rows.filter(a=>a.visibility!=='me'&&(a.owner||['friends','everyone'].includes(a.visibility)));
+// Own private workouts stay visible here. Cached rows explicitly private to someone else never paint.
+const visibleFeedRows=rows=>rows.filter(a=>!a.owner||(App.me?.login&&a.owner.login===App.me.login)||a.visibility!=='me');
 async function feedPage(before,size=FEED_N) {
   const b=before?'&before='+encodeURIComponent(typeof before==='string'?before:before.start_time)+(before.id?'&before_id='+before.id:''):'';
-  const [mine,theirs]=await Promise.all([readOnce(`/api/activities?limit=${size}&shared_only=1${b}`),readOnce(`/api/feed/friends?limit=${size}${b}`)]);
-  const all=sharedFeedRows(mine.concat(theirs)).sort((x,y)=>new Date(y.start_time)-new Date(x.start_time)||y.id-x.id),rows=all.slice(0,size);
+  const [mine,theirs]=await Promise.all([readOnce(`/api/activities?limit=${size}${b}`),readOnce(`/api/feed/friends?limit=${size}${b}`)]);
+  const all=visibleFeedRows(mine.concat(theirs)).sort((x,y)=>new Date(y.start_time)-new Date(x.start_time)||y.id-x.id),rows=all.slice(0,size);
   return {rows,more:all.length>size||mine.length===size||theirs.length===size,friends:rows.filter(a=>a.owner).length};
 }
 // Persist only a small opening view; deeper browsing stays in this account's memory cache.
@@ -221,7 +221,7 @@ async function homeFeed(el) {
   const active=()=>account===readOwner()&&list.isConnected,tools=feedTools(el,()=>account===readOwner()&&list.isConnected);
   const draw=pg=>{
     if(!active())return;
-    const visible=sharedFeedRows(pg.rows);pg={...pg,rows:visible,friends:visible.filter(a=>a.owner).length};
+    const visible=visibleFeedRows(pg.rows);pg={...pg,rows:visible,friends:visible.filter(a=>a.owner).length};
     const signature=JSON.stringify(pg),previous=items;items=pg.rows;
     if(signature===shown)return;
     shown=signature;
@@ -237,7 +237,7 @@ async function homeFeed(el) {
         retained.add(node);
       }
       for(const node of [...list.children])if(!retained.has(node))node.remove();
-    }else list.innerHTML=items.length?items.map(a=>postCard(a,{who:true,compact:true})).join(''):`<p class="feed-empty small muted">Shared workouts from you and your friends appear here.</p>`;
+    }else list.innerHTML=items.length?items.map(a=>postCard(a,{who:true,compact:true})).join(''):`<p class="feed-empty small muted">Your workouts and your friends’ shared workouts appear here.</p>`;
     const invite=list.querySelector?.('[data-invite-empty]');if(invite)invite.onclick=inviteFriends;
     more.hidden=!pg.more;feedMaps(list);wireCheers(list);if(typeof cleanViews!=='undefined')cleanViews();
   };
