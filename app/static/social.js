@@ -993,7 +993,7 @@ async function mealReminderCard(box,message=''){
       ${unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':Native.on?'Turn on iPhone notifications above.':'Turn on notifications in the Kinetta iPhone app first.'}</p>`:''}
       ${state.enabled?`<div class="meal-reminder-details">${learned.length?`<dl>${learned.map(row=>`<div><dt>${esc(MEAL_NAMES[row.meal])}</dt><dd>Around ${esc(timeLabel(row.time))}</dd></div>`).join('')}</dl>`:''}
       ${state.times.some(row=>!row.ready)?'<p class="small muted">Learning your usual times.</p>':''}
-      <p class="small muted">7 am–9 pm · A meal already logged stays quiet.</p><details class="reminder-how"><summary>How times work</summary><p>Uses your first same-day log for each meal across the last28 completed days, rounded to about15 minutes. Needs3 daytime logging days. Past-day uploads do not set a time; no default time is invented. Delivered alerts cannot be recalled.</p></details></div>`:''}
+      <p class="small muted">7 am–9 pm · A meal already logged stays quiet.</p><details class="reminder-how"><summary>How times work</summary><p>Uses your first same-day log for each meal across the last 28 completed days, rounded to about 15 minutes. Needs 3 daytime logging days. Past-day uploads do not set a time; no default time is invented. Delivered alerts cannot be recalled.</p></details></div>`:''}
       <p class="small muted" role="status" data-meal-status></p><p class="err" role="alert">${esc(error)}</p></section>`;
     const toggle=$('[data-meal-reminders]',box);toggle.onchange=async()=>{
       if(!valid()||toggle.disabled)return;
