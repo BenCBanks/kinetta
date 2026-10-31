@@ -1,7 +1,6 @@
 // The route leads, followed by photos in one equally sized horizontal rail.
 'use strict';
 function activityMedia(a, {mapId = '', detail = false, full = false, openHref = '', compact = false} = {}) {
-  compact=compact&&!detail;
   const photos = a.photos || [], count = photos.length + (a.line ? 1 : 0);
   if (!count) return '';
   const map = a.line ? `<div class="media-item media-map"><div class="${detail ? 'map big lead' : 'fmap'}"${mapId ? ` id="${mapId}"` : ''} data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" role="img" aria-label="Route map">
@@ -16,7 +15,7 @@ function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOn
   const spot = document.createComment('map'), path = location.pathname + location.search;
   const token = 'map-' + Date.now() + '-' + Math.random().toString(36).slice(2);
   const routeLines = () => {const value=typeof lines==='function'?lines():lines;return Array.isArray(value)?value:[value];};
-  let previousState, background = [], waitingBack = false, press = null, tap = false;
+  let previousState, background = [], waitingBack = false, press = null, tap = false, overlayZoom = null;
   const controls = 'button, a, input, select, .leaflet-control';
   const refit = () => {
     const m = mapObject(), points = routeLines().flatMap(line => typeof line === 'string' ? decode(line) : line);
@@ -29,7 +28,8 @@ function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOn
     box.classList.remove('full'); document.body.classList.remove('map-open');
     box.setAttribute('role', 'img'); box.setAttribute('aria-label', 'Route map'); box.removeAttribute('aria-modal');
     for (const [node, wasInert] of background) node.inert = wasInert; background = [];
-    const m = mapObject(); if (m && still) { m.map.dragging.disable(); m.map.touchZoom.disable(); }
+    overlayZoom?.remove(); overlayZoom = null;
+    const m = mapObject(); if (m && still) { m.map.dragging.disable(); m.map.touchZoom.disable(); m.map.keyboard?.disable(); }
     // Navigation/account changes must release the overlay without moving back to an old page.
     if (history.state?.kinettaMap === token) history.replaceState(previousState, '', location.href);
     if (!spot.isConnected) { box.remove(); return; }
@@ -59,7 +59,11 @@ function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOn
     box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Activity route map'); box.setAttribute('aria-modal', 'true');
     background = [...document.body.children].filter(n => n !== box).map(n => [n, n.inert]);
     for (const [node] of background) node.inert = true;
-    const m = mapObject(); if (m) { m.map.dragging.enable(); m.map.touchZoom.enable(); }
+    const m = mapObject(); if (m) {
+      m.map.dragging.enable(); m.map.touchZoom.enable(); m.map.keyboard?.enable();
+      // Photo rails keep their inline map still. Expanded maps must also work with a mouse/keyboard.
+      if(still&&!matchMedia('(pointer: coarse)').matches&&!$('.leaflet-control-zoom',box))overlayZoom=m.L.control.zoom({position:'bottomright'}).addTo(m.map);
+    }
     btn.innerHTML = svg('close'); btn.setAttribute('aria-label', 'Close full-screen map'); refit(); btn.focus({preventScroll: true});
     addEventListener('keydown', key, true); App.mediaMapBack = back;
     viewResources.set(spot, close);

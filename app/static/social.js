@@ -313,20 +313,14 @@ function drawShared(el, a) {
     overview: details ? `<div class="card"><h2>Details</h2><div class="hero more">${details}</div></div>` : '<div class="card empty">No additional details were shared.</div>',
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
   };
-  el.innerHTML = `<div class="top">${backBtn(mine ? 'Back' : 'Feed')}</div>
-    ${mine ? '<div class="callout">This is what others see of your activity.</div>' : ''}
-    <div class="d-title card"><div class="post-hd"><a class="post-person" href="${profileHref(a.owner)}">${avatar(a.owner)}<span class="ph-txt"><b>${esc(a.owner.name)}</b>
-      <small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.device ? ' · ' + esc(a.device) : ''}</small></span></a>${sportMark(a.sport)}</div>
-      <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="s-soc"></span></div>
-      ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      <div class="hero">${hero}</div></div>
-    ${activityMedia(a, {mapId: 's-map', detail: true, full: true})}
-    ${a.ends_hidden ? '<p class="small muted map-note">The start and end of the route are hidden.</p>' : ''}
-    ${activityTabs(panes)}
-    ${mine ? '' : `<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
+  el.classList.add('activity-detail');
+  const bars=ActivityDetail.header(a,{mine:false,backLabel:mine?'Your activity':'Activity'});
+  panes.overview=`${a.description?`<div class="card"><p class="desc">${esc(a.description)}</p></div>`:''}${a.device?`<p class="small muted">${esc(a.device)}</p>`:''}${panes.overview}`;
+  el.innerHTML=`${a.line?`<div class="detail-map-hero map-head">${activityMedia(a,{mapId:'s-map',detail:true,full:true,compact:true})}${bars.floating}</div>${bars.sticky}`:bars.floating}${ActivityDetail.title(a,hero,{shared:true})}${mine?'<div class="callout">This is what others see of your activity.</div>':''}${!a.line?activityMedia(a,{mapId:'s-map',detail:true,compact:true}):''}
+    ${a.ends_hidden?'<p class="small muted map-note">The start and end of the route are hidden.</p>':''}${activityTabs(panes)}${mine?'':`<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
   let redrawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts') redrawCharts?.(); });
-  wireBack(el, mine ? `/activity/${a.id}` : '/activity');
+  ActivityDetail.wire(el,a,{mine:false,back:mine?`/activity/${a.id}`:'/activity'});
   if (!mine) $('#s-rb', el).onclick = () => reportSheet(a.owner, {activity_id: a.id});
   if (a.line) {
     const box = $('#s-map', el); let m = null;
@@ -363,11 +357,12 @@ function sharedCharts(box, a) {
 // The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
 const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num">${s.comments.length}</span></button>`;
-function wireTalk(box,aid,s,open){
+function wireTalk(box,aid,s,open,{hideEmpty=false}={}){
   if(!box)return;const owner=readOwner(),cached=SocialData.peek(aid);if(cached)s=cached;else SocialData.remember(aid,s);
   box.innerHTML=talkIcons(s,aid);cleanViews();
+  const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();
   const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
-  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;group?._sync?.(s);$('.num',talk).textContent=s.comments.length;talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
+  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;visibility();group?._sync?.(s);$('.num',talk).textContent=s.comments.length;talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
   wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
   viewResources.set(talk,SocialData.watch(aid,fresh=>{if(!box.isConnected||owner!==readOwner())return false;if(fresh)update(fresh);else box.replaceChildren();}));
   talk.onclick=()=>commentsSheet(aid,s,update);
@@ -511,11 +506,11 @@ function photoViewer(a, start, mine, onChange) {
 async function ownSocial(el, a) {
   const box = $('#d-soc', el); if (!box) return;
   const owner=readOwner(),cached=SocialData.peek(a.id),current=()=>box.isConnected&&owner===readOwner();
-  if(cached){if(cached.visibility&&cached.details)a._social=cached;wireTalk(box,a.id,cached,new URLSearchParams(location.search).get('tab')==='comments');}
+  if(cached){if(cached.visibility&&cached.details)a._social=cached;wireTalk(box,a.id,cached,new URLSearchParams(location.search).get('tab')==='comments',{hideEmpty:true});}
   else box.innerHTML='<span class="small muted" role="status">Loading reactions…</span>';
   try{const fresh=await SocialData.read(a.id,{ownerDetails:true});if(!fresh||!current())return;a._social=fresh;
-    if(!cached)wireTalk(box,a.id,fresh,new URLSearchParams(location.search).get('tab')==='comments');
-  }catch(error){if(current()&&!cached){box.innerHTML='<button type="button" class="linkbtn" data-social-retry>Retry reactions</button>';$('[data-social-retry]',box).onclick=()=>ownSocial(el,a);}}
+    if(!cached)wireTalk(box,a.id,fresh,new URLSearchParams(location.search).get('tab')==='comments',{hideEmpty:true});
+  }catch(error){if(current()&&!cached){box.hidden=false;box.innerHTML='<button type="button" class="linkbtn" data-social-retry>Retry reactions</button>';$('[data-social-retry]',box).onclick=()=>ownSocial(el,a);}}
 }
 function detailChecks(d) {
   return Object.entries(DETAIL_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${d[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('');

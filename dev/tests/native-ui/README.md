@@ -23,3 +23,5 @@ labels and 44px targets must fit; recording controls, their captions and Save mu
 threads and the expanded map must still hide it. Every fixture also requires a response from the real read-only
 UIKit display-preference bridge. Browser checks separately cover opaque accessibility/unsupported-blur fallbacks;
 physical iPhone settings changes and rendering performance remain device acceptance work.
+
+Activity detail adds ten cases per phone: mapped, scrolled sticky header, sparse indoor and full-screen map in both themes, plus mapped detail with enlarged text. Each phone requires thirty captures. The mapped hero must start at the viewport edge, stay around 38% of the screen, and leave native-safe 44px return/edit/share actions and analysis tabs visible. Scrolling switches to the compact fixed header. Sparse detail must omit unavailable secondary values and empty social counts. API records and route geometry come from `dev/demo/activity_detail.cjs`; UIKit safe-area/status-bar/display measurements are real. Physical iPhone map gestures and sharing remain separate acceptance checks.

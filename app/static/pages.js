@@ -552,7 +552,7 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
 // Charts lead; Details, Splits and Efforts retain the deeper information. ?tab= opens one. Cheers and
 // comments are small icons by the title (comments open in a sheet; ?tab=comments opens it), sharing is in Edit, and
 // the share button sends a link or a picture (2026-10-12).
-const DTABS = [['charts', 'Charts'], ['overview', 'Details'], ['splits', 'Splits'], ['efforts', 'Efforts']];
+const DTABS = [['charts', 'Charts'], ['splits', 'Splits'], ['efforts', 'Efforts'], ['overview', 'Details']];
 // Shared activities draw only pace/speed, heart rate and elevation, so they check just those series.
 const activitySamples = (a, series = ['speed','gap_speed','hr','alt','power','cad']) => {
   const c = a.chart;
@@ -605,24 +605,18 @@ function drawDetail(el, a) {
       ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}`,
   };
   if (!pane.overview.trim()) pane.overview = '<div class="card empty">No additional details were recorded.</div>';
-  // The return bar stays above media and remains available while the activity scrolls.
-  const topBar = `<div class="top">${backBtn('Activity')}<div class="acts"><button class="icon-btn" id="d-send" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="d-edit" aria-label="Edit activity">${svg('edit')}</button></div></div>`;
-  el.innerHTML = `${topBar}${a.line || a.photos?.length ? `<div class="map-head">${activityMedia(a, {mapId: 'd-map', detail: true, full: !!a.line})}</div>` : ''}
-    <div class="d-title card"><div class="post-hd">${sportMark(a.sport)}<span class="ph-txt"><small>${esc(fdate(a.start_time, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}))} at ${esc(ftime(a.start_time))}${a.sport_label ? ' · ' + esc(a.sport_label) : ''}${a.device ? ' · ' + esc(a.device) : ''}</small></span>${a.ai_note || aiCan('coach') ? `<button class="icon-btn kit-help" id="d-kit" aria-label="${kitChatOn()?'Ask Kit about this activity':'Kit’s workout note'}">${svg('sparkle')}</button>` : ''}</div>
-      <div class="t-row"><h1>${esc(a.name)}</h1><span class="t-soc" id="d-soc"></span></div>
-      ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
-      ${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}
-      <div id="d-milestones"></div><div class="hero">${hero}</div>${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div id="d-photos"></div><div class="cpile"></div></div>
-    ${activityTabs(pane)}`;
+  const bars=ActivityDetail.header(a);el.classList.add('activity-detail');
+  const recorded=[a.sport_label,a.device].filter(Boolean).map(esc).join(' · ');
+  pane.overview=`${a.description?`<div class="card"><p class="desc">${esc(a.description)}</p></div>`:''}${recorded?`<p class="small muted">${recorded}</p>`:''}${pane.overview}<div class="card" id="d-photo-actions">${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div class="detail-owner-tools"><div id="d-photos"></div><button type="button" class="linkbtn" id="d-comment-open">Comment</button></div></div>`;
+  el.innerHTML=`${a.line?`<div class="detail-map-hero map-head">${activityMedia(a,{mapId:'d-map',detail:true,full:true,compact:true})}${bars.floating}</div>${bars.sticky}`:bars.floating}${ActivityDetail.title(a,hero)}${!a.line&&a.photos?.length?activityMedia(a,{mapId:'d-map',detail:true,compact:true}):''}${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}${activityTabs(pane)}`;
   let drawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; } });
-  wireBack(el, '/activity');
-  $('#d-edit', el).onclick = () => editActivity(a);
+  ActivityDetail.wire(el,a);
   const segBox = $('#d-segments', el); if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
-  $('#d-send', el).onclick = () => shareOut(a);
   const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   if(a.has_intervals)globalThis.Intervals?.history($('#activity-interval-history',el),a.id);
   ownSocial(el, a);
+  $('#d-comment-open',el).onclick=()=>commentsSheet(a.id,SocialData.peek(a.id),()=>{});
   photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
   if (a.lifts) fillLiftCard(el, a);
