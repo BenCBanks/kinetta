@@ -2,10 +2,10 @@
 'use strict';
 const BackNavigation=(()=>{
  const field='kinettaNavigation';
- const origin=()=>globalThis.location?.origin||'https://example.test';
+ const origin=()=>{const l=globalThis.location;return l?.protocol&&l?.host?l.protocol+'//'+l.host:l?.origin&&l.origin!=='null'?l.origin:'https://example.test';};
  function path(value,base=origin()){
   if(typeof value!=='string'||!value||value.length>4096)return null;
-  try{const u=new URL(value,base);if(u.origin!==base||!/^https?:$|^capacitor:$/.test(u.protocol)||!value.startsWith('/')&&!value.startsWith(base+'/')||value.startsWith('//'))return null;return u.pathname+u.search;}catch{return null;}
+  try{const root=new URL(base),u=new URL(value,root);if(u.protocol!==root.protocol||u.host!==root.host||!/^https?:$|^capacitor:$/.test(u.protocol)||!value.startsWith('/')&&!value.startsWith(base+'/')||value.startsWith('//'))return null;return u.pathname+u.search;}catch{return null;}
  }
  const parent=value=>{const p=path(value)||'/me';return /^\/(?:food)(?:\/|\?|$)/.test(p)?'Nutrition':/^\/track(?:\/|\?|$)/.test(p)?'Track':/^\/(?:progress|plan|lift|route|routes|segments|records)(?:\/|\?|$)/.test(p)?'Progress':/^\/(?:activity|people|add|notifications|challenge)(?:\/|\?|$)/.test(p)?'Activity':'Me';};
  function label(value){
