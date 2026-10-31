@@ -297,7 +297,7 @@ function feedTools(el,current){
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
 route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
-  el.innerHTML = `<div class="top">${backBtn()}</div>${skel(1)}<div class="sk block"></div>`;
+  el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>`;
   wireBack(el, '/activity');
   await load(`/api/shared/${id}`, (a) => drawShared(el, a), {maxAge: 30000});
 });
@@ -725,128 +725,7 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
   };
 });
 
-route(/^\/me\/friends$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}<a class="icon-btn" href="${profileHref(App.me)}" aria-label="Your profile">${avatar(App.me)}</a></div><h1 id="fr-title">Friends</h1><section class="friend-discovery" id="fr-discover" aria-label="Find people">
-    <form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span>
-      <input type="search" name="q" placeholder="Find people" aria-label="Find people by name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form>
-    <p class="small muted people-search-help">Search by name or @username, or <button type="button" class="linkbtn" id="fr-browse">browse people</button></p>
-    <p class="small muted" id="fr-status" role="status" aria-live="polite"></p><div id="fr-found"></div></section>
-    <div id="fr-list-error" role="status"></div><div id="fr-lists">${skel(1)}</div>
-    <section class="friend-more"><div id="fr-suggest"></div><button type="button" class="primary wide" id="fr-invite">${svg('people')}Invite friends to Kinetta</button></section>
-    <a class="card tap row-link" href="/me/sharing"><span class="ri c-green">${svg('lock')}</span><span class="grow"><b>Sharing</b><small class="muted">Default audience for new activities, and shared details</small></span><span class="chev">${svg('chev')}</span></a>`;
-  wireBack(el, '/me');
-  const pageOwner=readOwner();let currentFriends=null,filterText='',friendLoadVersion=0;
-  el.insertAdjacentHTML('beforeend','<div id="friends-challenges"></div>');Challenges.mount($('#friends-challenges',el));
-  const lists = $('#fr-lists', el), found = $('#fr-found', el), f = $('#fr-find', el), suggest = $('#fr-suggest', el);
-  $('#fr-invite', el).onclick = inviteFriends;
-  const drawSuggest = async () => { const people = await suggestedPeople(); if (suggest.isConnected && people.length) peopleRow(suggest, people, {invite: false, onChange: () => loadFriends()}); else if (suggest.isConnected) suggest.innerHTML = ''; };
-  const person = (p, btns, cls = '') => `<div class="person ${cls}">${personLink(p)}${p.via_card?'<small class="muted card-origin">via your card</small>':''}<span class="btnrow tight">${btns}</span></div>`;
-  const btnFor = (p) => ({friends: `<span class="badge on">${svg('check')} Friends</span>`,
-    sent: `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel request</button>`,
-    incoming: `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button>`})[p.status] || `<button class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button>`;
-  const input = f.elements.q, clear = $('#fr-clear', el), status = $('#fr-status', el);
-  const initial = new URLSearchParams(location.search);
-  input.value = initial.get('q') || '';
-  let last = null, people = [], known = [], browsing = false;
-  const who = (login) => (people.find((p) => p.login === login) || {}).name || login;
-  const drawListError = (x) => {
-    if(!lists.isConnected||pageOwner!==readOwner())return;
-    const box=$('#fr-list-error',el);box.innerHTML=`<p class="small muted">${currentFriends?'Showing your last friends list. ':''}${esc(x.message)}</p><button type="button" class="ghost" id="fr-list-retry">Retry friends</button>`;
-    $('#fr-list-retry',box).onclick=loadFriends;
-  };
-  async function loadFriends(){
-    const request=++friendLoadVersion;
-    try{const r=await api('/api/friends');if(request!==friendLoadVersion||pageOwner!==readOwner()||!lists.isConnected)return;App.cache.set('/api/friends',{data:r,at:Date.now()});keep('/api/friends',r);draw(r);$('#fr-list-error',el).innerHTML='';}
-    catch(x){if(request===friendLoadVersion)drawListError(x);}
-  }
-  const refresh = async (change) => {
-    if(pageOwner!==readOwner()||!lists.isConnected)return;
-    clearTimeout(t);searchVersion++;
-    if(change?.login&&currentFriends){
-      const r={...currentFriends};for(const k of ['friends','incoming','outgoing'])r[k]=r[k].filter(p=>p.login!==change.login);
-      keep('/api/friends',r);draw(r);
-    }
-    invalidate('/api/feed/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();App.cache.delete('/api/friends');
-    await loadFriends();if(found.isConnected)await find(true);
-  };
-  const act = (box, sel, fn) => $$(sel, box).forEach((b) => b.onclick = async () => {
-    b.disabled = true;
-    try { if (await fn(b) === false) { b.disabled = false; return; } await refresh(); }
-    catch (x) { toast(x.message); b.disabled = false; }
-  });
-  const wire = (box) => {
-    $$('[data-manage]', box).forEach((button) => button.onclick = () => friendshipSheet(people.find(p => p.login === button.dataset.manage), refresh));
-    act(box, '[data-add]', async (b) => { const r = await api('/api/friends', json('POST', {login: b.dataset.add})); toast(r.status === 'friends' ? `You and ${r.name} are friends now` : `Request sent to ${r.name}`); });
-    act(box, '[data-ok]', async (b) => { await api(`/api/friends/${encodeURIComponent(b.dataset.ok)}/accept`, json('POST', {})); toast(`You and ${who(b.dataset.ok)} are friends now`); });
-    act(box, '[data-no]', (b) => api(`/api/friends/${encodeURIComponent(b.dataset.no)}/decline`, json('POST', {})));
-    act(box, '[data-cancel]', (b) => api('/api/friends/' + encodeURIComponent(b.dataset.cancel), {method: 'DELETE'}));
-    $$('[data-blk]',box).forEach(b=>b.onclick=()=>friendChangeSheet(people.find(p=>p.login===b.dataset.blk),true,refresh));
-  };
-  const drawResults = (rows, pending = false) => {
-    found.innerHTML = `<h2 class="sec-head">${browsing ? 'People on Kinetta' : 'Search results'}</h2><div class="card list">${rows.length ? rows.map((p) => person(p, btnFor(p))).join('') : pending ? '<p class="small muted">Searching…</p>' : '<p class="small muted">No people found. Try their full username, or check the spelling.</p>'}</div>`;
-    wire(found);
-  };
-  let t, searchVersion = 0;
-  async function find(again) {
-    const q = input.value.trim();
-    clear.hidden = !q && !browsing; suggest.hidden = !!q || browsing;
-    if (!q && !browsing) { last = null; found.innerHTML = ''; status.textContent = ''; found.setAttribute('aria-busy', 'false'); return; }
-    if (q === last && !again) return; last = q;
-    const request = ++searchVersion;
-    found.setAttribute('aria-busy', 'true'); status.textContent = 'Searching…';
-    try {
-      const r = await api('/api/people/search?q=' + encodeURIComponent(q));
-      if (request !== searchVersion || !found.isConnected) return;
-      people = [...new Map(people.concat(r).map((p) => [p.login, p])).values()];
-      drawResults(r); status.textContent = `${r.length}${r.length === 20 ? '+' : ''} ${r.length === 1 ? 'person' : 'people'} found`;
-    } catch (x) { if (request === searchVersion && found.isConnected) { last = null; status.textContent = ''; found.innerHTML = `<p class="err" role="alert">${esc(x.message)}</p><button class="ghost" data-retry>Retry search</button>`; $('[data-retry]', found).onclick = () => find(true); } }
-    finally { if (request === searchVersion) found.setAttribute('aria-busy', 'false'); }
-  }
-  const search = () => {
-    clearTimeout(t); last = null; searchVersion++; browsing = false;
-    const q = input.value.trim(), url = new URL(location.href);
-    if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
-    url.searchParams.delete('find'); history.replaceState(history.state, '', url.pathname + url.search);
-    if (!q) { find(); return; }
-    clear.hidden = false; suggest.hidden = true;
-    const term = q.replace(/^@/, '').toLocaleLowerCase();
-    drawResults(known.filter(p => p.name.toLocaleLowerCase().includes(term) || p.login.toLocaleLowerCase().includes(term)).slice(0, 20), true);
-    found.setAttribute('aria-busy', 'true'); status.textContent = 'Searching…';
-    t = setTimeout(() => find(), 180);
-  };
-  input.oninput = search;
-  clear.onclick = () => { input.value = ''; search(); input.focus(); };
-  $('#fr-browse', el).onclick = () => { clearTimeout(t); input.value = ''; browsing = true; find(true); };
-  viewResources.set(f, () => { clearTimeout(t); searchVersion++; });
-  f.onsubmit = (e) => { e.preventDefault(); clearTimeout(t); find(true); };
-  const draw = (r) => {
-    r={...r,friends:[...r.friends].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'})||a.login.localeCompare(b.login))};
-    currentFriends=r;App.me.friend_count=r.friends.length;$('#fr-title',el).textContent=`Friends (${r.friends.length})`;
-    Social.set(r.incoming.length);
-    known = r.incoming.map(p => ({...p, status:'incoming'})).concat(r.friends.map(p => ({...p,status:'friends'})), r.outgoing.map(p => ({...p,status:'sent'})));
-    people = [...new Map(people.concat(known).map(p => [p.login, p])).values()];
-    lists.innerHTML = (r.incoming.length ? `<h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2><div class="card list">${r.incoming.map((p) =>
-        person(p, `<button class="primary sm" data-ok="${esc(p.login)}">Approve</button><button class="ghost sm" data-no="${esc(p.login)}">Decline</button><button class="ghost sm danger" data-blk="${esc(p.login)}" aria-label="Block ${esc(p.name)}">Block</button>`, 'req')).join('')}</div>` : '') +
-      `<h2 class="sec-head">Your friends (${r.friends.length})</h2>${r.friends.length>8?'<label class="friend-filter">Filter your friends<input type="search" id="fr-filter" placeholder="Name or @username" autocomplete="off"></label>':''}<div class="card list" id="fr-own-list">${r.friends.length ? r.friends.map((p) => person(p, `<button class="ghost sm" type="button" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">Friends ${svg('chev')}</button>`)).join('')
-        : '<p class="small muted">No friends yet. <button type="button" class="linkbtn" data-find-people>Find people</button> or <button type="button" class="linkbtn" data-invite-empty>Invite friends</button>. You each approve the friendship first.</p>'}</div>` +
-      (r.outgoing.length ? `<h2 class="sec-head">Requests you sent</h2><div class="card list">${r.outgoing.map((p) => person(p, `<button class="ghost sm" data-cancel="${esc(p.login)}">Cancel</button>`)).join('')}</div>` : '');
-    const filter=$('#fr-filter',lists),filterRows=()=>{
-      const term=filterText.trim().replace(/^@/,'').toLocaleLowerCase();let shown=0;
-      $$('#fr-own-list .person',lists).forEach((row,i)=>{const p=r.friends[i];row.hidden=!(p.name.toLocaleLowerCase().includes(term)||p.login.toLocaleLowerCase().includes(term));if(!row.hidden)shown++;});
-      let note=$('#fr-filter-empty',lists);if(!note){note=document.createElement('p');note.id='fr-filter-empty';note.className='small muted';$('#fr-own-list',lists).append(note);}note.textContent=shown?'':'No friends match that filter.';note.hidden=!!shown;
-    };
-    if(filter){filter.value=filterText;filter.oninput=()=>{filterText=filter.value;filterRows();};filterRows();}
-    const findButton=$('[data-find-people]',lists);if(findButton)findButton.onclick=()=>input.focus();
-    const inviteButton=$('[data-invite-empty]',lists);if(inviteButton)inviteButton.onclick=inviteFriends;
-    wire(lists);
-  };
-  const searching = find();
-  if(initial.has('find')||initial.has('q'))input.focus();
-  const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);
-  await loadFriends();
-  drawSuggest();
-  await searching;
-});
+route(/^\/me\/friends$/, 'me', el=>FriendsUI.mount(el));
 
 // ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------
 const REPORT_WHY = {spam: 'Spam', abuse: 'Harassment or abuse', inappropriate: 'Inappropriate', other: 'Something else'};
@@ -953,7 +832,7 @@ function noteAgo(iso) {
   return when(iso);
 }
 route(/^\/notifications$/, null, async (el) => {
-  el.innerHTML = `<div class="top">${backBtn()}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
   wireBack(el, '/today');
   await load('/api/notifications', (r) => {
     const list = $('#nt-list', el); if (!list) return;

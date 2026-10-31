@@ -510,7 +510,9 @@ function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
   const from = location.pathname;
-  history[replace ? 'replaceState' : 'pushState'](null, '', path);
+  const nav=BackNavigation.transition(history.state,location.pathname+location.search,path,readOwner(),{replace});
+  if(nav)history.replaceState(nav.current,'',location.href);
+  history[replace ? 'replaceState' : 'pushState'](nav?nav.next:null, '', path);
   slide(replace ? null : 'push', from);
 }
 // Opening something slides it in a little; Back slides the other way (owner, 23 October 2026). The browser animates
