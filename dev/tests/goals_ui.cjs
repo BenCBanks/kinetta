@@ -23,7 +23,7 @@ const ready=p=>until(p,()=>App.pageReady,'View did not settle');
    });
    const open=async()=>{await p.locator('#fd-goal').click();await p.locator('.sheet[aria-label="Goals"]').waitFor();};
    await p.goto(base+'/food');await ready(p);await p.locator('#fd-goal').waitFor();
-   assert.match(await p.locator('#fd-goal').innerText(),/Goals/);
+   assert.match(await p.locator('#fd-goal').getAttribute('aria-label'),/goals/i);   // #395 made it an icon button
    await open();
    const sheet=p.locator('.sheet[aria-label="Goals"]');
    // The four everyday goals are visible together without opening anything, with full labels inside the sheet.
