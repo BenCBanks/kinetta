@@ -1078,7 +1078,7 @@ function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find(m => m[0] === view);
   el.innerHTML = `<div class="top progress-heading"><h1>${esc(v?.[1] || 'Progress')}</h1><div class="acts">${bellBtn()}</div></div><div id="p-body">${skelChart()}</div>`;
   progressBack(el); progressVisit(view); wireProgressFocus(el);
-  progressFilters(el, $('#p-body',el), filters);
+  progressFilters(el, $('#p-body',el), filters, {selector:view === 'heatmap' ? '.heatmap-tools' : '.card'});
 }
 const PEXPLORE = [
   ['heatmap','Heatmap','See where you train →','globe'],
@@ -1489,11 +1489,46 @@ function polyFromGeo(g) {   // GeoJSON -> encoded polyline (re-use miniRoute)
     for (const [lo, la] of c) { const a = Math.round(la * 1e5), b = Math.round(lo * 1e5); s += enc(a - pl) + enc(b - po); pl = a; po = b; } return s; } catch (e) { return ''; }
 }
 async function pHeatmap(body, q) {
-  const sport = q.get('sport') || '';
-  body.innerHTML = '<section class="card progress-map-card"><div class="map tall" id="h-map"></div></section>';
+  const sport = q.get('sport') || '', owner = readOwner(), page = body.closest('.shell');
+  page.classList.add('heatmap-page');
+  body.innerHTML = '<section class="card progress-map-card heatmap-frame"><div class="heatmap-tools"><span class="heatmap-count" role="status" hidden></span></div><div class="map tall" id="h-map" role="region" aria-label="Your route heatmap"></div></section>';
   const lines = await api(`/api/heatmap${sport ? '?sport=' + sport : ''}`);
-  if (!lines.length) { $('#h-map', body).outerHTML = `<div class="card empty"><b>Nothing to map yet</b>Every route you've done, on one map.${startCta()}</div>`; return; }
-  await mapInto($('#h-map', body), lines, {heat: true});
+  if (!body.isConnected || owner !== readOwner()) return;
+  const frame = $('.heatmap-frame',body), mapBox = $('#h-map',body), count = $('.heatmap-count',body);
+  if (!lines.length) {
+    frame.classList.add('heatmap-empty');
+    mapBox.outerHTML = `<div class="heatmap-empty-copy"><b>Nothing to map yet</b><p>Every route you've done, on one map.</p><a class="primary wide" href="/track">Open Track</a></div>`;
+    return;
+  }
+  // The endpoint returns at most5000 geometries, without dates or authoritative distance totals.
+  count.textContent = lines.length === 5000 ? 'Showing 5,000 routes (limit)' : `${lines.length.toLocaleString()} mapped route${lines.length === 1 ? '' : 's'}`;
+  count.hidden = false;
+  const size = () => {
+    if (!mapBox.isConnected) return;
+    const nav = document.querySelector('nav.tabs'), rect = nav?.getBoundingClientRect();
+    const bottom = rect?.height ? rect.top - 8 : innerHeight - 16;
+    const height = Math.max(1, Math.floor(bottom - mapBox.getBoundingClientRect().top));
+    mapBox.style.setProperty('--heatmap-width',document.documentElement.clientWidth+'px');
+    mapBox.classList.toggle('heatmap-short',height<150);
+    if (mapBox.style.height !== height+'px') mapBox.style.height = height+'px';
+  };
+  size();
+  const view = await mapInto(mapBox, lines, {heat:true});
+  if (!view || !mapBox.isConnected) return;
+  const resize = () => { size(); if(mapBox.isConnected) view.map.invalidateSize({pan:true,animate:false}); };
+  // Insets follow the real header/tabs, including native safe areas and enlarged text.
+  const observer = new ResizeObserver(resize);
+  for(const node of [page.querySelector('.top'),$('.heatmap-tools',body),document.querySelector('nav.tabs')])if(node)observer.observe(node);
+  window.addEventListener('resize',resize);
+  page.addEventListener('animationend',resize);
+  resize();
+  const bounds = view.group.getBounds();
+  if(bounds.isValid()) {
+    const h=mapBox.clientHeight,top=Math.min($('.heatmap-tools',body).getBoundingClientRect().height+24,h/3),bottom=Math.min(60,h/4);
+    view.map.fitBounds(bounds,{paddingTopLeft:[18,top],paddingBottomRight:[18,bottom]});
+  }
+  const dispose = viewResources.get(mapBox);
+  viewResources.set(mapBox,Object.assign(()=>{observer.disconnect();window.removeEventListener('resize',resize);page.removeEventListener('animationend',resize);dispose?.();},{keepVisual:true}));
 }
 
 // ---------- Me ----------

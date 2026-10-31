@@ -1716,3 +1716,14 @@ them. Saving retains control focus and failure restores the previous value. Rend
 and native-method stand-ins, block real writes/delivery, and cover switches, full-label hit areas, spacing, conditional
 details, unavailable Off, failed writes/retries and pending meal saves through a failed phone refresh. UIKit/physical
 push acceptance remains separate. Settings, Segments and other #417 screens are separate work.
+
+## Personal Heatmap uses the screen (31 October 2026, #416 part3)
+
+The owner's map runs edge to edge and ends8px above the actual floating tabs. Sport and the count of returned
+mapped routes float above it; resizing follows the real header/tab bounds. Mouse zoom buttons retain44px targets
+and8px separation when there is room; very short maps keep wheel/keyboard zoom instead. Touch uses pinch. Existing blue2px routes at0.35 opacity already accumulate at overlaps, so the
+density encoding remains. Operator tiles, theme handling, attribution and Retry remain in the shared map helper.
+This is an owner-only, untrimmed view. Header Share still opens a progress picture, never raw Heatmap pixels.
+The endpoint supplies at most5000 encoded geometries and a sport filter, without dates, distance or total/truncation
+metadata. The count labels returned routes and the5000 cap; period/distance summaries need a separate API contract.
+No unsupported selector or calculated distance is invented. Empty history keeps the sport choice and Start action.
