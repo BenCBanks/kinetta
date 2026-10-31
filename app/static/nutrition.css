@@ -37,7 +37,7 @@
 .nutrition-home .meal .fe small { font-size:.8125rem; }
 .nutrition-home .meal .meal-calories { white-space:nowrap; flex:none; }
 .nutrition-home .meal .meal-calories b,.nutrition-home .meal .meal-calories small { display:inline; }
-.nutrition-detail .top { display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:8px; }
+.nutrition-detail .top { display:grid; grid-template-columns:max-content minmax(0,1fr) auto; gap:8px; }
 .nutrition-detail .top h1 { font-size:1.5rem; }
 .nutrition-detail .top .acts { flex-wrap:nowrap; }
 .nutrition-detail .progress-filters { justify-content:flex-end; margin-bottom:10px; }
