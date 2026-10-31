@@ -6,7 +6,7 @@
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
-  history.replaceState(null,'',cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
+  history.replaceState(null,'',cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
   if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}
   const nutrients={kcal:450,protein_g:30,carbs_g:40,fat_g:19,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
   cfg.dish={id:1,name:'Fictional recipe',named:true,mine:true,items:[],known:nutrients,totals:nutrients,recipe_source:{},serving:'one',servings:1,serving_count:1,weight_g:null,items_g:null,weighed:false,shared_with:[],owner:{login:'zz_test_native',name:'Demo'}};
@@ -25,7 +25,9 @@
       else if(p==='/api/food/thread'||p.startsWith('/api/food/thread/reviews/draft/'))data={messages:[],before:null,has_more:false,preferences:prefs};
       else if(p==='/api/food/thread/preferences')data=prefs;
       else if(p==='/api/food/day')data={day:'2026-10-28',entries:[],totals:nutrients,goal:null,targets:{},food_user:false,has_history:false,unknown_nutrients:{}};
-      else if(p==='/api/friends')data={friends:[],incoming:[],outgoing:[]};
+      else if(p==='/api/friends')data=cfg.friends||{friends:[],incoming:[],outgoing:[]};
+      else if(cfg.friends&&p==='/api/people/suggested')data=cfg.friends.suggested;
+      else if(cfg.friends&&p==='/api/sharing')data={default:'friends'};
       else if(p==='/api/notifications/count')data={unread:0,friend_requests:0};
       else if(p==='/api/map-config')data={kind:'off',attribution:'',personal_default:false};
       else if(p==='/api/stats')data={weeks:[],years:[],recent_days:[],chart_weeks:[],week_days:[],total:0};

@@ -84,15 +84,17 @@ function wireCardTaps(box) {
     go(c.dataset.href);
   });
 }
-const backBtn = (label = 'Back') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
+const backBtn = (label = 'Me') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
 IC.settings = '<path d="m9 3-.6 2.3-2 .9-2.2-.6-1.5 2.6 1.6 1.7-.2 2.2-1.7 1.6 1.5 2.6 2.3-.6 1.8 1.3.5 2.3h3l.6-2.3 2-.9 2.2.6 1.5-2.6-1.6-1.7.2-2.2 1.7-1.6-1.5-2.6-2.3.6-1.8-1.3L12 3z"/><circle cx="10.5" cy="11" r="3"/>';
 function wireBack(el, fallback) {
   el.classList.add('has-back');
-  const b = $('[data-back]', el);
-  if (b) b.onclick = () => (history.length > 1 && App.navCount > 0 ? history.back() : go(fallback, {replace: true}));
+  el._backFallback=fallback; // Keep the page's parent if a missing-record response replaces its header.
+  const owner=readOwner(),destination=BackNavigation.destination(history.state,location.pathname+location.search,fallback,owner,{historyLength:history.length});
+  $$('[data-back]',el).forEach(button=>{
+    button.innerHTML=`${svg('back')}<span>${esc(destination.label)}</span>`;button.setAttribute('aria-label','Back to '+destination.label);
+    button.onclick=()=>{if(!el.isConnected||owner!==readOwner())return;destination.history?history.back():go(destination.path,{replace:true});};
+  });
 }
-App.navCount = 0;
-const _go = go; go = (p, o) => { App.navCount++; _go(p, o); };
 
 // Shared profile chart: viewer-local dates, explicit units, zeros retained on the same scale.
 function mileagePeriods(series) {
@@ -967,7 +969,7 @@ async function routePicture(a, trim) {
 
 // ---------- Matched route ----------
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
-  el.innerHTML = `<div class="top">${backBtn()}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
+  el.innerHTML = `<div class="top">${backBtn('Routes')}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
   wireBack(el, '/progress/routes');
   await load(`/api/routes/${id}`, (r) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
@@ -978,7 +980,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
     if (t && Math.abs(perMonth) >= 1) headline = `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${foot ? Math.round(Math.abs(imp() ? perMonth * MI / 1000 : perMonth)) + ' s' + U.pu() : ''} per month on this route.`;
     if (e && t) { const effUp = e.slope_per_day > 0; headline += effUp ? ' Your pace per heartbeat is improving: you\'re fitter at the same effort.' : ' Pace per heartbeat is slipping. Heat, fatigue or easier days can do that.'; }
     const best = acts.find((a) => a.id === r.fastest_id);
-    el.innerHTML = `<div class="top">${backBtn()}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
+    el.innerHTML = `<div class="top">${backBtn('Routes')}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
       <div class="card"><h1>${esc(r.name)}</h1><p class="muted">${acts.length} times · ${SPORT_NAMES[r.sport] || 'Activity'} · first ${esc(fdate(acts[0].start_time, {month: 'short', year: 'numeric'}))}</p>
         <div class="hero">${stat('Best', dur(best && best.moving_s))}${stat('Average', dur(acts.reduce((s, a) => s + (a.moving_s || 0), 0) / acts.length))}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div></div>
       ${r.line ? '<div class="map" id="r-map"></div>' : ''}
@@ -1523,7 +1525,7 @@ route(/^\/me$/, 'me', async (el) => {
 route(/^\/me\/settings$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<div class="top">${backBtn('Back')}</div><h1>Settings</h1><p class="muted">Your account, connections and private preferences.</p><button class="ghost wide" id="logout">${svg('logout')}Log out</button><section class="me-settings">
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Settings</h1><p class="muted">Your account, connections and private preferences.</p><button class="ghost wide" id="logout">${svg('logout')}Log out</button><section class="me-settings">
     <h2 class="sec-head">Account</h2>
     <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
