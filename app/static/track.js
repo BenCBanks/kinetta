@@ -530,7 +530,7 @@ const Track = (() => {
       box.setAttribute('aria-label',`${o.voice?'Spoken updates every '+unit:'Spoken updates off'}. Auto-pause ${paused}${intervals?' for intervals':''}. Recording settings`);
       box.title=box.getAttribute('aria-label');box.onclick=()=>prefs(c); };
     const prefs=(c)=>{ const o=recordOptions(c.sport),unit=imp()?'mile':'km';
-      sheet('Recording settings',`<div class="track-pref-list"><div class="switch-row"><div class="track-voice-copy"><label for="track-voice"><b>Spoken updates</b></label><small>Hear your time and ${speedSport(c)?'speed':'pace'} at every ${unit}, even with the screen locked.</small>${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?Intervals.voiceControls():''}</div><input type="checkbox" role="switch" id="track-voice"${o.voice?' checked':''}></div>
+      sheet('Recording settings',`<div class="track-pref-list"><div class="switch-row"><div class="track-voice-copy"><label for="track-voice"><b>Spoken updates</b></label><small>Hear your time and ${speedSport(c)?'speed':'pace'} at every ${unit}, even with the screen locked.</small>${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?Intervals.voiceControls():''}</div><label class="track-switch-target" for="track-voice"><input type="checkbox" role="switch" id="track-voice"${o.voice?' checked':''}></label></div>
         <label class="switch-row"><span><b>Auto-pause</b><small>Stops the clock when you stop moving and starts it when you go. Saved for each kind of activity: this is for ${esc(c.label.toLowerCase())}.</small></span><input type="checkbox" role="switch" id="track-auto"${o.autoPause?' checked':''}></label></div>
         <button type="button" class="primary wide" data-done>Done</button>`,(b,close)=>{
         globalThis.Intervals?.wireVoiceControls(b);
@@ -540,7 +540,7 @@ const Track = (() => {
       Native.haptic?.('selection'); };
     const gear=$('#track-settings');if(gear)gear.onclick=()=>{const c=choices[selected];if(c.gps)prefs(c);else toast('Spoken updates and auto-pause are for GPS activities.');};
     const pick=(i,fromPlan=false)=>{if(!readyLive()||!choices[i])return;if(!fromPlan&&planIntent){planIntent=null;$('#track-plan').hidden=true;}selected=i;choiceRevision++;store.set(key+':choice',selected);const other=$('#track-other');other.innerHTML=esc(quick.includes(i)?'More':choices[i].label)+svg('down');other.setAttribute('aria-pressed',String(!quick.includes(i)));other.setAttribute('aria-label',quick.includes(i)?'More activities':'More activities, selected '+choices[i].label);$$('[data-quick]',el).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.quick===i)));guide();opts();auto();};
-    $('#track-other').onclick=()=>pickSheet('Activity',pickRows(choices.map((c,i)=>[String(i),c.label,c.gps?'GPS':c.lift?'Sets & reps':'Timer',c.lift?'workout':c.sport]),String(selected)),i=>pick(+i));
+    $('#track-other').onclick=()=>sheet('Activity',pickRows(choices.map((c,i)=>[String(i),c.label,c.gps?'GPS':c.lift?'Sets & reps':'Timer',c.lift?'workout':c.sport]),String(selected)),(b,close)=>{b.closest('.sheet').classList.add('track-sport-picker');$$('[data-pk]',b).forEach(x=>x.onclick=()=>{close();pick(+x.dataset.pk);});});
     $$('[data-quick]',el).forEach(b=>b.onclick=()=>{Native.haptic?.('selection');pick(+b.dataset.quick);});
     // Find the person at once when an outdoor activity is chosen, like other running apps. The iPhone app asks iOS
     // (permission is remembered); a browser locates by itself only after the person has already allowed it.

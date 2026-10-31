@@ -1623,3 +1623,5 @@ bounding boxes start16.53–17.5px below that inset. Native automatic content in
 no change on that evidence; the physical owner observation remains a separate check. Regression checks retain the
 activity-detail map hero under the status area. The More picker already has the same sport icons; the GPS badge
 remains a distinct, readable map overlay. Recording, settings, privacy and other launch tools keep their behavior.
+
+The later31October spacing rule keeps8px between quick activities, More and recording pills. Common targets stay44px, giving52px minimum pitch. The primary plan link itself gets a44px target. Two-line More choices use56px rows and8px separation. Track discovery cards use16px padding and12px grid gaps. The31px iPhone-shaped Spoken updates switch stays visually intact inside a44px-high label target; Auto-pause already had a full-row label. Control labels use15px and secondary notes at least13px. These are scoped spacing/activation changes; no recording preference or GPS behavior changes.
