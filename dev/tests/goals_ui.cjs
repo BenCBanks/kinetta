@@ -23,7 +23,10 @@ const ready=p=>until(p,()=>App.pageReady,'View did not settle');
    });
    const open=async()=>{await p.locator('#fd-goal').click();await p.locator('.sheet[aria-label="Goals"]').waitFor();};
    await p.goto(base+'/food');await ready(p);await p.locator('#fd-goal').waitFor();
-   assert.match(await p.locator('#fd-goal').getAttribute('aria-label'),/goals/i);   // #395 made it an icon button
+   assert.match(await p.locator('#fd-goal').getAttribute('aria-label'),/goals/i);
+   assert.equal((await p.locator('#fd-goal').innerText()).trim(),'Goals');
+   const type=await p.locator('#fd-goal').evaluate(n=>({font:parseFloat(getComputedStyle(n).fontSize),weight:getComputedStyle(n).fontWeight}));assert(type.font>=15&&(size.root>16||type.font<=16),'Goals label follows the body type scale');assert.equal(type.weight,'500','Goals uses medium weight');
+   const control=await p.locator('#fd-goal').boundingBox();assert(control.width>control.height&&Math.abs(control.height-44)<1,'Goals is an inline44px action');const parts=await p.locator('#fd-goal').evaluate(n=>{const a=n.querySelector('svg').getBoundingClientRect(),b=n.querySelector('span').getBoundingClientRect();return {icon:{x:a.x,y:a.y,w:a.width,h:a.height},label:{x:b.x,y:b.y,w:b.width,h:b.height}};});assert(parts.icon.w===18&&parts.icon.h===18,'bounded target icon');assert(parts.label.x>=parts.icon.x+parts.icon.w+5,'Goals label follows icon');assert(Math.abs(parts.label.y+parts.label.h/2-parts.icon.y-parts.icon.h/2)<1,'icon and label aligned');
    await open();
    const sheet=p.locator('.sheet[aria-label="Goals"]');
    // The four everyday goals are visible together without opening anything, with full labels inside the sheet.
@@ -48,6 +51,13 @@ const ready=p=>until(p,()=>App.pageReady,'View did not settle');
    if(size.width===390&&out)await p.screenshot({path:path.join(out,`goals-day-${theme}.png`)});
    await s2.getByRole('button',{name:/^Save for /}).click();await until(p,()=>!document.querySelector('.scrim:not([inert]) .sheet'),'Sheet closes after saving the day');
    assert.equal(dayGoals.length,1);assert.equal(dayGoals[0].kcal,1800);assert.match(dayGoals[0].day,/^\d{4}-\d{2}-\d{2}$/);
+   // Labelled Explore entry and Me use this same everyday-goals form.
+   await p.goto(base+'/food');await ready(p);await p.locator('[data-nutrition-feature="goals"]').click();await p.locator('.sheet[aria-label="Goals"] #tg').waitFor();
+   assert.deepEqual(await p.locator('.sheet #tg input').evaluateAll(xs=>xs.filter(e=>['kcal_target','protein_target','carbs_target','fat_target'].includes(e.name)).map(e=>e.name)),fields);
+   await p.locator('.sheet [data-close]').click();
+   await p.evaluate(()=>targetsSheet());await p.locator('.sheet[aria-label="Goals"] #tg').waitFor();
+   assert.deepEqual(await p.locator('.sheet #tg input').evaluateAll(xs=>xs.filter(e=>['kcal_target','protein_target','carbs_target','fat_target'].includes(e.name)).map(e=>e.name)),fields);
+   await p.locator('.sheet [data-close]').click();
    assert.deepEqual(errors,[],'No runtime errors');assert.deepEqual(writes,[],'No other writes');
    console.log(`Goals sheet ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();
   }

@@ -1075,10 +1075,10 @@ function dayLine(box, pts, {fmt, height = 150, color = 'walk'}) {
 }
 
 // Nutrition trends (2026-10-09): eaten (bars) vs burned (line) + goal (dashed), one kcal axis. cols: [{label, tick, eaten, burned, goal, partial}]
-function energyChart(box, cols, {height = 190, weight = null} = {}) {   // weight: {fmt, axis} -> panel below with cols[i].weight / .trend
+function energyChart(box, cols, {height = 190, weight = null, burned = true, interactive = true} = {}) {   // weight: {fmt, axis} -> panel below with cols[i].weight / .trend
   const W = Math.max(300, box.clientWidth || 340), H = height, padL = 38, padR = 4, padT = 8, padB = 18, n = cols.length;
   if (!cols.some((c) => c.eaten)) { box.innerHTML = '<p class="muted small">Log some food and this chart fills in.</p>'; return; }
-  const max = Math.max(1, ...cols.flatMap((c) => [c.eaten || 0, c.burned || 0, c.goal || 0])), step = niceStep(max), top = Math.ceil(max / step) * step;
+  const max = Math.max(1, ...cols.flatMap((c) => [c.eaten || 0, burned ? c.burned || 0 : 0, c.goal || 0])), step = niceStep(max), top = Math.ceil(max / step) * step;
   const Y = (v) => padT + (1 - v / top) * (H - padT - padB), bw = (W - padL - padR) / n, gap = Math.min(3, bw * .25), X = (i) => padL + i * bw + bw / 2;
   let g = '';
   for (let v = 0; v <= top + 1e-9; v += step) g += `<line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="yl" x="${padL - 4}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + 'k' : v}</text>`;
@@ -1089,7 +1089,7 @@ function energyChart(box, cols, {height = 190, weight = null} = {}) {   // weigh
     if (c.tick) g += `<text class="yl" x="${X(i).toFixed(1)}" y="${H - 4}" text-anchor="${i >= n - 2 ? 'end' : i <= 1 ? 'start' : 'middle'}">${esc(c.tick)}</text>`;
   });
   const path = (k) => { let d = '', pen = false; cols.forEach((c, i) => { if (!c[k]) { pen = false; return; } d += `${pen ? 'L' : 'M'}${X(i).toFixed(1)},${Y(c[k]).toFixed(1)}`; pen = true; }); return d; };
-  g += `<path class="ln goal-ln" d="${path('goal')}"/><path class="ln k-run" d="${path('burned')}"/>`;
+  g += `<path class="ln goal-ln" d="${path('goal')}"/>${burned?`<path class="ln k-run" d="${path('burned')}"/>`:''}`;
   g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
   // weight panel: same x positions as the bars, its own (weight) axis
   const wv = weight ? cols.flatMap((c) => [c.weight, c.trend]).filter((v) => v != null) : [];
@@ -1102,15 +1102,16 @@ function energyChart(box, cols, {height = 190, weight = null} = {}) {   // weigh
     w += cols.map((c, i) => (c.weight == null ? '' : `<circle class="wdot" cx="${X(i).toFixed(1)}" cy="${WY(c.weight).toFixed(1)}" r="3"/>`)).join('') + `<path class="ln k-s3" d="${d}"/>`;
     w += `<rect class="hl" x="0" y="0" width="${bw.toFixed(1)}" height="${WH}" visibility="hidden"/>`;
   }
-  box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Calories eaten and burned">${g}</svg>
+  box.innerHTML = `${interactive?'<div class="readout num"><span></span></div>':''}<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${burned?'Calories eaten and burned':'Calories eaten versus goal'}">${g}</svg>
       ${WH ? `<div class="wpanel-label small muted">Weight${weight.unit ? ' (' + esc(weight.unit) + ')' : ''}</div><svg class="wpanel" viewBox="0 0 ${W} ${WH}" width="${W}" height="${WH}" role="img" aria-label="Weight">${w}</svg>` : ''}</div>
-    <div class="legend small"><span><i class="sw k-s1"></i>Eaten</span><span><i class="sw ln-sw k-run"></i>Burned</span><span><i class="sw dash"></i>Goal</span>${WH ? '<span><i class="sw ln-sw k-s3"></i>Weight trend</span><span><i class="sw wsw"></i>Weigh-ins</span>' : ''}</div>`;
+    <div class="legend small"><span><i class="sw k-s1"></i>Eaten</span>${burned?'<span><i class="sw ln-sw k-run"></i>Burned</span>':''}<span><i class="sw dash"></i>Goal</span>${WH ? '<span><i class="sw ln-sw k-s3"></i>Weight trend</span><span><i class="sw wsw"></i>Weigh-ins</span>' : ''}</div>`;
+  if(!interactive)return;
   const svgs = $$('svg', box), hls = $$('.hl', box), ro = $('.readout', box), f = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
   const show = (e) => {
     const r = e.currentTarget.getBoundingClientRect(), i = Math.floor(((e.clientX - r.left) / r.width * W - padL) / bw); if (i < 0 || i >= n) return;
     const c = cols[i]; hls.forEach((h) => { h.setAttribute('x', (padL + i * bw).toFixed(1)); h.setAttribute('visibility', 'visible'); });
-    const def = c.eaten != null && c.burned && c.counted !== false ? c.burned - c.eaten : null;   // partly logged days: no deficit
-    ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span><span>Burned <b>${f(c.burned)}</b></span>${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${c.counted === false && c.eaten != null && !c.partial ? '<span>Partly logged, not counted</span>' : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}${c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : ''}`;
+    const def = burned && c.eaten != null && c.burned && c.counted !== false ? c.burned - c.eaten : null;   // partly logged days: no deficit
+    ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span>${burned?`<span>Burned <b>${f(c.burned)}</b></span>`:''}${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${c.counted === false && c.eaten != null && !c.partial ? '<span>Partly logged, not counted</span>' : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}${c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : ''}`;
   };
   svgs.forEach((sv) => { sv.addEventListener('pointerdown', show); sv.addEventListener('pointermove', show); });
 }

@@ -28,6 +28,8 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 python3 dev/tests/test_native_ui_lifecycle.py
 node dev/tests/test_boot.js
+node dev/tests/test_progress_links.js
+node dev/tests/test_energy_overview.js
 node dev/tests/test_native_display.js
 node --check dev/tests/navigation_ui.cjs
 node --check dev/tests/boot_ui.cjs # real CSP/resource-failure checks run in the screenshot workflow
@@ -231,6 +233,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/kit_visits_incontainer.p
 docker compose -p "$P" exec -T app python - < dev/tests/kit_transport_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/kit_release_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_copy_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/nutrition_insights_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/nutrition_checkin_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_import_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/recipe_review_incontainer.py

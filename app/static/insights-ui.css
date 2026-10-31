@@ -1,0 +1,69 @@
+/* Nutrition Insights: a fixed range, one existing chart, honest summaries and visible detail links. */
+.insights-range { display:flex; align-items:center; margin:0 0 12px; min-height:44px; }
+.insights-range .me-chip { min-height:44px; max-width:100%; }
+.insights-review { border-bottom:1px solid var(--line); margin:0 0 12px; }
+.insights-review > summary { min-height:44px; padding:10px 0; font-size:max(15px,.9375rem); font-weight:600; cursor:pointer; }
+.insights-review:has(> div:empty) { display:none; }
+.insights-review .card { margin:4px 0 8px; }
+.insights-summary { padding:16px; }
+.insights-chart { display:block; margin-bottom:8px; color:inherit; text-decoration:none; border-radius:8px; }
+.insights-chart-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:32px; }
+.insights-chart-heading h2 { font-size:max(16px,1rem); margin:0; }
+.insights-chart-heading > span { display:flex; align-items:center; gap:3px; font-size:max(13px,.8125rem); color:var(--tx3); }
+.insights-chart-heading svg { width:16px; height:16px; flex:none; }
+.insights-chart .chartbox { pointer-events:none; }
+.insights-chart .legend { justify-content:center; margin:3px 0 8px; }
+.insights-figures { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 12px; }
+.insights-figure { display:flex; flex-direction:column; gap:2px; min-width:0; min-height:80px; padding:10px 0; border-top:1px solid var(--line); text-decoration:none; color:inherit; }
+.insights-figure > span { font-size:max(13px,.8125rem); line-height:1.35; }
+.insights-figure > b { display:flex; align-items:baseline; flex-wrap:wrap; gap:0 4px; font-size:1.375rem; line-height:1.2; }
+.insights-figure b small { font-size:max(13px,.75rem); font-weight:500; color:var(--tx3); }
+.insights-log-weight b { font-size:1rem; align-items:center; min-height:27px; color:var(--accent); }
+.insights-log-weight svg { width:18px; height:18px; flex:none; }
+.insights-coverage { margin-top:8px; display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; padding-top:8px; border-top:1px solid var(--line); }
+.insights-coverage p { flex:1; min-width:155px; margin:0; font-size:max(13px,.8125rem); line-height:1.4; }
+.insights-coverage p span { display:block; color:var(--tx3); }
+.insights-coverage .me-chip { flex:none; min-height:44px; }
+.insights-copy { margin:10px 2px; }
+.insights-copy .insight { margin:6px 0; font-size:max(15px,.9375rem); line-height:1.4; gap:8px; }
+.insights-links { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+.insights-links a { display:flex; align-items:center; gap:8px; min-height:48px; padding:8px 0; border-bottom:1px solid var(--line); color:var(--tx); text-decoration:none; font-size:max(15px,.9375rem); }
+.insights-links svg { width:18px; height:18px; flex:none; color:var(--accent); }
+.insights-links svg:last-child { margin-left:auto; color:var(--tx3); }
+.insights-empty h2 { font-size:max(17px,1.125rem); }
+.insights-empty .linkbtn { min-height:44px; justify-content:center; width:100%; margin-top:4px; }
+@media (max-width:360px) {
+ .insights-chart-heading { flex-wrap:wrap; gap:0; padding-bottom:4px; }
+ .insights-chart-heading > span { margin-left:auto; }
+ .insights-figure { min-height:90px; }
+ .nutrition-summary-link .nutrition-summary { padding-right:90px; }
+}
+
+.insights-chart-note { display:block; margin:0 0 8px; font-size:max(13px,.8125rem); line-height:1.3; color:var(--tx3); }
+
+.nutrition-detail:has(.insights-range) .top h1 { font-size:var(--text-app-title); }
+.insights-range .range-btn,.nutrition-goals { font-size:max(15px,.9375rem); }
+.insights-chart .legend { font-size:max(13px,.8125rem); }
+.insights-chart .yl { font-size:14px; }
+
+.insights-range .range-btn{min-height:44px}
+
+/* The hit area stays44px; the option face is36px. */
+.insights-range .range-btn { position:relative; isolation:isolate; background:transparent; box-shadow:none; }
+.insights-range .range-btn::before { content:''; position:absolute; inset:4px 0; border:1px solid var(--line); border-radius:999px; background:var(--card2); z-index:-1; }
+@media (max-width:360px) {
+ .nutrition-detail:has(.insights-range) { display:grid; align-content:start; grid-template-columns:max-content minmax(0,1fr) auto; column-gap:8px; row-gap:12px; }
+ .nutrition-detail:has(.insights-range) .top,.nutrition-detail .insights-range { display:contents; }
+ .nutrition-detail:has(.insights-range) .top > .nutrition-back { grid-column:1/3; grid-row:1; align-self:center; justify-self:start; }
+ .nutrition-detail:has(.insights-range) .top h1 { grid-column:1/-1; grid-row:2; overflow-wrap:normal; }
+ .nutrition-detail:has(.insights-range) .top:not(:has(.nutrition-back)) h1 { grid-column:1/-1; }
+ .nutrition-detail:has(.insights-range) .top .acts { grid-column:3; grid-row:1; align-self:center; margin:0; }
+ .nutrition-detail .insights-range #n-range { grid-column:1/-1; grid-row:3; justify-self:start; max-width:100%; }
+ .nutrition-detail:has(.insights-range) #n-body { grid-column:1/-1; min-width:0; }
+}
+
+/* Eaten is ordinary logged food, so use the calorie action blue in both themes. */
+#nt-overview-chart .k-s1 { fill:var(--color-action); stroke:var(--color-action); }
+#nt-overview-chart .sw.k-s1 { background:var(--color-action); }
+.nutrition-detail .weekly-food-review h2 { font-size:1.25rem; }
+.nutrition-detail .nutrition-back { white-space:nowrap; text-decoration:none; font-weight:500; padding-right:0; }
