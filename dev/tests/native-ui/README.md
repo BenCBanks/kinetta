@@ -27,3 +27,23 @@ physical iPhone settings changes and rendering performance remain device accepta
 Activity detail adds ten cases per phone: mapped, scrolled sticky header, sparse indoor and full-screen map in both themes, plus mapped detail with enlarged text. Each phone requires thirty captures. The mapped hero must start at the viewport edge, stay around 38% of the screen, and leave native-safe 44px return/edit/share actions and analysis tabs visible. Scrolling switches to the compact fixed header. Sparse detail must omit unavailable secondary values and empty social counts. API records and route geometry come from `dev/demo/activity_detail.cjs`; UIKit safe-area/status-bar/display measurements are real. Physical iPhone map gestures and sharing remain separate acceptance checks.
 
 Friends adds eight cases per phone: empty, one request/one friend, and three requests/forty friends in both themes, plus the long list with enlarged text. Each phone now requires thirty-eight captures. The shared named Back header must clear the real top inset, search stays at least 16px, request/manage targets remain 44px, and suggestions/empty actions render without overflow. Fictional read-only API people come from `dev/demo/friends.cjs`; request/search actions run separately against guarded API accounts in the browser suite. Physical keyboard and VoiceOver acceptance remain separate.
+
+
+Display-bridge diagnostics are injected before the fixture's network stand-ins, only in the disposable Simulator
+bundle. A forwarding observer around the two relevant plugin entries records actual getState call timing, result
+field types, fixed error name/code categories, existing listener callbacks, foreground/page lifecycle events and
+changes to the three display classes. The original promises, results, arguments and listener handles are preserved.
+The observer makes no extra native reads/subscriptions, retries or readiness changes. Production appearance.js,
+its 2-second timeout and the actual UIKit-readiness assertion stay unchanged.
+
+Metrics include this bounded snapshot on success and caught JavaScript failure; the readiness assertion also prints
+it on failure. At most 64 events are retained, plus a dropped count and unfinished-call durations. No arbitrary state,
+error text/stack, credentials, request payload or full class list is recorded. These diagnostics cannot help when
+Simulator launch stalls before JavaScript exports any metrics; startup.json still identifies that phase.
+
+The registry observer supports both plain iOS-exported entries and JavaScript method proxies. The pinned upstream
+implementations explain why assigning over getState alone is insufficient: [iOS export](https://github.com/ionic-team/capacitor/blob/8.5.3/ios/Capacitor/Capacitor/JSExport.swift)
+and [runtime proxy](https://github.com/ionic-team/capacitor/blob/8.5.3/core/src/runtime.ts).
+
+Run node dev/tests/test_native_display_diagnostics.js and python3 dev/tests/test_native_display_copy.py for observer
+semantics, the real production timeout, missing/malformed/rejected bridges and original/disposable-bundle isolation.

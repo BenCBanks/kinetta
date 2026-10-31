@@ -75,6 +75,8 @@ node dev/tests/test_recipe_title_retry.js
 node dev/tests/test_recipe_library_intent.js
 node dev/tests/test_navigation_animation.js
 node dev/tests/test_notification_rows.js
+node dev/tests/test_native_display_diagnostics.js
+python3 dev/tests/test_native_display_copy.py
 node dev/tests/test_personal_notifications_ui.js
 node --check dev/tests/personal_notifications_ui.cjs
 node --check dev/tests/notification_settings_ui.cjs
