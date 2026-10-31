@@ -1643,3 +1643,5 @@ places, intake or body facts are added. Food and photo/username remain off initi
 alt text, cached-data notices, Retry, monthly offers and the existing native delivery/cancellation guard remain.
 Single-activity pictures are unchanged. Sport breakdown and previous-period comparisons are deferred: the existing
 response has only the top sport and selected-period totals; this visual change adds no API reads or new statistics.
+
+The later31October spacing minimums retain8px between Post/Story, period choices and wrapped options. Format buttons stay56px (64px pitch); period/options stay44px (52px minimum pitch). Ratio labels are at least13px. Sheet padding18px and stage gap16px were already sufficient. The image preview has no content-card padding because it is the rendered picture itself, inside the padded sheet. Export/canvas rendering is unchanged by this control-spacing follow-up.

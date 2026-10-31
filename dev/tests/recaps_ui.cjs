@@ -21,6 +21,12 @@ const pictureReady=p=>until(p,()=>{const n=document.querySelector('#recap-previe
    assert.equal(await p.locator('.recap-sheet .discovery-grid').count(),0);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow');
    const rows=await p.locator('[data-recap-period]').evaluateAll(ns=>ns.map(n=>n.getBoundingClientRect().top));assert(rows.every(y=>Math.abs(y-rows[0])<1),'periods stay on one scrollable row');
    for(const n of await p.locator('[data-recap-period],[data-recap-option],[data-recap-format],.recap-preview,.recap-sheet [data-close]').all()){const r=await n.boundingBox();assert(r.width>=44&&r.height>=44,'44px controls');}
+   const spacing=await p.evaluate(()=>{
+    const measures=selector=>{const ns=[...document.querySelectorAll(selector)],rs=ns.map(n=>n.getBoundingClientRect());return rs.map((r,i)=>({height:r.height,gap:i?(Math.abs(r.top-rs[i-1].top)<1?r.left-rs[i-1].right:r.top-rs[i-1].bottom):null}));};
+    return {formats:measures('[data-recap-format]'),periods:measures('[data-recap-period]'),options:measures('[data-recap-option]'),secondary:Math.min(...[...document.querySelectorAll('.recap-formats small')].map(n=>parseFloat(getComputedStyle(n).fontSize)))};
+   });
+   for(const group of [spacing.formats,spacing.periods,spacing.options])for(const r of group)if(r.gap!=null)assert(r.gap>=8-.1,'8px between recap targets: '+JSON.stringify(spacing));
+   assert(spacing.formats.every(r=>r.height>=56));assert(spacing.secondary>=13);console.log('Recap spacing',size.width,theme,JSON.stringify(spacing));
    assert.equal(await p.locator('[data-recap-option=food]').getAttribute('aria-pressed'),'false');assert.equal(await p.locator('[data-recap-option=identity]').getAttribute('aria-pressed'),'false');
    const clearance=await p.evaluate(()=>{const a=document.querySelector('.recap-options').getBoundingClientRect(),b=document.querySelector('#recap-share').getBoundingClientRect();return b.top-a.bottom;});assert(clearance>=0,'Share follows options');
    await p.locator('#recap-share').scrollIntoViewIfNeeded();assert(await p.locator('#recap-share').evaluate(n=>{const r=n.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}),'Share reachable and unobscured');
