@@ -18,7 +18,7 @@ for who,count in [('typical',2),('heavy',6)]:
  for i in range(count):
   friend='friend'+str(i);ok(clients[friend].post('/api/friends',{'login':'zz_test_feed_'+who}));ok(clients[who].post('/api/friends/zz_test_feed_'+friend+'/accept'))
  ok(clients['pending'].post('/api/friends',{'login':'zz_test_feed_'+who}))
-now=dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=2)
+now=dt.datetime.now(dt.timezone.utc)
 photos=['freedom-park-lake.jpg','freedom-park-bridge.jpg'];all_ids=[];first={}
 for who in ['typical','heavy']+['friend'+str(i) for i in range(6)]+['blocked']:
  c=clients[who];ids=[]
