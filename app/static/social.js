@@ -734,8 +734,8 @@ route(/^\/me\/friends$/, 'me', el=>FriendsUI.mount(el));
 // ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------
 const REPORT_WHY = {spam: 'Spam', abuse: 'Harassment or abuse', inappropriate: 'Inappropriate', other: 'Something else'};
 function reportSheet(p, what = {}, onBlocked) {
-  let why = null;
-  sheet(`${p.name}`, `<form class="form" id="rp-form"><h3 class="ghead">Report ${what.comment_id ? 'this comment' : what.activity_id ? 'this activity' : 'this person'}</h3>
+  let why = null, pending = false; const owner = readOwner();
+  sheet(`${p.name}`, `<form class="form" id="rp-form"><h3 class="ghead">Report ${what.comment_id ? 'this comment' : what.activity_id ? 'this activity' : what.dish_id ? 'this recipe' : what.challenge_code ? 'this challenge' : 'this person'}</h3>
     <div class="checks">${Object.entries(REPORT_WHY).map(([k, n]) => `<label class="check"><input type="radio" name="why" value="${k}"> ${esc(n)}</label>`).join('')}</div>
     <label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label>
     <p class="small muted">The people who run this Kinetta see your report and what was reported. ${esc(p.name)} isn't told who reported it.</p>
@@ -743,14 +743,18 @@ function reportSheet(p, what = {}, onBlocked) {
     <h3 class="ghead">Block ${esc(p.name)}</h3>
     <p class="small muted">You stop being friends, they can't see your activities, find you or ask to be friends, and you won't see their activities, cheers or comments. They aren't told. Undo it under Me › Sharing.</p>
     <button type="button" class="ghost wide danger" id="rp-block">Block ${esc(p.name)}</button></form>`, (b, close) => {
-    const f = $('#rp-form', b);
+    const f = $('#rp-form', b), send = $('button.primary', f), block = $('#rp-block', b);
+    const live = () => owner === readOwner() && b.isConnected && !b.closest('.scrim')?.classList.contains('is-closing');
     f.onchange = () => { why = (f.querySelector('input[name=why]:checked') || {}).value || null; };
     f.onsubmit = async (e) => {
-      e.preventDefault(); if (!why) { toast('Choose what is wrong'); return; }
-      try { await api('/api/reports', json('POST', {login: p.login, reason: why, note: f.note.value.trim() || null, ...what})); close(); toast('Thanks. Your report was sent'); }
-      catch (x) { toast(x.message); }
+      e.preventDefault(); if (pending || !live()) return;
+      if (!why) { toast('Choose what is wrong'); return; }
+      pending = true; send.disabled = true; block.disabled = true;
+      try { await api('/api/reports', json('POST', {login: p.login, reason: why, note: f.note.value.trim() || null, ...what})); if (live()) { close(); toast('Thanks. Your report was sent'); } }
+      catch (x) { if (live()) toast(x.message); }
+      finally { pending = false; if (live()) { send.disabled = false; block.disabled = false; } }
     };
-    $('#rp-block',b).onclick=()=>{close();friendChangeSheet(p,true,()=>{if(onBlocked)onBlocked();else go('/activity',{replace:true});});};
+    block.onclick=()=>{if(pending||!live())return;close();friendChangeSheet(p,true,()=>{if(onBlocked)onBlocked();else go('/activity',{replace:true});});};
   });
 }
 

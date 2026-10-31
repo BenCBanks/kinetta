@@ -21,7 +21,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import AwareDatetime, BaseModel, Field, StrictBool
 
-from . import db, notify, nutrients as N
+from . import community_filter, db, notify, nutrients as N
 from .api_food import MEALS
 from .auth import current_user
 from .dish_access import SHARED
@@ -328,6 +328,8 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         sets = {}
         if 'name' in v:
             if not (v['name'] or '').strip(): raise HTTPException(400, 'The meal needs a name')
+            if c.execute('SELECT 1 FROM dish_shares WHERE dish_id=%s LIMIT 1', (did,)).fetchone():
+                community_filter.public(c, user['id'], ('shared recipe name', v['name']))
             sets['name'] = v['name'].strip()
         if 'cooked_g' in v:     # the same as the ingredients added up = not weighed
             g = _r(v['cooked_g'])
@@ -515,7 +517,8 @@ class ShareIn(BaseModel):
 def share(did: int, body: ShareIn, user=Depends(current_user)):
     """The cook shares the dish with a friend (approved friends only), who can then log a portion from it."""
     with db.connect() as c:
-        _get(c, user['id'], did, lock=True)
+        d = _get(c, user['id'], did, lock=True)
+        community_filter.public(c, user['id'], ('shared recipe name', d['name']))
         t = c.execute("""SELECT u.id, u.name FROM users u JOIN friendships f ON f.status = 'accepted'
                            AND ((f.requester = u.id AND f.addressee = %(me)s) OR (f.addressee = u.id AND f.requester = %(me)s))
                          WHERE u.login = %(l)s""", {'me': user['id'], 'l': body.login.strip().lower()}).fetchone()

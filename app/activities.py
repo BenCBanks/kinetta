@@ -12,7 +12,7 @@ import math
 import os
 from zoneinfo import ZoneInfo
 
-from . import analysis, db
+from . import community_filter, analysis, db
 
 DATA = os.environ.get('FIT_DATA', '/data')
 SPORT_GROUP = {'run': 'run', 'walk': 'foot', 'hike': 'foot', 'ride': 'ride', 'swim': 'swim', 'row': 'row', 'ski': 'ski',
@@ -39,8 +39,8 @@ def default_name(start, tz, sport, label=None):
                       'workout': 'Workout'}).get(sport, 'Activity')}"
 
 
-def profile_of(c, user_id):
-    p = c.execute('SELECT max_hr, rest_hr, sex, tz, share_default FROM profile WHERE user_id = %s', (user_id,)).fetchone() or {}
+def profile_of(c, user_id, lock=False):
+    p = c.execute('SELECT max_hr, rest_hr, sex, tz, share_default, share_details FROM profile WHERE user_id = %s' + (' FOR SHARE' if lock else ''), (user_id,)).fetchone() or {}
     p = dict(p)
     if not p.get('max_hr'):   # until set by hand: the highest believable HR seen (P99.5 of activity maxima), else 190
         r = c.execute("""SELECT percentile_cont(0.995) WITHIN GROUP (ORDER BY max_hr) AS m FROM activities
@@ -93,14 +93,15 @@ def save_file(user_id, raw, ext):
     return sha, os.path.relpath(path, DATA)
 
 
-def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connection=None):
+def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connection=None, visibility=None):
     """Returns ('added', id) | ('duplicate', id) | ('updated', id). meta: Strava CSV fields (name, description, ...)."""
     meta = meta or {}
     sport = meta.get('sport') or parsed['sport']
     start = parsed['start'] or meta.get('start')
     if start is None: raise ValueError('no start time')
     with (nullcontext(connection) if connection is not None else db.connect()) as c:
-        prof = profile_of(c, user_id)
+        c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE', (user_id,))
+        prof = profile_of(c, user_id, lock=True)
         tz = prof.get('tz') or db.DEFAULT_TZ
         S = analysis.prepare(parsed['streams'], sport)
         summ = analysis.summary(S, sport, parsed.get('session') or {}, prof)
@@ -126,6 +127,10 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connect
         if dup:
             richer = enrich_file(c, user_id, dup['id'], parsed, summ, sha, path) if raw is not None or dup['source'] == 'track' else False
             if meta.get('name') and dup['auto_name']:   # e.g. Garmin copy first, then Strava export brings the real title
+                existing = c.execute('SELECT name,description,sport_label,visibility,share_details FROM activities WHERE id=%s AND user_id=%s FOR UPDATE', (dup['id'],user_id)).fetchone()
+                proposed = {**existing, 'name': meta['name'], 'description': existing['description'] if existing['description'] is not None else meta.get('description')}
+                if visibility is not None: proposed['visibility'] = visibility
+                community_filter.activity(c, user_id, proposed, prof)
                 c.execute("""UPDATE activities SET name = %s, auto_name = false, description = coalesce(description, %s),
                              private_note = coalesce(private_note, %s), strava_id = coalesce(strava_id, %s), updated = now()
                              WHERE id = %s""", (meta['name'], meta.get('description'), meta.get('private_note'), meta.get('strava_id'), dup['id']))
@@ -138,7 +143,8 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connect
                    start_time=start, tz=tz, device=parsed.get('device'), source=source, source_id=meta.get('source_id'),
                    file_sha256=sha, file_path=path, strava_id=meta.get('strava_id'), gear_id=gear_id,
                    laps=json.dumps(parsed.get('laps') or [], default=str),
-                   visibility=prof.get('share_default') or 'everyone')   # who sees it: the person's choice for new activities
+                   visibility=visibility or prof.get('share_default') or 'everyone')
+        community_filter.activity(c, user_id, row, prof)   # who sees it: the person's choice for new activities
         for k in ('elapsed_s', 'moving_s', 'distance_m', 'ascent_m', 'descent_m', 'avg_hr', 'max_hr', 'avg_cad', 'avg_power',
                   'max_power', 'max_speed', 'avg_temp', 'calories', 'avg_vo', 'avg_gct', 'avg_stride', 'gap_s_per_km', 'effort',
                   'decoupling', 'vo2max', 'max_alt', 'min_alt', 'vam', 'norm_power', 'steps', 'pool_length_m', 'lengths',

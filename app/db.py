@@ -1923,6 +1923,16 @@ MIGRATIONS = [
     """ALTER TABLE notifications ADD COLUMN push_pending boolean NOT NULL DEFAULT false;
     CREATE INDEX notifications_pending_push ON notifications(user_id) WHERE push_pending;""",
 
+    # 91. Service-terms acceptance is private account metadata; profile already has own_rows RLS and reader grants.
+    """ALTER TABLE profile ADD COLUMN terms_version text;
+    ALTER TABLE profile ADD COLUMN terms_accepted_at timestamptz;
+    ALTER TABLE profile ADD CONSTRAINT terms_acceptance_pair
+      CHECK ((terms_version IS NULL) = (terms_accepted_at IS NULL));
+    ALTER TABLE reports DROP CONSTRAINT reports_kind_check;
+    ALTER TABLE reports ADD CONSTRAINT reports_kind_check CHECK(kind IN ('person','activity','comment','dish','challenge'));
+    ALTER TABLE reports ADD COLUMN dish_id bigint REFERENCES dishes(id) ON DELETE SET NULL;
+    ALTER TABLE reports ADD COLUMN challenge_id uuid REFERENCES challenges(id) ON DELETE SET NULL;""",
+
 ]
 
 

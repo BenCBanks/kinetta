@@ -1,0 +1,3 @@
+/* Report controls are shared by profiles, activities, comments, recipes and challenges. */
+#rp-form .checks { row-gap: 8px; }
+#rp-form .actions > button, #rp-block { min-height: 44px; }

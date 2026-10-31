@@ -14,7 +14,7 @@ import shutil
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, Query
 from pydantic import BaseModel, Field, StrictBool, ConfigDict
 from psycopg import errors, sql
-from . import db, auth
+from . import db, auth, community_terms, community_filter
 from .auth import current_user
 from .admin_auth import admin_user, audit
 from .profile_layout import ProfileLayout
@@ -32,12 +32,14 @@ def _clean_login(v, *, current=None):
     v = (v or '').strip().lower()
     if not LOGIN_RE.match(v): raise HTTPException(400, 'Username: 2-30 lowercase letters, numbers or _, starting with a letter')
     if reserved_login(v) and v != (current or '').strip().lower(): raise HTTPException(400, 'That username is reserved. Choose another.')
+    community_filter.check(v, 'username')
     return v
 
 
 def _clean_name(v):
     v = ' '.join((v or '').split())
     if not 1 <= len(v) <= 60: raise HTTPException(400, 'Name: 1-60 characters')
+    community_filter.check(v, 'name')
     return v
 
 
@@ -59,6 +61,8 @@ def set_account(body: AccountIn, user=Depends(current_user)):
             with db.connect() as c:
                 if not c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],)).fetchone():
                     raise HTTPException(404,'Account not found.')
+                if vals or body.bio:
+                    community_filter.public(c, user['id'], ('bio', body.bio))
                 if body.bio is not None:
                     c.execute('UPDATE profile SET bio = %s WHERE user_id = %s', (body.bio.strip(), user['id']))
                 if layout is not None:
@@ -209,6 +213,7 @@ INVITE_DAYS = 7
 
 
 class NewAccountIn(BaseModel):
+    terms_version: str | None = Field(None, max_length=64)
     challenge_code:str|None=Field(None,max_length=60)
     challenge_join:StrictBool=False
     card_code: str | None = Field(None,max_length=60)
@@ -256,8 +261,10 @@ def username_availability(request: Request, login: str = Query('', max_length=60
 
 def _create(c, body, is_admin=False):
     """Insert a person + their settings; returns the new id."""
+    community_terms.check_agreement(body.terms_version)
     name, chosen = _clean_name(body.name), body.login and body.login.strip()
     login = _clean_login(chosen) if chosen else suggest_login(c, name)
+    community_filter.check(login, 'username')
     auth.check_new_password(body.password, login)
     tz = db.valid_tz(body.tz) or db.DEFAULT_TZ
     tried = set()
@@ -271,7 +278,7 @@ def _create(c, body, is_admin=False):
             if chosen or len(tried) > 20: raise HTTPException(409, 'That username is taken')
             tried.add(login); login = suggest_login(c, name, tried)     # someone took the same suggestion at that moment
     # Kit (AI features) stays off until the person says yes; the welcome steps ask (owner, 2026-10-26).
-    c.execute('INSERT INTO profile (user_id, tz, units, share_default) VALUES (%s, %s, %s, %s)', (uid, tz, body.units or 'imperial',body.share_default))
+    c.execute('INSERT INTO profile (user_id, tz, units, share_default, terms_version, terms_accepted_at) VALUES (%s, %s, %s, %s, %s, %s)', (uid, tz, body.units or 'imperial', body.share_default, community_terms.active_version(), dt.datetime.now(dt.timezone.utc) if community_terms.active_version() else None))
     if body.card_code:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,%s)",(uid,body.card_code,body.card_request))
     if body.challenge_code and body.challenge_join:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'challenge',%s,true)",(uid,body.challenge_code))
     return uid

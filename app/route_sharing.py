@@ -19,7 +19,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from psycopg import errors
 
-from . import auth, db, route_geo
+from . import community_filter, auth, db, route_geo
 from . import api_routes_plan as plans
 from .api_social import blocked, unconfirmed, confirmed, MIN_SHOWN_M
 from .admin_auth import admin_user
@@ -205,6 +205,7 @@ def publish(rid:int,body:PublishIn,user=Depends(auth.current_user)):
         trim=_policy(c,user['id'],True)
         if r['share_disabled'] or (r['version'],r['updated'],r['share_revision'],trim)!=(p['source_version'],p['route_updated'],p['share_revision'],p['policy_trim']): changed()
         revision=r['share_revision']+1;data=p['data']
+        community_filter.public(c, user['id'], ('shared route name', data.get('name')), ('shared route description', data.get('description')))
         c.execute('''INSERT INTO route_publications(route_id,user_id,revision,source_version,data,geom,hidden_start_m,hidden_end_m)
           VALUES(%s,%s,%s,%s,%s,ST_GeomFromText(%s,4326),%s,%s)
           ON CONFLICT(route_id) DO UPDATE SET revision=EXCLUDED.revision,source_version=EXCLUDED.source_version,data=EXCLUDED.data,

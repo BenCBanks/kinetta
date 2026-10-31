@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
 from pydantic import BaseModel, Field, StrictBool
 
-from . import db, notify, route_geo, route_providers, segments, segment_rebuilds
+from . import community_filter, db, notify, route_geo, route_providers, segments, segment_rebuilds
 from .admin_auth import admin_user, audit
 from .api_account import _admin
 from .api_routes_plan import FromActivityIn, _clean, _line, activity_part
@@ -223,6 +223,8 @@ def create(body: SegmentIn, user=Depends(current_user)):
         if had: return get(had['id'], user=user) | {'duplicate': True}
         if c.execute("SELECT count(*) AS n FROM segments WHERE creator_id = %s AND created > now() - interval '1 day'", (user['id'],)).fetchone()['n'] >= 30:
             raise HTTPException(429, 'You have created a lot of segments today. Try again tomorrow.')
+        if body.audience == 'everyone':
+            community_filter.public(c, user['id'], ('segment name', name), ('segment description', desc))
         sid = c.execute("""INSERT INTO segments (creator_id, client_id, name, description, sport, geom, distance_m, ascent_m, elevation_source,
                              source, fingerprint, matcher, audience, published)
                            VALUES (%s, %s, %s, %s, %s, ST_GeomFromText(%s, 4326), %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
@@ -250,6 +252,7 @@ def publish(sid: int, body: PublishIn, user=Depends(current_user)):
         if s['status'] != 'active': raise HTTPException(400, 'Retired segments can\'t be published')
         if c.execute('SELECT needs_email_confirm FROM users WHERE id = %s', (user['id'],)).fetchone()['needs_email_confirm']:
             raise HTTPException(403, 'Confirm your email first to publish segments.')
+        community_filter.public(c, user['id'], ('segment name', s['name']), ('segment description', s['description']))
         c.execute("UPDATE segments SET audience = 'everyone', published = now() WHERE id = %s", (sid,))
         c.execute("INSERT INTO segment_jobs (kind, ref) VALUES ('segment', %s) ON CONFLICT (kind, ref, epoch) DO UPDATE SET cursor = 0", (sid,))
     return get(sid, user=user)

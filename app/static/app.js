@@ -101,6 +101,7 @@ function refreshMe(me) {
   if (same && readSessions.has(previous)) readSessions.set(me, readSessions.get(previous));
   if (!same) { Native.clearPictures?.();App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {}); App.cache.clear(); forgetKept(); }
   App.me = me; keep('/api/me', me);
+  globalThis.CommunityTerms?.check();
   if (!same) render();
 }
 
@@ -626,7 +627,7 @@ function render() {
   return Promise.resolve(result).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (current()) { App.pageReady = true; globalThis.CommunityTerms?.check(); if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {
@@ -1190,6 +1191,7 @@ function aiSheet(after) {   // ask once; after() runs when they turn it on
 // ---------- login, first-run setup, invite links + start ----------
 const BRAND = `<picture class="brand"><source srcset="/static/logo-dark.svg?v=__ASSET_HASH__" media="(prefers-color-scheme: dark)"><img src="/static/logo.svg?v=__ASSET_HASH__" alt="Kinetta" width="210" height="34"></picture>`;
 function showLogin(msg = '') {
+  globalThis.CommunityTerms?.reset();
   App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {});
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<p>Your runs, rides, walks and food, private to you.</p></div>
@@ -1283,7 +1285,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
     ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
     ${email ? `<details class="username-choice"><summary>Choose your @username (optional)</summary><label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next"></label></details>` : ''}
-    ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older and agree to the <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">privacy policy</a></span></label>
+    ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older</span></label>
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>` : ''}
     ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"${challenge.join_default?' checked':''}><span>Join ${esc(challenge.title)} ${email?'after I confirm my email':'when I create my account'}. Only my username, permitted photo and progress are shared.</span></label>`:''}
     ${card?.allow_requests?`<label class="check"><input type="checkbox" name="card_request"${card.request_default===false?'':' checked'}><span>Send @${esc(card.username)} a friend request ${email?'after I confirm my email':'when I create my account'}</span></label>`:''}
@@ -1291,6 +1293,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
   const username = globalThis.UsernameAvailability?.watch(f.login);
+  const agreement = globalThis.CommunityTerms?.enrollment(f);
   if (pick) {
     f.name.addEventListener('input', () => {   // suggest a username from the first name until they type their own
       if (f.login.dataset.touched) return;
@@ -1324,7 +1327,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     if (f.password.value.length < 10) return fieldErr('password', `Use at least 10 characters for your password (you have ${f.password.value.length}).`);
     if (signup && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 16 or older. Tick the box to continue.');
     b.disabled = true; fieldErr(null, '');
-    try { await send({name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
+    try { const termsVersion = agreement ? await agreement() : null; await send({terms_version: termsVersion, name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
         ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim(), ...(f.login.value.trim() ? {login:f.login.value.trim().toLowerCase()} : {})}),
         ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})});
       // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
@@ -1611,7 +1614,7 @@ async function start() {
     const seen = 'kinetta.welcomed:' + readOwner();
     if (Native.on && !store.get(seen) && App.me?.created && Date.now() - new Date(App.me.created) < 14 * 864e5 && location.pathname === '/me') history.replaceState(null, '', '/welcome');
     if (Native.on) store.set(seen, 1);
-    Native.resumeFoodEntry?.();render();
+    Native.resumeFoodEntry?.();Promise.resolve(render()).then(() => globalThis.CommunityTerms?.check());
     if(typeof Challenges!=='undefined')Challenges.resumeSignup(); Q.flush().catch(e => toast(e.message)); netbar(); Native.autoSync(); setTimeout(warmTabs, 1500);
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
