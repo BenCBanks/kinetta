@@ -94,7 +94,7 @@ route(/^\/track\/lift\/(\d+)$/, 'track', async (el, id) => {
 function liftLogger(el, aid, data) {
   const owner = readOwner(), key = liftKey(aid);
   const S = {ex: data.exercises.map((e) => ({...e, sets: e.sets.map((s) => ({...s}))})), open: data.open, start: data.start_time, lastTick: data.lastTick || null};
-  let saveT = null, disposed = false, stopped = false, finishing = false, clock = null;
+  let saveT = null, disposed = false, stopped = false, finishing = false, clock = null, setRecovery = null;
   const owned = () => owner === readOwner(), live = () => owned() && !disposed && el.isConnected;
   el.classList.add('compact-lift');
   el.innerHTML = `<div class="top lift-top">${backBtn('Track')}${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><span><span class="vh">Session </span><b class="num" id="lf-time">0:00</b></span><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':''}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
@@ -159,7 +159,11 @@ function liftLogger(el, aid, data) {
     } catch (x) {
       if (!owned() || x.stale) return;
       if (liftCurrentDraft(key, revision)) status(x.offline && store.get(key)?.unsent ? 'Kept on this phone' : 'Not saved');
-      if (live() && !x.offline && !finish && liftCurrentDraft(key, revision)) toast(x.message);
+      if (live() && !x.offline && !finish && liftCurrentDraft(key, revision)) {
+        const recovery = setRecovery && setRecovery.until > Date.now() && setRecovery.valid() ? setRecovery : null;
+        if (recovery) recovery.until = Date.now() + 6000;
+        toast(x.message, recovery?.undo); // A failed delete must keep its visible recovery action.
+      }
       if (finish) throw x;
     }
   }
@@ -197,7 +201,7 @@ function liftLogger(el, aid, data) {
     const v = (k) => (s[k] == null ? '' : k === 'kg' ? toW(s[k]) : s[k]);
     const box = (k, mode, label) => `<input class="lift-in" data-j="${j}" data-k="${k}" inputmode="${mode}" enterkeyhint="next" autocomplete="off" value="${esc(v(k))}" placeholder="${esc(ph(k))}" aria-label="Set ${j + 1} ${label}">`;
     const cell = {
-      n: `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}${s.warmup ? ', warm-up' : ''}: warm-up or delete">${s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length}</button>`,
+      n: `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}, ${s.warmup ? 'warm-up' : 'working set'}. Actions" aria-haspopup="dialog"><span>${s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length}</span>${svg('down')}</button>`,
       prev: p ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}"><span class="lift-prev-label">Last · ${esc(shortDay(e.last.start_time))}:</span><span>${esc(prevText(e, p).replace(/ × /g,'×'))}</span></button>` : '<span class="lift-prev none">–</span>',
       kg: box('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()), reps: box('reps', 'numeric', 'reps'), secs: box('secs', 'numeric', 'seconds'),
       tick: `<button type="button" class="lift-tick" data-tick="${j}" aria-pressed="${!!s.done}" aria-label="Set ${j + 1} done">${svg('check')}</button>`,
@@ -256,15 +260,36 @@ function liftLogger(el, aid, data) {
       const note=$('[data-exnote]',card);if(note)note.onclick=()=>{if(live()&&!finishing)noteSheet(e,()=>draw());};
     });
   }
+  function focusSet(e, j) {
+    const i = S.ex.indexOf(e);
+    $(`.lift-ex[data-i="${i}"] ${j >= 0 ? `[data-set="${j}"]` : '[data-addset]'}`, list)?.focus({preventScroll: true});
+  }
   function setMenu(e, j) {
-    if (!live() || finishing) return;
-    const s = e.sets[j];
-    pickSheet(`${e.name}: set ${j + 1}`, pickRows([['normal', 'Normal set', ''], ['wu', 'Warm-up', 'Never counts towards your records']], s.warmup ? 'wu' : 'normal')
-      + '<div class="pick-list"><button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Delete this set</span></span></button></div>', (k) => {
-      if (!live() || finishing) return;
-      if (k === 'normal' || k === 'wu') s.warmup = k === 'wu';
-      if (k === 'del') e.sets.splice(j, 1);
-      draw(); save();
+    if (!live() || finishing || stopped || !S.ex.includes(e)) return;
+    const s = e.sets[j]; if (!s) return;
+    pickSheet(`${e.name}: set ${j + 1}`, '<div class="lift-set-actions">' + pickRows([['normal', 'Working set', ''], ['wu', 'Warm-up', 'Never counts towards your records']], s.warmup ? 'wu' : 'normal')
+      + '<div class="pick-list"><button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Delete this set</span></span></button></div></div>', (k) => {
+      if (!live() || finishing || stopped || !S.ex.includes(e)) return;
+      const at = e.sets.indexOf(s); if (at < 0) return;
+      if (k === 'normal' || k === 'wu') {
+        s.warmup = k === 'wu'; draw(); save(); focusSet(e, at); return;
+      }
+      if (k !== 'del') return;
+      const previous = e.sets[at - 1], next = e.sets[at + 1];
+      e.sets.splice(at, 1);
+      let consumed = false;
+      const valid = () => !consumed && live() && !finishing && !stopped && S.ex.includes(e) && !e.sets.includes(s);
+      const undo = () => {
+        if (consumed) return; consumed = true;
+        if (!live() || finishing || stopped || !S.ex.includes(e) || e.sets.includes(s)) return;
+        // Restore only this set, beside a surviving neighbour; keep every edit made since deletion.
+        const before = e.sets.indexOf(next), after = e.sets.indexOf(previous);
+        const index = before >= 0 ? before : after >= 0 ? after + 1 : Math.min(at, e.sets.length);
+        e.sets.splice(index, 0, s); draw(); save(); focusSet(e, index);
+      };
+      setRecovery = {valid, undo, until: Date.now() + 6000};
+      draw(); save(); focusSet(e, Math.min(at, e.sets.length - 1));
+      toast(`Set ${at + 1} deleted`, undo);
     });
   }
   function exMenu(i) {

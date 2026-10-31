@@ -1605,6 +1605,16 @@ clock, editable note and Add set retained. The exercise-history page is unchange
 starts a genuinely fresh session with three blank, unticked sets and no previous result or record.
 
 
+### Discoverable set actions (31 October 2026, #433)
+
+A small downward chevron beside each set number opens Working set, Warm-up and Delete this set. The44px target,
+8px gaps and compact rows stay. Its accessible name includes the row number, current working/warm-up state and
+Actions. Delete offers the existing Undo toast; Undo restores that set and its numbers/state beside surviving
+neighbours without replacing intervening edits. Pending saves remain ordered and account/server/view/Finish/discard
+guards prevent stale restoration. No permanent helper or swipe action is added. The exercise menu keeps its
+secondary route to set actions. Lifecycle and rendered tests cover warm-up/delete/Undo, labels, drafts and read-back.
+
+
 ## Compact recipes and foods (31 October2026, #392)
 
 The managed library is Recipes & foods, with one New menu for recipe, link and food creation. Recipe rows keep one-line names/previews, server-supplied per-serving calories when the yield is known, otherwise a labelled total, and44px log actions. Recipes and foods remain separate sections so typical lists show both; long libraries add one search across all names and direct Recipes/Foods links. Shared recipes, saved combinations and Add food's separate portion-picker purpose stay intact. No discovery grid belongs on this sub-page.
