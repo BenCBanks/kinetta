@@ -21,12 +21,12 @@ def _f(v): return float(v or 0)
 
 
 @router.get('/insights')
-def insights(days: int = 30, since: dt.date | None = None, user=Depends(current_user)):
+def insights(days: int = 30, since: dt.date | None = None, brief: bool = False, user=Depends(current_user)):
     with db.connect() as c:
-        return insights_data(c, user['id'], days, since)
+        return insights_data(c, user['id'], days, since, brief=brief)
 
 
-def insights_data(c, uid, days=30, since=None):
+def insights_data(c, uid, days=30, since=None, *, brief=False):
     """days = the last N days; since = from that date (e.g. the start of a diet) to today, at most 2 years."""
     ctx, info = energy.context(c, uid), energy.tdee(c, uid)
     today = ctx['today']
@@ -101,12 +101,14 @@ def insights_data(c, uid, days=30, since=None):
     extra={key:{'recorded':N.rounded(key,extra_row[key]),'known_count':extra_row[key+'_known'],
                 'unknown_count':extra_row['n']-extra_row[key+'_known'],'complete':bool(extra_row['n']) and extra_row['n']==extra_row[key+'_known'],'unit':N.UNITS[key]}
            for key in N.EXTRA}
-    return {'rows': rows, 'summary': summary, 'extra_nutrients':extra, 'targets': tg, 'deficit_start': prof['deficit_start'].isoformat() if prof.get('deficit_start') else None, 'insights': _insights(C, summary, tg, top, ctx, raw_w, prof.get('units') or 'imperial'),
+    return {'rows': rows, 'summary': summary, 'extra_nutrients':extra, 'targets': tg, 'deficit_start': prof['deficit_start'].isoformat() if prof.get('deficit_start') else None, 'insights': _insights(C, summary, tg, top, ctx, raw_w, prof.get('units') or 'imperial', brief=brief),
             'top_foods': [{'name': t['name'], 'n': t['n'], 'kcal': round(_f(t['kcal'])), 'protein_g': round(_f(t['protein_g']))} for t in top]}
 
 
-def _insights(C, S, tg, top, ctx, raw_w, units='imperial'):
+def _insights(C, S, tg, top, ctx, raw_w, units='imperial', *, brief=False):
     """Short plain sentences, most useful first; only when there is enough data to say it."""
+    if brief:
+        return _brief_insights(C, S, tg)
     out, n = [], len(C)
     if S['missing_burn_days']: out.append(('info', f"Resting calories have not finished syncing for {S['missing_burn_days']} logged day(s). Food averages still count those days; deficit totals wait for resting data."))
     kcal = lambda value: f'{round(float(value)/5)*5:,}'
@@ -126,11 +128,11 @@ def _insights(C, S, tg, top, ctx, raw_w, units='imperial'):
                             f"your recorded scale trend is {'down' if S['trend_change_kg'] <= 0 else 'up'} {weight(S['trend_change_kg'])}."
                             + (" They are broadly consistent; neither proves why your weight changed." if abs(S['predicted_kg'] - S['trend_change_kg']) < 0.6
                                else " A gap can reflect water changes, missed or underestimated food, or an inaccurate burn estimate. Use the weekly check-in to review your target.")))
-    if tg.get('protein_target'):
+    if S['avg_protein_g'] is not None and tg.get('protein_target'):
         hit = sum(1 for r in C if (r['protein_g'] or 0) >= tg['protein_target'] * .95)
         out.append(('good' if hit >= n * .7 else 'warn', f"Logged protein reached your {tg['protein_target']:.0f} g goal on {hit} of {n} days. "
                                                          f"Logged average: about {S['avg_protein_g']:.0f} g."))
-    else:
+    elif S['avg_protein_g'] is not None:
         out.append(('info', f"Logged protein: about {S['avg_protein_g']:.0f} g a day. Set a protein goal if you would like a comparison."))
     wk = [r['eaten'] for r in C if dt.date.fromisoformat(r['day']).weekday() >= 5]
     wd = [r['eaten'] for r in C if dt.date.fromisoformat(r['day']).weekday() < 5]
@@ -152,6 +154,29 @@ def _insights(C, S, tg, top, ctx, raw_w, units='imperial'):
         a = sum(fib) / len(fib)
         if a < 25: out.append(('info', f"Reported fiber averages about {a:.0f} g across {len(fib)} days with fiber data. Foods without fiber values are missing data, not zero."))
     return out[:8]
+
+
+def _brief_insights(C, S, tg):
+    """Overview copy from the same comparisons as the detail view; no model or new estimates."""
+    n = len(C)
+    if n < 3: return []
+    out = []
+    kcal = lambda value: f'{round(float(value)/5)*5:,}'
+    if S['missing_burn_days']:
+        out.append(('info', 'Some resting calories are still syncing.'))
+    if tg.get('protein_target') and S['avg_protein_g'] is not None:
+        hit = sum(1 for r in C if (r['protein_g'] or 0) >= tg['protein_target'] * .95)
+        out.append(('good' if hit >= n * .7 else 'warn', f'Protein goal: {hit} of {n} days.'))
+    if S['avg_goal']:
+        hit = sum(1 for r in C if r['goal'] and abs(r['eaten'] - r['goal']) <= r['goal'] * .1)
+        out.append(('info', f'Calories within 10% of goal: {hit}/{n} days.'))
+    wk = [r['eaten'] for r in C if dt.date.fromisoformat(r['day']).weekday() >= 5]
+    wd = [r['eaten'] for r in C if dt.date.fromisoformat(r['day']).weekday() < 5]
+    if len(wk) >= 2 and len(wd) >= 3:
+        diff = sum(wk) / len(wk) - sum(wd) / len(wd)
+        if abs(diff) >= 150:
+            out.append(('info', f"Weekends: about {kcal(abs(diff))} kcal {'more' if diff > 0 else 'less'} logged."))
+    return out[:2]
 
 
 @router.get('/weekly-review')

@@ -27,7 +27,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const home=async()=>{if(p.url()==='about:blank')await p.goto(base+'/food');else await p.evaluate(()=>go('/food'));await ready();await until(p,()=>document.querySelector('#nutrition-explore')?.getAttribute('aria-busy')==='false','food facts');};
    const fits=async label=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),label+' has no horizontal overflow');
    await home();assert.equal(await p.locator('h1').innerText(),'Nutrition');assert.equal(await p.locator('.view-nav,.pbar,.food-library-link,.backtoday,.mealact').count(),0,'no stacked navigation or meal footer');
-   assert.equal(await p.locator('#nutrition-explore a').count(),7);assert.equal(await p.locator('#fd-explore h2').innerText(),'Explore your food');
+   assert.equal(await p.locator('#nutrition-explore a').count(),8);assert.equal(await p.locator('#fd-explore h2').innerText(),'Explore your food');
    assert.equal(await p.locator('#nutrition-explore').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);
    for(const selector of ['#fq-add','#fq-photo','#fq-scan','#fd-prev','#fd-next','[data-add]','[data-more]','#nutrition-explore a'])for(const el of await p.locator(selector).all()){
     const rect=await el.boundingBox();assert(rect.height>=44,selector+' target height');assert(rect.width>=44,selector+' target width');
@@ -39,7 +39,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.equal(await p.locator('.nutrition-date-row #fd-date').count(),1);assert.equal(await p.locator('#fq-add').count(),1);
    if(who!=='empty'){const facts=await(await c.request.get(base+'/api/progress/overview')).json();assert.match(await p.locator('[data-nutrition-feature=overview]').innerText(),new RegExp('Protein goal '+facts.food.protein_days+'/7'),'tile agrees with own facts after earlier confirmed food saves, including zero');}
    if(who==='empty'){
-    assert.equal(await p.locator('.nutrition-start').count(),1);assert.equal(await p.locator('.nutrition-body-prompt').count(),1);assert.equal(await p.locator('#nutrition-explore .progress-new:not(.seen)').count(),7);
+    assert.equal(await p.locator('.nutrition-start').count(),1);assert.equal(await p.locator('.nutrition-body-prompt').count(),1);assert.equal(await p.locator('#nutrition-explore .progress-new:not(.seen)').count(),8);
     assert(!/0 (saved|logged)/.test(await p.locator('#nutrition-explore').innerText()));
    }else{
     assert.match(await p.locator('[data-nutrition-feature=recipes]').innerText(),new RegExp((who==='typical'?'4':'13')+' saved'));
@@ -53,7 +53,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    // One summary leads to the same analysis used by legacy Progress links; all options live in cards.
    if(who!=='empty'){
     const summary=await p.locator('.nutrition-day-summary').boundingBox();await p.mouse.click(summary.x+6,summary.y+summary.height/2);await ready();assert.equal(await p.locator('h1').innerText(),'Insights');
-    await until(p,()=>!!document.querySelector('#nt-body .card #n-range'),'range belongs to chart card');
+    await until(p,()=>!!document.querySelector('.insights-range #n-range'),'range precedes overview content');
     await p.locator('#n-range').click();await p.locator('[data-pk="7"]').click();await ready();assert.equal(new URL(p.url()).searchParams.get('r'),'7');
     await p.locator('.nutrition-back').click();await ready();await home();
     await p.locator('#fd-goal').click();await p.waitForSelector('#tg');assert.equal(await p.locator('.sheet h2').innerText(),'Goals');
@@ -92,7 +92,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const signedNative=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_nutrition_'+who,password:'green teapot on the hill',app:true}});assert.equal(signedNative.status(),200);const nativeToken=(await signedNative.json()).token;assert(nativeToken);
    await p.evaluate(({token,base})=>{App.me.ai_ok=false;Native.on=true;Native.base=base;Native.token=token;Native.foodHealthOn=async()=>false;},{token:nativeToken,base});await home();assert.equal(await p.locator('[data-nutrition-feature=health]').count(),1);assert.equal(await p.locator('[data-nutrition-feature=import]').count(),0);await p.evaluate(()=>{Native.on=false;Native.base='';Native.token=null;});
    // An unavailable summary still leaves every discovery link usable and no invented count.
-   await c.route('**/api/progress/overview',r=>r.fulfill({status:503,json:{detail:'Fictional unavailable facts'}}));await p.evaluate(()=>App.cache.delete('/api/progress/overview'));await home();assert.equal(await p.locator('#nutrition-explore a').count(),7);assert.equal(await p.locator('.error-page').count(),0);
+   await c.route('**/api/progress/overview',r=>r.fulfill({status:503,json:{detail:'Fictional unavailable facts'}}));await p.evaluate(()=>App.cache.delete('/api/progress/overview'));await home();assert.equal(await p.locator('#nutrition-explore a').count(),8);assert.equal(await p.locator('.error-page').count(),0);
    await fits('final');assert.deepEqual(errors,[]);assert.deepEqual(consoleErrors,[]);assert(!writes.some(w=>/photo|estimate|resolve/.test(w)),'no photo/provider work');console.log(`Nutrition ${who} ${size.width}/${size.root} ${theme}: compact log, own discovery, details/legacy/back, date/draft/media and unavailable PASS`);await c.close();
   }
  }

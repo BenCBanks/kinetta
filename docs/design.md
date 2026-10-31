@@ -1643,3 +1643,11 @@ Single-activity pictures are unchanged. Sport breakdown and previous-period comp
 response has only the top sport and selected-period totals; this visual change adds no API reads or new statistics.
 
 Owner follow-up31October: period and Include controls keep44px hit areas with36px visible faces,15px medium text at default and8px gaps between hit areas. Unavailable Streak remains legible and explains its two-active-week requirement on tap. The preview has no content-card padding because it is the rendered picture, inside the18px padded sheet. At ordinary390px it grows beyond the former two-column preview while controls and Share remain reachable; enlarged text scrolls naturally.
+
+## Food Insights and visible goals (31 October 2026)
+
+Insights keeps its selected range directly under the header, above the weekly cards and all the figures, including empty and missing-data states. The existing Eaten/Goal chart leads the summary and opens Calories & weight. Long ranges retain weekly grouping; daily partial/today bars remain distinct. Four small, tappable figures show eaten, estimated daily balance, protein and weight; total estimated balance remains in Calories & weight. Missing values stay missing. Sparse ranges state how many completed days the averages use, explain that unlogged days are not zero, and offer Log food. With no trend, Log weight opens the existing weigh-in form.
+
+The weekly check-in and food review keep their order before the summary, in collapsed disclosures so the chart and figures fit on a phone. Kit’s take remains after it, with the existing access and consent rules. Six compact detail links replace More insights; More nutrients stays below. This is a sub-page, without a feature grid. Only the overview explicitly requests brief deterministic sentences; detail views and internal Kit facts keep the default full wording. No nutrition calculations or AI behavior change.
+
+Nutrition’s summary has a target icon and a visible Goals label, opening its existing Goals sheet. Explore your food also links to Calorie & macro goals. Me’s View progress links open Progress home. Old Progress view fallbacks remain for external bookmarks.

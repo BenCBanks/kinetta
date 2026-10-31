@@ -44,6 +44,15 @@ jobs:
           /tmp/interval-browser/node_modules/.bin/playwright install --with-deps chromium
           NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/interval_voice_ui.cjs
 
+      - name: Check food Insights and goals in a browser (fictional accounts)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+        run: |
+          python3 dev/tests/insights_fixture.py
+          NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/insights_ui.cjs
+          NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/goals_ui.cjs
+
       - name: Check Progress navigation in a browser (fictional accounts)
         run: |
           npm install --prefix /tmp/progress-browser playwright

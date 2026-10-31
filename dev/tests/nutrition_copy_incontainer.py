@@ -24,3 +24,16 @@ no_goal=words(S={**summary,'avg_goal':None},tg={});assert 'Set a protein goal' i
 missing=words(C=rows[:3],S={**summary,'past_days':10});assert 'missing days are not zero intake' in missing
 assert 'days with fiber data' in words(tg={})
 print('Nutrition wording: synthetic loss/gain/agreement/gap/sparse/missing-burn/no-goal histories, imperial/metric units, no causal certainty or assumed-weight advice, no AI PASS')
+# The summary explicitly opts in to brief copy; default readers keep the full explanation above.
+brief=_insights(rows,summary,targets,top,{'kg':75},{},brief=True)
+assert len(brief)==2 and all(len(t)<=44 for _,t in brief),brief
+assert 'Protein' in brief[0][1] and '10%' in brief[1][1]
+assert _insights(rows[:2],summary,targets,top,{'kg':75},{},brief=True)==[]
+unknown={**summary,'avg_protein_g':None}
+for mode in (False,True):
+ for target in (targets,{}):
+  result=_insights([{**r,'protein_g':None} for r in rows],unknown,target,top,{'kg':75},{},brief=mode)
+  assert not any('protein' in t.lower() for _,t in result),result
+waiting=_insights(rows,{**summary,'missing_burn_days':2},targets,top,{'kg':75},{},brief=True)
+assert 'syncing' in waiting[0][1] and len(waiting)==2
+print('Optional brief copy, full-copy default, sparse/missing-protein/missing-burn histories PASS')
