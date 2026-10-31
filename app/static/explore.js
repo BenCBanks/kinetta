@@ -108,7 +108,7 @@ const GUIDE_ICONS = {
   "challenges": "trophy",
   "recent-milestones": "trophy",
   "share-your-kinetta": "share",
-  "friends-people-search": "friends",
+  "friends-people-search": "people",
   "cheers-comments": "cheer",
   "your-shared-profile": "user",
   "sharing-map-privacy": "lock",
