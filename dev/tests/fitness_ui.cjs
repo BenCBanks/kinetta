@@ -4,7 +4,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 async function until(p,fn,label){for(let i=0;i<180;i++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
- cp.execFileSync('python3',[path.join(__dirname,'subpages_fixture.py')],{env:process.env,stdio:'inherit'});
+ cp.execFileSync('python3',[path.join(__dirname,'subpages_fixture.py')],{env:{...process.env,KINETTA_URL:base},stdio:'inherit'});
  const b=await chromium.launch();try{
  for(const state of ['empty','typical','heavy']){
   const login=await b.newContext();assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_subpages_'+state,password:'green teapot on the hill'}})).status(),200);const auth=await login.storageState(),data=await(await login.request.get(base+'/api/fitness?days=3650')).json();await login.close();
