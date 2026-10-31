@@ -17,8 +17,9 @@ const BackNavigation=(()=>{
   for(const [re,name] of [[/^\/activity\/(?:friends\/)?\d+$/,'Activity'],[/^\/people\/[^/]+$/,'Profile'],[/^\/food\/cook\/\d+$/,'Recipe'],[/^\/(?:track\/)?lift\/ex\/\d+$/,'Exercise'],[/^\/(?:track\/)?lift\/\d+$/,'Lifting'],[/^\/route\/\d+$/,'Route'],[/^\/segments\/\d+$/,'Segment'],[/^\/records\//,'Records'],[/^\/(?:me\/challenges|challenge)\/[^/]+$/,'Challenge'],[/^\/card\/[^/]+$/,'Kinetta card'],[/^\/add\/[^/]+$/,'Friend invite']])if(re.test(p))return name;
   return parent(clean);
  }
+ const appPath=value=>{const p=path(value);return p&&!/^\/(?:$|signup(?:\/|$)|beta(?:\/|$)|login(?:\/|$)|join(?:\/|$)|forgot(?:\/|$)|reset(?:\/|$)|verify(?:\/|$))/.test(new URL(p,origin()).pathname);};
  const id=()=>globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
- const validRef=(r,owner)=>r&&typeof r.id==='string'&&r.id.length>0&&r.id.length<=128&&path(r.path)&&r.owner===owner;
+ const validRef=(r,owner)=>r&&typeof r.id==='string'&&r.id.length>0&&r.id.length<=128&&appPath(r.path)&&r.owner===owner;
  function entry(state,current,owner){
   const here=path(current);if(!here||typeof owner!=='string'||!owner)return null;
   const m=state&&typeof state==='object'?state[field]:null;
@@ -27,7 +28,7 @@ const BackNavigation=(()=>{
  }
  function transition(state,current,next,owner,{replace=false}={}){
   const currentEntry=entry(state,current,owner),to=path(next);if(!currentEntry||!to)return null;
-  const from=replace?currentEntry.from:{id:currentEntry.id,owner,path:currentEntry.path};
+  const from=replace?currentEntry.from:appPath(currentEntry.path)?{id:currentEntry.id,owner,path:currentEntry.path}:null;
   return {current:{...(state&&typeof state==='object'?state:{}),[field]:currentEntry},next:{[field]:{id:id(),owner,path:to,from}}};
  }
  function destination(state,current,fallback,owner,{historyLength=1}={}){
