@@ -111,7 +111,6 @@ nav.tabs a[aria-current="page"] { color: var(--brand); background: color-mix(in 
 .word .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; }
 .entry { font-family: var(--display); }
 .entry .hw { font-size: clamp(44px, 6vw, 64px); font-weight: 500; letter-spacing: -0.02em; }
-.entry .pron { font: 400 17px var(--mono); color: var(--ink3); margin-top: 6px; }
 .entry ol { margin: 22px 0 0; padding-left: 1.3em; font: 400 19px/1.5 var(--body); color: var(--ink2); }
 .entry ol li { padding-left: 4px; margin-bottom: 4px; }
 .entry .pos { font-style: italic; color: var(--ink3); font-family: var(--body); }
@@ -122,14 +121,8 @@ nav.tabs a[aria-current="page"] { color: var(--brand); background: color-mix(in 
 /* highlights under the hero (2026-10-11) */
 .hl { padding-block: 8px 72px; }
 .hl .wrap { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.hcard { display: grid; gap: 8px; align-content: start; padding: 22px; border-radius: 20px; background: var(--paper); border: 1px solid var(--line); text-decoration: none; transition: transform .15s, border-color .15s; }
-.hcard:hover { transform: translateY(-2px); border-color: var(--ink3); }
-.hcard h3 { font-size: 20px; } .hcard p { color: var(--ink2); font-size: 15.5px; }
-.hico { display: inline-grid; place-items: center; justify-self: start; width: 44px; height: 44px; border-radius: 13px; color: var(--ink2);
-  background: var(--color-soft); }
-.hico svg { width: 24px; height: 24px; }
 @media (max-width: 900px) { .hl .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .hl .wrap { grid-template-columns: 1fr; gap: 12px; } .hcard { padding: 18px; } }
+@media (max-width: 560px) { .hl .wrap { grid-template-columns: 1fr; gap: 12px; } }
 .spot-h { font-size: clamp(32px, 4.4vw, 50px); margin-top: 14px; }
 .spot.rev { grid-template-columns: minmax(0, 1.25fr) minmax(0, .85fr); } .spot.rev > div:first-child { order: 2; }
 @media (max-width: 860px) { .spot.rev { grid-template-columns: 1fr; } .spot.rev > div:first-child { order: 0; } }
@@ -217,7 +210,6 @@ table.cmp { width: 100%; border-collapse: collapse; font-size: 15.5px; min-width
 
 /* one app instead of two (2026-10-11) */
 .hero .eyebrow { display: block; margin-bottom: 18px; }
-.nav-beta { font-weight: 600; color: var(--brand) !important; }
 .combo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .combo > div { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 28px; min-width: 0; }
 .combo .tag { font: 500 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); }
@@ -306,12 +298,10 @@ html { scroll-padding-top: 130px; }
 .zoom button:disabled { opacity: .35; }
 
 /* The editorial brand leaves content and screenshots room to breathe. */
-.point, .hcard, .card, .combo > div { border-radius: 16px; }
+.point, .card, .combo > div { border-radius: 16px; }
 .btn.solid { border-color: var(--brand-solid); }
 
 /* The permanent feature guide shares the app's catalog and neutral surfaces. */
-.guide-intro { padding-block: 64px; max-width: 820px; }
-.guide-intro p { margin: 18px 0 26px; }
 .feature-guide-public { padding-block: 72px; }
 .feature-guide-public > h1 { margin: 14px 0 22px; }
 .public-guide-search { display: grid; gap: 10px; margin: 32px 0 16px; max-width: 640px; }
