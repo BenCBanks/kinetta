@@ -1,0 +1,45 @@
+/* Scoped Friends layout; the Activity feed's people tiles remain independent. */
+.friends-page > .top { gap:8px; }
+.friends-page > .top h1 { flex:1;min-width:0;margin:0;font-size:1.3rem; }
+.friends-page .friend-discovery { margin:12px 0; }
+.friend-search-line { display:flex;align-items:center;gap:8px; }
+.friend-search-line .searchbox { flex:1;min-width:0;margin:0; }
+.friend-search-line input { width:100%;font-size:max(16px,1rem); }
+.friend-search-line > button { flex:none;min-height:44px;font-size:.875rem;display:inline-flex;align-items:center;gap:2px;padding-inline:2px; }
+.friend-search-line > button svg { width:14px;height:14px; }
+.friends-page #fr-status:empty { display:none; }
+.friends-page .sec-head { font-size:.875rem;margin:14px 0 4px; }
+.friends-page .person { gap:4px;padding:4px 0;min-height:56px; }
+.friends-page .person-link { gap:8px; }
+.friends-page .person-link .avatar { width:30px;height:30px;font-size:.75rem;flex:none; }
+.friends-page .person-link .grow { min-width:0; }
+.friends-page .person-link b,.friends-page .person-link small { display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.friends-page .person-link b { font-size:.9375rem; }
+.friends-page .person-link small { font-size:.75rem; }
+.friends-page .fr-request { flex-wrap:wrap; }
+.friends-page .fr-request .person-link { flex:1 1 120px; }
+.friends-page .fr-request .btnrow { gap:3px;max-width:100%; }
+.friends-page .fr-request .btnrow > button { min-height:44px;font-size:.8125rem;padding-inline:9px; }
+.friends-page .fr-request .btnrow > .icon-btn { width:44px;min-width:44px;padding:0; }
+.friends-page .card-origin { flex-basis:100%;font-size:.75rem;margin:0 0 3px 38px; }
+.friends-page .fr-friend > .icon-btn { flex:none; }
+.friends-page .fr-friend-link::after { content:'›';font-size:1.25rem;color:var(--tx2);margin-left:auto;padding-inline:4px; }
+.friend-empty p { color:var(--tx2);font-size:.9375rem;margin:8px 0; }
+.friend-empty .btnrow { margin:0; }
+.friend-empty .btnrow button { min-height:44px; }
+.friends-page .friend-more { margin:14px 0; }
+.friends-page .pym { padding:0;background:none;border:0;box-shadow:none; }
+.friends-page .pym .pym-head h2 { font-size:.875rem; }
+.friends-page .pym-track { margin-top:4px;gap:8px; }
+.friends-page .pym-tile { flex-basis:132px;padding:10px;gap:6px;justify-items:stretch; }
+.friends-page .pym-who { justify-items:start;text-align:left; }
+.friends-page .pym-who .avatar { width:30px;height:30px;font-size:.75rem; }
+.friends-page .pym-who b { font-size:.875rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+.friends-page .pym-who small { font-size:.75rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.friends-page .pym-tile .primary.sm { min-height:44px;font-size:.8125rem; }
+.friend-footer { border-top:1px solid var(--line);margin:16px 0 0; }
+.friend-footer-row { display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 0;border:0;border-bottom:1px solid var(--line);background:none;color:var(--tx);font:inherit;font-size:.875rem;text-align:left; }
+.friend-footer-row span { flex:1;min-width:0; }
+.friend-footer-row svg { width:16px;height:16px;flex:none;color:var(--tx2); }
+.friends-page [hidden] { display:none!important; }
+@media(max-width:360px) { .friends-page .fr-request .btnrow { flex-wrap:wrap; } }
