@@ -1653,3 +1653,5 @@ The weekly check-in and food review keep their order before the summary, in coll
 Nutrition’s summary has a target icon and a visible Goals label, opening its existing Goals sheet. Explore your food also links to Calorie & macro goals. Me’s View progress links open Progress home. Old Progress view fallbacks remain for external bookmarks.
 
 Insights keeps its title whole at 330px with enlarged text: the back/title use the first row, and Help/notifications share the range row. The range has a 36px visual face inside its 44px hit area. Nutrition’s labelled Goals action uses an explicitly sized 18px icon beside its label in a 44px inline target, preserving the existing form.
+
+Food Insights review: Eaten bars and their legend use calorie action blue in both themes, with the actual dashed goal line retained. Ordinary logged days are not red warnings. Nutrition detail Back names Nutrition or Progress and keeps the account-scoped destination. The weekly food section heading uses20px at16px root and grows with accessibility text.
