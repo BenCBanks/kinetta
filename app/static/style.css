@@ -637,6 +637,21 @@ tr.muted td { color: var(--tx3); }
 .prediction-method summary::after{content:'›';font-size:1.25em;transform:rotate(90deg);transition:transform .15s;}
 .prediction-method[open] summary::after{transform:rotate(-90deg);}
 .prediction-method p{margin:8px 0 12px;line-height:1.6;}
+/* One shared effort source leaves room for the fitness chart, with full-size source/help targets. */
+#fi-pred > .card,#fi-body > .card { padding:16px; }
+#fi-pred .card h2,#fi-body .card h2 { font-size:max(17px,1.25rem); }
+.fitness-predictions .pred { gap:8px 12px; }
+.fitness-predictions .pred > div { padding:8px 0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
+.fitness-predictions .pred > div.pr { background:var(--prog2); }
+.fitness-predictions .pred b { font-size:max(20px,1.5rem); font-weight:600; }
+.fitness-predictions .pred small { font-size:max(13px,.8125rem); line-height:1.35; }
+.fitness-predictions .pbest { margin-top:4px; }
+.fitness-predictions .prediction-source { display:flex; align-items:center; min-height:44px; margin:0 0 8px; font-size:max(13px,.8125rem); line-height:1.35; }
+.fitness-predictions .pred .prediction-source { margin:8px 0; }
+.fitness-predictions p.prediction-note { margin:8px 0 4px; }
+.fitness-predictions .prediction-method summary { font-size:max(15px,.9375rem); }
+@media(max-width:360px){.fitness-predictions .pred{grid-template-columns:1fr}}
+
 
 
 .rng { margin: 4px 0 12px; }

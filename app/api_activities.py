@@ -664,7 +664,7 @@ def fitness(days: int = 365, user=Depends(current_user)):
         bests = {r['label']: r['s'] for r in c.execute("""SELECT label, min(elapsed_s) AS s FROM best_efforts WHERE user_id = %s
             AND sport = 'run' AND label = ANY(%s) GROUP BY 1""", (user['id'], [p['label'] for p in preds])).fetchall()}
     for p in preds:
-        f = p.pop('from'); p['from'] = {'label': f['label'], 'activity_id': f['activity_id'], 'start_time': f['start_time']}
+        f = p.pop('from'); p['from'] = {k: f[k] for k in ('label', 'activity_id', 'start_time', 'distance_m', 'elapsed_s')}
         p['best_s'] = bests.get(p['label'])
     months = {}
     for e in effs: months[e['m']] = max(months.get(e['m'], 0), e['vdot'])
