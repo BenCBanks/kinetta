@@ -30,8 +30,8 @@ function writeReceipt(path,result,body){
 }
 async function closeTool(close){const d=$('#dialog');if(!d.open)return;const done=new Promise(resolve=>d.addEventListener('close',resolve,{once:true}));close();await done;}
 function confirmForm(title,intro,html,send,after){
- let action=freshAction();modal(title,'<p>'+esc(intro)+'</p><form id="tool-form">'+html+'<button class="primary">Confirm</button></form>',(box,close)=>{
-  const f=$('#tool-form',box);f.oninput=()=>{action=freshAction()};f.onsubmit=e=>{e.preventDefault();if(!f.reportValidity())return;busy($('button',f),async()=>{const rev=revision,d=dialogRevision;await send(f,action);if(rev!==revision||d!==dialogRevision||!f.isConnected)return;await closeTool(close);try{await after?.()}catch(x){err.textContent='Action confirmed. The latest information could not refresh: '+x.message;}})};
+ let action=freshAction();modal(title,'<p>'+esc(intro)+'</p><form id="tool-form">'+html+'<button type="submit" class="primary">Confirm</button></form>',(box,close)=>{
+  const f=$('#tool-form',box);f.oninput=()=>{action=freshAction()};f.onsubmit=e=>{e.preventDefault();if(!f.reportValidity())return;busy($('button[type=submit]',f),async()=>{const rev=revision,d=dialogRevision;await send(f,action);if(rev!==revision||d!==dialogRevision||!f.isConnected)return;await closeTool(close);try{await after?.()}catch(x){err.textContent='Action confirmed. The latest information could not refresh: '+x.message;}})};
  });
 }
 const confirmUser=p=>'<label>Type '+esc(p.login)+' to confirm<input name="confirm" autocomplete="off" required></label>';

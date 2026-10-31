@@ -176,6 +176,10 @@ jobs:
           python3 dev/tests/inline_reactions_fixture.py
           PHASE=after NODE_PATH=/tmp/card-browser/node_modules node dev/tests/inline_reactions_ui.cjs
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/inline_reactions_actions.cjs
+      - name: Check shared password visibility in app and admin forms (fictional values)
+        env:
+          KINETTA_URL: http://localhost:8798
+        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/password_visibility_ui.cjs
 
       - name: Server log (if something failed)
         if: failure()

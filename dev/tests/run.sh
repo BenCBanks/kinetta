@@ -142,6 +142,7 @@ node dev/tests/test_yesterday_meal.js
 node dev/tests/test_home_loading.js
 node dev/tests/test_sheet_motion.js
 node dev/tests/test_navigation.js
+node --check dev/tests/password_visibility_ui.cjs
 node dev/tests/test_settings_navigation.js
 node dev/tests/test_ui_clarity.js
 python3 dev/tests/test_food_thread_facts.py

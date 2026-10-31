@@ -1212,7 +1212,7 @@ function showLogin(msg = '') {
   }).catch(() => { const p = $('.login .login-new', root); if (p) p.textContent = 'New here? Ask the person who runs this Kinetta for an invite link.'; });
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const b = $('button', f), err = $('.err', f);
+    const b = $('button[type=submit]', f), err = $('.err', f);
     const login = f.login.value.trim(), password = f.password.value;
     if (!login || !password) { err.textContent = 'Enter your email (or username) and your password.'; return; }
     b.disabled = true; b.textContent = 'Logging in…'; err.textContent = '';
@@ -1222,9 +1222,9 @@ function showLogin(msg = '') {
 }
 // A fallback credential grants only this short-lived change step, never an app session.
 function showTemporaryPassword(token) {
-  root.innerHTML=`<div class="login"><form><div>${BRAND}<h1>Choose your own password</h1><p>Your temporary password cannot open Kinetta. Choose a different password to finish recovery. This step expires after ten minutes.</p></div><label>New password<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><label>Repeat new password<input name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><p class="err" role="alert"></p><button class="primary">Save new password</button><button type="button" class="linkbtn" id="temp-cancel">Back to sign in</button></form></div>`;
+  root.innerHTML=`<div class="login"><form><div>${BRAND}<h1>Choose your own password</h1><p>Your temporary password cannot open Kinetta. Choose a different password to finish recovery. This step expires after ten minutes.</p></div><label>New password<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><label>Repeat new password<input name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><p class="err" role="alert"></p><button type="submit" class="primary">Save new password</button><button type="button" class="linkbtn" id="temp-cancel">Back to sign in</button></form></div>`;
   const f=$('form',root);$('#temp-cancel',f).onclick=()=>showLogin();f.elements.password.focus();
-  f.onsubmit=async e=>{e.preventDefault();const b=$('button',f),err=$('.err',f);if(b.disabled)return;if(f.elements.password.value!==f.elements.confirm.value){err.textContent='The passwords do not match.';return;}b.disabled=true;err.textContent='';
+  f.onsubmit=async e=>{e.preventDefault();const b=$('button[type=submit]',f),err=$('.err',f);if(b.disabled)return;if(f.elements.password.value!==f.elements.confirm.value){err.textContent='The passwords do not match.';return;}b.disabled=true;err.textContent='';
     try {await api('/api/password/temporary',json('POST',{change_token:token,password:f.elements.password.value,password_confirm:f.elements.confirm.value}));if(f.isConnected)showLogin('Password changed. Sign in with your new password.');}
     catch(x){if(f.isConnected){err.textContent=x.message;b.disabled=false;}}
   };
@@ -1499,7 +1499,7 @@ async function showReset(token) {
   const f = $('form', root); f.password.focus();
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const b = $('button', f), err = $('.err', f);
+    const b = $('button[type=submit]', f), err = $('.err', f);
     if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; return; }
     b.disabled = true; err.textContent = '';
     try { await api('/api/password/reset', json('POST', {token, password: f.password.value})); if(!active())return;forgetKept(); backToLogin('Password changed. Log in with your new password.'); }
