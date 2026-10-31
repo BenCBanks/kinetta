@@ -126,7 +126,9 @@ jobs:
         env:
           KINETTA_URL: http://localhost:8798
           KINETTA_PROJECT: kinettatest
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/activity_detail_ui.cjs
+        run: |
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/activity_detail_ui.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/notification_edit_ui.cjs
       - name: Check compact lifting logger and exercise history (fictional accounts)
         env:
           KINETTA_URL: http://localhost:8798

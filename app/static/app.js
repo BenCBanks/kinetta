@@ -454,6 +454,7 @@ function sheet(title, html, onMount, opts = {}) {
   // the top (like iOS sheets). Touch events with preventDefault, because pointer events are cancelled once iOS
   // decides the finger is scrolling. Mouse: drag the grab bar / header.
   const sh = $('.sheet', s);   // the sheet itself is the scroll container
+  sh.requestClose=()=>{close();return closing;};
   let ty = null, dy = 0, dragging = false, fromTop = false;
   const settle = (shut) => { if (shut) { close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
   sh.addEventListener('touchstart', (e) => {
@@ -577,6 +578,19 @@ function pagePosition(key) {
   App.page={key,owner};
   return App.scroll[key]||0;
 }
+// A route may consume a one-time query without replacing its already mounted view.
+// Keep readiness and saved scroll keyed to that same view's canonical address.
+function replacePageAddress(el,href) {
+  if(!el.isConnected||el!==$('#page'))return false;
+  history.replaceState(history.state,'',href);
+  el._renderKey=location.pathname+location.search;
+  if(App.page?.owner===readOwner())App.page.key=el._renderKey;
+  return true;
+}
+function closeActivityEditor() {
+  const editor=$('#e-form')?.closest('.sheet');
+  return !editor||editor.requestClose?.()===true;
+}
 function render() {
   if (!App.me) return;
   App.pageReady = false;
@@ -594,6 +608,7 @@ function render() {
     `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
+  const current=()=>el.isConnected&&(el._renderKey||key)===location.pathname+location.search;
   el.dataset.area = activeTab;
   if (typeof Track !== 'undefined') Track.sync();
   // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab fades it in.
@@ -604,11 +619,11 @@ function render() {
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
   const result=page.fn(el,...m.slice(1));
   if(typeof KitChat!=='undefined')KitChat.entry(el,path);
-  requestAnimationFrame(()=>{if(el.isConnected&&key===location.pathname+location.search&&!touched)window.scrollTo(0,targetY);});
+  requestAnimationFrame(()=>{if(current()&&!touched)window.scrollTo(0,targetY);});
   return Promise.resolve(result).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
-    requestAnimationFrame(() => { if(el.isConnected&&key===location.pathname+location.search&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (el.isConnected && key === location.pathname + location.search) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
+    if (current()) { App.pageReady = true; if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {

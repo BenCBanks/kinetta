@@ -77,6 +77,10 @@ jobs:
       - run: npm ci
       # copies app/static into the app and writes the native project's plugin list
       - run: npm run sync
+      - name: Test compatible saved-workout notification destinations
+        run: |
+          swiftc ios/App/App/NativePush.swift tests/notification/main.swift -o "$RUNNER_TEMP/notification-path-tests"
+          "$RUNNER_TEMP/notification-path-tests"
       - name: Test the durable Health queue
         run: |
           swiftc ios/App/App/HealthSyncState.swift tests/main.swift -o "$RUNNER_TEMP/health-state-tests"

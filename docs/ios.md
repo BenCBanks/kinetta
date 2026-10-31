@@ -270,3 +270,19 @@ Scheduled/manual release eligibility and upload behavior are unchanged. The next
 owner-authorized TestFlight build still needs reviewer confirmation of the stamped
 bundle; unsigned CI success does not establish upload or tester availability.
 See [development and updates](development-and-updates.md).
+
+
+## Saved-workout notification editing
+
+New app bundles prefer a saved-workout push's optional `edit_url` only when it is
+the exact legacy `/activity/<id>` destination plus `?edit=1`. Older installed apps
+continue to receive the bare `url` and open normal detail until upgraded. Other
+notification destinations stay unchanged. The JavaScript client accepts only that
+exact new query on an own-activity path, keeps the account/server checks, and the
+own-data endpoint decides whether the editor may open. Closing leaves detail; the
+consumed parameter is removed before opening so reload does not reopen it.
+
+Foundation destination tests run in the unsigned build job. Browser tests exercise
+the real native JavaScript with a bridge stand-in and actual owner/friend APIs;
+these do not establish physical APNs delivery. Activity-photo thumbnails remain a
+separate extension follow-up.
