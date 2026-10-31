@@ -49,3 +49,6 @@
  .plan-overview .pweek > summary { flex-wrap:wrap; }
  .plan-overview .pweek > summary::after { margin-left:auto; }
 }
+
+.plan-summary-facts { display:flex; flex-wrap:wrap; gap:2px 10px; }
+.plan-summary-facts > span { white-space:nowrap; }
