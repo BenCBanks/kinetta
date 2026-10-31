@@ -272,7 +272,7 @@ function meInsights(box, s) {
   }
   const chips = [s.day_streak > 1 ? `<span class="achievement">${svg('flame')}${s.day_streak}-day streak</span>` : '', s.week_streak > 1 ? `<span class="achievement">${svg('trophy')}${s.week_streak}-week streak</span>` : ''].join('');
   box.innerHTML = `<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows>${rows.join('')}</div><div data-insight-more></div>${chips ? `<div class="achievement-row">${chips}</div>` : ''}
-    <a class="mileage-progress" href="/progress?view=training">View progress ${svg('chev')}</a></section>`;
+    <a class="mileage-progress" href="/progress">View progress ${svg('chev')}</a></section>`;
   // Runners also get recent bests and a pace trend, read from the same records the Progress pages use.
   if (!(s.years || []).some(y => y.sport === 'run')) return;
   const more = $('[data-insight-more]', box), month = d => fdate(d, {month: 'short', day: 'numeric'}), parts = {};

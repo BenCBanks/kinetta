@@ -14,7 +14,7 @@
 .nutrition-start svg { flex:none; width:18px; height:18px; }
 .nutrition-day-summary { position:relative; padding:0; }
 .nutrition-summary-link { display:block; padding:12px; border-radius:inherit; color:inherit; text-decoration:none; }
-.nutrition-summary-link .nutrition-summary { padding-right:44px; margin-bottom:6px; }
+.nutrition-summary-link .nutrition-summary { padding-right:102px; margin-bottom:6px; }
 .nutrition-summary-link .hero-num { font-size:1.875rem; }
 .nutrition-summary-link .hero-num i { font-size:.875rem; }
 .nutrition-summary-link > .track,.nutrition-summary-link .macro .track { width:100%; max-width:none; background:var(--card2); height:8px; border-radius:999px; overflow:hidden; }
@@ -23,7 +23,7 @@
 .nutrition-summary-link .macro-line { font-size:.875rem; }
 .nutrition-other-macros { display:flex; align-items:center; flex-wrap:wrap; gap:0 4px; margin-top:8px; font-size:.8125rem; }
 .nutrition-other-macros svg { width:14px; height:14px; margin-left:auto; }
-.nutrition-goals { position:absolute; right:8px; top:8px; background:var(--card2); border-radius:50%; }
+.nutrition-home .nutrition-goals { font-size:max(15px,.9375rem); display:inline-flex; align-items:center; justify-content:center; gap:6px; height:44px; font-weight:500; border:1px solid var(--line); position:absolute; right:8px; top:8px; background:var(--card2); border-radius:999px; min-height:44px; padding-inline:10px; }
 .nutrition-body-prompt { display:block; margin:6px 0 10px; font-size:.8125rem; }
 .nutrition-home .meal { padding:6px 12px; margin-bottom:10px; }
 .nutrition-home .meal > h2 { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-height:44px; margin:0; font-size:1rem; }
@@ -37,7 +37,7 @@
 .nutrition-home .meal .fe small { font-size:.8125rem; }
 .nutrition-home .meal .meal-calories { white-space:nowrap; flex:none; }
 .nutrition-home .meal .meal-calories b,.nutrition-home .meal .meal-calories small { display:inline; }
-.nutrition-detail .top { display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:8px; }
+.nutrition-detail .top { display:grid; grid-template-columns:max-content minmax(0,1fr) auto; gap:8px; }
 .nutrition-detail .top h1 { font-size:1.5rem; }
 .nutrition-detail .top .acts { flex-wrap:nowrap; }
 .nutrition-detail .progress-filters { justify-content:flex-end; margin-bottom:10px; }
@@ -52,3 +52,5 @@
   .progress-grid .progress-tile-name .progress-new.seen { display:none; }
   .progress-grid .progress-tile .small { display:block; -webkit-line-clamp:unset; }
 }
+
+.nutrition-home .nutrition-goals > svg { flex:none; width:18px; height:18px; }
