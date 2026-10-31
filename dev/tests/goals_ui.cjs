@@ -25,7 +25,7 @@ const ready=p=>until(p,()=>App.pageReady,'View did not settle');
    await p.goto(base+'/food');await ready(p);await p.locator('#fd-goal').waitFor();
    assert.match(await p.locator('#fd-goal').getAttribute('aria-label'),/goals/i);
    assert.equal((await p.locator('#fd-goal').innerText()).trim(),'Goals');
-   const control=await p.locator('#fd-goal').boundingBox();assert(control.width>=44&&control.height>=44);
+   const control=await p.locator('#fd-goal').boundingBox();assert(control.width>control.height&&Math.abs(control.height-44)<1,'Goals is an inline44px action');const parts=await p.locator('#fd-goal').evaluate(n=>{const a=n.querySelector('svg').getBoundingClientRect(),b=n.querySelector('span').getBoundingClientRect();return {icon:{x:a.x,y:a.y,w:a.width,h:a.height},label:{x:b.x,y:b.y,w:b.width,h:b.height}};});assert(parts.icon.w===18&&parts.icon.h===18,'bounded target icon');assert(parts.label.x>=parts.icon.x+parts.icon.w+5,'Goals label follows icon');assert(Math.abs(parts.label.y+parts.label.h/2-parts.icon.y-parts.icon.h/2)<1,'icon and label aligned');
    await open();
    const sheet=p.locator('.sheet[aria-label="Goals"]');
    // The four everyday goals are visible together without opening anything, with full labels inside the sheet.
