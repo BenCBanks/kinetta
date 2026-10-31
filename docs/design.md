@@ -1608,3 +1608,18 @@ Friends leads with one search, incoming requests and the owner's list. Search fi
 A shared Back policy records only local app destinations in account-scoped browser history. A page names the actual prior app page when known, or its explicit parent for a direct/unknown entry. Replace, Back/Forward and reload preserve truthful labels; authentication pages, a different account and transient full-map duplicates cannot supply a return destination. Both floating and sticky activity controls get the same accessible name and action. Missing-record screens retain the declared parent and shared named return; an unregistered source URL cannot supply a destination from its prefix alone. The existing coarse-pointer map helper already hides zoom buttons while keeping pinch, full screen and credits; mouse zoom controls remain. Route/friendship logic, privacy, notifications, map providers and page calculations are unchanged.
 
 Pure policy/DOM/escaping checks and real browser regressions cover phone/themes/enlarged text, source-aware returns, history/account boundaries, request confirmation, search races/retry and touch/mouse maps. GPS and providers are stand-ins. Physical VoiceOver, keyboard animation and device gestures remain separate acceptance. The route audit is in `docs/navigation-review.md`.
+
+## Track pills and measured title spacing · 31 October 2026
+
+Quick activities reuse the Me card's sport SVGs and keep their labels in one scrolling row beside More. Quick,
+More and recording controls share44px height, rounded borders, horizontal padding and Sky Blue selection. Recording
+settings use the lighter divider border and quieter text; at390px the ordinary Intervals label stays whole beside
+voice/auto-pause. Long preset names shorten inside their pill while retaining the full accessible label and title.
+At330px with enlarged text the recording pills can use separate single-line rows. The global me-chip style stays.
+
+Main's five titles already align within one pixel in both themes with0 and59px simulated top safe areas. Their
+bounding boxes start16.53–17.5px below that inset. Native automatic content insets are already disabled, so no extra
+40–50px CSS band or double inset was reproduced. Shared shell padding and native inset configuration therefore need
+no change on that evidence; the physical owner observation remains a separate check. Regression checks retain the
+activity-detail map hero under the status area. The More picker already has the same sport icons; the GPS badge
+remains a distinct, readable map overlay. Recording, settings, privacy and other launch tools keep their behavior.

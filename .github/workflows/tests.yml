@@ -60,6 +60,7 @@ jobs:
       - name: Check Track launch controls and map gestures (fictional accounts)
         run: |
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/track_home_ui.cjs
+          KINETTA_PROJECT=kinettatest NODE_PATH=/tmp/card-browser/node_modules node dev/tests/top_chips_ui.cjs
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/track_ready_map_ui.cjs
       - name: Check Activity social tools and card reuse (fictional accounts)
         env:

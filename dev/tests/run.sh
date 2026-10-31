@@ -53,6 +53,7 @@ node dev/tests/test_plan_preparation.js
 node --check dev/tests/plan_ui.cjs
 node --check dev/tests/recipes_compact_ui.cjs
 node dev/tests/test_track.js
+node --check dev/tests/top_chips_ui.cjs
 node dev/tests/test_track_review.js
 node dev/tests/test_lift_summary.js
 node dev/tests/test_lift_lifecycle.js
