@@ -1654,3 +1654,15 @@ Single-activity pictures are unchanged. Sport breakdown and previous-period comp
 response has only the top sport and selected-period totals; this visual change adds no API reads or new statistics.
 
 Owner follow-up31October: period and Include controls keep44px hit areas with36px visible faces,15px medium text at default and8px gaps between hit areas. Unavailable Streak remains legible and explains its two-active-week requirement on tap. The preview has no content-card padding because it is the rendered picture, inside the18px padded sheet. At ordinary390px it grows beyond the former two-column preview while controls and Share remain reachable; enlarged text scrolls naturally.
+
+## Fitness prediction sources and spacing (31 October 2026, #416 part2)
+
+Predictions keep their existing calculated time, pace and comparison with the person's recorded best. A complete
+identical effort (activity, full timestamp, distance, elapsed time and label) is linked once below the heading;
+mixed sources and incomplete cached provenance retain each prediction's source. The API preserves source distance
+and elapsed time already produced by the algorithm, without changing its calculations or account scope.
+The grouped prediction grid uses16px outer padding,8px row gaps,12px columns and20–24px default times. At narrow
+large-text widths, entries use one column so full times remain visible. Green still means a prediction beats the
+recorded best. Source and help controls retain44px targets; the caveat and collapsed method remain. Current before
+captures already show Running fitness and VDOT on the first screen, so their structure, numbers, charts and caveats
+need no change. Chart inspection and existing year filtering stay available.
