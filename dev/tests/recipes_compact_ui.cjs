@@ -20,7 +20,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const name=`${state}-${size.width}-${theme}`;if(process.env.KINETTA_RECIPE_CASE&&process.env.KINETTA_RECIPE_CASE!==name)continue;
    const {c,p,errors,writes}=await open(state,theme,size);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
    if(['empty','typical','heavy'].includes(state)){
-    assert.equal(await p.locator('h1').innerText(),'Recipes & foods');assert.equal(await p.locator('.top .back').innerText(),'Nutrition');assert.equal(await p.locator('#tm-filter').count(),state==='heavy'?1:0);assert.equal(await p.locator('#tm-dish,#tm-link,#tm-food').count(),0,'create actions live under New');
+    assert.equal(await p.locator('h1').innerText(),'Recipes & foods');assert.equal(await p.locator('#tm-describe').innerText(),'Log food','existing food entry shortcut retained');assert.equal(await p.locator('.top .back').innerText(),'Nutrition');assert.equal(await p.locator('#tm-filter').count(),state==='heavy'?1:0);assert.equal(await p.locator('#tm-dish,#tm-link,#tm-food').count(),0,'create actions live under New');
     for(const b of await p.locator('#tm-new,[data-log-dish],[data-edit-food]').all()){const r=await b.boundingBox();assert(r.height>=44&&r.width>=44,'44px actions');}
     if(state==='typical'){
      assert.equal(await p.locator('[data-dish]').count(),3);assert.equal(await p.locator('[data-i]').count(),2);assert(!/kcal total/.test(await p.locator('#library-recipes').innerText()),'known yields consistently use server per-serving values');
