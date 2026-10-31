@@ -607,7 +607,7 @@ function drawDetail(el, a) {
   if (!pane.overview.trim()) pane.overview = '<div class="card empty">No additional details were recorded.</div>';
   const bars=ActivityDetail.header(a);el.classList.add('activity-detail');
   const recorded=[a.sport_label,a.device].filter(Boolean).map(esc).join(' · ');
-  pane.overview=`${a.description?`<div class="card"><p class="desc">${esc(a.description)}</p></div>`:''}${recorded?`<p class="small muted">${recorded}</p>`:''}${pane.overview}<div class="card" id="d-photo-actions">${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div id="d-photos"></div></div>`;
+  pane.overview=`${a.description?`<div class="card"><p class="desc">${esc(a.description)}</p></div>`:''}${recorded?`<p class="small muted">${recorded}</p>`:''}${pane.overview}<div class="card" id="d-photo-actions">${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div class="detail-owner-tools"><div id="d-photos"></div><button type="button" class="linkbtn" id="d-comment-open">Comment</button></div></div>`;
   el.innerHTML=`${a.line?`<div class="detail-map-hero map-head">${activityMedia(a,{mapId:'d-map',detail:true,full:true,compact:true})}${bars.floating}</div>${bars.sticky}`:bars.floating}${ActivityDetail.title(a,hero)}${!a.line&&a.photos?.length?activityMedia(a,{mapId:'d-map',detail:true,compact:true}):''}${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}${activityTabs(pane)}`;
   let drawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; } });
@@ -616,6 +616,7 @@ function drawDetail(el, a) {
   const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   if(a.has_intervals)globalThis.Intervals?.history($('#activity-interval-history',el),a.id);
   ownSocial(el, a);
+  $('#d-comment-open',el).onclick=()=>commentsSheet(a.id,SocialData.peek(a.id),()=>{});
   photoStrip($('#d-photos', el), a, true, {controlsOnly: true, afterChange: () => render()});
   wireActivityMedia(el);
   if (a.lifts) fillLiftCard(el, a);

@@ -37,5 +37,5 @@ for i,(kind,sport,label) in enumerate([('run','run',None),('treadmill','run','Tr
 r=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],input='\n'.join(sql),text=True,capture_output=True);assert r.returncode==0,r.stderr
 ok(friend.post('/api/friends',{'login':'zz_test_detail_owner'}));ok(owner.post('/api/friends/zz_test_detail_friend/accept'))
 if os.environ.get('KINETTA_DETAIL_IDS'):Path(os.environ['KINETTA_DETAIL_IDS']).write_text(json.dumps(ids))
-print(json.dumps(ids))
 print('Fictional run/HR/route, treadmill, ride, lifting, sparse and friend-view fixture ready')
+print(json.dumps(ids))
