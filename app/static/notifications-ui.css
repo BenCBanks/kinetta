@@ -17,3 +17,6 @@
 .notification-settings .notification-phone-action { display:flex; justify-content:center; margin-top:8px; }
 .notification-settings .notification-phone-action button { font-size:max(15px,.9375rem); }
 .notification-settings [data-meal-status]:empty { display:none; }
+
+/* Keep the complete title readable on a narrow screen when text is enlarged. */
+@media (max-width:370px) { .notification-settings > h1 { font-size:max(28px,1.5rem); overflow-wrap:normal; } }
