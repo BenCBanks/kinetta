@@ -510,7 +510,8 @@ function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
   const from = location.pathname;
-  const nav=BackNavigation.transition(history.state,location.pathname+location.search,path,readOwner(),{replace});
+  const fromKnown=App.pages.some(p=>p.re.test(location.pathname.replace(/\/+$/, '')||'/me'));
+  const nav=BackNavigation.transition(history.state,location.pathname+location.search,path,readOwner(),{replace,fromKnown});
   if(nav)history.replaceState(nav.current,'',location.href);
   history[replace ? 'replaceState' : 'pushState'](nav?nav.next:null, '', path);
   slide(replace ? null : 'push', from);
@@ -613,8 +614,9 @@ function render() {
 function showError(el, e) {
   if (e && e.status === 401) return;
   if (e && e.status === 404) {
-    const href = location.pathname.startsWith('/people/') ? '/me/friends' : location.pathname.startsWith('/activity/') ? '/activity' : '/me';
-    el.innerHTML = `<div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p><a class="ghost wide" href="${href}">Go back</a></div>`; return;
+    const href = el._backFallback || (location.pathname.startsWith('/people/') ? '/me/friends' : location.pathname.startsWith('/activity/') ? '/activity' : '/me');
+    el.innerHTML = `<div class="top">${backBtn(BackNavigation.label(href))}</div><div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p></div>`;
+    wireBack(el,href); return;
   }
   el.innerHTML = `<div class="boot"><p>${esc(e && e.message || 'Something went wrong')}</p><button class="ghost" id="retry">Try again</button></div>`;
   $('#retry', el).onclick = () => { invalidate('/api/'); render(); };

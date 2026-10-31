@@ -88,6 +88,7 @@ const backBtn = (label = 'Me') => `<button class="back" data-back>${svg('back')}
 IC.settings = '<path d="m9 3-.6 2.3-2 .9-2.2-.6-1.5 2.6 1.6 1.7-.2 2.2-1.7 1.6 1.5 2.6 2.3-.6 1.8 1.3.5 2.3h3l.6-2.3 2-.9 2.2.6 1.5-2.6-1.6-1.7.2-2.2 1.7-1.6-1.5-2.6-2.3.6-1.8-1.3L12 3z"/><circle cx="10.5" cy="11" r="3"/>';
 function wireBack(el, fallback) {
   el.classList.add('has-back');
+  el._backFallback=fallback; // Keep the page's parent if a missing-record response replaces its header.
   const owner=readOwner(),destination=BackNavigation.destination(history.state,location.pathname+location.search,fallback,owner,{historyLength:history.length});
   $$('[data-back]',el).forEach(button=>{
     button.innerHTML=`${svg('back')}<span>${esc(destination.label)}</span>`;button.setAttribute('aria-label','Back to '+destination.label);

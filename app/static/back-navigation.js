@@ -27,9 +27,9 @@ const BackNavigation=(()=>{
   if(validRef(m,owner)&&new URL(m.path,origin()).pathname===new URL(here,origin()).pathname)return {...m,path:here,from:validRef(m.from,owner)?m.from:null};
   return {id:id(),owner,path:here,from:null};
  }
- function transition(state,current,next,owner,{replace=false}={}){
+ function transition(state,current,next,owner,{replace=false,fromKnown=true}={}){
   const currentEntry=entry(state,current,owner),to=path(next);if(!currentEntry||!to)return null;
-  const from=replace?currentEntry.from:appPath(currentEntry.path)?{id:currentEntry.id,owner,path:currentEntry.path}:null;
+  const from=replace?currentEntry.from:fromKnown&&appPath(currentEntry.path)?{id:currentEntry.id,owner,path:currentEntry.path}:null;
   return {current:{...(state&&typeof state==='object'?state:{}),[field]:currentEntry},next:{[field]:{id:id(),owner,path:to,from}}};
  }
  function destination(state,current,fallback,owner,{historyLength=1}={}){
