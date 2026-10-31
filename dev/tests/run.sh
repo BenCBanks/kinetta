@@ -123,6 +123,7 @@ node dev/tests/test_thread_outbox.js
 node dev/tests/test_food_send_recovery.js
 node dev/tests/test_food_chat_viewport.js
 node dev/tests/test_food_review_strip.js
+node --check dev/tests/food_entry_ui.cjs
 node dev/tests/test_pending_food_nutrition.js
 node dev/tests/test_thread_privacy.js
 node dev/tests/test_quick_food_visit.js

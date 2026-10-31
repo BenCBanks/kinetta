@@ -1563,3 +1563,11 @@ contexts keep their current variant.
 Refreshing social-tool facts does not replace feed cards. Unchanged card and map nodes survive revalidation and
 pagination. Preserve the five tabs, Sky Blue, enlarged text and existing comment drafts/keyboard dismissal. Rendered
 fictional-account checks do not establish physical VoiceOver or iPhone gesture acceptance.
+
+## Compact Add food · 30 October 2026 (#389)
+
+Unlogged draft foods use a compact name/macros/calories row and a 44px amount-control row, retaining source and explicit removal. Tapping an amount opens the existing amount editor directly. Household portions read naturally when their source unit is known; complex serving descriptions remain explicit, without inventing a weight. Unknown nutrients remain unknown, and reported zeros remain zero.
+
+The sticky review strip is the single total for complete draft foods. Incomplete and logged/legacy cards retain their honest totals. The four initial shortcuts collapse into the existing plus menu after a conversation begins; camera, photo, barcode, recipes and search remain reachable. Message menus keep Correct in chat and Delete message text, beside a compact review caption. Empty entry uses one introductory line. Barcode serving/source share a subtitle, with the unit toggle beside the amount controls where it fits. Full nutrition and More nutrients remain.
+
+No prompt, model, clarification, nutrition calculation, source validation, confirmation or account/day rules change. Keyboard dismissal retains drafts, normal controls and focus visibility; no accessory Done bar. Narrow/large text may wrap instead of clipping controls or source details. Physical keyboard animation/camera/barcode scanning remain device acceptance, separate from browser and native-idle stand-in checks.

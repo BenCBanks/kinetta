@@ -725,16 +725,16 @@ function amountSheet(f, w, closeParent, onEditFood) {
   const title = br && nm && !nm.toLowerCase().includes(br.toLowerCase().split(',')[0].trim()) ? `${br.split(',')[0].trim()} ${nm}` : nm || br || 'Food';
   // a recent food without a database entry only knows the unit it was logged in: no made-up serving size, no other units
   const plain = f._plain || (f._unit && !f.per100);
-  const sub = !plain && f.serving && f.serving.label ? `1 serving = ${f.serving.label}${f.serving.g && !/\d\s*g\b/.test(f.serving.label) ? ` (${r1(f.serving.g)} g)` : ''}` : '';
+  const sub = !plain && f.serving && f.serving.label ? `${f.serving.label}${f.serving.g && !/\d\s*g\b/.test(f.serving.label) ? ` (${r1(f.serving.g)} g)` : ''}` : '';
   const units = plain ? [startUnit] : unitList(f.per100 || f.per_serving ? f : null, startUnit).map(([k]) => k);
   const uName = (u) => (u === 'serving' ? 'Servings' : u === 'g' ? 'Grams' : u.charAt(0).toUpperCase() + u.slice(1));
   sheet(title, `<form class="form" id="am">
-    ${sub ? `<p class="am-sub">${esc(sub)}</p>` : ''}${nutrientSource(f)?`<p class="small muted">Source: ${esc(nutrientSource(f))}</p>`:''}
-    <div class="am-amt"><button type="button" class="icon-btn" data-step="-1" aria-label="Less">${svg('minus')}</button>
-      <label><input name="amount" inputmode="decimal" value="${r1(startAmt)}" aria-describedby="am-u"><small id="am-u">${esc(uName(startUnit))}</small></label>
+    ${sub||nutrientSource(f)?`<p class="am-sub small muted">${[sub,nutrientSource(f)].filter(Boolean).map(esc).join(' · ')}</p>`:''}
+    <div class="am-control-row"><div class="am-amt"><button type="button" class="icon-btn" data-step="-1" aria-label="Less">${svg('minus')}</button>
+      <label><input name="amount" inputmode="decimal" value="${r1(startAmt)}" aria-label="Amount" aria-describedby="am-u"><small id="am-u"${units.length>1?' class="vh"':''}>${esc(uName(startUnit))}</small></label>
       <button type="button" class="icon-btn" data-step="1" aria-label="More">${svg('plus')}</button></div>
     <input type="hidden" name="unit" value="${esc(startUnit)}">
-    ${units.length > 1 ? `<div class="seg wide am-units" role="group" aria-label="Unit">${units.map((u) => `<button type="button" data-unit="${esc(u)}" aria-pressed="${u === startUnit}">${esc(uName(u))}</button>`).join('')}</div>` : ''}
+    ${units.length > 1 ? `<div class="seg wide am-units" role="group" aria-label="Unit">${units.map((u) => `<button type="button" data-unit="${esc(u)}" aria-pressed="${u === startUnit}">${esc(uName(u))}</button>`).join('')}</div>` : ''}</div>
     <div class="macpreview" id="am-p"></div>
     <div class="actions">${onEditFood ? '<button type="button" class="ghost" id="am-edit">Edit food</button><span class="spacer"></span>' : ''}<button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,owner);

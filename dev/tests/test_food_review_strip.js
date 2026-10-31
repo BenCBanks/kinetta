@@ -58,8 +58,20 @@ vm.runInContext(source.slice(source.indexOf('  const nutritionAttr='),source.ind
 vm.runInContext(source.slice(source.indexOf('  function previewRows('),source.indexOf('  const pendingReview=')),c);
 const removable={index:0,status:'ready',entries:[{name:'Mayonnaise <test>',kcal:25}],drafts:[{portion:{count:.25}}],entry_drafts:[0],remove_entries:[0],remove_token:'a'.repeat(64)};
 const rows=c.previewRows(root,{parts:[removable]});
-const removedHtml=c.stepRow(rows[0]);assert.match(removedHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(removedHtml,/>Remove<\/button>/);
+const removedHtml=c.stepRow(rows[0]);assert.match(removedHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(removedHtml,/class="icon-btn thread-remove"/);assert(!removedHtml.includes('>Remove</button>'));
 assert.match(removedHtml,/data-step="-1"/);assert.match(removedHtml,/data-remove-food=/);
 ctx.messages=[user(1),reply(1,[])];c.primary(ctx);assert.equal(nodes['#thread-review'].hidden,true);
 assert.equal(c.previewRows({result:{review_only:false}},{parts:[removable]}),null,'logged/legacy rows cannot expose removal');
 console.log('estimate removal: named explicit action, portion controls retained, final-food review hidden PASS');
+
+// Current draft foods use the sticky review total; logged/legacy and incomplete cards keep their own honest total.
+c.fmtAmount=e=>`${e.amount} ${e.unit}`;
+for(const [label,amount,want] of [['1',2,'2 servings'],['1 estimated portion',2,'2 estimated portions'],['1 bottle',1,'1 bottle'],['1 bottle',2,'2 bottles'],['1 hot dog',2,'2 hot dogs'],['1 slice (30 g)',2,'2 servings · 1 slice (30 g) each']])assert.equal(c.threadAmount({amount,unit:'serving',ref:{serving:{label}}}),want);
+assert.equal(c.threadAmount({amount:150,unit:'g'}),'150 g');
+for(const kcal of [0,120]){
+ const entry={name:'Fictional food',amount:1,unit:'serving',kcal},result={kind:'preview',parts:[{index:0,status:'ready',estimated:true,entries:[entry]}]};
+ const html=c.replyHtml(root,{entries:[],result});assert(!html.includes('thread-total'));assert(html.includes('Review before logging'));assert.equal((html.match(/data-more /g)||[]).length,1);assert(html.includes('data-amount-editor'));
+ assert(c.replyHtml({id:1,state:'answered',result:{review_only:false}},{entries:[],result}).includes('thread-total'));
+}
+const incomplete=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Unknown',amount:1,unit:'serving',kcal:null}]}]}});assert(incomplete.includes('Incomplete'));
+console.log('compact drafts: one sticky total, honest incomplete/legacy totals, one message menu, direct amount action and natural source portions PASS');
