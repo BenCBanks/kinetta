@@ -3,9 +3,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const source=fs.readFileSync('app/static/lift.js','utf8');
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
-function harness({imperial=false}={}) {
-  const elements=new Map(),timers=new Map(),disk=new Map(),requests=[],summaries=[],navigation=[],notices=[];
-  let owner='session-a',number=0,held=null,failFinish=false,failDelete=false;
+function harness({imperial=false,sets=[{kg:null,reps:null,done:false}]}={}) {
+  const elements=new Map(),timers=new Map(),disk=new Map(),requests=[],summaries=[],navigation=[],notices=[],undos=[];
+  let owner='session-a',number=0,held=null,failFinish=false,failDelete=false,failSave=false;
   function node(id='') {return {id,isConnected:true,disabled:false,innerHTML:'',textContent:'',hidden:false,value:'',placeholder:'',dataset:{},classList:{toggle(){},add(){},remove(){}},setAttribute(){},focus(){},select(){},contains(){return false;},scrollIntoView(){},closest(){return null;},insertAdjacentHTML(){}};}
   const el=node('page'),list=node('lf-list'),card=node('card'),row=node('row');
   card.dataset.i='0';
@@ -15,16 +15,16 @@ function harness({imperial=false}={}) {
   elements.set('#lf-list',list);for(const id of ['#lf-save','#lf-time','#lf-restbox','#lf-rest','#lf-finish','#lf-done','#lf-add','#lf-discard','#ff-yes','#ld-keep','#ld-del'])elements.set(id,node(id));
   const $=(q,root)=>q==='[data-addset]'?add:q==='[data-exmenu]'?menu:elements.get(q)||null;
   const $$=(q,root)=>q==='.lift-ex'?[card]:q==='.lift-in'||q==='.lift-in[data-j="0"]'?[kg,reps]:q==='[data-tick]'?[tick]:q==='[data-prev]'?[prev]:q==='[data-set]'?[set]:q==='button,input'?[kg,reps,tick,prev,add,menu,elements.get('#lf-finish')]:[];
-  const ctx={console,Promise,Map,Date,JSON,Math,Number,String,Error,Set,location:{origin:'https://demo.invalid',pathname:'/track/lift/42',search:''},Native:{base:''},App:{me:{id:1},cache:new Map()},readOwner:()=>owner,store:{get:k=>disk.has(k)?JSON.parse(disk.get(k)):null,set:(k,v)=>disk.set(k,JSON.stringify(v)),del:k=>disk.delete(k)},
+  const ctx={console,Promise,Map,Date,JSON,Math,Number,String,Error,Set,location:{origin:'https://demo.invalid',pathname:'/track/lift/42',search:''},Native:{base:''},App:{me:{id:1},cache:new Map()},readOwner:()=>owner+':'+ctx.Native.base,store:{get:k=>disk.has(k)?JSON.parse(disk.get(k)):null,set:(k,v)=>disk.set(k,JSON.stringify(v)),del:k=>disk.delete(k)},
     $, $$, route(){},wireBack(){},backBtn(){return '';},svg(){return '';},esc:String,skel(){return '';},dur:String,fdate:()=>'',imp:()=>imperial,viewResources:new Map(),document:{activeElement:null,addEventListener(){},removeEventListener(){}},addEventListener(){},removeEventListener(){},localStorage:{getItem(){return null;}},
-    setTimeout:f=>{timers.set(++number,f);return number;},clearTimeout:n=>timers.delete(n),setInterval:()=>++number,clearInterval(){},invalidate(){},toast:t=>notices.push(t),go:p=>navigation.push(p),json:(method,b)=>({method,body:JSON.stringify(b)}),
-    sheet:(title,html,mount)=>{const body=node();ctx.dialog={title,html,body};mount(body,()=>{body.isConnected=false;});},pickSheet(){},
-    api:async(path,opts)=>{const body=opts.method==='DELETE'?{method:'DELETE'}:JSON.parse(opts.body);requests.push(body);if(held){const h=held;held=null;await h.promise;}if(body.method==='DELETE'){if(failDelete)throw Object.assign(Error('delete failed'),{status:503});return {ok:true};}if(body.finish&&failFinish)throw Object.assign(Error('offline'),{offline:true});return {open:!body.finish,start_time:'2026-10-29T10:00:00Z',exercises:body.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s,pr:[]})),last:null}))};}};
+    setTimeout:f=>{timers.set(++number,f);return number;},clearTimeout:n=>timers.delete(n),setInterval:()=>++number,clearInterval(){},invalidate(){},toast:(t,undo)=>{notices.push(t);if(undo)undos.push(undo);},go:p=>navigation.push(p),json:(method,b)=>({method,body:JSON.stringify(b)}),
+    sheet:(title,html,mount)=>{const body=node();ctx.dialog={title,html,body};mount(body,()=>{body.isConnected=false;});},pickRows:rows=>JSON.stringify(rows),pickSheet:(title,html,choose)=>{ctx.pick={title,html,choose};},
+    api:async(path,opts)=>{const body=opts.method==='DELETE'?{method:'DELETE'}:JSON.parse(opts.body);requests.push(body);if(held){const h=held;held=null;await h.promise;}if(body.method==='DELETE'){if(failDelete)throw Object.assign(Error('delete failed'),{status:503});return {ok:true};}if(!body.finish&&failSave)throw Object.assign(Error('offline'),{offline:failSave!=='server'});if(body.finish&&failFinish)throw Object.assign(Error('offline'),{offline:true});return {open:!body.finish,start_time:'2026-10-29T10:00:00Z',exercises:body.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s,pr:[]})),last:null}))};}};
   vm.createContext(ctx);vm.runInContext(source,ctx);ctx.liftSummary=(el,aid,r)=>summaries.push(r);
-  const data={open:true,start_time:'2026-10-29T10:00:00Z',exercises:[{exercise_id:7,name:'Bench',kind:'weight',sets:[{kg:null,reps:null,done:false}],last:{activity_id:3,start_time:'2026-10-20',sets:[{kg:60,reps:8}]}}]};
+  const data={open:true,start_time:'2026-10-29T10:00:00Z',exercises:[{exercise_id:7,name:'Bench',kind:'weight',sets:JSON.parse(JSON.stringify(sets)),last:{activity_id:3,start_time:'2026-10-20',sets:[{kg:60,reps:8}]}}]};
   ctx.liftLogger(el,42,data);
-  return {ctx,el,kg,reps,tick,prev,requests,summaries,navigation,notices,disk,elements,timers,
-    hold(){let resolve;held={promise:new Promise(r=>resolve=r)};return resolve;},failFinish:v=>failFinish=v,failDelete:v=>failDelete=v,changeOwner:()=>owner='session-b',
+  return {ctx,el,kg,reps,tick,prev,set,menu,add,requests,summaries,navigation,notices,undos,disk,elements,timers,
+    hold(){let resolve;held={promise:new Promise(r=>resolve=r)};return resolve;},failFinish:v=>failFinish=v,failDelete:v=>failDelete=v,failSave:v=>failSave=v,changeOwner:()=>owner='session-b',
     draft:()=>[...disk.values()].map(JSON.parse)[0],flush(){for(const [id,fn]of [...timers]){timers.delete(id);fn();}},cleanup(){for(const fn of ctx.viewResources.values())fn();}};
 }
 (async()=>{
@@ -79,5 +79,56 @@ function harness({imperial=false}={}) {
     const h=harness();const body=vm.runInContext("setsText([{reps:8,kg:10},{reps:6,kg:5}], 'body')",h.ctx);assert.equal(body,'8 +10, 6 +5 kg','varied weighted bodyweight sets do not duplicate weight as reps');
     const override=vm.runInContext("hasWeight({kind:'body',addWeight:false,sets:[],last:{sets:[{kg:10}]}})",h.ctx);assert.equal(override,false);h.cleanup();
   }
-  console.log('PASS lifting lifecycle: queued Finish, exact copied kg/lb, newer draft, account/server scope, failed Finish, navigation flush and bodyweight summaries');
+  const planned=[{kg:60,reps:8,warmup:false,done:true},{kg:42.5,reps:6,warmup:true,done:true},{kg:70,reps:5,warmup:false,done:false}];
+  {
+    const h=harness({sets:planned});h.set.dataset.set='1';h.set.onclick();
+    assert.match(h.ctx.pick.html,/Working set/);h.ctx.pick.choose('normal');await turn();
+    assert.equal(h.draft().data.exercises[0].sets[1].warmup,false);
+    h.set.onclick();h.ctx.pick.choose('wu');await turn();
+    assert.match(h.elements.get('#lf-list').innerHTML,/Set 2, warm-up. Actions" aria-haspopup="dialog"/);
+    h.set.onclick();h.ctx.pick.choose('del');await turn();assert.equal(h.draft().data.exercises[0].sets.length,2);assert.equal(h.notices.at(-1),'Set 2 deleted');
+    h.reps.value='11';h.reps.oninput();h.undos.at(-1)();await turn();
+    let sets=h.draft().data.exercises[0].sets;assert.deepEqual(sets.map(s=>s.reps),[11,6,5],'Undo restores one middle set, preserving newer edits and order');
+    assert.equal(sets[1].kg,42.5);assert.equal(sets[1].warmup,true);assert.equal(sets[1].done,true);
+    const count=h.requests.length;h.undos.at(-1)();await turn();assert.equal(h.requests.length,count,'Undo callback is single-use');h.cleanup();
+  }
+  {
+    const h=harness({sets:planned}),release=h.hold();h.set.dataset.set='1';h.set.onclick();h.ctx.pick.choose('del');await turn();
+    h.reps.value='12';h.reps.oninput();h.undos.at(-1)();await turn();assert.equal(h.requests.length,1,'Undo queues behind deletion');release();await turn();await turn();
+    assert.equal(h.requests.length,2);assert.deepEqual(h.requests.at(-1).exercises[0].sets.map(s=>s.reps),[12,6,5]);assert.equal(h.draft().unsent,false,'older acknowledgement never replaces restored/newer draft');h.cleanup();
+  }
+  {
+    const h=harness({sets:planned});h.failSave(true);h.set.dataset.set='1';h.set.onclick();h.ctx.pick.choose('del');await turn();h.reps.value='13';h.reps.oninput();h.undos.at(-1)();await turn();
+    assert.equal(h.draft().unsent,true);assert.deepEqual(h.draft().data.exercises[0].sets.map(s=>s.reps),[13,6,5],'offline Undo keeps every original and newer value');h.cleanup();
+  }
+  {
+    const h=harness();h.set.onclick();h.ctx.pick.choose('del');await turn();assert.equal(h.draft().data.exercises[0].sets.length,0);h.undos.at(-1)();await turn();assert.equal(h.draft().data.exercises[0].sets.length,1,'Undo can restore the only set');h.cleanup();
+  }
+  {
+    const h=harness({sets:planned});h.failSave('server');h.set.dataset.set='1';h.set.onclick();h.ctx.pick.choose('del');await turn();
+    assert.equal(h.notices.at(-1),'offline');assert.equal(h.undos.length,2,'server failure preserves Undo on the error toast');h.failSave(false);h.undos.at(-1)();await turn();assert.equal(h.draft().data.exercises[0].sets.length,3);assert.equal(h.draft().unsent,false);h.cleanup();
+  }
+  for(const both of [false,true]){
+    const h=harness({sets:planned});h.set.dataset.set='1';h.set.onclick();h.ctx.pick.choose('del');await turn();const undo=h.undos[0];
+    h.set.dataset.set='1';h.set.onclick();h.ctx.pick.choose('del');await turn();
+    if(both){h.set.dataset.set='0';h.set.onclick();h.ctx.pick.choose('del');await turn();}
+    h.add.onclick();undo();await turn();const sets=h.draft().data.exercises[0].sets;
+    assert.equal(sets.length,both?2:3);assert.equal(sets[both?1:1].kg,42.5);assert.equal(sets[both?0:2].reps,null,'newly added set survives neighbour fallback');h.cleanup();
+  }
+  for(const stale of ['owner','server','detached','cleanup','exercise','finishing','discard']){
+    const h=harness({sets:planned});h.set.dataset.set='1';h.set.onclick();h.ctx.pick.choose('del');await turn();
+    if(stale==='owner')h.changeOwner();if(stale==='server')h.ctx.Native.base='https://other.invalid';
+    if(stale==='detached')h.el.isConnected=false;
+    if(stale==='cleanup')h.cleanup();
+    if(stale==='exercise'){h.menu.onclick();h.ctx.pick.choose('del');await turn();}
+    let release;
+    if(stale==='finishing'){release=h.hold();h.elements.get('#lf-finish').onclick();h.elements.get('#ff-yes').onclick();await turn();}
+    if(stale==='discard'){h.elements.get('#lf-discard').onclick();release=h.hold();h.elements.get('#ld-del').onclick({target:h.elements.get('#ld-del')});await turn();}
+    const count=h.requests.length,undo=h.undos[0];undo();await turn();assert.equal(h.requests.length,count,stale+' cannot restore or save a deleted set');
+    release?.();await turn();await turn();h.cleanup();
+  }
+  {
+    const h=harness({sets:planned});h.set.onclick();const choose=h.ctx.pick.choose;h.menu.onclick();h.ctx.pick.choose('del');await turn();const count=h.requests.length;choose('wu');await turn();assert.equal(h.requests.length,count,'stale menu cannot edit a removed exercise');h.cleanup();
+  }
+  console.log('PASS lifting lifecycle: queued Finish, exact copied kg/lb, newer draft, account/server scope, failed Finish, navigation flush, bodyweight summaries and guarded set Undo');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -22,7 +22,10 @@
 .compact-lift .lift-row > .lift-in[data-k="reps"],.compact-lift .lift-row > .lh-reps { flex-basis:max(56px,2.65rem); }
 .compact-lift .lift-prev { font-size:max(13px,.8125rem); }
 .compact-lift .lift-row > .lift-prev,.compact-lift .lift-row > .lh-prev { flex-basis:64px; }
-.compact-lift .lift-n { outline:1px solid var(--line); text-decoration:underline; text-underline-offset:3px; }
+.compact-lift .lift-n { display:inline-flex; align-items:center; justify-content:center; gap:2px; padding:0; outline:1px solid var(--line); }
+.compact-lift .lift-n > svg { width:10px; height:10px; flex:none; }
+.compact-lift .lift-n:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.lift-set-actions,.lift-set-actions .pick-list { display:grid; gap:8px; }
 .compact-lift .lift-tick { width:44px; min-width:44px; height:44px; min-height:44px; border-radius:10px; }
 .compact-lift .lift-tick svg { width:18px; height:18px; }
 .compact-lift .lift-row > .lift-pr { margin:4px 0; font-size:max(13px,.8125rem); min-height:18px; }
