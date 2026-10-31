@@ -486,6 +486,9 @@ const Track = (() => {
   async function preparePlan(workout,planId,{active=()=>true,remember=true}={}){
     sync();const scope=accountKey(),revision=readOwner();
     if(!scope||!Number.isSafeInteger(planId)||planId<=0||!canPreparePlan(workout))throw Error('Open your plan and choose the workout again.');
+    if(!active())return null;
+    if(TrackNative.supported)await pullNative();
+    if(accountKey()!==scope||readOwner()!==revision||!active())return null;
     if(session)throw Error('Finish or discard your current recording before choosing a plan workout.');
     const current=()=>accountKey()===scope&&readOwner()===revision&&!session&&active();
     if(!current())return null;

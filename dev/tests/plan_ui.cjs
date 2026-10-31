@@ -1,7 +1,7 @@
 // Actual plan/Track code and fictional accounts; no GPS, Health or provider effects.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',people=['empty','future','week3','race','first'];
+const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',people=['empty','future','week3','race','first','paced'];
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'plan_fixture.py')],{env:process.env,stdio:'inherit'});
@@ -29,6 +29,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     for(const row of await rows.all()){const r=await row.boundingBox();if(await row.evaluate(n=>n.tagName==='BUTTON'))assert(r.height>=44,'workout touch target');else if(size.root===16)assert(r.height<=32,'slim rest day');}
     if(size.root===16){const nav=await p.locator('nav.tabs').boundingBox(),last=await rows.last().boundingBox();assert(last.y+last.height<nav.y,'summary, next and entire week above the tabs');}
     if(who==='week3'||who==='race'){assert(await current.locator('.pw-result svg').count()>0,'matched run checkmark');assert.match(await current.innerText(),/Missed/);const done=cur.workouts.find(w=>w.status==='done');assert.match(await current.innerText(),new RegExp(String(done.actual).replace('.','\\.')),'actual completed distance');}
+    if(who==='paced'){assert(d.vdot>0&&d.paces.easy);assert((await current.innerText()).includes(d.paces.easy[0].split('/')[0]),'server target pace shown');assert((await p.locator('.compact-plan-summary').innerText()).includes(await p.evaluate(n=>dur(n),d.plan.goal_s)),'supplied goal shown');}
     const next=d.today_workout&&d.today_workout.status!=='done'?d.today_workout:d.next_workout;assert.equal(await p.locator('.plan-next-workout b').innerText(),next.title);
     await p.locator('.plan-next-workout').click();await p.waitForSelector('#pw-done');assert.match(await p.locator('.sheet').innerText(),/What to do/i);assert.match(await p.locator('.sheet').innerText(),/Why/i);assert((await p.locator('.sheet').innerText()).includes(next.detail),'full coaching retained');await p.keyboard.press('Escape');
     const other=p.locator('.pweek').nth(1);await other.locator('summary').click();assert(await other.evaluate(n=>n.open));await p.evaluate(()=>render());await until(p,()=>!!document.querySelector('.plan-overview'),'rerender');assert(await p.locator('.pweek').nth(1).evaluate(n=>n.open),'chosen expansion survives rerender');
