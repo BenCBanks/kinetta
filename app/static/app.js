@@ -551,9 +551,11 @@ function quickWeighIn({afterSave}={}) {
   const owner = readOwner(), day = isoDay(new Date()), unit = imp() ? 'lb' : 'kg';
   sheet('Weigh in', `<form id="quick-weight" class="form"><p class="small muted">${esc(dayLabel(day))}</p><label>Weight (${unit})<input name="weight" inputmode="decimal" required value="${App.me.weight_kg ? esc(U.weight(App.me.weight_kg)) : ''}" aria-label="Today’s weight in ${unit}" enterkeyhint="done"></label><button class="primary wide">Save weight</button></form>`, (b,close) => {
     const f = $('#quick-weight',b), input = f.elements.weight; let touched = false;
-    input.oninput = () => { touched = true; }; input.focus();
+    input.oninput=input.onbeforeinput=input.onpointerdown=input.onkeydown=input.onselect=()=>{touched=true;};input.focus();
+    // Selecting an existing value starts editing before the first input event.
+    const selection=[input.selectionStart,input.selectionEnd];
     load('/api/food/weights/latest', W => {
-      if (!b.isConnected || touched || readOwner() !== owner) return;
+      if (!b.isConnected || touched || readOwner() !== owner || input.selectionStart!==selection[0] || input.selectionEnd!==selection[1]) return;
       const latest = W.points?.slice().sort((a,b)=>a.day.localeCompare(b.day)).at(-1);
       if (latest) input.value = U.weight(latest.kg);
     }).catch(()=>{});

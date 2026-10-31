@@ -1153,7 +1153,8 @@ function weightCard(box) {
         <button class="${had ? 'ghost' : 'primary'}">${had ? 'Update' : 'Log weight'}</button></form>
       <div class="wfoot"><label class="linkbtn daypick">${svg('calendar')}<span>${isToday ? 'A different day' : esc(dayLabel(day))}</span><input type="date" name="wday" value="${esc(day)}" max="${today}" aria-label="The day you weighed yourself"></label>
         ${W.trend_kg ? `<span class="small muted num">Trend ${U.weight(W.trend_kg)} ${unit}${r != null ? ` · ${r > 0 ? '+' : r < 0 ? '−' : ''}${U.weight(Math.abs(r))} a week` : ''}</span>` : ''}</div></div>`;
-    $('.wform input',box).oninput=e=>{draft=e.target.value;};
+    // Focus starts editing before the first input event (including select-then-type).
+    $('.wform input',box).onfocus=$('.wform input',box).oninput=e=>{draft=e.target.value;};
     const dp = $('[name=wday]', box);
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
     dp.onchange = () => { if (dp.value && dp.value <= today) { day = wcDay = dp.value;draft=null; draw(); } };
