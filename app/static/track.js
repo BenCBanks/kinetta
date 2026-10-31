@@ -505,6 +505,7 @@ const Track = (() => {
     const choices = recordingChoices();
     const quick = outdoor.length ? TRACK_QUICK : [0, 1, 2, 3].filter(i => i < choices.length);
     let selected = Math.min(choices.length-1, Math.max(0, +store.get(key + ':choice') || 0)),choiceRevision=0,planLoading=false;
+    if(planIntent?.scope===key&&planIntent.owner===readOwner())selected=choices.findIndex(c=>c.sport==='run'&&!c.sportLabel);
     const done = new URLSearchParams(location.search).get('done');
     if(new URLSearchParams(location.search).get('past')==='1'){const url=new URL(location.href);url.searchParams.delete('past');history.replaceState(null,'',url.pathname+url.search);setTimeout(()=>{if(el.isConnected)addActivitySheet();});}
     el.innerHTML = `${done && /^\d+$/.test(done) ? `<div class="track-saved" role="status"><b>Activity saved</b><a href="/activity/${done}">View activity${svg('chev')}</a></div>` : ''}<form class="form track-ready compact-ready" id="track-setup">${outdoor.length ? '' : `<p class="small muted track-gps-note">GPS recording is in the iPhone app.${App.me?.iphone_app ? ` <a href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener">Get it</a>` : ''}</p>`}<div class="track-sport-row" role="group" aria-label="Common activities"><div class="track-quick">${quick.map(i => `<button type="button" data-quick="${i}" aria-pressed="${i===selected}" aria-label="${esc(choices[i].label)}">${esc(choices[i].lift?'Lift':choices[i].label==='Treadmill run'?'Treadmill':choices[i].label)}</button>`).join('')}</div><button type="button" class="me-chip" id="track-other" aria-label="More activities">More ${svg('down')}</button></div>
@@ -560,7 +561,7 @@ const Track = (() => {
     };
     const auto=()=>{ if(!located&&choices[selected].gps)locate(true); };
     $('#track-locate').onclick=()=>{centred=false;readyFollow=true;locate(false);};
-    pick(selected);
+    pick(selected,true);
     // keep the dot live while you get ready, not just one fix from when the screen opened
     const tick=setInterval(()=>{ if(!readyLive()){clearInterval(tick);return;} if(located&&choices[selected].gps&&!document.hidden)locate(true); },8000);
     function ensureMap(){
