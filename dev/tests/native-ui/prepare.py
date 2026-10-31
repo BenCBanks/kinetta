@@ -20,7 +20,7 @@ if a.stage.startswith('track-'):
  config['recording']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',str(fixture.parents[1]/'demo/track_session.cjs')],text=True))
  config['recording']['id']=str(uuid.UUID(a.run))
  config['recording']['state']='review' if a.stage=='track-review' else 'recording'
-(public/'static/native-ui-early.js').write_text('globalThis.KinettaUIFixture='+json.dumps(config)+';\n'+(fixture/'early.js').read_text())
+(public/'static/native-ui-early.js').write_text('globalThis.KinettaUIFixture='+json.dumps(config)+';\n'+(fixture/'display-diagnostics.js').read_text()+'\n'+(fixture/'early.js').read_text())
 (public/'static/native-ui-late.js').write_text((fixture/'late.js').read_text())
 if not a.update:
  s=index.read_text().replace('<script src="/static/keyboard.js','<script src="/static/native-ui-early.js"></script>\n<script src="/static/keyboard.js',1).replace('</body>','<script src="/static/native-ui-late.js"></script>\n</body>')

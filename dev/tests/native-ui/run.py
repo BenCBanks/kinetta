@@ -80,7 +80,7 @@ for device in preferred:
     assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
     nav=metrics['navigation']
-    assert nav['ready'],'Actual UIKit display-preference bridge must respond'
+    assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
     assert nav['visible']==(stage in ('track-live','track-review','activity','activity-sticky','activity-empty') or stage.startswith('friends-')),metrics
     if nav['visible']:
      box=nav['box'];assert box['x']>=8 and box['x']+box['width']<=metrics['viewport']['width']-8,metrics
