@@ -75,6 +75,7 @@ node dev/tests/test_personal_notifications_ui.js
 node --check dev/tests/personal_notifications_ui.cjs
 node --check dev/tests/me_card_ui.cjs # rendered checks run in the screenshot workflow
 node --check dev/tests/progress_ui.cjs
+node --check dev/tests/fitness_ui.cjs
 node --check dev/tests/profile_card_ui.cjs # rendered checks run in the screenshot workflow
 node --check dev/tests/public_card_ui.cjs
 node --check dev/tests/goals_ui.cjs # rendered checks run in the screenshot workflow
