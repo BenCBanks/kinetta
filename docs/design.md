@@ -1628,15 +1628,13 @@ The later31October spacing rule keeps8px between quick activities, More and reco
 
 ## Progress share pictures · 31 October 2026
 
-The recap sheet keeps one scrolling period row, on/off inclusion chips and a remembered, account-and-server-scoped
-Post (4:5, default) / Story (9:16) choice. The smaller preview opens full size. Share follows the controls in normal
-scroll order so it cannot cover them. No discovery section belongs in this sheet.
+The recap sheet exports one4:5 picture (1080×1350). A larger full-width preview frame opens the original picture. Periods scroll in snap pages of whole pills, with an edge fade showing more; text enlargement can put fewer choices on each page. Inclusion choices stay account/server scoped. Share follows the controls in normal scroll order. No discovery section belongs in this sheet.
 
 Exports use the existing Sky Blue share-action/share-brand gradient and white text (at least 4.5:1), with the hero
 number and unit on one baseline. Available height is divided between the selected totals, real distance/time bars
 and rounded highlight/streak/food-day tiles. Week and month show daily bars; year sums the same days into months.
 Visible rest stubs preserve the calendar's active-day meaning. Totals-only pictures reuse active days/time below the
-hero. Empty previews remain honest and cannot be shared. Both sizes get their own layout, without letterboxing.
+hero. Empty previews remain honest and cannot be shared. The single export size lays out the selected facts without letterboxing.
 
 Only me activities count in totals and bars; highlights still come only from shared activities. No names, maps,
 places, intake or body facts are added. Food and photo/username remain off initially; source credits, descriptive
@@ -1644,4 +1642,4 @@ alt text, cached-data notices, Retry, monthly offers and the existing native del
 Single-activity pictures are unchanged. Sport breakdown and previous-period comparisons are deferred: the existing
 response has only the top sport and selected-period totals; this visual change adds no API reads or new statistics.
 
-The later31October spacing minimums retain8px between Post/Story, period choices and wrapped options. Format buttons stay56px (64px pitch); period/options stay44px (52px minimum pitch). Ratio labels are at least13px. Sheet padding18px and stage gap16px were already sufficient. The image preview has no content-card padding because it is the rendered picture itself, inside the padded sheet. Export/canvas rendering is unchanged by this control-spacing follow-up.
+Owner follow-up31October: period and Include controls keep44px hit areas with36px visible faces,15px medium text at default and8px gaps between hit areas. Unavailable Streak remains legible and explains its two-active-week requirement on tap. The preview has no content-card padding because it is the rendered picture, inside the18px padded sheet. At ordinary390px it grows beyond the former two-column preview while controls and Share remain reachable; enlarged text scrolls naturally.

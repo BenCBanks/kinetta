@@ -62,7 +62,7 @@ const ShareArt=(()=>{
   return{palette,family,text,lines,blob,deliver,photo,simplePicture};
 })();
 const Recaps=(()=>{
-  const periods=[['this_week','This week'],['last_week','Last week'],['this_month','This month'],['last_month','Last month'],['this_year','This year']];
+  const periods=[['this_week','Week'],['last_week','Last week'],['this_month','Month'],['last_month','Last month'],['this_year','Year']];
   const defaults={totals:true,calendar:true,highlights:true,streak:true,food:false,identity:false};
   const scope=()=>JSON.stringify([serverKey(),App.me?.id]);
   function today(){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:App.me?.tz||'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const get=k=>parts.find(p=>p.type===k).value;return `${get('year')}-${get('month')}-${get('day')}`;}
@@ -127,9 +127,9 @@ const Recaps=(()=>{
     if(o.food){items.push({label:'Days with food logged',value:String(d.food.logged_days)});if(d.food.protein_goal_days!==null)items.push({label:'Days meeting protein goal',value:String(d.food.protein_goal_days)});}
     return items;
   }
-  async function draw(d,o,format='post'){
+  async function draw(d,o){
     await document.fonts.ready;
-    const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=format==='story'?1920:1350;
+    const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
     const g=canvas.getContext('2d'),p=ink(),s=summary(d,o),M=72,W=936,H=canvas.height;
     const gradient=g.createLinearGradient(0,0,1080,H);gradient.addColorStop(0,p.action);gradient.addColorStop(1,p.blue);g.fillStyle=gradient;g.fillRect(0,0,1080,H);
     let y=72;
@@ -188,25 +188,25 @@ const Recaps=(()=>{
     return {blob:await ShareArt.blob(canvas),alt:[o.identity?'@'+App.me.login:'',s.alt,o.calendar?'Activity chart. '+(chartAlt||'No active days'):''].filter(Boolean).join('. ')};
   }
   function open(initial='this_month',onShared){
-    const owner=readOwner(),prefKey='fit.recap.options:'+scope(),formatKey='fit.recap.format:'+scope(),saved=store.get(prefKey);
-    let options={...defaults,...Object.fromEntries(Object.entries(saved||{}).filter(([k,v])=>k in defaults&&typeof v==='boolean'))},format=store.get(formatKey)==='story'?'story':'post',period=initial,data=null,picture=null,url='',version=0,sending=false,defaultApplied=false,canShare=false;
+    const owner=readOwner(),prefKey='fit.recap.options:'+scope(),saved=store.get(prefKey);
+    let options={...defaults,...Object.fromEntries(Object.entries(saved||{}).filter(([k,v])=>k in defaults&&typeof v==='boolean'))},period=initial,data=null,picture=null,url='',version=0,sending=false,defaultApplied=false,canShare=false;
     const names=[['totals','Totals'],['calendar','Chart'],['highlights','Highlights'],['streak','Streak'],['food','Food'],['identity','Photo & username']];
-    sheet('Share progress',`<div class="recap-stage"><button type="button" class="recap-preview busy" aria-label="View full-size picture" disabled><img id="recap-preview" alt="Loading your picture"></button><div class="seg recap-formats" role="group" aria-label="Picture size">${[['post','Post','4:5'],['story','Story','9:16']].map(([k,v,ratio])=>`<button type="button" data-recap-format="${k}" aria-label="${v} (${ratio})" aria-pressed="${k===format}">${v}<small>${ratio}</small></button>`).join('')}</div></div><div class="seg recap-periods" role="group" aria-label="Recap period">${periods.map(([k,v])=>`<button type="button" data-recap-period="${k}" aria-pressed="${k===period}">${v}</button>`).join('')}</div><fieldset class="recap-options"><legend>Include</legend><div>${names.map(([k,v])=>`<button type="button" data-recap-option="${k}" aria-pressed="${options[k]}"${k==='streak'?' aria-label="Activity streak (2 or more weeks)"':''} disabled>${v}</button>`).join('')}</div></fieldset><p class="small muted" id="recap-description"></p><p class="small muted" id="recap-status" role="status"></p><button type="button" class="ghost wide" id="recap-retry" hidden>Retry picture</button><div class="recap-actions"><button type="button" class="primary wide" id="recap-share" disabled>Share</button></div>`,(b,close)=>{
+    sheet('Share progress',`<div class="recap-stage"><button type="button" class="recap-preview busy" aria-label="View full-size picture" disabled><img id="recap-preview" alt="Loading your picture"></button></div><div class="recap-period-wrap"><div class="seg recap-periods" role="group" aria-label="Recap period">${periods.map(([k,v])=>`<button type="button" data-recap-period="${k}" aria-pressed="${k===period}"><span>${v}</span></button>`).join('')}</div></div><fieldset class="recap-options"><legend>Include</legend><div>${names.map(([k,v])=>`<button type="button" data-recap-option="${k}" aria-pressed="${options[k]}"${k==='streak'?' aria-label="Activity streak (two or more active weeks in a row)"':''} disabled><span>${v}</span></button>`).join('')}</div></fieldset><p class="small muted" id="recap-streak-help" role="status" hidden></p><p class="small muted" id="recap-description"></p><p class="small muted" id="recap-status" role="status"></p><button type="button" class="ghost wide" id="recap-retry" hidden>Retry picture</button><div class="recap-actions"><button type="button" class="primary wide" id="recap-share" disabled>Share</button></div>`,(b,close)=>{
       b.closest('.sheet').classList.add('recap-sheet');
       const live=()=>owner===readOwner()&&b.isConnected,button=$('#recap-share',b),image=$('#recap-preview',b),preview=$('.recap-preview',b),status=$('#recap-status',b);
-      const closeSelf=()=>close();App.closeActivityShare=closeSelf;
-      viewResources.set(b,()=>{version++;picture=null;if(url)URL.revokeObjectURL(url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
+      const closeSelf=()=>close();App.closeActivityShare=closeSelf;let stopPeriods=()=>{};
+      viewResources.set(b,()=>{stopPeriods();version++;picture=null;if(url)URL.revokeObjectURL(url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
       function controls(){
-        $$('[data-recap-option]',b).forEach(x=>{const k=x.dataset.recapOption,eligible=k!=='streak'||data?.streak_weeks>=2;x.disabled=sending||!data||!eligible;x.setAttribute('aria-pressed',String(options[k]&&eligible));});
-        $$('[data-recap-format],[data-recap-period]',b).forEach(x=>x.disabled=sending);preview.disabled=sending||!picture;button.disabled=sending||!canShare||!picture;
+        $$('[data-recap-option]',b).forEach(x=>{const k=x.dataset.recapOption,eligible=k!=='streak'||data?.streak_weeks>=2;x.disabled=sending||!data;if(eligible)x.removeAttribute('aria-disabled');else x.setAttribute('aria-disabled','true');x.setAttribute('aria-pressed',String(options[k]&&eligible));});
+        $$('[data-recap-period]',b).forEach(x=>x.disabled=sending);preview.disabled=sending||!picture;button.disabled=sending||!canShare||!picture;
       }
       async function make(reload=false){
-        const run=++version;picture=null;canShare=false;controls();preview.classList.add('busy');status.textContent='';$('#recap-retry',b).hidden=true;
+        $('#recap-streak-help',b).hidden=true;const run=++version;picture=null;canShare=false;controls();preview.classList.add('busy');status.textContent='';$('#recap-retry',b).hidden=true;
         try{
           const fresh=reload||!data?await read(period):data;if(!live()||run!==version)return;data={...fresh,units:App.me?.units||fresh.units};
           if(!saved&&!defaultApplied)options.streak=data.streak_weeks>=2;defaultApplied=true;
           $('#recap-description',b).textContent='Totals and chart include Only me workouts; highlights use shared activities. No maps, places or body details.'+(options.food?' Food: logged and protein-goal days only.':'')+(options.identity?' Includes your photo and username.':'');
-          const result=await draw(data,options,format);if(!live()||run!==version)return;
+          const result=await draw(data,options);if(!live()||run!==version)return;
           if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;picture=result.blob;
           const hasData=data.activities>0||options.food&&data.food.logged_days>0,hasSections=options.totals||options.calendar||options.highlights&&data.highlights.length>0||options.streak&&data.streak_weeks>=2||options.food||options.identity;
           canShare=hasData&&hasSections;
@@ -216,15 +216,29 @@ const Recaps=(()=>{
         finally{if(live()&&run===version){preview.classList.remove('busy');controls();}}
       }
       $$('[data-recap-period]',b).forEach(x=>x.onclick=()=>{if(sending||!live())return;period=x.dataset.recapPeriod;data=null;$$('[data-recap-period]',b).forEach(p=>p.setAttribute('aria-pressed',String(p===x)));make(true);});
-      $$('[data-recap-option]',b).forEach(x=>x.onclick=()=>{if(sending||!live())return;const k=x.dataset.recapOption;options[k]=!options[k];store.set(prefKey,options);make();});
-      $$('[data-recap-format]',b).forEach(x=>x.onclick=()=>{if(sending||!live())return;format=x.dataset.recapFormat;store.set(formatKey,format);$$('[data-recap-format]',b).forEach(p=>p.setAttribute('aria-pressed',String(p===x)));make();});
+      $$('[data-recap-option]',b).forEach(x=>x.onclick=()=>{if(sending||!live())return;const k=x.dataset.recapOption;if(k==='streak'&&data?.streak_weeks<2){const help=$('#recap-streak-help',b);help.textContent='Available after two active weeks in a row.';help.hidden=false;return;}options[k]=!options[k];store.set(prefKey,options);make();});
       preview.onclick=()=>{if(!picture||!live())return;sheet('Your progress picture',`<img class="recap-full" src="${esc(url)}" alt="${esc(image.alt)}">`);};
       $('#recap-retry',b).onclick=()=>make(true);
       button.onclick=async()=>{if(sending||!picture||!canShare||!live())return;const run=version,blob=picture;sending=true;controls();
-        try{const handedOff=await ShareArt.deliver(blob,`kinetta-${data.start}-${format}.png`,()=>live()&&run===version);if(handedOff&&live()&&run===version)onShared?.(data);}
+        try{const handedOff=await ShareArt.deliver(blob,`kinetta-${data.start}.png`,()=>live()&&run===version);if(handedOff&&live()&&run===version)onShared?.(data);}
         catch(e){if(live()&&e.name!=='AbortError')status.textContent=e.message||'Couldn’t share this picture';}
         finally{sending=false;if(live())controls();}
       };
+      // Snap whole groups of periods, so the resting edge never cuts through a word.
+      const periodRow=$('.recap-periods',b),periodWrap=$('.recap-period-wrap',b),periodButtons=$$('[data-recap-period]',b);let periodWidth=0,periodFont='',periodFrame=0;
+      const fades=()=>{periodWrap.classList.toggle('more-right',periodRow.scrollLeft<periodRow.scrollWidth-periodRow.clientWidth-1);periodWrap.classList.toggle('more-left',periodRow.scrollLeft>1);};
+      const arrangePeriods=()=>{
+        if(!live())return;const width=periodRow.clientWidth,font=getComputedStyle(periodButtons[0]).fontSize;
+        if(!width||width===periodWidth&&font===periodFont)return;periodWidth=width;periodFont=font;
+        const focused=document.activeElement,widths=periodButtons.map(x=>x.getBoundingClientRect().width),fragment=document.createDocumentFragment();let page=null,used=0;
+        periodButtons.forEach((x,i)=>{const need=widths[i]+(used?8:0);if(!page||used+need>width-20){page=document.createElement('div');page.className='recap-period-page';fragment.append(page);used=0;}page.append(x);used+=widths[i]+(used?8:0);});
+        periodRow.replaceChildren(fragment);const selected=$('[aria-pressed="true"]',periodRow);if(selected)periodRow.scrollLeft=selected.parentElement.offsetLeft;
+        if(periodButtons.includes(focused))focused.focus({preventScroll:true});fades();
+      };
+      const schedulePeriods=()=>{cancelAnimationFrame(periodFrame);periodFrame=requestAnimationFrame(arrangePeriods);},periodResize=new ResizeObserver(schedulePeriods),periodFontChange=new MutationObserver(schedulePeriods);
+      periodResize.observe(periodRow);periodFontChange.observe(document.documentElement,{attributes:true,attributeFilter:['style']});periodRow.addEventListener('scroll',fades,{passive:true});
+      periodButtons.forEach(x=>x.addEventListener('focus',()=>{periodRow.scrollLeft=x.parentElement.offsetLeft;fades();}));
+      stopPeriods=()=>{cancelAnimationFrame(periodFrame);periodResize.disconnect();periodFontChange.disconnect();};document.fonts?.ready.then(schedulePeriods);schedulePeriods();
       make(true);
     });
   }
