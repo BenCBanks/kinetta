@@ -96,9 +96,9 @@ function liftLogger(el, aid, data) {
   const S = {ex: data.exercises.map((e) => ({...e, sets: e.sets.map((s) => ({...s}))})), open: data.open, start: data.start_time, lastTick: data.lastTick || null};
   let saveT = null, disposed = false, stopped = false, finishing = false, clock = null;
   const owned = () => owner === readOwner(), live = () => owned() && !disposed && el.isConnected;
-  el.innerHTML = `<div class="top">${backBtn('Track')}<div class="acts"><span class="lift-save small muted" id="lf-save" aria-live="polite"></span>
+  el.classList.add('compact-lift');
+  el.innerHTML = `<div class="top lift-top">${backBtn('Track')}${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><span><span class="vh">Session </span><b class="num" id="lf-time">0:00</b></span><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':''}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
       ${S.open ? '<button class="primary sm" id="lf-finish">Finish</button>' : '<button class="primary sm" id="lf-done">Done</button>'}</div></div>
-    ${S.open ? `<div class="lift-clock card"><span>Session <b class="num" id="lf-time">0:00</b></span><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>` : ''}
     <div id="lf-list"></div>
     <button class="primary wide lift-add" id="lf-add">${svg('plus')}Add exercise</button>
     <p class="small muted center lift-foot">${S.open ? "Tick each set when you've done it. Only ticked sets are saved." : 'Every set with numbers in it is saved.'}</p>
@@ -125,7 +125,7 @@ function liftLogger(el, aid, data) {
         secs: s.secs ?? null, warmup: !!s.warmup, done: S.open ? !!s.done : filled(s)}))}));
     return {exercises: exercises.filter(e => !completed || e.sets.length)};
   };
-  const status = (t) => { const s = live() && $('#lf-save', el); if (s) s.textContent = t; };
+  const status = (t) => { const s = live() && $('#lf-save', el); if (s) { s.textContent=t;s.dataset.state=!t?'empty':t==='Saved'?'saved':['Saving…','Deleting…'].includes(t)?'saving':'error';s.setAttribute('aria-label',t); } };
   const remember = () => {
     const revision = ++liftRevision; liftDraftVersions.set(key, revision);
     store.set(key, {unsent: true, revision, lastTick: S.lastTick, data: {...data, exercises: S.ex}});
@@ -182,15 +182,13 @@ function liftLogger(el, aid, data) {
   const T = ' × ';   // normal spaces allow a previous set to wrap without losing a number
   const prevText = (e, p) => (!p ? '' : e.kind === 'time' ? `${p.secs || 0} s` : p.kg && e.kind === 'body' ? `+${toW(p.kg)}${T}${p.reps || 0}` : p.kg ? `${toW(p.kg)}${T}${p.reps || 0}` : `${p.reps || 0}`);
   function exCard(e, i) {
-    const c = cols(e), name = {n: 'Set', prev: e.last ? shortDay(e.last.start_time) : '', kg: e.kind === 'body' ? `+${wUnit()}` : wUnit(), reps: 'Reps', secs: 'Seconds', tick: ''};
-    return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>
+    const c = cols(e), name = {n: 'Set', prev: e.last ? 'Last' : '', kg: e.kind === 'body' ? `+${wUnit()}` : wUnit(), reps: 'Reps', secs: 'Seconds', tick: ''};
+    return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><div class="lift-title-line"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>${e.note?`<button type="button" class="lift-note" data-exnote aria-label="Edit note for ${esc(e.name)}">${esc(e.note)}</button>`:''}</div>
         <button class="icon-btn" data-exmenu aria-label="More for ${esc(e.name)}">${svg('more')}</button></div>
-      ${e.note ? `<p class="lift-note small">${esc(e.note)}</p>` : ''}
       <div class="lift-sets c${c.length}${e.last ? ' has-prev' : ''}" role="group" aria-label="${esc(e.name)} sets">
         <div class="lift-row lh">${c.map((k) => `<span class="lh-${k}">${esc(name[k])}</span>`).join('')}</div>
         ${e.sets.map((s, j) => setRow(e, s, j)).join('')}</div>
-      ${i === 0 && !hintSeen() ? '<p class="lift-hint small muted">Tap a set number to mark a warm-up or delete the set.</p>' : ''}
-      <button class="ghost wide lift-addset" data-addset>${svg('plus')}Add set</button></section>`;
+      <button class="linkbtn lift-addset" data-addset>${svg('plus')}Add set</button></section>`;
   }
   function setRow(e, s, j) {
     const p = e.last && e.last.sets[j];                                 // the previous session's set at this place
@@ -200,13 +198,13 @@ function liftLogger(el, aid, data) {
     const box = (k, mode, label) => `<input class="lift-in" data-j="${j}" data-k="${k}" inputmode="${mode}" enterkeyhint="next" autocomplete="off" value="${esc(v(k))}" placeholder="${esc(ph(k))}" aria-label="Set ${j + 1} ${label}">`;
     const cell = {
       n: `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}${s.warmup ? ', warm-up' : ''}: warm-up or delete">${s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length}</button>`,
-      prev: p ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}"><span class="lift-prev-label">${esc(shortDay(e.last.start_time))}:</span><span>${esc(prevText(e, p))}</span></button>` : '<span class="lift-prev none">–</span>',
+      prev: p ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}"><span class="lift-prev-label">Last · ${esc(shortDay(e.last.start_time))}:</span><span>${esc(prevText(e, p))}</span></button>` : '<span class="lift-prev none">–</span>',
       kg: box('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()), reps: box('reps', 'numeric', 'reps'), secs: box('secs', 'numeric', 'seconds'),
       tick: `<button type="button" class="lift-tick" data-tick="${j}" aria-pressed="${!!s.done}" aria-label="Set ${j + 1} done">${svg('check')}</button>`,
     };
     const pr = (s.pr || []).map((k) => PR_NAMES[k]).join(', ');
     return `<div class="lift-row${s.done && S.open ? ' done' : ''}" data-row="${j}">${cols(e).map((k) => cell[k]).join('')}
-      ${pr ? `<span class="lift-pr">${svg('trophy')} New record: ${esc(pr)}</span>` : ''}</div>`;
+      ${pr ? `<span class="lift-pr" aria-label="New record">${svg('trophy')} ${esc(pr)}</span>` : ''}</div>`;
   }
   // records, after a save, without redrawing the boxes being typed in
   function marks() {
@@ -216,7 +214,7 @@ function liftLogger(el, aid, data) {
       e.sets.forEach((s, j) => {
         if (!(s.pr || []).length) return;
         const row = $(`[data-row="${j}"]`, card);
-        if (row) row.insertAdjacentHTML('beforeend', `<span class="lift-pr">${svg('trophy')} New record: ${esc(s.pr.map((k) => PR_NAMES[k]).join(', '))}</span>`);
+        if (row) row.insertAdjacentHTML('beforeend', `<span class="lift-pr" aria-label="New record">${svg('trophy')} ${esc(s.pr.map((k) => PR_NAMES[k]).join(', '))}</span>`);
       });
     });
   }
@@ -255,12 +253,12 @@ function liftLogger(el, aid, data) {
       };
       $$('[data-set]', card).forEach((b) => b.onclick = () => setMenu(e, +b.dataset.set));
       $('[data-exmenu]', card).onclick = () => exMenu(i);
+      const note=$('[data-exnote]',card);if(note)note.onclick=()=>{if(live()&&!finishing)noteSheet(e,()=>draw());};
     });
   }
   function setMenu(e, j) {
     if (!live() || finishing) return;
     const s = e.sets[j];
-    try { localStorage.setItem('fit.lift.hint', '1'); } catch (x) { /* no storage */ }
     pickSheet(`${e.name}: set ${j + 1}`, pickRows([['normal', 'Normal set', ''], ['wu', 'Warm-up', 'Never counts towards your records']], s.warmup ? 'wu' : 'normal')
       + '<div class="pick-list"><button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Delete this set</span></span></button></div>', (k) => {
       if (!live() || finishing) return;
@@ -276,11 +274,13 @@ function liftLogger(el, aid, data) {
       <button type="button" class="row-link" data-pk="note"><span class="grow"><span>${e.note ? 'Edit note' : 'Add a note for next time'}</span><small class="muted">${e.note ? esc(e.note) : 'e.g. seat on 4, narrow grip'}</small></span></button>
       ${e.kind === 'body' ? (hasWeight(e) ? '<button type="button" class="row-link" data-pk="nowt"><span class="grow"><span>No added weight</span><small class="muted">Back to reps only</small></span></button>'
         : '<button type="button" class="row-link" data-pk="wt"><span class="grow"><span>Add weight</span><small class="muted">A weighted vest or a dip belt</small></span></button>') : ''}
+      <button type="button" class="row-link" data-pk="sets"><span class="grow"><span>Warm-up or delete a set</span></span></button>
       <button type="button" class="row-link" data-pk="hist"><span class="grow"><span>History and records</span></span></button>
       ${i > 0 ? '<button type="button" class="row-link" data-pk="up"><span class="grow"><span>Move up</span></span></button>' : ''}
       ${i < S.ex.length - 1 ? '<button type="button" class="row-link" data-pk="down"><span class="grow"><span>Move down</span></span></button>' : ''}
       <button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Remove from this session</span></span></button></div>`, (k) => {
       if (!live() || finishing) return;
+      if(k==='sets')return pickSheet('Choose a set',pickRows(e.sets.map((s,j)=>[String(j),'Set '+(j+1)+(s.warmup?' · Warm-up':''),''])),j=>setMenu(e,+j));
       if (k === 'hist') { flush(); return go(`/lift/ex/${e.exercise_id}`); }
       if (k === 'note') return noteSheet(e, () => { draw(); });
       if (k === 'wt') { e.addWeight = true; draw(); return later(); }
@@ -416,12 +416,11 @@ async function liftSummary(el, aid, r) {
   };
 }
 
-const hintSeen = () => { try { return !!localStorage.getItem('fit.lift.hint'); } catch (x) { return true; } };
 
 function noteSheet(e, after) {
   const owner = readOwner();
   sheet('Note for next time', `<form class="form" id="nt"><textarea name="note" maxlength="500" rows="3" placeholder="e.g. seat on 4, narrow grip">${esc(e.note || '')}</textarea>
-    <p class="small muted">Shown under ${esc(e.name)} every time you log it.</p><div class="actions"><button class="primary">Save note</button></div></form>`, (b, close) => {
+    <p class="small muted">Shown with ${esc(e.name)} every time you log it.</p><div class="actions"><button class="primary">Save note</button></div></form>`, (b, close) => {
     $('#nt', b).onsubmit = async (ev) => {
       ev.preventDefault(); if (!b.isConnected || owner !== readOwner()) return; const note = $('textarea', b).value.trim();
       try { await api(`/api/lifts/exercises/${e.exercise_id || e.id}`, json('PATCH', {note})); if (!b.isConnected || owner !== readOwner()) return; e.note = note || null; invalidate('/api/lifts'); close(); after(); }
@@ -495,7 +494,7 @@ async function pLifting(body) {
 
 // One exercise over time: records, a chart of the best set per session, and every session's sets.
 route(/^\/lift\/ex\/(\d+)$/, 'progress', async (el, id) => {
-  el.innerHTML = `<div class="top">${backBtn()}</div>${skel(2)}`;
+  el.innerHTML = `<div class="top">${backBtn('Lifting')}</div>${skel(2)}`;
   wireBack(el, '/progress?view=lifting');
   await load(`/api/lifts/exercises/${id}`, (h) => drawExercise(el, h));
 });
@@ -512,9 +511,10 @@ function drawExercise(el, h) {
   const pick = (s) => (kind === 'time' ? s.secs : kind === 'body' ? s.reps : s.e1rm || (s.top && s.top.kg));
   const pts = h.sessions.filter((s) => pick(s)).map((s) => ({x: new Date(s.start_time) / 864e5, y: kind === 'weight' ? +toW(pick(s)) : pick(s), id: s.activity_id}));
   const chartName = kind === 'time' ? 'Longest hold (seconds)' : kind === 'body' ? 'Most reps in a set' : `One-rep max, estimated (${wUnit()})`;
-  el.innerHTML = `<div class="top">${backBtn()}<div class="acts"><button class="icon-btn" id="lx-edit" aria-label="Edit exercise">${svg('edit')}</button></div></div>
-    <div class="card lx-head"><div class="eyebrow">${esc(e.muscle || KINDS.find((k) => k[0] === kind)[1])}</div><h1>${esc(e.name)}</h1>
-      <p class="muted">${e.sessions} session${e.sessions === 1 ? '' : 's'}${e.last ? ` · last ${esc(shortDay(e.last))}` : ''}</p>
+  el.classList.add('compact-lift-exercise');
+  el.innerHTML = `<div class="top">${backBtn('Lifting')}<div class="acts"><button class="icon-btn" id="lx-edit" aria-label="Edit exercise">${svg('edit')}</button></div></div>
+    <div class="card lx-head"><div class="lx-title"><div class="eyebrow">${esc(e.muscle || KINDS.find((k) => k[0] === kind)[1])}</div><h1>${esc(e.name)}</h1></div>
+      <p class="muted lx-meta">${e.sessions} session${e.sessions === 1 ? '' : 's'}${e.last ? ` · last ${esc(shortDay(e.last))}` : ''}</p>
       <button class="lx-note${e.note ? '' : ' empty-note'}" id="lx-note">${e.note ? esc(e.note) : '+ Add a note for next time'}</button></div>
     ${recs ? `<div class="card"><h2>Your records</h2>${recs}</div>` : ''}
     ${pts.length > 1 ? `<div class="card"><h2>${esc(chartName)}</h2><div id="lx-chart"></div></div>` : ''}

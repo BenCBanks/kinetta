@@ -55,6 +55,7 @@ node dev/tests/test_track.js
 node dev/tests/test_track_review.js
 node dev/tests/test_lift_summary.js
 node dev/tests/test_lift_lifecycle.js
+node --check dev/tests/lift_compact_ui.cjs
 node --check dev/tests/lift_ui.cjs # rendered checks run in the screenshot workflow
 node --check dev/tests/activity_ui.cjs
 node --check dev/tests/edit_activity_ui.cjs # rendered checks run in the screenshot workflow
