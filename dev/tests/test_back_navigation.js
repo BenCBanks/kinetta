@@ -1,0 +1,15 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const c={URL,Date,Math,location:{origin:'https://example.test'}};vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/back-navigation.js','utf8')+'\nglobalThis.nav=BackNavigation;',c);const n=c.nav,owner='fictional-owner-a';
+const push=n.transition(null,'/activity','/me/friends',owner),check=x=>JSON.parse(JSON.stringify(x));assert.deepEqual(check(n.destination(push.next,'/me/friends','/me',owner,{historyLength:2})),{history:true,path:'/activity',label:'Activity'});
+const replace=n.transition(push.next,'/me/friends','/me/settings',owner,{replace:true});assert.equal(replace.next.kinettaNavigation.from.path,'/activity','replace retains the real preceding entry');assert.equal(n.destination(replace.next,'/me/settings','/me',owner,{historyLength:2}).label,'Activity');
+const next=n.transition(push.next,'/me/friends','/people/zz_test_friend',owner);assert.equal(n.destination(next.next,'/people/zz_test_friend','/me/friends',owner,{historyLength:3}).label,'Friends');assert.equal(n.destination(push.next,'/me/friends','/me',owner,{historyLength:2}).label,'Activity','Back/Forward and reload use each entry metadata');
+assert.equal(n.destination(push.next,'/me/friends?q=River','/me',owner,{historyLength:2}).path,'/activity','same-entry search changes preserve history');assert.equal(n.destination(push.next,'/plan','/progress',owner,{historyLength:2}).history,false,'a different route cannot reuse a copied entry');
+for(const state of [null,{},push.next,{...push.next,kinettaMap:'fictional-map'}]){const d=n.destination(state,'/me/friends','/me','fictional-owner-b',{historyLength:3});assert.equal(d.history,false);assert.equal(d.label,'Me');}
+assert.equal(n.destination({...push.next,kinettaMap:'fictional-map'},'/me/friends','/me',owner,{historyLength:3}).history,false,'transient map duplicate uses a truthful parent fallback');
+assert.equal(n.destination(push.next,'/me/friends','/me',owner).history,false,'history length alone never proves a prior app destination');
+assert.equal(n.transition(push.next,'/me/friends','/people/zz_test_friend','fictional-owner-b').next.kinettaNavigation.from.owner,'fictional-owner-b');
+for(const bad of ['//elsewhere.test/path','https://elsewhere.test/path','javascript:alert(1)','data:text/html,x','relative/path',''])assert.equal(n.path(bad),null,bad);
+for(const [p,label] of [['/route/1','Route'],['/lift/ex/1','Exercise'],['/plan','Training plan'],['/activity/1','Activity'],['/food/meals','Recipes'],['/progress?section=food','Food & weight'],['/notifications','Notifications'],['/me/settings','Settings'],['/people/zz_test_friend','Profile']])assert.equal(n.label(p),label);
+const inventory=JSON.parse(fs.readFileSync('dev/tests/ui_inventory.json','utf8'));for(const row of inventory.routes)for(const value of row.paths){const p=value.replace(/\{[^}]+\}/g,'1');assert(n.label(p)&&n.label(p)!=='Back',p);}
+console.log('Named Back policy: app entries, replace, Back/Forward/reload, query, external/direct links, account scope, map duplicates and all inventory labels PASS');
