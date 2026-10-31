@@ -10,7 +10,7 @@ def facts(**extra):return {'user_id':1,'activity_id':2,**extra}
 
 def run():
     original=copy.deepcopy(ROW)
-    for sport,kind in [('run','run'),('ride','ride'),('walk','walk'),('swim','swim'),('hike','hike'),('workout','workout')]:
+    for sport,kind in [('run','run'),('ride','ride'),('walk','walk'),('swim','swim'),('hike','hike'),('row','row'),('ski','ski'),('workout','workout')]:
         titles={words.activity({**ROW,'sport':sport,'activity_id':i})[0] for i in range(1,4)}
         assert len(titles)==3 and all(kind in value.lower() and 'Alex' in value and len(value)<40 for value in titles)
     assert 'lift' in words.activity({**ROW,'sport':'workout','has_lifts':True})[0].lower()

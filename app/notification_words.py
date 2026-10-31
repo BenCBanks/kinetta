@@ -37,7 +37,7 @@ def sport_word(row):
 
 
 def title(row):
-    sport=sport_word(row)
+    sport={'rowing workout':'row','ski workout':'ski session'}.get(sport_word(row),sport_word(row))
     choices={
         'run':('Nice run','Run logged. Well done','Good run'),
         'ride':('Nice ride','Ride logged. Well done','Good ride'),
