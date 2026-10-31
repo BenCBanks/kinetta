@@ -1643,3 +1643,11 @@ Single-activity pictures are unchanged. Sport breakdown and previous-period comp
 response has only the top sport and selected-period totals; this visual change adds no API reads or new statistics.
 
 Owner follow-up31October: period and Include controls keep44px hit areas with36px visible faces,15px medium text at default and8px gaps between hit areas. Unavailable Streak remains legible and explains its two-active-week requirement on tap. The preview has no content-card padding because it is the rendered picture, inside the18px padded sheet. At ordinary390px it grows beyond the former two-column preview while controls and Share remain reachable; enlarged text scrolls naturally.
+
+## Explore guide rows (31 October 2026)
+
+Explore keeps its searchable catalog and real destinations. Category chips scroll in one row; category headings appear once above compact divider rows. Each row uses an existing app icon, a name, one-line summary and disclosure chevron. Opening it retains the full description, instructions and Open link. New dots mean a guide entry has not been opened on this account/server/device; they do not infer feature usage elsewhere. Reading an entry clears its dot. The catalog, native import exclusions and shared Kit availability/consent helpers are unchanged. This sub-page has no discovery tile grid or layout helper paragraph. Enlarged text wraps names; the touch target stays at least44px.
+
+The later31October owner spacing rule takes precedence over the original ten-visible-rows target: two-line summary targets are at least56px, separated by at least8px; group cards use16px padding and12px between groups. Category chips and the search/filters have8px separation. Names use15px and secondary summaries13px at the default text size; enlarged text grows naturally. Density comes from grouping and removing duplicated category labels rather than reducing these minimums. The PR reports the measured visible row count, pitch and gaps.
+
+Explore review corrections: the named Me return uses its own row, with the left-aligned title below. Category controls have36px visible faces within44px targets,15px medium labels,8px gaps and a quiet selected tint. Overflow edges fade and keyboard focus brings a complete label into view. All59 guide entries have explicit icons from the existing destination set.

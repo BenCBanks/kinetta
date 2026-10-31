@@ -12,5 +12,6 @@ const Discovery=(()=>{
   function wire(box,space,{attribute='data-discovery-feature'}={}){
     const owner=readOwner();box.addEventListener('click',e=>{const tile=e.target.closest('['+attribute+']');if(tile&&box.contains(tile)&&box.isConnected&&owner===readOwner())visit(space,tile.getAttribute(attribute));});
   }
-  return {visit,render,wire};
+  function hasVisited(space,id){return !!App.me&&seen(space).includes(id);}
+  return {visit,render,wire,hasVisited};
 })();
