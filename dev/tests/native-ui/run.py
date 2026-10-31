@@ -51,7 +51,7 @@ for device in preferred:
   installed=None;recovered=False
   for theme in ('light','dark'):
    sim('ui',udid,'appearance',theme)
-   for stage,root in [('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24)]:
+   for stage,root in [('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24)]:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
     token=uuid.uuid4().hex;copy=a.output/'KinettaLayout.app'
@@ -81,7 +81,7 @@ for device in preferred:
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond'
-    assert nav['visible']==(stage in ('track-live','track-review','activity','activity-sticky','activity-empty')),metrics
+    assert nav['visible']==(stage in ('track-live','track-review','activity','activity-sticky','activity-empty') or stage.startswith('friends-')),metrics
     if nav['visible']:
      box=nav['box'];assert box['x']>=8 and box['x']+box['width']<=metrics['viewport']['width']-8,metrics
      assert box['bottom']<metrics['viewport']['height'],metrics
@@ -93,6 +93,14 @@ for device in preferred:
       assert label['x']>=target['x']-1 and label['x']+label['width']<=target['x']+target['width']+1,metrics
       assert label['y']>=target['y'] and label['bottom']<=target['bottom'],metrics
     if not stage.startswith(('track-','activity')):assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop']-10)<=4,metrics
+    if stage.startswith('friends-'):
+     friends=metrics['friends'];assert friends['title']=='Friends' and friends['backLabel']=='Back to Me',metrics
+     assert friends['counts']==[40 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0,3 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0,3],metrics
+     assert friends['searchFont']>=16 and not friends['fullChallenges'],metrics
+     assert friends['search']['y']>=metrics['header']['bottom'],metrics
+     assert all(r['width']>=44 and r['height']>=44 for r in friends['controls']),metrics
+     if stage=='friends-empty':assert friends['empty'],metrics
+     if stage=='friends-heavy' and root==16:assert friends['firstFriend']['bottom']<nav['box']['y'],metrics
     if stage.startswith('activity'):
      detail=metrics['activity'];assert detail['socialHidden'],metrics
      if stage=='activity-map':
@@ -132,5 +140,5 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-assert len(results)==30*len(preferred),'Every selected phone needs all thirty layout cases'
+assert len(results)==38*len(preferred),'Every selected phone needs all thirty-eight layout cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')
