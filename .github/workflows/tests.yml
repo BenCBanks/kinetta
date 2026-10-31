@@ -117,6 +117,15 @@ jobs:
           KINETTA_URL: http://localhost:8798
           KINETTA_PROJECT: kinettatest
         run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/recaps_ui.cjs
+      - name: Check food Insights and goals in a browser (fictional accounts)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+        run: |
+          python3 dev/tests/insights_fixture.py
+          NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/insights_ui.cjs
+          NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/goals_ui.cjs
+
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100

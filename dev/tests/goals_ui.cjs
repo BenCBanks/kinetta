@@ -23,7 +23,9 @@ const ready=p=>until(p,()=>App.pageReady,'View did not settle');
    });
    const open=async()=>{await p.locator('#fd-goal').click();await p.locator('.sheet[aria-label="Goals"]').waitFor();};
    await p.goto(base+'/food');await ready(p);await p.locator('#fd-goal').waitFor();
-   assert.match(await p.locator('#fd-goal').getAttribute('aria-label'),/goals/i);   // #395 made it an icon button
+   assert.match(await p.locator('#fd-goal').getAttribute('aria-label'),/goals/i);
+   assert.equal((await p.locator('#fd-goal').innerText()).trim(),'Goals');
+   const control=await p.locator('#fd-goal').boundingBox();assert(control.width>=44&&control.height>=44);
    await open();
    const sheet=p.locator('.sheet[aria-label="Goals"]');
    // The four everyday goals are visible together without opening anything, with full labels inside the sheet.
@@ -48,6 +50,13 @@ const ready=p=>until(p,()=>App.pageReady,'View did not settle');
    if(size.width===390&&out)await p.screenshot({path:path.join(out,`goals-day-${theme}.png`)});
    await s2.getByRole('button',{name:/^Save for /}).click();await until(p,()=>!document.querySelector('.scrim:not([inert]) .sheet'),'Sheet closes after saving the day');
    assert.equal(dayGoals.length,1);assert.equal(dayGoals[0].kcal,1800);assert.match(dayGoals[0].day,/^\d{4}-\d{2}-\d{2}$/);
+   // Labelled Explore entry and Me use this same everyday-goals form.
+   await p.goto(base+'/food');await ready(p);await p.locator('[data-nutrition-feature="goals"]').click();await p.locator('.sheet[aria-label="Goals"] #tg').waitFor();
+   assert.deepEqual(await p.locator('.sheet #tg input').evaluateAll(xs=>xs.filter(e=>['kcal_target','protein_target','carbs_target','fat_target'].includes(e.name)).map(e=>e.name)),fields);
+   await p.locator('.sheet [data-close]').click();
+   await p.evaluate(()=>targetsSheet());await p.locator('.sheet[aria-label="Goals"] #tg').waitFor();
+   assert.deepEqual(await p.locator('.sheet #tg input').evaluateAll(xs=>xs.filter(e=>['kcal_target','protein_target','carbs_target','fat_target'].includes(e.name)).map(e=>e.name)),fields);
+   await p.locator('.sheet [data-close]').click();
    assert.deepEqual(errors,[],'No runtime errors');assert.deepEqual(writes,[],'No other writes');
    console.log(`Goals sheet ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();
   }
