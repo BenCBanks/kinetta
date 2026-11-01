@@ -133,7 +133,7 @@ function yesterdayMeal(day, meal) {
       b.innerHTML = rows.length ? `<p>Add ${esc(label)} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${!meal?esc(MEAL_NAMES[e.meal])+': ':''}${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">${logLabel}</button><p class="small danger" id="ym-error" role="alert"></p>` : `<p>${meal?'No foods were logged for this meal yesterday.':'No food was logged yesterday.'}</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>`;
       if (!rows.length) { $('#ym-usual', b).onclick = () => { if (!live()) return; close(); addSheet(day, meal); }; return; }
       // Keep the same upload identities when a response is lost and this preview is retried.
-      const items = rows.map(({meal:sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal:meal||sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,client_id:newId()}));
+      const items = rows.map(({meal:sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal:meal||sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,entry_method:'copy_yesterday',client_id:newId()}));
       let busy = false, done = false;
       $('#ym-save', b).onclick = async e => {
         if (!live() || busy || done) return;

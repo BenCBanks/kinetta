@@ -115,7 +115,7 @@ events AS (
 LABELS = {
     **{'activity_source_'+k: 'Activities · '+v for k,v in [('track','Track'),('health','Apple Health'),('garmin','Garmin'),('manual','manual'),('upload','file/other import')]},
     **{'activity_sport_'+s: 'Activities · '+s for s in ('run','walk','hike','ride','lift','swim','other')},
-    'lifting':'Lifting sessions','intervals':'Activities using intervals','food':'Food entries',
+    'lifting':'Logged lifting sessions','intervals':'Activities using intervals','food':'Food entries',
     **{'food_method_'+k:'Food · '+v for k,v in [('describe','describe/chat'),('search','search'),('barcode','barcode'),('photo','photo'),('recipe','recipe'),('copy_yesterday','copy yesterday'),('copy_other','copy other'),('manual','manual'),('mixed','mixed review'),('other','other'),('unknown','method unavailable')]},'recipes':'Recipes created',
     'weight':'Dated weigh-ins','friends':'Accepted friend connections','reactions':'Reactions','comments':'Comments',
     'challenges_started':'Challenges started','challenges_joined':'Challenge memberships','segments':'Segments created',
@@ -221,13 +221,15 @@ def features(period: Literal['7','30','90','12m']='30', bucket: Literal['day','w
         for key,label,query in [
             ('plans','Active training plans', 'SELECT count(DISTINCT user_id) AS people,count(*) AS uses FROM training_plans WHERE active'),
             ('leaderboards','Leaderboard opt-in', 'SELECT count(*) AS people,count(*) AS uses FROM profile WHERE segment_boards'),
+            ('notify_plan','Planned-workout alerts on',"SELECT count(*) AS people,count(*) AS uses FROM profile WHERE notify->'personal'->'plan'='true'::jsonb"),
+            ('notify_weekly','Weekly-summary alerts on',"SELECT count(*) AS people,count(*) AS uses FROM profile WHERE notify->'personal'->'weekly'='true'::jsonb"),
             ('notifications','Push registered', 'SELECT count(DISTINCT user_id) AS people,count(*) AS uses FROM (SELECT user_id FROM push_subscriptions UNION ALL SELECT user_id FROM native_push_devices) s')]:
             count=c.execute(query).fetchone();rows.append({'feature':key,'label':label,**cell(**count),'metric':'people','kind':'current state','change':None,'trend':[]})
         return {'period':period,'bucket':bucket,'start':start,'end':end-dt.timedelta(days=1),'zone':'UTC',
             'collection_enabled':enabled(),'tracking_since':started,'retention_months':13,'rows':rows,'funnel':funnel(c,start,end,today,started),
             'notes':['Existing records count retained data, not deleted history. Current-state rows are not historical actions.',
                 'Food methods are forward-only action labels when collection is enabled. Older records/clients remain method unavailable; nutrition provenance is never used to guess a method.',
-                'Daily view summaries include only days with at least3 people. Across days the metric is user-days, not distinct people. Hidden days and unavailable previous periods have no change.',
+                'Opens within30seconds are coalesced. Daily view summaries include only days with at least3 people. Across days the metric is user-days, not distinct people. Hidden days and unavailable previous periods have no change.',
                 'Trends are hidden if any bucket is small, so totals cannot reveal a hidden bucket. Counts are not a guarantee of anonymity.',
                 'Funnel steps are independent. Welcome/Health setup has no backfilled history; Apple permission completion does not prove read permission. Week2 excludes accounts under14days old.',
                 'No account drill-down, private text, locations, raw sources or questions are returned.']}

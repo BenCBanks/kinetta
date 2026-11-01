@@ -17,6 +17,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
     assert(await page.locator('.feature-funnel svg').count()>0,'real aggregate funnel visible');checks++;
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);checks++;
     assert(await page.locator('.feature-table tbody').innerText().then(x=>x.includes('user-days')));checks++;
+    const visible=await page.locator('.feature-table tbody tr').count();await page.locator('#feature-hidden').check();assert(await page.locator('.feature-table tbody tr').count()>visible);await page.locator('#feature-hidden').uncheck();checks++;
     const before=await page.locator('.feature-table tbody').innerText();await page.locator('[data-feature-sort=uses]').click();assert.notEqual(await page.locator('.feature-table tbody').innerText(),before);checks++;
     for(const period of ['7','90','12m','30']){
      const response=page.waitForResponse(r=>r.url().includes('/api/admin/features?')&&r.url().includes('period='+period));await page.locator('#feature-period').selectOption(period);assert.equal((await response).status(),200);await page.locator('.feature-table').waitFor();checks++;
