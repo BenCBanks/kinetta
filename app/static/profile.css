@@ -155,7 +155,7 @@
 .me-card-empty { margin:0; }
 .me-card-empty { display:flex; flex-direction:column; gap:8px; }
 .me-card-empty p { margin:0; }
-.me-card-empty .ghost { min-height:44px; }
+.me-card-empty .ghost { min-height:44px; background:none; border-color:transparent; color:var(--accent); }
 .me-card-note { margin:0; display:flex; gap:7px; align-items:center; font-size:.8125rem; line-height:1.4; color:var(--tx2); }
 .me-card-note span { white-space:nowrap; }
 .me-card-note svg { width:14px; height:14px; flex:none; margin-top:2px; }
