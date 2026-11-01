@@ -26,7 +26,7 @@ function buttons(row,actions){return '<div class="actions">'+actions.map(([a,lab
 const sectionPicker=$('#admin-section');
 sectionPicker.innerHTML=[...document.querySelectorAll('[data-view]')].map(b=>`<option value="${b.dataset.view}">${esc(b.textContent)}</option>`).join('');
 sectionPicker.onchange=()=>show(sectionPicker.value);
-async function show(view){current=view;sectionPicker.value=view;const rev=++revision;err.textContent='';$('#retry').hidden=true;content.innerHTML='<p>Loading…</p>';document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.view===view?'page':'false'));
+async function show(view){if(document.body)document.body.dataset.adminView=view;const heading=$('#portal h1');if(heading)heading.textContent=view==='features'?'Features':'Administration';current=view;sectionPicker.value=view;const rev=++revision;err.textContent='';$('#retry').hidden=true;content.innerHTML='<p>Loading…</p>';document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.view===view?'page':'false'));
 try{const query=view==='features'?featureQuery():['logins','usage'].includes(view)?'?'+new URLSearchParams({days:reportDays,...(view==='logins'?{...(loginOutcome?{outcome:loginOutcome}:{}),...(loginAccount?{account:loginAccount}:{})}:{})}):'';const special=typeof adminQuery==='function'?adminQuery(view):null;const data=await api('/'+({audit:'audit-history',requests:'data-requests'}[view]||view)+(special===null?query:special));if(rev!==revision||!who)return;
  if(view==='overview')await overviewView(data,rev);
  if(view==='people')peopleView(data,rev);

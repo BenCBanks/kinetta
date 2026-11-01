@@ -4,3 +4,6 @@
 .feature-dot{fill:var(--color-brand)}.feature-trend text{font-size:10px}
 
 .feature-filter{display:flex;align-items:center;gap:8px;min-height:44px;font-size:14px;font-weight:400;margin:8px 0}.feature-filter input{width:20px;height:20px;min-height:20px;margin:0}
+
+/* Range, trend and sort share one compact row; explanations stay under Definitions. */
+.feature-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:8px}.feature-controls label{min-width:0}.feature-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}.feature-toolbar .feature-filter{margin:0}.feature-toolbar #feature-count{text-align:right}.feature-table th,.feature-table td{font-size:15px}.feature-table small{font-size:13px}.feature-trend svg{height:54px}.feature-trend text{font-size:12px}.feature-funnel li>div{font-size:15px}body[data-admin-view=features] #portal h1{font-size:28px}body[data-admin-view=features] #admin-section{margin-bottom:0}.feature-heading{margin-top:0}

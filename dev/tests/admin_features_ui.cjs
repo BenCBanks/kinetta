@@ -13,18 +13,19 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
     await context.route('**/*',route=>{const r=route.request(),u=new URL(r.url());return u.origin!==base||!['GET','HEAD'].includes(r.method())?route.abort():route.continue();});
     await page.goto(base+'/admin');await page.locator('#portal:not([hidden])').waitFor();
     if(width<700)await page.locator('#admin-section').selectOption('features');else await page.locator('[data-view=features]').click();
-    await page.locator('.feature-table').waitFor();await page.getByText('New feature counting is off',{exact:false}).waitFor();
+    await page.locator('.feature-table').waitFor();await page.getByText('New counting is off',{exact:false}).waitFor();
     assert(await page.locator('.feature-funnel svg').count()>0,'real aggregate funnel visible');checks++;
+    assert(await page.locator('.feature-table tbody tr').first().evaluate(e=>e.getBoundingClientRect().top<700),'first data row stays in the first phone screen');checks++;
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);checks++;
-    assert(await page.locator('.feature-table tbody').innerText().then(x=>x.includes('user-days')));checks++;
+    const units=page.locator('td[data-label="user-days"]');assert(await units.count()>0);if(width<700){assert(await units.first().evaluate(e=>getComputedStyle(e,'::before').content.includes('user-days')));}else{assert(await units.first().innerText().then(x=>x.includes('user-days')));}checks++;
     const visible=await page.locator('.feature-table tbody tr').count();await page.locator('#feature-hidden').check();assert(await page.locator('.feature-table tbody tr').count()>visible);await page.locator('#feature-hidden').uncheck();checks++;
-    const before=await page.locator('.feature-table tbody').innerText();await page.locator('[data-feature-sort=uses]').click();assert.notEqual(await page.locator('.feature-table tbody').innerText(),before);checks++;
+    const before=await page.locator('.feature-table tbody').innerText();await page.locator('#feature-sort').selectOption('uses:-1');assert.notEqual(await page.locator('.feature-table tbody').innerText(),before);checks++;
     for(const period of ['7','90','12m','30']){
      const response=page.waitForResponse(r=>r.url().includes('/api/admin/features?')&&r.url().includes('period='+period));await page.locator('#feature-period').selectOption(period);assert.equal((await response).status(),200);await page.locator('.feature-table').waitFor();checks++;
     }
     await page.locator('#feature-bucket').selectOption('day');await page.locator('.feature-table').waitFor();checks++;
-    const fit=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1,controls:[...document.querySelectorAll('.feature-controls select,.feature-sort button')].map(e=>e.getBoundingClientRect().height)}));assert.equal(fit.overflow,false);assert(fit.controls.every(h=>h>=44));assert.deepEqual(errors,[]);checks++;
-    if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`features-${width}-${theme}.png`),fullPage:true});}
+    const fit=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1,controls:[...document.querySelectorAll('.feature-controls select')].map(e=>e.getBoundingClientRect().height)}));assert.equal(fit.overflow,false);assert(fit.controls.every(h=>h>=44));assert.deepEqual(errors,[]);checks++;
+    if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`features-${width}-${theme}.png`),fullPage:true});await page.screenshot({path:path.join(out,`features-viewport-${width}-${theme}.png`)});await page.locator('.feature-funnel').screenshot({path:path.join(out,`features-funnel-${width}-${theme}.png`)});}
     console.log(`Features ${width}px ${theme}: real admin aggregates/funnel, small groups, sorts, all ranges, trend selector, controls and no overflow/errors PASS`);
    }finally{await context.close();}
   }
