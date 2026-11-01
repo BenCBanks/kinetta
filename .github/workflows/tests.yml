@@ -57,7 +57,7 @@ jobs:
   tests:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -83,6 +83,9 @@ jobs:
           npm install --prefix /tmp/interval-browser playwright
           /tmp/interval-browser/node_modules/.bin/playwright install --with-deps chromium
           NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/interval_voice_ui.cjs
+
+      - name: Check all navigation labels, targets and keyboard clearance
+        run: NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/navigation_ui.cjs
 
       - name: Check automatic asset updates and offline cache
         run: NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/asset_cache_ui.cjs
