@@ -156,7 +156,7 @@ async function say(page, text) {
       await page.evaluate(() => document.fonts.ready);
       // Locator/evaluate polling works under the app’s strict script policy.
       for(let n=0;n<40;n++){if(await page.evaluate(()=>!document.querySelector('.leaflet-tile-container')||document.querySelector('.leaflet-tile-loaded')))break;await page.waitForTimeout(100);}
-      if(name==='feed'){await page.locator('#feed-tools[aria-busy=false]').waitFor();if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');}
+      if(name==='feed'){await page.locator('#feed-tools[aria-busy=false]').waitFor({state:'attached'});if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');}
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
         await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
