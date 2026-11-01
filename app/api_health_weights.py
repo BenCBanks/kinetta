@@ -125,9 +125,11 @@ def import_weights(body:Batch,user=Depends(current_user)):
         for sample in body.samples:
             old=c.execute('SELECT sampled_at,kg,source_name,source_bundle,deleted FROM health_weight_samples WHERE user_id=%s AND sample_id=%s',(user['id'],sample.sample_id)).fetchone()
             name=' '.join(sample.source_name.split()) or 'Apple Health';bundle=sample.source_bundle.strip()
-            if old and not old['deleted'] and (old['sampled_at']!=sample.sampled_at or old['kg']!=sample.kg or old['source_name']!=name or old['source_bundle']!=bundle):
+            # ZoneInfo equality is ambiguous during a repeated DST hour; compare actual instants.
+            same_time=bool(old and old['sampled_at'] is not None and old['sampled_at'].astimezone(dt.timezone.utc)==sample.sampled_at.astimezone(dt.timezone.utc))
+            if old and not old['deleted'] and (not same_time or old['kg']!=sample.kg or old['source_name']!=name or old['source_bundle']!=bundle):
                 # HealthKit samples are immutable; a changed measurement has a new UUID.
-                if abs(float(old['kg'])-sample.kg)>.0001 or old['sampled_at']!=sample.sampled_at:raise HTTPException(409,'This Health sample identity already has another measurement')
+                if abs(float(old['kg'])-sample.kg)>.0001 or not same_time:raise HTTPException(409,'This Health sample identity already has another measurement')
             c.execute('''INSERT INTO health_weight_samples(user_id,sample_id,sampled_at,kg,source_name,source_bundle,observed_at)
               VALUES(%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(user_id,sample_id) DO UPDATE SET observed_at=greatest(health_weight_samples.observed_at,excluded.observed_at)
               WHERE NOT health_weight_samples.deleted''',(user['id'],sample.sample_id,sample.sampled_at,sample.kg,name,bundle,body.observed_at))
