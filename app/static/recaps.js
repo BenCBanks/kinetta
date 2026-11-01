@@ -65,7 +65,7 @@ const Recaps=(()=>{
   const periods=[['this_week','Week'],['last_week','Last week'],['this_month','Month'],['last_month','Last month'],['this_year','Year']];
   const defaults={totals:true,calendar:true,highlights:true,streak:true,food:false,identity:false};
   const scope=()=>JSON.stringify([serverKey(),App.me?.id]);
-  function today(){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:App.me?.tz||'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const get=k=>parts.find(p=>p.type===k).value;return `${get('year')}-${get('month')}-${get('day')}`;}
+  function today(zone=App.me?.tz){if(!zone)throw Error('Load your profile time zone before opening a recap.');const parts=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const get=k=>parts.find(p=>p.type===k).value;return `${get('year')}-${get('month')}-${get('day')}`;}
   function startFor(period,day=today()){
     const d=new Date(day+'T12:00:00Z');
     if(period.includes('week'))d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7-(period==='last_week'?7:0));
@@ -93,11 +93,30 @@ const Recaps=(()=>{
     const alt=[title,hero&&hero.value+' '+hero.label,o.totals&&secondary,o.calendar&&d.activities>0&&'Activity calendar',...highlights,o.streak&&d.streak_weeks>=2&&`${d.streak_weeks} active weeks in a row`,...food,credits].filter(Boolean).join('. ');
     return {title,hero,secondary,highlights,food,credits,alt};
   }
+  const recapKey=(period,start,zone)=>`/api/recaps?period=${period}&start=${start}&tz=${encodeURIComponent(zone)}`;
+  const validFacts=(data,period,start,zone)=>data?.period===period&&data.start===start&&data.tz===zone;
   async function read(period){
-    const owner=readOwner(),start=startFor(period),key=`/api/recaps?period=${period}&start=${start}`;
-    try{const d=await api('/api/recaps?period='+period);if(owner!==readOwner())throw Error('The account changed.');keep(key,d);return d;}
-    catch(e){if(owner!==readOwner()||e.stale||[401,403,404].includes(e.status))throw e;const cached=kept(key);if(cached&&cached.tz===(App.me?.tz||'America/New_York'))return {...cached,from_cache:true};throw e;}
+    const owner=readOwner(),profileZone=App.me?.tz||null,metaKey=`/api/recaps?period=${period}&server_meta=1`;
+    const changed=()=>owner!==readOwner()||(App.me?.tz||null)!==profileZone;
+    try{
+      const data=await api('/api/recaps?period='+period);
+      if(changed())throw Object.assign(Error('Your account or time zone changed. Refresh and try again.'),{stale:true});
+      if(data?.period!==period||!/^\d{4}-\d{2}-\d{2}$/.test(data.start)||typeof data.tz!=='string'||!data.tz)throw Error('The recap reply was incomplete. Try again.');
+      if(profileZone&&data.tz!==profileZone)throw Object.assign(Error('Your time zone changed. Refresh and try again.'),{stale:true});
+      // A request may cross midnight: the returned range, rather than its earlier request time, owns the cache key.
+      keep(recapKey(data.period,data.start,data.tz),data);keep(metaKey,{period:data.period,start:data.start,tz:data.tz});return data;
+    }catch(error){
+      if(changed()||error.stale||[401,403,404].includes(error.status))throw error;
+      const meta=kept(metaKey),zone=profileZone||(meta?.period===period?meta.tz:null);
+      if(!zone)throw error;
+      const start=startFor(period,today(zone));
+      // Accept a compatible old cache only after checking its full range and timezone.
+      const cached=kept(recapKey(period,start,zone))||kept(`/api/recaps?period=${period}&start=${start}`);
+      if(validFacts(cached,period,start,zone))return {...cached,from_cache:true};
+      throw error;
+    }
   }
+
   // Export colours stay legible in either app theme, like the other ShareArt pictures.
   const ink=()=>({blue:col('--share-brand'),action:col('--share-action'),white:col('--share-on-action'),tint:col('--share-brand-soft')});
   function chartData(d){
@@ -210,8 +229,10 @@ const Recaps=(()=>{
           if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;picture=result.blob;
           const hasData=data.activities>0||options.food&&data.food.logged_days>0,hasSections=options.totals||options.calendar||options.highlights&&data.highlights.length>0||options.streak&&data.streak_weeks>=2||options.food||options.identity;
           canShare=hasData&&hasSections;
-          if(data.from_cache)status.textContent='Using the last data loaded for this period.';
-          if(!hasData)status.textContent=data.food.logged_days?'No activities in this period. Turn on Food to include logged days, or choose another period.':'No activities in this period yet. Choose another period.';
+          const messages=[];
+          if(data.from_cache)messages.push('Using the last data loaded for this period.');
+          if(!hasData)messages.push(data.food.logged_days?'No activities in this period. Turn on Food to include logged days, or choose another period.':'No activities in this period yet. Choose another period.');
+          status.textContent=messages.join(' ');
         }catch(e){if(live()&&run===version){status.textContent=e.message;$('#recap-retry',b).hidden=false;}}
         finally{if(live()&&run===version){preview.classList.remove('busy');controls();}}
       }
@@ -244,9 +265,9 @@ const Recaps=(()=>{
   }
   function entry(el){const acts=$('.progress-heading .acts',el);if(!acts||$('#recap-entry',el))return;const b=document.createElement('button');b.id='recap-entry';b.type='button';b.className='linkbtn';b.textContent='Share';b.setAttribute('aria-label','Share a progress picture');b.onclick=()=>{const p=$('#m-body',el)?new URLSearchParams(location.search).get('period')||'week':null;open(p==='week'?'this_week':p==='year'?'this_year':'this_month');};acts.prepend(b);}
   async function offer(box){
-    if(!box||+today().slice(-2)>7)return;const owner=readOwner(),start=startFor('last_month'),key='fit.recap.offer:'+scope()+':'+start;
-    if(store.get(key))return;
-    try{const d=await read('last_month');if(owner!==readOwner()||!box.isConnected||!d.monthly_offer||store.get(key))return;
+    if(!box)return;
+    try{if(+today().slice(-2)>7)return;const owner=readOwner(),start=startFor('last_month'),key='fit.recap.offer:'+scope()+':'+start;
+      if(store.get(key))return;const d=await read('last_month');if(owner!==readOwner()||!box.isConnected||!d.monthly_offer||store.get(key))return;
       box.innerHTML=`<section class="card recap-offer"><div><h2>Your ${esc(new Date(d.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'long'}))} is ready</h2><p class="small muted">Make a picture of your month.</p></div><div class="acts"><button type="button" class="ghost" data-recap-month>Share</button><button type="button" class="icon-btn" data-recap-dismiss aria-label="Dismiss monthly recap">${svg('close')}</button></div></section>`;
       const dismiss=reason=>{if(owner!==readOwner())return;store.set(key,reason);if(box.isConnected)box.innerHTML='';};$('[data-recap-dismiss]',box).onclick=()=>dismiss('dismissed');$('[data-recap-month]',box).onclick=()=>open('last_month',shared=>{if(shared.period==='last_month'&&shared.start===d.start)dismiss('shared');});
     }catch(_){/* A quiet optional offer must not replace the person's useful day. */}
