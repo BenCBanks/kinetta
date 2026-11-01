@@ -3,7 +3,7 @@ import base64, os, re, unittest
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
-from app import db, signup
+from app import db, signup, api_account
 from app.main import app
 
 PW = 'test account private password'
@@ -28,11 +28,12 @@ class FriendLinks(unittest.TestCase):
         self.tearDownClass()
         p = patch.dict(os.environ, ENV); p.start(); self.addCleanup(p.stop)
         self.mail = patch('app.account_email.httpx.post', side_effect=receipt).start(); self.addCleanup(patch.stopall)
-        patch.object(signup, 'TEST_ACCOUNTS', 'no such account prefix%').start()
+        original=api_account.reserved_login
+        patch.object(api_account,'reserved_login',side_effect=lambda v,**kw:original(v,allow_test=True)).start()
 
     def person(self, login, confirmed=True, **form):
         c = client()
-        with db.connect() as d: d.execute('DELETE FROM auth_attempts')     # five signups an hour from one address
+        with db.connect() as d: d.execute('DELETE FROM auth_attempts')     # isolate each enrollment fixture
         r = c.post('/api/signup', json={'name': login.replace('zz_test_fl_', '').title(), 'login': login, 'email': login + '@example.test',
                                         'password': PW, 'age_ok': True, 'tz': 'UTC', **form})
         self.assertEqual(r.status_code, 200, r.text)

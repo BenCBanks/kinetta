@@ -62,7 +62,8 @@ class AdminUsers(unittest.TestCase):
         r = self.a.get('/api/admin/people?q=zz_au_member@example&tests=true').json()
         self.assertEqual([x['login'] for x in r['rows']], ['zz_test_au_member'], 'search by email')
         self.assertEqual(r['total'], 1); self.assertEqual(r['pages'], 1)
-        self.assertNotIn('zz_test_au_member', [x['login'] for x in self.a.get('/api/admin/people?q=zz_test_au').json()['rows']], 'test accounts hidden by default')
+        self.assertIn('zz_test_au_member', [x['login'] for x in self.a.get('/api/admin/people?q=zz_test_au').json()['rows']], 'all accounts visible by default')
+        self.assertEqual(self.a.get('/api/admin/people?q=zz_test_au&tests=false').json()['total'],0,'fixture hiding is explicit')
         admins = self.a.get('/api/admin/people?role=admin&tests=true&q=zz_test_au').json()['rows']
         self.assertEqual([x['login'] for x in admins], ['zz_test_au_admin'])
         self.assertEqual(self.a.get('/api/admin/people?status=bogus').status_code, 422)

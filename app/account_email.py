@@ -55,12 +55,20 @@ def require_available(c, email, uid=None, *, confirmation=False):
         email_exists()
 
 
-def enrollment_limit(request, email):
+def enrollment_limit(request, email, *, waitlist=False):
     # Commit rejected attempts too. Keep addresses out of the limiter key.
     with db.connect() as c:
-        ip_hit = limited(c, 'signup-ip:' + auth.client_ip(request), 5, 60)
-        email_hit = limited(c, 'signup-email:' + auth.token_hash(email), 5, 60)
+        purpose = 'waitlist' if waitlist else 'signup'
+        ip_hit = limited(c, purpose+'-ip:' + auth.client_ip(request), 10 if waitlist else 20, 60)
+        email_hit = limited(c, purpose+'-email:' + auth.token_hash(email), 3 if waitlist else 5, 60)
     if ip_hit or email_hit: raise HTTPException(429, 'Too many tries - wait an hour')
+
+
+def token_limit(request, purpose, most):
+    # Failure of token lookup/validation must not undo the rate accounting.
+    with db.connect() as c:
+        hit = limited(c, purpose + auth.client_ip(request), most, 15)
+    if hit: raise HTTPException(429, 'Too many tries - wait 15 minutes')
 
 
 def _base():
@@ -182,15 +190,16 @@ class TokenIn(BaseModel):
 @router.post('/api/account/email/confirm')
 def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
     """No login needed: the link may be opened on another device."""
+    token_limit(request, 'confirm:', 20)
     with db.connect() as c:
         reservation_lock(c)
-        if limited(c, 'confirm:' + auth.client_ip(request), 20, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         r = _open(c, body.token, 'verify_email', lock_user=True)
         r['email'] = _clean_email(r['email'])
         require_available(c, r['email'], r['user_id'], confirmation=True)
         try:
             with c.transaction():
-                c.execute('UPDATE users SET email = %s, email_verified_at = now(), needs_email_confirm = false WHERE id = %s', (r['email'], r['user_id']))
+                c.execute("""UPDATE users SET email=%s, email_verified_at=now(), needs_email_confirm=false,
+                  signup_confirmed_at=CASE WHEN signup_guard AND signup_confirmed_at IS NULL THEN now() ELSE signup_confirmed_at END WHERE id=%s""", (r['email'], r['user_id']))
         except errors.UniqueViolation:
             email_exists()
         c.execute('UPDATE account_tokens SET used_at = now() WHERE token_hash = %s', (r['token_hash'],))
@@ -247,16 +256,16 @@ class ResetIn(BaseModel):
 @router.get('/api/password/reset/{token}')
 def reset_info(token: str, request: Request):
     """Whether a reset link still works, so the page can say so before someone types a new password."""
+    token_limit(request, 'reset-ip:', 30)
     with db.connect() as c:
-        if limited(c, 'reset-ip:' + auth.client_ip(request), 30, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         r = _open(c, token, 'reset_password')
     return {'login': r['login']}
 
 
 @router.post('/api/password/reset')
 def reset(body: ResetIn, request: Request, background: BackgroundTasks):
+    token_limit(request, 'reset-ip:', 30)
     with db.connect() as c:
-        if limited(c, 'reset-ip:' + auth.client_ip(request), 30, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         r = _open(c, body.token, 'reset_password')
         auth.check_new_password(body.password, r['login'])
         c.execute('UPDATE users SET pw_hash = %s, password_change_expires = NULL WHERE id = %s', (auth.hash_pw(body.password), r['user_id']))

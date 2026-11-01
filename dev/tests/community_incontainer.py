@@ -182,12 +182,13 @@ class Publication(unittest.TestCase):
         self.q('friend','GET','/api/challenges/'+challenge['code'],status=404)
 
     def test_invite_signup_require_exact_published_version(self):
-        from app import account_email
+        from app import account_email, api_account
+        original=api_account.reserved_login
         document={**terms.DOCUMENT,'draft':False,'version':'fixture-approved-signup'}
         guest=TestClient(app); guest.headers.update({'Origin':'http://testserver','Content-Type':'application/json'})
         prefix='zz_test_cms_'+self.tag
         try:
-            with patch.dict(terms.DOCUMENT,document),patch.dict(os.environ,{'KINETTA_TERMS_VERSION':document['version'],'KINETTA_SIGNUP':'open'}),patch.object(auth,'client_ip',return_value='community-'+self.tag),patch.object(account_email,'mail_ready',return_value=True),patch.object(account_email,'confirmation',return_value=None):
+            with patch.object(api_account,'reserved_login',side_effect=lambda v,**kw:original(v,allow_test=True)),patch.dict(terms.DOCUMENT,document),patch.dict(os.environ,{'KINETTA_TERMS_VERSION':document['version'],'KINETTA_SIGNUP':'open'}),patch.object(auth,'client_ip',return_value='community-'+self.tag),patch.object(account_email,'mail_ready',return_value=True),patch.object(account_email,'confirmation',return_value=None):
                 self.assertEqual(guest.post('/api/terms/accept',json={'version':document['version']}).status_code,401)
                 invite=self.q('admin','POST','/api/admin/invites',{})
                 body={'token':invite['path'].split('/')[-1],'name':'Invite Example','login':prefix+'i','password':PW}

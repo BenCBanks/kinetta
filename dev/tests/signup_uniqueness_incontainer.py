@@ -28,6 +28,8 @@ class Uniqueness(unittest.TestCase):
         self.tag=uuid.uuid4().hex[:8];self.prefix='zz_test_uq_'+self.tag;self.ids={};self.clients={};self.invites=[];self.emails=set()
         self.env=patch.dict(os.environ,MAIL);self.env.start();self.addCleanup(self.env.stop)
         self.mail=patch('app.account_email.httpx.post',side_effect=receipt).start();self.addCleanup(patch.stopall)
+        original=api_account.reserved_login
+        patch.object(api_account,'reserved_login',side_effect=lambda v,**kw:original(v,allow_test=True)).start()
         patch.object(auth,'client_ip',side_effect=lambda r:'fixture445:'+self.tag+':'+r.headers.get('x-fixture-client','default')).start()
         with db.connect() as c:
             for kind in ('owner','other','admin'):
@@ -149,8 +151,8 @@ class Uniqueness(unittest.TestCase):
 
     def test_signup_ip_limit_counts_rejections_with_different_emails(self):
         client=self.client('one-address');replies=[]
-        for n in range(6):replies.append(client.post('/api/signup',json={**self.form('reserved',self.email('attempt'+str(n))),'login':'admin'}))
-        self.assertEqual([r.status_code for r in replies],[400]*5+[429])
+        for n in range(21):replies.append(client.post('/api/signup',json={**self.form('reserved',self.email('attempt'+str(n))),'login':'admin'}))
+        self.assertEqual([r.status_code for r in replies],[400]*20+[429])
 
     def test_two_open_signups_cannot_create_duplicate_pending_accounts(self):
         email=self.email();clients=[self.client(),self.client()]

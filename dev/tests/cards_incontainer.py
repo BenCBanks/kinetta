@@ -3,12 +3,14 @@ import io,json,uuid,unittest
 from unittest.mock import patch
 from PIL import Image,ImageDraw
 from fastapi.testclient import TestClient
-from app import db,auth,cards
+from app import db,auth,cards,api_account
 from app.main import app
 class Cards(unittest.TestCase):
  @classmethod
  def setUpClass(cls):cls.pw=auth.hash_pw('fictional card testing phrase')
  def setUp(self):
+  original=api_account.reserved_login
+  names=patch.object(api_account,'reserved_login',side_effect=lambda v,**kw:original(v,allow_test=True));names.start();self.addCleanup(names.stop)
   self.ids=[];self.clients=[]
   with db.connect() as c:
    for _ in range(3):

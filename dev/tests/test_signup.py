@@ -1,9 +1,10 @@
 """Open signup with an email, the account cap and new-account restrictions (#232 D); the mail provider is a stand-in."""
 import base64, os, re, threading, unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
-from app import db, auth, signup, admin_auth
+from app import db, auth, signup, admin_auth, api_account, account_email
 from app.main import app
 
 PW = 'test account private password'
@@ -11,8 +12,6 @@ BASE = 'http://testserver'
 MAIL = {'KINETTA_RESEND_KEY': 'stand-in-not-a-key', 'KINETTA_MAIL_FROM': 'Kinetta <hello@example.test>',
         'KINETTA_MAIL_REPLY_TO': 'support@example.test', 'KINETTA_PUBLIC_URL': 'https://example.test',
         'KINETTA_MAIL_WEBHOOK_SECRET': 'whsec_' + base64.b64encode(b'fictional-webhook-key').decode()}
-# In these tests zz_test signups must count toward the cap, so "test accounts" means an impossible prefix here.
-NO_TEST_PREFIX = 'no such account prefix%'
 
 
 def receipt(*a, **k):
@@ -20,7 +19,7 @@ def receipt(*a, **k):
 
 
 def client():
-    c = TestClient(app); c.headers['Origin'] = BASE; return c
+    c = TestClient(app); c.headers.update({'Origin':BASE,'Content-Type':'application/json'}); return c
 
 
 def form(login, **extra):
@@ -31,12 +30,16 @@ class Signup(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         with db.connect() as c:
-            c.execute("DELETE FROM users WHERE login LIKE 'zz\\_test\\_su%%'"); c.execute('DELETE FROM auth_attempts')
+            c.execute("DELETE FROM users WHERE login LIKE 'zz\\_test\\_su%%' OR login LIKE 'zzsutest%%'"); c.execute('DELETE FROM auth_attempts')
+            c.execute("DELETE FROM beta_requests WHERE email LIKE 'zz_test_su%%@example.test'")
 
     def setUp(self):
         self.tearDownClass()
         self.mail = patch('app.account_email.httpx.post', side_effect=receipt).start(); self.addCleanup(patch.stopall)
-        patch.object(signup, 'TEST_ACCOUNTS', NO_TEST_PREFIX).start()
+        # Trusted fixtures may use reserved test handles; cap counting remains the real production query.
+        original = api_account.reserved_login
+        self.fixture_names = patch.object(api_account, 'reserved_login', side_effect=lambda v, **kw: original(v, allow_test=True))
+        self.fixture_names.start()
 
     def env(self, **kw):
         # start from known settings, whatever the server running the tests was started with
@@ -132,8 +135,9 @@ class Signup(unittest.TestCase):
         self.env(KINETTA_SIGNUP='open')
         self.assertEqual(client().post('/api/signup', json=form('zz_test_su_bot', website='https://spam.example')).json(), {'ok': True})
         with db.connect() as c: self.assertIsNone(c.execute("SELECT 1 FROM users WHERE login = 'zz_test_su_bot'").fetchone(), 'honeypot makes nothing')
-        codes = [client().post('/api/signup', json=form(f'zz_test_su_rate{i}')).status_code for i in range(6)]
-        self.assertEqual(codes[-1], 429, 'at most five signups an hour from one address')
+        codes = [client().post('/api/signup', json=form(f'zz_test_su_rate{i}')).status_code for i in range(20)]
+        self.assertEqual(codes[:-1], [200]*19)
+        self.assertEqual(codes[-1], 429, '20 source attempts including the honeypot')
 
     def test_admin_overview_shows_cap(self):
         self.env(KINETTA_SIGNUP='open', KINETTA_MAX_ACCOUNTS=100)
@@ -194,5 +198,170 @@ class Signup(unittest.TestCase):
         self.assertIn('Welcome', mail['subject']); self.assertIn('beta', mail['text']); self.assertIn('https://testflight.apple.com/join/zzFICTION', mail['text'])
         self.env(KINETTA_SIGNUP='open', KINETTA_TESTFLIGHT_URL='https://example.test/not-testflight')
         self.assertIsNone(client().get('/api/signup').json()['iphone_app'], 'only an Apple TestFlight address is published')
+
+    def remove_member(self, uid):
+        with db.connect()as c:c.execute('DELETE FROM users WHERE id=%s',(uid,))
+
+    def member(self, suffix, admin=False):
+        with db.connect() as c:
+            uid=c.execute('INSERT INTO users(login,name,pw_hash,is_admin) VALUES(%s,%s,%s,%s) RETURNING id',('zz_test_su_'+suffix,'Fixture Member',auth.hash_pw(PW),admin)).fetchone()['id']
+            c.execute('INSERT INTO profile(user_id) VALUES(%s)',(uid,));token=auth.new_session(c,uid,'signup-safety-fixture')
+        self.addCleanup(self.remove_member,uid)
+        person=client();person.cookies.set(auth.COOKIE,token);return person,uid
+
+    def actor(self):
+        self.env(KINETTA_SIGNUP='open');person=client()
+        r=person.post('/api/signup',json=form('zz_test_su_guard'));self.assertEqual(r.status_code,200,r.text)
+        token=re.search(r'/confirm-email/([\w-]+)',self.mail.call_args.kwargs['json']['text']).group(1)
+        self.assertEqual(client().post('/api/account/email/confirm',json={'token':token}).status_code,200)
+        return person,person.get('/api/me').json()['id']
+
+    def race(self, *calls):
+        barrier=threading.Barrier(len(calls))
+        def run(call):barrier.wait();return call()
+        with ThreadPoolExecutor(max_workers=len(calls))as pool:return[f.result(timeout=20)for f in[pool.submit(run,call)for call in calls]]
+
+    def test_public_prefix_official_names_and_legacy_identities(self):
+        self.env(KINETTA_SIGNUP='open');self.fixture_names.stop()
+        for name in ('zz_test_su_public','kinetta_','k1netta_support','supp0rt','adm1n','he1p','off1c1a1','staff'):
+            r=client().post('/api/signup',json=form(name,is_admin=True,allow_test=True,fixture=True));self.assertEqual(r.status_code,400,(name,r.text))
+            self.assertFalse(client().get('/api/account/username-availability',params={'login':name}).json()['available'])
+        # A public bootstrap result being administrator does not grant the fixture allowance.
+        from fastapi import HTTPException
+        with db.connect()as c:
+            with self.assertRaises(HTTPException)as denied:api_account._create(c,api_account.NewAccountIn(name='Fixture Owner',login='zz_test_su_boot',password=PW),is_admin=True)
+            self.assertIn('reserved',denied.exception.detail)
+            import secrets
+            invitation=secrets.token_urlsafe(24)
+            iid=c.execute("INSERT INTO invites(token_hash,expires)VALUES(%s,now()+interval '1 day')RETURNING id",(auth.token_hash(invitation),)).fetchone()['id']
+        try:
+            r=client().post('/api/join',json={'token':invitation,'login':'zz_test_su_invited_public','name':'Fixture Member','password':PW,'allow_test':True,'is_admin':True})
+            self.assertEqual(r.status_code,400,r.text)
+            with db.connect()as c:self.assertIsNone(c.execute('SELECT used_at FROM invites WHERE id=%s',(iid,)).fetchone()['used_at'])
+        finally:
+            with db.connect()as c:c.execute('DELETE FROM invites WHERE id=%s',(iid,))
+        for i,name in enumerate(('Kinetta','kinetta Support','Kinetta Team','Kinetta Official')):
+            self.assertEqual(client().post('/api/signup',json=form('zzsutestofficial'+str(i),name=name)).status_code,400)
+        person,uid=self.member('legacy');admin,aid=self.member('official_admin',True)
+        self.assertEqual(person.put('/api/account',json={'login':'zz_test_su_changed','is_admin':True,'allow_test':True,'current':'zz_test_su_changed'}).status_code,400)
+        self.assertEqual(person.put('/api/account',json={'name':'Kinetta'}).status_code,400)
+        with db.connect()as c:c.execute("UPDATE users SET name='Kinetta',login='kinetta' WHERE id=%s",(uid,))
+        self.assertEqual(person.put('/api/account',json={'name':'Kinetta','login':'kinetta'}).status_code,200,'unchanged legacy identity remains')
+        self.assertEqual(admin.put('/api/account',json={'name':'Kinetta Official','login':'zz_test_su_admin_renamed'}).status_code,200)
+        with db.connect()as c:
+            c.execute("UPDATE users SET login='zz_test_su_legacy' WHERE id=%s",(uid,));token=admin_auth.issue_session(c,aid)
+        admin.cookies.set(admin_auth.COOKIE,token,path='/api');admin.headers['X-Admin-CSRF']=admin_auth.csrf(token)
+        r=admin.post('/api/admin/people',json={'name':'Fixture Member','login':'zz_test_su_created','password':PW})
+        self.assertEqual(r.status_code,200,r.text)
+
+    def test_failed_token_paths_keep_durable_shared_counters(self):
+        self.env();person,uid=self.member('tokens')
+        with db.connect()as c:
+            used=account_email._token(c,uid,'reset_password',60)
+            c.execute('UPDATE account_tokens SET used_at=now() WHERE token_hash=%s',(auth.token_hash(used),))
+            expired=account_email._token(c,uid,'reset_password',-1)
+        for token in ('missing',expired,used):self.assertEqual(client().get('/api/password/reset/'+token).status_code,404)
+        for i in range(27):
+            r=client().post('/api/password/reset',json={'token':'missing','password':PW})if i%2 else client().get('/api/password/reset/missing')
+            self.assertEqual(r.status_code,404,r.text)
+        self.assertEqual(client().post('/api/password/reset',json={'token':'missing','password':PW}).status_code,429)
+        for i in range(20):self.assertEqual(client().post('/api/account/email/confirm',json={'token':'missing'}).status_code,404)
+        self.assertEqual(client().post('/api/account/email/confirm',json={'token':'missing'}).status_code,429)
+        with db.connect()as c:
+            c.execute('DELETE FROM auth_attempts');valid=account_email._token(c,uid,'reset_password',60)
+        for i in range(30):self.assertEqual(client().post('/api/password/reset',json={'token':valid,'password':'abcdefgh'}).status_code,400)
+        self.assertEqual(client().post('/api/password/reset',json={'token':valid,'password':PW}).status_code,429)
+        with db.connect()as c:
+            self.assertIsNone(c.execute('SELECT used_at FROM account_tokens WHERE token_hash=%s',(auth.token_hash(valid),)).fetchone()['used_at'])
+            c.execute('DELETE FROM auth_attempts')
+        replies=self.race(*[lambda:client().get('/api/password/reset/missing')for _ in range(4)])
+        self.assertEqual([r.status_code for r in replies],[404]*4)
+        with db.connect()as c:self.assertEqual(c.execute("SELECT count(*)AS n FROM auth_attempts WHERE key LIKE 'reset-ip:%%'").fetchone()['n'],4)
+
+    def test_waitlist_budgets_do_not_block_unrelated_sources(self):
+        self.env(KINETTA_SIGNUP='waitlist')
+        with db.connect()as c:c.execute("INSERT INTO auth_attempts(key) SELECT 'fail:login:beta' FROM generate_series(1,50)")
+        with patch.object(auth,'client_ip',side_effect=lambda r:r.headers.get('x-fixture-source','network-a')):
+            body=lambda i:{'name':'Waitlist Fixture','email':f'zz_test_su_wait{i}@example.test','phone':'iphone'}
+            for i in range(10):self.assertEqual(client().post('/api/beta',json=body(i)).status_code,200)
+            self.assertEqual(client().post('/api/beta',json=body(10)).status_code,429)
+            self.assertEqual(client().post('/api/beta',json=body(10),headers={'x-fixture-source':'network-b'}).status_code,200)
+            for i in range(3):self.assertEqual(client().post('/api/beta',json=body(11),headers={'x-fixture-source':str(i)}).status_code,200)
+            self.assertEqual(client().post('/api/beta',json=body(11),headers={'x-fixture-source':'fresh'}).status_code,429,'email budget crosses sources')
+
+    def test_new_social_budgets_survive_cancel_delete_and_concurrency(self):
+        from app import cards
+        actor,uid=self.actor();target,tid=self.member('recipient');_,other=self.member('recipient2')
+        for _ in range(9):
+            self.assertEqual(actor.post('/api/friends',json={'login':'zz_test_su_recipient'}).status_code,200)
+            self.assertEqual(actor.delete('/api/friends/zz_test_su_recipient').status_code,200)
+        with db.connect()as c:code=cards.own(c,tid)['code']
+        self.assertEqual(actor.post('/api/cards/'+code+'/request').status_code,200)
+        self.assertEqual(actor.post('/api/friends',json={'login':'zz_test_su_recipient'}).status_code,200,'existing request does not consume budget')
+        self.assertEqual(actor.delete('/api/friends/zz_test_su_recipient').status_code,200)
+        self.assertEqual(actor.post('/api/cards/'+code+'/request').status_code,429)
+        self.assertEqual(actor.post('/api/friends',json={'login':'zz_test_su_recipient'}).status_code,429)
+        key=f'new-social:request:{uid}'
+        with db.connect()as c:
+            c.execute('DELETE FROM auth_attempts WHERE key=%s',(key,));c.execute('INSERT INTO auth_attempts(key)SELECT %s FROM generate_series(1,9)',(key,))
+        replies=self.race(lambda:actor.post('/api/cards/'+code+'/request'),lambda:actor.post('/api/friends',json={'login':'zz_test_su_recipient2'}))
+        self.assertEqual(sorted(r.status_code for r in replies),[200,429],[r.text for r in replies])
+        aid=target.post('/api/activities/manual',json={'sport':'walk','start':'2026-10-01T08:00:00Z','duration_s':60,'distance_m':100}).json()['id']
+        target.put(f'/api/activities/{aid}/sharing',json={'visibility':'everyone'})
+        for _ in range(20):
+            self.assertEqual(actor.post(f'/api/activities/{aid}/comments',json={'text':'Fixture comment'}).status_code,200)
+            with db.connect()as c:cid=c.execute('SELECT id FROM comments WHERE user_id=%s',(uid,)).fetchone()['id']
+            self.assertEqual(actor.delete(f'/api/comments/{cid}').status_code,200)
+        self.assertEqual(actor.post(f'/api/activities/{aid}/comments',json={'text':'Over budget'}).status_code,429)
+        key=f'new-social:comment:{uid}'
+        with db.connect()as c:
+            c.execute('DELETE FROM auth_attempts WHERE key=%s',(key,));c.execute('INSERT INTO auth_attempts(key)SELECT %s FROM generate_series(1,19)',(key,))
+        replies=self.race(*[lambda:actor.post(f'/api/activities/{aid}/comments',json={'text':'Concurrent comment'})for _ in range(2)])
+        self.assertEqual(sorted(r.status_code for r in replies),[200,429])
+        with db.connect()as c:c.execute("UPDATE auth_attempts SET created=now()-interval '25 hours' WHERE key=%s",(key,))
+        self.assertEqual(actor.post(f'/api/activities/{aid}/comments',json={'text':'Next rolling day'}).status_code,200)
+        with db.connect()as c:
+            c.execute('INSERT INTO auth_attempts(key)SELECT %s FROM generate_series(1,20)',(key,))
+            c.execute("UPDATE users SET signup_confirmed_at=now()-interval '8 days' WHERE id=%s",(uid,));stamp=c.execute('SELECT signup_confirmed_at FROM users WHERE id=%s',(uid,)).fetchone()['signup_confirmed_at']
+            token=account_email._token(c,uid,'verify_email',60,'zz_test_su_replacement@example.test')
+        self.assertEqual(client().post('/api/account/email/confirm',json={'token':token}).status_code,200)
+        with db.connect()as c:self.assertEqual(c.execute('SELECT signup_confirmed_at FROM users WHERE id=%s',(uid,)).fetchone()['signup_confirmed_at'],stamp)
+        self.assertEqual(actor.post(f'/api/activities/{aid}/comments',json={'text':'After seven days'}).status_code,200)
+        self.assertNotIn('signup_confirmed_at',actor.get('/api/me').json())
+        with db.connect()as c:token=account_email._token(c,tid,'verify_email',60,'zz_test_su_old@example.test')
+        self.assertEqual(client().post('/api/account/email/confirm',json={'token':token}).status_code,200)
+        with db.connect()as c:self.assertIsNone(c.execute('SELECT signup_confirmed_at FROM users WHERE id=%s',(tid,)).fetchone()['signup_confirmed_at'])
+
+    def test_capacity_notices_run_after_account_write_locks(self):
+        self.env(KINETTA_SIGNUP='open',KINETTA_MAX_ACCOUNTS=self.real_accounts()+1)
+        original=signup.admin_notice;held=[]
+        def inspect(c,**kw):
+            held.append(c.execute("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND relation='users'::regclass AND mode IN('RowExclusiveLock','ShareRowExclusiveLock'))AS x").fetchone()['x'])
+            return original(c,**kw)
+        with patch.object(signup,'admin_notice',side_effect=inspect):
+            self.assertEqual(client().post('/api/signup',json=form('zz_test_su_notice_order')).status_code,200)
+        self.assertTrue(held);self.assertFalse(any(held),'notice recipient locks cannot reverse the account/cap order')
+        self.env(KINETTA_SIGNUP='open',KINETTA_MAX_ACCOUNTS='')
+        with patch.object(signup,'admin_notice',side_effect=signup.DatabaseError('fixture notice outage')),self.assertLogs('uvicorn.error',level='WARNING'):
+            self.assertEqual(client().post('/api/signup',json=form('zz_test_su_notice_outage')).status_code,200,'an auxiliary notice cannot fail a committed signup')
+
+    def test_admin_bell_notice_is_aggregate_daily_and_role_guarded(self):
+        admin,uid=self.member('notice_admin',True);member,mid=self.member('notice_member')
+        while self.real_accounts()%9:self.member('notice_padding'+str(self.real_accounts()))
+        self.env(KINETTA_MAX_ACCOUNTS=self.real_accounts()*10//9)
+        with patch('app.notify.add')as ordinary_push,patch('app.account_email.send')as email:
+            with db.connect()as c:
+                signup.admin_notice(c);signup.admin_notice(c,waitlist_new=True)
+                self.assertEqual(c.execute("SELECT count(*)AS n FROM notifications WHERE user_id=%s AND kind='signup_admin'",(uid,)).fetchone()['n'],1)
+                c.execute("UPDATE notifications SET read_at=now() WHERE user_id=%s AND kind='signup_admin'",(uid,));signup.admin_notice(c)
+            ordinary_push.assert_not_called();email.assert_not_called()
+        items=admin.get('/api/notifications').json()['items'];notice=next(n for n in items if n['kind']=='signup_admin')
+        self.assertEqual(notice['who']['name'],'Kinetta');self.assertNotIn('example.test',notice['text'])
+        self.assertFalse(any(n['kind']=='signup_admin'for n in member.get('/api/notifications').json()['items']))
+        with db.connect()as c:
+            c.execute("UPDATE notifications SET created=now()-interval '25 hours' WHERE user_id=%s AND kind='signup_admin'",(uid,));signup.admin_notice(c,waitlist_new=True)
+            self.assertEqual(c.execute("SELECT count(*)AS n FROM notifications WHERE user_id=%s AND kind='signup_admin'",(uid,)).fetchone()['n'],2)
+            c.execute('UPDATE users SET is_admin=false WHERE id=%s',(uid,))
+        self.assertFalse(any(n['kind']=='signup_admin'for n in admin.get('/api/notifications').json()['items']))
 
 if __name__ == '__main__': unittest.main()

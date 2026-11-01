@@ -24,21 +24,26 @@ DATA = os.environ.get('FIT_DATA', '/data')
 LOGIN_RE = re.compile(r'^[a-z][a-z0-9_]{1,29}$')
 RESERVED_LOGINS = {'admin','administrator','support','kinetta','help','api','root','system','security','moderator','team','login','logout','signup','beta','privacy','terms','account','settings','static','www','me'}
 
-def reserved_login(value):
-    return re.sub(r'[0-9]+$', '', value) in RESERVED_LOGINS
+def reserved_login(value, *, allow_test=False):
+    normalized = re.sub(r'[_ .-]', '', value.lower()).translate(str.maketrans('035', 'oes'))
+    protected = '|'.join(''.join('[i1]' if ch=='i' else '[l1]' if ch=='l' else ch for ch in word)
+                         for word in ('support','admin','help','official','staff','team','moderator'))
+    return (not allow_test and value.startswith('zz_test')) or re.sub(r'[0-9]+$', '', value) in RESERVED_LOGINS or bool(re.search('k[i1]netta', normalized) or re.fullmatch(protected, normalized))
 
 
-def _clean_login(v, *, current=None):
+def _clean_login(v, *, current=None, allow_test=False):
     v = (v or '').strip().lower()
     if not LOGIN_RE.match(v): raise HTTPException(400, 'Username: 2-30 lowercase letters, numbers or _, starting with a letter')
-    if reserved_login(v) and v != (current or '').strip().lower(): raise HTTPException(400, 'That username is reserved. Choose another.')
+    if reserved_login(v, allow_test=allow_test) and v != (current or '').strip().lower(): raise HTTPException(400, 'That username is reserved. Choose another.')
     community_filter.check(v, 'username')
     return v
 
 
-def _clean_name(v):
+def _clean_name(v, *, current=None, is_admin=False):
     v = ' '.join((v or '').split())
     if not 1 <= len(v) <= 60: raise HTTPException(400, 'Name: 1-60 characters')
+    if not is_admin and v != current and re.fullmatch(r'kinetta(?: (?:support|team|official))?', v, re.I):
+        raise HTTPException(400, 'That name is reserved. Choose another.')
     community_filter.check(v, 'name')
     return v
 
@@ -53,8 +58,8 @@ class AccountIn(BaseModel):
 @router.put('/api/account')
 def set_account(body: AccountIn, user=Depends(current_user)):
     vals = {}
-    if body.name is not None: vals['name'] = _clean_name(body.name)
-    if body.login is not None: vals['login'] = _clean_login(body.login, current=user['login'])
+    if body.name is not None: vals['name'] = _clean_name(body.name, current=user['name'], is_admin=user['is_admin'])
+    if body.login is not None: vals['login'] = _clean_login(body.login, current=user['login'], allow_test=user['is_admin'])
     layout=body.profile_layout.model_dump() if body.profile_layout is not None else None
     if vals or body.bio is not None or layout is not None:
         try:
@@ -122,16 +127,18 @@ class PersonIn(BaseModel):
 
 def add_person(body: PersonIn, user=Depends(admin_user)):
     _admin(user)
-    login, name = _clean_login(body.login), _clean_name(body.name)
+    login, name = _clean_login(body.login, allow_test=True), _clean_name(body.name)
     auth.check_new_password(body.password, login)
     try:
         with db.connect() as c:
-            uid = c.execute('INSERT INTO users (login, name, pw_hash) VALUES (%s, %s, %s) RETURNING id',
+            uid = c.execute('INSERT INTO users (login, name, pw_hash, signup_guard) VALUES (%s, %s, %s, true) RETURNING id',
                             (login, name, auth.hash_pw(body.password))).fetchone()['id']
             c.execute('INSERT INTO profile (user_id) VALUES (%s)', (uid,))
             audit(c,user['id'],'account.create_member',uid)
     except errors.UniqueViolation:
         raise HTTPException(409, 'That username is taken')
+    from .signup import capacity_notice
+    capacity_notice()
     return {'ok': True, 'login': login}
 
 
@@ -250,9 +257,9 @@ def username_availability(request: Request, login: str = Query('', max_length=60
         except HTTPException as error:
             if error.status_code != 401: raise
     value = login.strip().lower()
-    try: value = _clean_login(value, current=who['login'] if who else None)
+    try: value = _clean_login(value, current=who['login'] if who else None, allow_test=bool(who and who['is_admin']))
     except HTTPException as error:
-        return {'login':value,'available':False,'reason':'reserved' if reserved_login(value) else 'invalid','message':error.detail}
+        return {'login':value,'available':False,'reason':'reserved' if reserved_login(value, allow_test=bool(who and who['is_admin'])) else 'invalid','message':error.detail}
     with db.connect() as c:
         taken = c.execute('SELECT 1 FROM users WHERE login=%s AND (%s::bigint IS NULL OR id<>%s)', (value,who['id'] if who else None,who['id'] if who else None)).fetchone()
         suggestion = suggest_login(c,value,taken={value}) if taken else None
@@ -262,7 +269,7 @@ def username_availability(request: Request, login: str = Query('', max_length=60
 def _create(c, body, is_admin=False):
     """Insert a person + their settings; returns the new id."""
     community_terms.check_agreement(body.terms_version)
-    name, chosen = _clean_name(body.name), body.login and body.login.strip()
+    name, chosen = _clean_name(body.name, is_admin=is_admin), body.login and body.login.strip()
     login = _clean_login(chosen) if chosen else suggest_login(c, name)
     community_filter.check(login, 'username')
     auth.check_new_password(body.password, login)
@@ -271,8 +278,8 @@ def _create(c, body, is_admin=False):
     while True:
         try:
             with c.transaction():
-                uid = c.execute('INSERT INTO users (login, name, pw_hash, is_admin) VALUES (%s, %s, %s, %s) RETURNING id',
-                                (login, name, auth.hash_pw(body.password), is_admin)).fetchone()['id']
+                uid = c.execute('INSERT INTO users (login, name, pw_hash, is_admin, signup_guard) VALUES (%s, %s, %s, %s, %s) RETURNING id',
+                                (login, name, auth.hash_pw(body.password), is_admin, not is_admin)).fetchone()['id']
             break
         except errors.UniqueViolation:
             if chosen or len(tried) > 20: raise HTTPException(409, 'That username is taken')
@@ -299,6 +306,8 @@ def setup(body: NewAccountIn, request: Request, response: Response):
         if c.execute('SELECT 1 FROM users LIMIT 1').fetchone(): raise HTTPException(409, 'This server is already set up - log in instead')
         uid = _create(c, body, is_admin=True)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
+    from .signup import capacity_notice
+    capacity_notice()
     auth.set_cookie(request, response, token)
     return {'ok': True}
 
@@ -392,7 +401,8 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
         if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email, welcome=True)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
-    from . import cards,challenges
+    from . import cards,challenges,signup
+    signup.capacity_notice()
     with db.connect() as c:cards.consume_signup(c,uid)
     with db.connect() as c:challenges.consume_signup(c,uid)
     auth.set_cookie(request, response, token)

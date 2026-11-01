@@ -14,6 +14,8 @@ class Challenges(unittest.TestCase):
  @classmethod
  def setUpClass(cls):cls.pw=auth.hash_pw('fictional challenge testing phrase')
  def setUp(self):
+  original=api_account.reserved_login
+  names=patch.object(api_account,'reserved_login',side_effect=lambda v,**kw:original(v,allow_test=True));names.start();self.addCleanup(names.stop)
   self.ids=[];self.clients=[];self.now=dt.datetime.now(dt.timezone.utc)
   with db.connect() as c:
    for n in range(3):
