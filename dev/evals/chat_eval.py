@@ -145,7 +145,7 @@ def main():
             def capture(*args,**kwargs):
                 if META['dry_run']:return {'intent':'unclear','foods':[],'reply':'Dry run.'},{},'dry-run'
                 answer,raw,model=real_ask(*args,**kwargs)
-                CAPTURES.append({'kind':args[2] if len(args)>2 else kwargs.get('kind','unknown'),
+                CAPTURES.append({'kind':args[2] if len(args)>2 else kwargs.get('label','unknown'),
                     'model':model,'usage':raw.get('usageMetadata',{}),'answer':answer})
                 return answer,raw,model
             stack.enter_context(patch('app.food_photo.ask',side_effect=capture))
