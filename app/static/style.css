@@ -1305,11 +1305,11 @@ button.lift-prev:active { background: var(--card2); }
 @media (min-width: 900px) { .activity-media { --media-height: 240px; } .detail-media, .map-head .detail-media { --media-height: 480px; } .map-head .media-track { border-radius: var(--r); } }
 
 /* ---------- Sky Blue · shared across every route and sheet ---------- */
-:root { --display: var(--font-display); --numf: var(--font); --shadow: none; }
+:root { --display: var(--font-display); --numf: var(--font); --shadow: none; --app-page-title-preferred:var(--text-app-title); }
 .shell { max-width: 800px; padding-inline: var(--space-5); }
 .shell h1 { font-family: var(--display); font-weight: 700; font-size: var(--text-app-title); letter-spacing: -.03em; }
-/* Preserve the approved minimum when a browser uses a smaller root font. */
-body .shell h1 { font-size:max(28px,var(--text-app-title)); }
+/* Keep the page-title minimum without overriding component heading styles. */
+body { --text-app-title:max(28px,var(--app-page-title-preferred)); }
 .sec-head, .card > h2, .post-title, .sheet-head h2, .plan-hero h2 { font-family: var(--display); font-weight: 700; }
 .sec-head { font-size: var(--text-app-section); margin-top: 20px; }
 .card { border: 1px solid var(--line); padding: 14px; margin-bottom: 12px; }
@@ -1866,6 +1866,7 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .thread-heading .back { justify-self: start; }
 .thread-heading #thread-settings { justify-self: end; }
 .food-thread h1, .food-thread.has-messages > h1, .food-thread .thread-heading h1 { margin: 0; font: 650 var(--text-app-title)/1.3 var(--font); }
+.food-thread .thread-heading > .back, .food-thread .thread-heading > .icon-btn { align-self:start; }
 .thread-intro { margin: 8px 0 0; color: var(--tx2); font-size: .85rem; text-align: center; }
 #thread-messages { overflow-anchor: none; position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 14px; padding: 12px 0 8px; }
 #thread-messages article { min-width: 0; overflow-wrap: anywhere; }
