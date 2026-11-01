@@ -43,7 +43,9 @@ jobs:
           FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
         run: |
           python3 dev/tests/admin_features_fixture.py
+          python3 dev/tests/feature_consent_fixture.py
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/admin_features_ui.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/feature_consent_ui.cjs
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100
@@ -224,7 +226,9 @@ jobs:
           FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
         run: |
           python3 dev/tests/admin_features_fixture.py
+          python3 dev/tests/feature_consent_fixture.py
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/admin_features_ui.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/feature_consent_ui.cjs
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100

@@ -152,7 +152,7 @@ async def guard(request: Request, call_next):
     # the app's own files carry their version in the address (?v=), so a phone may keep each one for good (2026-10-13)
     if request.url.path.startswith('/static/') and request.query_params.get('v') and r.status_code == 200:
         r.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
-    # every API call is recorded (request_log.py): who, which endpoint, result and time; the id helps match a support question
+    # API diagnostics record who, endpoint, result and time; successful optional counters bypass this linked history.
     if request.url.path.startswith('/api/'):
         r.headers['X-Request-Id'] = request_id
         request_log.record(request, r.status_code, (time.monotonic() - started) * 1000, request_id)

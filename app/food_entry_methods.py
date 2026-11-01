@@ -4,8 +4,8 @@ METHODS=('describe','search','barcode','photo','recipe','copy_yesterday','copy_o
 
 
 def stamp(c,uid,ids,method):
-    from .admin_features import enabled
-    if not enabled() or not ids:return
+    from .admin_features import allowed
+    if not ids or not allowed(c,uid):return
     if method not in METHODS:method='unknown'
     c.execute('UPDATE food_entries SET entry_method=%s WHERE user_id=%s AND id=ANY(%s) AND entry_method IS NULL',
               (method,uid,ids))
@@ -52,8 +52,8 @@ def copy_rows(c,uid,ids,rows,destination_day):
 
 def staged_copy(c,uid,message,rows,destination_day):
     import datetime as dt
-    from .admin_features import enabled
-    if not enabled():return [{k:v for k,v in r.items() if k!='entry_method'} for r in rows]
+    from .admin_features import allowed
+    if not allowed(c,uid):return [{k:v for k,v in r.items() if k!='entry_method'} for r in rows]
     dates={r.get('day') for r in rows if isinstance(r.get('day'),dt.date)}
     method='copy_yesterday' if len(dates)==1 and next(iter(dates))==destination_day-dt.timedelta(days=1) else 'copy_other'
     return [{**r,'entry_method':method} for r in rows]

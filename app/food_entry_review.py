@@ -128,8 +128,6 @@ def stage_items(body:ItemsIn,user=Depends(current_user)):
         if 'kcal' not in item.model_fields_set:raise HTTPException(422,'Enter calories for this food')
         value=item.model_dump(mode='json',exclude={'client_id'}|({'entry_method'} if item.entry_method is None else set()));ref=value.get('ref') or {}
         missing=set(ref.get('unknown_nutrients') or [])|{k for k in N.ALL if k not in item.model_fields_set or getattr(item,k) is None}
-        from .admin_features import enabled as metrics_enabled
-        if not metrics_enabled():value.pop('entry_method',None)
         value['ref']={**ref,'unknown_nutrients':sorted(missing)};values.append(value)
     if len(json.dumps(values))>150000:raise HTTPException(422,'Add fewer foods at a time')
     for e in values:
@@ -139,6 +137,9 @@ def stage_items(body:ItemsIn,user=Depends(current_user)):
     with db.connect() as c:
         m,created=root(c,user['id'],body.client_id,request,'Added for review: '+', '.join(e['name'] for e in values)[:600])
         if not created:return T.answer_with(c,user['id'],m)
+        from . import admin_features
+        if not admin_features.allowed(c,user['id']):
+            for e in values:e.pop('entry_method',None)
         result={'composed':True,'day':str(m['local_day']),'meal':values[0]['meal'],
                 'parts':[{'index':0,'text':m['body'],'status':'ready','manual':True,'entries':values,'logged':False}]}
         return C.write(c,user['id'],m,result)

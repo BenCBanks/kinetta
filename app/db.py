@@ -1959,7 +1959,12 @@ MIGRATIONS = [
     ALTER TABLE admin_feature_salts ENABLE ROW LEVEL SECURITY;
     ALTER TABLE admin_feature_keys ENABLE ROW LEVEL SECURITY;
     ALTER TABLE admin_feature_state ENABLE ROW LEVEL SECURITY;
-    ALTER TABLE profile ADD COLUMN welcome_completed_day date,ADD COLUMN health_setup_day date;
+    ALTER TABLE profile ADD COLUMN welcome_completed_day date,ADD COLUMN health_setup_day date,
+      ADD COLUMN feature_metrics_ok boolean NOT NULL DEFAULT false,ADD COLUMN feature_metrics_at timestamptz,
+      ADD COLUMN feature_metrics_version text;
+    ALTER TABLE profile ADD CONSTRAINT feature_metrics_consent CHECK
+      ((feature_metrics_ok AND feature_metrics_at IS NOT NULL AND feature_metrics_version IS NOT NULL)
+       OR (NOT feature_metrics_ok AND feature_metrics_at IS NULL AND feature_metrics_version IS NULL));
     ALTER TABLE food_entries ADD COLUMN entry_method text CHECK(entry_method IN
       ('describe','search','barcode','photo','recipe','copy_yesterday','copy_other','manual','mixed','other','unknown'));
     CREATE INDEX activities_feature_created ON activities(created,user_id);
