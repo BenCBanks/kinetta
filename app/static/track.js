@@ -255,7 +255,7 @@ const Track = (() => {
       finally { mapTimer = null; }
     }, mapView?.el===$('#track-map')?1200:0);
   }
-  function followButton() { const b = $('#track-follow'); if (b) { b.innerHTML = follow ? 'Whole route' : `${svg('track')}Follow me`; b.setAttribute('aria-pressed', String(!follow)); } }
+  function followButton() { const b = $('#track-follow'); if (b) { const label=follow?'Whole route':'Follow me';b.innerHTML = `${svg('track')}<span>${label}</span>`;b.setAttribute('aria-label',label);b.setAttribute('title',label);b.setAttribute('aria-pressed', String(!follow)); } }
   function discard() {
     const id=session?.id,account=readOwner(),live=()=>session?.id===id&&account===readOwner();if(!id)return;
     sheet('Discard this recording?', '<p>This removes the draft from this device. It has not been saved as an activity.</p><button class="ghost wide" id="tr-keep">Keep recording</button><button class="primary danger-btn wide" id="tr-discard">Discard recording</button>', (b, close) => {

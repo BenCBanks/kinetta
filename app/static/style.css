@@ -2823,17 +2823,18 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
 .track-live-main .track-map-wrap .live-record-map { position: absolute; inset: 0; height: auto; }
 .track-live.has-route .track-live-main .track-map-wrap { min-height: 96px; }
 .track-live-main .track-controls { margin-top: 16px; }
-@media (max-height: 700px) { .track-live .track-hero { margin: 6px 0 2px; } .track-live .track-hero b { font-size: clamp(48px, 15vw, 64px); }
+@media (max-height: 700px) { .track-live .track-hero { margin: 4px 0 0; } .track-live .track-hero b { font-size: clamp(48px, 15vw, 64px); }
   .track-live .track-live-metrics { margin: 6px 0 2px; } .track-live .track-controls .round-btn { width: 76px; height: 76px; }
-  .track-live.has-route .track-splits { display: none; } .track-live-main .track-controls { margin-top: 4px; }
-  .track-live-main .track-map-wrap, .track-live.has-route .track-live-main .track-map-wrap { min-height: 72px; } }
+  .track-live.has-route .track-splits { display: none; } .track-live-main .track-controls { margin-top: 2px; }
+  /* A 44px Retry target, 8px gap and two lines of map credits need at least this height. */
+  .track-live-main .track-map-wrap, .track-live.has-route .track-live-main .track-map-wrap { min-height: 88px; } }
 @media(max-height:700px){
-  .track-live .track-hero #track-time{font-size:clamp(2rem,8dvh,3.5rem);line-height:1.05}
+  .track-live .track-hero #track-time{font-size:clamp(2rem,7dvh,3rem);line-height:1.05}
   .track-live.is-recording .track-controls .round-btn{width:60px;height:60px}
   .track-live .track-map-wrap #track-gps-live{top:auto;bottom:10px}
   .track-live .track-map-wrap #track-follow{left:auto;right:64px;top:10px;bottom:auto}
   @container track-live (max-width:16.5rem){
-    .track-live-metrics{grid-template-columns:1fr;margin-block:4px;gap:4px;padding-block:0}
+    .track-live-metrics{grid-template-columns:1fr;margin-block:2px;gap:4px;padding-block:0}
     .track-live-metrics>div{display:flex;align-items:baseline;justify-content:center;gap:12px;border-left:0}
     .track-live-metrics>div:last-child{padding-top:0}
     .track-live-metrics b{font-size:1.25rem}
@@ -2843,11 +2844,14 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
 /* Live-map failure feedback stays separate from GPS, controls and attribution at every text size. */
 .track-live .track-map-wrap:not(.full) #track-follow{left:auto;right:64px;top:10px;bottom:auto}
 .track-live .track-map-wrap:not(.full):has(.map-unavailable:not([hidden])) #track-gps-live{top:0;bottom:auto;left:10px;min-height:24px;padding:2px 6px;font-size:12px}
-.track-live .track-map-wrap:not(.full) .map-unavailable:not([hidden]){display:flex;align-items:center;max-width:none;padding:0 4px;font-size:12px;white-space:nowrap}
-.track-live .track-map-wrap:not(.full) .map-unavailable-message{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.track-live .track-map-wrap:not(.full) .map-unavailable button{font-size:12px;padding:4px}
-.track-live .track-map-wrap:not(.full) .leaflet-bottom.leaflet-left{bottom:0}
-.track-live .track-map-wrap:not(.full) .leaflet-bottom.leaflet-left .leaflet-control{margin-bottom:0;margin-left:4px}
+.track-live .track-map-wrap:not(.full) .leaflet-bottom.leaflet-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:100%;max-width:100%}
+.track-live .track-map-wrap:not(.full) .leaflet-control-attribution{order:2;box-sizing:border-box;width:max-content;max-width:100%}
+.track-live .track-map-wrap:not(.full) .map-unavailable:not([hidden]){display:flex;align-items:center;align-self:center;order:1;margin:0;padding:0;font-size:12px;white-space:nowrap}
+.track-live .track-map-wrap:not(.full) .map-unavailable-message,.track-live .track-map-wrap:not(.full) .map-retry-context,
+.track-live .track-map-wrap:not(.full):has(.map-unavailable:not([hidden])) #track-follow span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.track-live .track-map-wrap:not(.full) .map-unavailable button{width:44px;font-size:12px;padding:4px}
+.track-live .track-map-wrap:not(.full):has(.map-unavailable:not([hidden])) #track-follow{top:0;width:44px;height:44px;padding:0;justify-content:center}
+.track-live .track-map-wrap:not(.full):has(.map-unavailable:not([hidden]))>.map-full{top:0}
 /* Lifting summary after Finish (28 October 2026): the run summary's title and stat card, then records and exercises. */
 .lift-review .track-review-when svg { width: 18px; height: 18px; color: var(--accent); }
 .lift-review-records h3, .lift-review-ex h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
