@@ -82,7 +82,7 @@ def reserve(meta,attempt_id):
 def spending(meta):
     with db.connect() as c:
         row=c.execute('''SELECT count(*) AS attempts,coalesce(sum(a.charged_micros),0) AS charged_micros,
-            count(*) FILTER(WHERE a.state NOT IN ('measured','released')) AS unknown_cost_attempts
+            count(*) FILTER(WHERE a.state='reserved' OR a.state='failed' AND a.charged_micros>0) AS unknown_cost_attempts
             FROM zz_test_food_eval_attempts e JOIN ai_food_attempts a ON a.id=e.attempt_id WHERE e.run_id=%s''',
             (meta['run_id'],)).fetchone()
         return {key:int(value) for key,value in row.items()}

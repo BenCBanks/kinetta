@@ -24,6 +24,7 @@ if MODE == 'ai' and os.environ.get('CHAT_EVAL_ACCEPT_PAID_CALLS') != '1': sys.ex
 COMPARISON=os.environ.get('CHAT_EVAL_COMPARISON')=='1'
 META=None
 if COMPARISON:
+    if MODE!='ai':raise SystemExit('Comparison captures require CHAT_EVAL_MODE=ai')
     from food_eval_guard import provenance,setup,reserve,spending,output as capture_output
     META=provenance()
     if META['mode']=='candidate':from app import food_memory_understand as CONTEXTUAL
