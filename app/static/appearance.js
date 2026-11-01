@@ -21,10 +21,9 @@
     const current=++revision;
     let timer;
     try{
-      const state=await new Promise((resolve,reject)=>{
-        timer=setTimeout(()=>reject(new Error('Display preferences timed out')),2000);
-        Promise.resolve().then(()=>plugin.getState()).then(resolve,reject);
-      });
+      // Keep the solid fallback while a slow bridge is pending, but retain its real eventual reply.
+      timer=setTimeout(()=>{if(!closed&&current===revision)root.classList.remove('native-display-ready');},2000);
+      const state=await Promise.resolve().then(()=>plugin.getState());
       if(!closed&&current===revision)apply(state);
     }catch{
       if(!closed&&current===revision)root.classList.remove('native-display-ready');
