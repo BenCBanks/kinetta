@@ -263,11 +263,11 @@ flowchart LR
  Detail -->|Edit sets · 2| LiftEdit["Track lifting editor boundary"]
  Detail -->|Exercise · 2| LiftHistory["Progress exercise history boundary"]
  Detail -->|Matched route · 2| MatchedRoute["Matched route · /route/:id · Progress boundary"]
- Detail -->|Personal best selects Efforts · 2| ActivityPanes
- ActivityPanes -->|All records from Efforts · 3| RecordHistory["Records · /progress?view=records&sport=:sport · Progress boundary"]
- ActivityPanes -->|Similar effort from Efforts · 3| Detail
+ Detail -->|Efforts or personal best · 2| OwnEfforts["Efforts pane"]
+ OwnEfforts -->|All records · 3| RecordHistory["Records · /progress?view=records&sport=:sport · Progress boundary"]
+ OwnEfforts -->|Similar effort · 3| Detail
  Activity -.->|Start a challenge · 1, low-friend state, source-only| ChallengeTemplates
- Activity -.->|Public segments · 1, low-friend state, source-only| Segments["Public segments · /progress/segments · Progress boundary"]
+ Activity -->|Public segments · 1, low-friend state| Segments["Public segments · /progress/segments · Progress boundary"]
  Challenges -->|Create · 2| ChallengeTemplates["Five challenge templates sheet"]
  ChallengeTemplates -->|Choose · 2 direct or3 via list| ChallengeCreate["Challenge form and custom dates"]
  ChallengeCreate -->|Create · 3 direct or4 via list| ChallengeInvite["Invitation picture and link sheet"]
