@@ -60,7 +60,7 @@ textarea { min-height: 96px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: var(--tx3); opacity: 1; }
 input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .primary, .ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-align: center; line-height: 1.2;
-  min-height: 44px; padding: 8px 18px; border-radius: 999px; font-weight: 700; font-size: 14.5px; letter-spacing: -.005em;
+  min-height: 44px; padding: 8px 18px; border-radius: 999px; font-weight: 700; font-size: 15px; letter-spacing: -.005em;
   transition: transform .1s ease, background-color .15s ease, opacity .15s; }
 .primary { border: 0; background: var(--btn); color: var(--onbtn); box-shadow: 0 6px 16px color-mix(in srgb, var(--btn) 22%, transparent); }
 .ghost { border: 0; background: var(--card2); color: var(--tx); }
@@ -73,7 +73,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .primary.sm svg { width: 16px; height: 16px; }
 .primary.danger-btn { background: var(--alert); color: var(--color-on-error); }
 .ghost.danger { color: var(--alert); }
-.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 650; min-height: 44px; min-width: 44px; padding: 0 4px; font-size: 14px;
+.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 650; min-height: 44px; min-width: 44px; padding: 0 4px; font-size: 15px;
   display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 .linkbtn svg { width: 18px; height: 18px; } .linkbtn.danger { color: var(--alert); }
 .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--card); color: var(--tx);
@@ -118,9 +118,9 @@ details.fold-row[open] { padding-bottom: 12px; }
 .btncol { display: grid; gap: 10px; } .btncol > * { width: 100%; min-height: 42px; }
 
 /* segmented control + chips */
-.seg { display: inline-flex; background: var(--segbg); border-radius: 16px; padding: 4px; gap: 2px; }
-.seg button { min-height: 34px; padding: 5px 12px; border: 0; border-radius: 12px; background: transparent; font-weight: 600; color: var(--tx2);
-  font-size: 14px; line-height: 1.2; text-align: center; transition: background-color .15s, color .15s; }
+.seg { display: inline-flex; background: var(--segbg); border-radius: 16px; padding: 4px; gap: 8px; }
+.seg button { min-width:44px; min-height: 44px; padding: 5px 12px; border: 0; border-radius: 12px; background: transparent; font-weight: 600; color: var(--tx2);
+  font-size: 15px; line-height: 1.2; text-align: center; transition: background-color .15s, color .15s; }
 /* the chosen one reads at a glance (2026-10-12): raised, blue and bold; the others recede */
 .seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--segon); color: var(--accent); font-weight: 700;
   box-shadow: 0 1px 3px rgba(0,0,0,.14), 0 0 0 .5px rgba(0,0,0,.05); }
@@ -193,13 +193,13 @@ details.fold-row[open] { padding-bottom: 12px; }
 /* Floating Frost: one stable five-tab capsule (owner-selected, 29 October 2026).
    --tab-h reserves its actual height and bottom gap in existing sticky controls and page padding. */
 nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: var(--nav-bottom); max-width: 520px; margin: 0 auto;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; height: var(--nav-height); padding: var(--nav-padding);
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; height: var(--nav-height); padding: var(--nav-padding);
   border: 1px solid var(--line); border-color: color-mix(in srgb, var(--card) 80%, var(--line)); border-radius: calc(var(--nav-height) / 2);
   background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none;
   box-shadow: 0 8px 26px rgba(21,25,29,.12), inset 0 1px 0 rgba(255,255,255,.7); }
 nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px;
   min-width: 0; min-height: 44px; height: 100%; padding: 3px 0; border-radius: 30px;
-  color: var(--tx2); font-size: 12px; font-weight: 650; line-height: 1.15; letter-spacing: 0; transition: color .12s, background-color .12s; }
+  color: var(--tx2); font-size: 13px; font-weight: 650; line-height: 1.15; letter-spacing: 0; transition: color .12s, background-color .12s; }
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; }
 nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750;
   box-shadow: inset 0 0 0 1px var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 82%, transparent); }
@@ -211,7 +211,7 @@ nav.tabs :is(a,button):active { transform: scale(.96); }
     -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3); }
 }
 @media (prefers-color-scheme: dark) { nav.tabs { box-shadow: 0 8px 26px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08); } }
-@media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs :is(a,button) { font-size: 11px; } }
+@media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs { left:8px; right:8px; } nav.tabs :is(a,button) { font-size: 13px; } }
 @media (max-height: 700px) { :root { --nav-height: 64px; --nav-padding: 5px; --nav-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); } }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   nav.tabs { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--color-outline); }
@@ -227,20 +227,22 @@ html.native-increase-contrast nav.tabs [aria-current="page"] { box-shadow: inset
   nav.tabs [aria-current="page"] { background: Highlight; color: HighlightText; box-shadow: none; outline: 2px solid Highlight; outline-offset: -2px; }
 }
 @media (prefers-reduced-motion: reduce) { nav.tabs :is(a,button) { transition: none !important; transform: none; } nav.tabs svg { animation: none !important; } }
-.tab-n { position: absolute; top: 3px; left: auto; right: calc(50% - 24px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  background: var(--btn); color: var(--onbtn); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
+.tab-n { position: absolute; top: 3px; left: auto; right: calc(50% - 24px); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  background: var(--btn); color: var(--onbtn); font-size: 13px; font-weight: 700; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
 
 /* ---------- cards, rows, lists ---------- */
 .card { background: var(--card); border-radius: var(--r); padding: 18px; margin-bottom: 14px; box-shadow: var(--shadow); }
 .card > h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; margin-bottom: 12px; min-height: 28px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.card > h2 .more, .card a.more { font-size: 14px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; min-height: 28px; letter-spacing: 0; }
-.card > h2 .linkbtn, .card > h2 a.more { min-height: 36px; margin: -4px -4px -4px 0; }
+.card > h2 .more, .card a.more { font-size: 15px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; min-height: 44px; min-width:44px; padding-inline:8px; letter-spacing: 0; }
+.card > h2 .linkbtn, .card > h2 a.more { min-height: 44px; margin: 0; }
 .card p { margin: 0; color: var(--tx2); line-height: 1.5; }
 .card.tap { display: block; color: inherit; transition: transform .12s ease; } .card.tap:active { transform: scale(.985); }
 .card.flat { box-shadow: none; background: var(--card2); }
 .card.flat .ghead:first-child { margin-top: 0; }
 .card.list { padding-top: 4px; padding-bottom: 4px; }
+.card.list > .row-link + .row-link { margin-top:8px; }
+.card.list > .row-link:has(small) { min-height:56px; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); min-height: 52px; }
 .row:first-child { border-top: 0; }
 .row-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; min-height: 48px; color: inherit;
@@ -290,7 +292,7 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 
 /* badges */
 .badges { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: var(--card2); color: var(--tx); }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--card2); color: var(--tx); }
 .badge svg { width: 13px; height: 13px; }
 .badge.pr { background: var(--card2); color: var(--tx); }
 .badge.good { background: var(--card2); color: var(--tx); }
@@ -395,9 +397,9 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sp.ski { --c: var(--ski); } .sp.workout { --c: var(--workout); }
 .stats3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .stat { min-width: 0; }
-.stat small, .tcard small { display: block; color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
+.stat small, .tcard small { display: block; color: var(--tx3); font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
 .stat b { display: block; white-space: nowrap; margin-top: 2px; font: 700 20px/1.15 var(--numf); letter-spacing: -.02em; }
-.stat b i { font: 500 12px var(--font); font-style: normal; color: var(--tx3); margin-left: 3px; letter-spacing: 0; }
+.stat b i { font: 500 13px var(--font); font-style: normal; color: var(--tx3); margin-left: 3px; letter-spacing: 0; }
 .stats3.big .stat b { font-size: 22px; }
 /* solid colour tiles for headline numbers (2026-10-13): white text on the tile colours */
 .stats3.tiles { gap: 8px; }
@@ -588,7 +590,7 @@ tr.muted td { color: var(--tx3); }
 .zone-track { background: var(--card2); border-radius: 7px; }
 .zone-name { display: inline-flex; gap: 6px; align-items: center; }
 .zone-name i { width: 8px; height: 8px; border-radius: 50%; background: var(--zone-color); }
-.zone .num small { display: block; font-size: 11px; }
+.zone small,.zone .num small { display: block; font-size: 13px; }
 .medal { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 800; color: #0E1113; margin-right: 6px; }
 .medal.m1 { background: color-mix(in srgb,var(--gold) 16%,var(--card)); color: var(--gold); border: 1px solid var(--gold); } .medal.m2 { background: var(--silver); } .medal.m3 { background: var(--bronze); }
 
@@ -639,7 +641,7 @@ tr.muted td { color: var(--tx3); }
 .prediction-method p{margin:8px 0 12px;line-height:1.6;}
 /* One shared effort source leaves room for the fitness chart, with full-size source/help targets. */
 #fi-pred > .card,#fi-body > .card { padding:16px; }
-#fi-pred .card h2,#fi-body .card h2 { font-size:max(17px,1.25rem); }
+#fi-pred .card h2,#fi-body .card h2 { font-size:var(--text-app-card-title); }
 .fitness-predictions .pred { gap:8px 12px; }
 .fitness-predictions .pred > div { padding:8px 0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
 .fitness-predictions .pred > div.pr { background:var(--prog2); }
@@ -700,7 +702,7 @@ tr.muted td { color: var(--tx3); }
 
 .nrange { margin-bottom: 4px; }
 
-.daypick { position: relative; cursor: pointer; } .daypick svg { width: 16px; height: 16px; color: var(--accent); }
+.daypick { position: relative; cursor: pointer; font-size:max(15px,.9375rem); } .daypick svg { width: 16px; height: 16px; color: var(--accent); }
 .daypick input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
 .backtoday { margin: -6px 0 10px; }
 /* Nutrition (2026-10-12 redesign): the row of small buttons (View, the day, ‹ ›) and the one summary card */
@@ -899,7 +901,7 @@ button.pw:active { opacity: .6; }
 /* today's workout in a soft run-orange box; green once it's done (2026-10-13) */
 .pt-w { --c: var(--run); display: grid; gap: 2px; margin-top: 12px; padding: 14px 16px; border-radius: var(--r3); background: var(--card2); }
 .pt-w.done, .pt-w.ran { --c: var(--prog); }
-.pt-w small { font-size: 11px; text-transform: uppercase; font-weight: 800; color: var(--tx3); letter-spacing: .05em; }
+.pt-w small { font-size: 13px; text-transform: uppercase; font-weight: 800; color: var(--tx3); letter-spacing: .05em; }
 .pt-w b { font-size: 17px; } .pt-w.done b::after { content: " ✓"; color: var(--good); }
 a.pt-w { color: inherit; text-decoration: none; } .pt-w.ran small { color: var(--tx3); display: inline-flex; align-items: center; gap: 4px; }
 .pt-w small svg { width: 13px; height: 13px; }
@@ -943,8 +945,8 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 
 /* ---------- notifications (2026-10-11) ---------- */
 .icon-btn.bell { position: relative; }
-.bell-dot { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--btn); color: var(--onbtn);
-  font: 700 11px/18px var(--numf); text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.bell-dot { position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--btn); color: var(--onbtn);
+  font: 700 13px/20px var(--numf); text-align: center; box-shadow: 0 0 0 2px var(--bg); }
 .notes-group + .notes-group { margin-top: 22px; }
 .notes-h { margin: 0 4px 8px; font: 700 13px/1.2 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--tx3); }
 .notes { padding: 4px 0; }
@@ -953,7 +955,7 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .note:active { background: var(--card2); }
 .note .grow { flex: 1; min-width: 0; display: grid; gap: 4px; padding-top: 1px; }
 .note-t { font-size: 15.5px; line-height: 1.4; font-weight: 450; overflow-wrap: anywhere; } .note-t b { font-weight: 700; }
-.note-q { color: var(--tx2); font-size: 14.5px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.note-q { color: var(--tx2); font-size: 15px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .note small { font-size: 13px; color: var(--tx3); }
 .note-dot { flex: none; width: 10px; height: 10px; margin-top: 7px; border-radius: 50%; background: var(--accent); }
 .note-av { position: relative; flex: none; }
@@ -1074,14 +1076,14 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 /* ---------- activity page sections (2026-10-12) ---------- */
 /* tabs share the width by the length of their names, and the text shrinks a little on narrow phones: never cut off, never
    scrolling (2026-10-12) */
-.shell > .seg.wide.dtabs { display: flex; overflow: visible; margin: 2px 0 12px; }
-.seg.dtabs button { flex: 1 1 auto; min-width: 0; min-height: 36px; padding: 5px 4px; font-size: clamp(11px, 3.3vw, 13px); white-space: nowrap; letter-spacing: -.1px; }
+.shell > .seg.wide.dtabs { display: flex; overflow-x: auto; margin: 2px 0 12px; }
+.seg.dtabs button { flex: 1 0 auto; min-width: 44px; min-height: 36px; padding: 5px 4px; font-size: max(15px,.9375rem); white-space: nowrap; letter-spacing: -.1px; }
 .dpane > .card:last-child { margin-bottom: 12px; }
 
 /* ---------- cooking: type what went in, like a chat (2026-10-12) ---------- */
 .cchat { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .cchat:empty { display: none; }
-.cmsg { margin: 0; max-width: 86%; padding: 9px 13px; border-radius: 18px; font-size: 14.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.cmsg { margin: 0; max-width: 86%; padding: 9px 13px; border-radius: 18px; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
 .cmsg.me { align-self: flex-end; background: var(--btn); color: var(--onbtn); border-bottom-right-radius: 6px; }
 .cmsg.ai { align-self: flex-start; background: var(--card2); color: var(--tx); border-bottom-left-radius: 6px; }
 .cmsg.ai .linkbtn { display: block; margin-top: 4px; padding: 0; min-height: 0; font-size: 13.5px; }
@@ -1328,7 +1330,7 @@ button.lift-prev:active { background: var(--card2); }
 .stats3.tiles .stat small { color: var(--tx2); }
 .stat, .hero .stat { min-width: 0; }
 .stat b { font-size: var(--text-app-stat); overflow-wrap: anywhere; }
-.stat b i { font-size: 12px; font-weight: 400; }
+.stat b i { font-size: 13px; font-weight: 400; }
 .hero .stat b { font-size: var(--text-app-stat); }
 .stats3 { grid-template-columns:repeat(auto-fit,minmax(min(100%,6rem),1fr)); }
 /* Software keyboard takes precedence over global navigation on every route. */
@@ -1349,7 +1351,7 @@ html.keyboard-open nav.tabs { display: none; }
 .feature-guide-card summary { cursor: pointer; min-height: 44px; padding-block: 12px; }
 .guide-open { display: flex; gap: 8px; justify-content: space-between; align-items: center; min-height: 44px; margin-top: 8px; color: var(--accent); font-weight: 650; }
 .guide-open svg { width: 20px; height: 20px; flex: none; }
-.meal-library-row { display: flex; gap: 4px; align-items: center; border-bottom: 1px solid var(--line); }
+.meal-library-row { display: flex; gap: 8px; margin-bottom:8px; align-items: center; border-bottom: 1px solid var(--line); }
 .meal-library-row .fe { flex: 1; min-width: 0; border-bottom: 0; }
 .meal-library-row > .icon-btn { flex: none; }
 .health-progress:empty { display: none; }
@@ -1407,11 +1409,11 @@ html.keyboard-open nav.tabs { display: none; }
 .macro-bars .macro-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
 .macro-bars .track { margin-top: 6px; height: 6px; }
 .tfood { background: var(--card); }
-@media (max-width: 360px) { .shell { padding-inline: 16px; } .stats3 { gap: 6px; } .top .acts { gap: 0; } }
+@media (max-width: 360px) { .shell { padding-inline: 16px; } .stats3 { gap: 6px; } .top .acts { gap: 8px; } }
 @media (min-width: 1000px) { .shell { padding-inline: 32px; } .feed-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: start; } }
 
 /* Compact agenda and trustworthy metric wrapping at narrow widths. */
-.macro-bars .macro-line b { font: 600 14px/1.4 var(--font); letter-spacing: 0; }
+.macro-bars .macro-line b { font: 600 15px/1.4 var(--font); letter-spacing: 0; }
 .stat b { white-space: normal; }
 .stats3.big .stat b { font-size: var(--text-app-stat); }
 .sec-head a, .card > h2 a.more { display: inline-flex; align-items: center; min-height: 44px; }
@@ -1421,10 +1423,10 @@ html.keyboard-open nav.tabs { display: none; }
 .plan-today .pt-w[data-workout-kind] { border-inline-start-color: var(--btn); }   /* Today: a blue edge (Ben, 2026-10-23); the plan page keeps easy/hard colours */
 .plan-today .ptrack { display: none; }
 .plan-today p { margin: 6px 0; }
-.plan-today .plan-meta { font-size: 12px; }
+.plan-today .plan-meta { font-size: 13px; }
 #t-food .tfood { padding: 14px 16px; }
-#t-food .tfood > h2 { margin-bottom: 6px; }
-#t-food .tfood .stat b { font-size: 19px; }
+#t-food .tfood > h2 { margin-bottom: 8px; }
+#t-food .tfood .stat b { font-size: 20px; }
 #t-food .tfood .wide { min-height: 44px; margin-top: 8px; }
 
 .stat b { overflow-wrap: normal; }
@@ -1440,11 +1442,11 @@ html.keyboard-open nav.tabs { display: none; }
 /* Progress home (30 October): filters stay with their card, discovery stays visible. */
 .progress-heading .progress-back { flex:none; margin-right:0; }
 .progress-heading h1 { min-width:0; }
-.progress-filters { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin-bottom:12px; }
-.progress-filters .range-btn { min-height:44px; padding:6px 8px; font-size:.8125rem; }
+.progress-filters { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.progress-filters .range-btn { min-height:44px; padding:6px 8px; font-size:max(15px,.9375rem); }
 .progress-filters .rng { margin:0; }
 .progress-filters .me-period { margin:0 0 0 auto; }
-.progress-filters .me-period button { min-width:44px; min-height:44px; padding:0 5px; font-size:.75rem; }
+.progress-filters .me-period button { min-width:44px; min-height:44px; padding:0 5px; font-size:max(15px,.9375rem); }
 .progress-totals-title { display:flex; align-items:center; min-height:44px; font-size:var(--text-app-card-title); font-weight:700; color:var(--tx); }
 .progress-totals-title svg { width:16px; height:16px; }
 .progress-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
@@ -1738,7 +1740,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 /* Feed cards: only the photo and the name open the profile; anywhere else on the card opens the activity. */
 .post-av { flex: none; display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 50%; color: inherit; }
 .post-av:active { transform: scale(.92); }
-.post-name { justify-self: start; max-width: 100%; color: var(--tx); font-size: 15px; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
+.post-name { display:inline-flex; align-items:center; min-height:44px; min-width:44px; justify-self: start; max-width: 100%; color: var(--tx); font-size: 15px; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
 .post-name:active { opacity: .6; }
 .post[data-href] { cursor: pointer; transition: transform .14s cubic-bezier(.2, .8, .2, 1); }
 .post.press { transform: scale(.985); }
@@ -1772,14 +1774,14 @@ nav.tabs :is(a,button)[aria-current="page"] svg { animation: tab-pick .28s cubic
 .card.tap.me-form { display: grid; gap: 10px; padding: 14px 16px; color: var(--tx); }
 .me-form-top { display: flex; align-items: center; gap: 12px; }
 .me-form-top .grow { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.me-form-top small { font-size: 12px; color: var(--tx3); font-weight: 600; }
+.me-form-top small { font-size: 13px; color: var(--tx3); font-weight: 600; }
 .me-form .status-word { font-size: 19px; font-weight: 750; margin: 0; }
 .me-form .status-word.good { color: var(--good); } .me-form .status-word.warn { color: var(--warn); }
 .me-form-top > svg { flex: none; width: 16px; height: 16px; color: var(--tx3); }
 .me-form-nums { display: flex; gap: 24px; }
 .me-form-nums span { display: grid; }
 .me-form-nums b { font-size: 20px; font-weight: 750; }
-.me-form-nums small { font-size: 12px; color: var(--tx3); }
+.me-form-nums small { font-size: 13px; color: var(--tx3); }
 .me-form .callout { margin: 0; }
 .me-tools { margin-top: 24px; }
 
@@ -1861,7 +1863,7 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .thread-heading { flex-shrink: 0; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .thread-heading .back { justify-self: start; }
 .thread-heading #thread-settings { justify-self: end; }
-.food-thread h1, .food-thread.has-messages > h1, .food-thread .thread-heading h1 { margin: 0; font: 650 1.05rem/1.3 var(--font); }
+.food-thread h1, .food-thread.has-messages > h1, .food-thread .thread-heading h1 { margin: 0; font: 650 var(--text-app-title)/1.3 var(--font); }
 .thread-intro { margin: 8px 0 0; color: var(--tx2); font-size: .85rem; text-align: center; }
 #thread-messages { overflow-anchor: none; position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 14px; padding: 12px 0 8px; }
 #thread-messages article { min-width: 0; overflow-wrap: anywhere; }
@@ -1899,7 +1901,7 @@ button.thread-food { cursor: pointer; }
 .food-thread .thread-destination { min-height: 32px; padding: 0; color: var(--tx2); font-size: .8rem; text-align: left; justify-content: flex-start; }
 .thread-destination svg { width: 12px; height: 12px; }
 #thread-empty { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 0; }
-#thread-empty h2 { font-size: 1.4rem; margin: 0 0 12px; }
+#thread-empty h2 { font-size: var(--text-app-section); margin: 0 0 12px; }
 #thread-empty p { max-width: 36ch; color: var(--tx2); }
 .thread-composer { flex-shrink: 0; position: relative; padding: 8px 0 0; background: var(--bg); z-index: 3; }
 .thread-menu { margin-bottom: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); }
@@ -1907,13 +1909,13 @@ button.thread-food { cursor: pointer; }
 .food-thread .thread-tools button { display: grid; justify-items: center; gap: 4px; min-height: 64px; padding: 8px 2px; border: 0; border-radius: 14px; background: none; color: var(--tx); font-size: .78rem; font-weight: 600; overflow-wrap: anywhere; }
 .thread-tools button svg { width: 26px; height: 26px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
 #thread-usual-suggestion button { margin-bottom: 8px; }
-.thread-compose-row { display: flex; align-items: flex-end; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 26px; background: var(--card); }
+.thread-compose-row { display: flex; align-items: flex-end; gap: 8px; padding: 4px; border: 1px solid var(--line); border-radius: 26px; background: var(--card); }
 .thread-reuse { display:flex; flex-wrap:wrap; gap:8px; padding:0 0 8px; }
 .thread-reuse[hidden] { display:none; }
 .thread-reuse button { display:flex; align-items:center; flex:0 1 auto; max-width:100%; min-width:44px; min-height:44px; padding:4px 0; border:0; background:none; color:var(--tx); font-size:max(15px,.9375rem); font-weight:500; line-height:1.3; text-align:left; }
 .thread-reuse .reuse-pill { display:block; max-width:100%; min-height:36px; padding:7px 12px; border:1px solid var(--line); border-radius:999px; background:var(--card); overflow-wrap:anywhere; }
 .thread-reuse .reuse-kcal { color:var(--tx2); white-space:nowrap; }
-.thread-compose-row textarea { flex: 1; width: 0; min-width: 0; min-height: 40px; max-height: 160px; padding: 9px 4px; border: 0; background: none; resize: none; font-size: max(16px, 1rem); line-height: 1.4; }
+.thread-compose-row textarea { flex: 1; width: 0; min-width: 0; min-height: 44px; max-height: 160px; padding: 9px 4px; border: 0; background: none; resize: none; font-size: max(16px, 1rem); line-height: 1.4; }
 .thread-compose-row textarea:focus { outline: none; box-shadow: none; }
 /* Chat mode (owner, 2026-10-18): no tab bar while chatting, like a messaging app; ‹ Nutrition goes back. */
 html:has(.food-thread) { --tab-h: 0px; }
@@ -2208,7 +2210,7 @@ html:has(.recipe-page) nav.tabs { display: none; }
 .shell.recipe-page { min-height: 0; display: flex; flex-direction: column; overflow: hidden;
   padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
 .recipe-page > .top { flex: none; margin-bottom: 8px; gap: 4px; }
-.recipe-page .top .acts { gap: 4px; }
+.recipe-page .top .acts { gap: 8px; }
 .recipe-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; overflow-wrap: anywhere; padding: 2px 2px 12px; }
 .recipe-page > .composer { min-width: 0; max-width: 100%; flex: none; position: relative; bottom: auto; margin: 8px 0 0; }
 .recipe-page > .finish { flex: none; margin: 8px 0 0; }
@@ -2499,15 +2501,15 @@ button.thread-food:active { opacity: .7; }
 .today-macros { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0; }
 .today-macro { --macro:var(--s1); min-width:0; }
 .today-macro.m-carbs_g { --macro:var(--s4); } .today-macro.m-fat_g { --macro:var(--s2); }
-.today-macro>small { display:flex; align-items:center; gap:5px; color:color-mix(in srgb,var(--macro) 75%,var(--tx)); font-size:12px; font-weight:650; }
+.today-macro>small { display:flex; align-items:center; gap:5px; color:color-mix(in srgb,var(--macro) 75%,var(--tx)); font-size:13px; font-weight:650; }
 .today-macro>small::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--macro); flex:none; }
-.today-macro>b { display:block; font-size:1.2rem; overflow-wrap:anywhere; }
-.today-macro>b i { font:400 12px var(--font); color:var(--tx2); }
-.today-macro>span { display:block; font-size:11px; }
+.today-macro>b { display:block; font-size:1.25rem; overflow-wrap:anywhere; }
+.today-macro>b i { font:400 13px var(--font); color:var(--tx2); }
+.today-macro>span { display:block; font-size:13px; }
 
 /* Gold celebrates an actual result; workout type remains visible alongside completion. */
 .achievement-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-.achievement { display:inline-flex; align-items:center; gap:5px; color:var(--tx); background:var(--card2); border-radius:999px; padding:4px 9px; font-size:12px; font-weight:500; }
+.achievement { display:inline-flex; align-items:center; gap:5px; color:var(--tx); background:var(--card2); border-radius:999px; padding:4px 9px; font-size:13px; font-weight:500; }
 .achievement svg { width:15px; height:15px; flex:none; }
 .achievement > svg:first-child { color:var(--color-achievement); }
 .goal.reached .track .bar { background:var(--color-achievement); }
@@ -2883,7 +2885,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 @media(max-width:360px){#fr-own-list .person{gap:8px;padding-inline:10px}#fr-own-list .btnrow button{padding-inline:10px}}
 
 /* Deliberate progress recap pictures (#294). */
-.recap-offer{display:flex;align-items:center;gap:12px}.recap-offer>div:first-child{min-width:0;flex:1}.recap-offer h2{font-size:17px;margin:0}.recap-offer p{margin:4px 0 0}.recap-offer .acts{flex:none}
+.recap-offer{display:flex;align-items:center;gap:12px}
+.recap-offer .acts { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }.recap-offer>div:first-child{min-width:0;flex:1}.recap-offer h2{font-size:17px;margin:0}.recap-offer p{margin:4px 0 0}.recap-offer .acts{flex:none}
 @media(max-width:360px){.recap-offer{align-items:flex-start;flex-wrap:wrap}.recap-offer .acts{margin-left:auto}}
 
 /* One quiet reuse action; meal cards keep Add as their only empty-state control. */
@@ -2898,10 +2901,10 @@ html.keyboard-open .thread-quick-actions {display:none;}
 #tm-food{min-height:44px;padding:6px 0 6px 12px;}
 
 /* Activity charts lead with named series; dense recorded values live in Details. */
-.activity-charts .readout { margin: 0 0 8px; padding: 0; min-height: 44px; background: var(--card); box-shadow: none; justify-content: space-between; align-items: center; font-size: .8rem; }
+.activity-charts .readout { margin: 0 0 8px; padding: 0; min-height: 44px; background: var(--card); box-shadow: none; justify-content: space-between; align-items: center; font-size: .8125rem; }
 .activity-charts .readout .linkbtn { min-height: 44px; padding-inline: 8px; }
 .activity-charts .chartbox + .chartbox { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
-.activity-charts .lbl { gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 0 0 10px; font-size: .8rem; }
+.activity-charts .lbl { gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 0 0 10px; font-size: .8125rem; }
 .activity-charts .lbl > span:first-child { color: var(--tx); font-size: 1rem; font-weight: 650; }
 .activity-charts .lbl > span:last-child { margin-left: auto; }
 .activity-charts .ln { stroke-width: 2.25; }
@@ -2941,26 +2944,26 @@ html.keyboard-open .thread-quick-actions {display:none;}
 
 /* Compact Progress home, refined after owner/PR review. Detail charts retain their full layout. */
 .progress-home-totals .card { padding:12px; }
-.progress-home-totals .progress-filters { gap:4px; margin-bottom:6px; }
+.progress-home-totals .progress-filters { gap:8px; margin-bottom:6px; }
 .progress-home-totals .progress-totals-title { font-size:1rem; }
 .progress-home-totals .progress-totals-title svg { width:12px; height:12px; }
 .progress-home-totals .progress-filters .range-btn { padding:4px 6px; gap:3px; }
 .progress-home-totals .progress-filters .range-btn svg { width:14px; height:14px; }
-.progress-home-totals .me-period button { padding-inline:3px; font-size:.6875rem; }
+.progress-home-totals .me-period button { padding-inline:3px; font-size:max(15px,.9375rem); }
 .progress-home-totals .empty { text-align:left; }
 .progress-home-totals .empty p { margin:0; }
 .progress-home-totals #m-chart { margin-top:0; }
 .progress-pair { gap:10px; }
 .progress-summary { min-height:0; padding:12px; }
-.progress-summary h2 { margin:0 0 6px; font-size:1rem; }
+.progress-summary h2 { margin:0 0 6px; font-size:var(--text-app-card-title); }
 .progress-summary > span { font-size:.8125rem; line-height:1.4; }
 .progress-summary > span b { font-size:.875rem; }
-.progress-summary small { font-size:.75rem; }
+.progress-summary small { font-size:.8125rem; }
 .progress-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .progress-grid .progress-tile { min-height:86px; gap:8px; }
 .progress-tile-name { flex-wrap:nowrap; }
 .progress-tile-name svg { width:18px; height:18px; }
-.progress-tile-name b { flex:1; flex-basis:auto; min-width:0; font-size:.8125rem; }
+.progress-tile-name b { flex:1; flex-basis:auto; min-width:0; font-size:.9375rem; }
 .progress-tile .small { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .progress-tile .progress-new { width:5px; flex:none; height:5px; font-size:0; gap:0; }
 .progress-grid .progress-tile:last-child { grid-column:1/-1; }
@@ -2975,3 +2978,6 @@ html.keyboard-open .thread-quick-actions {display:none;}
 
 .progress-home-totals #m-chart .legend { display:none; }
 .progress-home-totals .progress-average > small::before { content:""; display:inline-block; width:10px; border-top:1.5px dashed var(--tx2); margin-right:4px; vertical-align:middle; }
+
+/* Keep the explanatory action clear of the consent switch below it. */
+#ai > .seg { margin-top:8px; }

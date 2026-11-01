@@ -11,7 +11,7 @@
 .challenge-summary small { color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.4; }
 .challenge-summary svg { width:18px; height:18px; flex:none; }
 .feed-low { margin:0 0 12px; }
-.feed-low h2 { font-size:1rem; margin:0 0 10px; }
+.feed-low h2 { font-size:var(--text-app-section); margin:0 0 10px; }
 .feed-low .progress-grid { margin-bottom:0; }
 .feed-low .progress-tile:last-child:nth-child(even) { grid-column:auto; }
 .feed-empty { margin:12px 0; }

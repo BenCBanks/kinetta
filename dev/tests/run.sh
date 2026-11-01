@@ -17,6 +17,9 @@ MODE="${1:---full}"
 python3 dev/tests/test_asset_build.py
 python3 dev/tests/test_ci_policy.py
 node --check dev/tests/asset_cache_ui.cjs
+node dev/tests/test_spacing_geometry.cjs
+node --check dev/tests/spacing_audit.cjs
+node --check dev/tests/test_spacing_dom.cjs
 
 echo "== shared design tokens and contrast"
 python3 dev/design/build_tokens.py --check

@@ -1625,7 +1625,7 @@ secondary route to set actions. Lifecycle and rendered tests cover warm-up/delet
 
 ## Compact recipes and foods (31 October2026, #392)
 
-The managed library is Recipes & foods, with one New menu for recipe, link and food creation. Recipe rows keep one-line names/previews, server-supplied per-serving calories when the yield is known, otherwise a labelled total, and44px log actions. Recipes and foods remain separate sections so typical lists show both; long libraries add one search across all names and direct Recipes/Foods links. Shared recipes, saved combinations and Add food's separate portion-picker purpose stay intact. No discovery grid belongs on this sub-page.
+The managed library is Recipes & foods, with one New menu for recipe, link and food creation. Recipe rows keep complete names/previews, wrapping when needed, server-supplied per-serving calories when the yield is known, otherwise a labelled total, and44px log actions. Recipes and foods remain separate sections so typical lists show both; long libraries add one search across all names and direct Recipes/Foods links. Shared recipes, saved combinations and Add food's separate portion-picker purpose stay intact. No discovery grid belongs on this sub-page.
 
 Recipe name, ingredients and yield/weight already autosave. The editor shows a quiet Saved/title-retry status and a small header Done action instead of a large sticky Save button. Done keeps the existing pending-ingredient/name/measurement validation and opens the deliberate Save recipe review, whose optional Add to log remains off initially and leads to explicit meal/portion review. It does not add a keyboard Done bar. Rename, Delete and Help live in More; Kit remains in the header. Four labelled nutrition values and compact ingredient name/amount rows with a kcal column give yield/weight controls more room above the unchanged composer. Privacy/source warnings remain. No step-by-step cooking mode exists here; none is introduced. Editing behavior, nutrition calculations, import and logging confirmations are unchanged.
 
@@ -1785,3 +1785,24 @@ The field retains16px minimum text and right padding for the button. Autocapital
 Administration → Features puts range, trend and sort on one row and folds hidden feature rows. Privacy definitions remain available under Details. Use Sky Blue, readable counts and consistent date axes; changes are labelled as uses. Fewer than three contributors and complementary small-group totals are hidden before rendering. Daily anonymous counts use user-days across dates; record rows use distinct people. The signup chart shows independent milestones for all accounts created in the range, with unknown earlier setup history labelled.
 
 The operator controls new collection with `KINETTA_FEATURE_METRICS`; the distributed default is off. When enabled, every signed-in account contributes, without a Welcome card or per-person Settings switch (owner decision, 1 November). Reports contain aggregate totals, never private text or a single-person history. Fixed feature names and broad food-entry actions use daily rotating keys and 13-month totals. Account/server/late-response guards remain in place. The privacy policy explains these counts, and App Store disclosures distinguish linked first-party Analytics from tracking.
+
+## Measured spacing and type audit (1 November 2026, #424)
+
+`dev/tests/spacing_audit.cjs` checks the main screens at 390×844 with the default 16px root and 330×667
+with 24px text, in both themes. The independent `spacing` job runs on every PR, including drafts.
+It uses the type scale above:44px minimum hit areas,8px between neighbours,44px inputs with at least 16px
+text, and the page/section/card/body/secondary limits. Maximum text sizes grow proportionally when the
+root is enlarged. Primary metric values are 20–24px; one marked hero per card or sheet can reach 40px.
+A hero's units stay secondary text, and split number spans count as one value.
+
+Names, recipe descriptions and sticky activity titles wrap. The seven-button Me chart scrolls horizontally
+rather than shrinking its targets or dropping days/weeks; focus reveals a complete target and current
+periods begin in view. Page and sheet content below the fold is measured too. Closed disclosures and
+invisible/inert controls are excluded, with regression coverage for nested closed disclosures.
+
+The small exception file documents map copyright links, compact chart ticks, the accessible New dot
+the specifically paired Goals corner on Nutrition, and photo controls over their own image. The paired overlay is accepted only
+when both controls have exposed hit areas. Exceptions never disable clipping, unrelated neighbours or
+other controls. Existing violations may only be temporarily listed with a specific selector and linked issue.
+See `dev/tests/README.md` for local use and deliberate-regression checks. Browser geometry is separate
+from signed iPhone/device acceptance.

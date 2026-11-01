@@ -1,0 +1,69 @@
+[
+  {
+    "id": "new-feature-dot-label",
+    "selector": ".progress-tile .progress-new[aria-label=\"New feature\"]",
+    "metric": "font-min",
+    "kind": "accessible-decoration",
+    "exact": 0,
+    "reason": "This visible marker is a small decorative dot; its hidden New label remains available to screen readers. It is not displayed body copy."
+  },
+  {
+    "id": "compact-axis-ticks",
+    "selector": ":is(#d-charts,#m-chart,#nt-overview-chart,#p-vdot,#p-load) .chartbox > svg > text.yl",
+    "metric": "font-min",
+    "kind": "chart-tick",
+    "minimum": 10,
+    "reason": "These fixed-size numeric/date axis ticks accompany the chart's accessible keyboard readout. Only the small tick type is excepted; clipping and interactive controls remain checked."
+  },
+  {
+    "id": "map-credit-inline-targets",
+    "selector": ".leaflet-control-attribution a",
+    "metric": "target",
+    "kind": "attribution",
+    "reason": "Required map credits are ordinary inline copyright/source links inside the map; separate 44px buttons would obscure the route."
+  },
+  {
+    "id": "map-credit-inline-gaps",
+    "selector": ".leaflet-control-attribution a",
+    "metric": "gap",
+    "kind": "attribution",
+    "reason": "Adjacent copyright/source links form one inline attribution sentence. Their font and complete visible text remain checked."
+  },
+  {
+    "id": "map-credit-type",
+    "selector": ".leaflet-control-attribution,.leaflet-control-attribution a",
+    "metric": "font-min",
+    "kind": "attribution",
+    "minimum": 12,
+    "reason": "Required map copyright/source text uses compact 12px type. Smaller credits still fail, and clipping remains audited."
+  },
+  {
+    "id": "nutrition-goal-corner",
+    "selector": "#fd-goal",
+    "withSelector": "#fd-sum > .nutrition-day-summary > .nutrition-summary-link",
+    "metric": "overlap",
+    "kind": "intentional-overlay",
+    "maximum": 44,
+    "reason": "Goals occupies the reserved102px corner of the nutrition overview link. Only this pair may share a bounding box, and both must have exposed hit areas; no content or other control is exempted."
+  },
+  {
+    "id": "photo-navigation-over-image",
+    "selector": ".activity-media .media-controls > button",
+    "withSelector": ".activity-media .media-photo",
+    "within": ".activity-media",
+    "metric": "overlap",
+    "kind": "intentional-overlay",
+    "maximum": 44,
+    "reason": "Previous and Next deliberately float over the tappable photo in their own carousel. Both controls must be exposed; navigation controls overlapping each other or another toolbar still fail."
+  },
+  {
+    "id": "detail-toolbar-over-photo",
+    "selector": ".detail-map-hero > .detail-floating .back,.detail-map-hero > .detail-floating .icon-btn",
+    "withSelector": ".detail-map-hero .media-photo",
+    "within": ".detail-map-hero",
+    "metric": "overlap",
+    "kind": "intentional-overlay",
+    "maximum": 44,
+    "reason": "The detail Back and action toolbar deliberately floats over its own tappable hero photo. Only that image/tool pairing is excepted, with both hit areas exposed; toolbar-to-arrow collisions still fail."
+  }
+]

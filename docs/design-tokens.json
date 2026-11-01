@@ -101,8 +101,8 @@
     "text-title": "38px",
     "text-today": "44px",
     "text-app-title": "2rem",
-    "text-app-section": "1.333333rem",
-    "text-app-card-title": "1.2rem",
+    "text-app-section": "1.25rem",
+    "text-app-card-title": "1.0625rem",
     "text-app-metric": "1.866667rem",
     "text-app-stat": "1.333333rem"
   },

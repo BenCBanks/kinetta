@@ -1,14 +1,14 @@
 /* Recipes/foods and ingredient editor density (#392), using the shared theme. */
 .recipes-library .library-heading { display:flex;align-items:center;gap:10px;margin:12px 0; }
-.recipes-library .library-heading h1 { flex:1;min-width:0;font-size:1.35rem;margin:0; }
-.recipes-library #tm-new { display:flex;align-items:center;gap:3px;min-width:72px;min-height:44px;flex:none; }
+.recipes-library .library-heading h1 { flex:1;min-width:0;font-size:var(--text-app-title);margin:0; }
+.recipes-library #tm-new { display:flex;align-items:center;gap:3px;min-width:72px;min-height:44px;flex:none;font-size:max(15px,.9375rem); }
 .recipes-library #tm-new svg { width:16px;height:16px; }
 .library-section { margin:16px 0;scroll-margin-top:72px; }
-.library-section h2 { font-size:.8rem;color:var(--tx2);margin:0 0 4px; }
-.library-row { display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line); }
+.library-section h2 { font-size:var(--text-app-section);color:var(--tx2);margin:0 0 8px; }
+.library-row { display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid var(--line); }
 .library-row > .icon-btn { flex:none; }
 .library-recipe { flex:1;min-width:0;display:grid;gap:3px;border:0;background:none;text-align:left;color:var(--tx);padding:10px 0;font:inherit;min-height:74px; }
-.library-recipe b,.library-recipe small { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.library-recipe b,.library-recipe small { white-space:normal;overflow-wrap:anywhere; }
 .library-recipe b { font-size:1rem; }
 .library-recipe small { font-size:.8125rem;color:var(--tx2); }
 .library-recipe > span { font-size:.8125rem;color:var(--tx2); }

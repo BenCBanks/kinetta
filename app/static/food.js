@@ -1320,7 +1320,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
     if(part==='overview'&&hasFood){
       // Three dated ticks stay readable in the small overview; the detail keeps every existing tick.
       const labelled=cols.map((c,i)=>c.tick?i:-1).filter(i=>i>=0),ticks=new Set([labelled[0],labelled[Math.floor((labelled.length-1)/2)],labelled.at(-1)]);
-      energyChart($('#nt-overview-chart',box),cols.map((c,i)=>({...c,tick:ticks.has(i)?c.tick:'',partial:c.partial||(!weekly&&c.counted===false&&c.eaten!=null)})),{height:145,burned:false,interactive:false});
+      energyChart($('#nt-overview-chart',box),cols.map((c,i)=>({...c,tick:ticks.has(i)?c.tick:'',partial:c.partial||(!weekly&&c.counted===false&&c.eaten!=null)})),{height:145,burned:false,interactive:false,labelSize:14});
     }
     if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, partial: c.partial, segs: [{k: 's3', v: c.protein_g || 0}]})),
       {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150});
