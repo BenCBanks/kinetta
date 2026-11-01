@@ -60,7 +60,7 @@ services:
       KINETTA_TESTFLIGHT_URL: ${KINETTA_TESTFLIGHT_URL:-}
       # Blank until the owner approves and publishes the matching Terms of Use draft.
       KINETTA_TERMS_VERSION: ${KINETTA_TERMS_VERSION:-}
-      # Optional improvement counts: operator availability and each person’s consent are separate.
+      # Operator switch for aggregate feature counts (all signed-in accounts). Blank = off.
       KINETTA_FEATURE_METRICS: ${KINETTA_FEATURE_METRICS:-}
       KINETTA_SIGNUP: ${KINETTA_SIGNUP:-invite}            # invite | waitlist | open (open needs email set up)
       KINETTA_MAX_ACCOUNTS: ${KINETTA_MAX_ACCOUNTS:-}      # with open signup: the waitlist takes over at this many accounts
