@@ -1968,6 +1968,10 @@ MIGRATIONS = [
     CREATE INDEX friendships_feature_accepted ON friendships(accepted) WHERE status='accepted';
     """,
 
+    # 94. Prospective new-account social budgets; existing accounts keep their original access.
+    """ALTER TABLE users ADD COLUMN signup_guard boolean NOT NULL DEFAULT false,
+      ADD COLUMN signup_confirmed_at timestamptz;""",
+
 ]
 
 

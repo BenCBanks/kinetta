@@ -44,16 +44,14 @@ def beta_open(): return {'open': enabled()}
 @router.post('/api/beta')
 def beta_request(body: BetaIn, request: Request):
     if not enabled(): raise HTTPException(404, 'Not found')
-    ip = auth.client_ip(request)
-    if auth.too_many(ip, 'beta'): raise HTTPException(429, 'Too many tries - wait 15 minutes')
-    auth.failed(ip, 'beta')          # every request counts, so one address can send only a few
-    if body.website: return {'ok': True}
     from . import account_email
     email = account_email._clean_email(body.email)
-    account_email.enrollment_limit(request, email)
+    account_email.enrollment_limit(request, email, waitlist=True)
+    if body.website: return {'ok': True}
     clean = lambda v: (v or '').strip() or None
     with db.connect() as c:
         account_email.require_available(c, email)
+        fresh = not c.execute('SELECT 1 FROM beta_requests WHERE lower(email)=%s', (email,)).fetchone()
         if c.execute("SELECT count(*) AS n FROM beta_requests WHERE status = 'new'").fetchone()['n'] >= MAX_WAITING:
             raise HTTPException(503, 'The beta is full right now - please try again later')
         origin=None
@@ -71,6 +69,9 @@ def beta_request(body: BetaIn, request: Request):
                        watch = EXCLUDED.watch, note = EXCLUDED.note,card_code=EXCLUDED.card_code,card_request=EXCLUDED.card_request,challenge_code=EXCLUDED.challenge_code,challenge_join=EXCLUDED.challenge_join
                      WHERE beta_requests.status = 'new'""",
                   (body.name.strip(), email, body.phone, clean(body.watch), clean(body.note),origin,body.card_request if origin else False,challenge,body.challenge_join if challenge else False))
+        if fresh:
+            from .signup import admin_notice
+            admin_notice(c, waitlist_new=True)
     return {'ok': True}
 
 

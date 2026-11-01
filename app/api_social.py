@@ -316,6 +316,9 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
     with db.connect() as c:
         confirmed(c, user['id'])
         t = _person(c, body.login)
+        people = c.execute('SELECT id FROM users WHERE id=ANY(%s) ORDER BY id FOR UPDATE', (sorted({user['id'],t['id']}),)).fetchall()
+        if len(people)!=len({user['id'],t['id']}): raise HTTPException(404, 'Account not found')
+        confirmed(c, user['id'])
         if t['id'] == user['id']: raise HTTPException(400, "That's your own username")
         if _blocked_pair(c, user['id'], t['id']) or c.execute(f"SELECT {unconfirmed('%s')} AS x", (t['id'],)).fetchone()['x']:
             raise HTTPException(404, 'No one on this Kinetta has that username')
@@ -330,6 +333,8 @@ def friend_request(body: FriendIn, user=Depends(current_user)):
             if n >= MAX_PENDING: raise HTTPException(429, 'You have a lot of requests waiting - cancel some first')
             try:
                 with c.transaction():
+                    from .signup import social_action
+                    social_action(c, user['id'], 'request')
                     c.execute('INSERT INTO friendships (requester, addressee) VALUES (%s, %s)', (user['id'], t['id']))
                 notify.add(c, t['id'], 'friend_request', user['id'])
             except errors.UniqueViolation:
@@ -639,10 +644,13 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
     text = body.text.strip()
     if not text: raise HTTPException(400, 'Write something first')
     with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (user['id'],)).fetchone()
         confirmed(c, user['id'])
         owner = can_see(c, user['id'], aid)
         private = owner == user['id'] and c.execute("SELECT 1 FROM activities WHERE id=%s AND user_id=%s AND visibility='me' FOR SHARE", (aid,user['id'])).fetchone()
         if not private: community_filter.public(c, user['id'], ('comment', text))
+        from .signup import social_action
+        social_action(c, user['id'], 'comment')
         cid = c.execute('INSERT INTO comments (activity_id, user_id, text) VALUES (%s, %s, %s) RETURNING id', (aid, user['id'], text)).fetchone()['id']
         notify.add(c, owner, 'comment', user['id'], activity_id=aid, comment_id=cid)
         return _social(c, aid, user['id'], owner)

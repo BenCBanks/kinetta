@@ -133,6 +133,8 @@ def request_friend(c,uid,code,joined=False):
     waiting=c.execute("SELECT count(*) AS n FROM card_connections k JOIN friendships f ON f.requester=k.member_id AND f.addressee=k.user_id AND f.status='pending' WHERE k.user_id=%s",(owner,)).fetchone()['n']
     pending=c.execute("SELECT count(*) AS n FROM friendships WHERE requester=%s AND status='pending'",(uid,)).fetchone()['n']
     if waiting>=20 or pending>=MAX_PENDING:raise HTTPException(429,'There are enough requests waiting. Try again later.')
+    from .signup import social_action
+    social_action(c,uid,'request')
     c.execute('INSERT INTO friendships(requester,addressee) VALUES(%s,%s)',(uid,owner))
     c.execute('INSERT INTO card_connections(user_id,member_id,joined) VALUES(%s,%s,%s) ON CONFLICT(user_id,member_id) DO UPDATE SET joined=card_connections.joined OR excluded.joined',(owner,uid,joined))
     notify.add(c,owner,'friend_request',uid)

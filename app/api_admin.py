@@ -26,7 +26,7 @@ PAGE=50
 
 @router.get('/people')
 def people(q:str=Query('',max_length=120),role:Literal['','admin','member']='',status:Literal['','active','unconfirmed','suspended']='',
-           tests:bool=False,page:int=Query(1,ge=1,le=1000),issue:Literal['','connections','imports','reports']='',
+           tests:bool=True,page:int=Query(1,ge=1,le=1000),issue:Literal['','connections','imports','reports']='',
            sort:Literal['joined','active','name']='joined',joined_after:dt.date|None=None,active_since:dt.date|None=None,user=Depends(admin_user)):
     where,args=['TRUE'],{'limit':PAGE,'offset':(page-1)*PAGE}
     if q.strip():

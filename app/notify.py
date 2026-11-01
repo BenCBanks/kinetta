@@ -24,8 +24,10 @@ NOTICE_VISIBLE += " AND (n.challenge_id IS NULL OR EXISTS(SELECT 1 FROM challeng
 
 NOTICE_VISIBLE += " AND (n.kind<>'activity_ready' OR EXISTS(SELECT 1 FROM activities own WHERE own.id=n.activity_id AND own.user_id=n.user_id))"
 
+NOTICE_VISIBLE += " AND (n.kind<>'signup_admin' OR EXISTS(SELECT 1 FROM users admin WHERE admin.id=n.user_id AND admin.is_admin AND admin.suspended_at IS NULL))"
+
 router = APIRouter(prefix='/api')
-KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'report')   # report: admins only, in the app only
+KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'report', 'signup_admin')   # report: admins only, in the app only
 PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',),'challenge_joins':('challenge_join',),'challenge_reminders':('challenge_reminder',),'challenge_finished':('challenge_finished',)}
 log = logging.getLogger('uvicorn.error')
 CATCH_UP_KINDS = ('friend_request', 'friend_accepted', 'comment', 'cheer')
@@ -92,6 +94,7 @@ _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NUL
 
 
 def _words(r):
+    if r['kind']=='signup_admin':return 'Sign-up capacity needs attention. Review accounts and the waitlist in Administration.', '/me/people'
     if r['kind']=='milestone':return notification_words.clean(r.get('milestone_title') or 'A milestone is ready to review',100), '/me/milestones'
     if r['kind'].startswith('challenge_'):
         text={'challenge_join':'@'+r['login']+' joined your challenge','challenge_reminder':'Three days left in your challenge','challenge_finished':'Your challenge finish picture is ready'}[r['kind']]
@@ -116,6 +119,7 @@ def _words(r):
 def _item(r):
     text, link = _words(r)
     if r['kind'].startswith('challenge_'):r={**r,'name':'@'+r['login']}
+    if r['kind']=='signup_admin':r={**r,'login':'','name':'Kinetta','photo':None}
     return {'id': r['id'], 'kind': r['kind'], 'text': text, 'link': link, 'created': r['created'], 'read': r['read'],
             'who': {'login': r['login'], 'name': r['name'], 'photo': r['photo']}}
 

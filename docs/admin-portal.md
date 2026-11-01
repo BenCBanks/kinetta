@@ -76,6 +76,14 @@ Prefer invitations when creating accounts so members choose their own password. 
 
 These confirmed account writes keep durable retry receipts. Repeating the same request ID and unchanged confirmation returns the original receipt; it does not send another reset email, overwrite a completed recovery or repeat deletion. A changed draft gets a new ID. Review an expired confirmation again. A lost acknowledgement is not proof that nothing happened; retry the unchanged confirmation or inspect audit history before starting a different action. The UI keeps validation errors in the dialog and preserves drafts. Successful actions show the target and server confirmation time.
 
+## Launch-day sign-up abuse checklist
+
+- Open Accounts sorted by newest joined. All accounts appear by default; use the test-account filter only deliberately.
+- Check signup capacity, the waitlist and reports. Every account consumes a cap place; explicit administrator invitations can still exceed it.
+- A single aggregate bell notice per rolling day flags capacity at 90%/full or new waitlist requests. It sends no email or push and includes no applicant identity.
+- Find a suspicious account, review its support status and suspend it with the exact username and a private reason. Suspension revokes sessions and hides shared content while retaining evidence.
+- Review reports through their submitted targets. Remove an account only after confirming the intended identity and understanding permanent deletion; use the existing receipt/history to resolve uncertain retries.
+
 ## Reported-item review
 
 Open an unresolved report to review only its submitted target. Comment reports show that comment. Activity reports show its name, sport, date, audience and current attached photos; routes, health measurements and private notes are excluded. Profile reports show the current bio/photo and explicitly explain that older reports lack an original snapshot. Relevant report history is scoped to that account.
