@@ -1454,7 +1454,7 @@ html.keyboard-open nav.tabs { display: none; }
 .progress-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .progress-pair .card { margin-bottom:0; }
 .progress-summary { display:block; min-height:148px; color:var(--tx); }
-.progress-summary h2 { justify-content:flex-start; display:flex; align-items:center; gap:6px; }
+.progress-summary h2 { justify-content:flex-start; display:flex; align-items:center; gap:6px;flex-wrap:wrap; }
 .progress-summary h2 svg { width:18px; height:18px; flex:none; }
 .progress-summary small { display:block; margin-top:4px; }
 .progress-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
